@@ -23,6 +23,9 @@
 #pragma once
 
 #include "dap_chain.h"
+
+// Forward declarations
+typedef struct dap_chain_net dap_chain_net_t;
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 

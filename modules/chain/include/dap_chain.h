@@ -31,7 +31,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_atom.h"  // Atom types and callbacks from common module
 #include "dap_chain_callback.h"  // General callback typedefs from common module
-#include "dap_chain_cs_callback.h"  // Consensus callback structures from consensus module
+#include "dap_chain_cs_callbacks.h"  // Consensus callback structures from consensus module
 // Forward declaration instead of include to avoid circular dependency
 typedef struct dap_chain_datum dap_chain_datum_t;
 
@@ -75,17 +75,7 @@ typedef struct dap_chain_datum_iter {
 
 // Callback structure defined in dap_chain_cs_callback.h from common module
 
-typedef enum dap_chain_type {
-    CHAIN_TYPE_INVALID = -1,
-    CHAIN_TYPE_TOKEN = 1,
-    CHAIN_TYPE_EMISSION = 2,
-    CHAIN_TYPE_TX = 3,
-    CHAIN_TYPE_CA = 4,
-    CHAIN_TYPE_SIGNER = 5,
-    CHAIN_TYPE_DECREE = 7,
-    CHAIN_TYPE_ANCHOR = 8,
-    CHAIN_TYPE_MAX
-} dap_chain_type_t;
+#include "dap_chain_types.h"
 
 // not rotate, use in state machine
 typedef enum dap_chain_sync_state {
@@ -94,6 +84,15 @@ typedef enum dap_chain_sync_state {
     CHAIN_SYNC_STATE_WAITING = 1,  // wait packet in
     CHAIN_SYNC_STATE_ERROR = 2 // have a error
 } dap_chain_sync_state_t;
+
+// Chain info for ledger registration - minimal metadata for ledger to track chains
+typedef struct dap_chain_info {
+    dap_chain_id_t chain_id;
+    char chain_name[64];
+    uint16_t chain_type;  // CHAIN_TYPE_TX, CHAIN_TYPE_EMISSION, etc
+    void *chain_ptr;      // Opaque pointer to chain (for callbacks)
+    UT_hash_handle hh;    // Hash table handle for ledger registry
+} dap_chain_info_t;
 
 typedef struct dap_chain {
     pthread_rwlock_t rwlock; // Common rwlock for the whole structure
@@ -213,6 +212,7 @@ typedef struct dap_chain_pvt {
     char *cs_name, *cs_type;
     bool cs_started;
     dap_list_t *generation_banlist;
+    uint16_t block_gen_period;  // Empty block generation period (for decree control)
 } dap_chain_pvt_t;
 
 #define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *)a->_pvt)
@@ -270,8 +270,6 @@ DAP_STATIC_INLINE dap_time_t dap_chain_get_blockhain_time(dap_chain_t *a_chain, 
 int dap_chain_atom_save(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash, char **a_atom_map);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 
-const char *dap_chain_type_to_str(dap_chain_type_t a_chain_type);
-const char *dap_datum_type_to_str(uint16_t a_datum_type);
 const char *dap_chain_get_path(dap_chain_t *a_chain);
 const char *dap_chain_get_cs_type(dap_chain_t *l_chain);
 bool dap_chain_datum_type_supported_by_chain(dap_chain_t *a_chain, uint16_t a_datum_type);

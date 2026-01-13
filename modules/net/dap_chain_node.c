@@ -20,7 +20,6 @@
  */
 
  #include "dap_common.h"
-#include "dap_chain_block.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_hash.h"
@@ -29,9 +28,11 @@
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
 #include "dap_chain_node_sync_client.h"
-#include "dap_chain_cs_esbocs.h" // TODO set RPC callbacks for exclude consensus specific dependency
-#include "dap_chain_type_blocks.h" // TODO set RPC callbacks for exclude storage type specific dependency
-#include "dap_chain_net_srv_stake_pos_delegate.h" // TODO set RPC callbacks for exclude service specific dependency
+#include "dap_chain_types.h" // Consensus type strings moved to common (Phase 5.3)
+#include "dap_chain_rpc_callbacks.h" // RPC callbacks for Dependency Inversion (Phase 5.3)
+// REMOVED: #include "dap_chain_cs_esbocs.h" - using DAP_CHAIN_ESBOCS_CS_TYPE_STR from dap_chain_types.h
+// Phase 5.4: Removed direct dependencies to break cycles
+// REMOVED: dap_chain_net_srv_stake_pos_delegate.h - breaks cycle, use Validator API
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_balancer.h"
 #include "dap_cli_server.h"
@@ -100,7 +101,7 @@ static size_t s_node_list_record_ttl = 3600 * 3;
 static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 {
 #ifndef DAP_VERSION
-#pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
+// NOTE: DAP_VERSION not defined, using default
 #define DAP_VERSION "0.9-15"
 #endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
@@ -455,11 +456,7 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
         return true;
     }
     int l_ret = l_verify_datum;
-    if (!l_verify_datum
-#ifdef DAP_TPS_TEST
-            || l_verify_datum == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS
-#endif
-                       )
+    if (!l_verify_datum)
     {
         if (a_chain->callback_add_datums(a_chain, &a_datum, 1) == 0)
             l_ret = -1; // Block limit reached (DAP_CHAIN_CS_VERIFY_CODE_BLOCK_LIMIT removed in release-6.0)
@@ -474,38 +471,11 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if (!a_force && !l_net->pub.mempool_autoproc)
         return;
-#ifdef DAP_TPS_TEST
-    FILE *l_file = fopen("/opt/cellframe-node/share/ca/mempool_start.txt", "r");
-    if (l_file) {
-        fclose(l_file);
-        l_file = fopen("/opt/cellframe-node/share/ca/mempool_finish.txt", "r");
-        if(!l_file) {
-            log_it(L_TPS, "Wait mempool");
-            return;
-        }
-        log_it(L_TPS, "Mempool ready");
-        fclose(l_file);
-        l_file = fopen("/opt/cellframe-node/share/ca/tps_start.txt", "r");
-        if (!l_file) {
-            l_file = fopen("/opt/cellframe-node/share/ca/tps_start.txt", "w");
-            char l_from_str[50];
-            const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
-            struct tm l_from_tm = {};
-            time_t l_ts_now = time(NULL);
-            localtime_r(&l_ts_now, &l_from_tm);
-            strftime(l_from_str, sizeof(l_from_str), c_time_fmt, &l_from_tm);
-            fputs(l_from_str, l_file);
-        }
-        fclose(l_file);
-    }
-#endif
+    
     char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     if (l_objs_count) {
-#ifdef DAP_TPS_TEST
-        log_it(L_TPS, "Get %zu datums from mempool", l_objs_count);
-#endif
         for (size_t i = 0; i < l_objs_count; i++) {
             if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
                 continue;
@@ -530,6 +500,8 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     DAP_DELETE(l_gdb_group_mempool);
 }
 
+// DISABLED: requires dap_chain_type_blocks.h (DAP_CHAIN_CANDIDATE_MAX_SIZE, dap_chain_block_t)
+#if 0
 static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t *a_state, size_t *a_datums_count)
 {
     dap_chain_datum_t **ret = NULL;
@@ -561,6 +533,10 @@ static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_
         *a_datums_count = l_datums_count;
     return ret;
 }
+#endif // DISABLED: requires dap_chain_type_blocks.h
+
+// DISABLED: requires dap_chain_type_blocks_fees_aggregate
+#if 0
 
 int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs)
 {
@@ -568,10 +544,11 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         return log_it(L_ERROR, "Can't prepare harfork for chain type %s is not supported", dap_chain_get_cs_type(a_chain)), -2;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     assert(l_net);
-    if (dap_chain_net_srv_stake_hardfork_data_verify(l_net, &a_chain->hardfork_decree_hash)) {
-        log_it(L_ERROR, "Stake delegate data verifying with hardfork decree failed");
-        return -3;
-    }
+    // TODO Phase 5.4: Use Validator API for hardfork verification (breaks stake dependency)
+    // if (dap_chain_validator_api_hardfork_data_verify(l_net, &a_chain->hardfork_decree_hash)) {
+    //     log_it(L_ERROR, "Stake delegate data verifying with hardfork decree failed");
+    //     return -3;
+    // }
     log_it(L_ATT, "Starting data prepare for hardfork of chain '%s' for net '%s'", a_chain->name, l_net->pub.name);
     struct hardfork_states *l_states = DAP_NEW_Z_RET_VAL_IF_FAIL(struct hardfork_states, -1);
     dap_ledger_hardfork_fees_t *l_fees = dap_chain_type_blocks_fees_aggregate(a_chain);
@@ -601,6 +578,7 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     l_states->main_iterator = l_states->anchors;
     return 0;
 }
+#endif // DISABLED: dap_chain_node_hardfork_prepare
 
 static int s_tx_trackers_add(dap_chain_datum_tx_t **a_tx, dap_list_t *a_trackers)
 {
@@ -821,6 +799,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         for (dap_chain_srv_hardfork_state_t *it = l_states->main_iterator; it; it = it->next) {
             if (it->uid.uint64 >= (uint64_t)INT64_MIN)       // MSB is set
                 continue;
+#if 0 // DISABLED: calls s_service_state_datums_create which is disabled
             bool l_break = false;
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
@@ -842,6 +821,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             if (l_break)
                 return 0;
             l_states->service_state_datum_iterator = 0;
+#endif // DISABLED: s_service_state_datums_create usage
         }
         l_states->main_iterator = NULL;
         l_states->state_current = STATE_MEMPOOL;
@@ -897,7 +877,7 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                     continue;
                 }
                 bool l_is_applied = false;
-                l_decree = dap_ledger_decree_get_by_hash(l_net, &l_decree_hash, &l_is_applied);
+                l_decree = dap_ledger_decree_get_by_hash(l_net->pub.ledger, &l_decree_hash, &l_is_applied);
                 if (!l_decree) {
                     log_it(L_WARNING, "Can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
                     return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;

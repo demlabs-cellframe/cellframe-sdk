@@ -83,9 +83,10 @@
 #include "dap_chain_node_sync_client.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_core.h"  // For dap_chain_net_core_init()
 #include "dap_chain_cs_type.h"  // For dap_chain_cs_load/start/stop
 #include "dap_chain_net_node_list.h"
-#include "dap_chain_net_tx.h"
+#include "dap_chain_net_fee.h"  // Fee management (now in net core)
 #include "dap_chain_net_balancer.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
@@ -98,23 +99,40 @@
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "rand/dap_rand.h"
+#include "dap_chain_net_api.h" 
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_net.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_cs_esbocs.h"
+// REMOVED: dap_chain_cs_esbocs.h - breaks cycle, use generic dap_chain_cs.h API
 #include "dap_chain_policy.h"
-#include "dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 #include "dap_chain_srv.h"
-#include "dap_chain_mempool.h"
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
 #include "dap_json.h"
 
 #define LOG_TAG "chain_net"
+
+// =============================================================================
+// Dependency Inversion: Callback for datum module
+// =============================================================================
+
+/**
+ * @brief Get ledger by net_id for datum module
+ * @details This callback allows datum module to access ledger without direct dependency
+ * @param a_net_id Network ID
+ * @return Ledger or NULL if not found
+ */
+static dap_ledger_t* dap_chain_net_get_ledger_by_net_id(dap_chain_net_id_t a_net_id)
+{
+    return dap_ledger_find_by_net_id(a_net_id);
+}
+
+// =============================================================================
 
 #define F_DAP_CHAIN_NET_SYNC_FROM_ZERO   ( 1 << 8 )
 
@@ -151,7 +169,6 @@ struct chain_sync_context {
   */
 typedef struct dap_chain_net_pvt {
     pthread_t proc_tid;
-    dap_chain_node_role_t node_role;
     uint32_t  flags;
 
     dap_chain_node_info_t *node_info;  // Current node's info
@@ -187,9 +204,10 @@ typedef struct dap_chain_net_pvt {
 #define PVT(a) ((dap_chain_net_pvt_t *)a->pvt)
 #define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
-static dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
+dap_chain_net_t *s_nets_by_name = NULL, *s_nets_by_id = NULL;
 
-static const char *c_net_states[] = {
+// Exported state names array for external use (CLI, etc.)
+const char *c_net_states[] = {
     [NET_STATE_LOADING]             = "NET_STATE_LOADING",
     [NET_STATE_OFFLINE]             = "NET_STATE_OFFLINE",
     [NET_STATE_LINKS_PREPARE ]      = "NET_STATE_LINKS_PREPARE",
@@ -199,7 +217,8 @@ static const char *c_net_states[] = {
     [NET_STATE_ONLINE]              = "NET_STATE_ONLINE"
 };
 
-static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
+// Exported state to string conversion
+const char *dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
     return a_state < NET_STATE_LOADING || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
 }
 
@@ -211,7 +230,7 @@ static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_st
  * @param a_net Network object
  * @return State string for user display
  */
-static inline const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net)
+const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     dap_chain_net_state_t l_state = l_net_pvt->state;
@@ -255,10 +274,13 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
 static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx);
 static void *s_net_load(void *a_arg);
 static int s_net_try_online(dap_chain_net_t *a_net);
-static int s_cli_net(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a_version);
+// CLI command handler moved to dap_chain_net_cli.c
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_sync_timer_callback(void *a_arg);
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version);
+// Forward declarations for CLI helper functions from dap_chain_net_cli.c
+extern void s_set_reply_text_node_status(dap_json_t *a_json_arr_reply, dap_chain_net_t * a_net);
+extern void _s_print_chains(dap_json_t *a_obj_chain, dap_chain_t *a_chain);
 
 /**
  * @brief
@@ -268,6 +290,14 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
  */
 int dap_chain_net_init()
 {
+    // Initialize network core module FIRST - registers API functions
+    // This must be done before any other net initialization to avoid circular dependencies
+    int l_ret = dap_chain_net_core_init();
+    if (l_ret != 0) {
+        log_it(L_ERROR, "Failed to initialize network core module (code %d)", l_ret);
+        return l_ret;
+    }
+    
     dap_ledger_init();
     dap_chain_ch_init();
     dap_chain_net_ch_init();
@@ -275,31 +305,10 @@ int dap_chain_net_init()
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
-    dap_cli_server_cmd_add ("net", s_cli_net, NULL, "Network commands", dap_chain_node_cli_cmd_id_from_str("net"),
-        "net list [chains -net <net_name>]\n"
-            "\tList all networks or list all chains in selected network\n"
-        "net -net <net_name> [-mode {update | all}] go {online | offline | sync}\n"
-            "\tFind and establish links and stay online. \n"
-            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <net_name> get {status | fee | id}\n"
-            "\tDisplays the current current status, current fee or net id.\n"
-        "net -net <net_name> stats {tx | tps} [-from <from_time>] [-to <to_time>] [-prev_sec <seconds>] \n"
-            "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
-        "net -net <net_name> [-mode {update | all}] sync {all | gdb | chains}\n"
-            "\tSyncronyze gdb, chains or everything\n"
-            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <net_name> link {list | add | del | info [-addr]| disconnect_all}\n"
-            "\tList, add, del, dump or establish links\n"
-        "net -net <net_name> ca add {-cert <cert_name> | -hash <cert_hash>}\n"
-            "\tAdd certificate to list of authority cetificates in GDB group\n"
-        "net -net <net_name> ca list\n"
-            "\tPrint list of authority cetificates from GDB group\n"
-        "net -net <net_name> ca del -hash <cert_hash> [-H {hex | base58(default)}]\n"
-            "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
-        "net -net <net_name> ledger reload\n"
-            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
-        "net -net <net_name> poa_certs list\n"
-            "\tPrint list of PoA cerificates for this network\n");
+    
+    // NO MORE callback registration - datum_dump_json moved to ledger module
+    
+    // CLI command registration moved to dap_chain_net_cli.c
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
     char l_path[MAX_PATH + 1], *l_end = NULL;
@@ -334,6 +343,11 @@ int dap_chain_net_init()
         log_it(L_WARNING, "Can't open entries on path %s, error %d: \"%s\"", l_path, errno, dap_strerror(errno));
 
     dap_enc_http_set_acl_callback(s_net_set_acl);
+    
+    // Phase 5.3: Network API registration MOVED to dap_chain_net_core_init()
+    // This resolves circular dependency between net and net_core modules
+    // Core functions (by_id, by_name, etc.) are defined in net_core, so registration should be there too
+    
     log_it(L_NOTICE,"Chain networks initialized");
     return 0;
 }
@@ -768,7 +782,7 @@ static bool s_net_states_notify_timer_callback(UNUSED_ARG void *a_arg)
  */
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 {
-    return PVT(a_net)->node_role;
+    return a_net->pub.node_role;
 }
 
 /**
@@ -831,7 +845,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     PVT(l_ret)->node_info = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1, NULL, l_ret);
 
     l_ret->pub.id = l_net_id;
-    PVT(l_ret)->node_role.enums = l_role;
+    l_ret->pub.node_role.enums = l_role;
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
     dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
     l_ret->pub.native_ticker = a_native_ticker;
@@ -973,30 +987,9 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
     dap_json_object_add_object(a_json_out, "states", l_jobj_states);
 }
 
-void s_set_reply_text_node_status(dap_json_t *a_json_arr_reply, dap_chain_net_t * a_net){
-    char* l_node_address_text_block = NULL;
-    dap_chain_node_addr_t l_cur_node_addr = { 0 };
-    l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
-    if(!l_cur_node_addr.uint64)
-        l_node_address_text_block = dap_strdup_printf(", cur node address not defined");
-    else
-        l_node_address_text_block = dap_strdup_printf(", cur node address " NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_cur_node_addr));
-
-    char* l_sync_current_link_text_block = NULL;
-    if (PVT(a_net)->state != NET_STATE_OFFLINE)
-        l_sync_current_link_text_block = dap_strdup_printf(", active links %zu from %u",
-                                                           dap_link_manager_links_count(a_net->pub.id.uint64), 0);
-    char *l_reply_str = dap_strdup_printf("Network \"%s\" has state %s (target state %s)%s%s",
-                                      a_net->pub.name, c_net_states[PVT(a_net)->state],
-                                      c_net_states[PVT(a_net)->state_target],
-                                      (l_sync_current_link_text_block)? l_sync_current_link_text_block: "",
-                                      l_node_address_text_block
-                                      );
-    dap_json_rpc_error_add(a_json_arr_reply, -1, l_reply_str);
-    DAP_DELETE(l_reply_str);
-    DAP_DELETE(l_sync_current_link_text_block);
-    DAP_DELETE(l_node_address_text_block);
-}
+// REMOVED: s_set_reply_text_node_status() - duplicate CLI helper function
+// Already implemented in modules/net/dap_chain_net_cli.c
+// This was causing "multiple definition" linker error
 /**
  * @brief reload ledger
  * command cellframe-node-cli net -net <network_name> ledger reload
@@ -1072,27 +1065,9 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 }
 
 
-void _s_print_chains(dap_json_t *a_obj_chain, dap_chain_t *a_chain) {
-    if (!a_obj_chain || !a_chain)
-        return;
-    dap_json_object_add_string(a_obj_chain, "name", a_chain->name);
-    dap_json_object_add_object(a_obj_chain, "consensus", dap_json_object_new_string(DAP_CHAIN_PVT(a_chain)->cs_name));
-
-    if (a_chain->default_datum_types_count) {
-        dap_json_t *l_jobj_default_types = dap_json_array_new();
-        if (!l_jobj_default_types) return;
-        for (uint16_t i = 0; i < a_chain->default_datum_types_count; i++) {
-            dap_json_t *l_jobj_type_str = dap_json_object_new_string(dap_chain_type_to_str(
-                    a_chain->default_datum_types[i]));
-            if (!l_jobj_type_str) {
-                dap_json_object_free(l_jobj_default_types);
-                return;
-            }
-            dap_json_array_add(l_jobj_default_types, l_jobj_type_str);
-        }
-        dap_json_object_add_object(a_obj_chain, "default_types", l_jobj_default_types);
-    }
-}
+// REMOVED: _s_print_chains() - duplicate CLI helper function
+// Already implemented in modules/net/dap_chain_net_cli.c
+// This was causing "multiple definition" linker error
 
 /**
  * @brief
@@ -1322,7 +1297,6 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 dap_json_t *l_jobj_tpd = dap_json_object_new_string(l_tpd_str);
                 DAP_DELETE(l_tpd_str);
                 dap_json_t *l_jobj_total = dap_json_object_new_uint64(l_tx_count);
-#ifdef DAP_TPS_TEST
                 long double l_tps = l_to_ts == l_from_ts ? 0 :
                                                      (long double) l_tx_count / (long double) (long double)(l_to_ts - l_from_ts);
                 char *l_tps_str = dap_strdup_printf("%.3Lf", l_tps);
@@ -1330,9 +1304,6 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 DAP_DELETE(l_tps_str);
                 if (!l_jobj_tpd || !l_jobj_total || !l_jobj_tps) {
                     dap_json_object_free(l_jobj_tps);
-#else
-                if (!l_jobj_tpd || !l_jobj_total) {
-#endif
                     
                     dap_json_object_free(l_jobj_return);
                     dap_json_object_free(l_jobj_stats);
@@ -1343,9 +1314,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-#ifdef DAP_TPS_TEST
                 dap_json_object_add_object(l_jobj_stats, "transaction_per_sec", l_jobj_tps);
-#endif
                 dap_json_object_add_object(l_jobj_stats, "transaction_per_day", l_jobj_tpd);
                 dap_json_object_add_object(l_jobj_stats, "total", l_jobj_total);
                 dap_json_object_add_object(l_jobj_return, "transaction_statistics", l_jobj_stats);
@@ -1852,22 +1821,6 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     DAP_DELETE(a_net);
 }
 
-#ifdef DAP_LEDGER_TEST
-int dap_chain_net_test_init()
-{
-    dap_chain_net_t *l_net = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t) );
-    PVT(l_net)->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1 );
-    l_net->pub.id.uint64 = 0xFA0;
-    strcpy(l_net->pub.name, "Snet");
-    l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
-    l_net->pub.native_ticker = "TestCoin";
-    PVT(l_net)->node_role.enums = NODE_ROLE_ROOT;
-    HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_net);
-    HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
-    return 0;
-}
-#endif
-
 
 static int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const char *a_hosts_type, struct request_link_info ***a_hosts, uint16_t *a_hosts_count)
 {
@@ -1972,10 +1925,10 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
     dap_chain_srv_start(a_net->pub.id, DAP_CHAIN_SRV_STAKE_POS_DELEGATE_LITERAL, NULL);     // Harcoded core service starting for delegated keys storage
 
     uint16_t l_ledger_flags = 0;
-    switch ( PVT( a_net )->node_role.enums ) {
+    switch ( a_net->pub.node_role.enums ) {
     case NODE_ROLE_LIGHT:
         //break;
-        PVT( a_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
+        a_net->pub.node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
     case NODE_ROLE_FULL:
         l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
         if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
@@ -1987,8 +1940,32 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
         l_ledger_flags |= DAP_LEDGER_MAPPED;
 
     int l_res = s_chains_init_all(a_net, a_net->pub.config->path, &l_ledger_flags);
-    if (!l_res)
-        a_net->pub.ledger = dap_ledger_create(a_net, l_ledger_flags);
+    if (!l_res) {
+        // Create ledger with new options API
+        dap_ledger_create_options_t *l_opts = dap_ledger_create_options_default();
+        if (!l_opts) {
+            log_it(L_ERROR, "Failed to create ledger options for net %s", a_net->pub.name);
+            return -1;
+        }
+        
+        // Configure ledger options from network
+        dap_strncpy(l_opts->name, a_net->pub.name, sizeof(l_opts->name));
+        l_opts->net_id = a_net->pub.id;
+        l_opts->flags = l_ledger_flags;
+        l_opts->native_ticker = a_net->pub.native_ticker;
+        
+        // Create ledger
+        a_net->pub.ledger = dap_ledger_create(l_opts);
+        DAP_DELETE(l_opts);
+        
+        if (!a_net->pub.ledger) {
+            log_it(L_ERROR, "Failed to create ledger for net %s", a_net->pub.name);
+            return -1;
+        }
+        
+        // Set ledger callbacks and context
+        a_net->pub.ledger->load_mode = true;
+    }
     
     return l_res;
     
@@ -2097,7 +2074,7 @@ static void *s_net_load(void *a_arg)
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         int l_ret = dap_chain_load_all(l_chain);
         l_chain->atom_num_last = 0;
-        switch ( l_net_pvt->node_role.enums ) {
+        switch ( l_net->pub.node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:
         /* Processes everything in mempool*/
             l_chain->is_datum_pool_proc = true;
@@ -2132,7 +2109,7 @@ static void *s_net_load(void *a_arg)
             l_net_pvt->mempool_clusters = l_cluster;
     }
     dap_ledger_load_end(l_net->pub.ledger);
-    log_it(L_INFO, "Node role \"%s\" established in net %s", dap_chain_node_role_to_str(l_net_pvt->node_role), l_net->pub.name);
+    log_it(L_INFO, "Node role \"%s\" established in net %s", dap_chain_node_role_to_str(l_net->pub.node_role), l_net->pub.name);
     l_net_pvt->state_target = NET_STATE_OFFLINE;
 
     // Init GlobalDB clusters for service and nodes (with aliases)
@@ -2315,12 +2292,19 @@ dap_chain_net_t *dap_chain_net_iter_next(dap_chain_net_t *a_it) {
  * @param a_name
  * @return
  */
-dap_chain_net_t *dap_chain_net_by_name(const char *a_name)
+// REMOVED: dap_chain_net_by_name() - moved to modules/net/core/dap_chain_net_core.c
+// This function is part of core network registry and belongs in net_core module
+
+/**
+ * @brief Iterate through networks (replaces direct s_nets_by_name access)
+ * @param a_net Current network, or NULL to get first network
+ * @return Next network or NULL if no more networks
+ */
+dap_chain_net_t *dap_chain_net_iterate(dap_chain_net_t *a_net)
 {
-    dap_chain_net_t *l_net = NULL;
-    if (a_name)
-        HASH_FIND_STR(s_nets_by_name, a_name, l_net);
-    return l_net;
+    if (!a_net)
+        return s_nets_by_name; // Return first network
+    return a_net->hh.next;     // Return next network
 }
 
 /**
@@ -2339,12 +2323,8 @@ dap_ledger_t * dap_ledger_by_net_name( const char * a_net_name)
  * @param a_id
  * @return
  */
-dap_chain_net_t *dap_chain_net_by_id(dap_chain_net_id_t a_id)
-{
-    dap_chain_net_t *l_net = NULL;
-    HASH_FIND(hh2, s_nets_by_id, &a_id, sizeof(a_id), l_net);
-    return l_net;
-}
+// REMOVED: dap_chain_net_by_id() - moved to modules/net/core/dap_chain_net_core.c
+// This function is part of core network registry and belongs in net_core module
 
 /**
  * @brief dap_chain_net_by_id
@@ -2376,15 +2356,9 @@ dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name)
  * @param a_name
  * @return
  */
-dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name)
-{
-   dap_chain_t * l_chain;
-   DL_FOREACH(l_net->pub.chains, l_chain){
-        if(dap_strcmp(l_chain->name, a_name) == 0)
-            return  l_chain;
-   }
-   return NULL;
-}
+// REMOVED: dap_chain_net_get_chain_by_name() - duplicate definition
+// Already implemented in modules/net/core/dap_chain_net_core.c
+// This was causing "multiple definition" linker error
 
 /**
  * @brief dap_chain_net_get_chain_by_id
@@ -2392,14 +2366,9 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
  * @param a_name
  * @return
  */
-dap_chain_t *dap_chain_net_get_chain_by_id(dap_chain_net_t *l_net, dap_chain_id_t a_chain_id)
-{
-   dap_chain_t *l_chain;
-   DL_FOREACH(l_net->pub.chains, l_chain)
-        if (l_chain->id.uint64 == a_chain_id.uint64)
-            return l_chain;
-   return NULL;
-}
+// REMOVED: dap_chain_net_get_chain_by_id() - duplicate definition
+// Already implemented in modules/net/core/dap_chain_net_core.c
+// This was causing "multiple definition" linker error
 
 /**
  * @brief dap_chain_net_get_chain_by_chain_type
@@ -2426,28 +2395,6 @@ dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_c
 }
 
 /**
- * @brief dap_chain_net_get_default_chain_by_chain_type
- * @param a_datum_type
- * @return
- */
-dap_chain_t * dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type)
-{
-    dap_chain_t * l_chain;
-
-    if (!a_net)
-        return NULL;
-
-    DL_FOREACH(a_net->pub.chains, l_chain)
-    {
-        for(int i = 0; i < l_chain->default_datum_types_count; i++) {
-            if(l_chain->default_datum_types[i] == a_datum_type)
-                return l_chain;
-        }
-    }
-    return NULL;
-}
-
-/**
  * @brief dap_chain_net_get_gdb_group_mempool_by_chain_type
  * @param a_datum_type
  * @return
@@ -2462,7 +2409,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type) {
                 dap_chain_cs_callbacks_t *l_mp_cbs = dap_chain_cs_get_callbacks(l_chain);
-                return dap_chain_mempool_group_new(l_chain);
+                return dap_chain_mempool_group_name(a_net->pub.gdb_groups_prefix, l_chain->name);
             }
         }
     }
@@ -2538,7 +2485,7 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
         if (!dap_strcmp(dap_chain_get_cs_type(a_chain), "esbocs")) {
             uint256_t l_tx_fee = {};
             if (!dap_chain_datum_tx_get_fee_value(l_tx, &l_tx_fee) && !IS_ZERO_256(l_tx_fee)) {
-                uint256_t l_min_fee = dap_chain_esbocs_get_fee(a_chain->net_id);
+                uint256_t l_min_fee = dap_chain_cs_get_fee(a_chain);  // Use generic CS API instead of esbocs-specific
                 if (compare256(l_tx_fee, l_min_fee) < 0) {
                     const char *l_tx_fee_str; dap_uint256_to_char(l_tx_fee, &l_tx_fee_str);
                     const char *l_min_fee_str; dap_uint256_to_char(l_min_fee, &l_min_fee_str);
@@ -2547,7 +2494,7 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
                     return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_FEE;
                 }
             } else {
-                if (!dap_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
+                if (!dap_ledger_tx_poa_signed(l_net->pub.ledger->poa_keys, l_tx)) {
                     log_it(L_WARNING, "Can't get fee value from tx %s", dap_get_data_hash_str(l_tx, dap_chain_datum_tx_get_size(l_tx)).s);
                     return -157;
                 }
@@ -2564,9 +2511,9 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
             return -156;
         return dap_ledger_token_emission_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_DECREE:
-        return dap_ledger_decree_verify(l_net, (dap_chain_datum_decree_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
+        return dap_ledger_decree_verify(l_net->pub.ledger, (dap_chain_datum_decree_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_ANCHOR:
-        return dap_ledger_anchor_verify(l_net, (dap_chain_datum_anchor_t *)a_datum->data, a_datum->header.data_size);
+        return dap_ledger_anchor_verify(l_net->pub.ledger, (dap_chain_datum_anchor_t *)a_datum->data, a_datum->header.data_size);
     default:
         if (a_chain->callback_datum_find_by_hash &&
                 a_chain->callback_datum_find_by_hash(a_chain, a_datum_hash, NULL, NULL))
@@ -2757,7 +2704,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                a_datum_size );
         return -101;
     }
-    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ledger_t *l_ledger = l_net->pub.ledger;
     if ( dap_ledger_datum_is_enforced(l_ledger, a_datum_hash, false) )
         return log_it(L_ERROR, "Datum %s is blacklisted", dap_hash_fast_to_str_static(a_datum_hash)), -100;
     switch (a_datum->header.type_id) {
@@ -2769,7 +2717,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                                             dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_decree_size);
                 return -102;
             }
-            return dap_ledger_decree_load(l_decree, a_chain, a_datum_hash);
+            return dap_ledger_decree_load(l_net->pub.ledger, l_decree, a_chain->id, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_ANCHOR: {
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
@@ -2779,7 +2727,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                                             dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_anchor_size);
                 return -102;
             }
-            return dap_ledger_anchor_load(l_anchor, a_chain, a_datum_hash);
+            return dap_ledger_anchor_load(l_net->pub.ledger, l_anchor, a_chain->id, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_TOKEN:
             return dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum->header.ts_create);
@@ -2831,7 +2779,8 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
                a_datum_size );
         return -101;
     }
-    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ledger_t *l_ledger = l_net->pub.ledger;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             return 0; 
@@ -2843,7 +2792,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
                 log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
                 return -102;
             }
-            return dap_ledger_anchor_unload(l_anchor, a_chain, a_datum_hash);
+            return dap_ledger_anchor_unload(l_net->pub.ledger, l_anchor, a_chain->id, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_TOKEN:
             return 0;
@@ -2919,7 +2868,7 @@ void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
 {
     dap_return_if_fail(a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    if ( l_net_pvt->node_info->ext_port && l_net_pvt->node_role.enums >= NODE_ROLE_MASTER ) {
+    if ( l_net_pvt->node_info->ext_port && a_net->pub.node_role.enums >= NODE_ROLE_MASTER ) {
         log_it(L_INFO, "Announce our node address "NODE_ADDR_FP_STR" [ %s : %u ] in net %s",
                NODE_ADDR_FP_ARGS_S(g_node_addr),
                l_net_pvt->node_info->ext_host,
@@ -3330,6 +3279,16 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
     dap_chain_t *l_chain;
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
     PVT(a_net)->state_target = a_new_state;
+    if (a_new_state == NET_STATE_SYNC_CHAINS) {
+        dap_ledger_set_syncing_state(a_net->pub.ledger, true);
+    } else {
+        dap_ledger_set_syncing_state(a_net->pub.ledger, false);
+    }
+    if (a_new_state == NET_STATE_LOADING) {
+        a_net->pub.ledger->load_mode = true;
+    } else {
+        a_net->pub.ledger->load_mode = false;
+    }
     if (a_new_state == NET_STATE_OFFLINE) {
         char l_err_str[] = "ERROR_NET_IS_OFFLINE";
         size_t l_error_size = sizeof(dap_chain_net_ch_pkt_t) + sizeof(l_err_str);
@@ -3402,6 +3361,25 @@ bool dap_chain_net_is_bridged(dap_chain_net_t *a_net, dap_chain_net_id_t a_net_i
             l_ret = a_net->pub.bridged_networks[i].uint64 == a_net_id.uint64;
     }
     return l_ret;
+}
+
+/**
+ * @brief Get human-readable name for network state
+ * @param a_state Network state enum value
+ * @return String name of state
+ */
+const char *dap_chain_net_get_state_name(dap_chain_net_state_t a_state)
+{
+    switch (a_state) {
+        case NET_STATE_LOADING: return "LOADING";
+        case NET_STATE_OFFLINE: return "OFFLINE";
+        case NET_STATE_LINKS_PREPARE: return "LINKS_PREPARE";
+        case NET_STATE_LINKS_CONNECTING: return "LINKS_CONNECTING";
+        case NET_STATE_LINKS_ESTABLISHED: return "LINKS_ESTABLISHED";
+        case NET_STATE_SYNC_CHAINS: return "SYNC_CHAINS";
+        case NET_STATE_ONLINE: return "ONLINE";
+        default: return "UNKNOWN";
+    }
 }
 
 DAP_INLINE void dap_chain_net_set_load_skip()

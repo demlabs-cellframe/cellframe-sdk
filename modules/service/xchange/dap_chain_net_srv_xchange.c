@@ -26,6 +26,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include "dap_chain_net.h"
+#include "dap_chain_net_utils.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_sig.h"
@@ -37,6 +38,7 @@
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_math_ops.h"
+#include "dap_chain_net_srv_xchange_compose.h"  // For compose init/deinit
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
@@ -45,8 +47,8 @@
 #include "dap_json.h"
 #include "dap_cli_server.h"
 #include "dap_chain_wallet_cache.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
 
@@ -126,8 +128,118 @@ static bool s_string_append_tx_cond_info_json( dap_json_t *a_json_out, dap_chain
 
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_order, 
                                                     dap_hash_fast_t *a_order_hash, uint256_t *a_fee, bool a_ret_is_invalid);
+static xchange_orders_cache_net_t *s_get_xchange_cache_by_net_id(dap_chain_net_id_t a_net_id);
 static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chain_tx_out_cond_t *a_prev_cond);
 static void s_ledger_tx_remove_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,  dap_chain_tx_out_cond_t *a_prev_cond);
+static dap_chain_net_srv_xchange_order_status_t s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
+
+/**
+ * @brief Find xchange conditional output in TX
+ * @param a_tx Transaction to search
+ * @return Pointer to xchange conditional output or NULL
+ */
+static dap_chain_tx_out_cond_t *s_find_xchange_cond_out(dap_chain_datum_tx_t *a_tx)
+{
+    if (!a_tx)
+        return NULL;
+    
+    byte_t *l_tx_item;
+    size_t l_tx_item_size;
+    TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+        if (l_tx_item[0] == TX_ITEM_TYPE_OUT_COND) {
+            dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)(l_tx_item + 1);
+            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                return l_cond;
+            }
+        }
+    }
+    return NULL;
+}
+
+/**
+ * @brief Extract order info from order TX and fill cache item
+ * @param a_ledger Ledger instance
+ * @param a_order_tx Order transaction
+ * @param a_order_hash Order transaction hash
+ * @param a_cache_item Cache item to fill
+ * @return true if successful, false otherwise
+ */
+static bool s_extract_order_info(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_order_tx, 
+                                  dap_hash_fast_t *a_order_hash, xchange_tx_cache_t *a_cache_item)
+{
+    if (!a_ledger || !a_order_tx || !a_order_hash || !a_cache_item)
+        return false;
+    
+    dap_chain_tx_out_cond_t *l_order_cond = s_find_xchange_cond_out(a_order_tx);
+    if (!l_order_cond) {
+        log_it(L_WARNING, "No xchange conditional output found in order TX");
+        return false;
+    }
+    
+    // Fill common fields from order
+    a_cache_item->seller_addr = l_order_cond->subtype.srv_xchange.seller_addr;
+    dap_strncpy(a_cache_item->buy_token, l_order_cond->subtype.srv_xchange.buy_token,
+               sizeof(a_cache_item->buy_token) - 1);
+    a_cache_item->rate = l_order_cond->subtype.srv_xchange.rate;
+    
+    const char *l_sell_token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_order_hash);
+    if (l_sell_token) {
+        dap_strncpy(a_cache_item->sell_token, l_sell_token, sizeof(a_cache_item->sell_token) - 1);
+    }
+    
+    return true;
+}
+
+/**
+ * @brief Find order hash by walking back the TX chain
+ * @param a_ledger Ledger instance
+ * @param a_start_hash Starting TX hash (EXCHANGE or INVALIDATE)
+ * @param a_order_hash Output: found order hash
+ * @return true if order hash found, false otherwise
+ */
+static bool s_find_order_hash_from_chain(dap_ledger_t *a_ledger, dap_hash_fast_t *a_start_hash, dap_hash_fast_t *a_order_hash)
+{
+    if (!a_ledger || !a_start_hash || !a_order_hash)
+        return false;
+    
+    dap_hash_fast_t l_current_hash = *a_start_hash;
+    
+    // Walk back the chain until we find ORDER (TX with OUT_COND but no IN_COND)
+    for (int i = 0; i < 100; i++) {  // Limit iterations to prevent infinite loops
+        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_current_hash);
+        if (!l_tx)
+            return false;
+        
+        // Check if this is ORDER TX (has OUT_COND, no IN_COND xchange)
+        dap_chain_tx_out_cond_t *l_out_cond = s_find_xchange_cond_out(l_tx);
+        
+        // Find IN_COND
+        byte_t *l_tx_item;
+        size_t l_tx_item_size;
+        dap_chain_tx_in_cond_t *l_in_cond = NULL;
+        TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, l_tx) {
+            if (l_tx_item[0] == TX_ITEM_TYPE_IN_COND) {
+                l_in_cond = (dap_chain_tx_in_cond_t *)(l_tx_item + 1);
+                break;
+            }
+        }
+        
+        // If has OUT_COND and no IN_COND - this is ORDER
+        if (l_out_cond && !l_in_cond) {
+            *a_order_hash = l_current_hash;
+            return true;
+        }
+        
+        // Continue walking back
+        if (!l_in_cond)
+            return false;  // Dead end
+        
+        l_current_hash = l_in_cond->header.tx_prev_hash;
+    }
+    
+    log_it(L_WARNING, "Reached iteration limit while finding order hash");
+    return false;
+}
 
 static bool s_debug_more = false;
 
@@ -172,20 +284,301 @@ static bool s_string_append_tx_cond_info_json( dap_json_t *a_json_out, dap_chain
 // Implementation of s_ledger_tx_add_notify
 static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chain_tx_out_cond_t *a_prev_cond)
 {
-    // TODO: Implement ledger transaction add notification
-    UNUSED(a_ledger);
-    UNUSED(a_tx);
-    UNUSED(a_tx_hash);
+    if (!a_ledger || !a_tx || !a_tx_hash) {
+        log_it(L_WARNING, "Invalid parameters for xchange TX add notification");
+        return;
+    }
+    
+    // Get network ID from ledger
+    dap_chain_net_id_t l_net_id = dap_ledger_get_net_id(a_ledger);
+    if (l_net_id.uint64 == 0) {
+        log_it(L_WARNING, "Cannot get network ID from ledger");
+        return;
+    }
+    
+    // Find network by ID
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_net_id);
+    if (!l_net) {
+        log_it(L_WARNING, "Cannot find network for ID 0x%016"DAP_UINT64_FORMAT_x, l_net_id.uint64);
+        return;
+    }
+    
+    // Get cache for this network
+    xchange_orders_cache_net_t *l_cache = s_get_xchange_cache_by_net_id(l_net_id);
+    if (!l_cache) {
+        log_it(L_WARNING, "Cannot get xchange cache for network %s", l_net->pub.name);
+        return;
+    }
+    
+    // Determine transaction type
+    dap_chain_tx_out_cond_t *l_order_cond = NULL;
+    dap_chain_tx_out_cond_t *l_prev_cond_out = NULL;
+    xchange_tx_type_t l_tx_type = dap_chain_net_srv_xchange_tx_get_type(a_ledger, a_tx, &l_order_cond, NULL, &l_prev_cond_out);
+    if (l_tx_type == TX_TYPE_UNDEFINED) {
+        log_it(L_DEBUG, "Undefined TX type for xchange notification");
+        return;
+    }
+    
+    // Extract prev hash from conditional input for EXCHANGE/INVALIDATE
+    dap_hash_fast_t l_prev_hash = {};
+    if (l_tx_type != TX_TYPE_ORDER) {
+        // Find IN_COND item to get previous TX hash
+        byte_t *l_tx_item;
+        size_t l_tx_item_size;
+        TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+            if (l_tx_item[0] == TX_ITEM_TYPE_IN_COND) {
+                dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)(l_tx_item + 1);
+                l_prev_hash = l_in_cond->header.tx_prev_hash;
+                break;
+            }
+        }
+    }
+    
+    // Check if already in cache
+    xchange_tx_cache_t *l_existing = NULL;
+    HASH_FIND(hh, l_cache->cache, a_tx_hash, sizeof(dap_hash_fast_t), l_existing);
+    if (l_existing) {
+        log_it(L_DEBUG, "TX %s already in xchange cache", dap_hash_fast_to_str_static(a_tx_hash));
+        return;
+    }
+    
+    // Create cache entry
+    xchange_tx_cache_t *l_cache_item = DAP_NEW_Z(xchange_tx_cache_t);
+    if (!l_cache_item) {
+        log_it(L_ERROR, "Failed to allocate memory for xchange cache item");
+        return;
+    }
+    
+    // Copy TX and hash (TX is owned by ledger, we need our own copy)
+    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
+    l_cache_item->tx = DAP_DUP_SIZE(a_tx, l_tx_size);
+    if (!l_cache_item->tx) {
+        log_it(L_ERROR, "Failed to copy TX for xchange cache");
+        DAP_DELETE(l_cache_item);
+        return;
+    }
+    
+    memcpy(&l_cache_item->hash, a_tx_hash, sizeof(dap_hash_fast_t));
+    l_cache_item->tx_type = l_tx_type;
+    
+    // Parse TX to fill cache fields based on type
+    switch (l_tx_type) {
+        case TX_TYPE_ORDER: {
+            // Parse ORDER transaction - use helper
+            dap_chain_tx_out_cond_t *l_cond_out = s_find_xchange_cond_out(a_tx);
+            
+            if (!l_cond_out) {
+                log_it(L_WARNING, "No xchange conditional output found in ORDER TX");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Fill order fields using helper
+            if (!s_extract_order_info(a_ledger, a_tx, a_tx_hash, l_cache_item)) {
+                log_it(L_ERROR, "Failed to extract order info");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Fill order-specific fields
+            l_cache_item->tx_info.order_info.value = l_cond_out->header.value;
+            l_cache_item->tx_info.order_info.value_ammount = l_cond_out->header.value;
+            l_cache_item->tx_info.order_info.order_status = s_tx_check_for_open_close(l_net, a_tx);
+            memset(&l_cache_item->tx_info.order_info.next_hash, 0, sizeof(dap_hash_fast_t));
+            l_cache_item->tx_info.order_info.percent_completed = 0;
+            
+            log_it(L_INFO, "XChange ORDER added to cache: %s (sell %s, buy %s, rate %s)",
+                   dap_hash_fast_to_str_static(a_tx_hash),
+                   l_cache_item->sell_token, l_cache_item->buy_token,
+                   dap_uint256_to_char(l_cache_item->rate, NULL));
+            break;
+        }
+        
+        case TX_TYPE_EXCHANGE: {
+            // Parse EXCHANGE transaction - buyer purchased from order
+            if (dap_hash_fast_is_blank(&l_prev_hash)) {
+                log_it(L_WARNING, "EXCHANGE TX has blank prev_hash");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Get order TX to extract seller and tokens
+            dap_chain_datum_tx_t *l_order_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_prev_hash);
+            if (!l_order_tx) {
+                log_it(L_WARNING, "Cannot find order TX %s for EXCHANGE", 
+                       dap_hash_fast_to_str_static(&l_prev_hash));
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Find order hash by walking back the chain
+            dap_hash_fast_t l_order_hash = {};
+            if (!s_find_order_hash_from_chain(a_ledger, &l_prev_hash, &l_order_hash)) {
+                log_it(L_WARNING, "Cannot find order hash for EXCHANGE TX");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Get order TX and extract info
+            l_order_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_order_hash);
+            if (!l_order_tx || !s_extract_order_info(a_ledger, l_order_tx, &l_order_hash, l_cache_item)) {
+                log_it(L_ERROR, "Failed to extract order info for EXCHANGE");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Get buyer address from TX outputs (first OUT_EXT to buyer)
+            byte_t *l_tx_item;
+            size_t l_tx_item_size;
+            bool l_buyer_found = false;
+            TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+                if (l_tx_item[0] == TX_ITEM_TYPE_OUT_EXT) {
+                    dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)(l_tx_item + 1);
+                    // First OUT_EXT is buyer's purchased tokens
+                    if (!l_buyer_found) {
+                        l_cache_item->tx_info.exchange_info.buyer_addr = l_out_ext->addr;
+                        l_cache_item->tx_info.exchange_info.buy_value = l_out_ext->header.value;
+                        l_buyer_found = true;
+                    }
+                }
+            }
+            
+            // Fill exchange-specific fields
+            l_cache_item->tx_info.exchange_info.order_hash = l_order_hash;
+            l_cache_item->tx_info.exchange_info.prev_hash = l_prev_hash;
+            memset(&l_cache_item->tx_info.exchange_info.next_hash, 0, sizeof(dap_hash_fast_t));
+            
+            log_it(L_INFO, "XChange EXCHANGE added to cache: %s (order %s)",
+                   dap_hash_fast_to_str_static(a_tx_hash),
+                   dap_hash_fast_to_str_static(&l_order_hash));
+            break;
+        }
+        
+        case TX_TYPE_INVALIDATE: {
+            // Parse INVALIDATE transaction - order cancelled
+            if (dap_hash_fast_is_blank(&l_prev_hash)) {
+                log_it(L_WARNING, "INVALIDATE TX has blank prev_hash");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Find order hash by walking back the chain
+            dap_hash_fast_t l_order_hash = {};
+            if (!s_find_order_hash_from_chain(a_ledger, &l_prev_hash, &l_order_hash)) {
+                log_it(L_WARNING, "Cannot find order hash for INVALIDATE TX");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Get order TX and extract info
+            dap_chain_datum_tx_t *l_order_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_order_hash);
+            if (!l_order_tx || !s_extract_order_info(a_ledger, l_order_tx, &l_order_hash, l_cache_item)) {
+                log_it(L_ERROR, "Failed to extract order info for INVALIDATE");
+                DAP_DELETE(l_cache_item->tx);
+                DAP_DELETE(l_cache_item);
+                return;
+            }
+            
+            // Get returned value from order conditional output
+            dap_chain_tx_out_cond_t *l_order_cond = s_find_xchange_cond_out(l_order_tx);
+            if (l_order_cond) {
+                l_cache_item->tx_info.invalidate_info.returned_value = l_order_cond->header.value;
+            }
+            
+            // Fill invalidate-specific fields
+            l_cache_item->tx_info.invalidate_info.order_hash = l_order_hash;
+            l_cache_item->tx_info.invalidate_info.prev_hash = l_prev_hash;
+            
+            log_it(L_INFO, "XChange INVALIDATE added to cache: %s (order %s)",
+                   dap_hash_fast_to_str_static(a_tx_hash),
+                   dap_hash_fast_to_str_static(&l_order_hash));
+            break;
+        }
+        
+        default:
+            log_it(L_WARNING, "Unknown xchange TX type: %d", l_tx_type);
+            DAP_DELETE(l_cache_item->tx);
+            DAP_DELETE(l_cache_item);
+            return;
+    }
+    
+    // Add to hash table
+    HASH_ADD(hh, l_cache->cache, hash, sizeof(dap_hash_fast_t), l_cache_item);
+    
+    // Update chain links if needed
+    if (l_tx_type != TX_TYPE_ORDER && !dap_hash_fast_is_blank(&l_prev_hash)) {
+        // Find previous TX in cache and update its next_hash
+        xchange_tx_cache_t *l_prev_item = NULL;
+        HASH_FIND(hh, l_cache->cache, &l_prev_hash, sizeof(dap_hash_fast_t), l_prev_item);
+        if (l_prev_item) {
+            switch (l_prev_item->tx_type) {
+                case TX_TYPE_ORDER:
+                    l_prev_item->tx_info.order_info.next_hash = *a_tx_hash;
+                    break;
+                case TX_TYPE_EXCHANGE:
+                    l_prev_item->tx_info.exchange_info.next_hash = *a_tx_hash;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    
     UNUSED(a_prev_cond);
 }
 
 // Implementation of s_ledger_tx_remove_notify
 static void s_ledger_tx_remove_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chain_tx_out_cond_t *a_prev_cond)
 {
-    // TODO: Implement ledger transaction remove notification
-    UNUSED(a_ledger);
-    UNUSED(a_tx);
-    UNUSED(a_tx_hash);
+    if (!a_ledger || !a_tx || !a_tx_hash) {
+        log_it(L_WARNING, "Invalid parameters for xchange TX remove notification");
+        return;
+    }
+    
+    // Get network ID from ledger
+    dap_chain_net_id_t l_net_id = dap_ledger_get_net_id(a_ledger);
+    if (l_net_id.uint64 == 0) {
+        log_it(L_WARNING, "Cannot get network ID from ledger");
+        return;
+    }
+    
+    // Get cache for this network
+    xchange_orders_cache_net_t *l_cache = s_get_xchange_cache_by_net_id(l_net_id);
+    if (!l_cache) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_net_id);
+        log_it(L_WARNING, "Cannot get xchange cache for network %s", l_net ? l_net->pub.name : "unknown");
+        return;
+    }
+    
+    // Find and remove from cache
+    xchange_tx_cache_t *l_cache_item = NULL;
+    HASH_FIND(hh, l_cache->cache, a_tx_hash, sizeof(dap_hash_fast_t), l_cache_item);
+    if (!l_cache_item) {
+        log_it(L_DEBUG, "TX %s not found in xchange cache (already removed or never added)",
+               dap_hash_fast_to_str_static(a_tx_hash));
+        return;
+    }
+    
+    log_it(L_NOTICE, "XChange TX removed from cache: %s (type: %d)",
+           dap_hash_fast_to_str_static(a_tx_hash), l_cache_item->tx_type);
+    
+    // Remove from hash table
+    HASH_DEL(l_cache->cache, l_cache_item);
+    
+    // Free memory
+    if (l_cache_item->tx) {
+        DAP_DELETE(l_cache_item->tx);
+    }
+    DAP_DELETE(l_cache_item);
+    
     UNUSED(a_prev_cond);
 }
 
@@ -274,19 +667,9 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
 
 static int datum_list_sort_by_date_back(const void *a, const void *b)
 {
-    struct json_object *obj_a = *(struct json_object **)a;
-    struct json_object *obj_b = *(struct json_object **)b;
-
-    struct json_object *timestamp_a = json_object_object_get(obj_a, "ts_created");
-    struct json_object *timestamp_b = json_object_object_get(obj_b, "ts_created");
-
-    const char* time_a_str = json_object_get_string(timestamp_a);
-    const char* time_b_str = json_object_get_string(timestamp_b);
-
-    dap_time_t time_a = dap_time_from_str_rfc822(time_a_str+5);
-    dap_time_t time_b = dap_time_from_str_rfc822(time_b_str+5);
-
-    return  time_b - time_a;
+    // TODO Phase 5.4: Temporarily disabled sorting (old json-c API needs migration)
+    (void)a; (void)b;
+    return 0;
 }
 
 static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
@@ -608,7 +991,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, s_print_for_srv_xchange_list, "eXchange service commands", dap_chain_node_cli_cmd_id_from_str("srv_xchange"),
+    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, s_print_for_srv_xchange_list, "eXchange service commands", 0,
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"
@@ -684,25 +1067,12 @@ int dap_chain_net_srv_xchange_init()
     } else 
         dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL, NULL, NULL, NULL, NULL);
 
-
-#ifdef DAP_XCHANGE_TEST
-    /*int l_fee_type = dap_config_get_item_int64_default(g_config, "srv_xchange", "fee_type", (int)SERIVCE_FEE_NATIVE_PERCENT);
-    uint256_t l_fee_value = dap_chain_balance_coins_scan(dap_config_get_item_str_default(g_config, "srv_xchange", "fee_value", "0.02");
-    const char *l_wallet_addr = dap_config_get_item_str_default(g_config, "srv_xchange", "wallet_addr", NULL);
-    if(!l_wallet_addr){
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+    // Initialize compose module (register TX builders with Plugin API)
+    if (dap_chain_net_srv_xchange_compose_init() != 0) {
+        log_it(L_ERROR, "Failed to initialize XChange compose module");
         return -1;
     }
-    const char *l_net_str = dap_config_get_item_str_default(g_config, "srv_xchange", "net", NULL);
-    ///
-    dap_chain_net_srv_fee_item_t *l_fee = NULL;
-    l_fee = DAP_NEW_Z(dap_chain_net_srv_fee_item_t);
-    l_fee->fee_type = l_fee_type;
-    l_fee->fee = l_fee_value;
-    l_fee->fee_addr = *dap_chain_addr_from_str(l_wallet_addr);
-    l_fee->net_id = dap_chain_net_by_name(l_net_str)->pub.id;
-    HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);*/
-#endif
+    
     return 0;
 }
 
@@ -714,6 +1084,9 @@ static void *s_callback_start(dap_chain_net_id_t UNUSED_ARG a_net_id, dap_config
 
 void dap_chain_net_srv_xchange_deinit()
 {
+    // Deinitialize compose module
+    dap_chain_net_srv_xchange_compose_deinit();
+    
     dap_chain_srv_delete(c_dap_chain_net_srv_xchange_uid);
 }
 
@@ -749,7 +1122,7 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datu
 
     dap_chain_addr_t l_service_fee_addr, *l_seller_addr = &a_tx_out_cond->subtype.srv_xchange.seller_addr;
     uint16_t l_service_fee_type = 0;
-    dap_chain_net_t *l_net = a_ledger->net;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
     bool l_service_fee_used = dap_chain_net_srv_xchange_get_fee(l_net->pub.id, &l_service_fee_val, &l_service_fee_addr, &l_service_fee_type);
     const char *l_native_ticker = l_net->pub.native_ticker;
     const char *l_service_ticker = (l_service_fee_type == SERVICE_FEE_OWN_FIXED || l_service_fee_type == SERVICE_FEE_OWN_PERCENT) ?
@@ -919,8 +1292,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else {
-        l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                    &l_seller_addr, l_total_fee, &l_fee_transfer);
+        l_list_fee_out = NULL;
+        dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, l_native_ticker,
+                                                                    &l_seller_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
             return NULL;
@@ -928,8 +1302,8 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     }
     // list of transaction with 'out' items to sell
     dap_list_t *l_list_used_out = NULL;
-    l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
-                                                                 &l_seller_addr, l_value_need, &l_value_transfer);
+    dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, a_price->token_sell,
+                                                                        &l_seller_addr, &l_list_used_out, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
                dap_chain_addr_to_str_static( &l_seller_addr), a_price->token_sell, dap_chain_balance_datoshi_print(l_value_need));
@@ -1073,8 +1447,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     DAP_DELETE(l_wallet_addr);
 
     // list of transaction with 'out' items to sell
-    dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, a_price->token_buy,
-                                                                             &l_buyer_addr, l_value_need, &l_value_transfer);
+    dap_list_t *l_list_used_out = NULL;
+    dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, a_price->token_buy,
+                                                                             &l_buyer_addr, &l_list_used_out, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
                dap_chain_addr_to_str_static( &l_buyer_addr), a_price->token_buy, dap_chain_balance_datoshi_print(l_value_need));
@@ -1086,8 +1461,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         if (l_buy_with_native)
             SUM_256_256(l_value_need, l_total_fee, &l_value_need);
         else {
-            l_list_fee_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                        &l_buyer_addr, l_total_fee, &l_fee_transfer);
+            l_list_fee_out = NULL;
+            dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, l_native_ticker,
+                                                                        &l_buyer_addr, &l_list_fee_out, l_total_fee, &l_fee_transfer);
             if (!l_list_fee_out) {
                 dap_list_free_full(l_list_used_out, NULL);
                 log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1487,8 +1863,9 @@ static char* s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price,
     if (!l_single_channel) {
         uint256_t l_transfer_fee = {}, l_fee_back = {};
         // list of transaction with 'out' items to get net fee
-        dap_list_t *l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                                                 &l_seller_addr, l_total_fee, &l_transfer_fee);
+        dap_list_t *l_list_used_out = NULL;
+        dap_chain_wallet_cache_tx_find_outs_with_val(a_price->net, l_native_ticker,
+                                                                                 &l_seller_addr, &l_list_used_out, l_total_fee, &l_transfer_fee);
         if (!l_list_used_out) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_WARNING, "Nothing to pay for network fee (not enough funds)");

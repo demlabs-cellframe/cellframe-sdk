@@ -6,7 +6,7 @@
 * DeM Labs Inc.   https://demlabs.net
 * Copyright  (c) 2017-2019
 * All rights reserved.
-
+*
 This file is part of CellFrame SDK the open source project
 
 CellFrame SDK is free software: you can redistribute it and/or modify
@@ -36,8 +36,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain.h"
 #include "dap_global_db_cluster.h"
 #include "dap_json_rpc_errors.h"
+#include "dap_chain_net_types.h"
+#include "dap_chain_net_utils.h"
 
-#define DAP_CHAIN_NET_NAME_MAX 32
+// #define DAP_CHAIN_NET_NAME_MAX 32 // Moved to dap_chain_net_types.h
 #define DAP_CHAIN_NET_MEMPOOL_TTL 4 * 3600  // 4 hours
 #define DAP_CHAIN_NET_NODES_TTL 14 * 24 * 3600   // 2 weeks
 
@@ -46,39 +48,11 @@ typedef struct dap_ledger dap_ledger_t;
 typedef struct dap_chain_net_decree dap_chain_net_decree_t;
 typedef struct decree_table decree_table_t;
 
-typedef enum dap_chain_net_state {
-    NET_STATE_LOADING = 0,
-    NET_STATE_OFFLINE,
-    NET_STATE_LINKS_PREPARE,
-    NET_STATE_LINKS_CONNECTING,
-    NET_STATE_LINKS_ESTABLISHED,
-    NET_STATE_SYNC_CHAINS,
-    NET_STATE_ONLINE    
-} dap_chain_net_state_t;
+// dap_chain_net_state_t moved to dap_chain_net_types.h
 
-static const char s_gdb_nodes_postfix[] = "nodes.list";
+static const char s_gdb_nodes_postfix[] = DAP_CHAIN_NET_NODES_POSTFIX;
 
-typedef struct dap_chain_net {
-    struct {
-        dap_chain_net_id_t id;
-        char name[DAP_CHAIN_NET_NAME_MAX + 1], gdb_nodes[DAP_CHAIN_NET_NAME_MAX + sizeof(s_gdb_nodes_postfix) + 1];
-        const char *gdb_groups_prefix, *native_ticker;
-        // PoA section
-        dap_list_t *keys;               // List of PoA certs for net
-        uint16_t keys_min_count;        // PoA minimum required number
-        //
-        dap_chain_t *chains;            // double-linked list of chains
-        dap_ledger_t *ledger;
-        uint256_t fee_value;            // Net fee
-        dap_chain_addr_t fee_addr;
-        dap_chain_net_id_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
-        uint16_t bridged_networks_count;
-        dap_config_t *config;
-        bool mempool_autoproc;
-    } pub;
-    UT_hash_handle hh, hh2;
-    uint8_t pvt[];
-} dap_chain_net_t;
+// dap_chain_net_t moved to dap_chain_net_types.h
 
 enum dap_chain_net_json_rpc_error_list{
     DAP_CHAIN_NET_JSON_RPC_OK,
@@ -125,9 +99,6 @@ typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_cha
 
 int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
-#ifdef DAP_LEDGER_TEST
-int dap_chain_net_test_init();
-#endif
 
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
 
@@ -137,6 +108,22 @@ void dap_chain_net_try_online_all();
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
+
+// State to string conversion (inline functions are in .c file, not exported)
+// Use dap_chain_net_state_to_str() and dap_chain_net_state_to_str_user() for external usage
+const char *dap_chain_net_state_to_str(dap_chain_net_state_t a_state);
+const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net);
+
+// Network state names array accessor (instead of direct export)
+const char *dap_chain_net_get_state_name(dap_chain_net_state_t a_state);
+
+// ACL functions
+char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net);
+
+// Network registry functions (instead of direct s_nets_by_name export)
+dap_chain_net_t *dap_chain_net_by_name(const char *a_name);
+dap_chain_net_t *dap_chain_net_iterate(dap_chain_net_t *a_net);
+
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
 bool dap_chain_net_stop(dap_chain_net_t *a_net);
@@ -191,7 +178,6 @@ DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_nochain_new(dap_chain_t *a_c
 }
 
 dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
-dap_chain_t *dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
 char *dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
 size_t dap_chain_net_count();
 dap_chain_net_t *dap_chain_net_iter_start();

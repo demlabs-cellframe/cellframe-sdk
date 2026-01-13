@@ -6,36 +6,32 @@ endif()
 # Chains
 if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(datum)
-    add_subdirectory(wallet)
+    add_subdirectory(wallet)          # PURE wallet: keys + signing only
     add_subdirectory(chain)
     add_subdirectory(ledger)
-endif()
-
-# Distributed Hash Tables (DHT)
-if (CELLFRAME_MODULES MATCHES "dht")
-    add_subdirectory(dht)
+    add_subdirectory(wallet-cache)    # Address cache (depends on ledger + wallet)
+    add_subdirectory(wallet-shared)   # Shared TX cache (depends on ledger + mempool + wallet)
+    add_subdirectory(governance)      # High-level governance (decree, policies)
 endif()
 
 # Node CLI Commands (high-level, depends on all modules - add last to avoid cycles)
+# Removed: CLI commands are now defined in their respective modules as separate libraries
 if (CELLFRAME_MODULES MATCHES "network")
-    add_subdirectory(node-cli-cmd)
 endif()
 
 # Network
 if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(mempool)
-    add_subdirectory(net)
+    # add_subdirectory(policy)  # Disabled - incompatible API (missing ledger functions)
+    add_subdirectory(net)  # Contains net/tx and net/srv submodules
 endif()
 
-# Mining
-if (CELLFRAME_MODULES MATCHES "mining")
-    add_subdirectory(mining)
-endif()
 
-# Network services
-if (CELLFRAME_MODULES MATCHES "srv")
-    add_subdirectory(net-srv)
-endif()
+# Network services (contained within net/srv/)
+# if (CELLFRAME_MODULES MATCHES "srv")
+#     add_subdirectory(net-srv-stake)  # Common stake types (must be before services)
+#     add_subdirectory(net-srv)
+# endif()
 
 # No consensus
 if (CELLFRAME_MODULES MATCHES "cs-none")
@@ -87,11 +83,6 @@ if (CELLFRAME_MODULES MATCHES "srv-datum")
     add_subdirectory(service/datum)
 endif()
 
-# Service VPN
-if (CELLFRAME_MODULES MATCHES "srv-vpn")
-    add_subdirectory(service/vpn)
-endif()
-
 # Service eXchange
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
     add_subdirectory(service/xchange)
@@ -110,11 +101,6 @@ endif()
 # Service for bridge
 if (CELLFRAME_MODULES MATCHES "srv-bridge")
     add_subdirectory(service/bridge)
-endif()
-
-# Compose service
-if (CELLFRAME_MODULES MATCHES "compose")
-    add_subdirectory(compose)
 endif()
 
 # Service for emission rights delegate to wallets consensus

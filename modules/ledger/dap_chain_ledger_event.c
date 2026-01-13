@@ -106,7 +106,8 @@ dap_list_t *dap_ledger_event_get_list_ex(dap_ledger_t *a_ledger, const char *a_g
     if (a_need_lock)
         pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
     dap_list_t *l_list = NULL;
-    for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
+    dap_ledger_event_t *it = NULL, *tmp = NULL;
+    HASH_ITER(hh, l_ledger_pvt->events, it, tmp) {
         if (a_group_name && dap_strcmp(it->group_name, a_group_name))
             continue;
         dap_chain_tx_event_t *l_tx_event = s_ledger_event_to_tx_event(it);
@@ -285,14 +286,14 @@ int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_t
     dap_strncpy(l_event_group_name, (char *)l_event_item->group_name, l_event_item->group_name_size + 1);
     if (l_event_item->event_type == DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE) {
         DAP_DELETE(l_event_group_name);
-        int ret = dap_chain_srv_decree(a_ledger->net->pub.id, l_event_item->srv_uid, a_apply,
+        int ret = dap_chain_srv_decree(a_ledger->net_id, l_event_item->srv_uid, a_apply,
                                        (dap_tsd_t *)l_event_tsd->data, l_event_tsd->size);
         pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
         if (ret)
             log_it(L_WARNING, "Decree event %s rejected by service verificator with code %d", dap_hash_fast_to_str_static(a_tx_hash), ret);
         return a_from_mempool ? ret : 0;
     }
-    int l_ret = dap_chain_srv_event_verify(a_ledger->net->pub.id, l_event_item->srv_uid, l_event_group_name,
+    int l_ret = dap_chain_srv_event_verify(a_ledger->net_id, l_event_item->srv_uid, l_event_group_name,
                                            l_event_item->event_type, l_event_tsd ? (dap_tsd_t *)l_event_tsd->data : NULL,
                                            l_event_tsd ? l_event_tsd->size : 0, a_tx_hash);
     if (l_ret || !a_apply) {
@@ -475,7 +476,8 @@ dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(dap_ledger_t *a_ledger
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     size_t l_events_count = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
-    for (dap_ledger_event_t *it = l_ledger_pvt->events; it; it = it->hh.next) {
+    dap_ledger_event_t *it = NULL, *tmp = NULL;
+    HASH_ITER(hh, l_ledger_pvt->events, it, tmp) {
         dap_ledger_hardfork_events_t *l_add = DAP_NEW_Z(dap_ledger_hardfork_events_t);
         if (!l_add) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);

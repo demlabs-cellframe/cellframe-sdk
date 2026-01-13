@@ -120,7 +120,7 @@ void dap_chain_datum_tx_delete(dap_chain_datum_tx_t *a_tx);
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx);
+size_t dap_chain_datum_tx_get_size(const dap_chain_datum_tx_t *a_tx);
 
 /**
  * Insert item to transaction
@@ -212,7 +212,41 @@ int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_hash_f
  *
  * return 1 Ok, -1 Error
  */
+/**
+ * Add sign item to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
 int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key);
+
+/**
+ * Add pre-computed signature to transaction
+ * Hardware wallet friendly - accepts signature from external source
+ * 
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign);
+
+/**
+ * Add event item to transaction
+ * 
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx, 
+                                      dap_pkey_t *a_pkey_service,
+                                      dap_chain_srv_uid_t a_srv_uid,
+                                      const char *a_group_name,
+                                      uint16_t a_event_type,
+                                      const void *a_event_data,
+                                      size_t a_event_data_size);
+
+/**
+ * Get data that needs to be signed
+ * Returns pointer to transaction data for signing
+ * 
+ * return pointer to data, NULL on error
+ */
+const void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, size_t *a_sign_data_size);
 
 dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num);
 

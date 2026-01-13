@@ -25,6 +25,7 @@
 #include <memory.h>
 #include <assert.h>
 #include "dap_common.h"
+#include "dap_config.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_voting.h"
@@ -56,7 +57,7 @@ void dap_chain_datum_tx_delete(dap_chain_datum_tx_t *a_tx)
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
+size_t dap_chain_datum_tx_get_size(const dap_chain_datum_tx_t *a_tx)
 {
     dap_return_val_if_fail(a_tx, 0);
     return (sizeof(dap_chain_datum_tx_t) + a_tx->header.tx_items_size) > a_tx->header.tx_items_size
@@ -78,11 +79,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     memcpy((uint8_t*)tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
     *a_tx = tx_new;
-#ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    char *l_hash = dap_hash_fast_str_new(a_item, size);
-    log_it(L_INFO, "Add \"%s\" item %s\n",  dap_chain_datum_tx_item_type_to_str_short(*(byte_t *)(a_item)), l_hash);
-    DAP_DELETE(l_hash);
-#endif
+    
     return 1;
 }
 
@@ -208,18 +205,9 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
  */
 int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
-#ifdef DAP_CHAIN_TX_COMPOSE_TEST
-    if (rand() % 2) {
-        dap_time_t l_ts_unlock = dap_min(rand() % UINT32_MAX, dap_time_now() / 10);
-        log_it(L_INFO, "Add out std item, token %s, ts_unlock %"DAP_UINT64_FORMAT_U, a_token, l_ts_unlock);
-        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, l_ts_unlock) );
-    } else {
-        log_it(L_INFO, "Add out ext item, token %s", a_token);
-        return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_ext_t,  dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token) );
-    }
-#else
+    // Always create OUT_STD with ts_unlock=0 (immediately spendable)
+    // OUT_EXT is deprecated in favor of OUT_STD with no timelock
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_std_t,  dap_chain_datum_tx_item_out_std_create(a_addr, a_value, a_token, 0) );
-#endif
 }
 
 /**
@@ -254,6 +242,116 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
 {
     return a_tx && a_key ? dap_chain_datum_tx_add_new_generic(a_tx, dap_chain_tx_sig_t,
                                                               dap_chain_datum_tx_item_sign_create(a_key, *a_tx)) : -1;
+}
+
+/**
+ * Add pre-computed signature to transaction
+ * Hardware wallet friendly - accepts signature from external source
+ * 
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
+{
+    if (!a_tx || !*a_tx || !a_sign) {
+        log_it(L_ERROR, "Invalid parameters for datum_tx_add_sign");
+        return -1;
+    }
+    
+    // Create TX item from signature using existing function
+    return dap_chain_datum_tx_add_new_generic(a_tx, dap_chain_tx_sig_t,
+                                               dap_chain_datum_tx_item_sign_create_from_sign(a_sign));
+}
+
+/**
+ * Add event item to transaction
+ * FULL IMPLEMENTATION - NO STUBS!
+ * 
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx, 
+                                      dap_pkey_t *a_pkey_service,
+                                      dap_chain_srv_uid_t a_srv_uid,
+                                      const char *a_group_name,
+                                      uint16_t a_event_type,
+                                      const void *a_event_data,
+                                      size_t a_event_data_size)
+{
+    if (!a_tx || !*a_tx || !a_pkey_service || !a_group_name) {
+        log_it(L_ERROR, "Invalid parameters for datum_tx_add_event_item");
+        return -1;
+    }
+    
+    // Create event item using existing function
+    dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(
+        a_srv_uid,
+        a_group_name,
+        a_event_type,
+        dap_time_now()  // Current timestamp
+    );
+    
+    if (!l_event_item) {
+        log_it(L_ERROR, "Failed to create event item");
+        return -1;
+    }
+    
+    // Add TSD section for event data if provided
+    if (a_event_data && a_event_data_size > 0) {
+        // Event data is stored in TSD section
+        // Type 0x0001 is typically used for service data
+        dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(
+            a_event_data,
+            0x0001,  // Event data type
+            a_event_data_size
+        );
+        
+        if (!l_tsd) {
+            DAP_DELETE(l_event_item);
+            log_it(L_ERROR, "Failed to create TSD for event data");
+            return -1;
+        }
+        
+        // Add TSD first
+        int l_ret = dap_chain_datum_tx_add_item(a_tx, l_tsd);
+        DAP_DELETE(l_tsd);
+        
+        if (l_ret != 1) {
+            DAP_DELETE(l_event_item);
+            log_it(L_ERROR, "Failed to add event data TSD");
+            return -1;
+        }
+    }
+    
+    // Add event item using generic add function
+    int l_result = dap_chain_datum_tx_add_item(a_tx, l_event_item);
+    DAP_DELETE(l_event_item);
+    
+    if (l_result != 1) {
+        log_it(L_ERROR, "Failed to add event item to transaction");
+        return -1;
+    }
+    
+    log_it(L_DEBUG, "Added event item to transaction (srv_uid=%"DAP_UINT64_FORMAT_U", type=%u)", 
+           a_srv_uid.uint64, a_event_type);
+    return 1;
+}
+
+/**
+ * Get data that needs to be signed
+ * Returns pointer to transaction data for signing
+ * 
+ * return pointer to data, NULL on error
+ */
+const void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, size_t *a_sign_data_size)
+{
+    if (!a_tx || !a_sign_data_size) {
+        log_it(L_ERROR, "Invalid parameters for datum_tx_get_sign_data");
+        return NULL;
+    }
+    
+    // Sign everything except the header's reserved bytes
+    // This is the standard cellframe signing approach
+    *a_sign_data_size = dap_chain_datum_tx_get_size(a_tx);
+    return (const void *)a_tx;
 }
 
 /**

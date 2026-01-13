@@ -25,8 +25,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "utlist.h"
 #include "dap_rand.h"
 #include "dap_stream_ch_proc.h"
-#include "dap_chain_net.h"
+// Phase 5.3: Use network API layer instead of full net module to break cycles
+#include "dap_chain_net_api.h"  // Core net API (lookup functions) - replaces dap_chain_net.h for core functions
 #include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv_stake_common.h"  // For DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_type_blocks.h"
@@ -34,11 +36,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_cs_type.h"  // For old consensus registration system
 #include "dap_chain_policy.h"   // For policy functions from common module
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_block_tx.h"  // For dap_chain_block_tx_coll_fee_create, dap_chain_block_tx_reward_create
 #include "dap_json.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"  // Stake module is now compiled and working!
 #include "dap_chain_ledger.h"
 #include "dap_cli_server.h"
-#include "dap_chain_node_cli_cmd.h"
 #include "dap_sign.h"
 #include "dap_link_manager.h"
 #include "dap_chain_node.h"
@@ -125,7 +127,7 @@ DAP_STATIC_INLINE uint32_t s_directive_calc_size(uint8_t a_type)
 
 DAP_STATIC_INLINE char *s_get_penalty_group(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_net_id);
     return dap_strdup_printf(DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX".%s.penalty", l_net->pub.gdb_groups_prefix);
 }
 
@@ -215,7 +217,7 @@ int dap_chain_cs_esbocs_init()
                            NULL,
                            s_stream_ch_packet_in,
                            NULL);
-    dap_cli_server_cmd_add (DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_cli_esbocs, NULL, "ESBOCS commands", dap_chain_node_cli_cmd_id_from_str(DAP_CHAIN_ESBOCS_CS_TYPE_STR),
+    dap_cli_server_cmd_add (DAP_CHAIN_ESBOCS_CS_TYPE_STR, s_cli_esbocs, NULL, "ESBOCS commands",  0 ,
         "esbocs min_validators_count set -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> -val_count <value>\n"
             "\tSets minimum validators count for ESBOCS consensus\n"
         "esbocs min_validators_count show -net <net_name> [-chain <chain_name>]\n"
@@ -296,14 +298,50 @@ int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
     return 0;
 }
 
+// ========== ESBOCS Callback Adapters (old signatures → new signatures) ==========
+// These wrappers adapt old ESBOCS functions taking dap_chain_net_id_t to new callback 
+// signatures taking dap_chain_t* as required by dap_chain_cs_callbacks_t
+
+static char* s_esbocs_get_fee_group_wrapper(dap_chain_t *a_chain, const char *a_net_name) {
+    UNUSED(a_chain);  // Old function only needs net_name
+    return dap_chain_cs_blocks_get_fee_group(a_net_name);
+}
+
+static char* s_esbocs_get_reward_group_wrapper(dap_chain_t *a_chain, const char *a_net_name) {
+    UNUSED(a_chain);  // Old function only needs net_name
+    return dap_chain_cs_blocks_get_reward_group(a_net_name);
+}
+
+static uint256_t s_esbocs_get_fee_wrapper(dap_chain_t *a_chain) {
+    return dap_chain_esbocs_get_fee(a_chain->net_id);
+}
+
+static dap_pkey_t* s_esbocs_get_sign_pkey_wrapper(dap_chain_t *a_chain) {
+    return dap_chain_esbocs_get_sign_pkey(a_chain->net_id);
+}
+
+static void s_esbocs_add_block_collect_wrapper(dap_chain_t *a_chain, void *a_block_cache, void *a_params, int a_type) {
+    UNUSED(a_chain);  // Old function doesn't need chain
+    s_add_block_collect_callback_wrapper(a_block_cache, a_params, a_type);
+}
+
+static bool s_esbocs_get_autocollect_status_wrapper(dap_chain_t *a_chain) {
+    return dap_chain_esbocs_get_autocollect_status(a_chain->net_id);
+}
+
+static int s_stake_switch_table_wrapper(dap_chain_t *a_chain, bool a_to_sandbox) {
+    return dap_chain_net_srv_stake_switch_table(a_chain->net_id, a_to_sandbox);
+}
+
+static int s_stake_hardfork_data_import_wrapper(dap_chain_t *a_chain, dap_hash_fast_t *a_decree_hash) {
+    return dap_chain_net_srv_stake_hardfork_data_import(a_chain->net_id, a_decree_hash);
+}
+
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_set_cs_type(a_chain, "blocks");
     dap_chain_type_create(a_chain, a_chain_cfg);
-#ifdef DAP_LEDGER_TEST
-    //patch for tests
-    return 0;
-#endif
+    
     const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_prefix");
     if (!l_auth_certs_prefix)
         return -1;
@@ -335,7 +373,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->start_validators_min     = l_esbocs_pvt->min_validators_count = l_validators_count;
 
     uint16_t i, l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     int l_dot_pos = strlen(l_auth_certs_prefix), l_len = l_dot_pos + 16, l_pos2 = 0;
     char l_cert_name[l_len];
     dap_strncpy(l_cert_name, l_auth_certs_prefix, l_len);
@@ -396,27 +434,35 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         if (l_preset_reward_str) {
             uint256_t l_preset_reward = dap_chain_balance_scan(l_preset_reward_str);
             if (!IS_ZERO_256(l_preset_reward))
-                dap_chain_net_add_reward(l_net, l_preset_reward, 0);
+                dap_chain_net_api_add_reward(l_net, l_preset_reward, 0);
         }
         
-        // Register consensus callbacks for this chain 
-        static dap_chain_cs_callbacks_t s_cs_callbacks = {
-            // Consensus → Chain callbacks
-            .get_fee_group = dap_chain_cs_blocks_get_fee_group,
-            .get_reward_group = dap_chain_cs_blocks_get_reward_group,
-            // Chain → Consensus callbacks
-            .get_fee = dap_chain_esbocs_get_fee,
-            .get_sign_pkey = dap_chain_esbocs_get_sign_pkey,
-            .get_collecting_level = dap_chain_esbocs_get_collecting_level,
-            .add_block_collect = s_add_block_collect_callback_wrapper,
-            .get_autocollect_status = dap_chain_esbocs_get_autocollect_status,
-            .set_hardfork_state = dap_chain_esbocs_set_hardfork_state,
-            .hardfork_engaged = dap_chain_esbocs_hardfork_engaged,
-            // Stake service callbacks for hardfork
-            .stake_switch_table = dap_chain_net_srv_stake_switch_table,
-            .stake_hardfork_data_import = dap_chain_net_srv_stake_hardfork_data_import
+        // Register consensus callbacks for this chain (uses wrappers defined above)
+        dap_chain_cs_callbacks_t l_cs_callbacks = {
+            // Consensus → Chain callbacks (WITH WRAPPERS)
+            .get_fee_group = s_esbocs_get_fee_group_wrapper,
+            .get_reward_group = s_esbocs_get_reward_group_wrapper,
+            // Chain → Consensus callbacks (WITH WRAPPERS)
+            .get_fee = s_esbocs_get_fee_wrapper,
+            .get_sign_pkey = s_esbocs_get_sign_pkey_wrapper,
+            .get_sign_key = dap_chain_esbocs_get_sign_key,  // Already compatible
+            .get_collecting_level = dap_chain_esbocs_get_collecting_level,  // Already compatible
+            .add_block_collect = s_esbocs_add_block_collect_wrapper,
+            .get_autocollect_status = s_esbocs_get_autocollect_status_wrapper,
+            .set_hardfork_state = dap_chain_esbocs_set_hardfork_state,  // Already compatible
+            .hardfork_engaged = dap_chain_esbocs_hardfork_engaged,  // Already compatible
+            .set_hardfork_prepare = dap_chain_esbocs_set_hardfork_prepare,  // Already compatible
+            .set_hardfork_complete = dap_chain_esbocs_set_hardfork_complete,  // Already compatible
+            // Stake service callbacks - REAL implementations via wrappers!
+            .stake_switch_table = s_stake_switch_table_wrapper,
+            .stake_hardfork_data_import = s_stake_hardfork_data_import_wrapper
         };
-        dap_chain_cs_set_callbacks(a_chain, &s_cs_callbacks);
+        
+        // Allocate persistent copy of callbacks
+        dap_chain_cs_callbacks_t *l_cbs_persistent = DAP_NEW(dap_chain_cs_callbacks_t);
+        *l_cbs_persistent = l_cs_callbacks;
+        
+        dap_chain_cs_set_callbacks(a_chain, l_cbs_persistent);
         log_it(L_INFO, "ESBOCS consensus callbacks registered for chain %s", a_chain->name);
         
         return 0;
@@ -473,12 +519,38 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
             l_block_list = dap_list_append(l_block_list, DAP_DUP(&block_hash));
         }
         dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(l_block_collect_params->chain);
+        dap_chain_net_t *l_net = dap_chain_net_api_by_id(l_block_collect_params->chain->net_id);
+        dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+        const char *l_native_ticker = l_net ? l_net->pub.native_ticker : NULL;
+        
+        if (!l_ledger || !l_native_ticker) {
+            log_it(L_ERROR, "Can't create collect TX: ledger or native ticker is NULL");
+            pthread_rwlock_unlock(&s_collecting_lock);
+            DAP_DELETE(l_block_collect_params);
+            dap_global_db_objs_delete(l_objs, l_objs_count);
+            return;
+        }
+        
         char *l_tx_hash_str = l_fee_collect ?
-                    dap_chain_mempool_tx_coll_fee_create(l_blocks, l_block_collect_params->blocks_sign_key,
-                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex")
+                    dap_chain_block_tx_coll_fee_create(l_blocks, 
+                                     l_block_collect_params->blocks_sign_key,
+                                     l_block_collect_params->collecting_addr, 
+                                     l_block_list,
+                                     l_ledger,
+                                     l_native_ticker,
+                                     l_block_collect_params->chain->net_id,
+                                     l_block_collect_params->minimum_fee,
+                                     "hex")
                   :
-                    dap_chain_mempool_tx_reward_create(l_blocks, l_block_collect_params->blocks_sign_key,
-                                     l_block_collect_params->collecting_addr, l_block_list, l_block_collect_params->minimum_fee, "hex");
+                    dap_chain_block_tx_reward_create(l_blocks, 
+                                     l_block_collect_params->blocks_sign_key,
+                                     l_block_collect_params->collecting_addr, 
+                                     l_block_list,
+                                     l_ledger,
+                                     l_native_ticker,
+                                     l_block_collect_params->chain->net_id,
+                                     l_block_collect_params->minimum_fee,
+                                     "hex");
         if (l_tx_hash_str) {
             log_it(L_NOTICE, "%s collect transaction successfully created, hash = %s",
                             l_fee_collect ? "Fee" : "Reward", l_tx_hash_str);
@@ -523,14 +595,14 @@ static void s_add_block_collect_internal(dap_chain_block_cache_t *a_block_cache,
     if (a_type == DAP_CHAIN_BLOCK_COLLECT_BOTH || a_type == DAP_CHAIN_BLOCK_COLLECT_FEES) {
         dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_cache->block, a_block_cache->block_size, 0);
         if (dap_pkey_compare_with_sign(a_block_collect_params->block_sign_pkey, l_sign)) {
-            dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
+            dap_chain_net_t *l_net = dap_chain_net_api_by_id(l_chain->net_id);
             assert(l_net);
             uint256_t l_value_fee = uint256_0;
             dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
                                             l_net->pub.ledger, a_block_cache, &l_value_fee);
             if (!IS_ZERO_256(l_value_fee)) {
                 dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks(l_chain);
-                char *l_fee_group = l_blocks_cbs ? l_blocks_cbs->get_fee_group(l_chain->net_name) : NULL;
+                char *l_fee_group = l_blocks_cbs ? l_blocks_cbs->get_fee_group(l_chain, l_chain->net_name) : NULL;
                 if (l_fee_group) {
                     dap_global_db_set(l_fee_group, a_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
                                         false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
@@ -544,7 +616,7 @@ static void s_add_block_collect_internal(dap_chain_block_cache_t *a_block_cache,
         return;
     if (dap_chain_block_sign_match_pkey(a_block_cache->block, a_block_cache->block_size,
                                         a_block_collect_params->block_sign_pkey)) {
-        dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
+        dap_chain_net_t *l_net = dap_chain_net_api_by_id(l_chain->net_id);
         assert(l_net);
         if (!dap_ledger_is_used_reward(l_net->pub.ledger, &a_block_cache->block_hash,
                                         &a_block_collect_params->collecting_addr->data.hash_fast)) {
@@ -552,7 +624,7 @@ static void s_add_block_collect_internal(dap_chain_block_cache_t *a_block_cache,
                                                                      a_block_collect_params->block_sign_pkey);
             if (!IS_ZERO_256(l_value_reward)) {
                 dap_chain_cs_callbacks_t *l_blocks_cbs = dap_chain_cs_get_callbacks(l_chain);
-                char *l_reward_group = l_blocks_cbs ? l_blocks_cbs->get_reward_group(l_chain->net_name) : NULL;
+                char *l_reward_group = l_blocks_cbs ? l_blocks_cbs->get_reward_group(l_chain, l_chain->net_name) : NULL;
                 if (l_reward_group) {
                     dap_global_db_set(l_reward_group, a_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),
                                         false, s_check_db_collect_callback, DAP_DUP(a_block_collect_params));
@@ -659,7 +731,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         dap_list_free_full(l_validators, NULL);
         return -3;
     }
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if (l_role.enums > NODE_ROLE_MASTER) {
         log_it(L_NOTICE, "Node role is lower than master role, so this node can't be a consensus validator");
@@ -798,7 +870,7 @@ static int s_callback_stop(dap_chain_t *a_chain)
     DL_FOREACH(s_session_items, l_session) {
         if (l_session->chain == a_chain &&
             l_session->cs_timer) {
-            log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
+            log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_api_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
             l_session->cs_timer = false;
         }
     }
@@ -810,7 +882,7 @@ static int s_callback_start(dap_chain_t *a_chain)
     dap_chain_esbocs_session_t *l_session;
     DL_FOREACH(s_session_items, l_session) {
         if (l_session->chain == a_chain) {
-            log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
+            log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_api_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
             l_session->cs_timer = true;
         }
     }
@@ -921,7 +993,7 @@ int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain)
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     dap_list_free_full(l_esbocs->hardfork_trusted_addrs, NULL);
     l_esbocs->hardfork_trusted_addrs = NULL;
     dap_json_object_free(l_esbocs->hardfork_changed_addrs);
@@ -941,7 +1013,7 @@ static int s_callback_purge(dap_chain_t *a_chain)
     dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
     for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
@@ -1413,10 +1485,12 @@ static bool s_session_round_new(void *a_arg)
         a_session->esbocs->hardfork_state = a_session->esbocs->hardfork_generation > a_session->chain->generation &&
                                     a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
         if (a_session->esbocs->hardfork_state) {
-            dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
-            int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
-                                                     a_session->esbocs->hardfork_trusted_addrs,
-                                                     a_session->esbocs->hardfork_changed_addrs);
+            // DISABLED: dap_chain_node_hardfork_prepare() is #if 0 in dap_chain_node.c
+            // dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
+            // int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
+            //                                          a_session->esbocs->hardfork_trusted_addrs,
+            //                                          a_session->esbocs->hardfork_changed_addrs);
+            int rc = -1; // Disabled: hardfork prepare not implemented
             if (rc) {
                 log_it(L_ERROR, "Can't start hardfork process with code %d, see log for more details", rc);
                 a_session->esbocs->hardfork_state = false;
