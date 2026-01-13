@@ -593,16 +593,32 @@ static bool s_sync_in_chains_callback(void *a_arg)
     }
     dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)l_chain_pkt->data;
     uint64_t l_atom_size = l_chain_pkt->hdr.data_size;
+    
+    // Debug logging before potential crash point
+    log_it(L_INFO, "[SYNC_DEBUG] s_sync_in_chains_callback: data_size=%u, net_id=0x%"DAP_UINT64_FORMAT_x", chain_id=0x%"DAP_UINT64_FORMAT_x", atom_ptr=%p",
+           l_chain_pkt->hdr.data_size, l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64, l_atom);
+    
     dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
     if (!l_chain) {
         debug_if(s_debug_more, L_WARNING, "No chain found for DAP_CHAIN_CH_PKT_TYPE_CHAIN");
         DAP_DELETE(l_args);
         return false;
     }
+    
+    log_it(L_INFO, "[SYNC_DEBUG] Before dap_hash_fast: chain=%s:%s, atom_size=%"DAP_UINT64_FORMAT_U", atom_ptr=%p, aligned=%s",
+           l_chain->net_name, l_chain->name, l_atom_size, l_atom, 
+           ((uintptr_t)l_atom & 7) == 0 ? "yes" : "no");
+    
     dap_hash_fast_t l_atom_hash = { }; 
     dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
+    
+    log_it(L_INFO, "[SYNC_DEBUG] After dap_hash_fast: success");
     char *l_atom_hash_str = dap_hash_fast_to_str_static(&l_atom_hash);
+    
+    log_it(L_INFO, "[SYNC_DEBUG] Before callback_atom_add: hash=%s", l_atom_hash_str);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash, false);
+    log_it(L_INFO, "[SYNC_DEBUG] After callback_atom_add: result=%d", l_atom_add_res);
+    
     bool l_ack_send = false;
     switch (l_atom_add_res) {
     case ATOM_PASS:
@@ -753,6 +769,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         l_args->addr = a_ch->stream->node;
         l_args->ack_req = true;
+        
+        // Debug logging before memcpy
+        log_it(L_INFO, "[SYNC_DEBUG] PKT_TYPE_CHAIN recv: ch_pkt_data_size=%u, chain_pkt_data_size=%zu, hdr.data_size=%u, src=%p, dst=%p",
+               l_ch_pkt->hdr.data_size, l_chain_pkt_data_size, l_chain_pkt->hdr.data_size, l_chain_pkt, l_args->data);
+        
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         debug_if(s_debug_more, L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U ", atom id %" DAP_UINT64_FORMAT_U,
                                         dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size, 

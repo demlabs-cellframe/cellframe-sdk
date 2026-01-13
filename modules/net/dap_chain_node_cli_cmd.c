@@ -5191,7 +5191,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
     dap_cert_parse_str_list(l_params->certs_str, &l_certs, &l_certs_count);
     if(!l_certs_count){
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_NOT_VALID_CERT_ERR,
-                                       "token_decl command requres at least one valid certificate to sign token");
+                                       "token_decl command requires at least one valid certificate to sign token");
         DAP_DEL_Z(l_params);
         return -10;
     }

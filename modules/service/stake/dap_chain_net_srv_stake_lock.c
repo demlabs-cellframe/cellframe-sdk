@@ -317,7 +317,6 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return NET_ARG_ERROR;
 
     if (NULL == (l_net = dap_chain_net_by_name(l_net_str))) {
-        dap_string_append_printf(output_line, "'%s'", l_net_str);
         return NET_ERROR;
     }
 
@@ -329,7 +328,6 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     l_ledger = l_net->pub.ledger;
 
     if (NULL == dap_ledger_token_ticker_check(l_ledger, l_ticker_str)) {
-        dap_string_append_printf(output_line, "'%s'", l_ticker_str);
         return TOKEN_ERROR;
     }
 
@@ -415,7 +413,6 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     }
 
     if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path, NULL))) {
-        dap_string_append_printf(output_line, "'%s'", l_wallet_str);
         return WALLET_OPEN_ERROR;
     } else {
         dap_string_append(output_line, dap_chain_wallet_check_sign(l_wallet));
@@ -494,7 +491,6 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         return NET_ARG_ERROR;
 
     if (NULL == (l_net = dap_chain_net_by_name(l_net_str))) {
-        dap_string_append_printf(output_line, "'%s'", l_net_str);
         return NET_ERROR;
     }
 
@@ -617,183 +613,194 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
 /**
  * @brief s_error_handler
- * @param errorCode
- * @param output_line
+ * @param a_error_code Error code to handle
+ * @param a_output_line Output string to append error message
+ * @param a_argc Argument count for parsing CLI options
+ * @param a_argv Argument vector for parsing CLI options
  */
-static void s_error_handler(enum error_code errorCode, dap_string_t *output_line)
+static void s_error_handler(enum error_code a_error_code, dap_string_t *a_output_line, int a_argc, char **a_argv)
 {
-    dap_string_append_printf(output_line, "ERROR!\n");
-    switch (errorCode)
+    const char *l_param_str = NULL;
+    dap_string_append_printf(a_output_line, "\nERROR!\n");
+    switch (a_error_code)
     {
         case NET_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -net");
+            dap_string_append_printf(a_output_line, "'%s'", "stake_lock command requires parameter -net");
             } break;
 
         case NET_ERROR: {
-            dap_string_append_printf(output_line, " ^^^ network not found");
+            dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_param_str);
+            dap_string_append_printf(a_output_line, "'%s' network not found", l_param_str ? l_param_str : "unknown");
             } break;
 
         case TOKEN_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -token");
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter -token");
             } break;
 
         case TOKEN_ERROR: {
-            dap_string_append_printf(output_line, " ^^^ token ticker not found");
+            dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-token", &l_param_str);
+            dap_string_append_printf(a_output_line, "'%s' token ticker not found", l_param_str ? l_param_str : "unknown");
             } break;
 
         case COINS_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -coins");
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter -coins");
             } break;
 
         case COINS_FORMAT_ERROR: {
-            dap_string_append_printf(output_line, "Format -coins <256 bit integer>");
+            dap_string_append_printf(a_output_line, "Format -coins <256 bit integer>");
             } break;
 
         case ADDR_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -addr_holder");
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter -addr_holder");
             } break;
 
         case ADDR_FORMAT_ERROR: {
-            dap_string_append_printf(output_line, "wrong address holder format");
+            dap_string_append_printf(a_output_line, "wrong address holder format");
             } break;
 
         case CERT_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -cert");
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter -cert");
             } break;
 
         case CERT_LOAD_ERROR: {
-            dap_string_append_printf(output_line, " ^^^ can't load cert");
+            dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-cert", &l_param_str);
+            dap_string_append_printf(a_output_line, "'%s' can't load cert", l_param_str ? l_param_str : "unknown");
             } break;
 
         case CHAIN_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter '-chain'.\n"
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter '-chain'.\n"
                                                                         "you can set default datum type in chain configuration file");
             } break;
 
         case CHAIN_EMISSION_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter '-chain_emission'.\n"
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter '-chain_emission'.\n"
                                                                         "you can set default datum type in chain configuration file");
             } break;
 
         case TIME_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter '-time_staking' in simplified format YYMMDD\n"
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter '-time_staking' in simplified format YYMMDD\n"
                                                                 "Example: \"220610\" == \"10 june 2022 00:00\"");
             } break;
 
         case NO_MONEY_ERROR: {
-            dap_string_append_printf(output_line, "Not enough money");
+            dap_string_append_printf(a_output_line, "Not enough money");
             } break;
 
         case WALLET_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -w");
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter -w");
             } break;
 
         case WALLET_OPEN_ERROR: {
-            dap_string_append_printf(output_line, " ^^^ can't open wallet");
+            dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-w", &l_param_str);
+            dap_string_append_printf(a_output_line, "'%s' can't open wallet", l_param_str ? l_param_str : "unknown");
             } break;
 
         case CERT_KEY_ERROR: {
-            dap_string_append_printf(output_line, " ^^^ cert doesn't contain a valid public key");
+            dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-cert", &l_param_str);
+            dap_string_append_printf(a_output_line, "'%s' cert doesn't contain a valid public key", l_param_str ? l_param_str : "unknown");
             } break;
 
         case WALLET_ADDR_ERROR: {
-            dap_string_append_printf(output_line, " ^^^ failed to get wallet address");
+            dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-w", &l_param_str);
+            dap_string_append_printf(a_output_line, "'%s' failed to get wallet address", l_param_str ? l_param_str : "unknown");
             } break;
 
         case TX_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -tx");
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter -tx");
             } break;
 
         case HASH_IS_BLANK_ERROR: {
-            dap_string_append_printf(output_line, "tx hash is blank");
+            dap_string_append_printf(a_output_line, "tx hash is blank");
             } break;
 
         case NO_TX_ERROR: {
-            dap_string_append_printf(output_line, " ^^^ could not find transaction");
+            dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx", &l_param_str);
+            dap_string_append_printf(a_output_line, "'%s' could not find transaction", l_param_str ? l_param_str : "unknown");
             } break;
 
         case STAKE_ERROR: {
-            dap_string_append_printf(output_line, "STAKE ERROR");
+            dap_string_append_printf(a_output_line, "STAKE ERROR");
             } break;
 
         case NOT_ENOUGH_TIME: {
-            dap_string_append_printf(output_line, "Not enough time has passed");
+            dap_string_append_printf(a_output_line, "Not enough time has passed");
             } break;
 
         case TX_TICKER_ERROR: {
-            dap_string_append_printf(output_line, "ticker not found");
+            dap_string_append_printf(a_output_line, "ticker not found");
             } break;
 
         case NO_DELEGATED_TOKEN_ERROR: {
-            dap_string_append_printf(output_line, " ^^^ delegated token not found");
+            dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-token", &l_param_str);
+            dap_string_append_printf(a_output_line, "'%s' delegated token not found", l_param_str ? l_param_str : "unknown");
             } break;
 
         case NO_VALID_SUBTYPE_ERROR: {
-            dap_string_append_printf(output_line, "wrong subtype for transaction");
+            dap_string_append_printf(a_output_line, "wrong subtype for transaction");
             } break;
 
         case IS_USED_OUT_ERROR: {
-            dap_string_append_printf(output_line, "tx hash is used out");
+            dap_string_append_printf(a_output_line, "tx hash is used out");
             } break;
 
         case OWNER_KEY_ERROR: {
-            dap_string_append_printf(output_line, "wallet key is not equal tx owner key");
+            dap_string_append_printf(a_output_line, "wallet key is not equal tx owner key");
             } break;
 
         case CREATE_TX_ERROR: {
-            dap_string_append_printf(output_line, "memory allocation error when creating a transaction");
+            dap_string_append_printf(a_output_line, "memory allocation error when creating a transaction");
             } break;
 
         case CREATE_BURNING_TX_ERROR: {
-            dap_string_append_printf(output_line, "failed to create a transaction that burns funds");
+            dap_string_append_printf(a_output_line, "failed to create a transaction that burns funds");
             } break;
 
         case CREATE_RECEIPT_ERROR: {
-            dap_string_append_printf(output_line, "failed to create receipt");
+            dap_string_append_printf(a_output_line, "failed to create receipt");
             } break;
 
         case SIGN_ERROR: {
-            dap_string_append_printf(output_line, "failed to sign transaction");
+            dap_string_append_printf(a_output_line, "failed to sign transaction");
             } break;
 
         case ADD_DATUM_BURNING_TX_ERROR: {
-            dap_string_append_printf(output_line, "failed to add datum with burning-transaction to mempool");
+            dap_string_append_printf(a_output_line, "failed to add datum with burning-transaction to mempool");
             } break;
 
         case ADD_DATUM_TX_TAKE_ERROR: {
-            dap_string_append_printf(output_line, "failed to add datum with take-transaction to mempool");
+            dap_string_append_printf(a_output_line, "failed to add datum with take-transaction to mempool");
             } break;
 
         case BASE_TX_CREATE_ERROR: {
-            dap_string_append_printf(output_line, "failed to create the base transaction for emission");
+            dap_string_append_printf(a_output_line, "failed to create the base transaction for emission");
             } break;
 
         case WRONG_PARAM_SIZE: {
-            dap_string_append_printf(output_line, "error while checking conditional transaction parameters");
+            dap_string_append_printf(a_output_line, "error while checking conditional transaction parameters");
             } break;
 
         case CREATE_LOCK_TX_ERROR: {
-            dap_string_append_printf(output_line, "error creating transaction");
+            dap_string_append_printf(a_output_line, "error creating transaction");
             } break;
 
         case CREATE_DATUM_ERROR: {
-            dap_string_append_printf(output_line, "error while creating datum from transaction");
+            dap_string_append_printf(a_output_line, "error while creating datum from transaction");
             } break;
 
         case REINVEST_ARG_ERROR: {
-            dap_string_append_printf(output_line, "reinvestment is set as a percentage from 0 to 100");
+            dap_string_append_printf(a_output_line, "reinvestment is set as a percentage from 0 to 100");
             } break;
 
         case FEE_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -fee");
+            dap_string_append_printf(a_output_line, "stake_lock command requires parameter -fee");
         } break;
 
         case FEE_FORMAT_ERROR: {
-            dap_string_append_printf(output_line, "Format -fee <256 bit integer>");
+            dap_string_append_printf(a_output_line, "Format -fee <256 bit integer>");
         } break;
 
         default: {
-            dap_string_append_printf(output_line, "STAKE_LOCK: Unrecognized error");
+            dap_string_append_printf(a_output_line, "STAKE_LOCK: Unrecognized error");
             } break;
     }
 }
@@ -840,7 +847,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply, UNUSE
     }
     json_object* json_obj_out = json_object_new_object();
     if (STAKE_NO_ERROR != errorCode) {
-        s_error_handler(errorCode, output_line);
+        s_error_handler(errorCode, output_line, a_argc, a_argv);
         json_object_object_add(json_obj_out, "status", json_object_new_string(output_line->str));
     }
     else {
