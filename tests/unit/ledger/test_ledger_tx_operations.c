@@ -33,11 +33,9 @@ DAP_MOCK_WRAPPER_DEFAULT(int, dap_ledger_tx_remove,
     (a_ledger, a_tx, a_tx_hash))
 
 // =============================================================================
-// MOCKS: PART 2 - CUSTOM MOCKS (TEMPORARILY DISABLED DUE TO CI AWK PARSER ISSUES)
-// TODO: Re-enable after fixing AWK parser for multiline DAP_MOCK_WRAPPER_CUSTOM
+// MOCKS: PART 2 - CUSTOM MOCKS with DAP_MOCK_WRAPPER_CUSTOM
 // =============================================================================
 
-/*
 // Declare mocks first (outside DAP_MOCK_WRAPPER_CUSTOM)
 DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_find_by_hash, DAP_MOCK_CONFIG_DEFAULT);
 DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_add, DAP_MOCK_CONFIG_DEFAULT);
@@ -98,7 +96,6 @@ DAP_MOCK_WRAPPER_CUSTOM(const char*, dap_ledger_tx_get_token_ticker_by_hash,
     }
     return (const char*)G_MOCK->return_value.ptr;
 }
-*/
 
 // =============================================================================
 // TEST DATA
