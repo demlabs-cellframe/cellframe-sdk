@@ -33,30 +33,21 @@ DAP_MOCK_WRAPPER_DEFAULT(int, dap_ledger_tx_remove,
     (a_ledger, a_tx, a_tx_hash))
 
 // =============================================================================
-// MOCKS: PART 2 - CUSTOM MOCKS with DAP_MOCK_WRAPPER_CUSTOM (without PARAM)
-// This demonstrates advanced mock patterns with custom logic
-// Simplified syntax: DAP_MOCK_DECLARE_CUSTOM first, then DAP_MOCK_WRAPPER_CUSTOM
-// Generator creates _DAP_MOCK_CUSTOM_FOR_<func_name> macros via dap_tpl templates
+// MOCKS: PART 2 - CUSTOM MOCKS (TEMPORARILY DISABLED DUE TO CI AWK PARSER ISSUES)
+// TODO: Re-enable after fixing AWK parser for multiline DAP_MOCK_WRAPPER_CUSTOM
 // =============================================================================
 
+/*
 // Declare mocks first (outside DAP_MOCK_WRAPPER_CUSTOM)
 DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_find_by_hash, DAP_MOCK_CONFIG_DEFAULT);
 DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_add, DAP_MOCK_CONFIG_DEFAULT);
 DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_get_token_ticker_by_hash, DAP_MOCK_CONFIG_DEFAULT);
 
-/**
- * @brief Custom mock for dap_ledger_tx_find_by_hash with hash validation
- * @details Demonstrates DAP_MOCK_WRAPPER_CUSTOM with conditional return based on hash
- * @note Manual dap_mock_record_call() required for call counting
- */
 DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
     (dap_ledger_t* a_ledger, dap_hash_fast_t* a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_find_by_hash;
-    
-    // Custom logic: Check if hash is all zeros - return NULL
     dap_chain_datum_tx_t* l_result = NULL;
-    
     if (a_tx_hash) {
         bool l_is_zero = true;
         for (size_t i = 0; i < sizeof(dap_hash_fast_t); i++) {
@@ -71,8 +62,6 @@ DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
             return NULL;
         }
     }
-    
-    // Return configured value from G_MOCK
     l_result = (dap_chain_datum_tx_t*)G_MOCK->return_value.ptr;
     dap_mock_record_call(G_MOCK, NULL, 0, (void*)(intptr_t)l_result);
     return l_result;
@@ -82,20 +71,14 @@ DAP_MOCK_WRAPPER_CUSTOM(int, dap_ledger_tx_add,
     (dap_ledger_t* a_ledger, dap_chain_datum_tx_t* a_tx, dap_hash_fast_t* a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t* a_datum_index_data)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_add;
-    
-    // Custom validation: NULL checks
     if (!a_ledger || !a_tx || !a_tx_hash) {
         log_it(L_WARNING, "Custom mock: NULL parameter detected, returning error");
-        return -2; // Invalid parameter error
+        return -2;
     }
-    
-    // Custom logic: a_from_threshold affects result
     if (a_from_threshold) {
         log_it(L_DEBUG, "Custom mock: threshold mode, returning special code");
-        return 1; // Special success code for threshold
+        return 1;
     }
-    
-    // Return configured value from G_MOCK
     return G_MOCK->return_value.i;
 }
 
@@ -103,8 +86,6 @@ DAP_MOCK_WRAPPER_CUSTOM(const char*, dap_ledger_tx_get_token_ticker_by_hash,
     (dap_ledger_t* a_ledger, dap_hash_fast_t* a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_get_token_ticker_by_hash;
-    
-    // Custom logic: Different tickers based on hash first byte
     if (a_tx_hash) {
         uint8_t l_first_byte = ((uint8_t*)a_tx_hash)[0];
         if (l_first_byte == 0x11) {
@@ -112,13 +93,12 @@ DAP_MOCK_WRAPPER_CUSTOM(const char*, dap_ledger_tx_get_token_ticker_by_hash,
         } else if (l_first_byte == 0x22) {
             return "tCELL";
         } else if (l_first_byte == 0xFF) {
-            return NULL; // Unknown hash
+            return NULL;
         }
     }
-    
-    // Default: return configured value from G_MOCK
     return (const char*)G_MOCK->return_value.ptr;
 }
+*/
 
 // =============================================================================
 // TEST DATA
