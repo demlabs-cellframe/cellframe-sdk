@@ -1314,7 +1314,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             }
             
             // Read owner public key hashes array
-            dap_json_t *l_json_pkey_hashes = dap_json_object_get_object(a_json_item_obj, "owner_pkey_hashes");
+            dap_json_t *l_json_pkey_hashes = dap_json_object_get_array(a_json_item_obj, "owner_pkey_hashes");
             if(!l_json_pkey_hashes || !dap_json_is_array(l_json_pkey_hashes)) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
@@ -1360,7 +1360,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             
             // Read optional tags array
             char *l_tag_str = NULL;
-            dap_json_t *l_json_tags = dap_json_object_get_object(a_json_item_obj, "tags");
+            dap_json_t *l_json_tags = dap_json_object_get_array(a_json_item_obj, "tags");
             if(l_json_tags && dap_json_is_array(l_json_tags)) {
                 size_t l_tags_count = dap_json_array_length(l_json_tags);
                 if(l_tags_count > 0) {
@@ -1568,7 +1568,7 @@ int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_ne
     dap_return_val_if_pass(!a_tx_json || !a_out_tx, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS);
 
     // Read items from json file
-    dap_json_t *l_json_items = dap_json_object_get_object(a_tx_json, "items");
+    dap_json_t *l_json_items = dap_json_object_get_array(a_tx_json, "items");
     size_t l_items_count;
     if(!l_json_items || !dap_json_is_array(l_json_items) || !(l_items_count = dap_json_array_length(l_json_items))) {
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
@@ -1718,9 +1718,28 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
 
     // Read items and net from json file
     dap_json_t *l_json_items = NULL;
-    dap_json_object_get_ex(a_tx_json, "items", &l_json_items);
+    bool l_get_ex_result = dap_json_object_get_ex(a_tx_json, "items", &l_json_items);
+    log_it(L_DEBUG, "dap_json_object_get_ex for 'items': %s, l_json_items=%p", 
+           l_get_ex_result ? "SUCCESS" : "FAILED", l_json_items);
+    if (l_json_items) {
+        log_it(L_DEBUG, "l_json_items is_array: %s", dap_json_is_array(l_json_items) ? "YES" : "NO");
+        if (dap_json_is_array(l_json_items)) {
+            size_t arr_len = dap_json_array_length(l_json_items);
+            log_it(L_DEBUG, "Array length: %zu", arr_len);
+        }
+    }
     size_t l_items_count;
-    if(!l_json_items || !dap_json_is_array(l_json_items) || !(l_items_count = dap_json_array_length(l_json_items))) {
+    log_it(L_DEBUG, "About to check array: l_json_items=%p, is_array=%d", 
+           l_json_items, l_json_items ? dap_json_is_array(l_json_items) : -1);
+    if (l_json_items && dap_json_is_array(l_json_items)) {
+        l_items_count = dap_json_array_length(l_json_items);
+        log_it(L_DEBUG, "Array length in check: %zu", l_items_count);
+    } else {
+        l_items_count = 0;
+    }
+    if(!l_json_items || !dap_json_is_array(l_json_items) || !l_items_count) {
+        log_it(L_ERROR, "Failed to get items array: l_json_items=%p, is_array=%d, count=%zu", 
+               l_json_items, l_json_items ? dap_json_is_array(l_json_items) : -1, l_items_count);
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_ARRAY_ITEMS;
     } 
     const char *l_net_str = dap_json_object_get_string(a_tx_json, "net"); 
@@ -1898,12 +1917,19 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
     if(a_items_ready)
         *a_items_ready = l_items_ready;
 
+    log_it(L_DEBUG, "Json TX: Finalized with %zu items_count, %zu items_ready, tx size=%zu", 
+           l_items_count, l_items_ready, dap_chain_datum_tx_get_size(l_tx));
+    
     if (dap_chain_datum_tx_verify_sign_all(l_tx)) {
         log_it(L_WARNING, "Json TX: Sign verification failed!");
         if (a_jobj_arr_errors)
             dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Sign verification failed!");
         return DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED;
     }
+    
+    // NOTE: l_json_items is borrowed reference (cached wrapper), no manual free needed
+    // It will be freed automatically when parent a_tx_json is freed
+    
     return DAP_CHAIN_NET_TX_CREATE_JSON_OK;   
 
 }

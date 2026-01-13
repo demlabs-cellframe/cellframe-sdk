@@ -152,6 +152,9 @@ void s_datum_sign_and_check(dap_chain_datum_tx_t **a_datum)
     dap_test_msg("create datum from json");
     int l_from_json_result = dap_chain_tx_datum_from_json(l_datum_1_json, NULL, l_error_json, &l_datum_2, &l_items_count, &l_items_ready);
     
+    log_it(L_DEBUG, "dap_chain_tx_datum_from_json returned %d, items_count=%zu, items_ready=%zu", 
+           l_from_json_result, l_items_count, l_items_ready);
+    
     // Check for JSON deserialization errors and dump transactions if failed
     if (l_from_json_result != 0) {
         size_t l_datum_1_size = dap_chain_datum_tx_get_size(*a_datum);

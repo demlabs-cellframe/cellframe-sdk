@@ -3,3 +3,6 @@
 	url = ../../dap/dap-sdk.git
 	branch = release-6.0
 
+[submodule "tools/dap_tpl"]
+	path = tools/dap_tpl
+	url = ../../dap/dap_tpl
