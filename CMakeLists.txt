@@ -164,6 +164,15 @@ endif()
 if(NOT TARGET dap_sdk)
     # DAP SDK not found - include our own copy
     message("[+] Cellframe SDK: Using embedded DAP SDK")
+    
+    # Set DAP_TPL_PATH for template engine (used by dap_json code generation)
+    # Point to Cellframe SDK's tools/dap_tpl directory
+    set(DAP_TPL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tools/dap_tpl" CACHE PATH "Path to dap_tpl template engine")
+    message("[+] Cellframe SDK: DAP_TPL_PATH set to ${DAP_TPL_PATH}")
+    
+    # Pass DAP_TPL_DIR to dap-sdk (it expects DAP_TPL_DIR, not DAP_TPL_PATH)
+    set(DAP_TPL_DIR "${DAP_TPL_PATH}")
+    
     include (dap-sdk/cmake/OS_Detection.cmake)
     add_subdirectory(dap-sdk)
     set(CELLFRAME_USING_EXTERNAL_DAP_SDK OFF)
