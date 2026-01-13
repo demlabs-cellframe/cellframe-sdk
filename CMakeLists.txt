@@ -4,17 +4,6 @@ project(cellframe-sdk C)
 set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "4.0.0")
 
-# =========================================
-# DAP_TPL CENTRALIZED PATH
-# =========================================
-# Set centralized dap_tpl location for both Cellframe SDK and DAP SDK
-set(DAP_TPL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/dap_tpl" CACHE PATH "Path to dap_tpl templating engine")
-message(STATUS "[Cellframe] Using centralized dap_tpl from: ${DAP_TPL_DIR}")
-
-# Verify dap_tpl exists
-if(NOT EXISTS "${DAP_TPL_DIR}/dap_tpl.sh")
-    message(FATAL_ERROR "dap_tpl.sh not found at ${DAP_TPL_DIR}/dap_tpl.sh. Please ensure tools/dap_tpl is present.")
-endif()
 
 # =========================================
 # INCLUDE CELLFRAME LIBRARY HELPERS (use DAP SDK system)
@@ -47,6 +36,11 @@ add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 # Option to build Cellframe SDK tests (can be overridden from command line)
 option(BUILD_CELLFRAME_SDK_TESTS "Build Cellframe SDK tests" OFF)
 option(BUILD_PERFORMANCE_TESTS "Build performance tests (TPS, load testing)" OFF)
+
+
+
+
+
 # Configure DAP SDK modules
 # Default modules are set in dap-sdk/CMakeLists.txt: crypto plugin io network-* global-db
 if(BUILD_CELLFRAME_SDK_TESTS)
@@ -149,6 +143,8 @@ if(CMAKE_C_COMPILER MATCHES "clang")
     add_compile_options(-Wno-sign-compare)
 endif()
 
+
+
 # =========================================
 # DAP SDK INTEGRATION - CONDITIONAL
 # =========================================
@@ -157,6 +153,20 @@ endif()
 if(NOT TARGET dap_sdk)
     # DAP SDK not found - include our own copy
     message("[+] Cellframe SDK: Using embedded DAP SDK")
+
+    # =========================================
+    # DAP_TPL CENTRALIZED PATH
+    # =========================================
+    # Set centralized dap_tpl location for both Cellframe SDK and DAP SDK
+    set(DAP_TPL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/dap_tpl" CACHE PATH "Path to dap_tpl templating engine")
+    message(STATUS "[Cellframe] Using centralized dap_tpl from: ${DAP_TPL_DIR}")
+
+    # Verify dap_tpl exists
+    if(NOT EXISTS "${DAP_TPL_DIR}/dap_tpl.sh")
+        message(FATAL_ERROR "dap_tpl.sh not found at ${DAP_TPL_DIR}/dap_tpl.sh. Please ensure tools/dap_tpl is present.")
+    endif()
+
+
     include (dap-sdk/cmake/OS_Detection.cmake)
     add_subdirectory(dap-sdk)
     set(CELLFRAME_USING_EXTERNAL_DAP_SDK OFF)
