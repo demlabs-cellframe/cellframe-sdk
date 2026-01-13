@@ -5,6 +5,18 @@ set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "4.0.0")
 
 # =========================================
+# DAP_TPL CENTRALIZED PATH
+# =========================================
+# Set centralized dap_tpl location for both Cellframe SDK and DAP SDK
+set(DAP_TPL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/dap_tpl" CACHE PATH "Path to dap_tpl templating engine")
+message(STATUS "[Cellframe] Using centralized dap_tpl from: ${DAP_TPL_DIR}")
+
+# Verify dap_tpl exists
+if(NOT EXISTS "${DAP_TPL_DIR}/dap_tpl.sh")
+    message(FATAL_ERROR "dap_tpl.sh not found at ${DAP_TPL_DIR}/dap_tpl.sh. Please ensure tools/dap_tpl is present.")
+endif()
+
+# =========================================
 # INCLUDE CELLFRAME LIBRARY HELPERS (use DAP SDK system)
 # =========================================
 # Universal library creation helpers (shared with DAP SDK)
