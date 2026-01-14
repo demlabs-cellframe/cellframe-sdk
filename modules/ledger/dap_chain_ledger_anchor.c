@@ -30,12 +30,10 @@
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_decree.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_net.h"
-#include "dap_chain_net_tx.h"
+#include "dap_chain_net_utils.h"
+#include "dap_chain_net_types.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_datum_anchor.h"
-#include "dap_chain_cs_esbocs.h"
 
 #define LOG_TAG "dap_ledger_anchor"
 
@@ -43,7 +41,28 @@
 static bool s_verify_pubkeys(dap_sign_t *a_sign, dap_sign_t **a_decree_signs, size_t a_num_of_decree_sign);
 static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, size_t a_signs_size, size_t *a_sings_count, size_t *a_signs_arr_size);
 
-static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size, bool a_load_mode)
+// Anchor unload callback storage
+typedef struct dap_ledger_anchor_unload_callback_item {
+    uint16_t type;
+    uint16_t subtype;
+    dap_ledger_anchor_unload_callback_t callback;
+    struct dap_ledger_anchor_unload_callback_item *next;
+} dap_ledger_anchor_unload_callback_item_t;
+
+static dap_ledger_anchor_unload_callback_item_t *s_anchor_unload_callbacks = NULL;
+
+void dap_ledger_anchor_unload_set_callback(uint16_t a_type, uint16_t a_subtype, dap_ledger_anchor_unload_callback_t a_callback)
+{
+    dap_ledger_anchor_unload_callback_item_t *l_item = DAP_NEW_Z(dap_ledger_anchor_unload_callback_item_t);
+    l_item->type = a_type;
+    l_item->subtype = a_subtype;
+    l_item->callback = a_callback;
+    l_item->next = s_anchor_unload_callbacks;
+    s_anchor_unload_callbacks = l_item;
+    log_it(L_INFO, "Registered anchor unload callback for type=%u subtype=%u", a_type, a_subtype);
+}
+
+static int s_anchor_verify(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size, bool a_load_mode)
 {
     if (a_data_size < sizeof(dap_chain_datum_anchor_t))
         return log_it(L_WARNING, "Anchor size is too small"), -120;
@@ -63,15 +82,19 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
     size_t l_num_of_unique_signs = 0;
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_block, l_signs_size, &l_num_of_unique_signs);
 
-    if (!l_num_of_unique_signs || !l_unique_signs)
-        return log_it(L_WARNING, "No unique signatures!"), -106;
     bool l_sign_authorized = false;
     size_t l_signs_size_original = a_anchor->header.signs_size;
-    dap_chain_datum_anchor_t *l_anchor = a_net->pub.chains->is_mapped
-        ? DAP_DUP_SIZE(a_anchor, a_data_size)
-        : a_anchor;
+    // Always duplicate anchor for verification to avoid modifying original
+    bool l_need_dup = true;
+    dap_chain_datum_anchor_t *l_anchor = DAP_DUP_SIZE(a_anchor, a_data_size);
+    if (!l_anchor)
+        return log_it(L_CRITICAL, "Memory allocation error"), -1;
     l_anchor->header.signs_size = 0;
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
+
+    if (!l_num_of_unique_signs || !l_unique_signs)
+        return log_it(L_WARNING, "No unique signatures!"), -106;
+    
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     for (size_t i = 0; i < l_num_of_unique_signs; i++) {
         for (dap_list_t *it = l_ledger_pvt->decree_owners_pkeys; it; it = it->next) {
             if (dap_pkey_compare_with_sign(it->data, l_unique_signs[i])) {
@@ -88,7 +111,7 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
             break;
     }
     DAP_DELETE(l_unique_signs);
-    if ( a_net->pub.chains->is_mapped )
+    if (l_need_dup)
         DAP_DELETE(l_anchor);
     else
         l_anchor->header.signs_size = l_signs_size_original;
@@ -108,7 +131,7 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
         return 0;
 
     bool l_is_applied = false;
-    l_decree = dap_ledger_decree_get_by_hash(a_net, &l_decree_hash, &l_is_applied);
+    l_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_decree_hash, &l_is_applied);
     if (!l_decree) {
         log_it(L_WARNING, "Can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
         return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;
@@ -122,24 +145,22 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
 }
 
 // Public functions
-int dap_ledger_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size)
+int dap_ledger_anchor_verify(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_anchor, size_t a_data_size)
 {
-   return s_anchor_verify(a_net, a_anchor, a_data_size, false);
+   return s_anchor_verify(a_ledger, a_anchor, a_data_size, false);
 }
 
-int dap_ledger_anchor_load(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash)
+int dap_ledger_anchor_load(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_anchor, dap_chain_id_t a_chain_id, dap_hash_fast_t *a_anchor_hash)
 {
     int ret_val = 0;
 
-    if (!a_anchor || !a_chain)
+    if (!a_ledger || !a_anchor || !a_chain_id.uint64)
     {
-        log_it(L_WARNING, "Invalid arguments. a_decree and a_chain must be not NULL");
+        log_it(L_WARNING, "Invalid arguments. a_ledger, a_anchor and a_chain_id must be not NULL");
         return -107;
     }
 
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-
-    if ((ret_val = s_anchor_verify(l_net, a_anchor, dap_chain_datum_anchor_get_size(a_anchor), true)) != 0)
+    if ((ret_val = dap_ledger_anchor_verify(a_ledger, a_anchor, dap_chain_datum_anchor_get_size(a_anchor))) != 0)
     {
         log_it(L_WARNING, "Anchor is not pass verification!");
         return ret_val;
@@ -152,12 +173,12 @@ int dap_ledger_anchor_load(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_ch
         return -109;
     }
 
-    if ((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash)) != 0){
+    if ((ret_val = dap_ledger_decree_apply(a_ledger, &l_hash, NULL, a_chain_id, a_anchor_hash)) != 0){
         debug_if(g_debug_ledger, L_WARNING, "Decree applying failed");
         return ret_val;
     }
 
-    dap_ledger_private_t *l_ledger_pvt = PVT(l_net->pub.ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_anchor_item_t *l_new_anchor = NULL;
     unsigned l_hash_value;
     HASH_VALUE(a_anchor_hash, sizeof(dap_hash_fast_t), l_hash_value);
@@ -171,17 +192,11 @@ int dap_ledger_anchor_load(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_ch
             return -1;
         }
         l_new_anchor->anchor_hash = *a_anchor_hash;
-        dap_chain_datum_anchor_t *l_anchor = a_anchor;
-        if (!a_chain->is_mapped) {
-            l_anchor = DAP_DUP_SIZE(a_anchor, dap_chain_datum_anchor_get_size(a_anchor));
-            if (!l_anchor) {
-                log_it(L_CRITICAL, "Memory allocation error");
-                pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
-                return -1;
-            }
-        }
-        l_new_anchor->anchor = l_anchor;
-        l_new_anchor->storage_chain_id = a_chain->id;
+        // Note: anchor data ownership is managed by chain module
+        // Chain module is responsible for duplication if needed (for non-mapped chains)
+        // Ledger just stores the pointer
+        l_new_anchor->anchor = a_anchor;
+        l_new_anchor->storage_chain_id = a_chain_id;
         HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->anchors, anchor_hash, sizeof(dap_hash_fast_t), l_hash_value, l_new_anchor);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
@@ -191,13 +206,7 @@ int dap_ledger_anchor_load(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_ch
 int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
 {
     dap_return_val_if_fail(a_ledger, -1);
-    dap_chain_t *l_chain = dap_chain_find_by_id(a_ledger->net->pub.id, a_chain_id);
-    if (!l_chain) {
-        log_it(L_ERROR, "Can't find chain 0x016%" DAP_UINT64_FORMAT_x "in net %s", a_chain_id.uint64, a_ledger->net->pub.name);
-        return -2;
-    }
-    if (!dap_chain_datum_type_supported_by_chain(l_chain, DAP_CHAIN_DATUM_ANCHOR))
-        return 0;
+    
     dap_ledger_anchor_item_t *it = NULL, *tmp;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
@@ -212,14 +221,18 @@ int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
             if (l_decree) {
                 l_decree->is_applied = l_decree->wait_for_apply = false;
                 l_decree->anchor_hash = (dap_hash_fast_t) { };
-                if (l_decree->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD)
-                    dap_chain_net_remove_last_reward(a_ledger->net);
+                if (l_decree->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD) {
+                    // Call reward removed callback if registered
+                    if (a_ledger->reward_removed_callback) {
+                        a_ledger->reward_removed_callback(a_ledger);
+                    }
+                }
             } else
                 log_it(L_ERROR, "Corrupted datum anchor, can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
         } else
             log_it(L_ERROR, "Corrupted datum anchor %s, can't get decree hash from it", dap_hash_fast_to_str_static(&it->anchor_hash));
-        if (!l_chain->is_mapped)
-            DAP_DELETE(it->anchor);
+        // Note: anchor memory management is handled by chain module
+        // We just remove from our hash table, chain module is responsible for freeing if needed
         DAP_DELETE(it);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
@@ -242,12 +255,12 @@ dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_has
     return l_anchor ? l_anchor->anchor : NULL;
 }
 
-static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_anchor_hash, dap_chain_net_t *a_net)
+static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_anchor_hash, dap_ledger_t *a_ledger)
 {
     dap_chain_datum_anchor_t * l_ret_anchor = NULL;
-    dap_return_val_if_fail(a_old_anchor_hash && a_net, NULL);
+    dap_return_val_if_fail(a_old_anchor_hash && a_ledger, NULL);
 
-    dap_ledger_anchor_item_t *l_anchor = s_find_anchor(a_net->pub.ledger, a_old_anchor_hash);
+    dap_ledger_anchor_item_t *l_anchor = s_find_anchor(a_ledger, a_old_anchor_hash);
     if (!l_anchor) {
         log_it(L_WARNING, "Can not find anchor");
         return NULL;
@@ -257,11 +270,11 @@ static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_a
     dap_hash_fast_t l_old_decrere_hash = {};
     if (dap_chain_datum_anchor_get_hash_from_data(l_old_anchor, &l_old_decrere_hash) != 0)
         return NULL;
-    dap_chain_datum_decree_t *l_old_decree = dap_ledger_decree_get_by_hash(a_net, &l_old_decrere_hash, NULL);
+    dap_chain_datum_decree_t *l_old_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_old_decrere_hash, NULL);
     uint16_t l_old_decree_type = l_old_decree->header.type;
     uint16_t l_old_decree_subtype = l_old_decree->header.sub_type;
 
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_anchor_item_t *l_anchors = HASH_LAST(l_ledger_pvt->anchors);
     for(; l_anchors; l_anchors = l_anchors->hh.prev){
         size_t l_datums_count = 0;
@@ -272,7 +285,7 @@ static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_a
             continue;
         
         bool l_is_applied = false;
-        dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(a_net, &l_hash, &l_is_applied);
+        dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_hash, &l_is_applied);
         if (!l_decree)
             continue;
 
@@ -291,13 +304,13 @@ static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_a
 
             if(dap_chain_addr_compare(&l_addr_old, &l_addr_new)){
                 l_ret_anchor = l_curr_anchor;
-                dap_ledger_decree_reset_applied(a_net, &l_hash);
+                dap_ledger_decree_reset_applied(a_ledger, &l_hash);
             break;
             }
         } else if (l_decree->header.type == l_old_decree_type && l_decree->header.sub_type == l_old_decree_subtype){
             // check addr if l_decree type is stake approve
             l_ret_anchor = l_curr_anchor;
-            dap_ledger_decree_reset_applied(a_net, &l_hash);
+            dap_ledger_decree_reset_applied(a_ledger, &l_hash);
             break;
         }
         if (l_ret_anchor)
@@ -307,9 +320,9 @@ static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_a
     return l_ret_anchor;
 }
 
-void s_delete_anchor(dap_chain_net_t *a_net, dap_hash_fast_t *a_anchor_hash)
+void s_delete_anchor(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash)
 {
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_anchor_item_t *l_anchor = NULL;
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
     HASH_FIND(hh, l_ledger_pvt->anchors, a_anchor_hash, sizeof(dap_hash_fast_t), l_anchor);
@@ -320,19 +333,17 @@ void s_delete_anchor(dap_chain_net_t *a_net, dap_hash_fast_t *a_anchor_hash)
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
 }
 
-int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash)
+int dap_ledger_anchor_unload(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t * a_anchor, dap_chain_id_t a_chain_id, dap_hash_fast_t *a_anchor_hash)
 {
     int ret_val = 0;
 
-    if (!a_anchor || !a_chain)
+    if (!a_ledger || !a_anchor || !a_chain_id.uint64)
     {
-        log_it(L_WARNING,"Invalid arguments. a_decree and a_chain must be not NULL");
+        log_it(L_WARNING,"Invalid arguments. a_ledger, a_anchor and a_chain_id must be not NULL");
         return -107;
     }
 
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-
-    ret_val = s_anchor_verify(l_net, a_anchor, dap_chain_datum_anchor_get_size(a_anchor), true);
+    ret_val = dap_ledger_anchor_verify(a_ledger, a_anchor, dap_chain_datum_anchor_get_size(a_anchor));
 
     if (ret_val != 0)
     {
@@ -344,125 +355,26 @@ int dap_ledger_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a
     if (dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_hash) != 0)
         return -110;
             
-    dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(l_net, &l_hash, NULL);
+    dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_hash, NULL);
     if (!l_decree)
         return -111;
 
-    if(l_decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON){
-        switch (l_decree->header.sub_type)
-        {
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:{
-                dap_ledger_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
-                s_delete_anchor(l_net, a_anchor_hash);
-                if (l_new_anchor){
-                    dap_chain_hash_fast_t l_hash = {0};
-                    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
-                        log_it(L_WARNING,"Can not find datum hash in anchor data");
-                        return -109;
-                    }
-
-                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash))!=0){
-                        log_it(L_WARNING,"Decree applying failed");
-                        return ret_val;
-                    }
-                } else {
-                    dap_chain_addr_t a_addr = c_dap_chain_addr_blank;
-                    if (!dap_chain_net_tx_set_fee(a_chain->net_id, uint256_0, a_addr)){
-                        log_it(L_ERROR, "Can't set fee value for network %s", dap_chain_net_by_id(a_chain->net_id)->pub.name);
-                        ret_val = -100;
-                    }
-                }
-            }
-            break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:{
-                // Invalidate canceled stake
-                dap_chain_addr_t l_signing_addr = {};
-                if ((ret_val = dap_chain_datum_decree_get_stake_signing_addr(l_decree, &l_signing_addr)) != 0){
-                log_it(L_WARNING,"Can't get signing address from decree.");
-                    return -105;
-                }
-                dap_chain_net_srv_stake_key_invalidate(&l_signing_addr);
-                dap_ledger_decree_reset_applied(l_net, &l_hash);
-                s_delete_anchor(l_net, a_anchor_hash);
-            }
-            break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:{
-                // Find previous anchor with this stake approve and apply it 
-                dap_ledger_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
-                s_delete_anchor(l_net, a_anchor_hash);
-                if (l_new_anchor){
-                    dap_chain_hash_fast_t l_hash = {0};
-                    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
-                        log_it(L_WARNING,"Can not find datum hash in anchor data");
-                        return -109;
-                    }
-                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash))!=0){
-                        log_it(L_WARNING,"Decree applying failed");
-                        return ret_val;
-                    }
-                }
-            }
-            break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:{
-                dap_ledger_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
-                s_delete_anchor(l_net, a_anchor_hash);
-                if (l_new_anchor) {
-                    dap_chain_hash_fast_t l_hash = {0};
-                    if (( ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash) )) {
-                        log_it(L_WARNING,"Can not find datum hash in anchor data");
-                        return -109;
-                    }
-                    if (( ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash) )) {
-                        log_it(L_WARNING,"Decree applying failed");
-                        return ret_val;
-                    }
-                } else
-                    dap_chain_net_srv_stake_set_allowed_min_value(a_chain->net_id, dap_chain_balance_coins_scan("1.0"));
-            }
-            break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:{
-                dap_ledger_decree_reset_applied(l_net, &l_hash);
-                dap_chain_datum_anchor_t * l_new_anchor = s_find_previous_anchor(a_anchor_hash, l_net);
-                s_delete_anchor(l_net, a_anchor_hash);
-                if (l_new_anchor){
-                    dap_chain_hash_fast_t l_hash = {0};
-                    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(l_new_anchor, &l_hash)) != 0){
-                        log_it(L_WARNING,"Can not find datum hash in anchor data");
-                        return -109;
-                    }
-
-                    if((ret_val = dap_ledger_decree_apply(&l_hash, NULL, a_chain, a_anchor_hash))!=0){
-                        log_it(L_WARNING,"Decree applying failed");
-                        return ret_val;
-                    }
-                } else {
-                    dap_chain_esbocs_set_min_validators_count(a_chain, 0);                    
-                }
-            }
-            break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD:{
-                // find previous anchor with rewarrd and apply it
-                dap_ledger_decree_reset_applied(l_net, &l_hash);
-                dap_chain_net_remove_last_reward(dap_chain_net_by_id(a_chain->net_id));
-                s_delete_anchor(l_net, a_anchor_hash);
-            }
-            break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN:
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN:
-                ret_val = -1;
-            default:
-                break;
+    // Check for registered callbacks first
+    for (dap_ledger_anchor_unload_callback_item_t *it = s_anchor_unload_callbacks; it; it = it->next) {
+        if (it->type == l_decree->header.type && it->subtype == l_decree->header.sub_type) {
+            return it->callback(a_ledger, l_decree, a_chain_id, a_anchor_hash);
         }
-    } else if(l_decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE){
-
     }
 
-    return ret_val;
+    // No callback registered - decree/anchor unload logic should be handled by respective modules:
+    // - Net module handles: FEE, REWARD
+    // - Services/stake module handles: STAKE_APPROVE, STAKE_INVALIDATE, STAKE_MIN_VALUE, STAKE_MIN_VALIDATORS_COUNT  
+    // - Consensus module handles: validators, esbocs-specific logic
+    // Modules should register callbacks via dap_ledger_anchor_unload_set_callback()
+    log_it(L_WARNING, "No anchor unload callback registered for decree type=%u subtype=%u", 
+           l_decree->header.type, l_decree->header.sub_type);
+    
+    return 0;
 }
 
 // Private functions

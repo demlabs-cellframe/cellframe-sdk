@@ -29,8 +29,7 @@
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_net.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+#include "dap_cli_server.h"  // For CLI registration (dap_cli_server_cmd_add)
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_chain_cs.h"
@@ -109,7 +108,7 @@ int dap_chain_type_dag_poa_init()
     dap_chain_cs_add("dag_poa", l_cs_callbacks);
     
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands", dap_chain_node_cli_cmd_id_from_str("dag_poa"),
+    dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",  0 ,  // Auto-assign ID
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
     s_debug_more = dap_config_get_item_bool_default(g_config, "dag", "debug_more", s_debug_more);
@@ -187,7 +186,7 @@ static int s_cli_dag_poa(int argc, char ** argv, dap_json_t *a_json_arr_reply, U
         return -1;
     }
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_json_arr_reply,&l_chain,&l_chain_net,
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &arg_index, argc, argv, &l_chain, &l_chain_net,
                                                       CHAIN_TYPE_TOKEN)) {
         return -3;
     }
@@ -362,7 +361,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
     dap_chain_type_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     pthread_rwlock_init(&l_poa_pvt->rounds_rwlock, NULL);
     // PoA rounds
-#ifndef DAP_LEDGER_TEST
     l_poa_pvt->confirmations_timeout = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","confirmations_timeout",600);
     l_poa_pvt->auto_confirmation = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_confirmation",true);
     l_poa_pvt->auto_round_complete = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_round_complete",true);
@@ -404,14 +402,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t * a_chain_cfg)
         }
     }
 
-#else
-    l_poa_pvt->auth_certs_count = 1;
-    l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t *));
-    char *l_seed_ph = "H58i9GJKbn91238937^#$t6cjdf";
-    size_t l_seed_ph_size = strlen(l_seed_ph);
-    dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("testCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, l_seed_ph, l_seed_ph_size);
-    l_poa_pvt->auth_certs[0] = l_cert;
-#endif
     return 0;
 }
 

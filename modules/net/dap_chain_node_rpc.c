@@ -68,20 +68,23 @@ DAP_STATIC_INLINE rpc_role_t s_get_role_from_str(const char *a_str)
 }
 
 /**
- * @brief callback to collect info blout cmd cals
+ * @brief callback to collect info about cmd calls
+ * REMOVED: moved to cmd module where cmd IDs are known
  * @param a_cmd_num - role str
  * @param a_call_time - msec spends to call cmd
  */
+/*
 static void s_collect_cmd_stat_info_callback(int16_t a_cmd_id, int64_t a_call_time)
 {
     dap_return_if_pass(a_cmd_id >= DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
     atomic_fetch_add(&(s_cmd_call_stat + a_cmd_id)->count, 1);
     atomic_fetch_add(&(s_cmd_call_stat + a_cmd_id)->time, a_call_time);
 }
+*/
 
 #ifdef DAP_OS_LINUX
 /**
- * @brief update about current
+ * @brief update about current node RPC states
  * @param a_arg - pointer to callback arg
  */
 static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
@@ -92,12 +95,8 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
     l_info->links_count = dap_stream_get_links_count();
     l_info->cli_thread_count = dap_cli_get_cmd_thread_count();
     sysinfo((struct sysinfo *)((char *)l_info + offsetof(dap_chain_node_rpc_states_info_t, system_info)));
-    for(int16_t i = 0; i < DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL; ++i) {
-        int32_t l_count = atomic_load(&(s_cmd_call_stat + i)->count);
-        int64_t l_time = atomic_load(&(s_cmd_call_stat + i)->time);
-        l_info->cmd_info.time_stat[i] = l_count ? l_time / l_count : 0;
-    }
-
+    // REMOVED: cmd statistics loop - moved to cmd module
+    
     const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
     dap_global_db_set_sync(s_rpc_server_states_group, l_node_addr_str, l_info, sizeof(dap_chain_node_rpc_states_info_t), false);
     DAP_DELETE(l_info);
@@ -169,8 +168,9 @@ void dap_chain_node_rpc_init(dap_config_t *a_cfg)
                 log_it(L_ERROR, "Can't activate timer on node states update");
                 return;
             }
-            s_cmd_call_stat = DAP_NEW_Z_COUNT_RET_IF_FAIL(struct cmd_call_stat, DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
-            dap_cli_server_statistic_callback_add(s_collect_cmd_stat_info_callback);
+            // REMOVED: s_cmd_call_stat and s_collect_cmd_stat_info_callback moved to cmd module
+            // s_cmd_call_stat = DAP_NEW_Z_COUNT_RET_IF_FAIL(struct cmd_call_stat, DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL);
+            // dap_cli_server_statistic_callback_add(s_collect_cmd_stat_info_callback);
             if (dap_config_get_item_bool_default(a_cfg, "rpc", "allowed_cmd_control", false)) {
                 dap_cli_server_set_allowed_cmd_check(dap_config_get_array_str(a_cfg, "rpc", "allowed_cmd", NULL));
             }

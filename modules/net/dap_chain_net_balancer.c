@@ -32,6 +32,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_dns_client.h"
 #include "dap_dns_server.h"
 #include "dap_client_http.h"
+#include "dap_cli_server.h"
 #include "dap_enc_base64.h"
 #include "dap_notify_srv.h"
 

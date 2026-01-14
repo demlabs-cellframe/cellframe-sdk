@@ -20,7 +20,8 @@
  */
 
 #include "dap_chain_node.h"
-#include "dap_chain_node_cli_cmd.h"
+// REMOVED: cmd include from header - breaks layering (net is low-level, cmd is high-level)
+// Functions using cmd types should be in cmd module, not net
 #include "dap_config.h"
 
 #ifdef DAP_OS_LINUX
@@ -45,7 +46,7 @@ struct sysinfo {  // temporary added to read
 
 typedef struct dap_chain_node_rpc_cmd_states_info {
    int16_t count;
-   int64_t time_stat[DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL];
+   int64_t time_stat[64];  // Fixed size array for backwards compatibility (TODO: make dynamic)
 } DAP_ALIGN_PACKED dap_chain_node_rpc_cmd_states_info_t;
 
 typedef struct dap_chain_node_rpc_states_info {

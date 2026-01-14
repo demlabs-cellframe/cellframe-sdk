@@ -23,6 +23,7 @@
 */
 
 #include <stdlib.h>
+#include "dap_cli_server.h"  // For CLI registration
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -37,8 +38,8 @@
 #include "dap_chain_net_srv_stake_ext.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_tx.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+// REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
+// REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_datum_tx_out_cond.h"
@@ -89,16 +90,8 @@ enum error_code {
     INVALID_EVENT_TYPE_ERROR = 31
 };
 
-#ifndef DAP_STAKE_EXT_TEST
-// Main stake_ext service structure
-struct stake_ext {
-    dap_chain_srv_stake_ext_cache_item_t *stake_ext; // Hash table of stake_ext keyed by GUUID
-    dap_chain_srv_stake_ext_cache_item_t *stake_ext_by_hash; // Hash table for fast lookup by stake_ext_tx_hash
-    uint32_t total_stake_ext;            // Total number of stake_ext in cache
-    uint32_t active_stake_ext;           // Number of active stake_ext
-    pthread_rwlock_t cache_rwlock;      // Read-write lock for cache access
-};
-#endif
+// Note: struct stake_ext is now defined in the public header (dap_chain_net_srv_stake_ext.h)
+// as part of the public cache API
 
 // Stake_ext cache API
 static struct stake_ext *s_stake_ext_service_create(void);
@@ -202,7 +195,7 @@ int dap_chain_net_srv_stake_ext_init(void)
                                s_stake_ext_unlock_callback_updater, s_stake_ext_lock_callback_updater,
                                NULL, NULL);
     
-    dap_cli_server_cmd_add ("stake_ext", s_com_stake_ext, NULL, "Stake_ext commands", dap_chain_node_cli_cmd_id_from_str("stake_ext"),
+    dap_cli_server_cmd_add ("stake_ext", s_com_stake_ext, NULL, "Stake_ext commands", 0,
                 "lock -net <network> -stake_ext <stake_ext_name|tx_hash> -amount <value> -lock_period <3..24> -position <position_id> -fee <value> -w <wallet>\n"
                 "\tPlace a lock on an stake_ext for a specific position\n"
                 "\t-position: position ID (uint32) for which the lock is made\n\n"
@@ -848,7 +841,7 @@ static void s_stake_ext_cache_event_callback(void *a_arg,
         log_it(L_DEBUG, "Stake_ext event data preview (%zu bytes): %s", l_preview_len, l_data_hex);
     }
 #ifndef DAP_STAKE_EXT_TEST
-    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
+    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(dap_ledger_get_net_id(a_ledger));
 #else
     struct stake_ext *l_stake_ext_service = a_arg;
 #endif
@@ -887,7 +880,7 @@ static void s_stake_ext_cache_event_callback(void *a_arg,
                     }
                     // Create new stake_ext entry with proper stake_ext started data
                     int l_result = s_stake_ext_cache_add_stake_ext(l_stake_ext_service, &a_event->tx_hash, 
-                                                                a_ledger->net->pub.id, a_event->group_name,
+                                                                dap_ledger_get_net_id(a_ledger), a_event->group_name,
                                                                 l_started_data, a_event->timestamp);
                     if (l_result != 0) {
                         log_it(L_ERROR, "Failed to add stake_ext %s to cache: %d", 
@@ -1073,7 +1066,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
 
     // 2. Extract lock amount from conditional output value
     uint256_t l_lock_amount = a_out_item->header.value;
-    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
+    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(dap_ledger_get_net_id(a_ledger));
     if (!l_stake_ext_service) {
         log_it(L_ERROR, "Failed to get stake_ext service");
         return;
@@ -1105,7 +1098,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
 static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,
             dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item)
 {
-    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
+    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(dap_ledger_get_net_id(a_ledger));
     if (!l_stake_ext_service) {
         log_it(L_ERROR, "Failed to get stake_ext service");
         return;
@@ -1160,7 +1153,7 @@ static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chai
 static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,  dap_hash_fast_t *a_tx_in_hash,
                                               dap_chain_tx_out_cond_t *a_prev_cond, bool a_owner, bool a_from_mempool)
 {
-    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_ledger->net->pub.id);
+    struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(dap_ledger_get_net_id(a_ledger));
     if (!l_stake_ext_service) {
         log_it(L_ERROR, "Failed to get stake_ext service");
         return -11;
@@ -1811,8 +1804,8 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
     dap_chain_addr_fill_from_key(&l_addr, a_key_to, a_net->pub.id);
 
     if (!IS_ZERO_256(l_value_delegated)) {
-        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker_str,
-                                                                                &l_addr, l_value_delegated, &l_value_transfer);
+        dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_delegated_ticker_str,
+                                                                                &l_addr, &l_list_used_out, l_value_delegated, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");
             set_ret_code(a_ret_code, -111);
@@ -1849,7 +1842,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
     if (compare256(l_fee_pack, l_out_cond->header.value) == 1) {
         uint256_t l_value_shortage = {};
         SUBTRACT_256_256(l_fee_pack, l_out_cond->header.value, &l_value_shortage);
-        l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_ticker_str, &l_addr, l_value_shortage, &l_fee_transfer);
+        dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_ticker_str, &l_addr, &l_list_used_out, l_value_shortage, &l_fee_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough coins)");
             set_ret_code(a_ret_code, -111);
@@ -2059,8 +2052,8 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
     // 2. Find UTXOs to cover the total cost (native tokens)
     dap_list_t *l_list_used_out = NULL;
     uint256_t l_value_transfer = {};
-    l_list_used_out = dap_chain_wallet_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                              &l_addr_from, l_total_cost, &l_value_transfer);
+    dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_ticker,
+                                                              &l_addr_from, &l_list_used_out, l_total_cost, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_ERROR, "Not enough funds to place lock");
         set_ret_code(a_ret_code, -109);

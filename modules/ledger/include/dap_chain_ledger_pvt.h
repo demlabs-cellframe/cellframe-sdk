@@ -22,6 +22,7 @@
 #pragma once
 
 #include "dap_chain_ledger.h"
+#include "dap_global_db.h"
 
 #define LEDGER_PVT_TX_META_FLAG_MULTICHANNEL    BIT(1)
 #define LEDGER_PVT_TX_META_FLAG_IMMUTABLE       BIT(2)
@@ -242,6 +243,7 @@ typedef struct dap_ledger_private {
     dap_list_t *bridged_tx_notifiers;
     dap_list_t *tx_add_notifiers;
     dap_list_t *event_notifiers;
+    dap_ledger_balance_change_notifier_t *balance_change_notifiers;  // List of balance change callbacks
 
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
     // White- and blacklist

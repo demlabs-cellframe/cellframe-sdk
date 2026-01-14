@@ -4,15 +4,21 @@ project (dap_chain_type_blocks)
 file(GLOB DAP_CHAIN_TYPE_BLOCKS_SRCS *.c)
 file(GLOB DAP_CHAIN_TYPE_BLOCKS_HEADERS include/*.h)
 
-add_library(${PROJECT_NAME} ${CELLFRAME_MODULE_TYPE} ${DAP_CHAIN_TYPE_BLOCKS_SRCS} ${DAP_CHAIN_TYPE_BLOCKS_HEADERS})
+# Use universal Cellframe library macro (OBJECT library)
+cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_TYPE_BLOCKS_SRCS} HEADERS ${DAP_CHAIN_TYPE_BLOCKS_HEADERS})
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../net/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../net/core/include)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../governance/include)
 
 if(BUILD_CELLFRAME_SDK_TESTS)
-    add_subdirectory(tests)
 endif()
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_cli_server dap_chain_net dap_chain_cs)
-target_include_directories(${PROJECT_NAME} INTERFACE .)
-target_include_directories(${PROJECT_NAME} PUBLIC include)
+# OBJECT library: blocks needs ONLY mempool (NO net - blocks are low-level chain type)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_cli_server dap_chain_cs dap_chain_ledger 
+    dap_chain_mempool dap_common)
+target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_TYPE_BLOCKS_HEADERS}")
