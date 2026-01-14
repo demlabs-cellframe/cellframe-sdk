@@ -47,11 +47,7 @@ typedef enum s_com_ledger_err{
     DAP_CHAIN_NODE_CLI_COM_LEDGER_ID_NET_ADDR_DIF_ERR,
     DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR,
     DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_TO_JSON_ERR,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_DECREE_CHAIN,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_ANCHOR_CHAIN,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_SIGNING_FAILED,
-    DAP_CHAIN_NODE_CLI_COM_LEDGER_MEMPOOL_FAILED,
+
     /* add custom codes here */
 
     DAP_CHAIN_NODE_CLI_COM_LEDGER_UNKNOWN /* MAX */
@@ -78,27 +74,46 @@ void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_
  *
  * return history json
  */
-dap_json_t *dap_db_history_tx(dap_json_t *a_json_arr_reply, dap_chain_hash_fast_t *a_tx_hash, dap_chain_t *a_chain, const char *a_hash_out_type, dap_chain_net_t *l_net, int a_version);
-dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const char *a_hash_out_type, const char * l_addr_str, dap_json_t *json_obj_summary, size_t a_limit, size_t a_offset,
-                                    bool a_brief, const char *a_srv, dap_chain_tx_tag_action_type_t a_action, bool a_head, int a_version);
+dap_json_t * dap_db_history_tx(dap_json_t* a_json_arr_reply, dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type, dap_chain_net_t * l_net);
+dap_json_t * dap_db_history_addr(dap_json_t* a_json_arr_reply, dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type, const char * l_addr_str, dap_json_t *json_obj_summary, size_t a_limit, size_t a_offset,
+bool a_brief,
+const char *a_srv,
+dap_chain_tx_tag_action_type_t a_action, bool a_head);
+dap_json_t * dap_db_tx_history_to_json(dap_json_t* a_json_arr_reply,
+                                        dap_chain_hash_fast_t* a_tx_hash,
+                                        dap_hash_fast_t * l_atom_hash,
+                                        dap_chain_datum_tx_t * l_tx,
+                                        dap_chain_t * a_chain, 
+                                        const char *a_hash_out_type, 
+                                        dap_chain_datum_iter_t *a_datum_iter,
+                                        int l_ret_code,
+                                        bool *accepted_tx,
+                                        bool out_brief);
 
-dap_json_t *dap_db_history_tx_all(dap_json_t *a_json_arr_reply, dap_chain_t *l_chain, dap_chain_net_t *l_net,
+dap_json_t *dap_db_history_tx_all(dap_json_t* a_json_arr_reply, dap_chain_t *l_chain, dap_chain_net_t *l_net,
                                     const char *l_hash_out_type, dap_json_t *json_obj_summary,
                                     size_t a_limit, size_t a_offset, bool out_brief,
                                     const char *a_srv,
-                                    dap_chain_tx_tag_action_type_t a_action, bool a_head, int a_version);
+                                    dap_chain_tx_tag_action_type_t a_action, bool a_head);
+
+bool s_dap_chain_datum_tx_out_data(dap_json_t* a_json_arr_reply,
+                                          dap_chain_datum_tx_t *a_datum,
+                                          dap_ledger_t *a_ledger,
+                                          dap_json_t * json_obj_out,
+                                          const char *a_hash_out_type,
+                                          dap_chain_hash_fast_t *a_tx_hash);
 
 /**
  * ledger command
  *
  */
-int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_ledger(int a_argc, char ** a_argv, void **a_str_reply);
 
 /**
  * token command
  *
  */
-int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_token(int a_argc, char ** a_argv, void **a_str_reply);
 
 #ifdef __cplusplus
 }

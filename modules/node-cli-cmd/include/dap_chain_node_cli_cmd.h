@@ -1,27 +1,27 @@
 /*
-* Authors:
-* Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
-* Alexander Lysikov <alexander.lysikov@demlabs.net>
-* DeM Labs Inc.   https://demlabs.net
-* Kelvin Project https://github.com/kelvinblockchain
-* Copyright  (c) 2019
-* All rights reserved.
+ * Authors:
+ * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
+ * DeM Labs Inc.   https://demlabs.net
+ * Kelvin Project https://github.com/kelvinblockchain
+ * Copyright  (c) 2019
+ * All rights reserved.
 
-This file is part of DAP (Distributed Applications Platform) the open source project
+ This file is part of DAP (Distributed Applications Platform) the open source project
 
-DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+ DAP (Distributed Applications Platform) is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
 
-DAP is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+ DAP is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License
-along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ You should have received a copy of the GNU General Public License
+ along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #pragma once
 
@@ -29,7 +29,7 @@ along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
 #include "dap_chain_node_cli.h"
-#include "dap_json.h"
+#include "json.h"
 
 typedef enum s_com_parse_net_chain_err{
     DAP_CHAIN_NODE_CLI_COM_PARSE_NET_NET_STR_ERR = 100,
@@ -103,10 +103,10 @@ typedef enum s_com_tx_wallet_err{
 } s_com_tx_wallet_err_t;
 
 /**
-* com_tx_create command
-*
-* Create transaction
-*/
+ * com_tx_create command
+ *
+ * Create transaction
+ */
 typedef enum s_com_tx_create_err{
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -131,9 +131,7 @@ typedef enum s_com_tx_create_err{
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE,
     DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
-    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS,
-    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT,
-    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_MEMORY_ERR
+    DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS
 }s_com_tx_create_err_t;
 typedef enum s_com_tx_cond_create{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_OK = 0,
@@ -203,8 +201,7 @@ typedef enum s_com_token_update_err{
 
 typedef enum s_com_token_decl_sign_err{
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_OK = 0,
-    DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR,
-    DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_H_PARAM_ERR,
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_UPDATE_UNKNOWN_TOKEN_TYPE,
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NOT_VALID_CERT_ERR,
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_HAS_WRONG_SIGNATURE_ERR,
@@ -263,7 +260,12 @@ typedef enum s_com_stats_err{
     DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR
 }s_com_stats_err_t;
 
-
+typedef enum s_com_print_log_err{
+    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_AFTER,
+    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_REQUIRES_PARAMETER_LIMIT,
+    DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS
+}s_com_print_log_err_t;
 typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -340,148 +342,97 @@ typedef enum s_com_file_err{
 extern "C" {
 #endif
 
-int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
-                            dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_chain_type);
+int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, void **a_str_reply,
+                             dap_chain_t ** a_chain, dap_chain_net_t ** a_net, dap_chain_type_t a_default_chain_type);
 
 
 /**
-* global_db command
-*/
-int com_global_db(int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * global_db command
+ */
+int com_global_db(int a_argc,  char **a_argv, void **a_str_reply);
+
 /**
-* Node command
-*/
-int com_node(int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Node command
+ */
+int com_node(int a_argc,  char **a_argv, void **a_str_reply);
 
 #ifndef DAP_OS_ANDROID
 /**
-* Traceroute command
-*
-* return 0 OK, -1 Err
-*/
-int com_traceroute(int a_argc,  char** argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Traceroute command
+ *
+ * return 0 OK, -1 Err
+ */
+int com_traceroute(int a_argc,  char** argv, void **a_str_reply);
 
 /**
-* Tracepath command
-*
-* return 0 OK, -1 Err
-*/
-int com_tracepath(int a_argc,  char** argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Tracepath command
+ *
+ * return 0 OK, -1 Err
+ */
+int com_tracepath(int a_argc,  char** argv, void **a_str_reply);
 
 /**
-* Ping command
-*
-* return 0 OK, -1 Err
-*/
-int com_ping(int a_argc,  char** argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Ping command
+ *
+ * return 0 OK, -1 Err
+ */
+int com_ping(int a_argc,  char** argv, void **a_str_reply);
 #endif
 /**
-* Help command
-*/
-int com_help(int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Help command
+ */
+int com_help(int a_argc,  char **a_argv, void **a_str_reply);
 
-int com_version(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-
-/**
-* Token declaration
-*/
-int com_token_decl(int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-
-int com_token_update(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_version(int a_argc, char **a_argv, void **a_str_reply);
 
 /**
-* Token declaration add sign
-*/
-int com_token_decl_sign ( int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Token declaration
+ */
+int com_token_decl(int a_argc,  char **a_argv, void **a_str_reply);
+
+int com_token_update(int a_argc, char **a_argv, void **a_str_reply);
+
+/**
+ * Token declaration add sign
+ */
+int com_token_decl_sign ( int a_argc,  char **a_argv, void **a_str_reply);
 
 /*
-* Token update sign
-*/
-int com_token_update_sign(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Token update sign
+ */
+int com_token_update_sign(int argc, char ** argv, void **a_str_reply);
 
 /**
-* Token emission
-*/
-int com_token_emit (int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Token emission
+ */
+int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply);
 
 /**
-* com_tx_create command
-*
-* Wallet info
-*/
-int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * com_tx_create command
+ *
+ * Wallet info
+ */
+int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply);
 
-int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-int com_tx_create_json(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-int com_tx_cond_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
-typedef enum dap_chain_node_cli_cmd {
-    DAP_CHAIN_NODE_CLI_CMD_ID_UNKNOWN,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TX_HISTORY,
-    DAP_CHAIN_NODE_CLI_CMD_ID_WALLET,
-    DAP_CHAIN_NODE_CLI_CMD_ID_MEMPOOL,
-    DAP_CHAIN_NODE_CLI_CMD_ID_LEDGER,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TX_CREATE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TX_CREATE_JSON,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TX_VERIFY,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_CREATE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_REMOVE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TX_COND_UNSPENT_FIND,
-    DAP_CHAIN_NODE_CLI_CMD_ID_CHAIN_CA_COPY,
-    DAP_CHAIN_NODE_CLI_CMD_ID_DAG,
-    DAP_CHAIN_NODE_CLI_CMD_ID_DAG_POA,
-    DAP_CHAIN_NODE_CLI_CMD_ID_BLOCK,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN,
-    DAP_CHAIN_NODE_CLI_CMD_ID_ESBOCS,
-    DAP_CHAIN_NODE_CLI_CMD_ID_GLOBAL_DB,
-    DAP_CHAIN_NODE_CLI_CMD_ID_NET_SRV,
-    DAP_CHAIN_NODE_CLI_CMD_ID_NET,
-    DAP_CHAIN_NODE_CLI_CMD_ID_SRV_STAKE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_SRV_DATUM,
-    DAP_CHAIN_NODE_CLI_CMD_ID_POLL,
-    DAP_CHAIN_NODE_CLI_CMD_ID_SRV_XCHANGE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_EMIT_DELEGATE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_DECL,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_UPDATE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_UPDATE_SIGN,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_DECL_SIGN,
-    DAP_CHAIN_NODE_CLI_CMD_ID_CHAIN_CA_PUB,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TOKEN_EMIT,
-    DAP_CHAIN_NODE_CLI_CMD_ID_FIND,
-    DAP_CHAIN_NODE_CLI_CMD_ID_VERSION,
-    DAP_CHAIN_NODE_CLI_CMD_ID_REMOVE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_GDB_IMPORT,
-    DAP_CHAIN_NODE_CLI_CMD_ID_GDB_EXPORT,
-    DAP_CHAIN_NODE_CLI_CMD_ID_STATS,
-    DAP_CHAIN_NODE_CLI_CMD_ID_PRINT_LOG,
-    DAP_CHAIN_NODE_CLI_CMD_ID_STAKE_LOCK,
-    DAP_CHAIN_NODE_CLI_CMD_ID_EXEC_CMD,
-    DAP_CHAIN_NODE_CLI_CMD_ID_POLICY,
-    DAP_CHAIN_NODE_CLI_CMD_ID_DECREE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_NODE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_VPN_STAT,
-    DAP_CHAIN_NODE_CLI_CMD_ID_VPN_CLIENT,
-    DAP_CHAIN_NODE_CLI_CMD_ID_HELP,
-    DAP_CHAIN_NODE_CLI_CMD_ID_EXIT,
-    DAP_CHAIN_NODE_CLI_CMD_ID_FILE,
-    DAP_CHAIN_NODE_CLI_CMD_ID_PLUGINS,
-    DAP_CHAIN_NODE_CLI_CMD_ID_AUCTION,
-    DAP_CHAIN_NODE_CLI_CMD_ID_TOTAL
-} dap_chain_node_cli_cmd_t;
+int com_tx_create(int a_argc, char **a_argv, void **a_str_reply);
+void json_rpc_tx_create(dap_json_t *a_param, dap_json_t *a_reply);
+int com_tx_create_json(int a_argc, char **a_argv, void **reply);
 
-dap_chain_node_cli_cmd_t dap_chain_node_cli_cmd_id_from_str(const char *a_cmd_str);
+int com_tx_cond_create(int a_argc, char **a_argv, void **reply);
 
-int com_tx_cond_remove(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_cond_remove(int a_argc, char **a_argv, void **reply);
+
+int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply);
 
 
 /**
-* tx_verify command
-*
-* Verifing transaction
-*/
+ * tx_verify command
+ *
+ * Verifing transaction
+ */
 
-int com_tx_verify(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply);
 typedef enum s_com_tx_node_err{
     DAP_CHAIN_NODE_CLI_COM_NODE_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_NODE_COMMAND_NOT_RECOGNIZED_ERR,
@@ -502,7 +453,6 @@ typedef enum s_com_tx_node_err{
     DAP_CHAIN_NODE_CLI_COM_NODE_ADD_ALREADY_EXISTS_ERR,
     DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_PROCESS_NODE_LIST_ERR,
     DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_PROCESS_REQUEST_ERR,
-    DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_FIND_ARGS_ERR,
 
     DAP_CHAIN_NODE_CLI_COM_NODE_DELL_NO_ACCESS_RIGHTS_ERR,
     DAP_CHAIN_NODE_CLI_COM_NODE_DELL_CANT_DEL_NODE_ERR,
@@ -565,7 +515,6 @@ typedef enum s_com_decree_err{
     DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NOT_CHAIN_PARAM_ERR,
     DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NOT_FOUND_DECREE_ERR,
     DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_NO_CERT_ERR,
-    DAP_CHAIN_NODE_CLI_COM_DECREE_CREATE_PLACE_ERR,
 
     DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_NO_VALID_CERT_ERR,
     DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_INVALID_CHAIN_PARAM_ERR,
@@ -575,7 +524,6 @@ typedef enum s_com_decree_err{
     DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_WRONG_DATUM_TYPE_ERR,
     DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_CANT_FIND_DATUM_ERR,
     DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_NEED_SIGN_ERR,
-    DAP_CHAIN_NODE_CLI_COM_DECREE_SIGN_PLACE_ERR,
 
     DAP_CHAIN_NODE_CLI_COM_DECREE_ANCHOR_INVALID_CHAIN_PARAM_ERR,
     DAP_CHAIN_NODE_CLI_COM_DECREE_ANCHOR_CHAIN_DONT_SUPPORT_ERR,
@@ -600,10 +548,6 @@ typedef enum s_com_decree_err{
     DAP_CHAIN_NODE_CLI_COM_DECREE_TX_HASH_ERR,
 
     /* add custom codes here */
-    DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_ENGAGED_ERR,
-    DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_NOT_STARTED_ERR,
-    DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_KEYS_ERR,
-    DAP_CHAIN_NODE_CLI_COM_DECREE_HARDFORK_GENERATION_ERR,
 
     DAP_CHAIN_NODE_CLI_COM_DECREE_UNKNOWN /* MAX */
 } s_com_decree_err_t;
@@ -611,56 +555,55 @@ typedef enum s_com_decree_err{
 char *dap_chain_node_cli_com_tx_history_err(int a_code);
 
 /**
-* tx_history command
-*
-* Transaction history for an address
-*/
-int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * tx_history command
+ *
+ * Transaction history for an address
+ */
+int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply);
 
 // Print statistics
-int com_stats(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_stats(int a_argc, char **a_argv, void **a_str_reply);
 
-int com_exit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_exit(int a_argc, char **a_argv, void **a_str_reply);
 
-int cmd_gdb_import(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-int cmd_gdb_export(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
-
-/**
-* decree command
-*
-*/
-int cmd_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply);
+int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply);
+int com_mempool(int a_argc, char **a_argv, void **a_str_reply);
 
 /**
-* Place public CA into the mempool
-*/
-int com_chain_ca_pub( int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-int com_chain_ca_copy( int a_argc,  char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-int com_signer(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * decree command
+ *
+ */
+int cmd_decree(int a_argc, char **a_argv, void **a_str_reply);
+
+/**
+ * Place public CA into the mempool
+ */
+int com_chain_ca_pub( int a_argc,  char **a_argv, void **a_str_reply);
+int com_chain_ca_copy( int a_argc,  char **a_argv, void **a_str_reply);
+int com_signer(int a_argc, char **a_argv, void **a_str_reply);
 //remove func
-int cmd_remove(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int cmd_remove(int a_argc, char **a_argv, void **a_str_reply);
 
 /**
-* Handler coomand find
-* @param a_argc
-* @param a_argv
-* @param a_str_reply
-* @return
-*/
-int cmd_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Handler coomand find
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @return
+ */
+int cmd_find(int a_argc, char **a_argv, void **a_str_reply);
 
 void dap_notify_new_client_send_info(dap_events_socket_t *a_es, void *a_arg);
 
-int com_exec_cmd(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_exec_cmd(int argc, char **argv, void **reply);
 
-int com_file(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
+int com_file(int a_argc, char ** a_argv, void **a_str_reply);
 
 /**
-* Policy management
-*/
-int com_policy(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+ * Policy management
+ */
+int com_policy(int a_argc, char **a_argv, void **a_str_reply);
 
 #ifdef __cplusplus
 }

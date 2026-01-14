@@ -34,7 +34,6 @@
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
-#include "dap_net_common.h"
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
 
@@ -145,6 +144,7 @@ typedef union {
 
 extern const dap_chain_srv_uid_t c_dap_chain_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
+extern const dap_chain_cell_id_t c_dap_chain_cell_id_hardfork;
 extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
 enum dap_chain_srv_unit_enum {
@@ -187,37 +187,32 @@ typedef union {
 
 enum dap_chain_tx_item_type {
     /// @brief Transaction: inputs
-    TX_ITEM_TYPE_IN = 0x00,             // Standard input
-    TX_ITEM_TYPE_IN_COND = 0x50,        // Conditional input
-    TX_ITEM_TYPE_IN_REWARD = 0x07,      // Reward input
-    TX_ITEM_TYPE_IN_EMS = 0x40,         // Emission input
+    TX_ITEM_TYPE_IN = 0x00,
+    TX_ITEM_TYPE_IN_COND = 0x50,
+    TX_ITEM_TYPE_IN_REWARD = 0x07,
+    TX_ITEM_TYPE_IN_EMS = 0x40,
 
     /// @brief Transaction: outputs
     TX_ITEM_TYPE_OUT_OLD = 0x10,        // Deprecated
-    TX_ITEM_TYPE_OUT_EXT = 0x11,        // Extended output
-    TX_ITEM_TYPE_OUT = 0x12,            // Old generation output
-    TX_ITEM_TYPE_OUT_STD = 0x13,        // Standard output
-    TX_ITEM_TYPE_OUT_COND = 0x61,       // Conditional output
+    TX_ITEM_TYPE_OUT_EXT = 0x11,
+    TX_ITEM_TYPE_OUT = 0x12,
+    TX_ITEM_TYPE_OUT_COND = 0x61,
 
-    /// @brief Transaction: security and authorization
-    TX_ITEM_TYPE_PKEY = 0x20,           // Public key
-    TX_ITEM_TYPE_SIG = 0x30,            // Signature
-    TX_ITEM_TYPE_RECEIPT_OLD = 0x70,    // Deprecated
-    TX_ITEM_TYPE_RECEIPT = 0x71,        // Receipt
-    TX_ITEM_TYPE_TSD = 0x80,            // Miscellaneous data
+    /// @brief Transaction: misc
+    TX_ITEM_TYPE_PKEY = 0x20,
+    TX_ITEM_TYPE_SIG = 0x30,
+    TX_ITEM_TYPE_RECEIPT = 0x70,
+    TX_ITEM_TYPE_TSD = 0x80,
 
     /// @brief Transaction: voting and vote
-    TX_ITEM_TYPE_VOTING = 0x90,        // Voting
-    TX_ITEM_TYPE_VOTE = 0x91,          // Vote
-
-    /// @brief Transaction: events
-    TX_ITEM_TYPE_EVENT = 0xa0,         // Event
+    TX_ITEM_TYPE_VOTING = 0x90,
+    TX_ITEM_TYPE_VOTE = 0x91,
 
     /// @brief Virtual types for items enumearting
-    TX_ITEM_TYPE_IN_EMS_VIRTUAL = 0xf1, // Virtual emission of delegated tokens with single conditional transaction
-    TX_ITEM_TYPE_IN_ALL = 0xfd,         // All inputs
-    TX_ITEM_TYPE_OUT_ALL = 0xfe,        // All outputs
-    TX_ITEM_TYPE_ANY = 0xff             // Any type
+    TX_ITEM_TYPE_IN_EMS_LOCK = 0xf1,
+    TX_ITEM_TYPE_IN_ALL = 0xfd,
+    TX_ITEM_TYPE_OUT_ALL = 0xfe,
+    TX_ITEM_TYPE_ANY = 0xff
 };
 #define TX_ITEM_TYPE_UNKNOWN TX_ITEM_TYPE_ANY
 typedef byte_t dap_chain_tx_item_type_t;
@@ -235,23 +230,14 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 size_t dap_chain_addr_from_str_array(const char *a_addr_str, dap_chain_addr_t **a_addr);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
-DAP_STATIC_INLINE dap_chain_srv_uid_t dap_chain_srv_uid_from_str(const char *a_srv_uid_str)
-{
-    dap_chain_srv_uid_t l_ret = {0};
-    uint64_t l_id;
-    int res = dap_id_uint64_parse(a_srv_uid_str, &l_id);
-    if (!res)
-        l_ret.uint64 = l_id;
-    return l_ret;
-}
+dap_chain_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
-void dap_chain_set_offset_limit_json(dap_json_t * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count,
-                                     bool a_last);
+void dap_chain_set_offset_limit_json(dap_json_t * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count);
 
 DAP_STATIC_INLINE bool dap_chain_addr_compare(const dap_chain_addr_t *a_addr1, const dap_chain_addr_t *a_addr2)
 {
@@ -282,11 +268,6 @@ DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
 #define dap_chain_balance_datoshi_scan dap_uint256_scan_uninteger
 #define dap_chain_balance_coins_scan dap_uint256_scan_decimal
 #define dap_chain_uint256_to dap_uint256_to_uint64
-
-// Backward compatibility aliases
-#define dap_chain_balance_print dap_uint256_uninteger_to_char
-#define dap_chain_balance_to_coins dap_uint256_decimal_to_char
-#define dap_chain_coins_to_balance dap_uint256_scan_decimal
 
 DAP_STATIC_INLINE uint256_t dap_chain_balance_scan(const char *a_balance)
 {

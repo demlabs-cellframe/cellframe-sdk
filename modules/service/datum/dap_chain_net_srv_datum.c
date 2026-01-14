@@ -40,7 +40,7 @@ typedef enum s_com_srv_datum_err{
 }s_com_srv_datum_err_t;
 
 static dap_chain_net_srv_t *s_srv_datum = NULL;
-static int s_srv_datum_cli(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply);
 
 void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg);
 
@@ -52,7 +52,7 @@ static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
 int dap_chain_net_srv_datum_init()
 {
-    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, NULL, "Service Datum commands", dap_chain_node_cli_cmd_id_from_str("srv_datum"),
+    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", 
         "srv_datum -net <net_name> -chain <chain_name> datum save -datum <datum_hash>\n"
             "\tSaving datum from mempool to file.\n\n"
         "srv_datum -net <net_name> -chain <chain_name> datum load -datum <datum_hash>\n"
@@ -86,7 +86,7 @@ uint8_t * dap_chain_net_srv_file_datum_data_read(char * a_path, size_t *a_data_s
         rewind(l_file);
         l_datum_data = DAP_NEW_SIZE(uint8_t, l_datum_data_size);
         if ( fread(l_datum_data, 1, l_datum_data_size, l_file ) != l_datum_data_size ){
-            log_it(L_ERROR, "Can't read %zu bytes from the disk!", l_datum_data_size);
+            log_it(L_ERROR, "Can't read %"DAP_UINT64_FORMAT_U" bytes from the disk!", l_datum_data_size);
             DAP_DELETE(l_datum_data);
             fclose(l_file);
             return NULL;
@@ -110,27 +110,28 @@ char* dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, const uint8_t *a
     return l_hash_str;
 }
 
-static int s_srv_datum_cli(int argc, char ** argv, dap_json_t *a_json_arr_reply, UNUSED_ARG int a_version)
+static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
 {
+    dap_json_t ** a_json_arr_reply = (dap_json_t **) a_str_reply;
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;
     dap_chain_t * l_chain = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_json_arr_reply,&l_chain,&l_chain_net, CHAIN_TYPE_INVALID)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net, CHAIN_TYPE_INVALID)) {
         return -3;
     }
 
     const char * l_datum_hash_str = NULL;
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
     if (!l_datum_hash_str) {
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_REQUIRES_PARAMETER_DATUM,
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_REQUIRES_PARAMETER_DATUM,
                                                     "Command srv_datum requires parameter '-datum' <datum hash>");
         return -DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_REQUIRES_PARAMETER_DATUM;
     }
 
     const char * l_system_datum_folder = dap_config_get_item_str(g_config, "resources", "datum_folder");
     if (!l_system_datum_folder){
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CONFIG_WASNT_LOADED,
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CONFIG_WASNT_LOADED,
                                                     "Configuration wasn't loaded");
         return -DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CONFIG_WASNT_LOADED;
     }
@@ -185,16 +186,16 @@ static int s_srv_datum_cli(int argc, char ** argv, dap_json_t *a_json_arr_reply,
 
             char *l_ret;
             if ((l_ret = dap_chain_net_srv_datum_custom_add(l_chain, l_datum_data, l_datum_data_size)) == NULL) {
-                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CANT_PLACE_DATUM_TO_MEMPOOL,
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_SRV_DATUM_CANT_PLACE_DATUM_TO_MEMPOOL,
                                                 "Can't place datum custom \"%s\" to mempool", l_datum_hash_str);
             }
             else {
-                dap_json_t *json_obj_out = dap_json_object_new();
+                dap_json_t* json_obj_out = json_object_new_object();
                 char *l_status = dap_strdup_printf("Datum custom %s was successfully placed to mempool", l_datum_hash_str);
-                dap_json_object_add_string(json_obj_out, "status", l_status);
+                json_object_object_add(json_obj_out, "status", json_object_new_string(l_status));
                 DAP_DELETE(l_status); 
                 DAP_DELETE(l_ret);
-                dap_json_array_add(a_json_arr_reply, json_obj_out);
+                json_object_array_add(*a_json_arr_reply, json_obj_out);
                 return 0;
             }
         }

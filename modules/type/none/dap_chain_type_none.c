@@ -22,6 +22,7 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
 #include "utlist.h"
@@ -29,7 +30,6 @@
 #include "dap_chain_net.h"
 #include "dap_chain.h"
 #include "dap_common.h"
-#include "dap_json.h"
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 #include "dap_hash.h"
@@ -38,11 +38,9 @@
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_type_none.h"
-#include "dap_chain_cs_type.h"  // For old consensus class registration
-#include "dap_chain_datum.h"  // For full datum structure definitions
+#include "dap_chain_cs_none.h"
 
-#define LOG_TAG "dap_chain_type_none"
+#define LOG_TAG "dap_chain_cs_none"
 
 #define CONSENSUS_NAME "none"
 
@@ -74,7 +72,7 @@ static void s_nonconsensus_callback_atom_iter_delete(dap_chain_atom_iter_t * a_a
 static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter,
         dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 
-static dap_json_t *s_nonconsensus_callback_atom_to_json(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type, int a_version);
+static dap_json_t *s_nonconsensus_callback_atom_to_json(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type);
 
 // Get event(s) from gdb
 static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
@@ -105,10 +103,12 @@ static int s_nonconsensus_callback_purge(dap_chain_t *a_chain);
  */
 int dap_nonconsensus_init(void)
 {
-    dap_chain_type_callbacks_t l_callbacks = { .callback_delete = s_nonconsensus_callback_delete,
+    dap_chain_cs_class_callbacks_t l_callbacks = { .callback_delete = s_nonconsensus_callback_delete,
                                                    .callback_purge = s_nonconsensus_callback_purge };
-    dap_chain_type_add(CONSENSUS_NAME, l_callbacks); // It's a type and CS itself
-    // Type "none" doesn't need separate consensus callbacks registration
+    dap_chain_cs_class_add(CONSENSUS_NAME, l_callbacks); // It's a type and CS itself
+    dap_chain_cs_callbacks_t l_cs_callbacks = { .callback_init = s_nonconsensus_callback_new,
+                                                .callback_load = s_nonconsensus_callback_created };
+    dap_chain_cs_add(CONSENSUS_NAME, l_cs_callbacks);
     log_it(L_NOTICE, "Initialized GDB chain items organization class");
     return 0;
 }
@@ -343,7 +343,7 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
         dap_list_t *l_iter;
         DL_FOREACH(a_chain->atom_notifiers, l_iter) {
             dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-            l_notifier->callback(l_notifier->arg, a_chain, (dap_chain_cell_id_t){ }, &l_hash_item->datum_data_hash, (void*)l_datum, l_datum_size, l_datum->header.ts_create);
+            l_notifier->callback(l_notifier->arg, a_chain, (dap_chain_cell_id_t){ }, &l_hash_item->datum_data_hash, (void*)l_datum, l_datum_size);
         }
     }
     return ATOM_ACCEPT;
@@ -446,11 +446,11 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_find_by_hash(dap_c
  * @param a_hash_out_type
  * @return
  */
-static dap_json_t *s_nonconsensus_callback_atom_to_json(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type, int a_version)
+static dap_json_t *s_nonconsensus_callback_atom_to_json(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type)
 {
-    dap_json_t *obj_ret = dap_json_object_new();
+    dap_json_t *obj_ret = json_object_new_object();
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*)a_atom;
-    dap_chain_datum_dump_json(*a_arr_out, obj_ret, l_datum, a_hash_out_type, a_chain->net_id, true, a_version);
+    dap_chain_datum_dump_json(*a_arr_out, obj_ret, l_datum, a_hash_out_type, a_chain->net_id, true);
     return obj_ret;
 }
 
