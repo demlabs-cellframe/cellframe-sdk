@@ -171,7 +171,8 @@ if(NOT TARGET dap_sdk)
     message("[+] Cellframe SDK: DAP_TPL_PATH set to ${DAP_TPL_PATH}")
     
     # Pass DAP_TPL_DIR to dap-sdk (it expects DAP_TPL_DIR, not DAP_TPL_PATH)
-    set(DAP_TPL_DIR "${DAP_TPL_PATH}")
+    set(DAP_TPL_DIR "${DAP_TPL_PATH}" CACHE PATH "Path to dap_tpl for dap-sdk")
+    message("[+] Cellframe SDK: DAP_TPL_DIR set to ${DAP_TPL_DIR}")
     
     include (dap-sdk/cmake/OS_Detection.cmake)
     add_subdirectory(dap-sdk)

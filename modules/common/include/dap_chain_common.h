@@ -28,6 +28,7 @@
 
 #include "dap_common.h"
 #include "dap_enc_base58.h"
+#include "dap_net_common.h"  // For dap_stream_node_addr_t
 #include "dap_math_ops.h"
 #include "dap_math_convert.h"
 #include "dap_enc_key.h"
