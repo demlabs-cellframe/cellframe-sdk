@@ -2187,14 +2187,14 @@ int com_tx_create_json(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
         l_json = dap_json_from_file(l_json_file_path);
         if(!l_json) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
-                                "Can't open json file: %s", json_util_get_last_err());
+                                "Can't open json file");
             return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
         }
     } else if (l_json_str) {
         l_json = dap_json_parse_string(l_json_str);
         if(!l_json) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
-                                "Can't parse input JSON-string", json_util_get_last_err());
+                                "Can't parse input JSON-string");
             return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
         }
     }
@@ -2755,14 +2755,14 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
         l_json = dap_json_from_file(l_json_file_path);
         if(!l_json) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
-                                "Can't open json file: %s", json_util_get_last_err());
+                                "Can't open json file");
             return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
         }
     } else if (l_json_str) {
         l_json = dap_json_parse_string(l_json_str);
         if(!l_json) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
-                                "Can't parse input JSON-string", json_util_get_last_err());
+                                "Can't parse input JSON-string");
             return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
         }
     }

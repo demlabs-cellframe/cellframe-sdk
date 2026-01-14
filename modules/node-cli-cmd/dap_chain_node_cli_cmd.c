@@ -5542,8 +5542,8 @@ int cmd_gdb_export(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int 
         dap_json_rpc_error_add(a_json_arr_reply, errno, l_reply_str);
         DAP_DELETE(l_reply_str);
 #else
-        log_it(L_CRITICAL, "Couldn't export JSON to file, err '%s'", json_util_get_last_err());
-        dap_json_rpc_error_add(a_json_arr_reply, -1, "%s", json_util_get_last_err());
+        log_it(L_CRITICAL, "Couldn't export JSON to file");
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "Failed to export JSON");
 #endif
          dap_json_object_free(l_json);
          return -1;
@@ -5587,9 +5587,9 @@ int cmd_gdb_import(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int 
         log_it(L_CRITICAL, "Import error occured: code %d", errno);
         dap_json_rpc_error_add(a_json_arr_reply, "Import error occured: code %d",errno);
 #else
-        log_it(L_CRITICAL, "Import error occured: %s", json_util_get_last_err());
+        log_it(L_CRITICAL, "Import error occured");
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GENERAL_ERR, 
-                                                        "%s", json_util_get_last_err());
+                                                        "Import error occured");
 #endif
         return -1;
     }
