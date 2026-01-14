@@ -3608,6 +3608,8 @@ static int dex_history_get_raw_trades(const dex_pair_key_t *a_key, uint64_t a_ts
                         json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(r->seller_addr_ptr)));
                     if (r->buyer_addr_ptr)
                         json_object_object_add(o, "buyer", json_object_new_string(dap_chain_addr_to_str_static(r->buyer_addr_ptr)));
+                    if (r->order_root_ptr)
+                        json_object_object_add(o, "order_root", json_object_new_string(dap_hash_fast_to_str_static(r->order_root_ptr)));
                     const char *l_type = NULL;
                     bool l_is_order = r->flags & DEX_TRADE_FLAG_ORDER;
                     bool l_is_market = r->flags & DEX_TRADE_FLAG_MARKET;
@@ -7647,6 +7649,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
     if (!l_net)
         return dap_json_rpc_error_add(*json_arr_reply, -3, "net not found"), -3;
+    else if ( dap_chain_net_get_load_mode(l_net) )
+        return dap_json_rpc_error_add(*json_arr_reply, -3, "command prohibited unless net %s is fully loaded", l_net_str), -3;
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_str);
 
@@ -8717,11 +8721,11 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             return dap_json_rpc_error_add(*json_arr_reply, -2, "missing -pair"), -2;
         const char *l_from_str = NULL, *l_to_str = NULL, *l_bucket_str = NULL, *l_mode_str = NULL, *l_buyer_str = NULL;
 
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-from", &l_from_str);
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-to", &l_to_str);
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-bucket", &l_bucket_str);
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-mode", &l_mode_str);
-        bool l_fill_missing = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-fill") >= l_arg_index;
+        dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-from", &l_from_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-to", &l_to_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-bucket", &l_bucket_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-mode", &l_mode_str);
+        bool l_fill_missing = dap_cli_server_cmd_check_option(a_argv, 2, a_argc, "-fill") >= 2;
 
         uint64_t l_t_from = 0, l_t_to = 0;
         if (l_from_str && !s_parse_natural_time(l_net->pub.ledger, l_from_str, &l_t_from))
@@ -8735,12 +8739,12 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         }
 
         uint64_t l_bucket = l_bucket_str ? strtoull(l_bucket_str, NULL, 10) : 0ULL;
-        bool l_orders_only = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-orders") >= l_arg_index;
+        bool l_orders_only = dap_cli_server_cmd_check_option(a_argv, 2, a_argc, "-orders") >= 2;
 
         const char *l_limit_str = NULL, *l_offset_str = NULL, *l_order_hash_str = NULL;
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-limit", &l_limit_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-offset", &l_offset_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-order", &l_order_hash_str);
 
         int l_limit = l_limit_str ? atoi(l_limit_str) : 0, l_offset = l_offset_str ? atoi(l_offset_str) : 0;
 
@@ -8774,7 +8778,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             }
         }
 
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-buyer", &l_buyer_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-buyer", &l_buyer_str);
         dap_chain_addr_t l_buyer_addr;
         if (l_buyer_str) {
             if (l_order_hash_str)
