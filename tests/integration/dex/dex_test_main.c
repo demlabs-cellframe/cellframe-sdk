@@ -763,9 +763,9 @@ static int s_test_cli_history_by_order(dex_test_fixture_t *fixture, const char *
     }
     
     json_object *l_trades = NULL, *l_count = NULL;
-    if (!json_object_object_get_ex(l_result, "trades", &l_trades) ||
+    if (!json_object_object_get_ex(l_result, "history", &l_trades) ||
         !json_object_object_get_ex(l_result, "count", &l_count)) {
-        log_it(L_ERROR, "Missing 'trades' or 'count' in result");
+        log_it(L_ERROR, "Missing 'history' or 'count' in result");
         json_object_put(l_json);
         return -7;
     }

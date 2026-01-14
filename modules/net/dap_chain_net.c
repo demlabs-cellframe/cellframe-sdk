@@ -1857,6 +1857,7 @@ int dap_chain_net_test_init()
     l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
     l_net->pub.native_ticker = "TestCoin";
     PVT(l_net)->node_role.enums = NODE_ROLE_ROOT;
+    PVT(l_net)->state = NET_STATE_OFFLINE;
     HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_net);
     HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
     return 0;
