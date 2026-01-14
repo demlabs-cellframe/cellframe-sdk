@@ -22,7 +22,7 @@
 #pragma once
 
 #include <stdint.h>
-#include "dap_chain.h"
+#include "dap_hash.h"
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_time.h"
 #include "dap_list.h"

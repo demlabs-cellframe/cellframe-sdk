@@ -201,10 +201,10 @@ void dap_chain_datum_token_flags_dump_to_json(dap_json_t * json_obj_out, const c
         json_object_object_add(json_obj_out, a_key, json_object_new_string(dap_chain_datum_token_flag_to_str(DAP_CHAIN_DATUM_TOKEN_FLAG_NONE)));
         return;
     }
-    dap_json_t *l_array_flags = json_object_new_array();
+    dap_json_t *l_array_flags = dap_json_array_new();
     for (uint16_t i = 0; i < sizeof(s_flags_table) / sizeof(struct datum_token_flag_struct); i++) {
         if (s_flags_table[i].val == a_flags) {
-            json_object_array_add(l_array_flags, json_object_new_string(s_flags_table[i].key));
+            dap_json_array_add(l_array_flags, dap_json_string_new(s_flags_table[i].key));
         }
     }
     json_object_object_add(json_obj_out, a_key, l_array_flags);
@@ -270,9 +270,9 @@ void dap_chain_datum_token_certs_dump_to_json(dap_json_t *a_json_obj_out, byte_t
     }
 
     size_t l_offset = 0;
-    dap_json_t * json_arr_seg = json_object_new_array();
+    dap_json_t * json_arr_seg = dap_json_array_new();
     for (int i = 1; l_offset < (a_certs_size); i++) {
-        dap_json_t * l_json_obj_out = json_object_new_object();
+        dap_json_t * l_json_obj_out = dap_json_object_new();
         dap_sign_t *l_sign = (dap_sign_t *) (a_tsd_n_signs + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {
@@ -296,11 +296,11 @@ void dap_chain_datum_token_certs_dump_to_json(dap_json_t *a_json_obj_out, byte_t
                                ? dap_enc_base58_encode_hash_to_str(&l_pkey_hash)
                                : dap_chain_hash_fast_to_str_new(&l_pkey_hash);
 
-        json_object_object_add(l_json_obj_out, "line", json_object_new_int(i));
+        dap_json_object_add(l_json_obj_out, "line", dap_json_int_new(i));
         json_object_object_add(l_json_obj_out, "hash", json_object_new_string(l_hash_str));
         json_object_object_add(l_json_obj_out, "sign_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
-        json_object_object_add(l_json_obj_out, "bytes", json_object_new_int(l_sign->header.sign_size));
-        json_object_array_add(json_arr_seg, l_json_obj_out);
+        dap_json_object_add(l_json_obj_out, "bytes", dap_json_int_new(l_sign->header.sign_size));
+        dap_json_array_add(json_arr_seg, l_json_obj_out);
         DAP_DEL_Z(l_hash_str);
     }
     json_object_object_add(a_json_obj_out, "status", json_arr_seg);

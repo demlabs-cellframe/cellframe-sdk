@@ -22,7 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <string.h>
-#include <json.h>
+#include "dap_json.h"
 
 #include "dap_common.h"
 #include "dap_time.h"

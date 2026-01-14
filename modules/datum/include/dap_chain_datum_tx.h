@@ -30,6 +30,33 @@
 #include "dap_pkey.h"
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
+
+/**
+ * @brief Transaction item types
+ * These constants define the type field in transaction items
+ */
+typedef uint8_t dap_chain_tx_item_type_t;
+
+#define TX_ITEM_TYPE_IN             0x01  // Input (spend previous output)
+#define TX_ITEM_TYPE_OUT_OLD        0x10  // Old output format (legacy)
+#define TX_ITEM_TYPE_OUT            0x20  // Standard output (256 bits)
+#define TX_ITEM_TYPE_OUT_EXT        0x21  // Extended output (256 bits)
+#define TX_ITEM_TYPE_OUT_STD        0x22  // Standard output (new format)
+#define TX_ITEM_TYPE_PKEY           0x30  // Public key
+#define TX_ITEM_TYPE_SIG            0x40  // Signature
+#define TX_ITEM_TYPE_IN_EMS         0x50  // Emission input
+#define TX_ITEM_TYPE_IN_REWARD      0x51  // Reward input
+#define TX_ITEM_TYPE_IN_COND        0x55  // Conditional input
+#define TX_ITEM_TYPE_OUT_COND       0x60  // Conditional output (256 bits)
+#define TX_ITEM_TYPE_RECEIPT        0x70  // Receipt
+#define TX_ITEM_TYPE_RECEIPT_OLD    0x71  // Old receipt format
+#define TX_ITEM_TYPE_TSD            0x80  // Type-Specific Data
+#define TX_ITEM_TYPE_OUT_ALL        0xF0  // All outputs (special)
+#define TX_ITEM_TYPE_ANY            0xFF  // Any type (wildcard)
+#define TX_ITEM_TYPE_VOTING         0x90  // Voting
+#define TX_ITEM_TYPE_VOTE           0x91  // Vote
+#define TX_ITEM_TYPE_EVENT          0xA0  // Event
+
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_out_cond.h"
 
