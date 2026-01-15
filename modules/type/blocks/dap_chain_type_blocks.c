@@ -1158,9 +1158,20 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     break;
             }
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-            //sort by time
-            // TODO: Implement sorting in dap_json API - json_object_array_sort not available
-            // json_object_array_sort(json_arr_bl_cache_out, l_head ? blocks_sort_fwd : blocks_sort_rev);
+            
+            // Sort by time (Phase 14.3: Migrated to dap_json API)
+            // Compare function: compare "timestamp" field for chronological sorting
+            auto int blocks_sort_fwd(const dap_json_t *a, const dap_json_t *b) {
+                uint64_t ts_a = dap_json_object_get_uint64((dap_json_t*)a, "timestamp");
+                uint64_t ts_b = dap_json_object_get_uint64((dap_json_t*)b, "timestamp");
+                return (ts_a > ts_b) - (ts_a < ts_b);  // -1, 0, or 1
+            }
+            auto int blocks_sort_rev(const dap_json_t *a, const dap_json_t *b) {
+                return -blocks_sort_fwd(a, b);  // Reverse order
+            }
+            
+            dap_json_array_sort(json_arr_bl_cache_out, l_head ? blocks_sort_fwd : blocks_sort_rev);
+            
             // Remove the timestamp and change block num
             size_t l_length = dap_json_array_length(json_arr_bl_cache_out);
             for (size_t i = 0; i < l_length; i++) {

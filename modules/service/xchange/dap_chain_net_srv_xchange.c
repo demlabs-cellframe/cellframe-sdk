@@ -665,13 +665,6 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     
 }
 
-static int datum_list_sort_by_date_back(const void *a, const void *b)
-{
-    // TODO Phase 5.4: Temporarily disabled sorting (old json-c API needs migration)
-    (void)a; (void)b;
-    return 0;
-}
-
 static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt){
     dap_return_val_if_pass(!response || !response->result_json_object, -1);
     // Raw JSON flag
