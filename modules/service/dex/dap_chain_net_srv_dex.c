@@ -828,6 +828,10 @@ static int s_dex_match_snapshot_by_tail(dap_chain_net_t *a_net, const dap_hash_f
         dex_order_cache_entry_t *e = NULL;
         HASH_FIND(level.hh_tail, s_dex_index_by_tail, a_tail, sizeof(*a_tail), e);
         if (e) {
+            // Skip spent tails (stale cache entries may remain on rare cache desyncs)
+            if (e->level.match.prev_idx >= 0 &&
+                dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, (dap_chain_hash_fast_t *)a_tail, e->level.match.prev_idx, NULL))
+                return pthread_rwlock_unlock(&s_dex_cache_rwlock), -5;
             *a_out = (dex_match_table_entry_t){.match = e->level.match,
                                                .seller_addr = *(dap_chain_addr_t *)e->seller_addr_ptr,
                                                .side_version = e->side_version,
@@ -899,6 +903,34 @@ static int s_dex_match_snapshot_by_tail(dap_chain_net_t *a_net, const dap_hash_f
     return 0;
 }
 
+// Resolve any SRV_DEX order hash (root, current tail; intermediate tails are ledger-only) to the current tail hash.
+// Cache can resolve only:
+//   - current tail (s_dex_index_by_tail)
+//   - chain root (s_dex_orders_cache)
+// Everything else must be resolved via ledger.
+static int s_dex_resolve_order_tail(dap_chain_net_t *a_net, const dap_hash_fast_t *a_hash, dap_hash_fast_t *a_out_tail)
+{
+    dap_ret_val_if_any(-1, !a_net, !a_hash, !a_out_tail, dap_hash_fast_is_blank(a_hash));
+    *a_out_tail = (dap_hash_fast_t){ };
+    if (s_dex_cache_enabled) {
+        unsigned l_hashv;
+        HASH_VALUE(a_hash, sizeof(*a_hash), l_hashv);
+        pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+        dex_order_cache_entry_t *l_e = NULL;
+        HASH_FIND_BYHASHVALUE(level.hh_tail, s_dex_index_by_tail, a_hash, sizeof(*a_hash), l_hashv, l_e);
+        if (!l_e)
+            HASH_FIND_BYHASHVALUE(level.hh, s_dex_orders_cache, a_hash, sizeof(*a_hash), l_hashv, l_e);
+        if (l_e)
+            *a_out_tail = l_e->level.match.tail;
+        pthread_rwlock_unlock(&s_dex_cache_rwlock);
+        if (!dap_hash_fast_is_blank(a_out_tail))
+            return 0;
+    }
+    *a_out_tail = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX,
+                                                     (dap_chain_hash_fast_t*)a_hash, false);
+    return dap_hash_fast_is_blank(a_out_tail) ? -2 : 0;
+}
+
 // Build transient table from hashes (roots or tails). Uses cache when available; otherwise reads ledger once per hash.
 static dex_match_table_entry_t *s_dex_matches_build_by_hashes(dap_chain_net_t *a_net, const dap_hash_fast_t *a_hashes, size_t a_count,
                                                               uint256_t a_budget, bool a_is_budget_buy,
@@ -908,12 +940,29 @@ static dex_match_table_entry_t *s_dex_matches_build_by_hashes(dap_chain_net_t *a
 {
     dap_do_if_any(if (a_out_err) *a_out_err = DEX_PURCHASE_ERROR_INVALID_ARGUMENT; return NULL;, !a_net, !a_hashes, !a_count);
     int l_err = DEX_PURCHASE_ERROR_OK;
-    dex_match_table_entry_t *l_entries = NULL, *l_cur = DAP_NEW_Z(dex_match_table_entry_t), *l_tmp;
+    dex_match_table_entry_t *l_entries = NULL, *l_cur = DAP_NEW_STACK(dex_match_table_entry_t), *l_tmp;
     dex_pair_key_t *l_key_common = NULL;
     uint8_t l_side0 = ~0;
     for (const dap_hash_fast_t *l_cur_hash = a_hashes; a_count; ++l_cur_hash, --a_count) {
+        dap_hash_fast_t l_tail;
+        if (s_dex_resolve_order_tail(a_net, l_cur_hash, &l_tail)) {
+            debug_if(s_debug_more, L_ERROR, "{ %s } Can't resolve tail for hash %s, skipping",
+                __FUNCTION__, dap_hash_fast_to_str_static(l_cur_hash));
+            continue;
+        }
+        debug_if(s_debug_more && !dap_hash_fast_compare(l_cur_hash, &l_tail), L_ERROR, "{ %s } Resolved tail %s -> %s",
+            __FUNCTION__, dap_hash_fast_to_str_static(l_cur_hash), dap_hash_fast_to_str_static(&l_tail));
+        unsigned l_hashv;
+        HASH_VALUE(&l_tail, sizeof(l_tail), l_hashv);
+        // Skip duplicate tails (avoid double spend)
+        if (l_entries) {
+            dex_match_table_entry_t *l_dup = NULL;
+            HASH_FIND_BYHASHVALUE(hh, l_entries, &l_tail, sizeof(l_tail), l_hashv, l_dup);
+            if (l_dup)
+                continue;
+        }
         dex_pair_key_t l_cur_key;
-        if (s_dex_match_snapshot_by_tail(a_net, l_cur_hash, l_cur, &l_cur_key))
+        if (s_dex_match_snapshot_by_tail(a_net, &l_tail, l_cur, &l_cur_key))
             continue;
         if (IS_ZERO_256(l_cur->match.value) || IS_ZERO_256(l_cur->match.rate))
             continue;
@@ -937,14 +986,18 @@ static dex_match_table_entry_t *s_dex_matches_build_by_hashes(dap_chain_net_t *a
         }
 
         l_cur->pair_key = l_key_common;
-        HASH_ADD(hh, l_entries, match.tail, sizeof(l_cur->match.tail), l_cur);
-        l_cur = a_count > 1 ? DAP_NEW_Z(dex_match_table_entry_t) : NULL;
+        dex_match_table_entry_t *l_new = DAP_DUP(l_cur);
+        if (!l_new) {
+            l_err = DEX_PURCHASE_ERROR_COMPOSE_TX;
+            break;
+        }
+        HASH_ADD_BYHASHVALUE(hh, l_entries, match.tail, sizeof(l_new->match.tail), l_hashv, l_new);
     }
     if (!l_entries)
         l_err = DEX_PURCHASE_MULTI_ERROR_ORDERS_EMPTY;
 
     if (l_err != DEX_PURCHASE_ERROR_OK) {
-        DAP_DEL_MULTY(l_key_common, l_cur);
+        DAP_DELETE(l_key_common);
         s_dex_matches_clear(&l_entries);
         if (a_out_err)
             *a_out_err = l_err;
@@ -1181,6 +1234,10 @@ static dex_match_table_entry_t *s_dex_matches_build_by_criteria(dap_chain_net_t 
                     continue;
                 // Skip self-purchase
                 if (a_criteria->buyer_addr && dap_chain_addr_compare(a_criteria->buyer_addr, l_entry->seller_addr_ptr))
+                    continue;
+                // Skip spent tails (stale cache entries may remain on rare cache desyncs)
+                if (l_entry->level.match.prev_idx >= 0 &&
+                    dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_entry->level.match.tail, l_entry->level.match.prev_idx, NULL))
                     continue;
                 // Decide execution against current budget
                 uint256_t l_exec_sell = uint256_0, l_exec_quote_exact = uint256_0;
@@ -4300,7 +4357,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             if (l_ins && l_in_idx < l_in_cnt) {
                 dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_in->header.tx_prev_hash);
                 if (l_prev_tx) {
-                    byte_t *l_prev_out = dap_chain_datum_tx_item_get_nth(l_prev_tx, TX_ITEM_TYPE_OUT_ALL, l_in->header.tx_out_prev_idx);
+                    byte_t *l_prev_out = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_in->header.tx_out_prev_idx);
                     if (l_prev_out) {
                         switch (*l_prev_out) {
                         case TX_ITEM_TYPE_OUT_OLD:
@@ -5934,9 +5991,10 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                 dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_pre_in->header.tx_prev_hash);
                 if (!l_prev_tx)
                     continue;
-                dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get_nth(
-                    l_prev_tx, TX_ITEM_TYPE_OUT_COND, l_pre_in->header.tx_out_prev_idx);
-                if (!l_prev_out || l_prev_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX)
+                byte_t *l_prev_out = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_pre_in->header.tx_out_prev_idx);
+                dap_chain_tx_out_cond_t *l_prev_out_cond =
+                    (l_prev_out && *l_prev_out == TX_ITEM_TYPE_OUT_COND) ? (dap_chain_tx_out_cond_t *)l_prev_out : NULL;
+                if (!l_prev_out_cond || l_prev_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX)
                     continue;
                 // Determine side from prev OUT_COND for counting
                 const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_pre_in->header.tx_prev_hash);
@@ -5944,9 +6002,9 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                 uint8_t l_pre_side = 0;
                 uint256_t l_pre_price = {};
                 if (l_sell_tok)
-                    s_pair_normalize(l_sell_tok, l_prev_out->subtype.srv_dex.sell_net_id, l_prev_out->subtype.srv_dex.buy_token,
-                                     l_prev_out->subtype.srv_dex.buy_net_id, l_prev_out->subtype.srv_dex.rate, &l_pre_key, &l_pre_side,
-                                     &l_pre_price);
+                    s_pair_normalize(l_sell_tok, l_prev_out_cond->subtype.srv_dex.sell_net_id, l_prev_out_cond->subtype.srv_dex.buy_token,
+                                     l_prev_out_cond->subtype.srv_dex.buy_net_id, l_prev_out_cond->subtype.srv_dex.rate, &l_pre_key,
+                                     &l_pre_side, &l_pre_price);
                 else
                     continue; // can't determine side without sell token
                 // Count by side
@@ -6589,11 +6647,10 @@ dap_chain_net_srv_dex_update_error_t dap_chain_net_srv_dex_update(dap_chain_net_
     // Parameter validation: must have net, order root, wallet, out ptr, and new value flag
     dap_ret_val_if_any(DEX_UPDATE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_root, !a_wallet, !a_tx, !a_has_new_value);
     *a_tx = NULL;
-    // Find actual tail in the ledger (canonical). For SRV_DEX: blank => current tx is owner; non-blank => use stored root.
-    dap_hash_fast_t l_tail =
-        dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, a_order_root, false);
-    if (dap_hash_fast_is_blank(&l_tail))
-        l_tail = *a_order_root;
+    // Find actual tail (cache-first, ledger fallback)
+    dap_hash_fast_t l_tail;
+    if (s_dex_resolve_order_tail(a_net, a_order_root, &l_tail))
+        return DEX_UPDATE_ERROR_NOT_FOUND;
 
     dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tail);
     if (!l_prev_tx)
@@ -6792,43 +6849,35 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(dap_chain_
              a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
              a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "");
 
+    dap_hash_fast_t l_tail;
+    if (s_dex_resolve_order_tail(a_net, a_order_hash, &l_tail))
+        return DEX_PURCHASE_ERROR_ORDER_NOT_FOUND;
+
+    dap_chain_datum_tx_t *l_tail_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tail);
+    if (!l_tail_tx)
+        return DEX_PURCHASE_ERROR_ORDER_NOT_FOUND;
+
+    int l_prev_idx = 0;
+    dap_chain_tx_out_cond_t *l_prev_cond = dap_chain_datum_tx_out_cond_get(l_tail_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_idx);
+    if (!l_prev_cond)
+        return DEX_PURCHASE_ERROR_ORDER_NOT_FOUND;
+    if (dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tail, l_prev_idx, NULL))
+        return DEX_PURCHASE_ERROR_ORDER_SPENT;
+
     // Get buyer address for self-purchase filter
     dap_chain_addr_t *l_buyer_addr = dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
     if (!l_buyer_addr)
         return DEX_PURCHASE_ERROR_INVALID_ARGUMENT;
 
-    // Find tail: try cache first (hot path), then ledger
-    dap_hash_fast_t l_tail = {};
-    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-    dex_order_cache_entry_t *l_cached = NULL;
-    unsigned l_hashv;
-    HASH_VALUE(a_order_hash, sizeof(*a_order_hash), l_hashv);
-    HASH_FIND_BYHASHVALUE(level.hh, s_dex_orders_cache, a_order_hash, sizeof(*a_order_hash), l_hashv, l_cached);
-    if (!l_cached)
-        HASH_FIND_BYHASHVALUE(level.hh_tail, s_dex_index_by_tail, a_order_hash, sizeof(*a_order_hash), l_hashv, l_cached);
-    if (l_cached)
-        l_tail = l_cached->level.match.tail;
-    pthread_rwlock_unlock(&s_dex_cache_rwlock);
-
-    debug_if(s_debug_more, L_DEBUG, "{ %s } Cache %s: %s", __FUNCTION__, l_cached ? "hit" : "miss",
-             dap_chain_hash_fast_to_str_static(l_cached ? &l_tail : a_order_hash));
-
-    if (dap_hash_fast_is_blank(&l_tail)) {
-        l_tail = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, a_order_hash, false);
-        if (dap_hash_fast_is_blank(&l_tail))
-            l_tail = *a_order_hash;
-    }
-
     debug_if(s_debug_more, L_DEBUG, "{ %s } Resolved purchase tail: %s", __FUNCTION__, dap_chain_hash_fast_to_str_static(&l_tail));
 
     // Self-purchase check inside s_dex_matches_build_by_hashes (called by s_dex_tx_create_exchange)
-    dap_chain_datum_tx_t *l_tx = s_dex_tx_create_exchange(a_net, a_wallet, l_buyer_addr, &l_tail, a_value, a_is_budget_buy, a_fee,
-                                                          a_create_buyer_order_on_leftover, a_leftover_rate);
+    *a_tx = s_dex_tx_create_exchange(a_net, a_wallet, l_buyer_addr, &l_tail, a_value, a_is_budget_buy, a_fee,
+                                     a_create_buyer_order_on_leftover, a_leftover_rate);
     DAP_DELETE(l_buyer_addr);
-    *a_tx = l_tx;
-    debug_if(s_debug_more, L_DEBUG, "{ %s } Purchase %s; Tail: %s", __FUNCTION__, l_tx ? "composed" : "failed",
+    debug_if(s_debug_more, *a_tx ? L_DEBUG : L_ERROR, "{ %s } Purchase %s; Tail: %s", __FUNCTION__, *a_tx ? "composed" : "failed",
              dap_chain_hash_fast_to_str_static(&l_tail));
-    return l_tx ? DEX_PURCHASE_ERROR_OK : DEX_PURCHASE_ERROR_COMPOSE_TX;
+    return *a_tx ? DEX_PURCHASE_ERROR_OK : DEX_PURCHASE_ERROR_COMPOSE_TX;
 }
 
 dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hashes,
@@ -6951,9 +7000,9 @@ dap_chain_net_srv_dex_remove_error_t dap_chain_net_srv_dex_remove(dap_chain_net_
         return DEX_REMOVE_ERROR_FEE_IS_ZERO;
     const char *l_native_ticker = a_net->pub.native_ticker;
     dap_ledger_t *l_ledger = a_net->pub.ledger;
-    dap_hash_fast_t l_tail = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, a_order_hash, false);
-    if (dap_hash_fast_is_blank(&l_tail))
-        l_tail = *a_order_hash;
+    dap_hash_fast_t l_tail = {};
+    if (s_dex_resolve_order_tail(a_net, a_order_hash, &l_tail))
+        return DEX_REMOVE_ERROR_TX_NOT_FOUND;
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_tail);
     if (!l_cond_tx)
         return DEX_REMOVE_ERROR_TX_NOT_FOUND;

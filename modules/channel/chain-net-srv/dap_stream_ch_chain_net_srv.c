@@ -37,6 +37,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
 #include "dap_stream_ch_chain_net_srv_pkt.h"
+#include "dap_chain_datum_tx_items.h"
 #include "dap_stream_ch_proc.h"
 
 
@@ -1213,7 +1214,8 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
                 if (l_in_cond){
                     dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &l_in_cond->header.tx_prev_hash);
                     if (l_prev_tx){
-                        l_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get_nth(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_in_cond->header.tx_out_prev_idx);
+                        byte_t *l_prev_out = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_in_cond->header.tx_out_prev_idx);
+                        l_out_cond = (l_prev_out && *l_prev_out == TX_ITEM_TYPE_OUT_COND) ? (dap_chain_tx_out_cond_t *)l_prev_out : NULL;
                         if (l_out_cond && l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY)
                             l_out_cond = NULL;
                     }
