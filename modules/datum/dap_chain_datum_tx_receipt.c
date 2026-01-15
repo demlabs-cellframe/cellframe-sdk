@@ -104,9 +104,10 @@ dap_sign_t *dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t *a_
     size_t l_total_signs_size = 0;
 
     if (a_receipt->receipt_info.version < 2){
+        // Old format: no exts_size field, signs go directly after header
         dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
-        l_offset = l_receipt_old->exts_size;
-        l_total_signs_size = l_receipt_old->size - sizeof(dap_chain_datum_tx_receipt_old_t) - l_receipt_old->exts_size;
+        l_offset = 0;  // No extensions in old format
+        l_total_signs_size = l_receipt_old->size - sizeof(dap_chain_datum_tx_receipt_old_t);
         l_receipt_exts_n_signs = l_receipt_old->exts_n_signs;
     } else {
         l_offset = a_receipt->exts_size;
@@ -194,7 +195,8 @@ uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t *a_
     size_t l_receipt_size = 0;
 
     if (a_receipt->receipt_info.version < 2){
-        l_receipt_signs = ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->exts_n_signs + ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->exts_size;
+        // Old format: no exts_size, signs go directly
+        l_receipt_signs = ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->exts_n_signs;
         l_receipt_size = ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->size;
     } else {
         l_receipt_signs = a_receipt->exts_n_signs + a_receipt->exts_size;

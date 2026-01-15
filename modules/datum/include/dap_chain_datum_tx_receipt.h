@@ -25,6 +25,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "dap_hash.h"
 #include "dap_chain_common.h"
 
 typedef struct dap_chain_receipt_info {
@@ -35,6 +36,7 @@ typedef struct dap_chain_receipt_info {
     byte_t padding[3];
     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
     uint256_t value_datoshi; // Receipt value
+    dap_hash_fast_t prev_tx_cond_hash;  // Hash of previous conditional TX (version 2+)
 } DAP_ALIGN_PACKED dap_chain_receipt_info_t;
 
 /**
@@ -67,7 +69,9 @@ extern "C" {
 
 dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create(dap_chain_srv_uid_t srv_uid,
                                                                   dap_chain_net_srv_price_unit_uid_t units_type,
-                                                                    uint64_t units, uint256_t value_datoshi, const void * a_ext, size_t a_ext_size);
+                                                                  uint64_t units, uint256_t value_datoshi, 
+                                                                  const void * a_ext, size_t a_ext_size,
+                                                                  dap_hash_fast_t *a_prev_tx_hash);
 
 dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t *a_receipt, dap_enc_key_t *a_key);
 dap_json_t *dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info);

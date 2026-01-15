@@ -21,7 +21,7 @@
 */
 
 #include "dap_chain_datum_tx_voting.h"
-#include "dap_chain_common.h"
+#include "dap_chain_datum_tx.h"
 
 
 #define LOG_TAG "datum_tx_voting"
