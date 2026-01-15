@@ -233,26 +233,27 @@ int dap_chain_datum_tx_receipt_check_size(dap_chain_datum_tx_receipt_t *a_receip
                                                     // Receipt is lagrer that two signs need
         return l_sign_offset == a_control_size ? 0 : (a_receipt->receipt_info.version ? -4 : 0);
     } else {
+        // Old receipt format (version < 2) - no exts_size field, signs go directly after header
         dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
         dap_return_val_if_fail(a_receipt && a_control_size == l_receipt_old->size &&
-            a_control_size >= sizeof(dap_chain_datum_tx_receipt_old_t) + l_receipt_old->exts_size,
-            -1); // Main controls incosistentency
-        if (a_control_size == sizeof(dap_chain_datum_tx_receipt_old_t) + l_receipt_old->exts_size)
+            a_control_size >= sizeof(dap_chain_datum_tx_receipt_old_t),
+            -1); // Main controls inconsistency
+        if (a_control_size == sizeof(dap_chain_datum_tx_receipt_old_t))
             return 0;               // No signs at receipt, it's OK
-        if (a_control_size < sizeof(dap_chain_datum_tx_receipt_old_t) + l_receipt_old->exts_size + sizeof(dap_sign_t))
+        if (a_control_size < sizeof(dap_chain_datum_tx_receipt_old_t) + sizeof(dap_sign_t))
             return -2;
-        dap_sign_t *l_sign = (dap_sign_t *)(l_receipt_old->exts_n_signs + l_receipt_old->exts_size);
+        dap_sign_t *l_sign = (dap_sign_t *)(l_receipt_old->exts_n_signs);  // Signs start immediately
         for (uint16_t l_sign_position = 2; l_sign_position; l_sign_position--) {
             size_t l_sign_offset = (byte_t *)l_sign - (byte_t *)l_receipt_old;
             if (a_control_size < l_sign_offset + sizeof(dap_sign_t))
-            return -2;          // Left space is too samll to contain a sign
+            return -2;          // Left space is too small to contain a sign
             uint64_t l_sign_size = dap_sign_get_size(l_sign);
             if (l_sign_size + l_sign_offset <= l_sign_offset || l_sign_size + l_sign_offset > a_control_size)
             return -3;
             l_sign = (dap_sign_t *)((byte_t *)l_sign + l_sign_size);
         }
         size_t l_sign_offset = (byte_t *)l_sign - (byte_t *)l_receipt_old;
-                                            // Receipt is lagrer that two signs need
+                                            // Receipt is larger that two signs need
         return l_sign_offset == a_control_size ? 0 : (l_receipt_old->receipt_info.version ? -4 : 0);
     }
 }
