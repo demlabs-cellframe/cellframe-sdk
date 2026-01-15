@@ -833,7 +833,7 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                 l_addr = ((dap_chain_tx_out_cond_t*)l_tx_item)->subtype.srv_xchange.seller_addr;
                 break;
             default:
-                continue;
+                break;
             }
             ++l_out_idx;
         default:
