@@ -27,6 +27,9 @@
 #include "dap_time.h"
 #include "dap_list.h"
 
+// Forward declaration to avoid circular dependency
+typedef struct dap_chain_datum_tx dap_chain_datum_tx_t;
+
 #define DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH 200
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH 100
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT 10

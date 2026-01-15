@@ -38,8 +38,19 @@ typedef struct dap_chain_receipt_info {
 } DAP_ALIGN_PACKED dap_chain_receipt_info_t;
 
 /**
+ * @struct dap_chain_datum_tx_receipt_old
+ * @brief Old receipt format (version < 2) - without exts_size field
+ */
+typedef struct dap_chain_datum_tx_receipt_old {
+    dap_chain_tx_item_type_t type; // Transaction item type
+    dap_chain_receipt_info_t receipt_info; // Receipt itself
+    uint64_t size;
+    byte_t exts_n_signs[]; // Signatures, first from provider, second from client
+} DAP_ALIGN_PACKED dap_chain_datum_tx_receipt_old_t;
+
+/**
  * @struct dap_chain_tx_out
- * @brief Transaction item out_cond
+ * @brief Transaction item out_cond (version 2+)
  */
 typedef struct dap_chain_datum_tx_receipt {
     dap_chain_tx_item_type_t type; // Transaction item type

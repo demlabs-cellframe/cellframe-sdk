@@ -27,8 +27,10 @@
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_cert.h"
-#include "dap_chain_policy.h"
 #include <stdint.h>
+
+// Forward declaration to avoid circular dependency (decree -> policy -> decree)
+typedef struct dap_chain_policy dap_chain_policy_t;
 
 #define DAP_CHAIN_DATUM_DECREE_VERSION  0
 

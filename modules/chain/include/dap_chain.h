@@ -28,7 +28,9 @@
 #include <pthread.h>
 #include "dap_config.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum.h"
+
+// Forward declarations to break circular dependency
+typedef struct dap_chain_datum dap_chain_datum_t;
 
 #ifdef DAP_TPS_TEST
 #define DAP_CHAIN_ATOM_MAX_SIZE (100 * 1024 * 1024)

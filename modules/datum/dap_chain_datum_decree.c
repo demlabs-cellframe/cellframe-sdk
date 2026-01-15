@@ -28,7 +28,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_common.h"
-#include "dap_chain_policy.h"
+#include "../chain/include/dap_chain_policy.h"
 #ifdef DAP_OS_UNIX
 #include <arpa/inet.h>
 #endif

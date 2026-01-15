@@ -72,36 +72,36 @@ void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
 void dap_chain_datum_anchor_certs_dump_json(dap_json_t * a_json_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type)
 {
     if (!a_certs_size) {
-        json_object_object_add(a_json_out, "cert_status", json_object_new_string("NONE"));
+        dap_json_object_add(a_json_out, "cert_status", dap_json_object_new_string("NONE"));
         return;
     }
     dap_json_t* json_arr_certs_out = json_object_new_array();    
     size_t l_offset = 0;
     for (int i = 1; l_offset < (a_certs_size); i++) {
-        dap_json_t* json_obj_sign = json_object_new_object();
+        dap_json_t* json_obj_sign = dap_json_object_new();
         dap_sign_t *l_sign = (dap_sign_t*)(a_signs + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {
-            json_object_object_add(json_obj_sign, "sign_status", json_object_new_string("CORRUPTED - 0 size signature"));
-            json_object_array_add(json_arr_certs_out, json_obj_sign);
+            dap_json_object_add(json_obj_sign, "sign_status", dap_json_object_new_string("CORRUPTED - 0 size signature"));
+            dap_json_array_add(json_arr_certs_out, json_obj_sign);
             continue;
         }
 
         dap_chain_hash_fast_t l_pkey_hash = {0};
         if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
-            json_object_object_add(json_obj_sign, "sign_status", json_object_new_string("CORRUPTED - can't calc hash"));
-            json_object_array_add(json_arr_certs_out, json_obj_sign);
+            dap_json_object_add(json_obj_sign, "sign_status", dap_json_object_new_string("CORRUPTED - can't calc hash"));
+            dap_json_array_add(json_arr_certs_out, json_obj_sign);
             continue;
         }
         const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
                 : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
-        json_object_object_add(json_obj_sign, "sign_#", json_object_new_uint64(i));
-        json_object_object_add(json_obj_sign, "hash", json_object_new_string(l_hash_str));
-        json_object_object_add(json_obj_sign, "type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
-        json_object_object_add(json_obj_sign, "sign_size", json_object_new_uint64(l_sign->header.sign_size));
-        json_object_array_add(json_arr_certs_out, json_obj_sign); 
+        dap_json_object_add(json_obj_sign, "sign_#", dap_json_object_new_uint64(i));
+        dap_json_object_add(json_obj_sign, "hash", dap_json_object_new_string(l_hash_str));
+        dap_json_object_add(json_obj_sign, "type", dap_json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
+        dap_json_object_add(json_obj_sign, "sign_size", dap_json_object_new_uint64(l_sign->header.sign_size));
+        dap_json_array_add(json_arr_certs_out, json_obj_sign); 
     }
-    json_object_object_add(a_json_out,"SIGNS",json_arr_certs_out);
+    dap_json_object_add(a_json_out,"SIGNS",json_arr_certs_out);
 }
 
