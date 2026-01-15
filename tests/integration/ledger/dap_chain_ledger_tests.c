@@ -25,6 +25,7 @@
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_type_dag_poa.h"
+#include "integration_test_fixtures.h"  // ✓ Integration test fixtures
 
 static const uint64_t s_fee = 2;
 static const uint64_t s_total_supply = 500;
@@ -34,71 +35,23 @@ static const char* s_delegated_token_ticker = "mTestCoin";
 
 static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hash_prev, dap_enc_key_t *a_from_key, dap_chain_net_id_t a_net_id);
 
+/**
+ * @brief Create token UPDATE datum
+ * @deprecated Use integration_test_create_token_update() from integration_test_fixtures.h
+ */
 dap_chain_datum_token_t *dap_ledger_test_create_datum_update(dap_cert_t *a_cert, size_t *a_token_size,
                                                                   const char *a_token_ticker, byte_t *a_tsd_section, size_t a_size_tsd_section){
-    dap_chain_datum_token_t *l_token = DAP_NEW_Z(dap_chain_datum_token_t);
-    l_token->version = 2;
-    l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
-    l_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
-    snprintf(l_token->ticker, sizeof(l_token->ticker), "%s", a_token_ticker);
-    l_token->signs_valid = 0;
-    l_token->total_supply = uint256_0;
-    l_token->header_native_decl.decimals = 0;
-    l_token->signs_total = 0;
-    l_token->header_native_decl.flags = 0;
-    if (a_tsd_section && a_size_tsd_section != 0) {
-        l_token->header_native_decl.tsd_total_size = a_size_tsd_section;
-        l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section);
-        memcpy(l_token->tsd_n_signs, a_tsd_section, a_size_tsd_section);
-    }
-    dap_sign_t * l_sign = dap_cert_sign(a_cert, l_token, sizeof(*l_token) + a_size_tsd_section);
-    if (l_sign) {
-        size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
-        memcpy(l_token->tsd_n_signs + a_size_tsd_section, l_sign, l_sign_size);
-        DAP_DELETE(l_sign);
-        l_token->signs_total = 1;
-        *a_token_size = sizeof(dap_chain_datum_token_t) + l_sign_size + a_size_tsd_section;
-        return l_token;
-    } else {
-        DAP_DEL_Z(l_token);
-        DAP_DELETE(l_sign);
-        return NULL;
-    }
+    return integration_test_create_token_update(a_cert, a_token_size, a_token_ticker, a_tsd_section, a_size_tsd_section);
 }
 
+/**
+ * @brief Create token DECL datum
+ * @deprecated Use integration_test_create_token_decl() from integration_test_fixtures.h
+ */
 dap_chain_datum_token_t  *dap_ledger_test_create_datum_decl(dap_cert_t *a_cert, size_t *a_token_size,
                                                                   const char *a_token_ticker, uint256_t a_total_supply,
                                                                   byte_t *a_tsd_section, size_t a_size_tsd_section, uint16_t flags) {
-    dap_chain_datum_token_t *l_token = DAP_NEW_Z(dap_chain_datum_token_t);
-    l_token->version = 2;
-    l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
-    l_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
-    snprintf(l_token->ticker, sizeof(l_token->ticker), "%s", a_token_ticker);
-    l_token->signs_valid = 1;
-    l_token->total_supply = a_total_supply;
-    l_token->header_native_decl.decimals = 18;
-    l_token->signs_total = 0;
-    l_token->header_native_decl.flags = flags;
-    if (a_tsd_section && a_size_tsd_section != 0) {
-        l_token->header_native_decl.tsd_total_size = a_size_tsd_section;
-        l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section);
-        memcpy(l_token->tsd_n_signs, a_tsd_section, a_size_tsd_section);
-    }
-    dap_sign_t * l_sign = dap_cert_sign(a_cert, l_token, sizeof(*l_token) + a_size_tsd_section);
-    if (l_sign) {
-        size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
-        memcpy(l_token->tsd_n_signs + a_size_tsd_section, l_sign, l_sign_size);
-        DAP_DELETE(l_sign);
-        l_token->signs_total = 1;
-        *a_token_size = sizeof(dap_chain_datum_token_t) + l_sign_size + a_size_tsd_section;
-        return l_token;
-    } else {
-        DAP_DEL_Z(l_token);
-        DAP_DELETE(l_sign);
-        return NULL;
-    }
+    return integration_test_create_token_decl(a_cert, a_token_size, a_token_ticker, a_total_supply, a_tsd_section, a_size_tsd_section, flags);
 }
 
 dap_chain_datum_tx_t *dap_ledger_test_create_datum_base_tx(
@@ -1012,63 +965,13 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
 
 /**
  * @brief Test fixture: Creates a minimal test network for ledger tests.
- * @details Moved from production code (dap_chain_net.c) into test suite.
- * Creates network with ID 0xFA0 named "Snet" for isolated testing.
- * This is a DIRECT COPY of the old dap_chain_net_test_init() to avoid API complexity.
+ * @details MOVED TO integration_test_fixtures.c - use integration_test_create_snet()
+ * @deprecated Use integration_test_create_snet() from integration_test_fixtures.h
  */
 static int s_ledger_test_net_create(void)
 {
-    // Include internal structure definitions needed for test setup
-    #include "dap_chain_node.h"
-    
-    typedef struct dap_chain_net_pvt {
-        dap_chain_node_info_t *node_info;
-        // ... minimal fields for test
-    } dap_chain_net_pvt_t;
-    
-    #define PVT(a) ((dap_chain_net_pvt_t *)(void*)((a)->pvt))
-    
-    // Check if already exists
-    dap_chain_net_id_t l_test_id = {.uint64 = 0xFA0};
-    if (dap_chain_net_by_id(l_test_id)) {
-        log_it(L_NOTICE, "Test network already exists, skipping creation");
-        return 0;  // Already created
-    }
-    
-    log_it(L_NOTICE, "Creating test network 'Snet' with ID 0xFA0...");
-    
-    // Create test network (exact copy of old dap_chain_net_test_init)
-    dap_chain_net_t *l_net = DAP_NEW_Z_SIZE(dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t));
-    if (!l_net) {
-        log_it(L_ERROR, "Failed to allocate dap_chain_net_t");
-        return -1;
-    }
-    
-    PVT(l_net)->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + DAP_HOSTADDR_STRLEN + 1);
-    if (!PVT(l_net)->node_info) {
-        log_it(L_ERROR, "Failed to allocate node_info");
-        DAP_DELETE(l_net);
-        return -1;
-    }
-    
-    l_net->pub.id.uint64 = 0xFA0;
-    strcpy(l_net->pub.name, "Snet");
-    l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
-    l_net->pub.native_ticker = "TestCoin";
-    l_net->pub.node_role.enums = NODE_ROLE_ROOT;
-    
-    log_it(L_NOTICE, "Network structure initialized, adding to global registry...");
-    
-    // Register network using extern declarations
-    extern dap_chain_net_t *s_nets_by_id;
-    extern dap_chain_net_t *s_nets_by_name;
-    HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_net);
-    HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
-    
-    log_it(L_NOTICE, "Test network 'Snet' created and registered successfully!");
-    
-    #undef PVT
-    return 0;
+    // Delegate to fixture implementation
+    return integration_test_create_snet();
 }
 
 void dap_ledger_test_run(void){

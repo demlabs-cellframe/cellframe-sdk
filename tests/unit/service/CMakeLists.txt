@@ -12,6 +12,7 @@ add_executable(${PROJECT_NAME}
 
 target_include_directories(${PROJECT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/tests/fixtures  # ← Unit test fixtures
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -19,9 +20,11 @@ target_link_libraries(${PROJECT_NAME}
     dap_sdk
     dap_test
     dap_chain_net_srv_voting
+    unit_test_fixtures  # ← Link unit test fixtures
 )
 
 # Auto-generate and apply --wrap flags from DAP_MOCK_DECLARE() calls
-dap_mock_autowrap(${PROJECT_NAME})
+# NOTE: Disabled for now - this test uses integration-style testing with DAP SDK isolation
+# dap_mock_autowrap(${PROJECT_NAME})
 
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
