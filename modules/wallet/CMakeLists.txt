@@ -15,7 +15,7 @@ include_directories(../../3rdparty/crc32c_adler)
 # Use universal Cellframe library macro
 cellframe_add_library(${PROJECT_NAME} ${DAP_CHAIN_WALLET_SRCS} HEADERS ${DAP_CHAIN_WALLET_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_common dap_chain_datum dap_chain)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_common dap_chain_datum dap_chain dap_chain_wallet_cache)
 # REMOVED ALL UPPER LAYER DEPENDENCIES:
 # - dap_chain_tx_compose - TX creation moved to wallet-tx module
 # - dap_chain_net - wallet doesn't need network layer

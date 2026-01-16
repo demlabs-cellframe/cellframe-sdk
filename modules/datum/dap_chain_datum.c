@@ -663,7 +663,7 @@ void dap_chain_datum_dump_json(dap_json_t* a_json_arr_reply, dap_json_t  *a_obj_
             dap_json_object_add(json_obj_datum,"type_datum",dap_json_object_new_string("=== Datum decree ==="));
             dap_json_object_add(json_obj_datum,"hash",dap_json_object_new_string(l_hash_str));
             dap_json_object_add(json_obj_datum,"size",dap_json_object_new_uint64(l_decree_size));
-            dap_chain_datum_decree_dump_json(json_obj_datum, l_decree, l_decree_size, a_hash_out_type);
+            dap_chain_datum_decree_dump_json(json_obj_datum, l_decree, l_decree_size, a_hash_out_type, 0);
         } break;
         case DAP_CHAIN_DATUM_ANCHOR:{
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
