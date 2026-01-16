@@ -23,8 +23,10 @@ target_link_libraries(${PROJECT_NAME}
     unit_test_fixtures  # ← Link unit test fixtures
 )
 
-# Auto-generate and apply --wrap flags from DAP_MOCK_DECLARE() calls
-# NOTE: Disabled for now - this test uses integration-style testing with DAP SDK isolation
-# dap_mock_autowrap(${PROJECT_NAME})
+# Manually add --wrap for ledger functions (avoid accessing uninit _internal in mock ledger)
+target_link_options(${PROJECT_NAME} PRIVATE
+    "-Wl,--wrap=dap_ledger_calc_balance"
+    "-Wl,--wrap=dap_ledger_tx_find_by_hash"
+)
 
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})

@@ -34,11 +34,30 @@
 // =============================================================================
 
 // NOTE: DAP SDK моки (dap_time_now, crypto, db, etc.) УЖЕ объявлены в unit_test_fixtures.h
-// Здесь объявляем только Cellframe SDK специфичные моки если нужны
+// Здесь объявляем только Cellframe SDK специфичные моки
 
-// В текущей версии теста мы не мокируем Cellframe SDK,
-// только изолируем через DAP SDK моки из fixtures
-// См. комментарий в test_setup() о integration-style подходе
+// Ledger balance mock - необходим т.к. g_mock_ledger не имеет инициализированного _internal
+// NOTE: dap_ledger_calc_balance возвращает uint256_t (сложная структура),
+// поэтому используем ручной wrapper
+
+uint256_t __wrap_dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr, const char *a_token_ticker)
+{
+    UNUSED(a_ledger);
+    UNUSED(a_addr);
+    UNUSED(a_token_ticker);
+    // Mock implementation: всегда возвращаем достаточный баланс (1M datoshi)
+    uint256_t l_balance = {{1000000, 0, 0, 0}};
+    return l_balance;
+}
+
+// Ledger tx_find mock - избегаем обращения к _internal
+dap_chain_datum_tx_t *__wrap_dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
+{
+    UNUSED(a_ledger);
+    UNUSED(a_tx_hash);
+    // Mock implementation: poll не найден (NULL)
+    return NULL;
+}
 
 // =============================================================================
 // TEST DATA
@@ -125,15 +144,15 @@ static void test_setup(void)
     memset(&g_mock_vote_item, 0, sizeof(dap_chain_tx_vote_t));
     
     // ============================================================================
-    // Enable DAP SDK mocks (via fixtures)
+    // Enable mocks
     // ============================================================================
-    // Note: DAP SDK функции (time, crypto, db) включены через unit_test_mock_dap_sdk_ex()
-    // Cellframe SDK функции НЕ мокируются - тестируем реальную логику voting service
+    // DAP SDK: через unit_test_mock_dap_sdk_ex()
+    // Cellframe SDK: dap_ledger_calc_balance мокирован через custom wrapper
     
     log_it(L_INFO, "✓ Test environment initialized");
     log_it(L_INFO, "  - DAP SDK modules mocked: crypto, global_db, time");
-    log_it(L_INFO, "  - Cellframe SDK: REAL voting service code tested");
-    log_it(L_INFO, "  - Test approach: Integration-style with DAP SDK isolation");
+    log_it(L_INFO, "  - Cellframe SDK: dap_ledger_calc_balance mocked (custom wrapper)");
+    log_it(L_INFO, "  - Test approach: Integration-style with critical mocks");
 }
 
 /**
@@ -147,7 +166,7 @@ static void test_teardown(void)
         g_test_options = NULL;
     }
     
-    // Reset DAP SDK mocks (handled by fixtures cleanup)
+    // Cleanup (mocks auto-reset by dap_mock)
     dap_mock_deinit();
     
     // Cleanup unit test context (removes temp files, etc.)
