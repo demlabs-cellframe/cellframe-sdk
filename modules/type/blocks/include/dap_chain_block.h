@@ -24,12 +24,18 @@
 #include "dap_common.h"
 #include "dap_time.h"
 #include "dap_hash.h"
+#include "dap_chain.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 
 #define DAP_CHAIN_BLOCK_SIGNATURE 0xDA05BF8E
 #define DAP_CHAIN_BLOCK_ID_SIZE 4
 
+#define DAP_CHAIN_CANDIDATE_SIGNS_MAX_SIZE  (256 * 1024)
+#if (DAP_CHAIN_CANDIDATE_SIGNS_MAX_SIZE >= DAP_CHAIN_ATOM_MAX_SIZE)
+#error DAP_CHAIN_ATOM_MAX_SIZE should be greater than DAP_CHAIN_CANDIDATE_SIGNS_MAX_SIZE
+#endif
+#define DAP_CHAIN_CANDIDATE_MAX_SIZE (DAP_CHAIN_ATOM_MAX_SIZE - DAP_CHAIN_CANDIDATE_SIGNS_MAX_SIZE)
 
 typedef union dap_chain_block_typeid{
     uint8_t data[DAP_CHAIN_BLOCK_ID_SIZE];

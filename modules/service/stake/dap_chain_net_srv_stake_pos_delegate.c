@@ -787,7 +787,7 @@ static int s_pos_delegate_purge(dap_chain_net_id_t a_net_id, void *a_service_int
     dap_global_db_erase_table(l_gdb_group, NULL, NULL);
     DAP_DELETE(l_gdb_group);
     char *l_approved_group = s_get_approved_group(l_net);
-    dap_global_db_erase_table(l_approved_group, NULL, NULL);
+    dap_global_db_erase_table_sync(l_approved_group);
     DAP_DELETE(l_approved_group);
 
     struct srv_stake *l_srv_stake = (struct srv_stake *)a_service_internal;
@@ -1602,7 +1602,7 @@ void dap_chain_net_srv_stake_remove_approving_decree_info(dap_chain_net_t *a_net
 // func work
     char *l_delegated_group = s_get_approved_group(a_net); 
     const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_stake->tx_hash);
-    dap_global_db_del_sync(l_delegated_group, l_tx_hash_str);
+    dap_global_db_del(l_delegated_group, l_tx_hash_str, NULL, NULL);
     DAP_DEL_Z(l_delegated_group);
 }
 

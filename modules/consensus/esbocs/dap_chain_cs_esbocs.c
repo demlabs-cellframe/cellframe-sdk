@@ -506,7 +506,9 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "fee_addr"));
+    const char *l_fee_addr_str = dap_config_get_item_str(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "fee_addr");
+    if (l_fee_addr_str)
+        l_esbocs_pvt->collecting_addr = dap_chain_addr_from_str(l_fee_addr_str);
     l_esbocs_pvt->collecting_level = dap_chain_balance_coins_scan(dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "collecting_level",
                                                                                                 dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "set_collect_fee", "10.0")));
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
@@ -908,7 +910,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(a_esbocs);
     dap_list_t *l_ret = NULL;
     dap_list_t *l_validators = NULL;
-    if (!l_esbocs_pvt->poa_mode) {
+    if (l_esbocs_pvt->poa_mode) { // UNDO it after debug
         if (a_excluded_list_size) {
             l_validators =  dap_chain_net_srv_stake_get_validators(a_esbocs->chain->net_id, false, NULL);
             uint16_t l_excluded_num = *a_excluded_list;
@@ -2248,7 +2250,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     dap_chain_esbocs_message_t *l_message = (dap_chain_esbocs_message_t *)l_ch_pkt->data;
     size_t l_message_size = l_ch_pkt->hdr.data_size;
     if (l_message_size < sizeof(dap_chain_esbocs_message_t) ||
-            l_message_size > DAP_CHAIN_ATOM_MAX_SIZE + PKT_SIGN_N_HDR_OVERHEAD ||
+            l_message_size > DAP_CHAIN_CANDIDATE_MAX_SIZE + PKT_SIGN_N_HDR_OVERHEAD ||
             l_message_size != sizeof(*l_message) + l_message->hdr.sign_size + l_message->hdr.message_size) {
         log_it(L_WARNING, "Invalid message size %zu, drop this packet", l_message_size);
         return false;

@@ -212,6 +212,8 @@ int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
             if (l_decree) {
                 l_decree->is_applied = l_decree->wait_for_apply = false;
                 l_decree->anchor_hash = (dap_hash_fast_t) { };
+                if (l_decree->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD)
+                    dap_chain_net_remove_last_reward(a_ledger->net);
             } else
                 log_it(L_ERROR, "Corrupted datum anchor, can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
         } else
