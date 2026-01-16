@@ -56,7 +56,7 @@
 #include "dap_cert_file.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
-#include "dap_chain_wallet_cache.h"
+// #include "dap_chain_wallet_cache.h" // Removed to avoid cyclic dependency
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
@@ -1105,8 +1105,9 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
                                                        uint256_t a_value_need, uint256_t *a_value_transfer)
 {
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
-    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_need, a_value_transfer) != -101)
-        return l_list_used_out;
+    // Wallet cache optimization removed to avoid cyclic dependency
+    // if (dap_chain_wallet_cache_tx_find_outs_with_val(a_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, a_value_need, a_value_transfer) != -101)
+    //     return l_list_used_out;
     dap_chain_hash_fast_t l_tx_cur_hash = { };
     uint256_t l_value_transfer = { };
     dap_chain_datum_tx_t *l_tx;
