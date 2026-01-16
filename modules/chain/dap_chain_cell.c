@@ -373,7 +373,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     if ( a_cell->chain->callback_atoms_prefetched_add )
         a_cell->chain->callback_atoms_prefetched_add(a_cell->chain);
-    log_it(L_INFO, "Loaded %lu atoms in chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
+    log_it(L_INFO, "Loaded %"DAP_UINT64_FORMAT_U" atoms in chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
                     q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
     return l_ret;
 }
