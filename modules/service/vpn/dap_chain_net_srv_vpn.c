@@ -312,12 +312,14 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
     if(l_ch_vpn_info->is_on_this_worker){
         dap_events_socket_t* l_es = dap_context_find(l_ch_vpn_info->worker->context, l_ch_vpn_info->esocket_uuid);
         if (!l_es) {
-            log_it(L_ERROR, "No esocket %p on worker #%u, lost %zd data", l_ch_vpn_info->esocket, l_ch_vpn_info->worker->id, a_data_size);
+            log_it(L_ERROR, "No esocket %p on worker #%u (usage_id=%u), lost %zd data",
+                   l_ch_vpn_info->esocket, l_ch_vpn_info->worker->id, l_ch_vpn_info->usage_id, a_data_size);
             DAP_DEL_Z(l_pkt_out);
             return false;
         }
         if (l_es != l_ch_vpn_info->esocket) {
-            log_it(L_ERROR, "Wrong esocket %p on worker #%u, lost %zd data", l_ch_vpn_info->esocket, l_ch_vpn_info->worker->id, a_data_size);
+            log_it(L_ERROR, "Wrong esocket %p on worker #%u (usage_id=%u), lost %zd data",
+                   l_ch_vpn_info->esocket, l_ch_vpn_info->worker->id, l_ch_vpn_info->usage_id, a_data_size);
             DAP_DEL_Z(l_pkt_out);
             return false;
         }
@@ -352,7 +354,10 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
         l_msg->ch_vpn_send.pkt  = DAP_DUP_SIZE(l_pkt_out, sizeof(l_pkt_out->header) + a_data_size);
 
         if (dap_events_socket_queue_ptr_send(l_ch_vpn_info->queue_msg, l_msg) != 0) {
-            log_it(L_WARNING, "Error on sending packet to foreign context queue, lost %zd bytes", a_data_size);
+            char l_client_addr[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &l_ch_vpn_info->addr_ipv4, l_client_addr, sizeof(l_client_addr));
+            log_it(L_WARNING, "Error on sending packet to foreign context queue (usage_id=%u, client_addr=%s), lost %zd bytes",
+                   l_ch_vpn_info->usage_id, l_client_addr, a_data_size);
             DAP_DELETE(l_msg->ch_vpn_send.pkt);
             DAP_DELETE(l_msg);
             DAP_DEL_Z(l_pkt_out);
@@ -1061,10 +1066,12 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         // Free service mode: no receipt needed, no limits
         l_srv_session->last_update_ts = time(NULL);
     } else {
-        log_it(L_ERROR, "WRONG state: usage_id=%u, service_state=%d, service_substate=%d",
+        log_it(L_ERROR, "WRONG state: usage_id=%u, service_state=%d, service_substate=%d, is_active=%d, client_pkey=%s",
                a_usage_id,
                (int)l_usage_active->service_state,
-               (int)l_usage_active->service_substate);
+               (int)l_usage_active->service_substate,
+               l_usage_active->is_active,
+               dap_chain_hash_fast_to_str_static(&l_usage_active->client_pkey_hash));
     }
 
     return l_ret;
@@ -1303,11 +1310,18 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 
     l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
     
+    // Log VPN channel creation
+    log_it(L_NOTICE, "VPN channel new: usage_id=%u, usage_active=%d, node="NODE_ADDR_FP_STR,
+           l_srv_vpn->usage_id,
+           l_srv_session->usage_active ? l_srv_session->usage_active->is_active : -1,
+           NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+
     // If usage is already active, enable channel immediately
     if (l_srv_session->usage_active && l_srv_session->usage_active->is_active) {
         dap_stream_ch_set_ready_to_read_unsafe(a_ch, true);
         dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
     } else {
+        log_it(L_DEBUG, "VPN channel created but usage not active yet, disabling read");
         dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
     }
 }
@@ -1331,6 +1345,15 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
     if (l_srv_session)
         l_usage =  l_srv_session->usage_active;
+
+    // Log VPN channel deletion with client info
+    char l_client_addr[INET_ADDRSTRLEN] = {0};
+    if(l_ch_vpn->addr_ipv4.s_addr)
+        inet_ntop(AF_INET, &l_ch_vpn->addr_ipv4, l_client_addr, sizeof(l_client_addr));
+    log_it(L_NOTICE, "VPN channel delete: client_addr=%s, usage_id=%u, usage_active=%d",
+           l_client_addr[0] ? l_client_addr : "none",
+           l_ch_vpn->usage_id,
+           l_usage ? l_usage->is_active : -1);
 
     if (l_usage && l_usage->save_limits_timer){
         dap_timerfd_delete_mt(l_usage->save_limits_timer->worker, l_usage->save_limits_timer->esocket_uuid);
@@ -1776,7 +1799,10 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     if(!l_usage || !l_usage->is_active){
-        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
+        log_it(L_WARNING, "No active usage (usage=%p, is_active=%d, service_state=%d, service_substate=%d), dropping VPN packet",
+               l_usage, l_usage ? l_usage->is_active : -1,
+               l_usage ? (int)l_usage->service_state : -1,
+               l_usage ? (int)l_usage->service_substate : -1);
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
@@ -1791,6 +1817,8 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;
         } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            log_it(L_DEBUG, "Waiting for first receipt sign (substate=%d), dropping VPN packet",
+                   (int)l_usage->service_substate);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;
@@ -1919,7 +1947,7 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
     dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
     if ( ! l_usage){
-        log_it(L_NOTICE, "No active usage in list, possible disconnected. Send nothing on this channel");
+        log_it(L_WARNING, "No active usage in list (packet_out), possible disconnected. Send nothing on this channel");
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return false;
@@ -1927,13 +1955,15 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
     if(l_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE){
         if(!l_usage->is_active  && l_usage->service_substate > DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-            log_it(L_INFO, "Usage inactivation: switch off packet input & output channels");
+            log_it(L_INFO, "Usage inactivation (packet_out): switch off packet input & output channels");
             if(l_usage->client)
                 dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
             dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;
         } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            log_it(L_DEBUG, "Waiting for first receipt sign (packet_out, substate=%d), disabling channel",
+                   (int)l_usage->service_substate);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;

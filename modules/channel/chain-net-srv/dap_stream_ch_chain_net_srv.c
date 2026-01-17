@@ -278,7 +278,8 @@ static void s_unban_client(dap_chain_net_srv_usage_t *a_usage)
 
 static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
 {
-    log_it(L_WARNING, "Waiting receipt signing from client timeout!");
+    log_it(L_WARNING, "Waiting receipt signing from client timeout! (usage_id=%u, substate=%d, client_pkey=%s)",
+           a_usage->id, (int)a_usage->service_substate, dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash));
     if (a_usage->receipt_sign_req_cnt < RECEIPT_SIGN_MAX_ATTEMPT - 1){
         // New attempt
         a_usage->receipt_sign_req_cnt++;
@@ -303,16 +304,19 @@ static bool s_receipt_timeout_handler(dap_chain_net_srv_usage_t *a_usage)
             }
         }
     }
-    log_it(L_WARNING, "Receipt signing by client max attempt is reached!");
+    log_it(L_WARNING, "Receipt signing by client max attempt is reached! (usage_id=%u, client_pkey=%s)",
+           a_usage->id, dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash));
     a_usage->receipt_sign_req_cnt = 0;
 
     if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
         a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN;
-        log_it(L_ERROR,"User did not respond for first receipt signing.");
+        log_it(L_ERROR, "User did not respond for first receipt signing (usage_id=%u, client_pkey=%s)",
+               a_usage->id, dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash));
         s_service_substate_go_to_error(a_usage);
     } else if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN){
         a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN;
-        log_it(L_ERROR,"User did not respond for next receipt signing.");
+        log_it(L_ERROR, "User did not respond for next receipt signing (usage_id=%u, client_pkey=%s)",
+               a_usage->id, dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash));
         s_service_substate_go_to_error(a_usage);
     }
     return false;
@@ -1666,13 +1670,18 @@ static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a
 static void s_service_substate_go_to_error(dap_chain_net_srv_usage_t *a_usage)
 {
     if (!a_usage){
+        log_it(L_ERROR, "Go to error state: a_usage is NULL");
         s_service_state_go_to_error(a_usage);
         return;
-    }  
+    }
+
+    log_it(L_WARNING, "Service substate go to error: usage_id=%u, err_code=0x%X, state=%d, substate=%d, client_pkey=%s",
+           a_usage->id, a_usage->last_err_code, (int)a_usage->service_state, (int)a_usage->service_substate,
+           dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash));
 
     if (a_usage->service_state ==  DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL){
         // wait until end of service in this substate
-        log_it(L_WARNING,"Next receipt paying error. Wait until service end.");
+        log_it(L_WARNING, "Next receipt paying error. Wait until service end (usage_id=%u)", a_usage->id);
         DAP_DEL_Z(a_usage->receipt_next);
         a_usage->service_substate=DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR;
         dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &a_usage->last_err_code, sizeof (a_usage->last_err_code));
@@ -1684,7 +1693,7 @@ static void s_service_substate_go_to_error(dap_chain_net_srv_usage_t *a_usage)
             a_usage->service->callbacks.response_error(a_usage->service,a_usage->id, a_usage->client, &l_err, sizeof (l_err));
         }
     } else {
-        log_it(L_ERROR,"Stop service providing.");
+        log_it(L_ERROR, "Stop service providing (usage_id=%u, state=%d)", a_usage->id, (int)a_usage->service_state);
         s_service_state_go_to_error(a_usage);
     }
 }
