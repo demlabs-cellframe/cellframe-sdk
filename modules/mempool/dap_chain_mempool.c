@@ -1074,21 +1074,36 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
             *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_WRONG_ADDR;
         return NULL;
     }
-    dap_chain_hash_fast_t l_tx_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash, true);
-    if ( dap_hash_fast_is_blank(&l_tx_final_hash) ) {
-        log_it(L_WARNING, "Requested conditional transaction is already used out");
+
+    // Find final tx hash using hash from receipt (client may provide any hash from the chain)
+    dap_chain_hash_fast_t l_tx_final_hash = dap_ledger_get_final_chain_tx_hash(
+        l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &a_receipt->receipt_info.prev_tx_cond_hash, true);
+    if (dap_hash_fast_is_blank(&l_tx_final_hash)) {
+        log_it(L_WARNING, "Cannot find final tx hash for receipt tx %s",
+               dap_hash_fast_to_str_static(&a_receipt->receipt_info.prev_tx_cond_hash));
         if (a_ret_status)
             *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_FIND_FINAL_TX_HASH;
         return NULL;
     }
+
+    // Verify that a_tx_prev_hash belongs to the same chain (if provided and not blank)
+    if (a_tx_prev_hash && !dap_hash_fast_is_blank(a_tx_prev_hash)) {
+        dap_chain_hash_fast_t l_tx_final_hash_check = dap_ledger_get_final_chain_tx_hash(
+            l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash, true);
+        if (!dap_hash_fast_compare(&l_tx_final_hash, &l_tx_final_hash_check)) {
+            log_it(L_WARNING, "Receipt tx hash and provided tx hash belong to different tx chains");
+            if (a_ret_status)
+                *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_FIND_FINAL_TX_HASH;
+            return NULL;
+        }
+    }
+
+    log_it(L_DEBUG, "Using final tx hash %s (from receipt tx %s)",
+           dap_hash_fast_to_str_static(&l_tx_final_hash),
+           dap_hash_fast_to_str_static(&a_receipt->receipt_info.prev_tx_cond_hash));
+
     if (dap_strcmp(a_net->pub.native_ticker, dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_final_hash))) {
         log_it(L_WARNING, "Pay for service should be only in native token ticker");
-        if (a_ret_status)
-            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_NATIVE_TOKEN;
-        return NULL;
-    }
-    if (!dap_hash_fast_compare(&l_tx_final_hash, &a_receipt->receipt_info.prev_tx_cond_hash)){
-        log_it(L_WARNING, "Tx hash in receipt doesn't match with hash of last tx cond.");
         if (a_ret_status)
             *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_NATIVE_TOKEN;
         return NULL;
