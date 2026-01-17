@@ -71,6 +71,14 @@ struct cs_blocks_hal_item {
     UT_hash_handle hh;
 };
 
+// Pre-loaded block cache entry for fast datum_ret_codes lookup
+typedef struct dap_block_cache_preload_entry {
+    dap_chain_hash_fast_t block_hash;
+    uint16_t datum_count;
+    int32_t *datum_ret_codes;
+    UT_hash_handle hh;
+} dap_block_cache_preload_entry_t;
+
 typedef struct dap_chain_type_blocks_pvt {
     // Parent link
     dap_chain_type_blocks_t *cs_blocks;
@@ -104,6 +112,11 @@ typedef struct dap_chain_type_blocks_pvt {
     uint64_t perf_blocks_processed;
     uint64_t perf_blocks_verified;
     uint64_t perf_ledger_updates;
+    uint64_t perf_cache_fast_path;
+    
+    // Pre-loaded block cache for fast loading (datum_ret_codes)
+    dap_block_cache_preload_entry_t *preloaded_cache;
+    bool preload_attempted;  // True if we've tried to load cache from GDB
 } dap_chain_type_blocks_pvt_t;
 
 typedef struct dap_chain_block_fork_resolved_notificator{
@@ -139,6 +152,7 @@ static int s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
 static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
 static dap_chain_atom_verify_res_t s_callback_atom_prefetch(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
+static unsigned int s_callback_atoms_prefetched_add(dap_chain_t *a_chain);  // Save block cache after cell loading
 //    Verify new block
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
 
@@ -378,6 +392,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_atom_add = s_callback_atom_add ;  // Accept new element in chain
     a_chain->callback_atom_verify = s_callback_atom_verify ;  // Verify new element in chain
     a_chain->callback_atom_get_hdr_static_size = s_callback_atom_get_static_hdr_size; // Get block hdr size
+    a_chain->callback_atoms_prefetched_add = s_callback_atoms_prefetched_add;  // Save block cache after cell loading
 
     a_chain->callback_atom_iter_create = s_callback_atom_iter_create;
     a_chain->callback_atom_iter_delete = s_callback_atom_iter_delete;
@@ -430,6 +445,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     l_cs_blocks_pvt->perf_blocks_processed = 0;
     l_cs_blocks_pvt->perf_blocks_verified = 0;
     l_cs_blocks_pvt->perf_ledger_updates = 0;
+    l_cs_blocks_pvt->perf_cache_fast_path = 0;
 
     
     l_cs_blocks_pvt->block_confirm_cnt = dap_config_get_item_uint64_default(a_chain_config,"blocks","blocks_for_confirmation",DAP_FORK_MAX_DEPTH_DEFAULT);
@@ -1765,8 +1781,19 @@ static int s_add_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_block_
         return 1; // No errors just empty block
     }
     
-    PVT(a_blocks)->perf_ledger_updates++;
+    // Only count as ledger update if we're actually going to process datums
+    if (!a_block_cache->is_from_cache) {
+        PVT(a_blocks)->perf_ledger_updates++;
+    }
     int l_ret = 0;
+    
+    // Allocate datum_ret_codes array if not already allocated
+    if (!a_block_cache->datum_ret_codes && a_block_cache->datum_count > 0) {
+        a_block_cache->datum_ret_codes = DAP_NEW_Z_COUNT(int32_t, a_block_cache->datum_count);
+    }
+    
+    // Set cell_id from block header
+    a_block_cache->cell_id = a_block_cache->block->hdr.cell_id;
 
     size_t l_block_offset = 0;
     size_t l_datum_size = 0;
@@ -1788,7 +1815,7 @@ static int s_add_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_block_
             .uid.uint64 = 0,
             .chain_id = a_blocks->chain->id,
             .cell_id = a_block_cache->block->hdr.cell_id,
-            .file_offset = 0, // Blocks chain stores data in RAM; no file offset
+            .file_offset = a_block_cache->file_offset,
             .datum_offset_in_block = l_block_offset
         };
         bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->chain->generation;
@@ -1796,10 +1823,34 @@ static int s_add_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_block_
         if (!memcmp(l_datum_hash, &l_zero_hash, sizeof(dap_hash_fast_t)))
             continue;
         
-        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
-        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) { // If this is any datum other than a already cached transaction
+        int l_res;
+        bool l_skip_ledger_add = false;
+        
+        // If loading from cache with saved ret_codes
+        if (a_block_cache->is_from_cache && a_block_cache->datum_ret_codes) {
+            l_res = a_block_cache->datum_ret_codes[i];
+            // Skip ALL datums with non-zero ret_code (per TZ: rejected AND already cached)
+            if (l_res != 0) {
+                debug_if(s_debug_more, L_DEBUG, "Skipping datum %zu in block %s - cached ret_code %d", 
+                       i, a_block_cache->block_hash_str, l_res);
+                continue;
+            }
+            // ret_code == 0 means datum was successfully added before
+            // Skip dap_chain_datum_add - ledger cache already has it
+            // But we still need to create datum_index entry
+            l_skip_ledger_add = true;
+        } else {
+            // Normal processing - add datum and save ret_code
+            l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
+            if (a_block_cache->datum_ret_codes)
+                a_block_cache->datum_ret_codes[i] = l_res;
+        }
+        
+        // For cached blocks we skip ledger add but still need datum_index
+        // For non-cached blocks, only add datum_index if not already cached TX
+        if (l_skip_ledger_add || l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) {
             l_ret++;
-            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
+            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX && !l_skip_ledger_add)
                 PVT(a_blocks)->tx_count++;  
             // Save datum hash -> block_hash link in hash table
             dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
@@ -1818,8 +1869,11 @@ static int s_add_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_block_
             pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
             HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
-            dap_chain_datum_notify(a_blocks->chain, a_block_cache->block->hdr.cell_id, l_datum_hash, &l_datum_index->block_cache->block_hash,
-                                   (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
+            // Skip notification for cached blocks
+            if (!l_skip_ledger_add) {
+                dap_chain_datum_notify(a_blocks->chain, a_block_cache->block->hdr.cell_id, l_datum_hash, &l_datum_index->block_cache->block_hash,
+                                       (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
+            }
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
@@ -1958,35 +2012,175 @@ static bool s_select_longest_branch(dap_chain_type_blocks_t * a_blocks, dap_chai
 
 /**
  * @brief s_callback_atom_prefetch
- * Prefetch block during chain loading from file. In load mode, accepts blocks without full validation.
+ * Prefetch block during chain loading from file. In load mode, adds blocks to chain
+ * using the same logic as s_callback_atom_add but marked as not new (from file).
  * @param a_chain - chain object
  * @param a_atom - atom object (block dap_chain_block_t)
  * @param a_atom_size - size of block
  * @param a_atom_hash - block hash
- * @return ATOM_ACCEPT in load mode, otherwise delegates to full add
+ * @return Result of adding block to chain
  */
 static dap_chain_atom_verify_res_t s_callback_atom_prefetch(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash)
 {
     dap_return_val_if_fail(a_chain && a_atom && a_atom_size && a_atom_hash, ATOM_REJECT);
     
-    // In load mode, accept blocks without full chain validation (for cache performance)
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    if (l_net && dap_chain_net_get_load_mode(l_net)) {
-        // Only basic integrity check
-        dap_chain_block_t *l_block = (dap_chain_block_t *)a_atom;
-        
-        if (sizeof(l_block->hdr) >= a_atom_size) {
-            log_it(L_WARNING, "Block %s size %zd <= block header size %zd",
-                   dap_hash_fast_to_str_static(a_atom_hash), a_atom_size, sizeof(l_block->hdr));
-            return ATOM_CORRUPTED;
-        }
-        
-        // Accept for prefetch - full validation will happen later if needed
-        return ATOM_ACCEPT;
+    // Prefetch is called during file loading - blocks must be added to chain structures
+    // The 'false' parameter indicates block is from file (not new from network)
+    return s_callback_atom_add(a_chain, a_atom, a_atom_size, a_atom_hash, false);
+}
+
+/**
+ * @brief s_cleanup_preloaded_cache
+ * @details Free pre-loaded cache after loading is complete
+ * @param a_blocks_pvt Private blocks data
+ */
+static void s_cleanup_preloaded_cache(dap_chain_type_blocks_pvt_t *a_blocks_pvt)
+{
+    dap_block_cache_preload_entry_t *l_entry, *l_tmp;
+    HASH_ITER(hh, a_blocks_pvt->preloaded_cache, l_entry, l_tmp) {
+        HASH_DEL(a_blocks_pvt->preloaded_cache, l_entry);
+        DAP_DEL_Z(l_entry->datum_ret_codes);
+        DAP_DELETE(l_entry);
+    }
+    a_blocks_pvt->preloaded_cache = NULL;
+}
+
+/**
+ * @brief s_callback_atoms_prefetched_add
+ * @details Called after cell loading completes. Saves all block caches to GlobalDB
+ *          for faster loading on subsequent restarts.
+ * @param a_chain Chain object
+ * @return Number of atoms processed (always 0 for blocks - atoms already added individually)
+ */
+static unsigned int s_callback_atoms_prefetched_add(dap_chain_t *a_chain)
+{
+    dap_return_val_if_fail(a_chain, 0);
+    
+    dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
+    if (!l_blocks)
+        return 0;
+    
+    dap_chain_type_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
+    if (!l_blocks_pvt)
+        return 0;
+    
+    // Cleanup pre-loaded cache (no longer needed after loading)
+    if (l_blocks_pvt->preloaded_cache) {
+        s_cleanup_preloaded_cache(l_blocks_pvt);
     }
     
-    // Not in load mode - use full add logic
-    return s_callback_atom_add(a_chain, a_atom, a_atom_size, a_atom_hash, false);
+    if (!l_blocks_pvt->blocks_count)
+        return 0;
+    
+    // Save all block caches to GlobalDB in batch
+    log_it(L_INFO, "Saving block cache for chain %s.%s: %"PRIu64" blocks",
+           a_chain->net_name, a_chain->name, l_blocks_pvt->blocks_count);
+    
+    // Use cell_id 0 for now (most common case for single-cell chains)
+    int l_rc = dap_chain_block_cache_save_to_gdb(a_chain, 0, l_blocks_pvt->blocks);
+    if (l_rc == 0) {
+        log_it(L_NOTICE, "Block cache saved successfully for %"PRIu64" blocks",
+               l_blocks_pvt->blocks_count);
+    } else {
+        log_it(L_WARNING, "Failed to save block cache to GDB, code %d", l_rc);
+    }
+    
+    return 0;  // Blocks already added individually via callback_atom_add
+}
+
+/**
+ * @brief s_preload_block_cache_from_gdb
+ * @details Pre-load block cache data from GDB for fast datum_ret_codes lookup during loading
+ * @param a_chain Chain object
+ * @param a_blocks_pvt Private blocks data
+ */
+static void s_preload_block_cache_from_gdb(dap_chain_t *a_chain, dap_chain_type_blocks_pvt_t *a_blocks_pvt)
+{
+    if (a_blocks_pvt->preload_attempted)
+        return;  // Already attempted
+    
+    a_blocks_pvt->preload_attempted = true;
+    
+    log_it(L_INFO, "Attempting to pre-load block cache from GDB for chain %s.%s", 
+           a_chain->net_name, a_chain->name);
+    
+    // Try to load block cache from GDB
+    char *l_group = dap_chain_block_cache_get_gdb_group(a_chain);
+    if (!l_group) {
+        log_it(L_WARNING, "Failed to get GDB group for block cache");
+        return;
+    }
+    
+    char l_key[64];
+    snprintf(l_key, sizeof(l_key), "cell_0x%016" DAP_UINT64_FORMAT_x, (uint64_t)0);  // Cell 0 for now
+    
+    log_it(L_DEBUG, "Looking for block cache key '%s' in group '%s'", l_key, l_group);
+    
+    size_t l_data_size = 0;
+    uint8_t *l_data = dap_global_db_get_sync(l_group, l_key, &l_data_size, NULL, NULL);
+    DAP_DELETE(l_group);
+    
+    if (!l_data || l_data_size == 0) {
+        log_it(L_INFO, "No block cache found in GDB for chain %s.%s", a_chain->net_name, a_chain->name);
+        return;
+    }
+    
+    log_it(L_INFO, "Found block cache data: %zu bytes", l_data_size);
+    
+    // Parse header
+    if (l_data_size < sizeof(dap_chain_block_cache_db_header_t)) {
+        DAP_DELETE(l_data);
+        return;
+    }
+    
+    dap_chain_block_cache_db_header_t *l_header = (dap_chain_block_cache_db_header_t *)l_data;
+    if (l_header->magic != DAP_CHAIN_BLOCK_CACHE_MAGIC || l_header->version != DAP_CHAIN_BLOCK_CACHE_VERSION) {
+        log_it(L_WARNING, "Block cache magic/version mismatch, will rebuild");
+        DAP_DELETE(l_data);
+        return;
+    }
+    
+    // Parse entries and build hash table
+    const uint8_t *l_ptr = l_data + sizeof(dap_chain_block_cache_db_header_t);
+    const uint8_t *l_end = l_data + l_data_size;
+    
+    uint32_t l_loaded = 0;
+    for (uint32_t i = 0; i < l_header->blocks_count && l_ptr < l_end; i++) {
+        if (l_ptr + sizeof(dap_chain_block_cache_db_entry_t) > l_end)
+            break;
+        
+        const dap_chain_block_cache_db_entry_t *l_entry = (const dap_chain_block_cache_db_entry_t *)l_ptr;
+        l_ptr += sizeof(dap_chain_block_cache_db_entry_t);
+        
+        // Create preload entry
+        dap_block_cache_preload_entry_t *l_preload = DAP_NEW_Z(dap_block_cache_preload_entry_t);
+        if (!l_preload)
+            break;
+        
+        l_preload->block_hash = l_entry->block_hash;
+        l_preload->datum_count = l_entry->datum_count;
+        
+        // Load datum_ret_codes
+        size_t l_ret_codes_size = l_entry->datum_count * sizeof(int32_t);
+        if (l_entry->datum_count > 0 && l_ptr + l_ret_codes_size <= l_end) {
+            l_preload->datum_ret_codes = DAP_NEW_SIZE(int32_t, l_ret_codes_size);
+            if (l_preload->datum_ret_codes) {
+                memcpy(l_preload->datum_ret_codes, l_ptr, l_ret_codes_size);
+            }
+            l_ptr += l_ret_codes_size;
+        }
+        
+        // Add to hash table
+        HASH_ADD(hh, a_blocks_pvt->preloaded_cache, block_hash, sizeof(l_preload->block_hash), l_preload);
+        l_loaded++;
+    }
+    
+    DAP_DELETE(l_data);
+    
+    if (l_loaded > 0) {
+        log_it(L_NOTICE, "Pre-loaded block cache from GDB: %u entries for chain %s.%s",
+               l_loaded, a_chain->net_name, a_chain->name);
+    }
 }
 
 /**
@@ -2005,9 +2199,36 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     dap_chain_hash_fast_t l_block_hash = *a_atom_hash;
 
     dap_chain_block_cache_t * l_block_cache = NULL;
+    
+    // Pre-load block cache from GDB on first call during load mode
+    dap_chain_net_t *l_net_preload = dap_chain_net_by_id(a_chain->net_id);
+    if (l_net_preload && dap_chain_net_get_load_mode(l_net_preload) && !PVT(l_blocks)->preload_attempted) {
+        s_preload_block_cache_from_gdb(a_chain, PVT(l_blocks));
+    }
+    
+    // Fast path: if block is already in preloaded_cache AND we're loading from chain cache,
+    // we can skip full verification since this block was already accepted before
+    dap_block_cache_preload_entry_t *l_preload_entry = NULL;
+    dap_chain_net_t *l_net_check = dap_chain_net_by_id(a_chain->net_id);
+    bool l_is_load_mode = l_net_check && dap_chain_net_get_load_mode(l_net_check);
+    
+    // During load mode, always check preloaded_cache (not just for chain cache hits)
+    if (l_is_load_mode && PVT(l_blocks)->preloaded_cache) {
+        HASH_FIND(hh, PVT(l_blocks)->preloaded_cache, &l_block_hash, sizeof(l_block_hash), l_preload_entry);
+        if (l_preload_entry) {
+            PVT(l_blocks)->perf_cache_fast_path++;
+        }
+    }
 
     PVT(l_blocks)->perf_blocks_verified++;
-    dap_chain_atom_verify_res_t ret = s_callback_atom_verify(a_chain, a_atom, a_atom_size, &l_block_hash);
+    dap_chain_atom_verify_res_t ret;
+    
+    // If block is in preloaded cache (from previous run), skip verification
+    if (l_preload_entry) {
+        ret = ATOM_ACCEPT;  // Known accepted block from cache
+    } else {
+        ret = s_callback_atom_verify(a_chain, a_atom, a_atom_size, &l_block_hash);
+    }
     dap_hash_t *l_prev_hash_meta_data = (dap_hash_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
     dap_hash_t l_block_prev_hash = l_prev_hash_meta_data ? *l_prev_hash_meta_data : (dap_hash_t){};
 
@@ -2028,6 +2249,20 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             log_it(L_ERROR, "Block %s is corrupted!", dap_hash_fast_to_str_static(&l_block_hash));
             return dap_chain_net_get_load_mode(l_net) ? ATOM_CORRUPTED : ATOM_REJECT;
         }
+        
+        // Look up pre-loaded cache data for datum_ret_codes (use already found entry if available)
+        if (l_preload_entry && l_preload_entry->datum_ret_codes && 
+            l_preload_entry->datum_count == l_block_cache->datum_count) {
+            // Copy pre-loaded datum_ret_codes
+            l_block_cache->datum_ret_codes = DAP_NEW_SIZE(int32_t, l_preload_entry->datum_count * sizeof(int32_t));
+            if (l_block_cache->datum_ret_codes) {
+                memcpy(l_block_cache->datum_ret_codes, l_preload_entry->datum_ret_codes, 
+                       l_preload_entry->datum_count * sizeof(int32_t));
+                l_block_cache->is_from_cache = true;
+                l_block_cache->is_verified = true;
+            }
+        }
+        
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
 
         int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
@@ -2043,6 +2278,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 dap_chain_atom_notify(a_chain, l_block->hdr.cell_id, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
                 dap_chain_atom_add_from_threshold(a_chain);
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                
+                // Save to block cache GDB incrementally (not during initial load)
+#ifndef DAP_CHAIN_BLOCKS_TEST
+                if (!dap_chain_net_get_load_mode(l_net) && !a_chain->is_cache_loading) {
+                    l_block_cache->is_verified = true;
+                    dap_chain_block_cache_add_to_gdb(a_chain, l_block_cache);
+                }
+#endif
 
                 dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                 // Send it to notificator listeners
@@ -2070,11 +2313,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 // Simple progress logging every N blocks
                 PVT(l_blocks)->perf_blocks_processed++;
                 if (PVT(l_blocks)->perf_blocks_processed % BLOCKS_PERF_LOG_INTERVAL == 0) {
-                    log_it(L_INFO, "BLOCKS loading progress (chain %s): %"PRIu64" blocks processed, "
-                           "%"PRIu64" verified, %"PRIu64" ledger updates", 
+                    log_it(L_INFO, "BLOCKS loading progress (chain %s): %"PRIu64" blocks, "
+                           "%"PRIu64" cached, %"PRIu64" ledger updates", 
                            a_chain->name, 
                            PVT(l_blocks)->perf_blocks_processed,
-                           PVT(l_blocks)->perf_blocks_verified,
+                           PVT(l_blocks)->perf_cache_fast_path,
                            PVT(l_blocks)->perf_ledger_updates);
                 }
                 
@@ -2444,8 +2687,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     }
 
     if (ret == ATOM_ACCEPT || (!l_generation && ret == ATOM_FORK)) {
-        // 2nd level consensus
-        if (l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
+        // 2nd level consensus - skip if loading from cache (signatures already verified)
+        if (!a_chain->is_cache_loading && l_blocks->callback_block_verify && 
+            l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
             // Hard accept list
             struct cs_blocks_hal_item *l_hash_found = NULL;
             HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);

@@ -465,11 +465,25 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 if (l_get_result == 0 &&
                     l_cache_entry.file_offset == (uint64_t)l_pos &&
                     l_cache_entry.block_size == (uint32_t)l_el_size) {
-                    // CACHE HIT!
+                    // CACHE HIT! Still need to call callback to add block to structures,
+                    // but skip signature verification
                     l_cache_hit = true;
-                    l_verif = ATOM_ACCEPT;
                     l_stats.cache_hits++;
                     atomic_fetch_add(&a_cell->chain->cache->cache_hits, 1);
+                    
+                    // Set flag to skip verification in callback
+                    a_cell->chain->is_cache_loading = true;
+                    
+                    // Call callback to add block to structures (with verification skipped)
+                    if (a_cell->chain->callback_atom_prefetch) {
+                        l_verif = a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash);
+                    } else if (a_cell->chain->callback_atom_add) {
+                        l_verif = a_cell->chain->callback_atom_add(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash, false);
+                    } else {
+                        l_verif = ATOM_ACCEPT;  // No callback, assume accepted
+                    }
+                    
+                    a_cell->chain->is_cache_loading = false;
                 }
             }
             
@@ -567,11 +581,25 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 if (dap_chain_cache_lookup_in_cell(l_cell_cache, &l_atom_hash, &l_cache_entry) == 0 &&
                     l_cache_entry.file_offset == (uint64_t)l_pos &&
                     l_cache_entry.block_size == (uint32_t)l_el_size) {
-                    // CACHE HIT! Skip validation, block already verified
+                    // CACHE HIT! Still need to call callback to add block to structures,
+                    // but skip signature verification
                     l_cache_hit = true;
-                    l_verif = ATOM_ACCEPT; // Assume accepted (was validated before)
                     l_stats.cache_hits++;
                     atomic_fetch_add(&a_cell->chain->cache->cache_hits, 1);
+                    
+                    // Set flag to skip verification in callback
+                    a_cell->chain->is_cache_loading = true;
+                    
+                    // Call callback to add block to structures (with verification skipped)
+                    if (a_cell->chain->callback_atom_prefetch) {
+                        l_verif = a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash);
+                    } else if (a_cell->chain->callback_atom_add) {
+                        l_verif = a_cell->chain->callback_atom_add(a_cell->chain, l_atom, (size_t)l_el_size, &l_atom_hash, false);
+                    } else {
+                        l_verif = ATOM_ACCEPT;  // No callback, assume accepted
+                    }
+                    
+                    a_cell->chain->is_cache_loading = false;
                 }
             }
             

@@ -113,6 +113,7 @@ typedef struct dap_chain {
 
     bool is_datum_pool_proc;
     bool is_mapped;
+    bool is_cache_loading;      // Loading atoms from cache (skip signature verification)
     atomic_int load_progress; 
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;
