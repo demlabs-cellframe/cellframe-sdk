@@ -18,11 +18,9 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 
 # Link modules - includes propagate automatically
 target_link_libraries(${PROJECT_NAME} PUBLIC
-    dap_test        # Provides dap_mock headers
-    dap_core        # Provides dap_common, dap_config, etc.
-    dap_crypto      # Provides dap_enc, dap_sign, dap_hash
-    dap_common      # Provides dap_strfuncs, dap_list, etc.
-    cellframe_sdk   # Provides chain/ledger/net/consensus headers
+    dap_test        # Test framework (dap_mock) - separate from dap_sdk
+    dap_sdk         # DAP SDK (core, crypto, common, etc.)
+    cellframe_sdk   # Cellframe SDK (chain/ledger/net/consensus)
 )
 
 # Apply dap_mock auto-wrapping for DAP SDK functions
@@ -43,8 +41,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 
 # Link modules - includes propagate automatically
 target_link_libraries(${PROJECT_NAME} PUBLIC
-    dap_core        # Provides dap_common, dap_config, etc.
-    dap_crypto      # Provides dap_enc, dap_sign, dap_hash
-    dap_common      # Provides dap_strfuncs, dap_list, etc.
-    cellframe_sdk   # Provides chain/ledger/net/wallet/datum headers
+    dap_sdk         # DAP SDK (includes core, crypto, common, etc.)
+    cellframe_sdk   # Cellframe SDK (includes chain/ledger/net/wallet/datum)
 )
