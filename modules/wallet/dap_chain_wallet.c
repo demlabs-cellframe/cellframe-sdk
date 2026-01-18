@@ -57,8 +57,10 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 // #include "dap_chain_wallet_cache.h" // Removed to avoid cyclic dependency
+// #include "dap_chain_ledger.h" // Removed: use dap_wallet_ledger_ops.h instead (DIP)
+#include "dap_wallet_ledger_ops.h"
+#include "dap_chain_net.h"  // For dap_chain_net_t and iteration
 #include "crc32c_adler.h"
-#include "dap_chain_ledger.h"
 #include "dap_strfuncs.h"
 #include "dap_notify_srv.h"
 
@@ -1087,7 +1089,13 @@ uint256_t dap_chain_wallet_get_balance (
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
 
-    uint256_t ret = (l_net) ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+    uint256_t ret = uint256_0;
+    if (l_net) {
+        const dap_wallet_ledger_ops_t *l_ops = dap_wallet_ledger_ops_get();
+        if (l_ops && l_ops->calc_balance) {
+            ret = l_ops->calc_balance(l_net->pub.ledger, l_addr, a_token_ticker);
+        }
+    }
     DAP_DEL_Z(l_addr);
     return ret;
 }
@@ -1111,8 +1119,12 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
     dap_chain_hash_fast_t l_tx_cur_hash = { };
     uint256_t l_value_transfer = { };
     dap_chain_datum_tx_t *l_tx;
+    const dap_wallet_ledger_ops_t *l_ops = dap_wallet_ledger_ops_get();
+    if (!l_ops || !l_ops->tx_find_by_addr || !l_ops->tx_get_token_ticker || !l_ops->tx_hash_is_used_out) {
+        return NULL; // Ledger ops not registered
+    }
     while ( compare256(l_value_transfer, a_value_need) == -1
-            && (l_tx = dap_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash)) )
+            && (l_tx = l_ops->tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash)) )
     {
         // Get all item from transaction by type
         byte_t *it; size_t l_size; int i, l_out_idx_tmp = -1;
@@ -1133,7 +1145,7 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)it;
                 l_out_addr = l_out->addr;
                 if ( !dap_chain_addr_compare(a_addr_from, &l_out_addr)
-                || dap_strcmp(dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_cur_hash), a_token_ticker)
+                || dap_strcmp(l_ops->tx_get_token_ticker(a_ledger, &l_tx_cur_hash), a_token_ticker)
                 || IS_ZERO_256(l_out->header.value) )
                     continue;
                 l_value = l_out->header.value;
@@ -1151,7 +1163,7 @@ dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
                 continue;
             }
             // Check whether used 'out' items
-            if ( !dap_ledger_tx_hash_is_used_out_item (a_ledger, &l_tx_cur_hash, l_out_idx_tmp, NULL) ) {
+            if ( !l_ops->tx_hash_is_used_out(a_ledger, &l_tx_cur_hash, l_out_idx_tmp, NULL) ) {
                 dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
                 *l_item = (dap_chain_tx_used_out_item_t) { l_tx_cur_hash, (uint32_t)l_out_idx_tmp, l_value };
                 l_list_used_out = dap_list_append(l_list_used_out, l_item);
@@ -1256,16 +1268,24 @@ dap_json_t *dap_chain_wallet_info_to_json(const char *a_name, const char *a_path
             json_object_object_add(l_jobj_network, l_net->pub.name, l_jobj_net);
             size_t l_addr_tokens_size = 0;
             char **l_addr_tokens = NULL;
-            dap_ledger_addr_get_token_ticker_all(l_net->pub.ledger, l_wallet_addr_in_net, &l_addr_tokens,
-                                                 &l_addr_tokens_size);
+            const dap_wallet_ledger_ops_t *l_ledger_ops = dap_wallet_ledger_ops_get();
+            if (l_ledger_ops && l_ledger_ops->addr_get_token_ticker_all) {
+                l_ledger_ops->addr_get_token_ticker_all(l_net->pub.ledger, l_wallet_addr_in_net, &l_addr_tokens,
+                                                     &l_addr_tokens_size);
+            }
             struct dap_json_t *l_arr_balance = json_object_new_array();
             for (size_t i = 0; i < l_addr_tokens_size; i++) {
                 dap_json_t *l_balance_data = json_object_new_object();
-                uint256_t l_balance = dap_ledger_calc_balance(l_net->pub.ledger, l_wallet_addr_in_net,
-                                                              l_addr_tokens[i]);
+                uint256_t l_balance = uint256_0;
+                const char *l_description = NULL;
+                if (l_ledger_ops && l_ledger_ops->calc_balance) {
+                    l_balance = l_ledger_ops->calc_balance(l_net->pub.ledger, l_wallet_addr_in_net,
+                                                          l_addr_tokens[i]);
+                }
                 const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
-                const char *l_description = dap_ledger_get_description_by_ticker(l_net->pub.ledger,
-                                                                                 l_addr_tokens[i]);
+                if (l_ledger_ops && l_ledger_ops->get_description) {
+                    l_description = l_ledger_ops->get_description(l_net->pub.ledger, l_addr_tokens[i]);
+                }
                 json_object_object_add(l_balance_data, "ticker", json_object_new_string(l_addr_tokens[i]));
                 json_object_object_add(l_balance_data, "description", l_description ?
                                                                       json_object_new_string(l_description)

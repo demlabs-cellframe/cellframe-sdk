@@ -29,6 +29,7 @@
 #include "dap_chain_net.h"      // For dap_chain_net_t and iteration
 #include "dap_chain_net_fee.h"  // For dap_chain_net_tx_get_fee
 #include "dap_chain_wallet.h"
+#include "dap_wallet_ledger_ops.h"  // DIP interface for wallet-ledger bridge
 #include "dap_chain_wallet_cache.h"  // For wallet_cache TX outs API
 #include "dap_chain_mempool.h"  // For dap_chain_mempool_group_new
 #include "dap_global_db_driver.h"  // For GDB read (includes dap_store_obj_t)
@@ -1759,6 +1760,10 @@ cleanup:
 
 int dap_chain_wallet_shared_init()
 {
+    // Register ledger operations for wallet (Dependency Inversion)
+    extern void dap_wallet_ledger_ops_impl_register(void);
+    dap_wallet_ledger_ops_impl_register();
+    
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL, NULL, NULL, NULL);
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
     dap_ledger_service_add(l_uid, "wallet_shared", s_tag_check);
