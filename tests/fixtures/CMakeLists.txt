@@ -11,25 +11,18 @@ add_library(${PROJECT_NAME} OBJECT
     unit_test_fixtures.c
 )
 
+# Only expose fixture headers directory - all others propagate via modules
 target_include_directories(${PROJECT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/modules/common/include
-    ${CMAKE_SOURCE_DIR}/modules/chain/include
-    ${CMAKE_SOURCE_DIR}/modules/consensus/include
-    ${CMAKE_SOURCE_DIR}/modules/ledger/include
-    ${CMAKE_SOURCE_DIR}/modules/net/include
-    ${CMAKE_SOURCE_DIR}/dap-sdk/core
-    ${CMAKE_SOURCE_DIR}/dap-sdk/crypto/include
-    ${CMAKE_SOURCE_DIR}/dap-sdk/core/include
-    ${CMAKE_SOURCE_DIR}/dap-sdk/global-db/include
-    ${CMAKE_SOURCE_DIR}/dap-sdk/module/test/include
 )
 
-target_link_libraries(${PROJECT_NAME}
-    dap_core
-    dap_crypto
-    dap_common
-    dap_test
+# Link modules - includes propagate automatically
+target_link_libraries(${PROJECT_NAME} PUBLIC
+    dap_test        # Provides dap_mock headers
+    dap_core        # Provides dap_common, dap_config, etc.
+    dap_crypto      # Provides dap_enc, dap_sign, dap_hash
+    dap_common      # Provides dap_strfuncs, dap_list, etc.
+    cellframe_sdk   # Provides chain/ledger/net/consensus headers
 )
 
 # Apply dap_mock auto-wrapping for DAP SDK functions
@@ -43,23 +36,15 @@ add_library(${PROJECT_NAME} OBJECT
     test_fixtures.c
 )
 
+# Only expose fixture headers directory - all others propagate via modules
 target_include_directories(${PROJECT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/modules/common/include
-    ${CMAKE_SOURCE_DIR}/modules/chain/include
-    ${CMAKE_SOURCE_DIR}/modules/consensus/include
-    ${CMAKE_SOURCE_DIR}/modules/ledger/include
-    ${CMAKE_SOURCE_DIR}/modules/net/include
-    ${CMAKE_SOURCE_DIR}/modules/wallet/include
-    ${CMAKE_SOURCE_DIR}/modules/datum/include
-    ${CMAKE_SOURCE_DIR}/dap-sdk/core
-    ${CMAKE_SOURCE_DIR}/dap-sdk/crypto/include
-    ${CMAKE_SOURCE_DIR}/dap-sdk/core/include
-    ${CMAKE_SOURCE_DIR}/dap-sdk/global-db/include
 )
 
-target_link_libraries(${PROJECT_NAME}
-    dap_core
-    dap_crypto
-    dap_common
+# Link modules - includes propagate automatically
+target_link_libraries(${PROJECT_NAME} PUBLIC
+    dap_core        # Provides dap_common, dap_config, etc.
+    dap_crypto      # Provides dap_enc, dap_sign, dap_hash
+    dap_common      # Provides dap_strfuncs, dap_list, etc.
+    cellframe_sdk   # Provides chain/ledger/net/wallet/datum headers
 )

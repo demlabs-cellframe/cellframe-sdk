@@ -11,17 +11,15 @@ add_executable(${PROJECT_NAME}
     $<TARGET_OBJECTS:unit_test_fixtures>
 )
 
-target_include_directories(${PROJECT_NAME} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/tests/fixtures  # ← Unit test fixtures
-)
+# Fixtures headers propagate via unit_test_fixtures OBJECT library
+# All other includes propagate via linked modules below
 
+# Link modules - includes propagate automatically
 target_link_libraries(${PROJECT_NAME}
-    cellframe_sdk
-    dap_sdk
-    dap_test
-    dap_chain_net_srv_voting
-    # unit_test_fixtures - included as OBJECT library above
+    dap_test                      # Test framework
+    dap_sdk                       # DAP SDK
+    cellframe_sdk                 # Cellframe SDK (provides all module headers)
+    dap_chain_net_srv_voting      # Voting service module
 )
 
 # Manually add --wrap for ledger functions (avoid accessing uninit _internal in mock ledger)

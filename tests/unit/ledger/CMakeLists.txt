@@ -9,15 +9,14 @@ add_executable(${PROJECT_NAME}
     test_ledger_tx_operations.c
 )
 
-target_include_directories(${PROJECT_NAME} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
+# No explicit includes needed - all propagate via linked modules
 
+# Link modules - includes propagate automatically
 target_link_libraries(${PROJECT_NAME}
-    cellframe_sdk
-    dap_sdk
-    dap_test
-    dap_chain_ledger  # Explicitly link for header propagation
+    dap_test          # Test framework
+    dap_sdk           # DAP SDK
+    cellframe_sdk     # Cellframe SDK (provides ledger/chain headers)
+    dap_chain_ledger  # Ledger module (for implementation, headers from cellframe_sdk)
 )
 
 # Auto-generate and apply --wrap flags from DAP_MOCK_DECLARE() and DAP_MOCK_CUSTOM() calls

@@ -10,16 +10,16 @@ add_executable(${PROJECT_NAME}
     $<TARGET_OBJECTS:test_fixtures>
 )
 
-target_include_directories(${PROJECT_NAME} PUBLIC
+# Only include local test headers - fixtures/modules propagate via OBJECT lib
+target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/tests/fixtures  # ✓ Integration test fixtures
 )
 
+# Link modules - includes propagate automatically
 target_link_libraries(${PROJECT_NAME}
-    dap_test
-    dap_sdk
-    cellframe_sdk
-    # test_fixtures - included as OBJECT library above
+    dap_test        # Test framework
+    dap_sdk         # DAP SDK
+    cellframe_sdk   # Cellframe SDK (provides all module headers)
 )
 
 add_test(
@@ -36,16 +36,16 @@ add_executable(${PROJECT_NAME}
     $<TARGET_OBJECTS:test_fixtures>
 )
 
-target_include_directories(${PROJECT_NAME} PUBLIC
+# Only include local test headers - fixtures/modules propagate via OBJECT lib
+target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/tests/fixtures  # ✓ Integration test fixtures
 )
 
+# Link modules - includes propagate automatically
 target_link_libraries(${PROJECT_NAME}
-    dap_test
-    dap_sdk
-    cellframe_sdk
-    # test_fixtures - included as OBJECT library above
+    dap_test        # Test framework
+    dap_sdk         # DAP SDK
+    cellframe_sdk   # Cellframe SDK (provides all module headers)
 )
 
 add_test(
