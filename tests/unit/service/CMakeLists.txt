@@ -8,6 +8,7 @@ include(${CMAKE_SOURCE_DIR}/dap-sdk/module/test/mocks/DAPMockAutoWrap.cmake)
 
 add_executable(${PROJECT_NAME}
     test_voting_vote.c
+    $<TARGET_OBJECTS:unit_test_fixtures>
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -20,7 +21,7 @@ target_link_libraries(${PROJECT_NAME}
     dap_sdk
     dap_test
     dap_chain_net_srv_voting
-    unit_test_fixtures  # ← Link unit test fixtures
+    # unit_test_fixtures - included as OBJECT library above
 )
 
 # Manually add --wrap for ledger functions (avoid accessing uninit _internal in mock ledger)

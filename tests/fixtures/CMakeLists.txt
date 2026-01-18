@@ -7,7 +7,7 @@ include(${CMAKE_SOURCE_DIR}/dap-sdk/module/test/mocks/DAPMockAutoWrap.cmake)
 # Unit Test Fixtures (for unit tests with DAP SDK mocking)
 project(unit_test_fixtures)
 
-add_library(${PROJECT_NAME} STATIC
+add_library(${PROJECT_NAME} OBJECT
     unit_test_fixtures.c
 )
 
@@ -38,7 +38,7 @@ dap_mock_autowrap(${PROJECT_NAME})
 # Integration Test Fixtures (for integration tests with full stack)
 project(test_fixtures)
 
-add_library(${PROJECT_NAME} STATIC
+add_library(${PROJECT_NAME} OBJECT
     integration_test_fixtures.c
     test_fixtures.c
 )

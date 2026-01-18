@@ -5,6 +5,7 @@ project(stake_ext_integration_tests)
 add_executable(${PROJECT_NAME}
     test_stake_ext.c
     main.c
+    $<TARGET_OBJECTS:test_fixtures>
 )
 
 # Link modules - includes propagate automatically
@@ -12,7 +13,7 @@ target_link_libraries(${PROJECT_NAME}
     dap_test
     dap_sdk
     cellframe_sdk
-    test_fixtures
+    # test_fixtures - included as OBJECT library above
     dap_chain_net_srv_stake_ext  # Stake-ext module
     dap_chain_ledger             # Ledger module
     dap_chain_net                # Net module

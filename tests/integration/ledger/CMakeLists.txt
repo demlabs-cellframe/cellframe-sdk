@@ -7,6 +7,7 @@ project(ledger-event-test)
 
 add_executable(${PROJECT_NAME}
     test_dap_ledger_event.c
+    $<TARGET_OBJECTS:test_fixtures>
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -18,7 +19,7 @@ target_link_libraries(${PROJECT_NAME}
     dap_test
     dap_sdk
     cellframe_sdk
-    test_fixtures
+    # test_fixtures - included as OBJECT library above
 )
 
 add_test(
@@ -32,6 +33,7 @@ project(ledger-integration-test)
 add_executable(${PROJECT_NAME}
     dap_chain_ledger_tests.c
     main_ledger.c
+    $<TARGET_OBJECTS:test_fixtures>
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC
@@ -43,7 +45,7 @@ target_link_libraries(${PROJECT_NAME}
     dap_test
     dap_sdk
     cellframe_sdk
-    test_fixtures
+    # test_fixtures - included as OBJECT library above
 )
 
 add_test(
