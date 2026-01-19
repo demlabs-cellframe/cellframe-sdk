@@ -19,6 +19,9 @@ target_link_libraries(${PROJECT_NAME}
     dap_chain_ledger  # Ledger module (for implementation, headers from cellframe_sdk)
 )
 
+# Set additional includes for custom mock generation
+set(ENV{DAP_MOCK_ADDITIONAL_INCLUDES} "#include \"dap_hash.h\"\n#include \"dap_chain_common.h\"\n#include \"dap_chain_datum.h\"\n#include \"dap_chain_datum_tx.h\"\n#include \"dap_chain_ledger.h\"")
+
 # Auto-generate and apply --wrap flags from DAP_MOCK_DECLARE() and DAP_MOCK_CUSTOM() calls
 dap_mock_autowrap(${PROJECT_NAME})
 
