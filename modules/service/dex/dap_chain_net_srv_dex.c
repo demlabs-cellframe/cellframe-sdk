@@ -5598,10 +5598,10 @@ int dap_chain_net_srv_dex_init()
 
     log_it(L_INFO, "Cross-net policy: %s", s_cross_net_policy_str(s_cross_net_policy));
     // Read cache switch from config
-    s_dex_cache_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "memcached", false);
+    s_dex_cache_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "cache_enabled", true);
     log_it(L_INFO, "Memory cache: %s", s_dex_cache_enabled ? "on" : "off");
     // Read history cache switch and bucket size (default: daily buckets for storage efficiency)
-    s_dex_history_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "history_cache", false);
+    s_dex_history_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "history_cache", true);
     s_dex_history_bucket_sec = (uint64_t)dap_config_get_item_uint32_default(g_config, "srv_dex", "history_bucket_sec", DAP_SEC_PER_DAY);
     if (!s_dex_history_bucket_sec)
         s_dex_history_bucket_sec = DAP_SEC_PER_DAY;
