@@ -177,7 +177,7 @@ srv_dex purchase_auto \
   -w <wallet_path> \
   -value <amount> \
   [-unit sell|buy] \
-  [-min_rate <rate>] \
+  [-rate_cap <rate>] \
   -fee <validator_fee> \
   [-create_leftover_order] \
   [-leftover_rate <rate>] \
@@ -194,7 +194,7 @@ srv_dex purchase_auto \
 | `-value` | Yes | Budget amount |
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
-| `-min_rate` | No | Maximum acceptable price (skip orders with rate > min_rate) |
+| `-rate_cap` | No | Price cap: skip orders with rate > this value |
 | `-create_leftover_order` | No | Create order from unspent budget |
 | `-leftover_rate` | Conditional | Rate for leftover order (required if `-create_leftover_order`; forbidden otherwise) |
 | `-dry-run` | No | Simulate matching without submitting TX (returns match plan in JSON) |
@@ -204,7 +204,7 @@ srv_dex purchase_auto \
 srv_dex purchase_auto -net TestNet \
   -token_sell USDT -token_buy KEL \
   -w /home/user/.cellframe/wallets/alice.dwallet \
-  -value 50.0 -unit buy -min_rate 2.0 -fee 0.05
+  -value 50.0 -unit buy -rate_cap 2.0 -fee 0.05
 
 # Dry-run example
 srv_dex purchase_auto -net TestNet \

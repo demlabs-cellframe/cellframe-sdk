@@ -113,19 +113,23 @@ uint8_t min_fill;  // [bit7: from_origin] [bits0-6: percent]
 
 ---
 
-## Trade Classification
+## Event Classification
 
 ```c
-#define DEX_TRADE_FLAG_MARKET   0x01  // Best price execution
-#define DEX_TRADE_FLAG_TARGETED 0x02  // Specific order purchase
-#define DEX_TRADE_FLAG_ORDER    0x04  // Order creation event
+#define DEX_OP_CREATE 0x01  // Order creation event
+#define DEX_OP_TARGET 0x02  // Specific order purchase (off-market)
+#define DEX_OP_MARKET 0x04  // Best price execution (automatch)
+#define DEX_OP_CANCEL 0x08  // Order cancellation event
+#define DEX_OP_UPDATE 0x10  // Order parameters update
 ```
 
 | Flag | Description |
 |------|-------------|
+| CREATE | Order placement record (not a trade) |
+| TARGET | Direct purchase of specific order |
 | MARKET | Trade at or better than best available price |
-| TARGETED | Direct purchase of specific order |
-| ORDER | Not a trade; order placement record |
+| CANCEL | Order cancellation by owner |
+| UPDATE | Owner-initiated price/value modification |
 
 ---
 

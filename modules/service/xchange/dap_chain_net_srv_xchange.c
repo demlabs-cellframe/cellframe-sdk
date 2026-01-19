@@ -29,6 +29,7 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_sig.h"
+#include "dap_chain_datum_tx_items.h"
 #include "dap_list.h"
 #include "dap_sign.h"
 #include "dap_time.h"
@@ -2476,10 +2477,10 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
             if (!l_prev_tx)
                 return false;
 
-            int l_out_num = l_in_cond->header.tx_out_prev_idx;
-            dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_out_num);
-            if (!l_out_cond)
-                return log_it(L_ERROR, "Can't find OUT_COND in prev tx"), false;
+            byte_t *l_prev_out = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_in_cond->header.tx_out_prev_idx);
+            dap_chain_tx_out_cond_t *l_out_cond = (l_prev_out && *l_prev_out == TX_ITEM_TYPE_OUT_COND) ? (dap_chain_tx_out_cond_t *)l_prev_out : NULL;
+            if (!l_out_cond || l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
+                return log_it(L_ERROR, "Can't find SRV_XCHANGE OUT_COND by out_idx"), false;
 
             dap_hash_fast_t l_order_hash = dap_ledger_get_first_chain_tx_hash(a_net->pub.ledger, a_tx, l_out_cond->header.subtype);
             if ( dap_hash_fast_is_blank(&l_order_hash) )

@@ -198,7 +198,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
     uint256_t a_value,
     bool a_is_budget_buy,
     uint256_t a_fee,
-    uint256_t a_min_rate,
+    uint256_t a_rate_cap,
     dap_chain_wallet_t *a_wallet,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
@@ -311,7 +311,7 @@ dap_hash_fast_t *dap_chain_net_srv_dex_match_hashes(
     dap_chain_net_id_t *a_sell_net_id,
     dap_chain_net_id_t *a_buy_net_id,
     uint256_t *a_max_value,
-    uint256_t *a_min_rate,
+    uint256_t *a_rate_cap,
     size_t *a_num_matches,
     bool a_is_budget_buy
 );

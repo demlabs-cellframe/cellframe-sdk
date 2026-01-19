@@ -16,14 +16,14 @@ The DEX matching engine supports three purchase modes:
 typedef struct dex_match_criteria {
     const char *token_sell, *token_buy;
     dap_chain_net_id_t net_id_sell, net_id_buy;
-    uint256_t min_rate;                  // Price cap (skip if rate > min_rate)
+    uint256_t rate_cap;                  // Price cap (skip if rate > rate_cap)
     uint256_t budget;                    // Amount limit
     bool is_budget_buy;                  // Budget in buy token (true) or sell token (false)
     const dap_chain_addr_t *buyer_addr;  // To skip self-purchase
 } dex_match_criteria_t;
 ```
 
-If `min_rate` is non-zero, orders with canonical rate `> min_rate` are skipped.
+If `rate_cap` is non-zero, orders with canonical rate `> rate_cap` are skipped.
 
 ### Taker Side Determination
 
@@ -490,7 +490,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
     uint256_t a_value,
     bool a_is_budget_buy,
     uint256_t a_fee,
-    uint256_t a_min_rate,
+    uint256_t a_rate_cap,
     dap_chain_wallet_t *a_wallet,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
