@@ -910,7 +910,7 @@ int test_dex_adjust_minfill(dex_test_fixture_t *fixture, const dap_hash_fast_t *
 {
     dap_return_val_if_fail(fixture && a_order_tail, -1);
     
-    bool l_cache_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "memcached", false);
+    bool l_cache_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "cache_enabled", false);
     
     if (l_cache_enabled) {
         return dap_chain_net_srv_dex_cache_adjust_minfill(
