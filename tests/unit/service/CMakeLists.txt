@@ -22,7 +22,10 @@ target_link_libraries(${PROJECT_NAME}
     dap_chain_net_srv_voting      # Voting service module
 )
 
-# Manually add --wrap for ledger functions (avoid accessing uninit _internal in mock ledger)
+# Auto-generate --wrap flags from DAP_MOCK_DECLARE() calls (if any)
+dap_mock_autowrap(${PROJECT_NAME})
+
+# Add --wrap for DAP_MOCK_CUSTOM() mocks (not auto-detected by autowrap)
 target_link_options(${PROJECT_NAME} PRIVATE
     "-Wl,--wrap=dap_ledger_calc_balance"
     "-Wl,--wrap=dap_ledger_tx_find_by_hash"

@@ -29,30 +29,22 @@
 
 #define LOG_TAG "test_voting_comprehensive"
 
-// =============================================================================
-// MOCK DECLARATIONS
-// =============================================================================
-
-// NOTE: DAP SDK моки (dap_time_now, crypto, db, etc.) УЖЕ объявлены в unit_test_fixtures.h
-// Здесь объявляем только Cellframe SDK специфичные моки
 
 // Ledger balance mock - необходим т.к. g_mock_ledger не имеет инициализированного _internal
-// NOTE: dap_ledger_calc_balance возвращает uint256_t (сложная структура),
-// поэтому используем ручной wrapper
+// NOTE: Используем DAP_MOCK_CUSTOM для uint256_t return type
 
-uint256_t __wrap_dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr, const char *a_token_ticker)
-{
+DAP_MOCK_CUSTOM(uint256_t, dap_ledger_calc_balance, 
+                (dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr, const char *a_token_ticker))
     UNUSED(a_ledger);
     UNUSED(a_addr);
     UNUSED(a_token_ticker);
     // Mock implementation: всегда возвращаем достаточный баланс (1M datoshi)
-    uint256_t l_balance = {{1000000, 0, 0, 0}};
-    return l_balance;
+    return GET_256_FROM_64(1000000);
 }
 
 // Ledger tx_find mock - избегаем обращения к _internal
-dap_chain_datum_tx_t *__wrap_dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
-{
+DAP_MOCK_CUSTOM(dap_chain_datum_tx_t *, dap_ledger_tx_find_by_hash,
+                (dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash))
     UNUSED(a_ledger);
     UNUSED(a_tx_hash);
     // Mock implementation: poll не найден (NULL)
@@ -400,11 +392,10 @@ static void test_2_9_poll_insufficient_balance(void)
 {
     log_it(L_INFO, "TEST 2.9: FAIL-FAST - Poll with insufficient balance");
     
-    // NOTE: We can't mock dap_ledger_calc_balance (complex return type uint256_t)
-    // This test would need integration testing with real ledger
-    // For now, we skip detailed balance check and test other validations
+    // NOTE: Balance check is now mocked via DAP_MOCK_CUSTOM
+    // This test validates that compose layer handles fee properly
     
-    uint256_t fee = {{1000, 0, 0, 0}};  // Need 1000 datoshi
+    uint256_t fee = GET_256_FROM_64(1000);  // Need 1000 datoshi
     dap_chain_datum_tx_t *tx = dap_voting_tx_create_poll(
         &g_mock_ledger,
         "Test question?",
