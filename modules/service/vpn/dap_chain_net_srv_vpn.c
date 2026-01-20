@@ -1810,6 +1810,11 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_pkt_t * l_pkt = (dap_stream_ch_pkt_t *) a_arg;
 
+    // Log every VPN packet received for debugging
+    log_it(L_DEBUG, "s_ch_packet_in: session_id=%u, pkt_size=%u, seq_id=%"DAP_UINT64_FORMAT_U,
+           a_ch->stream->session ? a_ch->stream->session->id : 0,
+           l_pkt->hdr.data_size, l_pkt->hdr.seq_id);
+
     dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t*)l_pkt->data;
     if(l_pkt->hdr.data_size < sizeof(l_vpn_pkt->header)) {
         log_it(L_WARNING, "Data size of stream channel packet %u is lesser than size of VPN packet header %zu",
@@ -1864,6 +1869,10 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
 
     // TODO move address leasing to this structure
+    // Log VPN packet op_code for debugging
+    log_it(L_DEBUG, "VPN packet: session_id=%u, op_code=0x%02x, usage_id=%u, data_size=%zu",
+           a_ch->stream->session ? a_ch->stream->session->id : 0,
+           l_vpn_pkt->header.op_code, l_vpn_pkt->header.usage_id, l_vpn_pkt_data_size);
     debug_if(s_debug_more, L_INFO, "Got srv_vpn packet with op_code=0x%02x", l_vpn_pkt->header.op_code);
     if(l_vpn_pkt->header.op_code >= 0xb0) { // Raw packets
         switch (l_vpn_pkt->header.op_code) {
