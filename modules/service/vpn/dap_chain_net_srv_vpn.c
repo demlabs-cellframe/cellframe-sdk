@@ -988,38 +988,56 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                                     , const void * a_request, size_t a_request_size )
 {
     int l_ret = 0;
-    log_it( L_INFO, "s_callback_response_success is called");
+    log_it(L_INFO, "s_callback_response_success is called (usage_id=%u)", a_usage_id);
 
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
     dap_chain_net_srv_usage_t * l_usage_active = l_srv_session->usage_active;
-    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn =(dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
-            a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
-    if ( !l_usage_active){
-        log_it( L_ERROR, "No active service usage, can't success");
+
+    // Find VPN channel by ID instead of using array index
+    dap_stream_ch_t *l_ch_vpn_raw = dap_stream_ch_by_id_unsafe(a_srv_client->ch->stream, DAP_STREAM_CH_NET_SRV_ID_VPN);
+    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn = l_ch_vpn_raw ? CH_VPN(l_ch_vpn_raw) : NULL;
+
+    log_it(L_DEBUG, "s_callback_response_success: session_id=%u, stream=%p, channel_count=%zu, vpn_channel=%p, srv_ch_vpn=%p",
+           a_srv_client->ch->stream->session ? a_srv_client->ch->stream->session->id : 0,
+           a_srv_client->ch->stream, a_srv_client->ch->stream->channel_count,
+           (void*)l_ch_vpn_raw, (void*)l_srv_ch_vpn);
+
+    if(!l_usage_active)
+    {
+        log_it(L_ERROR, "No active service usage, can't success");
         return -1;
     }
 
-    if (!l_srv_session->usage_active->is_active){
+    if(!l_srv_session->usage_active->is_active)
+    {
         l_srv_session->usage_active = l_usage_active;
         l_srv_session->usage_active->is_active = true;
-        log_it(L_NOTICE,"Enable VPN service");
+        log_it(L_NOTICE, "Enable VPN service (usage_id=%u)", a_usage_id);
 
-        if ( l_srv_ch_vpn ){ // If channel is already opened
+        if(l_srv_ch_vpn)
+        { // If channel is already opened
             dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
             dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
             l_srv_ch_vpn->usage_id = a_usage_id;
-        } else{
-
-            log_it(L_WARNING, "VPN channel is not open, will be no data transmission");
-            return -2;
-            // Don't return error - channel may open later
+            log_it(L_INFO, "VPN channel activated: ready_to_read=%d, ready_to_write=%d, usage_id=%u",
+                   l_srv_ch_vpn->ch->ready_to_read, l_srv_ch_vpn->ch->ready_to_write, a_usage_id);
         }
-    } else {
+        else
+        {
+            log_it(L_WARNING, "VPN channel is not open (channel_count=%zu), will be no data transmission",
+                   a_srv_client->ch->stream->channel_count);
+            return -2;
+        }
+    }
+    else
+    {
         // Usage already active, but channel might have opened later - enable it now
-        if ( l_srv_ch_vpn ) {
+        if(l_srv_ch_vpn)
+        {
             dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
             dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
             l_srv_ch_vpn->usage_id = a_usage_id;
+            log_it(L_INFO, "VPN channel re-activated: usage already active, usage_id=%u", a_usage_id);
         }
     }
 
@@ -1082,16 +1100,19 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
 static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
                     const void * a_receipt_next, size_t a_receipt_next_size)
 {
-    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn = a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]
-        ? (dap_chain_net_srv_ch_vpn_t*)a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
+    // Find VPN channel by ID instead of using array index
+    dap_stream_ch_t *l_ch_vpn_raw = dap_stream_ch_by_id_unsafe(a_srv_client->ch->stream, DAP_STREAM_CH_NET_SRV_ID_VPN);
+    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn = l_ch_vpn_raw ? CH_VPN(l_ch_vpn_raw) : NULL;
 
-    if ( ! l_srv_ch_vpn ){
-        log_it(L_ERROR, "No VPN service stream channel, its closed?");
+    if(!l_srv_ch_vpn)
+    {
+        log_it(L_ERROR, "No VPN service stream channel (channel_count=%zu), its closed?",
+               a_srv_client->ch->stream->channel_count);
         return -3;
     }
-    log_it(L_INFO, "Next receipt successfuly accepted");
+    log_it(L_INFO, "Next receipt successfully accepted (usage_id=%u)", a_usage_id);
     // usage is present, we've accepted packets
-    dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
+    dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
     return 0;
 }
 
@@ -1255,10 +1276,11 @@ static void s_ch_vpn_esocket_assigned(dap_events_socket_t *a_es, dap_worker_t *a
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_es);
     assert(l_http_client);
     dap_stream_t *l_stream = DAP_STREAM(l_http_client);
-    if (!l_stream)
+    if(!l_stream)
         return;
-    dap_stream_ch_t *l_ch = l_stream->channel[DAP_CHAIN_NET_SRV_VPN_ID];
-    if (!l_ch)
+    // Find VPN channel by ID instead of using array index
+    dap_stream_ch_t *l_ch = dap_stream_ch_by_id_unsafe(l_stream, DAP_STREAM_CH_NET_SRV_ID_VPN);
+    if(!l_ch)
         return;
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(l_ch);
     assert(l_ch_vpn);
@@ -1310,8 +1332,9 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 
     l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
     
-    // Log VPN channel creation
-    log_it(L_NOTICE, "VPN channel new: usage_id=%u, usage_active=%d, node="NODE_ADDR_FP_STR,
+    // Log VPN channel creation with session_id for correlation
+    log_it(L_NOTICE, "VPN channel new: session_id=%u, usage_id=%u, usage_active=%d, node="NODE_ADDR_FP_STR,
+           a_ch->stream->session ? a_ch->stream->session->id : 0,
            l_srv_vpn->usage_id,
            l_srv_session->usage_active ? l_srv_session->usage_active->is_active : -1,
            NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
@@ -1346,11 +1369,12 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     if (l_srv_session)
         l_usage =  l_srv_session->usage_active;
 
-    // Log VPN channel deletion with client info
+    // Log VPN channel deletion with session and client info
     char l_client_addr[INET_ADDRSTRLEN] = {0};
     if(l_ch_vpn->addr_ipv4.s_addr)
         inet_ntop(AF_INET, &l_ch_vpn->addr_ipv4, l_client_addr, sizeof(l_client_addr));
-    log_it(L_NOTICE, "VPN channel delete: client_addr=%s, usage_id=%u, usage_active=%d",
+    log_it(L_NOTICE, "VPN channel delete: session_id=%u, client_addr=%s, usage_id=%u, usage_active=%d",
+           a_ch->stream->session ? a_ch->stream->session->id : 0,
            l_client_addr[0] ? l_client_addr : "none",
            l_ch_vpn->usage_id,
            l_usage ? l_usage->is_active : -1);

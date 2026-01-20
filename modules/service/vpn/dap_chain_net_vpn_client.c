@@ -52,6 +52,7 @@
 #include "dap_client.h"
 #include "dap_enc_base58.h"
 
+#include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain_net_srv.h"
@@ -164,11 +165,13 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         return -2;
     }
 
-    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn =
-            (dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
-                    a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
-    if ( ! l_srv_ch_vpn ){
-        log_it(L_ERROR, "No VPN service stream channel, its closed?");
+    // Find VPN channel by ID instead of using array index
+    dap_stream_ch_t *l_ch_vpn_raw = dap_stream_ch_by_id_unsafe(a_srv_client->ch->stream, DAP_STREAM_CH_NET_SRV_ID_VPN);
+    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn = l_ch_vpn_raw ? CH_VPN(l_ch_vpn_raw) : NULL;
+    if(!l_srv_ch_vpn)
+    {
+        log_it(L_ERROR, "No VPN service stream channel (channel_count=%zu), its closed?",
+               a_srv_client->ch->stream->channel_count);
         dap_stream_session_unlock();
         return -3;
     }
