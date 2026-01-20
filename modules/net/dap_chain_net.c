@@ -1927,8 +1927,10 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
     uint16_t l_ledger_flags = 0;
     switch ( a_net->pub.node_role.enums ) {
     case NODE_ROLE_LIGHT:
-        //break;
-        a_net->pub.node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
+        // Phase 14.4: Light mode implementation
+        // Light nodes skip local DS checks and cache for minimal resource usage
+        log_it(L_NOTICE, "Network %s running in LIGHT mode (minimal ledger validation)", a_net->pub.name);
+        break;
     case NODE_ROLE_FULL:
         l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
         if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))

@@ -49,7 +49,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"
 #include "dap_config.h"
-#include "json-c/json.h"
+#include "dap_json.h"  // Phase 14.3: Migrated from json-c to dap_json
 #include "uthash.h"
 #include "dap_chain_srv.h"
 

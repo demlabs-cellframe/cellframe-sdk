@@ -5,23 +5,22 @@ project(stake_ext_integration_tests)
 add_executable(${PROJECT_NAME}
     test_stake_ext.c
     main.c
+    $<TARGET_OBJECTS:test_fixtures>
 )
 
 # Link modules - includes propagate automatically
 target_link_libraries(${PROJECT_NAME}
-    dap_test
-    dap_sdk
-    cellframe_sdk
-    test_fixtures
-    dap_chain_net_srv_stake_ext  # Stake-ext module
-    dap_chain_ledger             # Ledger module
-    dap_chain_net                # Net module
+    dap_test                      # Test framework
+    dap_sdk                       # DAP SDK
+    cellframe_sdk                 # Cellframe SDK (provides all module headers)
+    dap_chain_net_srv_stake_ext   # Stake-ext service module
+    dap_chain_ledger              # Ledger module
+    dap_chain_net                 # Net module
 )
 
-# Only add local include for our own headers
+# Only include local test headers - fixtures/modules propagate via OBJECT lib
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/tests/fixtures
 )
 
 # Add as CTest

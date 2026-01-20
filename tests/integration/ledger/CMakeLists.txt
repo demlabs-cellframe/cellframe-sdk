@@ -7,17 +7,19 @@ project(ledger-event-test)
 
 add_executable(${PROJECT_NAME}
     test_dap_ledger_event.c
+    $<TARGET_OBJECTS:test_fixtures>
 )
 
-target_include_directories(${PROJECT_NAME} PUBLIC
+# Only include local test headers - fixtures/modules propagate via OBJECT lib
+target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# Link modules - includes propagate automatically
 target_link_libraries(${PROJECT_NAME}
-    dap_test
-    dap_sdk
-    cellframe_sdk
-    test_fixtures
+    dap_test        # Test framework
+    dap_sdk         # DAP SDK
+    cellframe_sdk   # Cellframe SDK (provides all module headers)
 )
 
 add_test(
@@ -31,17 +33,19 @@ project(ledger-integration-test)
 add_executable(${PROJECT_NAME}
     dap_chain_ledger_tests.c
     main_ledger.c
+    $<TARGET_OBJECTS:test_fixtures>
 )
 
-target_include_directories(${PROJECT_NAME} PUBLIC
+# Only include local test headers - fixtures/modules propagate via OBJECT lib
+target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# Link modules - includes propagate automatically
 target_link_libraries(${PROJECT_NAME}
-    dap_test
-    dap_sdk
-    cellframe_sdk
-    test_fixtures
+    dap_test        # Test framework
+    dap_sdk         # DAP SDK
+    cellframe_sdk   # Cellframe SDK (provides all module headers)
 )
 
 add_test(

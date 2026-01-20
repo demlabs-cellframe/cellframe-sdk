@@ -7,22 +7,17 @@ file(GLOB DAP_CHAIN_TESTS_SRC *.c)
 
 add_executable(${PROJECT_NAME} ${DAP_CHAIN_TESTS_SRC} ${DAP_CHAIN_TESTS_HEADERS})
 
-# Use --start-group/--end-group to resolve circular dependencies between static libraries
-# Explicitly link with DAP SDK modules that are referenced by cellframe_sdk
-# but not properly resolved due to build architecture issues
-# Use --start-group/--end-group to resolve circular dependencies (not supported on macOS)
+# Only include local test headers - all module includes propagate via linking
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    include
+)
+
+# Link modules - includes propagate automatically
+# Note: Using --start-group to handle potential circular dependencies in legacy code
 if(APPLE)
     target_link_libraries(${PROJECT_NAME} 
         dap_test
         dap_sdk 
-        cellframe_sdk
-        dap_io
-        dap_stream
-        dap_stream_ch
-        dap_session
-        dap_http_server
-        dap_client
-        dap_sdk
         cellframe_sdk
     )
 else()
@@ -31,24 +26,13 @@ else()
         -Wl,--start-group
         dap_sdk 
         cellframe_sdk
-        dap_io
-        dap_stream
-        dap_stream_ch
-        dap_session
-        dap_http_server
-        dap_client
-        dap_sdk
         -Wl,--end-group
     )
 endif()
 
-include_directories(../include)
-
 if (DARWIN)
     target_link_libraries(${PROJECT_NAME} bz2)
 endif()
-
-target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 add_test(
     NAME datum-tests
