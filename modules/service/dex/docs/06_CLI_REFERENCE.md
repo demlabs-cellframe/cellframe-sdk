@@ -336,7 +336,7 @@ Lists all whitelisted trading pairs with fee configurations.
 
 ## Analytics
 
-> **Note:** The `market_rate` and `volume` commands have been deprecated. Use `history -mode ohlc` or `history -mode volume` instead. The `history` command now includes `spot`, `vwap`, and full `totals` in its output.
+> **Note:** The `market_rate` and `volume` commands have been deprecated. Use `history -view ohlc` or `history -view volume` instead. The `history` command now includes `spot`, `vwap`, and full `totals` in its output.
 
 ### Spread
 
@@ -401,52 +401,85 @@ srv_dex slippage -net TestNet -pair KEL/USDT -value 1000 -side buy -unit quote -
 ```bash
 srv_dex history \
   -net <network_name> \
-  -pair <BASE/QUOTE> \
+  [-pair <BASE/QUOTE> | -order <hash>] \
   [-from <timestamp>] \
   [-to <timestamp>] \
+  [-view events|ohlc|volume] \
+  [-type all|trade|market|targeted|order|update|cancel] \
   [-bucket <seconds>] \
   [-seller <address>] \
-  [-mode ohlc|volume|trades] \
+  [-buyer <address>] \
   [-fill] \
-  [-orders] \
   [-limit <N>] \
-  [-offset <N>] \
-  [-order <hash>]
+  [-offset <N>]
 ```
 
 **Parameters:**
 | Parameter | Description |
 |-----------|-------------|
-| `-mode` | Output mode: `ohlc` (default), `volume`, `trades` |
+| `-pair` | Trading pair `BASE/QUOTE` (alternative to `-order`) |
+| `-view` | Output format: `events` (default), `ohlc`, `volume` |
+| `-type` | Event filter: `all`, `trade`, `market`, `targeted`, `order`, `update`, `cancel` |
 | `-bucket` | Bucket size in seconds (optional for ohlc/volume; omit to get totals only) |
-| `-fill` | Fill empty buckets with previous close (requires `-bucket`) |
-| `-orders` | Show only order creations instead of trades (requires `-mode trades`) |
+| `-fill` | Fill empty buckets with previous close (uses `history_bucket_sec` when `-bucket` is omitted) |
 | `-seller` | Filter by seller address |
-| `-buyer` | Filter by buyer address (incompatible with `-order`) |
-| `-limit` | Maximum records to return (trades mode only) |
-| `-offset` | Skip first N records (trades mode only) |
-| `-order` | Filter by specific order hash (root or tail) |
+| `-buyer` | Filter by buyer address |
+| `-limit` | Maximum records to return (events format only) |
+| `-offset` | Skip first N records (events format only) |
+| `-order` | Filter by specific order hash (root or tail); pair is derived from order |
 
-**Mode Compatibility:**
-| Mode | Valid Parameters | Invalid Parameters |
-|------|------------------|-------------------|
-| `ohlc` | `-bucket`, `-fill`, `-from`, `-to`, `-seller`, `-order` | `-orders`, `-buyer` (with `-order`) |
-| `volume` | `-bucket`, `-fill`, `-from`, `-to`, `-seller`, `-order` | `-orders`, `-buyer` (with `-order`) |
-| `trades` | `-from`, `-to`, `-seller`, `-buyer`, `-orders`, `-limit`, `-offset`, `-order` | `-bucket`, `-fill` |
+**Format Compatibility:**
+| Format | Valid Parameters | Invalid Parameters |
+|--------|------------------|-------------------|
+| `events` | `-from`, `-to`, `-seller`, `-buyer`, `-order`, `-type`, `-limit`, `-offset` | `-bucket`, `-fill` |
+| `ohlc` | `-bucket`, `-fill`, `-from`, `-to`, `-seller`, `-buyer`, `-order`, `-type` | `-limit`, `-offset` |
+| `volume` | `-bucket`, `-fill`, `-from`, `-to`, `-seller`, `-buyer`, `-order`, `-type` | `-limit`, `-offset` |
+
+**Type Compatibility (for `ohlc`/`volume`):**
+| Type | `ohlc` | `volume` |
+|------|--------|----------|
+| `trade` | ✅ | ✅ |
+| `market` | ✅ | ✅ |
+| `targeted` | ❌ | ✅ |
+| `order` / `update` / `cancel` / `all` | ❌ | ❌ |
 
 **Notes:**
-- `-fill` requires `-bucket` (fills empty buckets with previous close price)
-- `-order` resolves the provided hash to `order_root` and matches trades by their order chain root (requires ledger access)
-- `-buyer` is incompatible with `-order` (order chain already defines the counterparty)
-- `market_only=true` means OHLC/spot are computed from `MARKET` trades only; volume totals include `MARKET|TARGETED` and exclude `ORDER` records
+- `-fill` uses `history_bucket_sec` when `-bucket` is omitted (fills empty buckets with previous close price)
+- `-order` resolves the provided hash to `order_root` and matches trades by their order chain root
+- If `-pair` is omitted, the pair is resolved from the order hash (cache or ledger)
+- `-buyer` can be combined with `-order` to filter events by counterparty
+- For `ohlc`/`volume`, aggregation uses trade events only (`MARKET|TARGETED`); OHLC prices use `MARKET` only
 - When `history_cache=false`, results are computed from ledger scan: `market_only=false`, and bucket entries include `first_ts`/`last_ts`
+- When `history_cache=false`, `market` vs `targeted` trades are not distinguishable (both treated as `trade`)
+- `-type` defaults to `all` for `events`, to `market` for `ohlc`, and to `trade` for `volume`
+- `events` format requires both `history_cache=true` and `cache_enabled=true`
 
-**Mode Requirements:**
-| Mode | Requirements |
-|------|--------------|
+**Format Requirements:**
+| Format | Requirements |
+|--------|--------------|
 | `ohlc` | None (bucket optional) |
 | `volume` | None (bucket optional) |
-| `trades` | `history_cache=true` and `memcached=true` |
+| `events` | `history_cache=true` and `cache_enabled=true` |
+
+---
+
+#### Format: Events (default)
+
+Default `-type` is `all`.
+
+Returns all recorded events without type filtering.
+
+```bash
+srv_dex history -net TestNet -pair KEL/USDT
+```
+
+```json
+{
+  "pair": "KEL/USDT",
+  "events": [...],
+  "count": 123
+}
+```
 
 ---
 
@@ -455,7 +488,7 @@ srv_dex history \
 When `-bucket` is omitted, returns only aggregate totals without time series:
 
 ```bash
-srv_dex history -net TestNet -pair KEL/USDT -from -7d
+srv_dex history -net TestNet -pair KEL/USDT -view ohlc -from -7d
 ```
 
 ```json
@@ -476,12 +509,14 @@ srv_dex history -net TestNet -pair KEL/USDT -from -7d
 
 ---
 
-#### Mode: OHLC (default)
+#### Format: OHLC
+
+Default `-type` is `market`.
 
 Returns OHLC candlestick data with volume and trade count per bucket.
 
 ```bash
-srv_dex history -net TestNet -pair KEL/USDT -bucket 3600 -fill -from -24h
+srv_dex history -net TestNet -pair KEL/USDT -view ohlc -bucket 3600 -fill -from -24h
 ```
 
 ```json
@@ -514,12 +549,14 @@ srv_dex history -net TestNet -pair KEL/USDT -bucket 3600 -fill -from -24h
 
 ---
 
-#### Mode: Volume
+#### Format: Volume
+
+Default `-type` is `trade`.
 
 Returns only volume data per bucket (no OHLC prices).
 
 ```bash
-srv_dex history -net TestNet -pair KEL/USDT -bucket 86400 -mode volume -from -7d
+srv_dex history -net TestNet -pair KEL/USDT -view volume -bucket 86400 -from -7d
 ```
 
 ```json
@@ -548,12 +585,12 @@ srv_dex history -net TestNet -pair KEL/USDT -bucket 86400 -mode volume -from -7d
 
 ---
 
-#### Mode: Trades
+#### Format: Events (trades)
 
-Returns raw trade records. Requires both `history_cache=true` and `memcached=true`.
+Returns raw trade records in events format. Requires both `history_cache=true` and `cache_enabled=true`.
 
 ```bash
-srv_dex history -net TestNet -pair KEL/USDT -mode trades -limit 10
+srv_dex history -net TestNet -pair KEL/USDT -view events -type trade -limit 10
 ```
 
 ```json
@@ -583,13 +620,13 @@ srv_dex history -net TestNet -pair KEL/USDT -mode trades -limit 10
 
 ---
 
-#### Mode: Orders (order creations only)
+#### Events: Orders (order creations only)
 
 Returns only order creation records (new orders and buyer leftovers).
 Buyer leftovers may be marked as `order+market` or `order+targeted` depending on the last trade classification.
 
 ```bash
-srv_dex history -net TestNet -pair KEL/USDT -mode trades -orders -limit 10
+srv_dex history -net TestNet -pair KEL/USDT -view events -type order -limit 10
 ```
 
 ```json
@@ -616,17 +653,17 @@ srv_dex history -net TestNet -pair KEL/USDT -mode trades -orders -limit 10
 
 #### Filter by Order Hash
 
-Find all trades related to a specific order (by root or tail hash).
+Find all events related to a specific order (by root or tail hash).
 
 ```bash
-srv_dex history -net TestNet -pair KEL/USDT -mode trades -order 0x1234...abcd
+srv_dex history -net TestNet -view events -order 0x1234...abcd
 ```
 
 ```json
 {
   "pair": "KEL/USDT",
   "order_root": "0x1234...abcd",
-  "trades": [...],
+  "history": [...],
   "count": 5
 }
 ```
@@ -634,12 +671,12 @@ srv_dex history -net TestNet -pair KEL/USDT -mode trades -order 0x1234...abcd
 **Notes:**
 - If tail hash is provided, it is automatically resolved to root via ledger lookup.
 - Filtering by `-order` uses `order_root` resolution + trade-by-trade root matching (requires ledger access).
-- Works with all modes: `trades`, `ohlc`, `volume`
+- Works with all formats: `events`, `ohlc`, `volume`
 
 **Order OHLCV Example:**
 
 ```bash
-srv_dex history -net TestNet -pair KEL/USDT -order 0x1234...abcd -bucket 3600
+srv_dex history -net TestNet -view ohlc -order 0x1234...abcd -bucket 3600
 ```
 
 ```json

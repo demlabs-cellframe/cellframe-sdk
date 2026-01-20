@@ -52,8 +52,8 @@ static void s_setup(bool a_cache) {
     TEST_MKDIR(l_config_dir);
     
     const char *l_config_content = a_cache ?
-        "[general]\ndebug_mode=true\n[srv_dex]\nmemcached=true\nhistory_cache=true\n" :
-        "[general]\ndebug_mode=true";
+        "[general]\ndebug_mode=true\n[srv_dex]\ncache_enabled=true\nhistory_cache=true\n" :
+        "[general]\ndebug_mode=true\n[srv_dex]\ncache_enabled=false\n";
     
     char l_config_path[256], l_log_path[100];
     snprintf(l_config_path, sizeof(l_config_path), "%s/test.cfg", l_config_dir);
@@ -204,7 +204,7 @@ static int s_test_cli_bucket_alignment(dex_test_fixture_t *fixture) {
     for (size_t i = 0; i < sizeof(buckets)/sizeof(buckets[0]); i++) {
         char l_json_request[1024];
         snprintf(l_json_request, sizeof(l_json_request),
-            "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;ohlc;-bucket;%"DAP_UINT64_FORMAT_U"\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+            "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-view;ohlc;-bucket;%"DAP_UINT64_FORMAT_U"\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
             fixture->net->net->pub.name, buckets[i].sec);
         
         log_it(L_INFO, "Testing bucket %s (%"DAP_UINT64_FORMAT_U" sec)", buckets[i].name, buckets[i].sec);
@@ -291,11 +291,11 @@ static int s_test_cli_bucket_alignment(dex_test_fixture_t *fixture) {
 }
 
 static int s_test_cli_raw_trades(dex_test_fixture_t *fixture) {
-    log_it(L_NOTICE, "=== CLI Test: Raw Trades (history -mode trades) ===");
+    log_it(L_NOTICE, "=== CLI Test: Raw Trades (history -view events -type trade) ===");
     
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
-        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;trades\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-view;events;-type;trade\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
         fixture->net->net->pub.name);
     
     log_it(L_INFO, "CLI request: %s", l_json_request);
@@ -406,11 +406,11 @@ static int s_test_cli_raw_trades(dex_test_fixture_t *fixture) {
 }
 
 static int s_test_cli_history_orders(dex_test_fixture_t *fixture) {
-    log_it(L_NOTICE, "=== CLI Test: History Orders Only (history -orders) ===");
+    log_it(L_NOTICE, "=== CLI Test: History Orders Only (history -view events -type order) ===");
     
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
-        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;trades;-orders\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-view;events;-type;order\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
         fixture->net->net->pub.name);
     
     log_it(L_INFO, "CLI request: %s", l_json_request);
@@ -454,7 +454,7 @@ static int s_test_cli_history_orders(dex_test_fixture_t *fixture) {
     json_object *l_orders = NULL, *l_count = NULL;
     if (!json_object_object_get_ex(l_result, "orders", &l_orders) ||
         !json_object_object_get_ex(l_result, "count", &l_count)) {
-        log_it(L_ERROR, "Missing 'orders' or 'count' in result (check -orders filter)");
+        log_it(L_ERROR, "Missing 'orders' or 'count' in result (check -type order filter)");
         json_object_put(l_json);
         return -6;
     }
@@ -508,11 +508,11 @@ static int s_test_cli_history_orders(dex_test_fixture_t *fixture) {
 }
 
 static int s_test_cli_history_ohlc(dex_test_fixture_t *fixture) {
-    log_it(L_NOTICE, "=== CLI Test: History OHLC (history -mode ohlc -bucket) ===");
+    log_it(L_NOTICE, "=== CLI Test: History OHLC (history -view ohlc -bucket) ===");
     
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
-        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;ohlc;-bucket;3600\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-view;ohlc;-bucket;3600\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
         fixture->net->net->pub.name);
     
     log_it(L_INFO, "CLI request: %s", l_json_request);
@@ -604,11 +604,11 @@ static int s_test_cli_history_ohlc(dex_test_fixture_t *fixture) {
 }
 
 static int s_test_cli_volume(dex_test_fixture_t *fixture) {
-    log_it(L_NOTICE, "=== CLI Test: Volume via History (history -mode volume) ===");
+    log_it(L_NOTICE, "=== CLI Test: Volume via History (history -view volume) ===");
     
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
-        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;volume;-bucket;3600\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-view;volume;-bucket;3600\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
         fixture->net->net->pub.name);
     
     log_it(L_INFO, "CLI request: %s", l_json_request);
@@ -649,7 +649,7 @@ static int s_test_cli_volume(dex_test_fixture_t *fixture) {
         return -5;
     }
     
-    // Check totals (history -mode volume returns totals with sum_base/sum_quote)
+    // Check totals (history -view volume returns totals with sum_base/sum_quote)
     json_object *l_totals = NULL;
     if (!json_object_object_get_ex(l_result, "totals", &l_totals)) {
         log_it(L_ERROR, "Missing 'totals' in result");
@@ -715,7 +715,7 @@ static int s_test_cli_history_by_order(dex_test_fixture_t *fixture, const char *
     
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
-        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;trades;-order;%s\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-view;events;-order;%s\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
         fixture->net->net->pub.name, a_order_hash);
     
     log_it(L_INFO, "CLI request: %s", l_json_request);
@@ -772,12 +772,12 @@ static int s_test_cli_history_by_order(dex_test_fixture_t *fixture, const char *
     
     int l_total = json_object_get_int(l_count);
     int l_arr_len = json_object_array_length(l_trades);
-    log_it(L_NOTICE, "Trades for order %s: count=%d, array_length=%d", a_order_hash, l_total, l_arr_len);
+    log_it(L_NOTICE, "Events for order %s: count=%d, array_length=%d", a_order_hash, l_total, l_arr_len);
     
-    // For a matched order, we expect at least one trade
+    // For a matched order, we expect at least one event
     // Note: if order was never matched, count=0 is valid - but our lifecycle tests DO execute orders
     if (l_total == 0) {
-        log_it(L_ERROR, "No trades found for order - filter logic might be broken!");
+        log_it(L_ERROR, "No events found for order - filter logic might be broken!");
         json_object_put(l_json);
         return -8;
     }
@@ -812,7 +812,7 @@ static const char *s_get_first_order_hash(dex_test_fixture_t *fixture) {
     // Get first TRADE (not ORDER) - its prev_tail points to the consumed order
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
-        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-mode;trades;-limit;1\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;KEL/USDT;-view;events;-type;trade;-limit;1\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
         fixture->net->net->pub.name);
     
     log_it(L_DEBUG, "s_get_first_order_hash: request=%s", l_json_request);
@@ -949,7 +949,7 @@ int main(int argc, char *argv[]) {
         log_it(L_WARNING, "Skipping raw trades test (requires cache)");
     }
     
-    // Test history -orders filter - STRICT (requires cache)
+    // Test history -type order filter - STRICT (requires cache)
     if (s_cache_enabled) {
         ret = s_test_cli_history_orders(fixture);
         if (ret != 0) {
@@ -962,7 +962,7 @@ int main(int argc, char *argv[]) {
         log_it(L_WARNING, "Skipping history orders test (requires cache)");
     }
     
-    // Test history -mode ohlc -bucket
+    // Test history -view ohlc -bucket
     ret = s_test_cli_history_ohlc(fixture);
     if (ret != 0) {
         log_it(L_ERROR, "History OHLC test FAILED with code %d", ret);

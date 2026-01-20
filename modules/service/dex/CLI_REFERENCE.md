@@ -144,7 +144,7 @@ List all active orders for specified pair. Returns order details: hash, value, r
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `-net` | yes | Network name |
-| `-pair` | yes | Trading pair `BASE/QUOTE` |
+| `-pair` | yes | Trading pair `BASE/QUOTE` (alternative to `-order`) |
 | `-seller` | no | Filter by seller address |
 | `-limit` | no | Max results |
 | `-offset` | no | Pagination offset |
@@ -179,14 +179,24 @@ srv_dex orderbook -net Backbone -pair KEL/USDT -depth 10 cumulative
 ---
 
 ### `srv_dex history`
-Transaction history for specific order. Shows all state changes: creation, partial fills, updates, cancellation. Traces order chain from root to current tail.
+Unified history for a trading pair. By default returns all events; use `-view` and `-type` to filter and aggregate.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `-net` | yes | Network name |
-| `-order` | yes | Order root hash |
+| `-pair` | yes | Trading pair `BASE/QUOTE` |
+| `-view` | no | `events` (default), `ohlc`, `volume` |
+| `-type` | no | `all`, `trade`, `market`, `targeted`, `order`, `update`, `cancel` |
+| `-from` / `-to` | no | Time range (timestamp or natural time) |
+| `-seller` / `-buyer` | no | Filter by seller/buyer address |
+| `-order` | no | Filter by order hash (root or tail); pair is derived from order |
+| `-bucket` | no | Bucket size in seconds for `ohlc`/`volume` |
+| `-fill` | no | Fill missing buckets (uses `history_bucket_sec` if `-bucket` omitted) |
+| `-limit` / `-offset` | no | Pagination for `events` format only |
 
-**Output:** Array of transactions with type, value changes, timestamps.
+**Output:** Events list or aggregated series depending on `-view`.
+
+**Note:** When `history_cache=false`, `market` vs `targeted` trades are not distinguishable (both treated as `trade`).
 
 ---
 

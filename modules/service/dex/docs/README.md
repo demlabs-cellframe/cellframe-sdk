@@ -25,7 +25,7 @@ Add to `cellframe-node.cfg`:
 
 ```ini
 [srv_dex]
-memcached=true
+cache_enabled=true
 history_cache=true
 debug_more=true
 ```

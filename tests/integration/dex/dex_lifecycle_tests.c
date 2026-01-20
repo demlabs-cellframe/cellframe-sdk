@@ -2835,7 +2835,7 @@ static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_confi
     {
         char l_json_request[512];
         snprintf(l_json_request, sizeof(l_json_request),
-            "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;%s/%s;-mode;trades;-orders\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+            "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;%s/%s;-view;events;-type;order\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
             f->net->net->pub.name, base, quote);
         char *l_reply = dap_cli_cmd_exec(l_json_request);
         if (l_reply) {
@@ -3181,7 +3181,7 @@ static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_c
     {
         char l_json_request[512];
         snprintf(l_json_request, sizeof(l_json_request),
-            "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;%s/%s;-mode;trades;-orders\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+            "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-pair;%s/%s;-view;events;-type;order\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
             f->net->net->pub.name, base, quote);
         char *l_reply = dap_cli_cmd_exec(l_json_request);
         if (l_reply) {

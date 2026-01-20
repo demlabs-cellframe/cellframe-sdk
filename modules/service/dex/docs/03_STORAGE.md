@@ -14,7 +14,7 @@ DEX uses a multi-level storage architecture:
 
 ```ini
 [srv_dex]
-memcached=true             # Enable order cache
+cache_enabled=true         # Enable order cache
 history_cache=true         # Enable history cache
 history_bucket_sec=86400   # Storage bucket size (default: 1 day)
 debug_more=true            # Extended debug logging (default)

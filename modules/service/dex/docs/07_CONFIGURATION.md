@@ -13,7 +13,7 @@
 ```ini
 [srv_dex]
 # Enable in-memory order cache for fast matching
-memcached=true
+cache_enabled=true
 
 # Enable OHLCV history cache
 history_cache=true
@@ -32,14 +32,14 @@ debug_more=true
 
 ## Configuration Parameters
 
-### memcached
+### cache_enabled
 
 | Value | Description |
 |-------|-------------|
 | `true` | Enable hot order cache (faster matching) |
 | `false` | All queries hit ledger (slower, no extra memory) |
 
-**Default:** `false`
+**Default:** `true`
 
 **Impact:**
 - `true`: O(1) order lookups, sorted pair buckets
@@ -54,12 +54,12 @@ debug_more=true
 | `true` | Enable OHLCV aggregation |
 | `false` | No historical analytics |
 
-**Default:** `false`
+**Default:** `true`
 
 **Commands affected:**
-- `srv_dex history -mode volume`
-- `srv_dex history -mode ohlc`
-- `srv_dex history -mode trades`
+- `srv_dex history -view volume`
+- `srv_dex history -view ohlc`
+- `srv_dex history -view events`
 
 ---
 
