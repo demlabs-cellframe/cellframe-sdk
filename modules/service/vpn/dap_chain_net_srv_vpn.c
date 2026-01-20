@@ -1951,9 +1951,8 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 log_it(L_DEBUG, "[VPN->TUN] Writing %u bytes to TUN, usage_id=%u, worker=%u",
                        l_vpn_pkt->header.op_data.data_size, l_vpn_pkt->header.usage_id, a_ch->stream_worker->worker->id);
-                // Write only IP packet data to TUN, not VPN header
-                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data,
-                    l_vpn_pkt->header.op_data.data_size);
+                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
+                    sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size) - sizeof(l_vpn_pkt->header);
                 l_srv_session->stats.bytes_sent += l_ret;
                 l_usage->client->bytes_sent += l_ret;
                 s_update_limits(a_ch, l_srv_session, l_usage, l_ret);
