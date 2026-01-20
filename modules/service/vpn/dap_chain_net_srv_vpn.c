@@ -1944,7 +1944,13 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     return false;
                 }
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
-                assert(l_tun);
+                if (!l_tun || !l_tun->es) {
+                    log_it(L_ERROR, "TUN socket not found for worker #%u, dropping VPN packet (usage_id=%u)",
+                           a_ch->stream_worker->worker->id, l_vpn_pkt->header.usage_id);
+                    return false;
+                }
+                log_it(L_DEBUG, "[VPN->TUN] Writing %u bytes to TUN, usage_id=%u, worker=%u",
+                       l_vpn_pkt->header.op_data.data_size, l_vpn_pkt->header.usage_id, a_ch->stream_worker->worker->id);
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
                     sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size) - sizeof(l_vpn_pkt->header);
                 l_srv_session->stats.bytes_sent += l_ret;
