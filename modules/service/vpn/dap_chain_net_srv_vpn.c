@@ -1951,8 +1951,9 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 log_it(L_DEBUG, "[VPN->TUN] Writing %u bytes to TUN, usage_id=%u, worker=%u",
                        l_vpn_pkt->header.op_data.data_size, l_vpn_pkt->header.usage_id, a_ch->stream_worker->worker->id);
-                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
-                    sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size) - sizeof(l_vpn_pkt->header);
+                // Write only IP packet data to TUN, not VPN header
+                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data,
+                    l_vpn_pkt->header.op_data.data_size);
                 l_srv_session->stats.bytes_sent += l_ret;
                 l_usage->client->bytes_sent += l_ret;
                 s_update_limits(a_ch, l_srv_session, l_usage, l_ret);
@@ -2149,6 +2150,10 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
         if ( l_tun_socket->clients){
             HASH_FIND_INT( l_tun_socket->clients,&l_in_daddr.s_addr,l_vpn_info );
         }
+        char l_str_dst[INET_ADDRSTRLEN] = {0};
+        inet_ntop(AF_INET, &l_in_daddr, l_str_dst, sizeof(l_str_dst));
+        log_it(L_DEBUG, "[TUN->VPN] Read %zu bytes from TUN, dst=%s, vpn_info=%p, worker=%u",
+               l_buf_in_size, l_str_dst, (void*)l_vpn_info, l_tun_socket->worker_id);
         if (l_vpn_info) {
             if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once && s_raw_server->auto_cpu_reassignment) {
                 log_it(L_NOTICE, "Reassigning from worker %u to %u", l_vpn_info->worker->id, a_es->worker->id);
@@ -2174,11 +2179,12 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
                 inet_ntop(AF_INET, &l_saddr, l_str_saddr, sizeof(l_str_saddr));
                 inet_ntop(AF_INET, &l_daddr, l_str_daddr, sizeof(l_str_daddr));
             }
+            log_it(L_DEBUG, "[TUN->VPN] Sending %zu bytes to client, usage_id=%u",
+                   l_buf_in_size, l_vpn_info->usage_id);
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
-        } else if(s_debug_more) {
-            char l_str_daddr[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, sizeof(l_in_daddr));
-            log_it(L_WARNING, "Can't find route for desitnation %s", l_str_daddr);
+        } else {
+            log_it(L_WARNING, "[TUN->VPN] Can't find route for destination %s (no vpn_info in clients hash)",
+                   l_str_dst);
         }
         a_es->buf_in_size = 0;
     }
