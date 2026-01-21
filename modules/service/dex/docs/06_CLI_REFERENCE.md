@@ -605,6 +605,8 @@ srv_dex history -net TestNet -pair KEL/USDT -view events -type trade -limit 10
       "quote": "801.50",
       "tx_hash": "0x1234...abcd",
       "prev_tail": "0x5678...efgh",
+      "order_root": "0x9abc...def0",
+      "filled_pct": 12,
       "seller": "mJUaYn...",
       "buyer": "mZkPqR...",
       "type": "market"
@@ -641,6 +643,8 @@ srv_dex history -net TestNet -pair KEL/USDT -view events -type order -limit 10
       "quote": "4000.0",
       "tx_hash": "0xabcd...1234",
       "prev_tail": "0x0000...0000",
+      "order_root": "0xabcd...1234",
+      "filled_pct": 0,
       "seller": "mJUaYn...",
       "type": "order"
     }
@@ -890,6 +894,7 @@ srv_dex orders -net TestNet -pair KEL/USDT
       "tail": "0x456...",
       "price": "2.500000000000000000",
       "value_sell": "100.000000000000000000",
+      "filled_pct": 0,
       "seller": "mJUUJk5RwvMCFv6gHJjRdQqLqw3MPHaNS7w9w2w3KtKjoZu4MNH64G",
       "created": "Wed, 25 Dec 2024 12:00:00 GMT",
       "expires": "Fri, 25 Dec 2025 12:00:00 GMT",
@@ -903,6 +908,7 @@ srv_dex orders -net TestNet -pair KEL/USDT
       "tail": "0xabc...",
       "price": "2.400000000000000000",
       "value_sell": "50.000000000000000000",
+      "filled_pct": 0,
       "seller": "mJUUJkA2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P7Q8R9S0T1U2V3W4",
       "created": "Wed, 25 Dec 2024 11:58:20 GMT",
       "ts": 1735127900,
@@ -921,6 +927,7 @@ srv_dex orders -net TestNet -pair KEL/USDT
 | `tail` | Tail transaction hash (current state) |
 | `price` | Exchange rate (quote per base unit) |
 | `value_sell` | Remaining sell amount |
+| `filled_pct` | Current fill percentage (0-100) relative to last update |
 | `seller` | Seller wallet address |
 | `created` | Creation timestamp (RFC822 format) |
 | `expires` | Expiration timestamp (RFC822), omitted if no expiration |

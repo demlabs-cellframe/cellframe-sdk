@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
@@ -3700,10 +3700,17 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_datum_by_hash(dap_ledger_t *a_ledger, c
     return l_tx_ret;
 }
 
-dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_subtype_t a_cond_type)
+/*
+ * Get first chain tx hash and optional OUT_COND pointer.
+ */
+dap_hash_fast_t dap_ledger_get_first_chain_tx_hash_ex(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                      dap_chain_tx_out_cond_subtype_t a_cond_type,
+                                                      dap_chain_tx_out_cond_t **a_out_cond)
 {
-    dap_hash_fast_t l_hash = { }, l_hash_tmp;
+    dap_hash_fast_t l_hash = { }, l_hash_prev;
     dap_return_val_if_fail(a_ledger && a_tx, l_hash);
+    if (a_out_cond)
+        *a_out_cond = NULL;
     dap_chain_datum_tx_t *l_prev_tx = a_tx;
     byte_t *l_iter = a_tx->tx_items;
     // SRV_DEX special-case: root is recorded in order_root_hash field
@@ -3716,19 +3723,68 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
         //  - Buyer-leftover: fresh order starting new chain from this EXCHANGE
         // In both cases head-of-chain semantics are handled by callers using the tx hash,
         // so we return blank here as a sentinel without traversing IN_COND backwards.
-        if (l_oc)
+        if (l_oc) {
+            if (a_out_cond)
+                *a_out_cond = l_oc;
             return dap_hash_fast_is_blank(&l_oc->subtype.srv_dex.order_root_hash) ? l_hash : l_oc->subtype.srv_dex.order_root_hash;
+        }
+        // No OUT_COND: derive root from IN_COND, allow multi-IN only if signer owns all roots
+        dap_hash_fast_t l_root = {}, l_sign_hash = {};
+        bool l_owner_match = true;
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_sign = l_tx_sig ? dap_chain_datum_tx_item_sign_get_sig(l_tx_sig) : NULL;
+        bool l_have_sign = l_sign && dap_sign_get_pkey_hash(l_sign, &l_sign_hash);
+        byte_t *l_iter_in = a_tx->tx_items;
+        int l_in_cnt = 0;
+        while ((l_iter_in = dap_chain_datum_tx_item_get(a_tx, NULL, l_iter_in, TX_ITEM_TYPE_IN_COND, NULL))) {
+            dap_chain_tx_in_cond_t *l_in = (dap_chain_tx_in_cond_t *)l_iter_in;
+            l_hash_prev = l_in->header.tx_prev_hash;
+            if (dap_hash_fast_is_blank(&l_hash_prev))
+                return l_hash_prev;
+            l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_prev);
+            if (!l_prev_tx)
+                return l_hash;
+            int l_prev_idx = (int)l_in->header.tx_out_prev_idx;
+            dap_chain_tx_out_cond_t *l_prev =
+                dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_idx);
+            if (!l_prev)
+                return l_hash;
+            dap_hash_fast_t l_root_i = dap_hash_fast_is_blank(&l_prev->subtype.srv_dex.order_root_hash)
+                                           ? l_hash_prev
+                                           : l_prev->subtype.srv_dex.order_root_hash;
+            if (dap_hash_fast_is_blank(&l_root))
+                l_root = l_root_i;
+            l_in_cnt++;
+            dap_chain_datum_tx_t *l_owner_tx =
+                dap_hash_fast_compare(&l_root_i, &l_hash_prev) ? l_prev_tx : dap_ledger_tx_find_by_hash(a_ledger, &l_root_i);
+            dap_chain_tx_sig_t *l_owner_sig =
+                l_owner_tx ? (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL) : NULL;
+            dap_sign_t *l_owner_sign = l_owner_sig ? dap_chain_datum_tx_item_sign_get_sig(l_owner_sig) : NULL;
+            dap_hash_fast_t l_owner_hash = {};
+            if (!l_have_sign || !l_owner_sign || !dap_sign_get_pkey_hash(l_owner_sign, &l_owner_hash) ||
+                !dap_hash_fast_compare(&l_owner_hash, &l_sign_hash))
+                l_owner_match = false;
+            if (l_in_cnt > 1 && !l_owner_match)
+                return l_hash;
+        }
+        return (dap_hash_fast_is_blank(&l_root) || (l_in_cnt > 1 && !l_owner_match)) ? l_hash : l_root;
     }
     while (( l_iter = dap_chain_datum_tx_item_get(l_prev_tx, NULL, l_iter, TX_ITEM_TYPE_IN_COND, NULL) )) {
-        l_hash_tmp =  ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
-        if ( dap_hash_fast_is_blank(&l_hash_tmp) )
-            return l_hash_tmp;
-        if (( l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_tmp) ) &&
+        l_hash_prev =  ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
+        if ( dap_hash_fast_is_blank(&l_hash_prev) )
+            return l_hash_prev;
+        if (( l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_prev) ) &&
                 ( dap_chain_datum_tx_out_cond_get(l_prev_tx, a_cond_type, NULL) )) {
-            l_hash = l_hash_tmp;
+            l_hash = l_hash_prev;
         }
     }
     return l_hash;
+}
+
+dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                   dap_chain_tx_out_cond_subtype_t a_cond_type)
+{
+    return dap_ledger_get_first_chain_tx_hash_ex(a_ledger, a_tx, a_cond_type, NULL);
 }
 
 dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash, bool a_unspent_only)
