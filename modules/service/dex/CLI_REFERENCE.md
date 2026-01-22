@@ -185,18 +185,21 @@ Unified history for a trading pair. By default returns all events; use `-view` a
 |-----------|----------|-------------|
 | `-net` | yes | Network name |
 | `-pair` | yes | Trading pair `BASE/QUOTE` |
-| `-view` | no | `events` (default), `ohlc`, `volume` |
+| `-view` | no | `events` (default), `summary`, `ohlc`, `volume` |
 | `-type` | no | `all`, `trade`, `market`, `targeted`, `order`, `update`, `cancel` |
 | `-from` / `-to` | no | Time range (timestamp or natural time) |
 | `-seller` / `-buyer` | no | Filter by seller/buyer address |
 | `-order` | no | Filter by order hash (root or tail); pair is derived from order |
 | `-bucket` | no | Bucket size in seconds for `ohlc`/`volume` |
 | `-fill` | no | Fill missing buckets (uses `history_bucket_sec` if `-bucket` omitted) |
-| `-limit` / `-offset` | no | Pagination for `events` format only |
+| `-limit` / `-offset` | no | Pagination for `events` and `summary` |
 
-**Output:** Events list or aggregated series depending on `-view`.
+**Output:** Events list, per-order summary, or aggregated series depending on `-view`.
 
-**Note:** When `history_cache=false`, `market` vs `targeted` trades are not distinguishable (both treated as `trade`).
+**Notes:**
+- `summary` returns last event per order and ignores `-from`/`-to`.
+- `events` and `summary` require `history_cache=true` and `cache_enabled=true`.
+- When `history_cache=false`, `market` vs `targeted` trades are not distinguishable (both treated as `trade`).
 
 ---
 

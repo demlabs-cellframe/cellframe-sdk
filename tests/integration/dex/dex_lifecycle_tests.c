@@ -2831,7 +2831,7 @@ static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_confi
     }
     log_it(L_NOTICE, "✓ M03: Alice matched Bob's buyer-leftover order");
     
-    // Verify buyer-leftover type in history cache (must be order+market or order+targeted)
+    // Verify buyer-leftover type in history cache (must be market trade | new order or targeted trade | new order)
     {
         char l_json_request[512];
         snprintf(l_json_request, sizeof(l_json_request),
@@ -2860,10 +2860,13 @@ static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_confi
                                 if (l_hash_str && !dap_strcmp(l_hash_str, l_tx1_hash_str)) {
                                     const char *l_type_str = json_object_get_string(l_type);
                                     l_found = true;
-                                    if (!dap_strcmp(l_type_str, "order+market") || !dap_strcmp(l_type_str, "order+targeted")) {
+                                    if (!dap_strcmp(l_type_str, "market trade | new order") ||
+                                        !dap_strcmp(l_type_str, "targeted trade | new order")) {
                                         log_it(L_NOTICE, "✓ M03: Buyer-leftover type verified: %s", l_type_str);
                                     } else {
-                                        log_it(L_ERROR, "M03: Buyer-leftover has wrong type '%s', expected order+market or order+targeted", l_type_str);
+                                        log_it(L_ERROR,
+                                               "M03: Buyer-leftover has wrong type '%s', expected market trade | new order or targeted trade | new order",
+                                               l_type_str);
                                         json_object_put(l_json);
                                         return -6;
                                     }
@@ -3177,7 +3180,7 @@ static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_c
     }
     log_it(L_NOTICE, "✓ M06: Carol matched Alice's buyer-leftover ASK order");
     
-    // Verify buyer-leftover type in history cache (must be order+market or order+targeted)
+    // Verify buyer-leftover type in history cache (must be market trade | new order or targeted trade | new order)
     {
         char l_json_request[512];
         snprintf(l_json_request, sizeof(l_json_request),
@@ -3206,10 +3209,13 @@ static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_c
                                 if (l_hash_str && !dap_strcmp(l_hash_str, l_tx1_hash_str)) {
                                     const char *l_type_str = json_object_get_string(l_type);
                                     l_found = true;
-                                    if (!dap_strcmp(l_type_str, "order+market") || !dap_strcmp(l_type_str, "order+targeted")) {
+                                    if (!dap_strcmp(l_type_str, "market trade | new order") ||
+                                        !dap_strcmp(l_type_str, "targeted trade | new order")) {
                                         log_it(L_NOTICE, "✓ M06: Buyer-leftover type verified: %s", l_type_str);
                                     } else {
-                                        log_it(L_ERROR, "M06: Buyer-leftover has wrong type '%s', expected order+market or order+targeted", l_type_str);
+                                        log_it(L_ERROR,
+                                               "M06: Buyer-leftover has wrong type '%s', expected market trade | new order or targeted trade | new order",
+                                               l_type_str);
                                         json_object_put(l_json);
                                         return -6;
                                     }

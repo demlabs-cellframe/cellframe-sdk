@@ -404,7 +404,7 @@ srv_dex history \
   [-pair <BASE/QUOTE> | -order <hash>] \
   [-from <timestamp>] \
   [-to <timestamp>] \
-  [-view events|ohlc|volume] \
+  [-view events|summary|ohlc|volume] \
   [-type all|trade|market|targeted|order|update|cancel] \
   [-bucket <seconds>] \
   [-seller <address>] \
@@ -418,20 +418,21 @@ srv_dex history \
 | Parameter | Description |
 |-----------|-------------|
 | `-pair` | Trading pair `BASE/QUOTE` (alternative to `-order`) |
-| `-view` | Output format: `events` (default), `ohlc`, `volume` |
+| `-view` | Output format: `events` (default), `summary`, `ohlc`, `volume` |
 | `-type` | Event filter: `all`, `trade`, `market`, `targeted`, `order`, `update`, `cancel` |
 | `-bucket` | Bucket size in seconds (optional for ohlc/volume; omit to get totals only) |
 | `-fill` | Fill empty buckets with previous close (uses `history_bucket_sec` when `-bucket` is omitted) |
 | `-seller` | Filter by seller address |
 | `-buyer` | Filter by buyer address |
-| `-limit` | Maximum records to return (events format only) |
-| `-offset` | Skip first N records (events format only) |
+| `-limit` | Maximum records to return (`events`/`summary` only) |
+| `-offset` | Skip first N records (`events`/`summary` only) |
 | `-order` | Filter by specific order hash (root or tail); pair is derived from order |
 
 **Format Compatibility:**
 | Format | Valid Parameters | Invalid Parameters |
 |--------|------------------|-------------------|
 | `events` | `-from`, `-to`, `-seller`, `-buyer`, `-order`, `-type`, `-limit`, `-offset` | `-bucket`, `-fill` |
+| `summary` | `-seller`, `-order`, `-type`, `-limit`, `-offset` | `-bucket`, `-fill` |
 | `ohlc` | `-bucket`, `-fill`, `-from`, `-to`, `-seller`, `-buyer`, `-order`, `-type` | `-limit`, `-offset` |
 | `volume` | `-bucket`, `-fill`, `-from`, `-to`, `-seller`, `-buyer`, `-order`, `-type` | `-limit`, `-offset` |
 
@@ -452,7 +453,8 @@ srv_dex history \
 - When `history_cache=false`, results are computed from ledger scan: `market_only=false`, and bucket entries include `first_ts`/`last_ts`
 - When `history_cache=false`, `market` vs `targeted` trades are not distinguishable (both treated as `trade`)
 - `-type` defaults to `all` for `events`, to `market` for `ohlc`, and to `trade` for `volume`
-- `events` format requires both `history_cache=true` and `cache_enabled=true`
+- `summary` format returns per-order last event and ignores `-from`/`-to`
+- `events` and `summary` formats require both `history_cache=true` and `cache_enabled=true`
 
 **Format Requirements:**
 | Format | Requirements |
@@ -460,6 +462,7 @@ srv_dex history \
 | `ohlc` | None (bucket optional) |
 | `volume` | None (bucket optional) |
 | `events` | `history_cache=true` and `cache_enabled=true` |
+| `summary` | `history_cache=true` and `cache_enabled=true` |
 
 ---
 
@@ -478,6 +481,24 @@ srv_dex history -net TestNet -pair KEL/USDT
   "pair": "KEL/USDT",
   "events": [...],
   "count": 123
+}
+```
+
+---
+
+#### Format: Summary
+
+Returns one record per order with its last event and execution percent.
+
+```bash
+srv_dex history -net TestNet -pair KEL/USDT -view summary -limit 10
+```
+
+```json
+{
+  "pair": "KEL/USDT",
+  "summary": [...],
+  "count": 10
 }
 ```
 

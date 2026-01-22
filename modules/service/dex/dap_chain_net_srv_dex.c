@@ -5900,8 +5900,9 @@ int dap_chain_net_srv_dex_init()
         "srv_dex slippage -net <net_name> -pair <BASE/QUOTE>\n"
         "    -value <amount> -side buy|sell -unit base|quote [-max_slippage_pct <pct>]\n"
         "srv_dex history -net <net_name> [-pair <BASE/QUOTE> | -order <hash>] [-from <ts>] [-to <ts>] [-seller <addr>] [-buyer <addr>]\n"
-        "    [-view events|ohlc|volume]\n"
-        "      events(default): [-type all|trade|market|targeted|order|update|cancel] [-limit <N>] [-offset <N>]\n"
+        "    [-view events|summary|ohlc|volume]\n"
+        "      events(default):  [-type all|trade|market|targeted|order|update|cancel] [-limit <N>] [-offset <N>]\n"
+        "      summary:          [-type all|trade|market|targeted|order|update|cancel] [-limit <N>] [-offset <N>]\n"
         "      ohlc:            [-type market|trade] [-bucket <sec>] [-fill]\n"
         "      volume:          [-type market|targeted|trade] [-bucket <sec> [-fill]]\n"
         "    Timestamp <ts>: unix | RFC822 | now | -30m | -1h | -2d\n"
@@ -9236,7 +9237,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 l_filter_flags = DEX_OP_MARKET | DEX_OP_TARGET;
                 l_view = VIEW_VOLUME;
             } else
-                return dap_json_rpc_error_add(*json_arr_reply, -2, "bad view %s, use: events | ohlc | volume", l_view_str), -2;
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "bad view %s, use: events | summary | ohlc | volume", l_view_str), -2;
         }
         if (l_type_str) {
             if (!strcmp(l_type_str, "market"))

@@ -372,8 +372,8 @@ static int s_test_cli_raw_trades(dex_test_fixture_t *fixture) {
             return -10;
         }
         const char *l_type_str = json_object_get_string(l_type);
-        if (dap_strcmp(l_type_str, "market") != 0 && dap_strcmp(l_type_str, "targeted") != 0) {
-            log_it(L_ERROR, "Unexpected type '%s' in trades (expected market/targeted)", l_type_str);
+        if (dap_strcmp(l_type_str, "market trade") != 0 && dap_strcmp(l_type_str, "targeted trade") != 0) {
+            log_it(L_ERROR, "Unexpected type '%s' in trades (expected market trade/targeted trade)", l_type_str);
             json_object_put(l_json);
             return -8;
         }
@@ -486,8 +486,9 @@ static int s_test_cli_history_orders(dex_test_fixture_t *fixture) {
             return -10;
         }
         const char *l_type_str = json_object_get_string(l_type);
-        if (dap_strcmp(l_type_str, "order") != 0 && dap_strcmp(l_type_str, "order+market") != 0 && dap_strcmp(l_type_str, "order+targeted") != 0) {
-            log_it(L_ERROR, "Expected type 'order|order+market|order+targeted', got '%s'", l_type_str);
+        if (dap_strcmp(l_type_str, "new order") != 0 && dap_strcmp(l_type_str, "market trade | new order") != 0 &&
+            dap_strcmp(l_type_str, "targeted trade | new order") != 0) {
+            log_it(L_ERROR, "Expected type 'new order|market trade | new order|targeted trade | new order', got '%s'", l_type_str);
             json_object_put(l_json);
             return -8;
         }

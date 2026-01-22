@@ -335,7 +335,7 @@ typedef struct dex_hist_order_idx {
 
 Enables O(1) lookup of all events for a specific order by its root hash.
 
-**Usage:** `srv_dex history -order <hash>` uses this index for efficient filtering when `history_cache=true`.
+**Usage:** `srv_dex history -order <hash>` and `srv_dex history -view summary` use this index when `history_cache=true`.
 
 **Structure in `dex_hist_pair_t`:**
 ```c
@@ -350,7 +350,7 @@ typedef struct dex_hist_pair {
 ```
 
 **Index Operations:**
-- `s_hist_order_idx_get_or_create()` — get or create entry by order_root
+- Entry is created on demand during history append by order_root
 - Events linked via `order_next`/`order_prev` pointers in `dex_event_rec_t`
 - Entry removed when last event deleted (empty DL head)
 

@@ -51,7 +51,7 @@ debug_more=true
 
 | Value | Description |
 |-------|-------------|
-| `true` | Enable OHLCV aggregation |
+| `true` | Enable history cache (events, summary, OHLCV) |
 | `false` | No historical analytics |
 
 **Default:** `true`
@@ -60,6 +60,7 @@ debug_more=true
 - `srv_dex history -view volume`
 - `srv_dex history -view ohlc`
 - `srv_dex history -view events`
+- `srv_dex history -view summary`
 
 ---
 
