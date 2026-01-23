@@ -98,19 +98,14 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
     // Verify all keys and its signatures
     uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
     
-    // Get first chain to check is_mapped flag
-    bool l_is_mapped = false;
-    if (a_ledger->chain_ids_count > 0) {
-        dap_chain_info_t *l_chain_info = dap_ledger_get_chain_info(a_ledger, a_ledger->chain_ids[0]);
-        if (l_chain_info && l_chain_info->chain_ptr) {
-            dap_chain_t *l_first_chain = (dap_chain_t *)l_chain_info->chain_ptr;
-            l_is_mapped = l_first_chain->is_mapped;
-        }
+    // Always duplicate decree since we need to modify signs_size field during verification
+    // Original data may be from memory-mapped read-only file
+    dap_chain_datum_decree_t *l_decree = DAP_DUP_SIZE(a_decree, a_data_size);
+    if (!l_decree) {
+        log_it(L_ERROR, "Failed to allocate memory for decree verification");
+        DAP_DELETE(l_unique_signs);
+        return -108;
     }
-    
-    dap_chain_datum_decree_t *l_decree = l_is_mapped
-        ? DAP_DUP_SIZE(a_decree, a_data_size)
-        : a_decree;
     l_decree->header.signs_size = 0;
     size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
 
@@ -131,10 +126,8 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
         l_decree->header.signs_size = l_signs_size_for_current_sign;
     }
 
-    if ( l_is_mapped )
-        DAP_DELETE(l_decree);
-    else
-        l_decree->header.signs_size = l_signs_size;
+    // Always free the duplicated decree
+    DAP_DELETE(l_decree);
     DAP_DELETE(l_unique_signs);
 
     if (l_signs_verify_counter < l_min_signs) {

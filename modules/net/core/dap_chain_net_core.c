@@ -23,35 +23,13 @@ dap_chain_t* dap_chain_net_get_chain_by_id(dap_chain_net_t *a_net, dap_chain_id_
 
 // Forward declarations - these will be resolved at final link from net module
 extern dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
+extern bool dap_chain_net_get_load_mode(dap_chain_net_t *a_net);
 
 // ============ NETWORK REGISTRY ============
-// Global registry of all networks (by name and by ID)
-static dap_chain_net_t *s_nets_by_name = NULL;
-static dap_chain_net_t *s_nets_by_id = NULL;
-
-/**
- * @brief Register network in global registry
- * @param a_net Network to register
- */
-void dap_chain_net_register(dap_chain_net_t *a_net)
-{
-    if (!a_net)
-        return;
-    HASH_ADD_STR(s_nets_by_name, pub.name, a_net);
-    HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), a_net);
-}
-
-/**
- * @brief Unregister network from global registry
- * @param a_net Network to unregister
- */
-void dap_chain_net_unregister(dap_chain_net_t *a_net)
-{
-    if (!a_net)
-        return;
-    HASH_DEL(s_nets_by_name, a_net);
-    HASH_DELETE(hh2, s_nets_by_id, a_net);
-}
+// Reference the global registry from dap_chain_net.c (not duplicated here)
+// Networks are registered in dap_chain_net.c:s_net_new() via HASH_ADD
+extern dap_chain_net_t *s_nets_by_name;
+extern dap_chain_net_t *s_nets_by_id;
 
 /**
  * @brief Find network by name
@@ -192,6 +170,13 @@ dap_chain_t* dap_chain_net_get_chain_by_id(dap_chain_net_t *a_net, dap_chain_id_
  */
 int dap_chain_net_core_init(void)
 {
+    // Initialize API registry first - must be done before registration
+    int l_init_ret = dap_chain_net_api_init();
+    if (l_init_ret != 0) {
+        log_it(L_ERROR, "Failed to initialize network API registry (code %d)", l_init_ret);
+        return -1;
+    }
+    
     // Phase 5.3: Register network API functions for mid-level modules
     // This breaks cyclic dependencies by allowing blocks/esbocs/stake to use
     // core net functions without depending on full net module
@@ -211,7 +196,7 @@ int dap_chain_net_core_init(void)
         .get_chain_by_type = dap_chain_net_get_chain_by_chain_type,
         .get_default_chain_by_type = dap_chain_net_get_default_chain_by_chain_type,
         .get_cur_cell = NULL,       // TODO: Signature mismatch - returns dap_chain_cell_t*, not dap_chain_cell_id_t*
-        .get_load_mode = NULL,      // TODO: Signature mismatch - returns dap_chain_net_load_mode_t, not bool
+        .get_load_mode = dap_chain_net_get_load_mode,
         .get_reward = NULL,         // TODO: Will be set when net module loads
         .add_reward = NULL,         // TODO: Signature mismatch - returns void, not int
         .datum_add_to_mempool = NULL // TODO: Will be set when mempool integration is complete

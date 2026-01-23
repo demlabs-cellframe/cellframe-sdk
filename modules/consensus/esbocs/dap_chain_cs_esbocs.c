@@ -3205,6 +3205,11 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
+    // Check if we're in load mode - skip stake delegate validation during initial chain load
+    // because the stake delegate list is populated FROM the chain data
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_blocks->chain->net_id);
+    bool l_load_mode = l_net ? dap_chain_net_api_get_load_mode(l_net) : false;
+
     if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block) {
         // It's a block candidate, don't check signs
         if (a_block->hdr.version <= 1) {
@@ -3291,7 +3296,8 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
         s_get_precached_key_hash(&l_esbocs_pvt->precached_keys, l_sign, &l_signing_addr.data.hash_fast);
         if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
-            if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
+             // Skip this check during load mode - stake delegates are populated from chain data
+            if (!l_load_mode && !dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
                 if (l_esbocs_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);

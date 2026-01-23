@@ -25,6 +25,7 @@
 #include <errno.h>
 #include "dap_cli_server.h"  // For CLI registration
 #include "dap_chain_mempool.h"
+#include "dap_chain_ledger.h"
 #include "dap_config.h"
 #include "dap_file_utils.h"
 // REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)

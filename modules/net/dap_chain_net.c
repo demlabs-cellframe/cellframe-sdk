@@ -84,6 +84,7 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_core.h"  // For dap_chain_net_core_init()
+#include "dap_chain_net_cli.h"   // For dap_chain_net_cli_init()
 #include "dap_chain_cs_type.h"  // For dap_chain_cs_load/start/stop
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_fee.h"  // Fee management (now in net core)
@@ -308,7 +309,8 @@ int dap_chain_net_init()
     
     // NO MORE callback registration - datum_dump_json moved to ledger module
     
-    // CLI command registration moved to dap_chain_net_cli.c
+    // Initialize CLI commands (help, net, node, version, etc.)
+    dap_chain_net_cli_init();
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
     char l_path[MAX_PATH + 1], *l_end = NULL;

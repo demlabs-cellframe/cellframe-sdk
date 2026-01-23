@@ -42,38 +42,85 @@ static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
 static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version);
 
 static int com_node(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-// REMOVED: int com_net() - legacy CLI handler removed
+static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_help(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_version(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
  * @brief s_net_sync_status - Creates JSON object with network sync status information
  * @param a_net Network object
  * @param a_version API version
- * @return dap_json_t* JSON object with sync status
+ * @return dap_json_t* JSON object with sync status per chain
  */
 static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
 {
-    UNUSED(a_version);
-    dap_json_t *l_json_status = dap_json_object_new();
-    if (!l_json_status || !a_net)
-        return l_json_status;
+    (void)a_version;
+    if (!a_net)
+        return NULL;
 
-    // Add basic sync information
-    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
-    if (l_ledger) {
-        // Get chain count and processed atoms count
-        uint64_t l_atoms_count = 0;
-        dap_chain_t *l_chain = NULL;
-        DL_FOREACH(a_net->pub.chains, l_chain) {
-            if (l_chain && l_chain->callback_count_atom) {
-                l_atoms_count += l_chain->callback_count_atom(l_chain);
-            }
+    dap_json_t *l_jobj_chains = dap_json_object_new();
+    if (!l_jobj_chains)
+        return NULL;
+
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(a_net->pub.chains, l_chain) {
+        if (!l_chain)
+            continue;
+
+        dap_json_t *l_jobj_chain = dap_json_object_new();
+        if (!l_jobj_chain)
+            continue;
+
+        // Chain sync status
+        const char *l_status_str = "unknown";
+        switch (l_chain->state) {
+            case CHAIN_SYNC_STATE_IDLE:
+                l_status_str = "idle";
+                break;
+            case CHAIN_SYNC_STATE_WAITING:
+                l_status_str = "sync in process";
+                break;
+            case CHAIN_SYNC_STATE_SYNCED:
+                l_status_str = "synced";
+                break;
+            default:
+                l_status_str = "unknown";
+                break;
         }
-        
-        dap_json_object_add_object(l_json_status, "atoms_processed", 
-                                    dap_json_object_new_uint64(l_atoms_count));
+        dap_json_object_add_string(l_jobj_chain, "status", l_status_str);
+
+        // Current atom count (blocks or events)
+        uint64_t l_current = 0;
+        if (l_chain->callback_count_atom) {
+            l_current = l_chain->callback_count_atom(l_chain);
+        }
+        dap_json_object_add_object(l_jobj_chain, "current", dap_json_object_new_uint64(l_current));
+
+        // Total atoms in network (from last sync info)
+        uint64_t l_total = l_chain->atom_num_last;
+        dap_json_object_add_object(l_jobj_chain, "in_network", dap_json_object_new_uint64(l_total));
+
+        // Sync percentage
+        if (l_total > 0) {
+            double l_percent = (double)l_current / (double)l_total * 100.0;
+            if (l_percent > 100.0)
+                l_percent = 100.0;
+            char l_percent_str[32];
+            snprintf(l_percent_str, sizeof(l_percent_str), "%.2f%%", l_percent);
+            dap_json_object_add_string(l_jobj_chain, "percent", l_percent_str);
+        } else {
+            dap_json_object_add_string(l_jobj_chain, "percent", "N/A");
+        }
+
+        // Chain type info
+        const char *l_cs_type = dap_chain_get_cs_type(l_chain);
+        dap_json_object_add_string(l_jobj_chain, "type", l_cs_type ? l_cs_type : "unknown");
+
+        // Add chain to chains object
+        dap_json_object_add_object(l_jobj_chains, l_chain->name, l_jobj_chain);
     }
 
-    return l_json_status;
+    return l_jobj_chains;
 }
 
 /**
@@ -1002,14 +1049,103 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
 }
 
 /**
- * @brief com_version
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return
+ * @brief s_cli_help - Display help for commands
+ * @param argc argument count
+ * @param argv arguments
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success
  */
+static int s_cli_help(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    (void)a_version;
+    dap_json_t *l_jobj_return = dap_json_object_new();
+    if (!l_jobj_return) {
+        dap_json_rpc_allocation_error(a_json_arr_reply);
+        return -1;
+    }
 
+    if (argc > 1) {
+        // Help for specific command
+        dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find(argv[1]);
+        if (l_cmd) {
+            dap_json_object_add_string(l_jobj_return, "command", l_cmd->name);
+            dap_json_object_add_string(l_jobj_return, "description", l_cmd->doc ? l_cmd->doc : "(undocumented)");
+            dap_json_object_add_string(l_jobj_return, "usage", l_cmd->doc_ex ? l_cmd->doc_ex : "(no usage info)");
+            dap_json_array_add(a_json_arr_reply, l_jobj_return);
+            return 0;
+        } else {
+            dap_json_object_free(l_jobj_return);
+            dap_json_rpc_error_add(a_json_arr_reply, -1, "Command '%s' not recognized", argv[1]);
+            return -1;
+        }
+    } else {
+        // List all commands
+        dap_json_t *l_jobj_commands = dap_json_array_new();
+        if (!l_jobj_commands) {
+            dap_json_object_free(l_jobj_return);
+            dap_json_rpc_allocation_error(a_json_arr_reply);
+            return -1;
+        }
+
+        dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_get_first();
+        while (l_cmd) {
+            dap_json_t *l_jobj_cmd = dap_json_object_new();
+            if (l_jobj_cmd) {
+                dap_json_object_add_string(l_jobj_cmd, "name", l_cmd->name);
+                dap_json_object_add_string(l_jobj_cmd, "description", l_cmd->doc ? l_cmd->doc : "(undocumented)");
+                dap_json_array_add(l_jobj_commands, l_jobj_cmd);
+            }
+            l_cmd = (dap_cli_cmd_t *)l_cmd->hh.next;
+        }
+
+        dap_json_object_add_object(l_jobj_return, "commands", l_jobj_commands);
+        dap_json_array_add(a_json_arr_reply, l_jobj_return);
+        return 0;
+    }
+}
+
+/**
+ * @brief s_cli_version - Display version information
+ * @param argc argument count
+ * @param argv arguments
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success
+ */
+static int s_cli_version(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    (void)argc;
+    (void)argv;
+    (void)a_version;
+    
+    dap_json_t *l_jobj_return = dap_json_object_new();
+    if (!l_jobj_return) {
+        dap_json_rpc_allocation_error(a_json_arr_reply);
+        return -1;
+    }
+
+#ifdef DAP_VERSION
+    dap_json_object_add_string(l_jobj_return, "version", DAP_VERSION);
+#else
+    dap_json_object_add_string(l_jobj_return, "version", "unknown");
+#endif
+
+#ifdef CELLFRAME_SDK_VERSION
+    dap_json_object_add_string(l_jobj_return, "sdk_version", CELLFRAME_SDK_VERSION);
+#endif
+
+#ifdef BUILD_HASH
+    dap_json_object_add_string(l_jobj_return, "build_hash", BUILD_HASH);
+#endif
+
+#ifdef BUILD_TS
+    dap_json_object_add_string(l_jobj_return, "build_date", BUILD_TS);
+#endif
+
+    dap_json_array_add(a_json_arr_reply, l_jobj_return);
+    return 0;
+}
 
 /**
  * @brief Initialize net CLI commands
@@ -1025,11 +1161,32 @@ int dap_chain_net_cli_init(void)
                            -1, // auto ID
                            "node { add | del | link | alias | connect | list | dump | connections | balancer }\n");
 
-    // REMOVED: com_net legacy CLI handler registration
-    // dap_cli_server_cmd_add("net", com_net, NULL,
-    //                        "Network operations",
-    //                        -1, // auto ID
-    //                        "net { list | get | go | stats | sync }\n");
+    // Register net command
+    dap_cli_server_cmd_add("net", s_cli_net, NULL,
+                           "Network operations",
+                           -1, // auto ID
+                           "net { list | get | go | stats | sync }\n");
+
+    // Register help command
+    dap_cli_server_cmd_add("help", s_cli_help, NULL,
+                           "Display help for commands",
+                           -1, // auto ID
+                           "help [<command>]\n"
+                           "\tObtain help for <command> or get the list of all commands\n");
+
+    // Register ? as alias for help
+    dap_cli_server_cmd_add("?", s_cli_help, NULL,
+                           "Synonym for help",
+                           -1, // auto ID
+                           "? [<command>]\n"
+                           "\tObtain help for <command> or get the list of all commands\n");
+
+    // Register version command
+    dap_cli_server_cmd_add("version", s_cli_version, NULL,
+                           "Show version information",
+                           -1, // auto ID
+                           "version\n"
+                           "\tReturn version number\n");
 
     log_it(L_NOTICE, "Net CLI commands registered (with error codes)");
     return 0;
