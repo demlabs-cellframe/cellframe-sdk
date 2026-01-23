@@ -315,17 +315,6 @@ static void dap_datum_mempool_free(dap_datum_mempool_t *datum)
     DAP_DELETE(datum);
 }
 
-static char* s_calc_datum_hash(const void *a_datum_str, size_t datum_size)
-{
-    dap_chain_hash_fast_t a_hash;
-    dap_hash_fast(a_datum_str, datum_size, &a_hash);
-    size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2;
-    char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
-
-    dap_chain_hash_fast_to_str(&a_hash, a_str, a_str_max);
-    return a_str;
-}
-
 static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap_enc_key_t *key,
         enc_http_delegate_t *a_http_delegate)
 {
@@ -380,7 +369,7 @@ static void chain_mempool_proc(struct dap_http_simple *cl_st, void *arg)
                             dap_datum_mempool_deserialize((uint8_t*)l_request_data, (size_t)l_request_size) : NULL;
             if (datum_mempool) {
                 dap_datum_mempool_free(datum_mempool);
-                char *a_key = s_calc_datum_hash(l_request_data, (size_t)l_request_size);
+                char *a_key = dap_hash_fast_str_new(l_request_data, (size_t)l_request_size);
                 switch (action)
                 {
                 case DAP_DATUM_MEMPOOL_ADD:
