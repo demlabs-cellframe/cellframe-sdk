@@ -503,12 +503,18 @@ static bool s_tag_check_event(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 }
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond)
 {
+        dap_return_val_if_pass(!a_ledger || !a_in_cond, NULL);
         dap_hash_fast_t *l_tx_prev_hash = &a_in_cond->header.tx_prev_hash;    
         uint32_t l_tx_prev_out_idx = a_in_cond->header.tx_out_prev_idx;
         dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash (a_ledger,l_tx_prev_hash);
         
         if (!l_tx_prev) return NULL;
         byte_t* l_item_res = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
+        if (!l_item_res) {
+            log_it(L_WARNING, "IN_COND references missing OUT idx %u in tx %s",
+                   l_tx_prev_out_idx, dap_chain_hash_fast_to_str_static(l_tx_prev_hash));
+            return NULL;
+        }
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_item_res;
         
         if (l_type != TX_ITEM_TYPE_OUT_COND) return NULL;
@@ -4876,7 +4882,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
             // Call verificator for new OUT_COND (ORDER creation validation)
             // Pass a_tx_out_cond=NULL to indicate this is a NEW conditional output
-            if (l_verificator_error == -1 && l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+            if (l_verificator_error == -1 && (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX ||
+                                              l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)) {
                 dap_ledger_verificator_t *l_verificator = NULL;
                 int l_sub_tmp = l_tx_out->header.subtype;
                 pthread_rwlock_rdlock(&s_verificators_rwlock);

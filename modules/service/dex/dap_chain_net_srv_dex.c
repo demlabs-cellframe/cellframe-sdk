@@ -6400,6 +6400,11 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                 if (e) {
                     // First IN: extract tokens for buyer-leftover determination
                     if (l_in_idx == 0) {
+                        if (!l_pair_idx && e->pair_key_ptr) {
+                            l_pair_idx = (dex_pair_index_t *)e->pair_key_ptr;
+                            l_best_ask = l_pair_idx->snapshot_best_ask;
+                            l_best_bid = l_pair_idx->snapshot_best_bid;
+                        }
                         if ((e->side_version & 0x1) == DEX_SIDE_BID) {
                             l_prev0_sell_token = e->pair_key_ptr->token_quote;
                             l_prev0_buy_token = e->pair_key_ptr->token_base;

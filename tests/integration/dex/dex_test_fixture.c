@@ -11,10 +11,16 @@
 #include "dex_test_fixture.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_net_srv_dex.h"
+#include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_policy.h"
+#include "dap_time.h"
+#include "dap_config.h"
 #include "../fixtures/test_token_fixtures.h"
 #include "../fixtures/test_transaction_fixtures.h"
 #include "../fixtures/test_emission_fixtures.h"
+
+static bool s_policy_net_ready = false;
 
 dex_test_fixture_t* dex_test_fixture_create(void) {
     dex_test_fixture_t *fixture = DAP_NEW_Z(dex_test_fixture_t);
@@ -29,6 +35,42 @@ dex_test_fixture_t* dex_test_fixture_create(void) {
     int dex_init = dap_chain_net_srv_dex_init();
     if (dex_init != 0) {
         log_it(L_ERROR, "DEX service init failed");
+        test_net_fixture_destroy(fixture->net);
+        DAP_DELETE(fixture);
+        return NULL;
+    }
+    
+    int l_xchange_init = dap_chain_net_srv_xchange_init();
+    if (l_xchange_init != 0) {
+        log_it(L_ERROR, "XCHANGE service init failed");
+        dap_chain_net_srv_dex_deinit();
+        test_net_fixture_destroy(fixture->net);
+        DAP_DELETE(fixture);
+        return NULL;
+    }
+
+    if (!s_policy_net_ready) {
+        int l_policy_add = dap_chain_policy_net_add(fixture->net->net->pub.id, g_config);
+        if (l_policy_add != 0) {
+            log_it(L_ERROR, "Policy net add failed: %d", l_policy_add);
+            dap_chain_net_srv_xchange_deinit();
+            dap_chain_net_srv_dex_deinit();
+            test_net_fixture_destroy(fixture->net);
+            DAP_DELETE(fixture);
+            return NULL;
+        }
+        s_policy_net_ready = true;
+    }
+
+    dap_time_t l_now = dap_time_now();
+    dap_chain_policy_t *l_policy_legacy = dap_chain_policy_create_activate(DAP_CHAIN_POLICY_XCHANGE_LEGACY_TX_CUTOFF, l_now + 3600, 0, (dap_chain_id_t){0}, 0);
+    dap_chain_policy_t *l_policy_migrate = dap_chain_policy_create_activate(DAP_CHAIN_POLICY_XCHANGE_MIGRATE_CUTOFF, l_now + 3600, 0, (dap_chain_id_t){0}, 0);
+    if (!l_policy_legacy || !l_policy_migrate ||
+            dap_chain_policy_apply(l_policy_legacy, fixture->net->net->pub.id) ||
+            dap_chain_policy_apply(l_policy_migrate, fixture->net->net->pub.id)) {
+        log_it(L_ERROR, "XCHANGE policy setup failed");
+        dap_chain_net_srv_xchange_deinit();
+        dap_chain_net_srv_dex_deinit();
         test_net_fixture_destroy(fixture->net);
         DAP_DELETE(fixture);
         return NULL;
@@ -373,6 +415,7 @@ dex_test_fixture_t* dex_test_fixture_create(void) {
     return fixture;
     
 cleanup:
+    dap_chain_net_srv_xchange_deinit();
     dap_chain_net_srv_dex_deinit();
     test_net_fixture_destroy(fixture->net);
     DAP_DELETE(fixture);

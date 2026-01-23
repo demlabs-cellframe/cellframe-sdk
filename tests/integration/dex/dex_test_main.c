@@ -18,6 +18,7 @@
 #include "dex_test_common.h"
 #include "dex_lifecycle_tests.h"
 #include "dex_automatch_tests.h"
+#include "dex_migration_tests.h"
 #include "dap_chain_net_srv_dex.h"
 #include "dap_config.h"
 #include "dap_enc.h"
@@ -916,6 +917,15 @@ int main(int argc, char *argv[]) {
     
     dex_print_balances(fixture, "INITIAL STATE");
     int ret = 0;
+    
+    // Migration tests: legacy SRV_XCHANGE -> SRV_DEX
+    ret = run_migration_tests(fixture);
+    if (ret != 0) {
+        log_it(L_ERROR, "Migration tests FAILED with code %d", ret);
+        dex_test_fixture_destroy(fixture);
+        s_teardown();
+        return ret;
+    }
     
     // Run lifecycle tests (long)
       ret = run_lifecycle_tests(fixture);

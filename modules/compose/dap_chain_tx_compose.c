@@ -44,6 +44,9 @@
 #include <json-c/json.h>
 #define LOG_TAG "dap_chain_tx_compose"
 
+static dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash, dap_chain_addr_t *a_seller_addr, compose_config_t *a_config,
+                                                        dap_time_t *a_ts_created, char **a_token_ticker, int32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
+
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
 #include "rand/dap_rand.h"
 #endif
@@ -1374,6 +1377,7 @@ bool check_token_in_ledger(json_object *l_json_coins, const char *a_token) {
 }
 
 
+#if 0
 typedef enum dap_xchange_compose_error {
     DAP_XCHANGE_COMPOSE_ERROR_NONE = 0,
     DAP_XCHANGE_COMPOSE_ERROR_INVALID_ARGUMENT,
@@ -1687,6 +1691,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_request_compose(dap_chain_net_srv_xc
 }
 
 
+#endif
 typedef enum dap_tx_cond_create_compose_error {
     TX_COND_CREATE_COMPOSE_ERROR_INVALID_FEE = 1,
     TX_COND_CREATE_COMPOSE_ERROR_INVALID_SERVICE_UID,
@@ -4771,6 +4776,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_xchange_order_remove(dap_hash_f
     DAP_DELETE(l_price);
     return l_tx;
 }
+#if 0
 typedef enum dap_tx_create_xchange_purchase_compose_error {
     DAP_TX_CREATE_XCHANGE_PURCHASE_COMPOSE_ERR_NONE = 0,
     DAP_TX_CREATE_XCHANGE_PURCHASE_COMPOSE_ERR_CONFIG_CREATE,
@@ -4850,7 +4856,8 @@ typedef enum dap_chain_net_srv_xchange_purchase_compose_error {
     DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_PRICE_CREATE,
     DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_TX_CREATE
 } dap_chain_net_srv_xchange_purchase_compose_error_t;
-dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  compose_config_t * a_config, 
+#endif
+static dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,  dap_chain_addr_t *a_seller_addr,  compose_config_t * a_config, 
                                                   dap_time_t *a_ts_created, char **a_token_ticker, int32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out) {
     dap_chain_tx_out_cond_t *l_cond_tx = NULL;
     dap_chain_tx_out_cond_t *l_ret = NULL;
@@ -4863,7 +4870,7 @@ dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
         DAP_DEL_Z(l_cond_tx);
         if (dap_chain_hash_fast_from_str(l_spent_by_hash, &l_current_hash)) {
             log_it(L_ERROR, "failed to get hash from string");
-            s_json_compose_error_add(a_config->response_handler, DAP_TX_CREATE_XCHANGE_PURCHASE_COMPOSE_ERR_INVALID_HASH, 
+            s_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_INVALID_ORDER_HASH, 
                                      "Failed to get hash from string");
             return NULL;
         }
@@ -4871,7 +4878,7 @@ dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
 
         if (!l_tx) {
             log_it(L_ERROR, "failed to get datum info from remote node");
-            s_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_REMOTE_NODE_UNREACHABLE, 
+            s_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_REMOTE_NODE_UNREACHABLE, 
                                      "Failed to get datum info from remote node");
             return NULL;
         }
@@ -4879,7 +4886,7 @@ dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
     
     if (!l_cond_tx) {
         log_it(L_ERROR, "no transaction output condition found");
-        s_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_SRV_XCHANGE_PURCHASE_COMPOSE_ERR_NO_COND_TX, "No transaction output condition found");
+        s_json_compose_error_add(a_config->response_handler, SRV_STAKE_ORDER_REMOVE_COMPOSE_ERR_NO_COND_TX, "No transaction output condition found");
         return NULL;
     }
     l_ret = l_cond_tx;
@@ -4893,6 +4900,7 @@ dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash,
     return l_ret;
 }
 
+#if 0
 dap_chain_datum_tx_t* dap_chain_tx_compose_datum_xchange_purchase(dap_hash_fast_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_addr_t *a_wallet_addr, char **a_hash_out, compose_config_t *a_config){
     dap_return_val_if_pass(!a_config || !a_order_hash || !a_wallet_addr || !a_hash_out, NULL);
@@ -4926,6 +4934,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_xchange_purchase(dap_hash_fast_
     }
     return l_tx;
 }
+#endif
 
 dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_addr_t *a_buyer_addr, uint256_t a_datoshi_buy,
                                                           uint256_t a_datoshi_fee, dap_chain_tx_out_cond_t* a_cond_tx, uint32_t a_prev_cond_idx, compose_config_t *a_config)

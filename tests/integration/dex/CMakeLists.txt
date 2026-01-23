@@ -19,6 +19,7 @@ add_executable(dex_test
     dex_test_main.c
     dex_lifecycle_tests.c
     dex_automatch_tests.c
+    dex_migration_tests.c
     # TODO: add when implemented
     # dex_leftover_tests.c
     # dex_operations_tests.c
@@ -28,6 +29,7 @@ add_executable(dex_test
 target_include_directories(dex_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/modules/service/dex/include
+    ${CMAKE_SOURCE_DIR}/modules/service/xchange/include
     ${CMAKE_SOURCE_DIR}/modules/net/include
     ${CMAKE_SOURCE_DIR}/modules/wallet/include
     ${CMAKE_SOURCE_DIR}/modules/chain/include
@@ -40,6 +42,7 @@ target_include_directories(dex_test PRIVATE
 target_link_libraries(dex_test
     cellframe_test_fixtures
     dap_chain_net_srv_dex
+    dap_chain_net_srv_xchange
     dap_chain_net
     dap_chain
     dap_chain_common

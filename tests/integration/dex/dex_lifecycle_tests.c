@@ -4938,7 +4938,10 @@ static int s_run_t_bl07_update_with_root(dex_test_fixture_t *f, const test_pair_
 // T_BL08: CANCEL with tampered IN_COND pointing to different order
 // Attack: Bob creates CANCEL for his buyer-leftover, but we tamper IN_COND
 // to point to Carol's order instead (attempt to cancel someone else's order)
-typedef struct { dap_hash_fast_t target_order; } t_bl08_ctx_t;
+typedef struct {
+    dap_hash_fast_t target_order;
+    uint32_t target_out_idx;
+} t_bl08_ctx_t;
 static bool s_tamper_bl08_cancel_foreign_order(dap_chain_datum_tx_t *tx, void *ctx) {
     t_bl08_ctx_t *c = ctx;
     // Find IN_COND and change tx_prev_hash to different order
@@ -4946,8 +4949,11 @@ static bool s_tamper_bl08_cancel_foreign_order(dap_chain_datum_tx_t *tx, void *c
     byte_t *l_item = NULL;
     while ((l_item = dap_chain_datum_tx_item_get(tx, &l_item_idx, NULL, TX_ITEM_TYPE_IN_COND, NULL))) {
         dap_chain_tx_in_cond_t *in_cond = (dap_chain_tx_in_cond_t *)l_item;
-        // Tamper: point to Carol's order instead of Bob's buyer-leftover
+        // Tamper: point to Alice's order instead of Bob's buyer-leftover
         in_cond->header.tx_prev_hash = c->target_order;
+        in_cond->header.tx_out_prev_idx = c->target_out_idx;
+        log_it(L_DEBUG, "T_BL08 tamper: set IN_COND to %s out_idx=%u",
+               dap_chain_hash_fast_to_str_static(&c->target_order), c->target_out_idx);
         return true;
     }
     return false;
@@ -4990,7 +4996,19 @@ static int s_run_t_bl08_cancel_foreign_order(dex_test_fixture_t *f, const test_p
         return -4;
     }
     
-    // Step 4: Bob creates CANCEL for his buyer-leftover
+    // Step 4: Resolve foreign order OUT_COND index
+    int l_foreign_out_idx = 0;
+    dap_chain_datum_tx_t *l_alice_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
+    if (!l_alice_tx || !dap_chain_datum_tx_out_cond_get(l_alice_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_foreign_out_idx) ||
+            l_foreign_out_idx < 0) {
+        dap_chain_datum_tx_t *tx1_ledger = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &tx1_hash);
+        if (tx1_ledger) dap_ledger_tx_remove(f->net->net->pub.ledger, tx1_ledger, &tx1_hash);
+        dap_chain_datum_tx_t *carol_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &carol_order);
+        if (carol_tx) dap_ledger_tx_remove(f->net->net->pub.ledger, carol_tx, &carol_order);
+        return -5;
+    }
+
+    // Step 5: Bob creates CANCEL for his buyer-leftover
     dap_chain_datum_tx_t *cancel_tx = NULL;
     dap_chain_net_srv_dex_remove_error_t rem_err = dap_chain_net_srv_dex_remove(
         f->net->net, &tx1_hash, f->network_fee, f->bob, &cancel_tx
@@ -4999,7 +5017,7 @@ static int s_run_t_bl08_cancel_foreign_order(dex_test_fixture_t *f, const test_p
     int result = 0;
     if (rem_err == DEX_REMOVE_ERROR_OK && cancel_tx) {
         // Tamper: change IN_COND to point to Alice's order (foreign order)
-        t_bl08_ctx_t ctx = { .target_order = alice_order };
+        t_bl08_ctx_t ctx = { .target_order = alice_order, .target_out_idx = (uint32_t)l_foreign_out_idx };
         ret = s_tamper_resign_and_verify(f, cancel_tx, f->bob, s_tamper_bl08_cancel_foreign_order, &ctx,
                                           "T_BL08: CANCEL with IN_COND pointing to Alice's order");
         dap_chain_datum_tx_delete(cancel_tx);
