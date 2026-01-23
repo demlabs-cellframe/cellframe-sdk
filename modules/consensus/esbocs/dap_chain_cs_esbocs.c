@@ -864,6 +864,29 @@ uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id)
     return uint256_0;
 }
 
+void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id)
+{
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session) {
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64 &&
+            l_session->cs_timer) {
+            log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
+            l_session->cs_timer = false;
+        }
+    }
+}
+
+void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id)
+{
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session) {
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
+            log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
+            l_session->cs_timer = true;
+        }
+    }
+}
+
 static int s_callback_stop(dap_chain_t *a_chain)
 {
     dap_chain_esbocs_session_t *l_session;

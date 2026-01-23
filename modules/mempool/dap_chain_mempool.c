@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <assert.h>
 #include <memory.h>
+#include <string.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -53,6 +54,7 @@
 #include <dap_enc_key.h>
 #include <dap_enc_ks.h>
 #include "dap_chain_mempool.h"
+#include "dap_config.h"
 
 #include "dap_common.h"
 #include "dap_list.h"
@@ -271,6 +273,180 @@ char *dap_chain_mempool_group_new(dap_chain_t *a_chain)
     return l_net
             ? dap_chain_mempool_group_name(l_net->pub.gdb_groups_prefix, a_chain->name)
             : NULL;
+}
+
+static dap_datum_mempool_t *dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser, size_t a_datum_mempool_ser_size)
+{
+    size_t shift_size = 0;
+    dap_datum_mempool_t *datum_mempool = DAP_NEW_Z(dap_datum_mempool_t);
+    if (!datum_mempool) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return NULL;
+    }
+    datum_mempool->version = *(uint16_t*)(a_datum_mempool_ser + shift_size);
+    shift_size += sizeof(uint16_t);
+    datum_mempool->datum_count = *(uint16_t*)(a_datum_mempool_ser + shift_size);
+    shift_size += sizeof(uint16_t);
+    datum_mempool->data = DAP_NEW_Z_SIZE(dap_chain_datum_t*, datum_mempool->datum_count * sizeof(dap_chain_datum_t*));
+    for (int i = 0; i < datum_mempool->datum_count; i++) {
+        uint16_t size_one = *(uint16_t*)(a_datum_mempool_ser + shift_size);
+        shift_size += sizeof(uint16_t);
+        datum_mempool->data[i] = DAP_DUP((dap_chain_datum_t*)(a_datum_mempool_ser + shift_size));
+        shift_size += size_one;
+    }
+    assert(shift_size == a_datum_mempool_ser_size);
+    return datum_mempool;
+}
+
+static void dap_datum_mempool_clean(dap_datum_mempool_t *datum)
+{
+    if(!datum)
+        return;
+    for(int i = 0; i < datum->datum_count; i++) {
+        DAP_DELETE(datum->data[i]);
+    }
+    DAP_DELETE(datum->data);
+    datum->data = NULL;
+}
+
+static void dap_datum_mempool_free(dap_datum_mempool_t *datum)
+{
+    dap_datum_mempool_clean(datum);
+    DAP_DELETE(datum);
+}
+
+static char* s_calc_datum_hash(const void *a_datum_str, size_t datum_size)
+{
+    dap_chain_hash_fast_t a_hash;
+    dap_hash_fast(a_datum_str, datum_size, &a_hash);
+    size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2;
+    char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
+
+    dap_chain_hash_fast_to_str(&a_hash, a_str, a_str_max);
+    return a_str;
+}
+
+static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap_enc_key_t *key,
+        enc_http_delegate_t *a_http_delegate)
+{
+    if (key == NULL) {
+        log_it(L_ERROR, "Can't find http key.");
+        return;
+    }
+    if (a_http_delegate->response) {
+        if (a_http_simple->reply)
+            DAP_DELETE(a_http_simple->reply);
+
+        size_t l_reply_size_max = dap_enc_code_out_size(a_http_delegate->key,
+                a_http_delegate->response_size,
+                DAP_ENC_DATA_TYPE_RAW);
+
+        a_http_simple->reply = DAP_NEW_SIZE(void, l_reply_size_max);
+        a_http_simple->reply_size = dap_enc_code(a_http_delegate->key,
+                a_http_delegate->response, a_http_delegate->response_size,
+                a_http_simple->reply, l_reply_size_max,
+                DAP_ENC_DATA_TYPE_RAW);
+    }
+}
+
+static void chain_mempool_proc(struct dap_http_simple *cl_st, void *arg)
+{
+    dap_http_status_code_t *return_code = (dap_http_status_code_t*)arg;
+    dap_enc_key_t *l_enc_key = dap_enc_ks_find_http(cl_st->http_client);
+
+    dap_http_header_t *hdr_session_close_id =
+            (cl_st->http_client) ? dap_http_header_find(cl_st->http_client->in_headers, "SessionCloseAfterRequest") : NULL;
+    dap_http_header_t *hdr_key_id =
+            (hdr_session_close_id && cl_st->http_client) ? dap_http_header_find(cl_st->http_client->in_headers, "KeyID") : NULL;
+
+    enc_http_delegate_t *l_enc_delegate = enc_http_request_decode(cl_st);
+    if (l_enc_delegate) {
+        char *suburl = l_enc_delegate->url_path;
+        byte_t *l_request_data = l_enc_delegate->request_bytes;
+        size_t l_request_size = l_enc_delegate->request_size;
+        const char *l_gdb_datum_pool = dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool");
+        if (l_request_data && l_request_size > 1) {
+            uint8_t action = DAP_DATUM_MEMPOOL_NONE;
+            if (l_enc_delegate->url_path_size > 0) {
+                if (!strcmp(suburl, "add"))
+                    action = DAP_DATUM_MEMPOOL_ADD;
+                else if (!strcmp(suburl, "check"))
+                    action = DAP_DATUM_MEMPOOL_CHECK;
+                else if (!strcmp(suburl, "del"))
+                    action = DAP_DATUM_MEMPOOL_DEL;
+            }
+            dap_datum_mempool_t *datum_mempool =
+                    (action != DAP_DATUM_MEMPOOL_NONE) ?
+                            dap_datum_mempool_deserialize((uint8_t*)l_request_data, (size_t)l_request_size) : NULL;
+            if (datum_mempool) {
+                dap_datum_mempool_free(datum_mempool);
+                char *a_key = s_calc_datum_hash(l_request_data, (size_t)l_request_size);
+                switch (action)
+                {
+                case DAP_DATUM_MEMPOOL_ADD:
+                    if (dap_global_db_set_sync(l_gdb_datum_pool, a_key, l_request_data, l_request_size, false) == 0) {
+                        *return_code = DAP_HTTP_STATUS_OK;
+                    }
+                    log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,
+                            (*return_code == DAP_HTTP_STATUS_OK) ? "OK" : "False!");
+                    break;
+
+                case DAP_DATUM_MEMPOOL_CHECK:
+                    strcpy(cl_st->reply_mime, "text/text");
+                    size_t l_datum_size = 0;
+                    byte_t *l_datum = dap_global_db_get_sync(l_gdb_datum_pool, a_key, &l_datum_size, NULL, NULL);
+                    if (l_datum) {
+                        l_enc_delegate->response = strdup("1");
+                        DAP_DEL_Z(l_datum);
+                        log_it(L_INFO, "Check hash: key=%s result: Present", a_key);
+                    }
+                    else {
+                        l_enc_delegate->response = strdup("0");
+                        log_it(L_INFO, "Check hash: key=%s result: Absent", a_key);
+                    }
+                    l_enc_delegate->response_size = l_datum_size;
+                    *return_code = DAP_HTTP_STATUS_OK;
+                    enc_http_reply_encode_new(cl_st, l_enc_key, l_enc_delegate);
+                    break;
+
+                case DAP_DATUM_MEMPOOL_DEL:
+                    strcpy(cl_st->reply_mime, "text/text");
+                    if (dap_global_db_del_sync(l_gdb_datum_pool, a_key) == 0){
+                        l_enc_delegate->response = dap_strdup("1");
+                        log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
+                    } else {
+                        l_enc_delegate->response = dap_strdup("0");
+                        log_it(L_INFO, "Delete hash: key=%s result: False!", a_key);
+                    }
+                    *return_code = DAP_HTTP_STATUS_OK;
+                    enc_http_reply_encode_new(cl_st, l_enc_key, l_enc_delegate);
+                    break;
+
+                default:
+                    log_it(L_INFO, "Unknown request=%s! key=%s", (suburl) ? suburl : "-", a_key);
+                    enc_http_delegate_delete(l_enc_delegate);
+                    if (hdr_key_id)
+                        dap_enc_ks_delete(hdr_key_id->value);
+                    *return_code = DAP_HTTP_STATUS_BAD_REQUEST;
+                    return;
+                }
+                DAP_DEL_Z(a_key);
+            } else
+                *return_code = DAP_HTTP_STATUS_BAD_REQUEST;
+        } else
+            *return_code = DAP_HTTP_STATUS_BAD_REQUEST;
+
+        enc_http_delegate_delete(l_enc_delegate);
+    } else
+        *return_code = DAP_HTTP_STATUS_UNAUTHORIZED;
+
+    if (hdr_session_close_id && !strcmp(hdr_session_close_id->value, "yes") && hdr_key_id)
+        dap_enc_ks_delete(hdr_key_id->value);
+}
+
+void dap_chain_mempool_add_proc(dap_http_server_t *a_http_server, const char *a_url)
+{
+    dap_http_simple_proc_add(a_http_server, a_url, 4096, chain_mempool_proc);
 }
 
 /**
