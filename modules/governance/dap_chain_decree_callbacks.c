@@ -79,8 +79,7 @@ int dap_chain_decree_handler_call(uint16_t a_decree_type,
     HASH_FIND_INT(s_handlers, &l_key, l_item);
     
     if (!l_item || !l_item->handler) {
-        log_it(L_WARNING, "No handler registered for decree type=%u subtype=%u", 
-               a_decree_type, a_decree_subtype);
+        // No handler in callbacks system - caller should try registry system as fallback
         return -1;
     }
     

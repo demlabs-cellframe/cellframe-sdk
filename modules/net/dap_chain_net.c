@@ -1909,8 +1909,13 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
             }
             if ( l_chain->callback_get_poa_certs ) {
                 uint16_t l_min_count = 0;
-                a_net->pub.keys = dap_list_concat(a_net->pub.keys, l_chain->callback_get_poa_certs(l_chain, NULL, &l_min_count));
+                dap_list_t *l_chain_keys = l_chain->callback_get_poa_certs(l_chain, NULL, &l_min_count);
+                log_it(L_NOTICE, "Chain %s returned %zu PoA keys (min_count=%u)", 
+                       l_chain->name, dap_list_length(l_chain_keys), l_min_count);
+                a_net->pub.keys = dap_list_concat(a_net->pub.keys, l_chain_keys);
                 a_net->pub.keys_min_count += l_min_count;
+            } else {
+                log_it(L_NOTICE, "Chain %s has no callback_get_poa_certs", l_chain->name);
             }
         } else {
             HASH_DEL(l_all_chain_configs, l_chain_config);
@@ -1919,6 +1924,8 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
         }
     }
     HASH_CLEAR(hh, l_all_chain_configs);
+    log_it(L_NOTICE, "After chains init: collected %zu PoA keys (min_count=%u) for net %s",
+           dap_list_length(a_net->pub.keys), a_net->pub.keys_min_count, a_net->pub.name);
     return 0;
 }
 
@@ -1969,6 +1976,23 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
         
         // Set ledger callbacks and context
         a_net->pub.ledger->load_mode = true;
+        
+        // Transfer PoA keys from network to ledger for decree signature verification
+        if (a_net->pub.keys) {
+            dap_ledger_set_poa_keys(a_net->pub.ledger, a_net->pub.keys, a_net->pub.keys_min_count);
+            log_it(L_NOTICE, "Set %u PoA keys on ledger for net %s (min signatures: %u)", 
+                   (unsigned)dap_list_length(a_net->pub.keys), a_net->pub.name, a_net->pub.keys_min_count);
+            // Re-initialize decree module to update decree_owners_pkeys with new PoA keys
+            dap_ledger_decree_init(a_net->pub.ledger);
+        } else {
+            log_it(L_WARNING, "No PoA keys collected for net %s", a_net->pub.name);
+        }
+        
+        // Register all chains with the ledger for chain lookups
+        for (dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next) {
+            dap_ledger_register_chain(a_net->pub.ledger, l_chain->id, l_chain->name, 
+                                      0, l_chain);  // chain_type=0, primarily lookup by id/name
+        }
     }
     
     return l_res;

@@ -3205,10 +3205,14 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    // Check if we're in load mode - skip stake delegate validation during initial chain load
-    // because the stake delegate list is populated FROM the chain data
+    // Check if we're in load mode or sync mode - skip stake delegate validation during initial chain load
+    // and during sync because the stake delegate list is populated FROM the chain data
     dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_blocks->chain->net_id);
     bool l_load_mode = l_net ? dap_chain_net_api_get_load_mode(l_net) : false;
+    // Also skip during sync - we receive blocks from network before all stake decrees are processed
+    dap_chain_net_state_t l_state = l_net ? dap_chain_net_get_state(l_net) : NET_STATE_OFFLINE;
+    bool l_sync_mode = (l_state == NET_STATE_SYNC_CHAINS);
+    l_load_mode = l_load_mode || l_sync_mode;
 
     if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block) {
         // It's a block candidate, don't check signs

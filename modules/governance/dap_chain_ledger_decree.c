@@ -37,9 +37,12 @@
 #include "dap_chain_policy.h"
 #include "dap_json.h"
 #include "dap_chain_decree_callbacks.h"  // For decree callbacks API
+#include "dap_chain_decree_registry.h"   // For decree registry API (alternative handler system)
 
 // Forward declarations for types from higher-level modules
 typedef struct dap_chain_net dap_chain_net_t;
+// External declaration for net lookup function (defined in dap_chain_net.c)
+extern dap_chain_net_t *dap_chain_net_by_id(dap_chain_net_id_t a_id);
 typedef struct dap_chain_net_srv_stake_item dap_chain_net_srv_stake_item_t;
 #include "dap_chain_srv.h"
 
@@ -92,6 +95,7 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
     uint16_t l_min_signs = a_ledger->poa_keys_min_count;
     if (l_num_of_unique_signs < l_min_signs) {
         log_it(L_WARNING, "Not enough unique signatures, get %zu from %hu", l_num_of_unique_signs, l_min_signs);
+        DAP_DELETE(l_unique_signs);  // Fix: free memory on early return
         return -106;
     }
 
@@ -151,6 +155,7 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
     }
     
     // Call registered handler for this decree type/subtype
+    // First try the callbacks system (newer API)
     int l_ret = dap_chain_decree_handler_call(
         a_decree->header.type,
         l_subtype,
@@ -159,6 +164,29 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
         NULL,  // chain is NULL for verification phase
         false  // verify only, don't apply
     );
+    
+    // If callbacks system has no handler (-1), try the registry system (legacy API)
+    if (l_ret == -1) {
+        // Get network from ledger for registry API
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+        if (l_net) {
+            l_ret = dap_chain_decree_registry_process(
+                a_decree,
+                l_net,
+                false,  // verify only, don't apply
+                false   // not anchored during verification
+            );
+            // Registry returns -404 when no handler found
+            if (l_ret == -404) {
+                // No handler in either system - this is normal for some decree types
+                // that are handled elsewhere or have no verification needed
+                return 0;
+            }
+        } else {
+            // No network available, can't use registry
+            return 0;
+        }
+    }
     
     if (l_ret) {
         log_it(L_WARNING, "Decree verification failed (type=%u, subtype=%u): %d", 
@@ -174,12 +202,20 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
 // Public API - init/deinit are now in dap_chain_ledger_decree_handlers.c
 // (removed from here to avoid duplication)
 
-// Legacy init for ledger instance - kept for backward compatibility
+// Initialize decree module for ledger instance - populates decree owners from ledger PoA keys
 void dap_ledger_decree_init(dap_ledger_t *a_ledger) {
-    // PoA configuration is now directly in ledger structure (a_ledger->poa_keys, a_ledger->poa_keys_min_count)
-    // Set by net module when creating ledger
-    // This function is kept for compatibility but does nothing
-    UNUSED(a_ledger);
+    dap_return_if_fail(a_ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    log_it(L_NOTICE, "Decree init called for ledger %s: poa_keys=%p, poa_keys_min_count=%u",
+           a_ledger->name, (void*)a_ledger->poa_keys, a_ledger->poa_keys_min_count);
+    l_ledger_pvt->decree_min_num_of_signers = a_ledger->poa_keys_min_count;
+    l_ledger_pvt->decree_num_of_owners = dap_list_length(a_ledger->poa_keys);
+    l_ledger_pvt->decree_owners_pkeys = a_ledger->poa_keys;
+    if (!l_ledger_pvt->decree_owners_pkeys)
+        log_it(L_WARNING, "PoA certificates for ledger %s not found", a_ledger->name);
+    else
+        log_it(L_NOTICE, "Decree init: set %u PoA keys as decree owners for ledger %s (min signatures: %u)",
+               l_ledger_pvt->decree_num_of_owners, a_ledger->name, l_ledger_pvt->decree_min_num_of_signers);
 }
 
 static int s_decree_clear(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)

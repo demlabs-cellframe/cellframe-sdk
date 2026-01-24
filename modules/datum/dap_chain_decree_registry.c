@@ -216,7 +216,8 @@ int dap_chain_decree_registry_process(
     
     if (!l_entry) {
         pthread_rwlock_unlock(&s_decree_registry_lock);
-        log_it(L_WARNING, "No handler registered for decree type=0x%04x subtype=0x%04x",
+        // Some decree types intentionally have no handler - this is not an error
+        log_it(L_DEBUG, "No handler registered for decree type=0x%04x subtype=0x%04x",
                l_decree_type, l_decree_subtype);
         return -404;
     }

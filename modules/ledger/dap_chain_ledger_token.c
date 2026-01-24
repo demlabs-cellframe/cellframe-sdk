@@ -174,9 +174,9 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 
 #define m_ret_cleanup(ret_code) ({                          \
     DAP_DEL_ARRAY(l_new_pkeys, l_new_signs_total);          \
-    DAP_DEL_MULTY(l_new_tx_recv_allow, l_new_tx_recv_block, \
-                  l_new_tx_send_allow, l_new_tx_send_block, \
-                  l_new_pkeys, l_new_pkey_hashes);          \
+    DAP_DEL_MULTY(l_new_pkeys, l_new_tx_recv_allow,         \
+                  l_new_tx_recv_block, l_new_tx_send_allow, \
+                  l_new_tx_send_block, l_new_pkey_hashes);  \
     ret_code; })
     uint64_t l_tsd_size = 0;
     dap_tsd_t *l_tsd = (dap_tsd_t *)a_tsd;
@@ -739,8 +739,10 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (l_new_signs_total) {
                 l_new_pkeys = DAP_REALLOC_COUNT(l_new_pkeys, l_new_signs_total);
                 l_new_pkey_hashes = DAP_REALLOC_COUNT(l_new_pkey_hashes, l_new_signs_total);
-            } else
-                DAP_DEL_MULTY(l_new_pkeys, l_new_pkey_hashes);
+            } else {
+                DAP_DEL_Z(l_new_pkeys);
+                DAP_DEL_Z(l_new_pkey_hashes);
+            }
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {

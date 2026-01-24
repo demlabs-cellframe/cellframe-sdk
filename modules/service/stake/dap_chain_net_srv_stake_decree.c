@@ -37,6 +37,8 @@ static int s_decree_stake_approve_handler(
     bool a_apply,
     bool a_anchored)
 {
+    dap_return_val_if_fail(a_decree && a_net, -100);
+    
     dap_hash_fast_t l_hash = {};
     uint256_t l_value = {};
     dap_chain_addr_t l_addr = {};
@@ -60,9 +62,13 @@ static int s_decree_stake_approve_handler(
     }
     if (!a_anchored)
         return 0;
-    if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
-        log_it(L_WARNING, "Key and node verification error");
-        return -109;
+    // Skip verification during load mode - the data is historical and already validated
+    // Verification during load can fail due to chicken-and-egg problems with stake service init
+    if (!dap_chain_net_get_load_mode(a_net)) {
+        if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
+            log_it(L_WARNING, "Key and node verification error");
+            return -109;
+        }
     }
     if (!a_apply)
         return 0;
