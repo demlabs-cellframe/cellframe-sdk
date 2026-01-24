@@ -250,7 +250,11 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
     dap_chain_net_srv_usage_t *l_usage = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session, l_ch_vpn->usage_id);
     size_t l_data_to_send = (l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
-    debug_if(s_debug_more, L_DEBUG, "Sent stream pkt size %zu on worker #%u", l_data_to_send, l_ch_vpn->ch->stream_worker->worker->id);
+    dap_events_socket_t *l_es = l_ch_vpn->ch->stream->esocket;
+    // VPN diagnostic: log buffer state before sending
+    size_t l_buf_out_before = l_es ? l_es->buf_out_size : 0;
+    debug_if(s_debug_more, L_DEBUG, "Sent stream pkt size %zu on worker #%u, buf_out_before=%zu",
+             l_data_to_send, l_ch_vpn->ch->stream_worker->worker->id, l_buf_out_before);
     size_t l_data_sent = dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out, l_data_to_send);
     s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_data_sent);
     l_srv_session->stats.bytes_recv += l_data_sent;
@@ -261,6 +265,16 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
         l_srv_session->stats.packets_recv_lost++;
         return false;
     } else {
+        // VPN diagnostic: warn if buffer is growing significantly
+        size_t l_buf_out_after = l_es ? l_es->buf_out_size : 0;
+        if (l_buf_out_after > 65536) {
+            time_t l_inactive_sec = l_es ? (time(NULL) - l_es->last_time_active) : 0;
+            log_it(L_WARNING, "VPN buf_out growing: %zu -> %zu bytes, sock %"DAP_FORMAT_SOCKET" (%s), inactive %ld sec",
+                   l_buf_out_before, l_buf_out_after,
+                   l_es ? l_es->socket : 0,
+                   (l_es && l_es->remote_addr_str) ? l_es->remote_addr_str : "unknown",
+                   l_inactive_sec);
+        }
         l_srv_session->stats.packets_recv++;
         return true;
     }
@@ -1996,25 +2010,33 @@ static bool s_es_tun_write(dap_events_socket_t *a_es, void *arg)
                      "Error on writing to tun: wrote %zd / %zd bytes", l_bytes_written, l_pkt_size);
             switch (l_errno) {
             case EAGAIN:
-                /* Unwritten packets remain untouched in da buffa */
+                /* TUN buffer is full - stop for now, will retry on next poll event */
+                debug_if(s_debug_more, L_DEBUG, "TUN EAGAIN, %zu bytes remain in buf_out", l_tun->es->buf_out_size);
                 break;
             case EINVAL:
-                /* Something wrong with this packet... Doomp eet */
-                debug_if(s_debug_more, L_ERROR, "Skip this packet...");
+                /* Something wrong with this packet (e.g. zero-size keepalive) - skip and CONTINUE */
+                log_it(L_WARNING, "Skip invalid TUN packet (data_size=%zd, op_code=0x%02x), continuing with next",
+                       l_pkt_size, l_vpn_pkt->header.op_code);
                 l_pkt_size += sizeof(l_vpn_pkt->header);
                 l_tun->es->buf_out_size -= l_pkt_size;
                 l_shift += l_pkt_size;
-                break;
+                continue;  // Continue processing remaining packets in buffer
             default:
                 log_it(L_ERROR, "Write to tun error %d: \"%s\"",
                                 errno, dap_strerror(errno));
                 break;
             }
-            break; // Finish the buffer processing immediately
+            break; // Exit loop on EAGAIN or unknown errors (but not after EINVAL skip)
         }
     }
     if (l_tun->es->buf_out_size) {
-        debug_if(s_debug_more, L_DEBUG, "Left %lu bytes unwritten", l_tun->es->buf_out_size);
+        // VPN diagnostic: warn if TUN buffer is growing (slow network indicator)
+        if (l_tun->es->buf_out_size > 32768) {
+            log_it(L_WARNING, "TUN buf_out growing: %zu bytes remaining after write cycle on worker #%u",
+                   l_tun->es->buf_out_size, l_tun->worker_id);
+        } else {
+            debug_if(s_debug_more, L_DEBUG, "Left %zu bytes unwritten", l_tun->es->buf_out_size);
+        }
         if (l_shift)
             memmove(l_tun->es->buf_out, &l_tun->es->buf_out[l_shift], l_tun->es->buf_out_size);
     }
