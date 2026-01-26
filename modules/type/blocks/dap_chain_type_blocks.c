@@ -189,36 +189,49 @@ static bool s_debug_more = false;
 
 static dap_list_t *s_fork_resolved_notificators = NULL;
 
-static int s_print_for_block_list(dap_json_rpc_response_t *a_response, char **a_cmd_param, int a_cmd_cnt)
+/**
+ * @brief s_print_for_block_list
+ * Post-processing callback for block list command. Formats JSON input into
+ * human-readable table output.
+ *
+ * @param a_json_input Input JSON from command handler
+ * @param a_json_output Output JSON array to write formatted result
+ * @param a_cmd_param Command parameters array
+ * @param a_cmd_cnt Count of command parameters
+ * @return 0 on success (result written to a_json_output), non-zero to use original input
+ */
+static int s_print_for_block_list(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt)
 {
-    
-    dap_return_val_if_pass(!a_response || !a_response->result_json_object, -1);
+    dap_return_val_if_pass(!a_json_input || !a_json_output, -1);
 
+    // If no -h flag, return raw JSON
     if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-h") == -1) {
-        dap_json_print_object(a_response->result_json_object, stdout, 0);
-        return 0;
+        return -1;
     }
+    // Only process "list" subcommand
     if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "list") == -1)
-        return -2;
-    if (dap_json_get_type(a_response->result_json_object) != DAP_JSON_TYPE_ARRAY) {
-        printf("Response object is not an array!\n");
-        return -4;
+        return -1;
+    if (dap_json_get_type(a_json_input) != DAP_JSON_TYPE_ARRAY) {
+        return -1;
     }
-    int result_count = dap_json_array_length(a_response->result_json_object);
+    int result_count = dap_json_array_length(a_json_input);
     if (result_count <= 1) {
-        printf("Response array is empty\n");
-        return -3;
+        return -1;
     }
-    printf("_________________________________________________________________________________________________________________\n");
-    printf("  Block # | Block hash \t\t\t\t\t\t\t       | Time create \t\t\t | \n");
-    dap_json_t *json_obj_array = dap_json_array_get_idx(a_response->result_json_object, 0);
+
+    dap_string_t *l_str = dap_string_new("");
+    dap_string_append(l_str, "_________________________________________________________________________________________________________________\n");
+    dap_string_append(l_str, "  Block # | Block hash \t\t\t\t\t\t\t       | Time create \t\t\t | \n");
+    
+    dap_json_t *json_obj_array = dap_json_array_get_idx(a_json_input, 0);
     result_count = dap_json_array_length(json_obj_array);
     char *l_limit = NULL;
     char *l_offset = NULL;
+    
     for (int i = 0; i < result_count; i++) {
         dap_json_t *json_obj_result = dap_json_array_get_idx(json_obj_array, i);
         if (!json_obj_result) {
-            printf("Failed to get array element at index %d\n", i);
+            dap_string_append_printf(l_str, "Failed to get array element at index %d\n", i);
             continue;
         }
 
@@ -228,31 +241,41 @@ static int s_print_for_block_list(dap_json_rpc_response_t *a_response, char **a_
             dap_json_object_get_ex(json_obj_result, "ts_create", &j_obj_create))
         {
             if (j_obj_block_number && j_obj_hash && j_obj_create) {
-                printf("   %5s  | %s | %s |",
+                dap_string_append_printf(l_str, "   %5s  | %s | %s |",
                         dap_json_get_string(j_obj_block_number), dap_json_get_string(j_obj_hash), dap_json_get_string(j_obj_create));
             } else {
-                printf("Missing required fields in array element at index %d\n", i);
+                dap_string_append_printf(l_str, "Missing required fields in array element at index %d", i);
             }
         } else if (dap_json_object_get_ex(json_obj_result, "limit", &j_obj_lim)) {
             dap_json_object_get_ex(json_obj_result, "offset", &j_obj_off);
-            l_limit = dap_json_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,dap_json_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
+            l_limit = dap_json_get_int64(j_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT, dap_json_get_int64(j_obj_lim)) : dap_strdup_printf("unlimit");
             if (j_obj_off)
-                l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,dap_json_get_int64(j_obj_off));
+                l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT, dap_json_get_int64(j_obj_off));
             continue;
         } else {
-            dap_json_print_object(json_obj_result, stdout, 0);
+            char *l_json_str = dap_json_to_string(json_obj_result);
+            if (l_json_str) {
+                dap_string_append(l_str, l_json_str);
+                DAP_DELETE(l_json_str);
+            }
         }
-        printf("\n");
+        dap_string_append(l_str, "\n");
     }
-    printf("__________|____________________________________________________________________|_________________________________|\n\n");
+    dap_string_append(l_str, "__________|____________________________________________________________________|_________________________________|\n\n");
     if (l_limit) {            
-        printf("\tlimit: %s \n", l_limit);
+        dap_string_append_printf(l_str, "\tlimit: %s \n", l_limit);
         DAP_DELETE(l_limit);
     }
     if (l_offset) {            
-        printf("\toffset: %s \n", l_offset);
+        dap_string_append_printf(l_str, "\toffset: %s \n", l_offset);
         DAP_DELETE(l_offset);
     }
+
+    // Create output JSON with formatted string
+    dap_json_t *l_json_result = dap_json_object_new();
+    dap_json_object_add_string(l_json_result, "output", l_str->str);
+    dap_json_array_add(a_json_output, l_json_result);
+    dap_string_free(l_str, true);
     return 0;
 }
 
