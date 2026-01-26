@@ -176,12 +176,10 @@ static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
 static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_node_addr,
                                        bool a_is_full, const char *a_alias, dap_json_t *a_json_arr_reply)
 {
-    // Get nodes from global_db (same as rpc_list does)
-    char l_group_name[128];
-    snprintf(l_group_name, sizeof(l_group_name), "node-info.%s", a_net->pub.gdb_groups_prefix);
-    
+    // Get nodes from global_db - use gdb_nodes which is the same group where node add saves
+    // This is "<prefix>.nodes.list" (e.g., "stagenet.nodes.list")
     size_t l_nodes_count = 0;
-    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group_name, &l_nodes_count);
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
 
     if (!l_nodes_count || !l_objs) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR,

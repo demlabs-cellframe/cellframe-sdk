@@ -27,38 +27,27 @@
  */
 int dap_chain_ledger_cli_dispatcher(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
+    // Command format: tx <subcommand> [args]
+    // argv[0] = "tx" (command name)
+    // argv[1] = subcommand (e.g., "create", "verify", "history")
+    
     if (a_argc < 2) {
         dap_json_rpc_error_add(a_json_arr_reply, 
             dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
-            "Ledger command requires subcommand (e.g., tx, token, event)");
+            "tx command requires subcommand (e.g., create, verify, history)");
         return dap_cli_error_code_get("LEDGER_PARAM_ERR");
     }
     
-    const char *l_category = a_argv[1];
-    
-    // Check if category has any registered commands
-    if (!dap_ledger_cli_cmd_is_registered(l_category, NULL)) {
-        dap_json_rpc_error_add(a_json_arr_reply, 
-            dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
-            "Unknown command category '%s'", l_category);
-        return dap_cli_error_code_get("LEDGER_PARAM_ERR");
-    }
-    
-    if (a_argc < 3) {
-        dap_json_rpc_error_add(a_json_arr_reply, 
-            dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
-            "Category '%s' requires subcommand", l_category);
-        return dap_cli_error_code_get("LEDGER_PARAM_ERR");
-    }
-    
-    const char *l_command = a_argv[2];
+    // The category is "tx" (same as the command name in argv[0])
+    const char *l_category = a_argv[0];  // "tx"
+    const char *l_command = a_argv[1];   // subcommand like "create"
     
     // Execute via registry - plugin system!
     int l_result = dap_ledger_cli_cmd_execute(
         l_category, 
         l_command,
-        a_argc - 2,      // Pass argc from command level
-        a_argv + 2,      // Pass argv from command level
+        a_argc - 1,      // Pass argc from subcommand level
+        a_argv + 1,      // Pass argv from subcommand level
         a_json_arr_reply, 
         a_version
     );
@@ -66,7 +55,7 @@ int dap_chain_ledger_cli_dispatcher(int a_argc, char **a_argv, dap_json_t *a_jso
     if (l_result == -2) {  // Command not found
         dap_json_rpc_error_add(a_json_arr_reply, 
             dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
-            "Unknown command '%s %s'", l_category, l_command);
+            "Unknown tx subcommand '%s'. Available: create, verify, history", l_command);
         return dap_cli_error_code_get("LEDGER_PARAM_ERR");
     }
     
@@ -88,6 +77,13 @@ int dap_chain_ledger_cli_module_init(void)
     
     // Initialize command modules - they will self-register
     dap_chain_ledger_cli_tx_init();
+    
+    // Register the "tx" command with CLI server to route to dispatcher
+    dap_cli_server_cmd_add("tx", dap_chain_ledger_cli_dispatcher, NULL, 
+        "Transaction commands (create, verify, history)", 0,
+        "tx create - Create transaction\n"
+        "tx verify - Verify transaction\n"
+        "tx history - Show transaction history\n");
     
     // Future modules will register themselves:
     // dap_chain_ledger_cli_token_init();
