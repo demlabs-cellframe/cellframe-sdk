@@ -1806,6 +1806,8 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;
         } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            log_it(L_WARNING, "VPN s_ch_packet_in: Waiting for receipt sign (state=%d, substate=%d), disabling read/write",
+                   l_usage->service_state, l_usage->service_substate);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;
@@ -1950,6 +1952,8 @@ static bool s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;
         } else if(l_usage->service_substate <= DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
+            log_it(L_WARNING, "VPN s_ch_packet_out: Waiting for receipt sign (state=%d, substate=%d), disabling read/write",
+                   l_usage->service_state, l_usage->service_substate);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
             dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
             return false;
