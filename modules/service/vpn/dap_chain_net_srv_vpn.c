@@ -1014,8 +1014,12 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         log_it(L_NOTICE,"Enable VPN service");
 
         if ( l_srv_ch_vpn ){ // If channel is already opened
+            log_it(L_ATT, "=== VPN_FIX_TEST: Enable VPN, ch->ready_to_read=%d BEFORE set_ready ===", 
+                   l_srv_ch_vpn->ch->ready_to_read);
             dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
             dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
+            log_it(L_ATT, "=== VPN_FIX_TEST: Enable VPN, ch->ready_to_read=%d AFTER set_ready ===",
+                   l_srv_ch_vpn->ch->ready_to_read);
             l_srv_ch_vpn->usage_id = a_usage_id;
         } else{
 
@@ -1295,6 +1299,9 @@ static void s_ch_vpn_esocket_unassigned(dap_events_socket_t* a_es, dap_worker_t 
 void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
+    // TEST LOG: If you see this, the new code is deployed! Remove after testing.
+    log_it(L_ATT, "=== VPN_FIX_TEST: s_ch_vpn_new called, socket=%"DAP_FORMAT_SOCKET" ready_to_read=%d ===",
+           a_ch->stream->esocket->socket, a_ch->ready_to_read);
     a_ch->stream->esocket->flags |= DAP_SOCK_REASSIGN_ONCE; // We will try to reassign on another worker
                                                             // to use FlowControl if its present in system
                                                             // If not - we prevent jumping between workers with this trick
@@ -1319,11 +1326,14 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
     
     // If usage is already active, enable channel immediately
     if (l_srv_session->usage_active && l_srv_session->usage_active->is_active) {
+        log_it(L_ATT, "=== VPN_FIX_TEST: usage ACTIVE, enabling read ===");
         dap_stream_ch_set_ready_to_read_unsafe(a_ch, true);
         dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
     } else {
+        log_it(L_ATT, "=== VPN_FIX_TEST: usage NOT active, disabling read ===");
         dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
     }
+    log_it(L_ATT, "=== VPN_FIX_TEST: s_ch_vpn_new done, ready_to_read=%d ===", a_ch->ready_to_read);
 }
 
 
