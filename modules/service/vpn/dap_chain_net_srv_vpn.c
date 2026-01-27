@@ -1915,18 +1915,28 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
-                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
-                    sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size) - sizeof(l_vpn_pkt->header);
-                l_srv_session->stats.bytes_sent += l_ret;
-                l_usage->client->bytes_sent += l_ret;
-                s_update_limits(a_ch, l_srv_session, l_usage, l_ret);
-                if (l_ret == l_vpn_pkt->header.op_data.data_size) {
-                    l_srv_session->stats.packets_sent++;
-                }
-                else if (l_ret > 0) {
-                    log_it(L_WARNING, "Lost %zd bytes, buffer overflow", l_vpn_pkt->header.op_data.data_size - l_ret);
-                    l_srv_session->stats.bytes_sent_lost += (l_vpn_pkt->header.op_data.data_size - l_ret);
-                    l_srv_session->stats.packets_sent_lost++;
+                // FIX: Direct write to TUN like in old code, avoiding buffer delay
+                size_t l_size_to_send = l_vpn_pkt->header.op_data.data_size;
+                ssize_t l_ret = write(l_tun->es->fd, l_vpn_pkt->data, l_size_to_send);
+                if (l_ret > 0) {
+                    l_srv_session->stats.bytes_sent += l_ret;
+                    if (l_usage && l_usage->client)
+                        l_usage->client->bytes_sent += l_ret;
+                    s_update_limits(a_ch, l_srv_session, l_usage, l_ret);
+                    if ((size_t)l_ret == l_size_to_send) {
+                        l_srv_session->stats.packets_sent++;
+                    } else {
+                        log_it(L_WARNING, "Lost %zd bytes writing to TUN", l_size_to_send - l_ret);
+                        l_srv_session->stats.bytes_sent_lost += (l_size_to_send - l_ret);
+                        l_srv_session->stats.packets_sent_lost++;
+                    }
+                } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    // TUN buffer full - queue via buffer system for retry
+                    debug_if(s_debug_more, L_DEBUG, "TUN EAGAIN on VPN_SEND, queuing %zu bytes", l_size_to_send);
+                    dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
+                        sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size);
+                } else {
+                    log_it(L_WARNING, "Error writing to TUN: %s (code %d)", dap_strerror(errno), errno);
                 }
             } break;
             default:
