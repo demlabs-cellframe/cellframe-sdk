@@ -1014,11 +1014,15 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         log_it(L_NOTICE,"Enable VPN service");
 
         if ( l_srv_ch_vpn ){ // If channel is already opened
-            log_it(L_ATT, "=== VPN_FIX_TEST: Enable VPN, ch->ready_to_read=%d BEFORE set_ready ===", 
-                   l_srv_ch_vpn->ch->ready_to_read);
+            log_it(L_ATT, "=== VPN_FIX_TEST: Enable VPN, ch->ready_to_read=%d BEFORE, stream=%p esocket=%p socket=%d ===", 
+                   l_srv_ch_vpn->ch->ready_to_read,
+                   (void*)l_srv_ch_vpn->ch->stream,
+                   l_srv_ch_vpn->ch->stream ? (void*)l_srv_ch_vpn->ch->stream->esocket : NULL,
+                   l_srv_ch_vpn->ch->stream && l_srv_ch_vpn->ch->stream->esocket ? 
+                       (int)l_srv_ch_vpn->ch->stream->esocket->socket : -1);
             dap_stream_ch_set_ready_to_read_unsafe(l_srv_ch_vpn->ch, true);
             dap_stream_ch_set_ready_to_write_unsafe(l_srv_ch_vpn->ch, true);
-            log_it(L_ATT, "=== VPN_FIX_TEST: Enable VPN, ch->ready_to_read=%d AFTER set_ready ===",
+            log_it(L_ATT, "=== VPN_FIX_TEST: Enable VPN DONE, ch->ready_to_read=%d ===",
                    l_srv_ch_vpn->ch->ready_to_read);
             l_srv_ch_vpn->usage_id = a_usage_id;
         } else{
