@@ -82,8 +82,16 @@ static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_db
 
 /**
  * @brief Callback function for handling mempool record deletion by TTL
+ * 
  * @details This callback is triggered when a mempool record expires due to TTL.
  *          It notifies all cluster subscribers about the deletion and then removes the record.
+ * 
+ * CONTRACT (from dap_global_db.c):
+ * - This callback is called INSTEAD OF dap_global_db_driver_delete(), not in addition to it
+ * - The callback MUST call dap_global_db_driver_delete() if record should be removed
+ * - No re-entrancy risk: calling driver_delete here won't trigger this callback again
+ * - No double-delete risk: we are the only delete path when this callback is set
+ * 
  * @param a_obj Store object being deleted (contains datum from mempool)
  * @param a_arg Custom argument (chain pointer)
  */
@@ -151,7 +159,14 @@ static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
 
 /**
  * @brief Initialize mempool TTL delete callbacks for all chains
- * @details Registers del_callback for each chain's mempool cluster to handle TTL-based deletions
+ * 
+ * @details Registers del_callback for each chain's mempool cluster to handle TTL-based deletions.
+ * 
+ * INITIALIZATION ORDER REQUIREMENT:
+ * - Must be called AFTER dap_chain_net_load_all() completes
+ * - Networks and chains must be fully initialized before this function
+ * - Called from dap_datum_mempool_init() which is invoked during node startup
+ * 
  * @return 0 if successful, negative error code otherwise
  */
 int dap_chain_mempool_delete_callback_init()
@@ -1348,14 +1363,20 @@ char *dap_chain_mempool_tx_cond_refill(dap_chain_net_t *a_net, dap_enc_key_t *a_
     dap_chain_addr_t l_addr_fee = {};
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
     uint256_t l_fee_total = a_value_fee;
-    if (l_net_fee_used)
-        SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
+    if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
+    {
+        log_it(L_ERROR, "Integer overflow in fee calculation");
+        return NULL;
+    }
 
     // Check if refill in native token
     bool l_refill_native = !dap_strcmp(a_net->pub.native_ticker, l_tx_ticker);
     uint256_t l_value_need = a_value;
-    if (l_refill_native)
-        SUM_256_256(l_value_need, l_fee_total, &l_value_need);
+    if (l_refill_native && SUM_256_256(l_value_need, l_fee_total, &l_value_need))
+    {
+        log_it(L_ERROR, "Integer overflow in value calculation");
+        return NULL;
+    }
 
     // Get owner address from key
     dap_chain_addr_t l_addr_from = {};
@@ -1408,8 +1429,8 @@ char *dap_chain_mempool_tx_cond_refill(dap_chain_net_t *a_net, dap_enc_key_t *a_
         }
     }
 
-    // Add 'in_cond' item
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, -1) != 1) {
+    // Add 'in_cond' item (owner operation - no receipt required)
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, DAP_CHAIN_TX_IN_COND_NO_RECEIPT) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it(L_ERROR, "Can't add conditional input");
         return NULL;
@@ -1417,7 +1438,12 @@ char *dap_chain_mempool_tx_cond_refill(dap_chain_net_t *a_net, dap_enc_key_t *a_
 
     // Calculate new value
     uint256_t l_new_value = {};
-    SUM_256_256(l_cond_prev->header.value, a_value, &l_new_value);
+    if (SUM_256_256(l_cond_prev->header.value, a_value, &l_new_value))
+    {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Integer overflow in new conditional value calculation");
+        return NULL;
+    }
 
     // Create new OUT_COND with increased value (copy structure)
     size_t l_cond_size = sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size;
@@ -2144,6 +2170,7 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
+    DAP_DELETE(l_event_item);  // add_item copies data, free original
 
     // Add TSD section with event data if provided
     if (a_event_data && a_event_data_size > 0) {
@@ -2267,439 +2294,5 @@ char *dap_chain_mempool_tx_create_service_decree(dap_chain_t *a_chain, dap_enc_k
 {
     return dap_chain_mempool_tx_create_event(a_chain, a_key_from, a_service_key, a_srv_uid, "SERVICE_DECREE", DAP_CHAIN_TX_EVENT_TYPE_SERVICE_DECREE,
                                              a_service_decree_data, a_service_decree_data_size, a_fee_value, a_hash_out_type);
-}
-
-// ============================================================================
-// SRV_PAY cache implementation (in-memory UTHash, modeled after DEX cache)
-// ============================================================================
-
-// Primary cache: keyed by root_hash
-static srv_pay_cache_entry_t *s_srv_pay_cache = NULL;
-// Secondary index: keyed by tail_hash
-static srv_pay_cache_entry_t *s_srv_pay_index_by_tail = NULL;
-// Owner index: groups entries by owner pkey_hash
-static srv_pay_owner_index_t *s_srv_pay_owner_index = NULL;
-// RW-lock for thread safety
-static pthread_rwlock_t s_srv_pay_cache_rwlock = PTHREAD_RWLOCK_INITIALIZER;
-// Cache enabled flag (from config)
-static bool s_srv_pay_cache_enabled = false;
-
-static void s_srv_pay_ledger_tx_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
-                                       dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode);
-
-/**
- * @brief Get or create owner index bucket
- */
-static srv_pay_owner_index_t *s_srv_pay_owner_index_get_or_create(dap_hash_fast_t *a_owner_pkey_hash)
-{
-    srv_pay_owner_index_t *l_owner = NULL;
-    HASH_FIND(hh, s_srv_pay_owner_index, a_owner_pkey_hash, sizeof(dap_hash_fast_t), l_owner);
-    if (!l_owner)
-    {
-        l_owner = DAP_NEW_Z(srv_pay_owner_index_t);
-        if (!l_owner)
-            return NULL;
-        l_owner->owner_pkey_hash = *a_owner_pkey_hash;
-        l_owner->entries = NULL;
-        HASH_ADD(hh, s_srv_pay_owner_index, owner_pkey_hash, sizeof(dap_hash_fast_t), l_owner);
-    }
-    return l_owner;
-}
-
-/**
- * @brief Remove entry from all secondary indices
- */
-static void s_srv_pay_indexes_remove(srv_pay_cache_entry_t *a_entry)
-{
-    if (!a_entry)
-        return;
-    // Remove from tail index
-    HASH_DELETE(hh_tail, s_srv_pay_index_by_tail, a_entry);
-    // Remove from owner bucket
-    srv_pay_owner_index_t *l_owner = NULL;
-    HASH_FIND(hh, s_srv_pay_owner_index, &a_entry->owner_pkey_hash, sizeof(dap_hash_fast_t), l_owner);
-    if (l_owner)
-    {
-        HASH_DELETE(hh_owner, l_owner->entries, a_entry);
-        // Remove empty owner bucket
-        if (!l_owner->entries)
-        {
-            HASH_DELETE(hh, s_srv_pay_owner_index, l_owner);
-            DAP_DELETE(l_owner);
-        }
-    }
-}
-
-/**
- * @brief Insert entry into all secondary indices
- */
-static void s_srv_pay_indexes_insert(srv_pay_cache_entry_t *a_entry)
-{
-    if (!a_entry)
-        return;
-    // Add to tail index
-    HASH_ADD(hh_tail, s_srv_pay_index_by_tail, tail_hash, sizeof(dap_hash_fast_t), a_entry);
-    // Add to owner bucket
-    srv_pay_owner_index_t *l_owner = s_srv_pay_owner_index_get_or_create(&a_entry->owner_pkey_hash);
-    if (l_owner)
-        HASH_ADD(hh_owner, l_owner->entries, root_hash, sizeof(dap_hash_fast_t), a_entry);
-}
-
-/**
- * @brief Add or update cache entry
- */
-static void s_srv_pay_cache_upsert(dap_ledger_t *a_ledger, dap_hash_fast_t *a_root, dap_hash_fast_t *a_tail,
-                                   dap_chain_tx_out_cond_t *a_cond, int a_cond_idx, const char *a_ticker,
-                                   dap_hash_fast_t *a_owner_pkey_hash)
-{
-    if (!a_root || !a_tail || !a_cond || !a_owner_pkey_hash)
-        return;
-
-    srv_pay_cache_entry_t *l_entry = NULL;
-    unsigned l_hashv;
-    HASH_VALUE(a_root, sizeof(*a_root), l_hashv);
-    HASH_FIND_BYHASHVALUE(hh, s_srv_pay_cache, a_root, sizeof(*a_root), l_hashv, l_entry);
-
-    bool l_is_new = !l_entry;
-    if (l_is_new)
-    {
-        l_entry = DAP_NEW_Z(srv_pay_cache_entry_t);
-        if (!l_entry)
-            return;
-        l_entry->root_hash = *a_root;
-        l_entry->ts_created = a_ledger ? dap_ledger_get_blockchain_time(a_ledger) : dap_time_now();
-    }
-    else
-    {
-        // Existing entry: remove from indices before update
-        s_srv_pay_indexes_remove(l_entry);
-    }
-
-    // Update fields
-    l_entry->tail_hash = *a_tail;
-    l_entry->owner_pkey_hash = *a_owner_pkey_hash;
-    l_entry->value = a_cond->header.value;
-    l_entry->srv_uid = a_cond->header.srv_uid.uint64;
-    l_entry->prev_cond_idx = a_cond_idx;
-    l_entry->is_removed = false;  // Reset removed flag on upsert (refill restores active state)
-    if (a_ticker)
-        dap_strncpy(l_entry->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
-    if (a_ledger && a_ledger->net)
-        l_entry->net_id = a_ledger->net->pub.id;
-
-    // Insert into primary cache if new
-    if (l_is_new)
-        HASH_ADD_BYHASHVALUE(hh, s_srv_pay_cache, root_hash, sizeof(l_entry->root_hash), l_hashv, l_entry);
-
-    // Insert into secondary indices
-    s_srv_pay_indexes_insert(l_entry);
-}
-
-/**
- * @brief Remove entry from cache by root hash
- */
-static void s_srv_pay_cache_remove_by_root(dap_hash_fast_t *a_root)
-{
-    if (!a_root)
-        return;
-
-    srv_pay_cache_entry_t *l_entry = NULL;
-    HASH_FIND(hh, s_srv_pay_cache, a_root, sizeof(*a_root), l_entry);
-    if (!l_entry)
-        return;
-
-    s_srv_pay_indexes_remove(l_entry);
-    HASH_DELETE(hh, s_srv_pay_cache, l_entry);
-    DAP_DELETE(l_entry);
-}
-
-/**
- * @brief Ledger notify callback for SRV_PAY transactions
- * 
- * Handles (modeled after DEX cache):
- * - ORDER (no IN_COND, has OUT_COND): add new entry on 'a', remove on 'd'
- * - REFILL (has IN_COND + has OUT_COND): update tail on 'a', restore on 'd'
- * - REMOVE (has IN_COND, no OUT_COND): remove entries on 'a', restore on 'd'
- * 
- * Iterates ALL IN_COND items to handle multi-remove transactions.
- */
-static void s_srv_pay_ledger_tx_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
-                                       dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode)
-{
-    (void)a_arg;
-    if (!s_srv_pay_cache_enabled)
-        return;
-    if (!a_ledger || !a_tx || !a_tx_hash)
-        return;
-    if (a_opcode != DAP_LEDGER_NOTIFY_OPCODE_ADDED && a_opcode != DAP_LEDGER_NOTIFY_OPCODE_DELETED)
-        return;
-
-    // Get OUT_COND (SRV_PAY)
-    int l_out_idx = 0;
-    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_idx);
-
-    // Check if TX has any IN_COND
-    bool l_has_in_cond = (dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL) != NULL);
-
-    // Skip if not SRV_PAY related (no SRV_PAY OUT_COND and no IN_COND)
-    if (!l_out_cond && !l_has_in_cond)
-        return;
-
-    // Get owner pkey_hash from signature
-    dap_sign_t *l_sign = dap_chain_datum_tx_get_sign(a_tx, 0);
-    if (!l_sign)
-        return;
-    dap_hash_fast_t l_owner_pkey_hash = {};
-    if (!dap_sign_get_pkey_hash(l_sign, &l_owner_pkey_hash))
-        return;
-
-    const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
-
-    pthread_rwlock_wrlock(&s_srv_pay_cache_rwlock);
-
-    if (!l_has_in_cond && l_out_cond)
-    {
-        // ORDER: new conditional transaction (hold)
-        if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED)
-        {
-            // Add new entry (root = tail = tx_hash)
-            s_srv_pay_cache_upsert(a_ledger, a_tx_hash, a_tx_hash, l_out_cond, l_out_idx, l_ticker, &l_owner_pkey_hash);
-        }
-        else
-        {
-            // Remove entry on reorg
-            s_srv_pay_cache_remove_by_root(a_tx_hash);
-        }
-    }
-    else if (l_has_in_cond)
-    {
-        // REFILL or REMOVE: iterate ALL IN_COND items (like DEX does)
-        int l_in_idx = 0;
-        byte_t *l_item = NULL;
-        size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-        
-        TX_ITEM_ITER_TX(l_item, l_tx_size, a_tx)
-        {
-            if (*l_item != TX_ITEM_TYPE_IN_COND)
-                continue;
-                
-            dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
-            dap_hash_fast_t l_prev_hash = l_in_cond->header.tx_prev_hash;
-            int l_prev_out_idx = l_in_cond->header.tx_out_prev_idx;
-
-            // Verify that IN_COND spends SRV_PAY OUT_COND, not FEE or other type
-            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_prev_hash);
-            if (!l_prev_tx)
-                continue;
-            dap_chain_tx_out_cond_t *l_prev_out_cond = (dap_chain_tx_out_cond_t *)
-                dap_chain_datum_tx_item_get_nth(l_prev_tx, TX_ITEM_TYPE_OUT_COND, l_prev_out_idx);
-            if (!l_prev_out_cond || l_prev_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY)
-                continue;  // Not spending SRV_PAY OUT, skip
-
-            if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED)
-            {
-                // Find entry by prev_hash (tail)
-                srv_pay_cache_entry_t *l_entry = NULL;
-                HASH_FIND(hh_tail, s_srv_pay_index_by_tail, &l_prev_hash, sizeof(l_prev_hash), l_entry);
-
-                if (l_entry)
-                {
-                    // For REFILL: only first IN_COND updates the tail, others should not exist for SRV_PAY
-                    // But we handle it safely anyway
-                    if (l_out_cond && l_in_idx == 0)
-                    {
-                        // REFILL: update tail to current TX
-                        s_srv_pay_cache_upsert(a_ledger, &l_entry->root_hash, a_tx_hash, l_out_cond, l_out_idx, l_ticker, &l_owner_pkey_hash);
-                    }
-                    else
-                    {
-                        // REMOVE: update tail to remove TX, set is_removed flag
-                        HASH_DELETE(hh_tail, s_srv_pay_index_by_tail, l_entry);
-                        l_entry->tail_hash = *a_tx_hash;
-                        l_entry->is_removed = true;
-                        HASH_ADD(hh_tail, s_srv_pay_index_by_tail, tail_hash, sizeof(l_entry->tail_hash), l_entry);
-                    }
-                }
-            }
-            else
-            {
-                // Reorg: restore previous state
-                // For REFILL reorg on first IN_COND: restore prev_hash as tail
-                if (l_out_cond && l_in_idx == 0)
-                {
-                    srv_pay_cache_entry_t *l_entry = NULL;
-                    HASH_FIND(hh_tail, s_srv_pay_index_by_tail, a_tx_hash, sizeof(*a_tx_hash), l_entry);
-                    if (l_entry)
-                    {
-                        dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_prev_hash);
-                        if (l_prev_tx)
-                        {
-                            int l_prev_out_idx = 0;
-                            dap_chain_tx_out_cond_t *l_prev_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_prev_out_idx);
-                            if (l_prev_cond)
-                            {
-                                const char *l_prev_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_prev_hash);
-                                s_srv_pay_cache_upsert(a_ledger, &l_entry->root_hash, &l_prev_hash, l_prev_cond, l_prev_out_idx, l_prev_ticker, &l_owner_pkey_hash);
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    // REMOVE reorg or multi-IN reorg: need to restore entry from ledger
-                    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_prev_hash);
-                    if (l_prev_tx)
-                    {
-                        int l_prev_out_idx = 0;
-                        dap_chain_tx_out_cond_t *l_prev_cond = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_prev_out_idx);
-                        if (l_prev_cond)
-                        {
-                            // Find root hash
-                            dap_hash_fast_t l_root_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY);
-                            if (dap_hash_fast_is_blank(&l_root_hash))
-                                l_root_hash = l_prev_hash;
-                            const char *l_prev_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_prev_hash);
-                            s_srv_pay_cache_upsert(a_ledger, &l_root_hash, &l_prev_hash, l_prev_cond, l_prev_out_idx, l_prev_ticker, &l_owner_pkey_hash);
-                        }
-                    }
-                }
-            }
-            l_in_idx++;
-        }
-    }
-
-    pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
-}
-
-int dap_chain_srv_pay_cache_init(void)
-{
-    // Read cache enabled flag from config
-    s_srv_pay_cache_enabled = dap_config_get_item_bool_default(g_config, "srv_pay", "cache_enabled", true);
-    
-    if (!s_srv_pay_cache_enabled)
-    {
-        log_it(L_INFO, "SRV_PAY cache disabled by config");
-        return 0;
-    }
-    
-    // Register ledger notifier for all networks
-    int l_net_count = 0;
-    dap_chain_net_t *l_net = dap_chain_net_iter_start();
-    for (; l_net; l_net = dap_chain_net_iter_next(l_net))
-    {
-        dap_ledger_tx_add_notify(l_net->pub.ledger, s_srv_pay_ledger_tx_notify, l_net);
-        l_net_count++;
-    }
-    log_it(L_INFO, "SRV_PAY cache initialized, registered for %d networks", l_net_count);
-    return 0;
-}
-
-void dap_chain_srv_pay_cache_deinit(void)
-{
-    pthread_rwlock_wrlock(&s_srv_pay_cache_rwlock);
-
-    // Free all entries
-    srv_pay_cache_entry_t *l_entry, *l_tmp;
-    HASH_ITER(hh, s_srv_pay_cache, l_entry, l_tmp)
-    {
-        HASH_DELETE(hh, s_srv_pay_cache, l_entry);
-        DAP_DELETE(l_entry);
-    }
-    s_srv_pay_cache = NULL;
-    s_srv_pay_index_by_tail = NULL;
-
-    // Free owner index
-    srv_pay_owner_index_t *l_owner, *l_owner_tmp;
-    HASH_ITER(hh, s_srv_pay_owner_index, l_owner, l_owner_tmp)
-    {
-        HASH_DELETE(hh, s_srv_pay_owner_index, l_owner);
-        DAP_DELETE(l_owner);
-    }
-    s_srv_pay_owner_index = NULL;
-
-    pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
-    log_it(L_INFO, "SRV_PAY cache deinitialized");
-}
-
-srv_pay_cache_list_t *dap_chain_srv_pay_cache_get(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash)
-{
-    if (!s_srv_pay_cache_enabled || !a_net || !a_pkey_hash)
-        return NULL;
-
-    pthread_rwlock_rdlock(&s_srv_pay_cache_rwlock);
-
-    // Find owner bucket
-    srv_pay_owner_index_t *l_owner = NULL;
-    HASH_FIND(hh, s_srv_pay_owner_index, a_pkey_hash, sizeof(*a_pkey_hash), l_owner);
-    if (!l_owner || !l_owner->entries)
-    {
-        pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
-        return NULL;
-    }
-
-    // Count entries for this network
-    size_t l_count = 0;
-    srv_pay_cache_entry_t *l_entry, *l_tmp;
-    HASH_ITER(hh_owner, l_owner->entries, l_entry, l_tmp)
-    {
-        if (l_entry->net_id.uint64 == a_net->pub.id.uint64)
-            l_count++;
-    }
-
-    if (l_count == 0)
-    {
-        pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
-        return NULL;
-    }
-
-    // Allocate result
-    srv_pay_cache_list_t *l_result = DAP_NEW_Z(srv_pay_cache_list_t);
-    if (!l_result)
-    {
-        pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
-        return NULL;
-    }
-    l_result->entries = DAP_NEW_Z_COUNT(srv_pay_cache_entry_t *, l_count);
-    if (!l_result->entries)
-    {
-        DAP_DELETE(l_result);
-        pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
-        return NULL;
-    }
-
-    // Fill result (copy data to avoid dangling pointers after unlock)
-    size_t l_idx = 0;
-    HASH_ITER(hh_owner, l_owner->entries, l_entry, l_tmp)
-    {
-        if (l_entry->net_id.uint64 == a_net->pub.id.uint64)
-        {
-            l_result->entries[l_idx] = DAP_DUP(l_entry);
-            if (!l_result->entries[l_idx])
-            {
-                // Cleanup on allocation failure
-                for (size_t i = 0; i < l_idx; i++)
-                    DAP_DELETE(l_result->entries[i]);
-                DAP_DELETE(l_result->entries);
-                DAP_DELETE(l_result);
-                pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
-                return NULL;
-            }
-            l_idx++;
-        }
-    }
-    l_result->count = l_count;
-
-    pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
-    return l_result;
-}
-
-void dap_chain_srv_pay_cache_list_free(srv_pay_cache_list_t *a_list)
-{
-    if (!a_list)
-        return;
-    for (size_t i = 0; i < a_list->count; i++)
-        DAP_DEL_Z(a_list->entries[i]);
-    DAP_DEL_Z(a_list->entries);
-    DAP_DELETE(a_list);
 }
 

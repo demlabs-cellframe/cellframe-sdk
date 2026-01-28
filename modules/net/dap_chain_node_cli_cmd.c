@@ -1804,6 +1804,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                            l_addr->net_id.uint64, l_addr_str);
                     json_object_put(json_arr_out);
                     DAP_DELETE(l_addr);
+                    if (l_wallet)
+                        dap_chain_wallet_close(l_wallet);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
                 }
             }
@@ -1868,9 +1870,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     json_object_array_add(j_arr_balance, j_balance_data);
                     DAP_DELETE(l_addr_tokens[i]);
                 }
-                DAP_DELETE(l_addr_tokens);
                 json_object_object_add(json_obj_wall, "tokens", j_arr_balance);
             }
+            DAP_DEL_Z(l_addr_tokens);
             dap_ledger_locked_out_t *l_locked_outs = dap_ledger_get_locked_values(l_ledger, l_addr);
             if (l_locked_outs) {
                 json_object *j_arr_locked_balance = json_object_new_array();
@@ -1938,6 +1940,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
                                            "Can't get addr from wallet (%s)", l_wallet_name);
                     json_object_put(json_arr_out);
+                    dap_chain_wallet_close(l_wallet);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
             } else {
@@ -2129,12 +2132,14 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR,
                                             "Wallet can't be converted twice");
                         json_object_put(json_arr_out);
+                        dap_chain_wallet_close(l_wallet);
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR;
                     }
                     if (l_pass_str && !dap_check_valid_password(l_pass_str, dap_strlen(l_pass_str))) {
                         dap_json_rpc_error_add(*a_json_arr_reply,
                                                DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD,
                                                "Invalid characters used for password.");
+                        dap_chain_wallet_close(l_wallet);
                         return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD;
                     }
                     // create wallet backup 
@@ -2144,12 +2149,14 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR,
                                                "Can't create backup wallet file because of internal error");
                         json_object_put(json_arr_out);
+                        dap_chain_wallet_close(l_wallet);
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR;
                     }
                     if (l_remove_password) {  
                         if (dap_chain_wallet_deactivate(l_wallet_name, strlen(l_wallet_name))){
                             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR,
                                                 "Can't deactivate wallet");
+                            dap_chain_wallet_close(l_wallet);
                             json_object_put(json_arr_out);
                             return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_DEACT_ERR;
                         }
@@ -2157,6 +2164,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
                                        "Wallet password option <-password>  not defined");
                         json_object_put(json_arr_out);
+                        dap_chain_wallet_close(l_wallet);
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR;
                     }
                     // change to old filename
@@ -2165,6 +2173,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR,
                                                "Wallet is not converted because of internal error");
                         json_object_put(json_arr_out);
+                        dap_chain_wallet_close(l_wallet);
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR;
                     }
                     json_object * json_obj_wall = json_object_new_object();
@@ -3010,6 +3019,7 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
                 if (a_addr && dap_chain_addr_compare(&l_wallet_addr, &l_addr_from))
                     l_datum_is_accepted_addr = true;
 
+                json_object_object_add(l_jobj_datum, "from", json_object_new_string(dap_chain_addr_to_str_static(&l_addr_from)));
                 json_object *l_jobj_to_list = json_object_new_array();
                 if (!l_jobj_to_list) {
                     json_object_put(l_obj_chain);
@@ -3608,7 +3618,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         if (l_store_obj && l_store_obj->value) {
             l_hole = DAP_FLAG_CHECK(l_store_obj->flags, DAP_GLOBAL_DB_RECORD_DEL);
             if (l_hole) {
-                l_ret_code = strtol(l_store_obj->value, NULL, 10);
+                l_ret_code = strtol((const char *)l_store_obj->value, NULL, 10);
             } else {
                 l_datum = DAP_DUP_SIZE(l_store_obj->value, l_store_obj->value_len);
             }
@@ -6295,10 +6305,17 @@ static int _cmd_tx_cond_info(int a_argc, char **a_argv, void **a_str_reply, UNUS
 
     bool l_is_base58 = !dap_strcmp(l_hash_out_type, "base58");
 
-    // Build JSON response
+    // Build JSON response with OOM checks
     json_object *l_jobj_info = json_object_new_object();
     json_object *l_jobj_balance = json_object_new_object();
     json_object *l_jobj_token = json_object_new_object();
+    if (!l_jobj_info || !l_jobj_balance || !l_jobj_token) {
+        json_object_put(l_jobj_info);
+        json_object_put(l_jobj_balance);
+        json_object_put(l_jobj_token);
+        dap_json_rpc_allocation_error(*a_json_arr_reply);
+        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+    }
 
     // First TX hash
     json_object_object_add(l_jobj_info, "tx_first",
@@ -6349,6 +6366,21 @@ static int _cmd_tx_cond_info(int a_argc, char **a_argv, void **a_str_reply, UNUS
     // Token block
     json_object_object_add(l_jobj_token, "ticker", json_object_new_string(l_ticker));
     json_object_object_add(l_jobj_info, "token", l_jobj_token);
+
+    // OUT_COND details for compose (only if not spent)
+    if (l_cond && !l_is_spent)
+    {
+        json_object *l_jobj_out_cond = json_object_new_object();
+        if (l_jobj_out_cond) {
+            json_object_object_add(l_jobj_out_cond, "idx", json_object_new_int(l_cond_idx));
+            json_object_object_add(l_jobj_out_cond, "pkey_hash",
+                json_object_new_string(l_is_base58 ?
+                    dap_enc_base58_encode_hash_to_str_static(&l_cond->subtype.srv_pay.pkey_hash) :
+                    dap_hash_fast_to_str_static(&l_cond->subtype.srv_pay.pkey_hash)));
+            json_object_object_add(l_jobj_out_cond, "unit", json_object_new_int(l_cond->subtype.srv_pay.unit.enm));
+            json_object_object_add(l_jobj_info, "out_cond", l_jobj_out_cond);
+        }
+    }
 
     if (*a_json_arr_reply && json_object_is_type(*a_json_arr_reply, json_type_array))
         json_object_array_add(*a_json_arr_reply, l_jobj_info);
@@ -6521,6 +6553,10 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
             json_object_object_add(l_jobj_tx, "coins", json_object_new_string(l_value_coins));
             json_object_object_add(l_jobj_tx, "status",
                 json_object_new_string(l_is_spent ? "spent" : "unspent"));
+            
+            // Add out_cond_idx for compose operations (only if unspent)
+            if (!l_is_spent && l_entry->prev_cond_idx >= 0)
+                json_object_object_add(l_jobj_tx, "out_cond_idx", json_object_new_int(l_entry->prev_cond_idx));
 
             // Add cond_pkey_hash, ts_expires and ts_created from first TX (already fetched for filter)
             if(l_first_tx)
@@ -6550,8 +6586,12 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
         // Fallback: scan ledger directly (slower, but works without cache)
         dap_ledger_datum_iter_t *l_iter = dap_ledger_datum_iter_create(l_net);
         if (l_iter) {
-            dap_hash_fast_t *l_processed = NULL;  // Track processed root hashes to avoid duplicates
-            size_t l_processed_count = 0;
+            // Use UTHash for O(1) duplicate detection instead of O(n) linear search
+            typedef struct processed_hash {
+                dap_hash_fast_t hash;
+                UT_hash_handle hh;
+            } processed_hash_t;
+            processed_hash_t *l_processed = NULL;
             
             for (dap_chain_datum_tx_t *l_tx = dap_ledger_datum_iter_get_first(l_iter);
                  l_tx;
@@ -6580,20 +6620,21 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
                 if (dap_hash_fast_is_blank(&l_root_hash))
                     l_root_hash = l_iter->cur_hash;
 
-                // Skip if already processed this chain
-                bool l_skip = false;
-                for (size_t i = 0; i < l_processed_count; i++) {
-                    if (dap_hash_fast_compare(&l_processed[i], &l_root_hash)) {
-                        l_skip = true;
-                        break;
-                    }
-                }
-                if (l_skip)
+                // Skip if already processed this chain (O(1) lookup with UTHash)
+                processed_hash_t *l_found = NULL;
+                HASH_FIND(hh, l_processed, &l_root_hash, sizeof(dap_hash_fast_t), l_found);
+                if (l_found)
                     continue;
 
-                // Add to processed list
-                l_processed = DAP_REALLOC(l_processed, (l_processed_count + 1) * sizeof(dap_hash_fast_t));
-                l_processed[l_processed_count++] = l_root_hash;
+                // Add to processed set (O(1) insert with UTHash)
+                processed_hash_t *l_new_entry = DAP_NEW_Z(processed_hash_t);
+                if (!l_new_entry)
+                {
+                    log_it(L_ERROR, "Memory allocation failed in tx_cond list");
+                    continue;
+                }
+                l_new_entry->hash = l_root_hash;
+                HASH_ADD(hh, l_processed, hash, sizeof(dap_hash_fast_t), l_new_entry);
 
                 // Get final TX in chain (follow spend chain from current TX)
                 dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_net->pub.ledger,
@@ -6690,11 +6731,19 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
                     else
                         json_object_object_add(l_jobj_tx, "ts_expires", json_object_new_string("never"));
                 }
+                // Add out_cond_idx for compose operations (only if unspent)
+                if (!l_is_spent)
+                    json_object_object_add(l_jobj_tx, "out_cond_idx", json_object_new_int(l_final_out_idx));
 
                 json_object_array_add(l_jobj_tx_list, l_jobj_tx);
                 l_filtered_count++;
             }
-            DAP_DEL_Z(l_processed);
+            // Free UTHash entries
+            processed_hash_t *l_entry, *l_tmp;
+            HASH_ITER(hh, l_processed, l_entry, l_tmp) {
+                HASH_DEL(l_processed, l_entry);
+                DAP_DELETE(l_entry);
+            }
             dap_ledger_datum_iter_delete(l_iter);
         }
     }
@@ -7094,7 +7143,7 @@ static int _cmd_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_rep
     }
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    if (!l_ledger){
+    if (!l_tx){
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_CREATE_NEW_TX, "Can't create new tx");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_NOT_CREATE_NEW_TX;
     }
@@ -7196,17 +7245,25 @@ static int _cmd_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_rep
             continue;
         }
 
+        // Check for overflow BEFORE adding in_cond
+        uint256_t l_new_sum = {};
+        if (SUM_256_256(l_cond_value_sum, l_final_tx_out_cond->header.value, &l_new_sum))
+        {
+            log_it(L_ERROR, "Integer overflow in conditional value sum calculation");
+            continue;
+        }
+
         // Add in_cond to new tx
         dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_hash, l_final_cond_idx, 0);
-        SUM_256_256(l_cond_value_sum, l_final_tx_out_cond->header.value, &l_cond_value_sum);
+        l_cond_value_sum = l_new_sum;
 
         // Remember this final hash to avoid duplicates
         dap_hash_fast_t *l_final_hash_copy = DAP_DUP(&l_final_hash);
         if (l_final_hash_copy)
             l_processed_final_hashes = dap_list_append(l_processed_final_hashes, l_final_hash_copy);
     }
-    dap_list_free_full(l_hashes_list, NULL);
-    dap_list_free_full(l_processed_final_hashes, NULL);
+    dap_list_free_full(l_hashes_list, free);
+    dap_list_free_full(l_processed_final_hashes, free);
 
     if (IS_ZERO_256(l_cond_value_sum))
     {
@@ -7222,8 +7279,15 @@ static int _cmd_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_rep
     dap_chain_addr_t l_addr_fee = {};
     bool l_net_fee_used = dap_chain_net_tx_get_fee(l_net->pub.id, &l_net_fee, &l_addr_fee);
     uint256_t l_total_fee = l_value_fee;
-    if (l_net_fee_used)
-        SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
+    if (l_net_fee_used && SUM_256_256(l_total_fee, l_net_fee, &l_total_fee))
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_SUM_COND_OUTPUTS_MUST_GREATER_THAN_FEES_SUM,
+                               "Integer overflow in fee calculation");
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_SUM_COND_OUTPUTS_MUST_GREATER_THAN_FEES_SUM;
+    }
 
     if (compare256(l_total_fee, l_cond_value_sum) >= 0 ){
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_SUM_COND_OUTPUTS_MUST_GREATER_THAN_FEES_SUM,
@@ -8293,6 +8357,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             json_object_put(l_jobj_result);
             DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
             DAP_DEL_MULTY(l_addr_to, l_value);
+            DAP_DELETE(l_addr_from);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_EQ_SOURCE_DESTINATION_ADDRESS;
         }
     }
@@ -8318,7 +8383,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
                                     l_addr_to[i]->net_id.uint64, l_allowed_list->str);
                 dap_string_free(l_allowed_list, true);
                 json_object_put(l_jobj_result);
-
+                DAP_DELETE(l_addr_from);
                 DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
                 DAP_DEL_MULTY(l_addr_to, l_value);
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_NETWORK_IS_UNREACHEBLE;
@@ -8330,12 +8395,14 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         l_time_unlock = DAP_NEW_Z_COUNT(dap_time_t, l_value_el_count);
         if (!l_time_unlock) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_MEMORY_ERR, "Can't allocate memory");
+            DAP_DELETE(l_addr_from);
             DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
             DAP_DEL_MULTY(l_addr_to, l_value);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_MEMORY_ERR;
         }
         char **l_time_unlock_array = dap_strsplit(l_time_str, ",", l_value_el_count);
         if (!l_time_unlock_array) {
+            DAP_DELETE(l_addr_from);
             DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
             DAP_DEL_MULTY(l_addr_to, l_value, l_time_unlock);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT, "Can't read '-lock_before' arg");
@@ -8348,6 +8415,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             }
             if (!(l_time_unlock[i] = dap_time_from_str_simplified(l_time_unlock_array[i])) && !(l_time_unlock[i] = dap_time_from_str_rfc822(l_time_unlock_array[i]))) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WRONG_TIME_FORMAT, "Wrong time format. Parameter -lock_before must be in format \"Day Month Year HH:MM:SS Timezone\" e.g. \"19 August 2024 22:00:00 +0300\"");
+                DAP_DELETE(l_addr_from);
                 DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
                 DAP_DEL_MULTY(l_addr_to, l_value, l_time_unlock); 
                 dap_strfreev(l_time_unlock_array);      
@@ -8379,6 +8447,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
                 dap_enc_key_delete(l_priv_key);
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, "Failed to create arbitrage TSD marker");
                 json_object_put(l_jobj_result);
+                DAP_DELETE(l_addr_from);
                 DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
                 DAP_DEL_MULTY(l_addr_to, l_value);
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
@@ -8415,6 +8484,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         }
     }
     json_object_array_add(*a_json_arr_reply, l_jobj_result);
+    DAP_DELETE(l_addr_from);
     DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
     DAP_DEL_MULTY(l_addr_to, l_value);
     dap_chain_wallet_close(l_wallet);
@@ -8685,10 +8755,12 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR,
                                     "something went wrong in tx_history");
             json_object_put(json_obj_summary);
+            DAP_DELETE(l_addr);
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR;
         }        
         json_object_array_add(*a_json_arr_reply, json_obj_out);        
-        json_object_array_add(*a_json_arr_reply, json_obj_summary);        
+        json_object_array_add(*a_json_arr_reply, json_obj_summary);
+        DAP_DELETE(l_addr);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;        
     } else if (l_is_tx_all) {
         // history all
