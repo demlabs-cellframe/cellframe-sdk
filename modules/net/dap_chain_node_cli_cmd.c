@@ -124,6 +124,7 @@ static int _cmd_tx_cond_remove(int a_argc, char **a_argv, void **a_str_reply, in
 static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static int _cmd_tx_cond_info(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+static int _cmd_tx_cond_history(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static dap_list_t* s_hashes_parse_str_list(const char *a_hashes_str);
 static void s_new_wallet_info_notify(const char *a_wallet_name); 
 struct json_object *wallet_list_json_collect(int a_version);
@@ -6328,7 +6329,7 @@ static int _cmd_tx_cond_info(int a_argc, char **a_argv, void **a_str_reply, UNUS
             dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) :
             dap_hash_fast_to_str_static(&l_final_tx_hash)));
 
-    // Owner pkey hash
+    // Owner pkey hash (who created the TX)
     json_object_object_add(l_jobj_info, "owner_pkey_hash",
         json_object_new_string(l_is_base58 ?
             dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
@@ -6337,6 +6338,18 @@ static int _cmd_tx_cond_info(int a_argc, char **a_argv, void **a_str_reply, UNUS
     // Owner address
     json_object_object_add(l_jobj_info, "owner_addr",
         json_object_new_string(dap_chain_addr_to_str_static(&l_owner_addr)));
+
+    // Cond pkey hash (who can use this conditional output - from certificate)
+    json_object_object_add(l_jobj_info, "cond_pkey_hash",
+        json_object_new_string(l_is_base58 ?
+            dap_enc_base58_encode_hash_to_str_static(&l_first_cond->subtype.srv_pay.pkey_hash) :
+            dap_hash_fast_to_str_static(&l_first_cond->subtype.srv_pay.pkey_hash)));
+
+    // Expiration time
+    if(l_first_cond->header.ts_expires)
+        json_object_object_add(l_jobj_info, "ts_expires", json_object_new_uint64(l_first_cond->header.ts_expires));
+    else
+        json_object_object_add(l_jobj_info, "ts_expires", json_object_new_string("never"));
 
     // Status
     json_object_object_add(l_jobj_info, "status",
@@ -6397,10 +6410,12 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
     const char *l_pkey_hash_str = NULL;
     const char *l_wallet_name = NULL;
     const char *l_status_str = NULL;
+    const char *l_pkey_cert_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pkey", &l_pkey_hash_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-status", &l_status_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pkey_cert", &l_pkey_cert_str);
 
     // Parse status filter: all (default), spent, unspent
     enum { STATUS_ALL, STATUS_SPENT, STATUS_UNSPENT } l_status_filter = STATUS_ALL;
@@ -6468,6 +6483,20 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
         DAP_DELETE(l_addr);
     }
 
+    // Parse optional pkey_cert filter
+    dap_hash_fast_t l_pkey_cert_hash = {};
+    bool l_filter_by_pkey_cert = false;
+    if(l_pkey_cert_str)
+    {
+        if(dap_chain_hash_fast_from_str(l_pkey_cert_str, &l_pkey_cert_hash))
+        {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+                                   "Can't parse pkey_cert hash '%s'", l_pkey_cert_str);
+            return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX;
+        }
+        l_filter_by_pkey_cert = true;
+    }
+
     // Get cached entries from in-memory cache
     srv_pay_cache_list_t *l_cache_list = dap_chain_srv_pay_cache_get(l_net, &l_pkey_hash);
 
@@ -6493,6 +6522,18 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
                 (l_status_filter == STATUS_UNSPENT && l_is_spent))
                 continue;
 
+            // Get first TX and OUT_COND for pkey_cert filter and additional fields
+            dap_chain_datum_tx_t *l_first_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_entry->root_hash);
+            dap_chain_tx_out_cond_t *l_first_cond = l_first_tx ?
+                dap_chain_datum_tx_out_cond_get(l_first_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL) : NULL;
+
+            // Apply pkey_cert filter
+            if(l_filter_by_pkey_cert)
+            {
+                if(!l_first_cond || memcmp(&l_first_cond->subtype.srv_pay.pkey_hash, &l_pkey_cert_hash, sizeof(dap_hash_fast_t)) != 0)
+                    continue;
+            }
+
             json_object *l_jobj_tx = json_object_new_object();
             json_object_object_add(l_jobj_tx, "tx_first",
                 json_object_new_string(l_is_base58 ?
@@ -6516,6 +6557,25 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
             // Add out_cond_idx for compose operations (only if unspent)
             if (!l_is_spent && l_entry->prev_cond_idx >= 0)
                 json_object_object_add(l_jobj_tx, "out_cond_idx", json_object_new_int(l_entry->prev_cond_idx));
+
+            // Add cond_pkey_hash, ts_expires and ts_created from first TX (already fetched for filter)
+            if(l_first_tx)
+            {
+                char l_ts_str[DAP_TIME_STR_SIZE] = {};
+                dap_time_to_str_rfc822(l_ts_str, DAP_TIME_STR_SIZE, l_first_tx->header.ts_created);
+                json_object_object_add(l_jobj_tx, "ts_created", json_object_new_string(l_ts_str));
+            }
+            if(l_first_cond)
+            {
+                json_object_object_add(l_jobj_tx, "cond_pkey_hash",
+                    json_object_new_string(l_is_base58 ?
+                        dap_enc_base58_encode_hash_to_str_static(&l_first_cond->subtype.srv_pay.pkey_hash) :
+                        dap_hash_fast_to_str_static(&l_first_cond->subtype.srv_pay.pkey_hash)));
+                if(l_first_cond->header.ts_expires)
+                    json_object_object_add(l_jobj_tx, "ts_expires", json_object_new_uint64(l_first_cond->header.ts_expires));
+                else
+                    json_object_object_add(l_jobj_tx, "ts_expires", json_object_new_string("never"));
+            }
 
             json_object_array_add(l_jobj_tx_list, l_jobj_tx);
             l_filtered_count++;
@@ -6617,6 +6677,18 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
                     (l_status_filter == STATUS_UNSPENT && l_is_spent))
                     continue;
 
+                // Get root TX and OUT_COND for pkey_cert filter and additional fields
+                dap_chain_datum_tx_t *l_root_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_root_hash);
+                dap_chain_tx_out_cond_t *l_root_cond = l_root_tx ?
+                    dap_chain_datum_tx_out_cond_get(l_root_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL) : NULL;
+
+                // Apply pkey_cert filter
+                if(l_filter_by_pkey_cert)
+                {
+                    if(!l_root_cond || memcmp(&l_root_cond->subtype.srv_pay.pkey_hash, &l_pkey_cert_hash, sizeof(dap_hash_fast_t)) != 0)
+                        continue;
+                }
+
                 // Build JSON
                 json_object *l_jobj_tx = json_object_new_object();
                 json_object_object_add(l_jobj_tx, "tx_first",
@@ -6641,6 +6713,24 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
                 json_object_object_add(l_jobj_tx, "status",
                     json_object_new_string(l_is_spent ? "spent" : "unspent"));
 
+                // Add cond_pkey_hash, ts_expires and ts_created from root TX (already fetched for filter)
+                if(l_root_tx)
+                {
+                    char l_ts_str[DAP_TIME_STR_SIZE] = {};
+                    dap_time_to_str_rfc822(l_ts_str, DAP_TIME_STR_SIZE, l_root_tx->header.ts_created);
+                    json_object_object_add(l_jobj_tx, "ts_created", json_object_new_string(l_ts_str));
+                }
+                if(l_root_cond)
+                {
+                    json_object_object_add(l_jobj_tx, "cond_pkey_hash",
+                        json_object_new_string(l_is_base58 ?
+                            dap_enc_base58_encode_hash_to_str_static(&l_root_cond->subtype.srv_pay.pkey_hash) :
+                            dap_hash_fast_to_str_static(&l_root_cond->subtype.srv_pay.pkey_hash)));
+                    if(l_root_cond->header.ts_expires)
+                        json_object_object_add(l_jobj_tx, "ts_expires", json_object_new_uint64(l_root_cond->header.ts_expires));
+                    else
+                        json_object_object_add(l_jobj_tx, "ts_expires", json_object_new_string("never"));
+                }
                 // Add out_cond_idx for compose operations (only if unspent)
                 if (!l_is_spent)
                     json_object_object_add(l_jobj_tx, "out_cond_idx", json_object_new_int(l_final_out_idx));
@@ -6669,10 +6759,223 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
     return 0;
 }
 
+static int _cmd_tx_cond_history(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+{
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    int arg_index = 1;
+
+    const char *l_hash_out_type = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "hex";
+
+    const char *l_net_name = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+    if(!l_net_name)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_NET,
+                               "Command requires parameter -net");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_NET;
+    }
+
+    const char *l_tx_hash_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx", &l_tx_hash_str);
+    if(!l_tx_hash_str)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_CERT,
+                               "Command requires parameter -tx");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_REQUIRES_PARAMETER_CERT;
+    }
+
+    // Parse action filter: all (default), refill, spend
+    const char *l_action_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-action", &l_action_str);
+    enum { ACTION_ALL, ACTION_REFILL, ACTION_SPEND } l_action_filter = ACTION_ALL;
+    if(l_action_str)
+    {
+        if(!dap_strcmp(l_action_str, "refill"))
+            l_action_filter = ACTION_REFILL;
+        else if(!dap_strcmp(l_action_str, "spend"))
+            l_action_filter = ACTION_SPEND;
+        else if(dap_strcmp(l_action_str, "all"))
+        {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_INVALID_PARAMETER_H,
+                                   "Invalid -action value '%s'. Use: all, refill, spend", l_action_str);
+            return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_INVALID_PARAMETER_H;
+        }
+    }
+
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if(!l_net)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET,
+                               "Can't find network '%s'", l_net_name);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET;
+    }
+
+    dap_hash_fast_t l_tx_hash = {};
+    if(dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash))
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+                               "Can't parse TX hash '%s'", l_tx_hash_str);
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX;
+    }
+
+    // Find first TX in chain
+    dap_ledger_tx_item_t *l_item = NULL;
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_datum_by_hash(l_net->pub.ledger, &l_tx_hash, &l_item, false);
+    if(!l_tx)
+    {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+                               "Can't find TX in ledger");
+        return DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX;
+    }
+
+    dap_hash_fast_t l_first_tx_hash = dap_ledger_get_first_chain_tx_hash(
+        l_net->pub.ledger, l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY);
+    if(dap_hash_fast_is_blank(&l_first_tx_hash))
+        l_first_tx_hash = l_tx_hash;
+
+    bool l_is_base58 = !dap_strcmp(l_hash_out_type, "base58");
+
+    // Build history by walking the chain from first to last TX
+    json_object *l_jobj_ret = json_object_new_object();
+    json_object *l_jobj_history = json_object_new_array();
+    size_t l_entry_count = 0;
+    size_t l_filtered_count = 0;
+
+    dap_hash_fast_t l_cur_hash = l_first_tx_hash;
+    uint256_t l_prev_value = {};
+
+    while(!dap_hash_fast_is_blank(&l_cur_hash))
+    {
+        dap_ledger_tx_item_t *l_cur_item = NULL;
+        dap_chain_datum_tx_t *l_cur_tx = dap_ledger_tx_find_datum_by_hash(
+            l_net->pub.ledger, &l_cur_hash, &l_cur_item, false);
+        if(!l_cur_tx)
+            break;
+
+        int l_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(
+            l_cur_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_cond_idx);
+
+        // Determine action type
+        const char *l_action = "unknown";
+        uint256_t l_change = {};
+        uint256_t l_cur_value = l_cond ? l_cond->header.value : uint256_0;
+
+        bool l_is_refill = false;
+        bool l_is_spend = false;
+
+        if(l_entry_count == 0)
+        {
+            l_action = "create";
+            l_change = l_cur_value;
+        }
+        else if(!l_cond)
+        {
+            l_action = "remove";
+            l_change = l_prev_value;
+            l_is_spend = true;
+        }
+        else if(compare256(l_cur_value, l_prev_value) > 0)
+        {
+            l_action = "refill";
+            SUBTRACT_256_256(l_cur_value, l_prev_value, &l_change);
+            l_is_refill = true;
+        }
+        else if(compare256(l_cur_value, l_prev_value) < 0)
+        {
+            l_action = "spend";
+            SUBTRACT_256_256(l_prev_value, l_cur_value, &l_change);
+            l_is_spend = true;
+        }
+        else
+        {
+            l_action = "update";
+            l_change = uint256_0;
+        }
+
+        // Apply action filter
+        bool l_skip = false;
+        if(l_action_filter == ACTION_REFILL && !l_is_refill)
+            l_skip = true;
+        if(l_action_filter == ACTION_SPEND && !l_is_spend)
+            l_skip = true;
+
+        l_entry_count++;
+
+        if(l_skip)
+        {
+            l_prev_value = l_cur_value;
+            // Move to next TX in chain
+            if(!l_cur_item || l_cond_idx < 0 || (uint32_t)l_cond_idx >= l_cur_item->cache_data.n_outs)
+                break;
+            if(dap_hash_fast_is_blank(&l_cur_item->cache_data.tx_hash_spent_fast[l_cond_idx]))
+                break;
+            l_cur_hash = l_cur_item->cache_data.tx_hash_spent_fast[l_cond_idx];
+            continue;
+        }
+
+        // Get timestamp from TX header
+        dap_time_t l_ts = l_cur_tx->header.ts_created;
+
+        // Build JSON entry
+        json_object *l_jobj_entry = json_object_new_object();
+        json_object_object_add(l_jobj_entry, "tx_hash",
+            json_object_new_string(l_is_base58 ?
+                dap_enc_base58_encode_hash_to_str_static(&l_cur_hash) :
+                dap_hash_fast_to_str_static(&l_cur_hash)));
+        json_object_object_add(l_jobj_entry, "action", json_object_new_string(l_action));
+
+        const char *l_change_coins = NULL;
+        const char *l_change_str = dap_uint256_to_char(l_change, &l_change_coins);
+        json_object_object_add(l_jobj_entry, "change_datoshi", json_object_new_string(l_change_str));
+        json_object_object_add(l_jobj_entry, "change_coins", json_object_new_string(l_change_coins));
+
+        const char *l_balance_coins = NULL;
+        const char *l_balance_str = dap_uint256_to_char(l_cur_value, &l_balance_coins);
+        json_object_object_add(l_jobj_entry, "balance_datoshi", json_object_new_string(l_balance_str));
+        json_object_object_add(l_jobj_entry, "balance_coins", json_object_new_string(l_balance_coins));
+
+        if(l_ts)
+        {
+            char l_ts_str[DAP_TIME_STR_SIZE] = {};
+            dap_time_to_str_rfc822(l_ts_str, DAP_TIME_STR_SIZE, l_ts);
+            json_object_object_add(l_jobj_entry, "ts_created", json_object_new_string(l_ts_str));
+        }
+
+        json_object_array_add(l_jobj_history, l_jobj_entry);
+        l_filtered_count++;
+        l_prev_value = l_cur_value;
+
+        // Move to next TX in chain
+        if(!l_cur_item || l_cond_idx < 0 || (uint32_t)l_cond_idx >= l_cur_item->cache_data.n_outs)
+            break;
+        if(dap_hash_fast_is_blank(&l_cur_item->cache_data.tx_hash_spent_fast[l_cond_idx]))
+            break;
+        l_cur_hash = l_cur_item->cache_data.tx_hash_spent_fast[l_cond_idx];
+    }
+
+    // Add first TX info
+    json_object_object_add(l_jobj_ret, "tx_first",
+        json_object_new_string(l_is_base58 ?
+            dap_enc_base58_encode_hash_to_str_static(&l_first_tx_hash) :
+            dap_hash_fast_to_str_static(&l_first_tx_hash)));
+    json_object_object_add(l_jobj_ret, "history", l_jobj_history);
+    json_object_object_add(l_jobj_ret, "total_entries", json_object_new_uint64(l_filtered_count));
+    json_object_object_add(l_jobj_ret, "total_chain_length", json_object_new_uint64(l_entry_count));
+
+    if(*a_json_arr_reply && json_object_is_type(*a_json_arr_reply, json_type_array))
+        json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+
+    return 0;
+}
+
 int com_tx_cond(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
-    enum _subcmd { SUBCMD_CREATE, SUBCMD_REFILL, SUBCMD_REMOVE, SUBCMD_UNSPENT_FIND, SUBCMD_INFO, SUBCMD_LIST };
+    enum _subcmd { SUBCMD_CREATE, SUBCMD_REFILL, SUBCMD_REMOVE, SUBCMD_UNSPENT_FIND, SUBCMD_INFO, SUBCMD_LIST, SUBCMD_HISTORY };
     enum _subcmd l_cmd = 0;
 
     if (a_argv[1]) {
@@ -6688,14 +6991,16 @@ int com_tx_cond(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             l_cmd = SUBCMD_INFO;
         } else if (!dap_strcmp(a_argv[1], "list")) {
             l_cmd = SUBCMD_LIST;
+        } else if (!dap_strcmp(a_argv[1], "history")) {
+            l_cmd = SUBCMD_HISTORY;
         } else {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,
-                "Invalid subcommand '%s'. Use: tx_cond create | refill | remove | unspent_find | info | list", a_argv[1]);
+                "Invalid subcommand '%s'. Use: tx_cond create | refill | remove | unspent_find | info | list | history", a_argv[1]);
             return DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD;
         }
     } else {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD,
-            "Subcommand required. Use: tx_cond create | refill | remove | unspent_find | info | list");
+            "Subcommand required. Use: tx_cond create | refill | remove | unspent_find | info | list | history");
         return DAP_CHAIN_NODE_CLI_FUND_ERR_UNKNOWN_SUBCMD;
     }
 
@@ -6712,6 +7017,8 @@ int com_tx_cond(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             return _cmd_tx_cond_info(a_argc, a_argv, a_str_reply, a_version);
         case SUBCMD_LIST:
             return _cmd_tx_cond_list(a_argc, a_argv, a_str_reply, a_version);
+        case SUBCMD_HISTORY:
+            return _cmd_tx_cond_history(a_argc, a_argv, a_str_reply, a_version);
     }
     return -1;
 }
