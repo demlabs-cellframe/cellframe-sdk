@@ -2092,26 +2092,28 @@ int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
             char **l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
             if (l_wallet) {
-                //Get sign for wallet
-                dap_json_t *l_jobj_sings = NULL;
+                // Get sign types for wallet
+                dap_json_t *l_jobj_signs = NULL;
                 dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
                 if (l_w_internal->certs_count == 1) {
-                    l_jobj_sings = dap_json_object_new_string(
+                    // Single certificate wallet
+                    l_jobj_signs = dap_json_object_new_string(
                         dap_sign_type_to_str(
                             dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type)));
                 } else {
-                    dap_string_t *l_str_signs = dap_string_new("");
+                    // Multi-signature wallet - output as JSON array with sig_multi_chained prefix
+                    l_jobj_signs = dap_json_array_new();
+                    dap_json_array_add(l_jobj_signs, dap_json_object_new_string("sig_multi_chained"));
                     for (size_t i = 0; i < l_w_internal->certs_count; i++) {
-                        dap_string_append_printf(l_str_signs, "%s%s",
-                                                 dap_sign_type_to_str(dap_sign_type_from_key_type(
-                                                     l_w_internal->certs[i]->enc_key->type)),
-                                                 ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
+                        dap_json_array_add(l_jobj_signs, 
+                            dap_json_object_new_string(
+                                dap_sign_type_to_str(dap_sign_type_from_key_type(
+                                    l_w_internal->certs[i]->enc_key->type))));
                     }
-                    l_jobj_sings = dap_json_object_new_string(l_str_signs->str);
-                    dap_string_free(l_str_signs, true);
                 }
-                dap_json_object_add_object(json_obj_wall, "signs", l_jobj_sings);
+                dap_json_object_add_object(json_obj_wall, "signs", l_jobj_signs);
             } else {
+                // Searching by address - show sig_type from address
                 dap_json_object_add_object(json_obj_wall, "signs",
                                        dap_json_object_new_string(dap_sign_type_to_str(l_addr->sig_type)));
             }
