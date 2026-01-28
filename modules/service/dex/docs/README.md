@@ -16,6 +16,7 @@ DEX v2 is a decentralized exchange service for the Cellframe network, enabling t
 | [06_CLI_REFERENCE.md](06_CLI_REFERENCE.md) | Command-line interface reference |
 | [07_CONFIGURATION.md](07_CONFIGURATION.md) | Node configuration and governance |
 | [08_API_REFERENCE.md](08_API_REFERENCE.md) | C API functions and error codes |
+| [09_MIGRATION_SYNC.md](09_MIGRATION_SYNC.md) | SRV_XCHANGE -> SRV_DEX migration notes |
 
 ## Quick Start
 

@@ -769,6 +769,7 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_out_cond_srv_fee);
     dap_list_free(a_items_groups->items_out_cond_srv_pay);
     dap_list_free(a_items_groups->items_out_cond_srv_xchange);
+    dap_list_free(a_items_groups->items_out_cond_srv_dex);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_pos_delegate);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_lock);
     dap_list_free(a_items_groups->items_out_cond_srv_stake_ext_lock);
@@ -776,6 +777,7 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
     dap_list_free(a_items_groups->items_in_ems);
     dap_list_free(a_items_groups->items_vote);
     dap_list_free(a_items_groups->items_voting);
+    dap_list_free(a_items_groups->items_voting_cancel);
     dap_list_free(a_items_groups->items_tsd);
     dap_list_free(a_items_groups->items_pkey);
     dap_list_free(a_items_groups->items_receipt);

@@ -53,6 +53,43 @@ static participants_t init_participants(
     return p;
 }
 
+static int s_dex_history_summary_by_order(dex_test_fixture_t *a_f, const dap_hash_fast_t *a_order_hash)
+{
+    dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net, !a_order_hash);
+    const char *l_hash_str = dap_chain_hash_fast_to_str_static(a_order_hash);
+    char l_json_request[1024];
+    snprintf(l_json_request, sizeof(l_json_request),
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-order;%s;-view;summary\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        a_f->net->net->pub.name, l_hash_str);
+    char *l_reply = dap_cli_cmd_exec(l_json_request);
+    if (!l_reply)
+        return -2;
+    json_object *l_json = json_tokener_parse(l_reply);
+    DAP_DELETE(l_reply);
+    if (!l_json)
+        return -3;
+    json_object *l_error = NULL;
+    if (json_object_object_get_ex(l_json, "error", &l_error)) {
+        log_it(L_ERROR, "DEX history summary error: %s", json_object_to_json_string(l_error));
+        json_object_put(l_json);
+        return -4;
+    }
+    json_object *l_result_raw = NULL;
+    if (!json_object_object_get_ex(l_json, "result", &l_result_raw)) {
+        json_object_put(l_json);
+        return -5;
+    }
+    json_object *l_result = json_object_is_type(l_result_raw, json_type_array)
+        ? json_object_array_get_idx(l_result_raw, 0) : l_result_raw;
+    if (l_result) {
+        json_object *l_summary = NULL;
+        if (json_object_object_get_ex(l_result, "summary", &l_summary))
+            log_it(L_NOTICE, "DEX order summary: %s", json_object_to_json_string(l_summary));
+    }
+    json_object_put(l_json);
+    return 0;
+}
+
 // ============================================================================
 // EXPECTED DELTAS CALCULATION
 // ============================================================================
@@ -2638,6 +2675,12 @@ static int s_run_m01_seller_partial_current(dex_test_fixture_t *f, const test_pa
     }
     log_it(L_NOTICE, "✓ M01: Alice received payout: %s %s", 
            dap_uint256_to_char_ex(alice_after.quote).frac, quote);
+
+    ret = s_dex_history_summary_by_order(f, &order_hash);
+    if (ret != 0) {
+        log_it(L_ERROR, "M01: DEX history summary failed: %d", ret);
+        return -7;
+    }
     
     log_it(L_NOTICE, "✓ M01: SELLER PARTIAL CHAIN (MINFILL_50_CURRENT) PASSED");
     
@@ -3725,7 +3768,7 @@ static int s_run_m11_fee_exceeds_executed(dex_test_fixture_t *f, const test_pair
         order_value = max_order;
     }
 
-    char order_value_str[64];
+    char order_value_str[128];
     snprintf(order_value_str, sizeof(order_value_str), "%s", dap_uint256_to_char_ex(order_value).frac);
 
     // Step 1: Carol creates order

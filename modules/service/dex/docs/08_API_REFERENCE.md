@@ -250,6 +250,9 @@ dap_chain_net_srv_dex_migrate_error_t dap_chain_net_srv_dex_migrate(
 ```
 
 Converts SRV_XCHANGE (DEX v1, subtype 0x02) orders to SRV_DEX (v2, subtype 0x05).
+`a_rate_new` is interpreted as legacy XCHANGE price (BUY per SELL) and converted to canonical QUOTE/BASE when needed.
+
+See also: [DEX migration sync](09_MIGRATION_SYNC.md).
 
 ### Error Codes
 

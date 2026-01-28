@@ -76,6 +76,17 @@ int dap_chain_net_srv_dex_init();
  */
 void dap_chain_net_srv_dex_deinit();
 
+/**
+ * @brief Check if pair is whitelisted via DEX decrees
+ * @param a_sell_token   Sell token ticker
+ * @param a_sell_net_id  Sell token net id
+ * @param a_buy_token    Buy token ticker
+ * @param a_buy_net_id   Buy token net id
+ * @return true if pair is whitelisted
+ */
+bool dap_chain_net_srv_dex_pair_is_whitelisted(const char *a_sell_token, dap_chain_net_id_t a_sell_net_id,
+                                               const char *a_buy_token, dap_chain_net_id_t a_buy_net_id);
+
 /* ============================================================================
  * Order Creation
  * ============================================================================ */
@@ -264,7 +275,7 @@ typedef enum dap_chain_net_srv_dex_migrate_error_list{
  * @brief Migrate legacy XCHANGE order to DEX (owner-only one-way bridge)
  * @param a_net          Target network
  * @param a_prev_hash    Hash of XCHANGE order TX (must be SRV_XCHANGE subtype)
- * @param a_rate_new     New rate for DEX order (QUOTE/BASE canonical format)
+ * @param a_rate_new     New rate in legacy XCHANGE semantics (BUY per SELL); converted to QUOTE/BASE canonical format
  * @param a_fee          Validator fee in native tokens
  * @param a_wallet       Owner wallet (must match XCHANGE order's seller_addr)
  * @param a_tx           [out] Composed migration TX

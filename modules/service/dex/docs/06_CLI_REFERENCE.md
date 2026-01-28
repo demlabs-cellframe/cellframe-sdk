@@ -502,6 +502,11 @@ srv_dex history -net TestNet -pair KEL/USDT -view summary -limit 10
 }
 ```
 
+Notes:
+
+- `spent` and `received` include the token ticker in the same string (for example, `100.0 KEL`).
+- `remained` is included for partially filled orders and shows remaining locked amount with its ticker.
+
 ---
 
 #### Totals Only (no bucket)
@@ -886,13 +891,16 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 ```bash
 srv_dex migrate \
   -net <network_name> \
-  -from <tx_hash[:out_idx]> \
+  -from <tx_hash> \
   -rate <new_rate> \
   -fee <validator_fee> \
   -w <wallet_path>
 ```
 
 Converts legacy DEX v1 orders to v2 format.
+`-rate` is interpreted as legacy XCHANGE price (BUY per SELL) and converted to canonical QUOTE/BASE when needed.
+
+See also: [DEX migration sync](09_MIGRATION_SYNC.md).
 
 ---
 
