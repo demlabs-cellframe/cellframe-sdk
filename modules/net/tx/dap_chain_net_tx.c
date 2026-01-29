@@ -41,7 +41,6 @@
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_datum_tx_voting.h"
-#include "json.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_net_srv.h"
 #include "dap_enc_base64.h"

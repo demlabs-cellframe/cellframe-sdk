@@ -1075,7 +1075,7 @@ typedef enum cmd_mempool_proc_list_error{
  * @param a_datum_hash
  * @param a_json_arr_reply
  * @return
-
+ */
 int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, dap_json_t *a_json_arr_reply, int a_version)
 {
     // If full or light it doesnt work
