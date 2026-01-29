@@ -4968,14 +4968,29 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     //     }
     // }
 
+    bool l_pay_with_native = !dap_strcmp(a_price->token_sell, l_native_ticker);
+    bool l_buy_with_native = !dap_strcmp(a_price->token_buy, l_native_ticker);
+
     json_object *l_outs = NULL;
+    json_object *l_native_outs = NULL;
     int l_outputs_count = 0;
+    int l_native_outputs_count = 0;
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
     if (!s_get_remote_wallet_outs_and_count(a_buyer_addr, a_price->token_buy, &l_outs, &l_outputs_count, a_config)) {
         log_it(L_ERROR, "not enough funds to transfer");
         s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Not enough funds to transfer");
         DAP_DEL_Z(l_net_fee_addr);
         return NULL;
+    }
+    // For non-native to non-native exchange, we need native token outputs to pay the fee
+    if (!l_pay_with_native && !l_buy_with_native) {
+        if (!s_get_remote_wallet_outs_and_count(a_buyer_addr, l_native_ticker, &l_native_outs, &l_native_outputs_count, a_config)) {
+            log_it(L_ERROR, "not enough native funds to pay fee");
+            s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FEE_ERROR, "Not enough native funds to pay fee");
+            json_object_put(l_outs);
+            DAP_DEL_Z(l_net_fee_addr);
+            return NULL;
+        }
     }
 #endif
 
@@ -4987,23 +5002,25 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
         log_it(L_ERROR, "not enough funds to transfer");
         s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FUNDS_ERROR, "Not enough funds to transfer");
         json_object_put(l_outs);
+        if (l_native_outs)
+            json_object_put(l_native_outs);
         DAP_DEL_Z(l_net_fee_addr);
         return NULL;
     }
 
-    bool l_pay_with_native = !dap_strcmp(a_price->token_sell, l_native_ticker);
-    bool l_buy_with_native = !dap_strcmp(a_price->token_buy, l_native_ticker);
     if (!l_pay_with_native) {
         if (l_buy_with_native) {
             SUM_256_256(l_value_need, l_total_fee, &l_value_need);
         } else {
-            l_list_fee_out = s_ledger_get_list_tx_outs_from_json(l_outs, l_outputs_count,
+            // Use native token outputs for fee payment in non-native to non-native exchange
+            l_list_fee_out = s_ledger_get_list_tx_outs_from_json(l_native_outs, l_native_outputs_count,
                                                                 l_total_fee, 
                                                                 &l_fee_transfer);
             if (!l_list_fee_out) {
-                log_it(L_ERROR, "not enough funds to pay fee");
-                s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FEE_ERROR, "Not enough funds to pay fee");
+                log_it(L_ERROR, "not enough native funds to pay fee");
+                s_json_compose_error_add(a_config->response_handler, TX_CREATE_COMPOSE_FEE_ERROR, "Not enough native funds to pay fee");
                 json_object_put(l_outs);
+                json_object_put(l_native_outs);
                 dap_list_free_full(l_list_used_out, NULL);
                 DAP_DEL_Z(l_net_fee_addr);
                 return NULL;
@@ -5012,6 +5029,8 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_exchange_compose(dap_chain_net_srv_x
     }
 
     json_object_put(l_outs);
+    if (l_native_outs)
+        json_object_put(l_native_outs);
 
     // Create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
