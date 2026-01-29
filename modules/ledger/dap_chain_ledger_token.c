@@ -1269,6 +1269,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
     case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC:  l_type_str = "Public"; break;
     default: assert(false); break;
     }
+    UNUSED(l_type_str); UNUSED(l_declare_update_str);  // Used by debug_if in debug builds
     debug_if(g_debug_ledger, L_INFO, "%s token %s has been %s, total_supply: %s, signs_valid: %zu, signs_total: %zu",
                                 l_type_str, l_token_item->ticker, l_declare_update_str,
                                 l_balance_dbg, l_token_item->auth_signs_valid, l_token_item->auth_signs_total);

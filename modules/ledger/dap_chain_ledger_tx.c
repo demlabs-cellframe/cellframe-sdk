@@ -1628,6 +1628,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     
     if (!dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true))
         assert(!l_err_num);
+    UNUSED(l_err_num);  // Used by assert in debug builds
 
     // Update balance: deducts
     const char *l_cur_token_ticker = NULL;
