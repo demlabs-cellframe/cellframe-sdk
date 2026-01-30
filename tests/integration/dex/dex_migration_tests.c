@@ -454,7 +454,8 @@ int run_migration_tests(dex_test_fixture_t *f)
     }
 
     dap_chain_datum_tx_t *l_migrate_tx_fail = NULL;
-    l_err = dap_chain_net_srv_dex_migrate(f->net->net, &l_xchange_tail_c, l_rate_new, f->network_fee, f->alice, &l_migrate_tx_fail);
+    l_err = dap_chain_net_srv_dex_migrate(f->net->net, &l_xchange_tail_c, l_rate_new, f->network_fee, f->alice,
+                                          &l_migrate_tx_fail);
     if (l_err != DEX_MIGRATE_ERROR_OK || !l_migrate_tx_fail) {
         log_it(L_ERROR, "DEX migrate compose failed after cutoff: %d", l_err);
         return -34;

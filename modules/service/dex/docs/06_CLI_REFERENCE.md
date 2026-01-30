@@ -194,7 +194,7 @@ srv_dex purchase_auto \
 | `-value` | Yes | Budget amount |
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
-| `-rate_cap` | No | Price cap: skip orders with rate > this value |
+| `-rate_cap` | No | Price limit: BID skips rate > cap, ASK skips rate < cap |
 | `-create_leftover_order` | No | Create order from unspent budget |
 | `-leftover_rate` | Conditional | Rate for leftover order (required if `-create_leftover_order`; forbidden otherwise) |
 | `-dry-run` | No | Simulate matching without submitting TX (returns match plan in JSON) |
@@ -393,6 +393,41 @@ srv_dex slippage \
 ```bash
 srv_dex slippage -net TestNet -pair KEL/USDT -value 1000 -side buy -unit quote -max_slippage_pct 5
 ```
+
+---
+
+### Find Matches
+
+```bash
+srv_dex find_matches \
+  -net <network_name> \
+  -order <hash> \
+  -addr <wallet_addr>
+```
+
+Analyzes potential counter-matches for a legacy or DEX order.  
+Matches owned by the provided address are excluded.
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-order` | Order hash (any hash in legacy/DEX order chain; resolved to current tail) |
+| `-addr` | Wallet address used to skip self-matches |
+
+**Output fields:**
+| Field | Description |
+|-------|-------------|
+| `matches_count` | Number of matching orders |
+| `matches[]` | Array of match objects |
+| `matches[].root` | Root hash |
+| `matches[].tail` | Tail hash |
+| `matches[].rate` | Order rate (canonical QUOTE/BASE) |
+| `matches[].order_value` | Remaining order value |
+| `matches[].order_token` | Token of `order_value` |
+| `matches[].executed` | Potential executed amount (order token) |
+| `matches[].fill_pct` | Potential fill percentage |
+| `addr_matches_owner` | `true` if `-addr` matches order owner |
+| `warning` | Optional warning string (e.g., `addr_not_owner`) |
 
 ---
 

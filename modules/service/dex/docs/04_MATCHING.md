@@ -16,14 +16,14 @@ The DEX matching engine supports three purchase modes:
 typedef struct dex_match_criteria {
     const char *token_sell, *token_buy;
     dap_chain_net_id_t net_id_sell, net_id_buy;
-    uint256_t rate_cap;                  // Price cap (skip if rate > rate_cap)
+    uint256_t rate_cap;                  // Price limit (BID: rate<=cap, ASK: rate>=cap)
     uint256_t budget;                    // Amount limit
     bool is_budget_buy;                  // Budget in buy token (true) or sell token (false)
     const dap_chain_addr_t *buyer_addr;  // To skip self-purchase
 } dex_match_criteria_t;
 ```
 
-If `rate_cap` is non-zero, orders with canonical rate `> rate_cap` are skipped.
+If `rate_cap` is non-zero, orders are filtered by side: BID skips `rate > rate_cap`, ASK skips `rate < rate_cap`.
 
 ### Taker Side Determination
 
@@ -60,6 +60,21 @@ bool l_budget_in_base = a_criteria->is_budget_buy == (l_side == DEX_SIDE_BID);
 | BID | `true` | BASE | `true` |
 | ASK | `false` | BASE | `true` |
 | ASK | `true` | QUOTE | `false` |
+
+---
+
+## CLI Find Matches
+
+```bash
+srv_dex find_matches -net <network_name> -order <hash> -addr <wallet_addr>
+```
+
+Notes:
+
+- `-order` accepts any hash in legacy or DEX order chain; it is resolved to the latest tail.
+- Budget is the remaining **sell-token** value from the order tail.
+- `-addr` is passed as `buyer_addr` to skip self-matches.
+- Matching is always against the **opposite** side of the order.
 
 ---
 

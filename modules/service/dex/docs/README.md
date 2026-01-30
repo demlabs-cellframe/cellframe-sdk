@@ -52,6 +52,12 @@ srv_dex purchase_auto -net TestNet -token_sell USDT -token_buy KEL \
   -w /path/to/wallet.dwallet -value 50.0 -unit buy -fee 0.05
 ```
 
+### Analyze Matches
+
+```bash
+srv_dex find_matches -net TestNet -order <hash> -addr <wallet_addr>
+```
+
 ## Architecture
 
 ```

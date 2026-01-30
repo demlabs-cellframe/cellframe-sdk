@@ -588,66 +588,118 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
         }
         if (l_out_cond_dex_q && l_in_cond_q) {
             if (!a_owner)
-                return -1;
+                return log_it(L_WARNING, "Migration reject: not owner"), -1;
             if (l_migrate_cutoff_set && l_migrate_cutoff_ts && l_tx_block_time > l_migrate_cutoff_ts)
-                return -6;
+                return log_it(L_WARNING, "Migration reject: cutoff passed block_time=%llu cutoff=%llu",
+                              (unsigned long long)l_tx_block_time, (unsigned long long)l_migrate_cutoff_ts), -6;
             if (l_in_cond_q != 1 || l_out_cond_dex_q != 1 || l_out_cond_other_q != 0 || !l_in0 || !l_dex_out)
-                return -1;
+                return log_it(L_WARNING, "Migration reject: bad cond counts in=%d dex_out=%d other_out=%d in0=%s dex_out=%s",
+                              l_in_cond_q, l_out_cond_dex_q, l_out_cond_other_q, l_in0 ? "yes" : "no", l_dex_out ? "yes" : "no"), -1;
             // Find previous XCHANGE conditional out by index
             dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_in0->header.tx_prev_hash);
-            if (!l_prev_tx) return -1;
+            if (!l_prev_tx)
+                return log_it(L_WARNING, "Migration reject: prev tx not found hash=%s",
+                              dap_hash_fast_to_str_static(&l_in0->header.tx_prev_hash)), -1;
             byte_t *l_prev_item = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_in0->header.tx_out_prev_idx);
-            if (!l_prev_item || *l_prev_item != TX_ITEM_TYPE_OUT_COND) return -1;
+            if (!l_prev_item || *l_prev_item != TX_ITEM_TYPE_OUT_COND)
+                return log_it(L_WARNING, "Migration reject: prev out idx=%u type=%u",
+                              l_in0->header.tx_out_prev_idx, l_prev_item ? (unsigned)*l_prev_item : 0), -1;
             dap_chain_tx_out_cond_t *l_prev_out = (dap_chain_tx_out_cond_t*)l_prev_item;
-            if (l_prev_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) return -1;
+            if (l_prev_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
+                return log_it(L_WARNING, "Migration reject: prev out subtype=%u not SRV_XCHANGE",
+                              (unsigned)l_prev_out->header.subtype), -1;
             // Networks and tokens must match
             const char *l_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in0->header.tx_prev_hash);
-            if (!l_sell_ticker) return -1;
-            if (!*l_prev_out->subtype.srv_xchange.buy_token || !*l_dex_out->subtype.srv_dex.buy_token) return -2;
+            if (!l_sell_ticker)
+                return log_it(L_WARNING, "Migration reject: sell token not found for prev hash=%s",
+                              dap_hash_fast_to_str_static(&l_in0->header.tx_prev_hash)), -1;
+            if (!*l_prev_out->subtype.srv_xchange.buy_token || !*l_dex_out->subtype.srv_dex.buy_token)
+                return log_it(L_WARNING, "Migration reject: empty buy_token prev='%s' dex='%s'",
+                              l_prev_out->subtype.srv_xchange.buy_token, l_dex_out->subtype.srv_dex.buy_token), -2;
             // Fee inputs may only use sell token or native token
             const char *l_native_ticker = a_ledger->net->pub.native_ticker;
+            uint256_t l_native_in = uint256_0, l_fee_val = uint256_0;
+            dap_chain_datum_tx_get_fee_value(a_tx_in, &l_fee_val);
             byte_t *iti; size_t szi=0; TX_ITEM_ITER_TX(iti, szi, a_tx_in) {
                 if (*iti == TX_ITEM_TYPE_IN) {
                     dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t*)iti;
                     dap_chain_datum_tx_t *l_in_prev = dap_ledger_tx_find_by_hash(a_ledger, &l_in->header.tx_prev_hash);
-                    if (!l_in_prev) return -1;
+                    if (!l_in_prev)
+                        return log_it(L_WARNING, "Migration reject: input prev tx not found hash=%s",
+                                      dap_hash_fast_to_str_static(&l_in->header.tx_prev_hash)), -1;
                     byte_t *l_in_prev_item = dap_chain_datum_tx_out_get_by_out_idx(l_in_prev, l_in->header.tx_out_prev_idx);
-                    if (!l_in_prev_item) return -1;
+                    if (!l_in_prev_item)
+                        return log_it(L_WARNING, "Migration reject: input prev out idx=%u not found hash=%s",
+                                      l_in->header.tx_out_prev_idx, dap_hash_fast_to_str_static(&l_in->header.tx_prev_hash)), -1;
                     const char *l_in_ticker = NULL;
+                    uint256_t l_in_val = uint256_0;
                     switch (*l_in_prev_item) {
                     case TX_ITEM_TYPE_OUT_EXT:
                         l_in_ticker = ((dap_chain_tx_out_ext_t*)l_in_prev_item)->token;
+                        l_in_val = ((dap_chain_tx_out_ext_t*)l_in_prev_item)->header.value;
                         break;
                     case TX_ITEM_TYPE_OUT_STD:
                         l_in_ticker = ((dap_chain_tx_out_std_t*)l_in_prev_item)->token;
+                        l_in_val = ((dap_chain_tx_out_std_t*)l_in_prev_item)->value;
                         break;
                     case TX_ITEM_TYPE_OUT_OLD:
                     case TX_ITEM_TYPE_OUT:
                         l_in_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in->header.tx_prev_hash);
+                        l_in_val = ((dap_chain_tx_out_t*)l_in_prev_item)->header.value;
                         break;
                     default:
-                        return -1;
+                        return log_it(L_WARNING, "Migration reject: unsupported input prev item type=%u hash=%s",
+                                      (unsigned)*l_in_prev_item, dap_hash_fast_to_str_static(&l_in->header.tx_prev_hash)), -1;
                     }
-                    if (!l_in_ticker || !*l_in_ticker) return -1;
-                    if (dap_strcmp(l_in_ticker, l_sell_ticker) && dap_strcmp(l_in_ticker, l_native_ticker)) return -2;
+                    if (!l_in_ticker || !*l_in_ticker)
+                        return log_it(L_WARNING, "Migration reject: empty input ticker hash=%s",
+                                      dap_hash_fast_to_str_static(&l_in->header.tx_prev_hash)), -1;
+                    if (dap_strcmp(l_in_ticker, l_sell_ticker) && dap_strcmp(l_in_ticker, l_native_ticker))
+                        return log_it(L_WARNING, "Migration reject: input token '%s' not sell '%s' or native '%s'",
+                                      l_in_ticker, l_sell_ticker, l_native_ticker), -2;
+                    if (!dap_strcmp(l_in_ticker, l_native_ticker) && !IS_ZERO_256(l_in_val))
+                        SUM_256_256(l_native_in, l_in_val, &l_native_in);
                 }
             }
-            if (l_prev_out->subtype.srv_xchange.sell_net_id.uint64 != l_dex_out->subtype.srv_dex.sell_net_id.uint64) return -2;
-            if (l_prev_out->subtype.srv_xchange.buy_net_id.uint64  != l_dex_out->subtype.srv_dex.buy_net_id.uint64)  return -2;
-            if (dap_strcmp(l_prev_out->subtype.srv_xchange.buy_token, l_dex_out->subtype.srv_dex.buy_token)) return -2;
-            if (!dap_chain_addr_compare(&l_prev_out->subtype.srv_xchange.seller_addr, &l_dex_out->subtype.srv_dex.seller_addr)) return -2;
-            if (compare256(l_prev_out->header.value, l_dex_out->header.value) != 0) return -2;
+            if (l_prev_out->subtype.srv_xchange.sell_net_id.uint64 != l_dex_out->subtype.srv_dex.sell_net_id.uint64)
+                return log_it(L_WARNING, "Migration reject: sell_net mismatch prev=%llu dex=%llu",
+                              (unsigned long long)l_prev_out->subtype.srv_xchange.sell_net_id.uint64,
+                              (unsigned long long)l_dex_out->subtype.srv_dex.sell_net_id.uint64), -2;
+            if (l_prev_out->subtype.srv_xchange.buy_net_id.uint64  != l_dex_out->subtype.srv_dex.buy_net_id.uint64)
+                return log_it(L_WARNING, "Migration reject: buy_net mismatch prev=%llu dex=%llu",
+                              (unsigned long long)l_prev_out->subtype.srv_xchange.buy_net_id.uint64,
+                              (unsigned long long)l_dex_out->subtype.srv_dex.buy_net_id.uint64), -2;
+            if (dap_strcmp(l_prev_out->subtype.srv_xchange.buy_token, l_dex_out->subtype.srv_dex.buy_token))
+                return log_it(L_WARNING, "Migration reject: buy_token mismatch prev='%s' dex='%s'",
+                              l_prev_out->subtype.srv_xchange.buy_token, l_dex_out->subtype.srv_dex.buy_token), -2;
+            if (!dap_chain_addr_compare(&l_prev_out->subtype.srv_xchange.seller_addr, &l_dex_out->subtype.srv_dex.seller_addr))
+                return log_it(L_WARNING, "Migration reject: seller_addr mismatch prev=%s dex=%s",
+                              dap_chain_addr_to_str_static(&l_prev_out->subtype.srv_xchange.seller_addr),
+                              dap_chain_addr_to_str_static(&l_dex_out->subtype.srv_dex.seller_addr)), -2;
+            if (compare256(l_prev_out->header.value, l_dex_out->header.value) != 0)
+                return log_it(L_WARNING, "Migration reject: value mismatch prev=%s dex=%s",
+                              dap_uint256_to_char_ex(l_prev_out->header.value).frac,
+                              dap_uint256_to_char_ex(l_dex_out->header.value).frac), -2;
             if (!dap_chain_net_srv_dex_pair_is_whitelisted(l_sell_ticker, l_prev_out->subtype.srv_xchange.sell_net_id,
                                                            l_prev_out->subtype.srv_xchange.buy_token, l_prev_out->subtype.srv_xchange.buy_net_id))
-                return -2;
-            if (l_dex_out->subtype.srv_dex.tx_type != 1) return -2; // DEX_TX_TYPE_ORDER
-            if (!dap_hash_fast_is_blank(&l_dex_out->subtype.srv_dex.order_root_hash)) return -2;
-            if (l_dex_out->subtype.srv_dex.min_fill) return -2;
-            if (IS_ZERO_256(l_dex_out->subtype.srv_dex.rate)) return -2;
+                return log_it(L_WARNING, "Migration reject: pair not whitelisted sell='%s' buy='%s' sell_net=%llu buy_net=%llu",
+                              l_sell_ticker, l_prev_out->subtype.srv_xchange.buy_token,
+                              (unsigned long long)l_prev_out->subtype.srv_xchange.sell_net_id.uint64,
+                              (unsigned long long)l_prev_out->subtype.srv_xchange.buy_net_id.uint64), -2;
+            if (l_dex_out->subtype.srv_dex.tx_type != 1)
+                return log_it(L_WARNING, "Migration reject: DEX tx_type %u is not ORDER", l_dex_out->subtype.srv_dex.tx_type), -2;
+            if (!dap_hash_fast_is_blank(&l_dex_out->subtype.srv_dex.order_root_hash))
+                return log_it(L_WARNING, "Migration reject: order_root_hash is not blank (%s)",
+                              dap_hash_fast_to_str_static(&l_dex_out->subtype.srv_dex.order_root_hash)), -2;
+            if (l_dex_out->subtype.srv_dex.min_fill)
+                return log_it(L_WARNING, "Migration reject: min_fill is not zero (%u)", l_dex_out->subtype.srv_dex.min_fill), -2;
+            if (IS_ZERO_256(l_dex_out->subtype.srv_dex.rate))
+                return log_it(L_WARNING, "Migration reject: rate is zero"), -2;
             // Forbid seller payouts and any XCHANGE service fee payouts
             const char *l_buy_ticker = l_prev_out->subtype.srv_xchange.buy_token;
             const dap_chain_addr_t *l_seller = &l_prev_out->subtype.srv_xchange.seller_addr;
             bool l_payout_to_seller=false, l_srv_fee_present=false;
+            uint256_t l_native_out_seller = uint256_0;
             // Resolve XCHANGE service fee address to detect and forbid service payouts
             uint16_t l_srv_fee_type = 0;
             uint256_t l_srv_fee_val = uint256_0;
@@ -662,6 +714,8 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
                     dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)ito;
                     if (!dap_strcmp(l_out_ext->token, l_buy_ticker) && !dap_chain_addr_compare(&l_out_ext->addr, l_seller))
                         l_payout_to_seller=true;
+                    if (!dap_strcmp(l_out_ext->token, l_native_ticker) && !dap_chain_addr_compare(&l_out_ext->addr, l_seller))
+                        SUM_256_256(l_native_out_seller, l_out_ext->header.value, &l_native_out_seller);
                     if (l_srv_fee_used && !dap_chain_addr_compare(&l_out_ext->addr, &l_srv_fee_addr))
                         l_srv_fee_present=true;
                     if (l_net_used && !IS_ZERO_256(l_net_fee_req) && !dap_strcmp(l_out_ext->token, l_native_ticker) &&
@@ -671,6 +725,8 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
                     dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t*)ito;
                     if (!dap_strcmp(l_out_std->token, l_buy_ticker) && !dap_chain_addr_compare(&l_out_std->addr, l_seller))
                         l_payout_to_seller=true;
+                    if (!dap_strcmp(l_out_std->token, l_native_ticker) && !dap_chain_addr_compare(&l_out_std->addr, l_seller))
+                        SUM_256_256(l_native_out_seller, l_out_std->value, &l_native_out_seller);
                     if (l_srv_fee_used && !dap_chain_addr_compare(&l_out_std->addr, &l_srv_fee_addr))
                         l_srv_fee_present=true;
                     if (l_net_used && !IS_ZERO_256(l_net_fee_req) && !dap_strcmp(l_out_std->token, l_native_ticker) &&
@@ -678,8 +734,28 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
                         l_net_fee_present = true;
                 }
             }
-            if (l_payout_to_seller || l_srv_fee_present) return -3;
-            if (l_net_used && !IS_ZERO_256(l_net_fee_req) && !l_net_fee_present) return -2;
+            if (l_payout_to_seller && !dap_strcmp(l_buy_ticker, l_native_ticker)) {
+                uint256_t l_cashback_max = l_native_in;
+                if (compare256(l_cashback_max, l_fee_val) >= 0)
+                    SUBTRACT_256_256(l_cashback_max, l_fee_val, &l_cashback_max);
+                else
+                    l_cashback_max = uint256_0;
+                if (l_net_used && !IS_ZERO_256(l_net_fee_req)) {
+                    if (compare256(l_cashback_max, l_net_fee_req) >= 0)
+                        SUBTRACT_256_256(l_cashback_max, l_net_fee_req, &l_cashback_max);
+                    else
+                        l_cashback_max = uint256_0;
+                }
+                if (compare256(l_native_out_seller, l_cashback_max) <= 0)
+                    l_payout_to_seller = false;
+            }
+            if (l_payout_to_seller || l_srv_fee_present)
+                return log_it(L_WARNING, "Migration reject: payout_to_seller=%d srv_fee_present=%d buy_token='%s' seller=%s native_out=%s",
+                              l_payout_to_seller, l_srv_fee_present, l_buy_ticker, dap_chain_addr_to_str_static(l_seller),
+                              dap_uint256_to_char_ex(l_native_out_seller).frac), -3;
+            if (l_net_used && !IS_ZERO_256(l_net_fee_req) && !l_net_fee_present)
+                return log_it(L_WARNING, "Migration reject: net fee output missing addr=%s req=%s",
+                              dap_chain_addr_to_str_static(&l_net_addr), dap_uint256_to_char_ex(l_net_fee_req).frac), -2;
             // All checks passed — allow migration bridge
             return 0;
         }
@@ -704,7 +780,7 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
 
     dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
     if (!l_tx_in_cond)
-        return -2;
+        return log_it(L_WARNING, "XCHANGE reject: missing IN_COND item"), -2;
     if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
         return -3;
     const char *l_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in_cond->header.tx_prev_hash);

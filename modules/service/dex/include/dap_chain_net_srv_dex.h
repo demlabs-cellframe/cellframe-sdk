@@ -27,7 +27,6 @@
 
 #pragma once
 
-// Follow xchange includes for type availability
 #include "dap_chain_net_srv.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum_tx_out_cond.h"
@@ -35,16 +34,16 @@
 #define DAP_CHAIN_NET_SRV_DEX_ID 0x000000000000000AULL
 
 // Fee calculation constants (256-bit values as 64-bit for GET_256_FROM_64)
-#define DAP_DEX_FEE_UNIT_NATIVE   10000000000000000ULL   // 0.01 × 10^18 (per-pair step for native abs fee)
-#define DAP_DEX_FEE_STEP_PCT      1000000000000000ULL    // 0.001 × 10^18 (0.1% step for percentage fee)
-#define DAP_DEX_POW18             1000000000000000000ULL // 1.0 × 10^18
+#define DAP_DEX_FEE_UNIT_NATIVE 10000000000000000ULL // 0.01 × 10^18 (per-pair step for native abs fee)
+#define DAP_DEX_FEE_STEP_PCT 1000000000000000ULL     // 0.001 × 10^18 (0.1% step for percentage fee)
+#define DAP_DEX_POW18 1000000000000000000ULL         // 1.0 × 10^18
 
-typedef enum dex_tx_type{
+typedef enum dex_tx_type {
     DEX_TX_TYPE_UNDEFINED,
-    DEX_TX_TYPE_ORDER,        // has SRV_DEX OUT only (composer writes this to payload)
-    DEX_TX_TYPE_EXCHANGE,     // trade (buyer-leftover SRV_DEX OUT optionally) (composer writes this)
-    DEX_TX_TYPE_UPDATE,       // seller-leftover update (SRV_DEX OUT with non-blank root) (composer writes this)
-    DEX_TX_TYPE_INVALIDATE    // internal-only classification (no SRV_DEX OUT, no seller payouts)
+    DEX_TX_TYPE_ORDER,     // has SRV_DEX OUT only (composer writes this to payload)
+    DEX_TX_TYPE_EXCHANGE,  // trade (buyer-leftover SRV_DEX OUT optionally) (composer writes this)
+    DEX_TX_TYPE_UPDATE,    // seller-leftover update (SRV_DEX OUT with non-blank root) (composer writes this)
+    DEX_TX_TYPE_INVALIDATE // internal-only classification (no SRV_DEX OUT, no seller payouts)
 } dex_tx_type_t;
 
 /**
@@ -55,15 +54,15 @@ typedef enum dex_tx_type{
  * @param a_sell_net_id   Network ID for sell token (can be NULL for same-network)
  * @param a_buy_net_id    Network ID for buy token (can be NULL for same-network)
  * @param a_max_value     Max value to match (NULL = unlimited)
- * @param a_rate_cap      Rate limit: orders with rate > this are excluded (NULL = no limit)
+ * @param a_rate_cap      Rate limit: BID skips rate > cap, ASK skips rate < cap (NULL = no limit)
  * @param a_num_matches   [out] Number of matches found
  * @param a_is_budget_buy If true, a_max_value is budget in buy tokens, in sell tokens otherwise
  * @return Array of order tail hashes sorted by price (caller must DAP_DELETE), NULL if none
  */
-dap_hash_fast_t *dap_chain_net_srv_dex_match_hashes(
-        dap_chain_net_t *a_net, const char *a_sell_token, const char *a_buy_token,
-        dap_chain_net_id_t *a_sell_net_id, dap_chain_net_id_t *a_buy_net_id,
-        uint256_t *a_max_value, uint256_t *a_rate_cap, size_t *a_num_matches, bool a_is_budget_buy);
+dap_hash_fast_t *dap_chain_net_srv_dex_match_hashes(dap_chain_net_t *a_net, const char *a_sell_token, const char *a_buy_token,
+                                                    dap_chain_net_id_t *a_sell_net_id, dap_chain_net_id_t *a_buy_net_id,
+                                                    uint256_t *a_max_value, uint256_t *a_rate_cap, size_t *a_num_matches,
+                                                    bool a_is_budget_buy);
 
 /**
  * @brief Initialize DEX service (register callbacks, load config)
@@ -84,13 +83,13 @@ void dap_chain_net_srv_dex_deinit();
  * @param a_buy_net_id   Buy token net id
  * @return true if pair is whitelisted
  */
-bool dap_chain_net_srv_dex_pair_is_whitelisted(const char *a_sell_token, dap_chain_net_id_t a_sell_net_id,
-                                               const char *a_buy_token, dap_chain_net_id_t a_buy_net_id);
+bool dap_chain_net_srv_dex_pair_is_whitelisted(const char *a_sell_token, dap_chain_net_id_t a_sell_net_id, const char *a_buy_token,
+                                               dap_chain_net_id_t a_buy_net_id);
 
 /* ============================================================================
  * Order Creation
  * ============================================================================ */
-typedef enum dap_chain_net_srv_dex_create_error_list{
+typedef enum dap_chain_net_srv_dex_create_error_list {
     DEX_CREATE_ERROR_OK = 0,
     DEX_CREATE_ERROR_INVALID_ARGUMENT,
     DEX_CREATE_ERROR_TOKEN_TICKER_SELL_NOT_FOUND,
@@ -119,17 +118,15 @@ typedef enum dap_chain_net_srv_dex_create_error_list{
  * @param a_tx                [out] Composed TX (caller submits via mempool)
  * @return Error code; pair must be whitelisted via decree
  */
-dap_chain_net_srv_dex_create_error_t dap_chain_net_srv_dex_create(
-        dap_chain_net_t *a_net, const char *a_token_buy,
-        const char *a_token_sell, uint256_t a_value_sell,
-        uint256_t a_rate, uint8_t a_min_fill_combined,
-        uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-        dap_chain_datum_tx_t **a_tx);
+dap_chain_net_srv_dex_create_error_t dap_chain_net_srv_dex_create(dap_chain_net_t *a_net, const char *a_token_buy, const char *a_token_sell,
+                                                                  uint256_t a_value_sell, uint256_t a_rate, uint8_t a_min_fill_combined,
+                                                                  uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                                                  dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Order Removal (Invalidation)
  * ============================================================================ */
-typedef enum dap_chain_net_srv_dex_remove_error_list{
+typedef enum dap_chain_net_srv_dex_remove_error_list {
     DEX_REMOVE_ERROR_OK = 0,
     DEX_REMOVE_ERROR_INVALID_ARGUMENT,
     DEX_REMOVE_ERROR_FEE_IS_ZERO,
@@ -148,15 +145,13 @@ typedef enum dap_chain_net_srv_dex_remove_error_list{
  * @param a_tx           [out] Composed invalidation TX
  * @return Error code; only order owner can cancel
  */
-dap_chain_net_srv_dex_remove_error_t dap_chain_net_srv_dex_remove(
-        dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash,
-        uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-        dap_chain_datum_tx_t **a_tx);
+dap_chain_net_srv_dex_remove_error_t dap_chain_net_srv_dex_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_fee,
+                                                                  dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Order Update
  * ============================================================================ */
-typedef enum dap_chain_net_srv_dex_update_error_list{
+typedef enum dap_chain_net_srv_dex_update_error_list {
     DEX_UPDATE_ERROR_OK = 0,
     DEX_UPDATE_ERROR_INVALID_ARGUMENT,
     DEX_UPDATE_ERROR_NOT_FOUND,
@@ -175,16 +170,14 @@ typedef enum dap_chain_net_srv_dex_update_error_list{
  * @param a_tx             [out] Composed update TX
  * @return Error code; only order owner can update
  */
-dap_chain_net_srv_dex_update_error_t dap_chain_net_srv_dex_update(
-        dap_chain_net_t *a_net, dap_hash_fast_t *a_order_root,
-        bool a_has_new_value, uint256_t a_new_value,
-        uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-        dap_chain_datum_tx_t **a_tx);
+dap_chain_net_srv_dex_update_error_t dap_chain_net_srv_dex_update(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_root,
+                                                                  bool a_has_new_value, uint256_t a_new_value, uint256_t a_fee,
+                                                                  dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Purchase (Trade Execution)
  * ============================================================================ */
-typedef enum dap_chain_net_srv_dex_purchase_error_list{
+typedef enum dap_chain_net_srv_dex_purchase_error_list {
     DEX_PURCHASE_ERROR_OK = 0,
     DEX_PURCHASE_ERROR_INVALID_ARGUMENT,
     DEX_PURCHASE_ERROR_ORDER_NOT_FOUND,
@@ -211,11 +204,10 @@ typedef enum dap_chain_net_srv_dex_purchase_error_list{
  * @param a_tx              [out] Composed trade TX
  * @return Error code; self-purchase prohibited
  */
-dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
-    dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash,
-    uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-    bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
-    dap_chain_datum_tx_t **a_tx);
+dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash,
+                                                                      uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee,
+                                                                      dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover,
+                                                                      uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx);
 
 /**
  * @brief Execute trade against multiple orders in single TX (M:1)
@@ -231,11 +223,11 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
  * @param a_tx              [out] Composed trade TX
  * @return Error code; all orders must belong to same canonical pair
  */
-dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(
-    dap_chain_net_t *a_net,
-    dap_hash_fast_t *a_order_hashes, size_t a_orders_count, uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee,
-    dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
-    dap_chain_datum_tx_t **a_tx);
+dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hashes,
+                                                                            size_t a_orders_count, uint256_t a_value, bool a_is_budget_buy,
+                                                                            uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                                                            bool a_create_buyer_order_on_leftover,
+                                                                            uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx);
 
 /**
  * @brief Auto-match purchase: find best orders and execute trade
@@ -245,24 +237,22 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(
  * @param a_value           Trade amount (interpretation per a_is_budget_buy)
  * @param a_is_budget_buy   true: budget mode, false: exact sell mode
  * @param a_fee             Validator fee
- * @param a_rate_cap        Rate limit: skip orders with rate > this (0 = no limit)
+ * @param a_rate_cap        Rate limit: BID skips rate > cap, ASK skips rate < cap (0 = no limit)
  * @param a_wallet          Buyer wallet
  * @param a_create_buyer_order_on_leftover Create order from unspent
  * @param a_leftover_rate   Rate for leftover order
  * @param a_tx              [out] Composed TX (can be NULL for dry-run)
  * @return Error code; uses cache for matching, ledger fallback
  */
-dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
-        dap_chain_net_t *a_net,
-        const char *a_sell_token, const char *a_buy_token,
-        uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee, uint256_t a_rate_cap,
-        dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate,
-        dap_chain_datum_tx_t **a_tx);
+dap_chain_net_srv_dex_purchase_error_t
+dap_chain_net_srv_dex_purchase_auto(dap_chain_net_t *a_net, const char *a_sell_token, const char *a_buy_token, uint256_t a_value,
+                                    bool a_is_budget_buy, uint256_t a_fee, uint256_t a_rate_cap, dap_chain_wallet_t *a_wallet,
+                                    bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Legacy Migration (XCHANGE -> DEX)
  * ============================================================================ */
-typedef enum dap_chain_net_srv_dex_migrate_error_list{
+typedef enum dap_chain_net_srv_dex_migrate_error_list {
     DEX_MIGRATE_ERROR_OK = 0,
     DEX_MIGRATE_ERROR_INVALID_ARGUMENT,
     DEX_MIGRATE_ERROR_PREV_NOT_FOUND,
@@ -281,15 +271,14 @@ typedef enum dap_chain_net_srv_dex_migrate_error_list{
  * @param a_tx           [out] Composed migration TX
  * @return Error code; XCHANGE order consumed, DEX order created
  */
-dap_chain_net_srv_dex_migrate_error_t dap_chain_net_srv_dex_migrate(
-        dap_chain_net_t *a_net, dap_hash_fast_t *a_prev_hash,
-        uint256_t a_rate_new, uint256_t a_fee,
-        dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx);
+dap_chain_net_srv_dex_migrate_error_t dap_chain_net_srv_dex_migrate(dap_chain_net_t *a_net, dap_hash_fast_t *a_prev_hash,
+                                                                    uint256_t a_rate_new, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                                                    dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Batch Cancellation
  * ============================================================================ */
-typedef enum dap_chain_net_srv_dex_cancel_all_error_list{
+typedef enum dap_chain_net_srv_dex_cancel_all_error_list {
     DEX_CANCEL_ALL_ERROR_OK = 0,
     DEX_CANCEL_ALL_ERROR_INVALID_ARGUMENT,
     DEX_CANCEL_ALL_ERROR_WALLET,
@@ -311,14 +300,10 @@ typedef enum dap_chain_net_srv_dex_cancel_all_error_list{
  * @param a_tx            [out] Composed batch cancellation TX
  * @return Error code; creates single TX with multiple IN_CONDs
  */
-dap_chain_net_srv_dex_cancel_all_error_t dap_chain_net_srv_dex_cancel_all_by_seller(
-        dap_chain_net_t *a_net,
-        const dap_chain_addr_t *a_seller,
-        const char *a_base_token, const char *a_quote_token,
-        int a_limit,
-        uint256_t a_fee,
-        dap_chain_wallet_t *a_wallet,
-        dap_chain_datum_tx_t **a_tx);
+dap_chain_net_srv_dex_cancel_all_error_t
+dap_chain_net_srv_dex_cancel_all_by_seller(dap_chain_net_t *a_net, const dap_chain_addr_t *a_seller, const char *a_base_token,
+                                           const char *a_quote_token, int a_limit, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                           dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Governance (Decree Callback)
@@ -357,9 +342,5 @@ void dap_chain_net_srv_dex_dump_history_cache();
  * @param a_out_old_minfill [out] Returns old value for later restore (can be NULL)
  * @return 0 on success, -1 invalid args, -2 order not found
  */
-int dap_chain_net_srv_dex_cache_adjust_minfill(
-    dap_chain_net_t *a_net,
-    const dap_hash_fast_t *a_order_tail,
-    uint8_t a_new_minfill,
-    uint8_t *a_out_old_minfill
-);
+int dap_chain_net_srv_dex_cache_adjust_minfill(dap_chain_net_t *a_net, const dap_hash_fast_t *a_order_tail, uint8_t a_new_minfill,
+                                               uint8_t *a_out_old_minfill);

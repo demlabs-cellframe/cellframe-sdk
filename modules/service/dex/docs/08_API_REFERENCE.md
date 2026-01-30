@@ -206,6 +206,8 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
 );
 ```
 
+Rate cap semantics: BID skips orders with rate above the cap, ASK skips orders with rate below the cap.
+
 ### Dry-Run Mode
 
 When `a_tx == NULL`, the function performs matching only without composing a transaction:
@@ -321,6 +323,19 @@ dap_hash_fast_t *dap_chain_net_srv_dex_match_hashes(
 ```
 
 Returns array of order tail hashes matching criteria. Caller must free returned array.
+Rate cap semantics: BID skips orders with rate above the cap, ASK skips orders with rate below the cap.
+
+---
+
+## CLI Helper: Find Matches
+
+```bash
+srv_dex find_matches -net <network_name> -order <hash> -addr <wallet_addr>
+```
+
+Preflight match analysis for a legacy or DEX order.  
+Accepts any hash in the order chain; resolves to the latest tail.  
+Filters out orders owned by the provided address and reports potential fill percentages.
 
 ---
 

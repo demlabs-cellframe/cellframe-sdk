@@ -43,13 +43,12 @@
 #include "dap_chain_common.h"
 #include <json-c/json.h>
 #define LOG_TAG "dap_chain_tx_compose"
-
-static dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash, dap_chain_addr_t *a_seller_addr, compose_config_t *a_config,
-                                                        dap_time_t *a_ts_created, char **a_token_ticker, int32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
-
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
 #include "rand/dap_rand.h"
 #endif
+
+static dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash, dap_chain_addr_t *a_seller_addr, compose_config_t *a_config,
+    dap_time_t *a_ts_created, char **a_token_ticker, int32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
 
 static compose_config_t* s_compose_config_init(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                  uint16_t a_port, const char *a_enc_cert_path) {
