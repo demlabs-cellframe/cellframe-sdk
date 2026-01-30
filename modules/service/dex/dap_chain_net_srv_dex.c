@@ -7440,8 +7440,8 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(dap_chain_
                                                                       dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover,
                                                                       uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx)
 {
-    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_hash || dap_hash_fast_is_blank(a_order_hash), !a_wallet,
-                       !a_tx/*, IS_ZERO_256(a_value)*/);
+    // a_value == 0 means unlimited budget (full fill of selected order)
+    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_order_hash || dap_hash_fast_is_blank(a_order_hash), !a_wallet, !a_tx);
     *a_tx = NULL;
     debug_if(s_debug_more, L_DEBUG, "%s(): Args: order_hash = %s; budget = %s in %s tokens; fee = %s %s%s%s", __FUNCTION__,
              dap_chain_hash_fast_to_str_static(a_order_hash), dap_uint256_to_char_ex(a_value).frac, a_is_budget_buy ? "buy" : "sell",
@@ -7530,8 +7530,8 @@ dap_chain_net_srv_dex_purchase_auto_ex(dap_chain_net_t *a_net, const char *a_sel
                                        dex_match_table_entry_t **a_matches)
 {
     // a_tx == NULL is allowed for dry-run mode (matching only, no TX composition)
-    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_sell_token, !a_buy_token, !a_wallet, IS_ZERO_256(a_fee),
-                       /*IS_ZERO_256(a_value)*/);
+    // a_value == 0 means unlimited budget (full fill across matches)
+    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_sell_token, !a_buy_token, !a_wallet, IS_ZERO_256(a_fee));
     if (a_tx)
         *a_tx = NULL;
     if (a_matches)

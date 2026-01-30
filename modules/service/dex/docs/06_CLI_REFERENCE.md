@@ -115,7 +115,7 @@ srv_dex purchase \
 | `-net` | Yes | Network name |
 | `-order` | Yes | Order hash to purchase against |
 | `-w` | Yes | Wallet file path |
-| `-value` | Yes | Budget amount |
+| `-value` | Yes | Budget amount (`0` = unlimited) |
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
 | `-create_leftover_order` | No | Create order from unspent budget |
@@ -191,7 +191,7 @@ srv_dex purchase_auto \
 | `-token_sell` | Yes | Token to sell (spend) |
 | `-token_buy` | Yes | Token to buy (receive) |
 | `-w` | Yes | Wallet file path |
-| `-value` | Yes | Budget amount |
+| `-value` | Yes | Budget amount (`0` = unlimited) |
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
 | `-rate_cap` | No | Price limit: BID skips rate > cap, ASK skips rate < cap |

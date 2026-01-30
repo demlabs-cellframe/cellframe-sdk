@@ -163,6 +163,8 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
 );
 ```
 
+`a_value == 0` means unlimited budget (full fill of the specified order).
+
 ---
 
 ## Multi-Order Purchase
@@ -205,6 +207,8 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
     dap_chain_datum_tx_t **a_tx,        // Can be NULL for dry-run
 );
 ```
+
+`a_value == 0` means unlimited budget (full fill across matches).
 
 Rate cap semantics: BID skips orders with rate above the cap, ASK skips orders with rate below the cap.
 
