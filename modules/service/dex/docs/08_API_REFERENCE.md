@@ -339,7 +339,7 @@ srv_dex find_matches -net <network_name> -order <hash> -addr <wallet_addr>
 
 Preflight match analysis for a legacy or DEX order.  
 Accepts any hash in the order chain; resolves to the latest tail.  
-Filters out orders owned by the provided address and reports potential fill percentages.
+Filters out orders owned by the provided address and reports expected pay/receive amounts per match.
 
 ---
 

@@ -218,6 +218,69 @@ static int s_dex_history_summary_by_order(dex_test_fixture_t *a_f, const dap_has
     return 0;
 }
 
+static int s_dex_find_matches_by_order(dex_test_fixture_t *a_f, const dap_hash_fast_t *a_order_hash,
+                                       const dap_chain_addr_t *a_addr, const char *a_tag)
+{
+    dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net, !a_order_hash, !a_addr);
+    const char *l_hash_str = dap_chain_hash_fast_to_str_static(a_order_hash);
+    const char *l_addr_str = dap_chain_addr_to_str_static(a_addr);
+    char l_json_request[1024];
+    snprintf(l_json_request, sizeof(l_json_request),
+        "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;find_matches;-net;%s;-order;%s;-addr;%s\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
+        a_f->net->net->pub.name, l_hash_str, l_addr_str);
+    char *l_reply = dap_cli_cmd_exec(l_json_request);
+    if (!l_reply)
+        return -2;
+    json_object *l_json = json_tokener_parse(l_reply);
+    DAP_DELETE(l_reply);
+    if (!l_json)
+        return -3;
+    json_object *l_error = NULL;
+    if (json_object_object_get_ex(l_json, "error", &l_error)) {
+        log_it(L_ERROR, "DEX find_matches error (%s): %s", a_tag ? a_tag : "?", json_object_to_json_string(l_error));
+        json_object_put(l_json);
+        return -4;
+    }
+    json_object *l_result_raw = NULL;
+    if (!json_object_object_get_ex(l_json, "result", &l_result_raw)) {
+        json_object_put(l_json);
+        return -5;
+    }
+    json_object *l_result = json_object_is_type(l_result_raw, json_type_array)
+        ? json_object_array_get_idx(l_result_raw, 0) : l_result_raw;
+    if (!l_result) {
+        json_object_put(l_json);
+        return -6;
+    }
+    json_object *l_matches = NULL, *l_count = NULL;
+    if (!json_object_object_get_ex(l_result, "matches", &l_matches) ||
+            !json_object_is_type(l_matches, json_type_array) ||
+            !json_object_object_get_ex(l_result, "matches_count", &l_count)) {
+        json_object_put(l_json);
+        return -7;
+    }
+    int l_matches_count = json_object_get_int(l_count);
+    if (l_matches_count <= 0 || json_object_array_length(l_matches) == 0) {
+        log_it(L_ERROR, "DEX find_matches no matches (%s)", a_tag ? a_tag : "?");
+        json_object_put(l_json);
+        return -8;
+    }
+    json_object *l_first = json_object_array_get_idx(l_matches, 0);
+    json_object *l_spend = NULL, *l_receive = NULL;
+    const char *l_spend_str = (l_first && json_object_object_get_ex(l_first, "spend", &l_spend))
+        ? json_object_get_string(l_spend) : NULL;
+    const char *l_receive_str = (l_first && json_object_object_get_ex(l_first, "receive", &l_receive))
+        ? json_object_get_string(l_receive) : NULL;
+    if (!l_spend_str || !*l_spend_str || !l_receive_str || !*l_receive_str) {
+        json_object_put(l_json);
+        return -9;
+    }
+    log_it(L_NOTICE, "DEX find_matches %s: count=%d, spend=%s, receive=%s",
+           a_tag ? a_tag : "?", l_matches_count, l_spend_str, l_receive_str);
+    json_object_put(l_json);
+    return 0;
+}
+
 static int s_dex_cancel_order(dex_test_fixture_t *a_f, const dap_hash_fast_t *a_order_hash)
 {
     dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net, !a_order_hash);
@@ -309,6 +372,18 @@ int run_migration_tests(dex_test_fixture_t *f)
         log_it(L_ERROR, "XCHANGE orders tail mismatch for C");
         return -11;
     }
+
+    dap_hash_fast_t l_dex_match_hash = {};
+    l_ret = test_dex_order_create(f, f->bob, l_token_sell, l_token_buy, "100.0", "2.5", &l_dex_match_hash);
+    if (l_ret != 0) {
+        log_it(L_ERROR, "DEX order create (match) failed: %d", l_ret);
+        return -40;
+    }
+    l_ret = s_dex_find_matches_by_order(f, &l_xchange_hash_a, &f->alice_addr, "legacy");
+    if (l_ret != 0) {
+        log_it(L_ERROR, "DEX find_matches failed (legacy): %d", l_ret);
+        return -41;
+    }
     
     dap_chain_datum_tx_t *l_migrate_tx_a = NULL;
     dap_chain_net_srv_dex_migrate_error_t l_err = dap_chain_net_srv_dex_migrate(
@@ -367,6 +442,12 @@ int run_migration_tests(dex_test_fixture_t *f)
     if (l_info.min_fill != 0) {
         log_it(L_ERROR, "Migrated order min_fill mismatch: %u", l_info.min_fill);
         return -21;
+    }
+
+    l_ret = s_dex_find_matches_by_order(f, &l_migrate_hash_a, &f->alice_addr, "dex");
+    if (l_ret != 0) {
+        log_it(L_ERROR, "DEX find_matches failed (dex): %d", l_ret);
+        return -42;
     }
 
     dap_chain_datum_tx_t *l_migrate_tx_b = NULL;

@@ -57,7 +57,7 @@ Notes:
 
 - `-from` expects **tail hash** (`order_hash`).
 - `-rate` uses legacy XCHANGE price semantics and is converted if needed.
-- Use `srv_dex find_matches` for a preflight check of potential counter-matches and fill percentages.
+- Use `srv_dex find_matches` for a preflight check of potential counter-matches and expected spend/receive amounts.
 
 ---
 

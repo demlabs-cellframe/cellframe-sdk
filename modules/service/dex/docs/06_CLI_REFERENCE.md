@@ -417,17 +417,61 @@ Matches owned by the provided address are excluded.
 **Output fields:**
 | Field | Description |
 |-------|-------------|
-| `matches_count` | Number of matching orders |
-| `matches[]` | Array of match objects |
-| `matches[].root` | Root hash |
-| `matches[].tail` | Tail hash |
-| `matches[].rate` | Order rate (canonical QUOTE/BASE) |
-| `matches[].order_value` | Remaining order value |
-| `matches[].order_token` | Token of `order_value` |
-| `matches[].executed` | Potential executed amount (order token) |
-| `matches[].fill_pct` | Potential fill percentage |
+| `order_hash` | Input hash as provided |
+| `order_tail` | Resolved tail hash if input is not the tail |
+| `legacy` | `true` for legacy XCHANGE orders |
+| `pair` | Canonical pair `BASE/QUOTE` |
+| `side` | Analyzed order side: `ask` or `bid` |
+| `rate` | Order rate (canonical QUOTE/BASE) |
+| `budget` | Remaining value of the analyzed order |
+| `budget_token` | Token of `budget` (always analyzed order sell token) |
 | `addr_matches_owner` | `true` if `-addr` matches order owner |
 | `warning` | Optional warning string (e.g., `addr_not_owner`) |
+| `matches_count` | Number of matching orders |
+| `matches[]` | Array of match objects |
+| `matches[].root` | Matched order root hash |
+| `matches[].tail` | Matched order tail hash |
+| `matches[].rate` | Matched order rate (canonical QUOTE/BASE) |
+| `matches[].spend` | Amount and token the analyzed order pays |
+| `matches[].receive` | Amount and token the analyzed order receives |
+
+**Example:**
+```bash
+srv_dex find_matches -net TestNet \
+  -order 0x6B84...A770 \
+  -addr Ax7y9q...
+```
+
+```json
+{
+  "order_hash": "0x6B84...A770",
+  "order_tail": "0xB6C2...8F4B",
+  "legacy": true,
+  "pair": "KEL/USDT",
+  "side": "ask",
+  "rate": "2.5",
+  "budget": "100",
+  "budget_token": "KEL",
+  "addr_matches_owner": true,
+  "matches_count": 2,
+  "matches": [
+    {
+      "root": "0x1111...1111",
+      "tail": "0x2222...2222",
+      "rate": "2.5",
+      "spend": "18 KEL",
+      "receive": "45 USDT"
+    },
+    {
+      "root": "0x3333...3333",
+      "tail": "0x4444...4444",
+      "rate": "2.48",
+      "spend": "16 KEL",
+      "receive": "40 USDT"
+    }
+  ]
+}
+```
 
 ---
 

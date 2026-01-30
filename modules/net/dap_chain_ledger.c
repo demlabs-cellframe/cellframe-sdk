@@ -3797,10 +3797,11 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
     dap_chain_hash_fast_t l_hash = { };
     dap_return_val_if_fail(a_ledger && a_tx_hash && !dap_hash_fast_is_blank(a_tx_hash), l_hash);
     l_hash = *a_tx_hash;
+    dap_chain_datum_tx_t *l_tx = NULL;
+    dap_ledger_tx_item_t *l_item = NULL;
     // Special handling for SRV_DEX to avoid jumping to buyer-leftover EXCHANGE chain
     if (a_cond_type == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
-        dap_ledger_tx_item_t *l_item = NULL;
-        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_hash, &l_item, false);
+        l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_hash, &l_item, false);
         if (!l_tx)
             return (dap_hash_fast_t){};
         int l_out_idx = 0;
@@ -3810,8 +3811,9 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
         // Determine chain root: blank => this tx is the root
         dap_hash_fast_t l_root = dap_hash_fast_is_blank(&l_oc->subtype.srv_dex.order_root_hash) ? l_hash : l_oc->subtype.srv_dex.order_root_hash;
         // Traverse while the current chain out is spent and the spender continues the same root (UPDATE or seller residual)
-        for (;;) {
-            dap_hash_fast_t l_spender = l_item ? l_item->cache_data.tx_hash_spent_fast[l_out_idx] : (dap_hash_fast_t){ };
+        // If a_unspent_only is set and the chain ends due to root divergence, return blank (no unspent tail for this root)
+        while(l_item) {
+            dap_hash_fast_t l_spender = l_item->cache_data.tx_hash_spent_fast[l_out_idx];
             if (dap_hash_fast_is_blank(&l_spender))
                 break; // current out is unspent => current hash is the tail
             // Load spender tx
@@ -3844,6 +3846,8 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
             }
             if (l_found_idx < 0) {
                 // No continuation (UPDATE or seller residual) for this root in spender tx => chain ended at previous hash
+                if (a_unspent_only)
+                    return (dap_hash_fast_t){};
                 break;
             }
             // Continue traversal from spender OUT_COND (UPDATE or seller residual)
@@ -3854,8 +3858,6 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
         return l_hash;
     }
     // Default behavior for other condition types
-    dap_chain_datum_tx_t *l_tx = NULL;
-    dap_ledger_tx_item_t *l_item = NULL;
     while (( l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_hash, &l_item, false) )) {
         int l_out_num = 0;
         if (!dap_chain_datum_tx_out_cond_get(l_tx, a_cond_type, &l_out_num))
