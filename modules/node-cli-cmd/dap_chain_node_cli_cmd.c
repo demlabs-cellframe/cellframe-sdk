@@ -2031,6 +2031,7 @@ int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         // wallet info
         case CMD_WALLET_INFO: {
             dap_ledger_t *l_ledger = NULL;
+            unsigned int l_wallet_status = 0;
             if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
                 "You should use either the -w or -addr option for the wallet info command.");
@@ -2044,7 +2045,15 @@ int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
                     dap_json_object_free(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
-                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
+                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, &l_wallet_status);
+                // Check if wallet is protected but not activated
+                if (!l_wallet && l_wallet_status == 4) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR,
+                                           "Wallet '%s' is protected but not activated. Use 'wallet activate -w %s -password <password>' first.",
+                                           l_wallet_name, l_wallet_name);
+                    dap_json_object_free(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR;
+                }
                 l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
             } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
@@ -2179,6 +2188,7 @@ int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
             break;
         }
         case CMD_WALLET_OUTPUTS: {
+            unsigned int l_wallet_status = 0;
             if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
                 "You should use either the -w or -addr option for the wallet info command.");
@@ -2192,10 +2202,17 @@ int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
                     dap_json_object_free(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
-                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
+                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, &l_wallet_status);
                 if (!l_wallet){
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
-                                           "Can't find wallet (%s)", l_wallet_name);
+                    // Check if wallet is protected but not activated
+                    if (l_wallet_status == 4) {
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                               "Wallet '%s' is protected but not activated. Use 'wallet activate -w %s -password <password>' first.",
+                                               l_wallet_name, l_wallet_name);
+                    } else {
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                               "Can't find wallet (%s)", l_wallet_name);
+                    }
                     dap_json_object_free(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
