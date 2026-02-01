@@ -34,7 +34,7 @@ srv_dex order create \
 | `-token_buy` | Token to receive |
 | `-w` | Wallet file path |
 | `-value` | Amount to sell |
-| `-rate` | Price (buy_token per sell_token) |
+| `-rate` | Price in canonical QUOTE/BASE (QUOTE per 1 BASE) |
 | `-fee` | Validator fee in native |
 | `-fill_policy` | `AON`, `min`, or `min_from_origin` |
 | `-min_fill_pct` | Percentage for min policies (0-100) |
@@ -49,6 +49,10 @@ srv_dex order create \
 ```bash
 srv_dex order create -net TestNet -token_sell KEL -token_buy USDT \
   -w /home/user/.cellframe/wallets/bob.dwallet -value 100.0 -rate 2.5 -fee 0.05
+
+# BID example (sell QUOTE, buy BASE; rate still QUOTE/BASE):
+srv_dex order create -net TestNet -token_sell USDT -token_buy KEL \
+  -w /home/user/.cellframe/wallets/bob.dwallet -value 250.0 -rate 2.5 -fee 0.05
 
 # With absolute min_fill (at least 50 KEL must be filled):
 srv_dex order create -net TestNet -token_sell KEL -token_buy USDT \
@@ -97,6 +101,8 @@ srv_dex order update \
 
 ### Single Order Purchase
 
+Execute trade against a single order. Buyer pays in the order's buy token and receives the sell token.
+
 ```bash
 srv_dex purchase \
   -net <network_name> \
@@ -119,7 +125,7 @@ srv_dex purchase \
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
 | `-create_leftover_order` | No | Create order from unspent budget |
-| `-leftover_rate` | Conditional | Rate for leftover order (required if `-create_leftover_order` is set) |
+| `-leftover_rate` | Conditional | Rate for leftover order in canonical QUOTE/BASE (required if `-create_leftover_order` is set) |
 
 **Example:**
 ```bash
@@ -127,11 +133,20 @@ srv_dex purchase -net TestNet \
   -order 0x1234...abcd \
   -w /home/user/.cellframe/wallets/alice.dwallet \
   -value 50.0 -unit buy -fee 0.05
+
+# With leftover order (rate in canonical QUOTE/BASE):
+srv_dex purchase -net TestNet \
+  -order 0x1234...abcd \
+  -w /home/user/.cellframe/wallets/alice.dwallet \
+  -value 50.0 -unit sell -fee 0.05 \
+  -create_leftover_order -leftover_rate 2.3
 ```
 
 ---
 
 ### Multi-Order Purchase
+
+Execute trade against multiple orders in a single transaction. Orders are processed in the provided order and the transaction is atomic.
 
 ```bash
 srv_dex purchase_multi \
@@ -155,7 +170,7 @@ srv_dex purchase_multi \
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
 | `-create_leftover_order` | No | Create order from unspent budget |
-| `-leftover_rate` | Conditional | Rate for leftover order (required if `-create_leftover_order`; forbidden otherwise) |
+| `-leftover_rate` | Conditional | Rate for leftover order in canonical QUOTE/BASE (required if `-create_leftover_order`; forbidden otherwise) |
 
 **Example:**
 ```bash
@@ -163,11 +178,20 @@ srv_dex purchase_multi -net TestNet \
   -orders 0x111...aaa,0x222...bbb,0x333...ccc \
   -w /home/user/.cellframe/wallets/alice.dwallet \
   -value 100.0 -unit sell -fee 0.05
+
+# With leftover order (rate in canonical QUOTE/BASE):
+srv_dex purchase_multi -net TestNet \
+  -orders 0x111...aaa,0x222...bbb,0x333...ccc \
+  -w /home/user/.cellframe/wallets/alice.dwallet \
+  -value 80.0 -unit buy -fee 0.05 \
+  -create_leftover_order -leftover_rate 2.1
 ```
 
 ---
 
 ### Auto-Match Purchase
+
+Automatic matching by best price for the given pair; supports dry-run simulation.
 
 ```bash
 srv_dex purchase_auto \
@@ -194,10 +218,13 @@ srv_dex purchase_auto \
 | `-value` | Yes | Budget amount (`0` = unlimited) |
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
-| `-rate_cap` | No | Price limit: BID skips rate > cap, ASK skips rate < cap |
+| `-rate_cap` | No | Price limit in canonical QUOTE/BASE: BID skips rate > cap, ASK skips rate < cap |
 | `-create_leftover_order` | No | Create order from unspent budget |
-| `-leftover_rate` | Conditional | Rate for leftover order (required if `-create_leftover_order`; forbidden otherwise) |
+| `-leftover_rate` | Conditional | Rate for leftover order in canonical QUOTE/BASE (required if `-create_leftover_order`; forbidden otherwise) |
 | `-dry-run` | No | Simulate matching without submitting TX (returns match plan in JSON) |
+
+**Notes:**
+- `-fee` is required even in `-dry-run` mode (validation requires non-zero fee).
 
 **Example:**
 ```bash
@@ -206,11 +233,24 @@ srv_dex purchase_auto -net TestNet \
   -w /home/user/.cellframe/wallets/alice.dwallet \
   -value 50.0 -unit buy -rate_cap 2.0 -fee 0.05
 
+# ASK example (sell BASE, buy QUOTE; rate_cap still QUOTE/BASE):
+srv_dex purchase_auto -net TestNet \
+  -token_sell KEL -token_buy USDT \
+  -w /home/user/.cellframe/wallets/alice.dwallet \
+  -value 50.0 -unit sell -rate_cap 2.5 -fee 0.05
+
 # Dry-run example
 srv_dex purchase_auto -net TestNet \
   -token_sell USDT -token_buy KEL \
   -w /home/user/.cellframe/wallets/alice.dwallet \
   -value 50.0 -fee 0.05 -dry-run
+
+# With leftover order (rate in canonical QUOTE/BASE):
+srv_dex purchase_auto -net TestNet \
+  -token_sell USDT -token_buy KEL \
+  -w /home/user/.cellframe/wallets/alice.dwallet \
+  -value 50.0 -unit sell -fee 0.05 \
+  -create_leftover_order -leftover_rate 2.2
 ```
 
 ---
@@ -307,7 +347,7 @@ srv_dex orderbook \
 srv_dex orderbook -net TestNet -pair KEL/USDT -depth 10 -cumulative
 ```
 
-Output: Top N ASK and BID levels with prices and volumes.
+Output: Top N ASK and BID levels with price, volume_base/volume_quote, and order count (plus cumulative fields if requested).
 
 ---
 
@@ -320,7 +360,7 @@ srv_dex status \
   [-seller <address>]
 ```
 
-Returns: Order counts, best prices, total volumes.
+Returns: Order counts and best prices (best_ask, best_bid, mid, spread).
 
 ---
 
@@ -336,7 +376,36 @@ Lists all whitelisted trading pairs with fee configurations.
 
 ## Analytics
 
-> **Note:** The `market_rate` and `volume` commands have been deprecated. Use `history -view ohlc` or `history -view volume` instead. The `history` command now includes `spot`, `vwap`, and full `totals` in its output.
+### market_rate
+
+Calculate volume-weighted average price (VWAP) for a period.
+
+```bash
+srv_dex market_rate \
+  -net <network_name> \
+  -pair <BASE/QUOTE> \
+  [-from <timestamp>] \
+  [-to <timestamp>] \
+  [-bucket <seconds>]
+```
+
+Example:
+```bash
+srv_dex market_rate -net Backbone -pair KEL/USDT -from 1700000000 -to 1700100000 -bucket 3600
+```
+
+### volume
+
+Trading volume for a period (optionally bucketed).
+
+```bash
+srv_dex volume \
+  -net <network_name> \
+  -pair <BASE/QUOTE> \
+  [-from <timestamp>] \
+  [-to <timestamp>] \
+  [-bucket <seconds>]
+```
 
 ### Spread
 
@@ -892,6 +961,8 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 - `-fee_pct <percent>` — Percent fee from INPUT token (e.g., `2.0` = 2%)
 - `-fee_native <amount>` — Fixed native token fee per trade
 - `-fee_config <byte>` — Raw config byte (for advanced use)
+
+**Note:** `fee_config` encoding uses mode/value (native vs percent) as described in `02_FEE_SYSTEM.md`.
 
 ---
 

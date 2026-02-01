@@ -907,27 +907,25 @@ static void s_dex_indexes_upsert(dex_pair_index_t *a_pair_idx, unsigned a_entry_
                                  a_entry, s_cmp_entries_ts_strict);
 }
 
-// Normalize pair to canonical base/quote ordering and compute side and canonical price
+// Normalize pair to canonical base/quote ordering and compute side
 /*
- * s_pair_normalize
- * Canonicalize an order pair and compute canonical side and QUOTE/BASE price.
+ * s_dex_pair_normalize
+ * Canonicalize an order pair and compute canonical side.
  * Inputs:
  *   - a_sell_tok/a_sell_net: order's sell token and net (as submitted)
  *   - a_buy_tok/a_buy_net:   buy token and net (as submitted)
- *   - a_rate_buy_per_sell:   price in units of BUY per 1 SELL (scaled 1e18)
  *   - a_canon_key:           output canonical key (BASE=lexicographically smaller, QUOTE=larger)
  *   - a_side:                output side (ASK if seller sells BASE; BID if seller sells QUOTE)
- *   - a_price_canon:         output price QUOTE/BASE (inverted if BID)
  * Logic:
  *   - Compare sell_tok vs buy_tok lexicographically.
  *   - If sell < buy: BASE=sell, QUOTE=buy → seller sells BASE → ASK
- *   - If sell >= buy: BASE=buy, QUOTE=sell → seller sells QUOTE → BID (invert rate)
+ *   - If sell >= buy: BASE=buy, QUOTE=sell → seller sells QUOTE → BID
  * NOTE: Does NOT populate fee_config - caller must do whitelist lookup if needed!
  * Returns: void; no output if required pointers are NULL.
  */
 static inline void s_dex_pair_normalize(const char *a_sell_tok, dap_chain_net_id_t a_sell_net, const char *a_buy_tok,
-                                        dap_chain_net_id_t a_buy_net, const uint256_t a_rate_canonical, dex_pair_key_t *a_canon_key,
-                                        uint8_t *a_side, uint256_t *a_price_canon)
+                                        dap_chain_net_id_t a_buy_net, dex_pair_key_t *a_canon_key,
+                                        uint8_t *a_side)
 {
     dap_ret_if_any(!a_sell_tok, a_sell_tok && !*a_sell_tok, !a_buy_tok, a_buy_tok && !*a_buy_tok, !a_canon_key);
     if (strcmp(a_sell_tok, a_buy_tok) < 0) {
@@ -947,9 +945,6 @@ static inline void s_dex_pair_normalize(const char *a_sell_tok, dap_chain_net_id
         if (a_side)
             *a_side = DEX_SIDE_BID;
     }
-    // Rate is ALWAYS stored in canonical form (QUOTE/BASE) - no inversion needed
-    if (a_price_canon)
-        *a_price_canon = a_rate_canonical;
 }
 
 static inline bool s_dex_rate_legacy_to_canon(const char *a_sell_tok, const char *a_buy_tok, uint256_t a_rate, uint256_t *a_out)
@@ -1031,9 +1026,8 @@ static int s_dex_match_snapshot_by_tail(dap_chain_net_t *a_net, const dap_hash_f
             return -4;
         dex_pair_key_t l_key = {};
         uint8_t l_side = 0;
-        uint256_t l_price = uint256_0;
         s_dex_pair_normalize(l_sell_tok, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                             l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key, &l_side, &l_price);
+                             l_out_cond->subtype.srv_dex.buy_net_id, &l_key, &l_side);
         // Populate fee_config from whitelist
         pthread_rwlock_rdlock(&s_dex_cache_rwlock);
         dex_pair_index_t *l_pair_for_fee = s_dex_pair_index_get(&l_key);
@@ -1045,7 +1039,7 @@ static int s_dex_match_snapshot_by_tail(dap_chain_net_t *a_net, const dap_hash_f
         if (dap_hash_fast_is_blank(&l_root))
             l_root = *a_tail;
         *a_out = (dex_match_table_entry_t){.match = (dex_order_match_t){.value = l_out_cond->header.value,
-                                                                        .rate = l_price,
+                                                                        .rate = l_out_cond->subtype.srv_dex.rate,
                                                                         .root = l_root,
                                                                         .tail = *a_tail,
                                                                         .min_fill = l_out_cond->subtype.srv_dex.min_fill,
@@ -1375,8 +1369,8 @@ static dex_match_table_entry_t *s_dex_matches_build_by_criteria(dap_chain_net_t 
     // Prepare common pair key for all matches
     dex_pair_key_t *l_common_key = DAP_NEW_Z(dex_pair_key_t);
     uint8_t l_side = 0;
-    s_dex_pair_normalize(a_criteria->token_sell, a_criteria->net_id_sell, a_criteria->token_buy, a_criteria->net_id_buy,
-                         GET_256_FROM_64(1000000000000000000ULL), l_common_key, &l_side, NULL);
+    s_dex_pair_normalize(a_criteria->token_sell, a_criteria->net_id_sell, a_criteria->token_buy, a_criteria->net_id_buy, l_common_key,
+                         &l_side);
 
     // Translate ORDER budget to CANONICAL context
     // Unified semantics: is_budget_buy=true means budget in token buyer wants to buy
@@ -1658,9 +1652,9 @@ static dex_match_table_entry_t *s_dex_matches_build_by_criteria(dap_chain_net_t 
             continue;
         dex_pair_key_t l_key_cur;
         uint8_t l_side_cur = 0;
-        uint256_t l_price = uint256_0;
+        uint256_t l_price = l_out->subtype.srv_dex.rate;
         s_dex_pair_normalize(l_sell_tok, l_out->subtype.srv_dex.sell_net_id, l_out->subtype.srv_dex.buy_token,
-                             l_out->subtype.srv_dex.buy_net_id, l_out->subtype.srv_dex.rate, &l_key_cur, &l_side_cur, &l_price);
+                             l_out->subtype.srv_dex.buy_net_id, &l_key_cur, &l_side_cur);
 
         l_orders_found++;
         bool l_pair_match = !strcmp(l_key_cur.token_quote, l_common_key->token_quote) &&
@@ -2232,10 +2226,6 @@ static int s_dex_requirements_build(dap_chain_net_t *a_net, dex_match_table_entr
     if (a_out_reqs->fee_pct_mode) {
         // % fee from INPUT: ASK→QUOTE, BID→BASE (0.1% step)
         uint8_t l_pct = l_fee_cfg & 0x7F;
-        if (l_pct > 127) {
-            log_it(L_ERROR, "%s(): Invalid fee_config percentage: %d > 127", __FUNCTION__, l_pct);
-            return -3;
-        }
         // Check for blank service address (would burn tokens!)
         if (l_pct > 0 && dap_chain_addr_is_blank(&a_out_reqs->service_addr)) {
             log_it(L_ERROR, "%s(): Service fee address is blank, cannot create service fee OUT", __FUNCTION__);
@@ -4212,7 +4202,7 @@ static int s_history_get_raw_events(dap_chain_net_t *a_net, const dex_pair_key_t
  *
  * Behavior (under WR lock):
  * 1) Find or create primary entry keyed by root; initialize ts_created on first insert
- * 2) Derive canonical pair (BASE/QUOTE), side and canonical price (QUOTE/BASE) via s_pair_normalize()
+ * 2) Derive canonical pair (BASE/QUOTE) and side via s_dex_pair_normalize()
  * 3) Remove entry from all secondary indices via back-pointers (O(1))
  * 4) Update entry fields (pair_key, tail, price, side, value, seller_addr, ts_expires, flags, version/fill)
  * 5) Insert entry into all indices (tail, pair bucket, seller bucket); store back-pointers
@@ -4226,7 +4216,7 @@ static void s_dex_cache_upsert(dap_ledger_t *a_ledger, const char *a_sell_token,
      * PHASE 1 (no lock): fast validation and canonicalization
      * - resolve ORDER's sell_token (arg or by tail from ledger)
      * - validate ORDER's buy_token
-     * - normalize pair to canonical BASE/QUOTE and compute canonical price (QUOTE/BASE)
+     * - normalize pair to canonical BASE/QUOTE and side
      * Any failure: early return without touching cache/indices.
      */
     char l_hashes_str[2 * DAP_HASH_FAST_STR_SIZE + sizeof(" → ") + 1];
@@ -4242,9 +4232,8 @@ static void s_dex_cache_upsert(dap_ledger_t *a_ledger, const char *a_sell_token,
 
     dex_pair_key_t l_new_key = {};
     uint8_t side = 0;
-    uint256_t l_price_canon = uint256_0;
     s_dex_pair_normalize(l_sell_ticker, a_cond->subtype.srv_dex.sell_net_id, a_cond->subtype.srv_dex.buy_token,
-                         a_cond->subtype.srv_dex.buy_net_id, a_cond->subtype.srv_dex.rate, &l_new_key, &side, &l_price_canon);
+                         a_cond->subtype.srv_dex.buy_net_id, &l_new_key, &side);
     if (!*l_new_key.token_quote || !*l_new_key.token_base)
         return log_it(L_ERROR, "%s(): Skip order %s: pair normalization failed", __FUNCTION__, l_hashes_str);
 
@@ -4281,7 +4270,7 @@ static void s_dex_cache_upsert(dap_ledger_t *a_ledger, const char *a_sell_token,
     e->ts_expires = a_cond->header.ts_expires;
     e->flags = a_cond->subtype.srv_dex.flags;
     e->level.match.tail = *a_tail;
-    e->level.match.rate = l_price_canon;
+    e->level.match.rate = a_cond->subtype.srv_dex.rate;
     e->side_version = (uint8_t)((a_cond->subtype.srv_dex.version & 0x7F) << 1) | (side & 0x1);
     e->level.match.min_fill = a_cond->subtype.srv_dex.min_fill;
     e->level.match.prev_idx = a_prev_idx;
@@ -4566,8 +4555,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 // Whitelist check: pair must be whitelisted via decree
                 // Also save l_pair_idx and l_pair_baseline_side for all IN_COND
                 dex_pair_key_t l_check_key = {};
-                s_dex_pair_normalize(l_sell_ticker, l_sell_net_id, l_buy_ticker, l_buy_net_id, l_prev->subtype.srv_dex.rate, &l_check_key,
-                                     &l_baseline_side, NULL);
+                s_dex_pair_normalize(l_sell_ticker, l_sell_net_id, l_buy_ticker, l_buy_net_id, &l_check_key, &l_baseline_side);
                 pthread_rwlock_rdlock(&s_dex_cache_rwlock);
                 l_pair_idx = s_dex_pair_index_get(&l_check_key);
                 if (l_pair_idx) {
@@ -4593,7 +4581,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 dex_pair_key_t l_cur_key = {};
                 uint8_t l_cur_side = 0;
                 s_dex_pair_normalize(l_sell_cur, l_prev->subtype.srv_dex.sell_net_id, l_prev->subtype.srv_dex.buy_token,
-                                     l_prev->subtype.srv_dex.buy_net_id, l_prev->subtype.srv_dex.rate, &l_cur_key, &l_cur_side, NULL);
+                                     l_prev->subtype.srv_dex.buy_net_id, &l_cur_key, &l_cur_side);
                 if (l_cur_side != l_baseline_side)
                     RET_ERR(DEXV_BASELINE_TUPLE);
             }
@@ -4817,8 +4805,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
 
                     // Whitelist check: pair must be whitelisted via decree
                     dex_pair_key_t l_order_pair = {};
-                    s_dex_pair_normalize(l_sell_ticker, l_sell_net_id, l_buy_ticker, l_buy_net_id, l_out_cond->subtype.srv_dex.rate,
-                                         &l_order_pair, NULL, NULL);
+                    s_dex_pair_normalize(l_sell_ticker, l_sell_net_id, l_buy_ticker, l_buy_net_id, &l_order_pair, NULL);
                     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
                     l_pair_idx = s_dex_pair_index_get(&l_order_pair);
                     if (l_pair_idx) {
@@ -5048,8 +5035,6 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
     if ((l_fee_cfg & 0x80) != 0) {
         bool l_is_bid = (l_sell_ticker && !strcmp(l_sell_ticker, l_pair_idx->key.token_quote));
         uint8_t l_pct = l_fee_cfg & 0x7F;
-        if (l_pct > 127)
-            RET_ERR(DEXV_INVALID_FEE_CONFIG);
         l_srv_ticker = l_is_bid ? l_pair_idx->key.token_base : l_pair_idx->key.token_quote;
         if (l_pct > 0) {
             uint256_t l_input_amount = uint256_0;
@@ -5926,7 +5911,7 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
                            l_net_quote = {.uint64 = dap_tsd_get_scalar(l_tsd_net_quote, uint64_t)};
 
         dex_pair_key_t l_key = {};
-        s_dex_pair_normalize(l_token_base, l_net_base, l_token_quote, l_net_quote, uint256_0, &l_key, NULL, NULL);
+        s_dex_pair_normalize(l_token_base, l_net_base, l_token_quote, l_net_quote, &l_key, NULL);
 
         // Method-specific validation and operations
         switch (l_method) {
@@ -6128,27 +6113,6 @@ void dap_chain_net_srv_dex_deinit()
     pthread_rwlock_wrlock(&s_dex_cache_rwlock);
 
     // Free orders cache (also cleans up pair/seller indices via back-pointers)
-    /*dex_order_cache_entry_t *e_it, *e_tmp;
-    HASH_ITER(level.hh, s_dex_orders_cache, e_it, e_tmp)
-    {
-        s_dex_indexes_remove(e_it); // Removes from tail, pair, seller indices
-        HASH_DELETE(level.hh, s_dex_orders_cache, e_it);
-        DAP_DELETE(e_it);
-    }
-
-    // Cleanup pair whitelist (managed by decrees, persists independent of hot cache)
-    dex_pair_index_t *pb_it, *pb_tmp;
-    HASH_ITER(hh, s_dex_pair_index, pb_it, pb_tmp)
-    {
-        HASH_DELETE(hh, s_dex_pair_index, pb_it);
-        DAP_DELETE(pb_it);
-    }
-    dex_seller_index_t *sb_it, *sb_tmp;
-    HASH_ITER(hh, s_dex_seller_index, sb_it, sb_tmp)
-    {
-        HASH_DELETE(hh, s_dex_seller_index, sb_it);
-        DAP_DELETE(sb_it);
-    }*/
     s_dex_pair_index_remove(NULL);
 
     // Free history cache (buckets, trades, seller index, pairs)
@@ -6447,9 +6411,8 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
         const char *l_sell_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
         dex_pair_key_t l_key = {};
         uint8_t l_side = 0;
-        uint256_t l_price_canon = uint256_0;
         s_dex_pair_normalize(l_sell_ticker, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                             l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key, &l_side, &l_price_canon);
+                             l_out_cond->subtype.srv_dex.buy_net_id, &l_key, &l_side);
 
         pthread_rwlock_wrlock(&s_dex_cache_rwlock);
         if (s_dex_cache_enabled) {
@@ -6461,8 +6424,8 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
         if (s_dex_history_enabled) {
             dap_hash_fast_t l_blank = {};
             if (a_opcode == 'a') {
-                dex_bq_t l_bq = s_exec_to_canon_base_quote(l_out_cond->header.value, l_price_canon, l_side);
-                s_dex_history_append(a_ledger, &l_key, a_tx->header.ts_created, l_price_canon, l_bq.base, l_bq.quote, a_tx_hash, &l_blank,
+                dex_bq_t l_bq = s_exec_to_canon_base_quote(l_out_cond->header.value, l_out_cond->subtype.srv_dex.rate, l_side);
+                s_dex_history_append(a_ledger, &l_key, a_tx->header.ts_created, l_out_cond->subtype.srv_dex.rate, l_bq.base, l_bq.quote, a_tx_hash, &l_blank,
                                      a_tx_hash, &l_out_cond->subtype.srv_dex.seller_addr, NULL, DEX_OP_CREATE, l_side);
             } else {
                 uint64_t l_bts = s_hist_bucket_ts(a_tx->header.ts_created, s_dex_history_bucket_sec);
@@ -6526,11 +6489,10 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                     const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_pre_in->header.tx_prev_hash);
                     dex_pair_key_t l_pre_key = {};
                     uint8_t l_pre_side = 0;
-                    uint256_t l_pre_price = {};
                     if (l_sell_tok)
                         s_dex_pair_normalize(l_sell_tok, l_prev_out_cond->subtype.srv_dex.sell_net_id,
                                              l_prev_out_cond->subtype.srv_dex.buy_token, l_prev_out_cond->subtype.srv_dex.buy_net_id,
-                                             l_prev_out_cond->subtype.srv_dex.rate, &l_pre_key, &l_pre_side, &l_pre_price);
+                                             &l_pre_key, &l_pre_side);
                     else
                         continue; // can't determine side without sell token
                     // Count by side
@@ -6680,18 +6642,20 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                                                                ? l_prev_hash
                                                                : l_prev_cond_i->subtype.srv_dex.order_root_hash;
                             if (l_tx_type == DEX_TX_TYPE_INVALIDATE) {
+                                l_price_canon = l_prev_cond_i->subtype.srv_dex.rate;
                                 s_dex_pair_normalize(l_sell_ticker, l_prev_cond_i->subtype.srv_dex.sell_net_id,
                                                      l_prev_cond_i->subtype.srv_dex.buy_token, l_prev_cond_i->subtype.srv_dex.buy_net_id,
-                                                     l_prev_cond_i->subtype.srv_dex.rate, &l_key, &l_side, &l_price_canon);
+                                                     &l_key, &l_side);
                                 dex_bq_t l_bq = s_exec_to_canon_base_quote(l_prev_cond_i->header.value, l_price_canon, l_side);
                                 s_dex_history_append(a_ledger, &l_key, a_tx->header.ts_created, l_price_canon, l_bq.base, l_bq.quote,
                                                      a_tx_hash, &l_prev_hash, &l_order_root, &l_prev_cond_i->subtype.srv_dex.seller_addr,
                                                      NULL, DEX_OP_CANCEL, l_side);
                             } else if (l_out_cond) {
                                 // UPDATE: record new price/value from OUT_COND
+                                l_price_canon = l_out_cond->subtype.srv_dex.rate;
                                 s_dex_pair_normalize(l_sell_ticker, l_out_cond->subtype.srv_dex.sell_net_id,
-                                                     l_out_cond->subtype.srv_dex.buy_token, l_out_cond->subtype.srv_dex.buy_net_id,
-                                                     l_out_cond->subtype.srv_dex.rate, &l_key, &l_side, &l_price_canon);
+                                                     l_out_cond->subtype.srv_dex.buy_token, l_out_cond->subtype.srv_dex.buy_net_id, &l_key,
+                                                     &l_side);
                                 dex_bq_t l_bq = s_exec_to_canon_base_quote(l_out_cond->header.value, l_price_canon, l_side);
                                 dap_hash_fast_t l_root_upd = dap_hash_fast_is_blank(&l_out_cond->subtype.srv_dex.order_root_hash)
                                                                  ? l_order_root
@@ -6715,10 +6679,10 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                             // Normalize pair and price to canonical units
                             dex_pair_key_t l_key = {};
                             uint8_t l_side = 0;
-                            uint256_t l_price_canon = uint256_0;
+                            uint256_t l_price_canon = l_prev_cond_i->subtype.srv_dex.rate;
                             s_dex_pair_normalize(l_sell_ticker, l_prev_cond_i->subtype.srv_dex.sell_net_id,
-                                                 l_prev_cond_i->subtype.srv_dex.buy_token, l_prev_cond_i->subtype.srv_dex.buy_net_id,
-                                                 l_prev_cond_i->subtype.srv_dex.rate, &l_key, &l_side, &l_price_canon);
+                                                 l_prev_cond_i->subtype.srv_dex.buy_token, l_prev_cond_i->subtype.srv_dex.buy_net_id, &l_key,
+                                                 &l_side);
                             dex_pair_index_t *l_pi = s_dex_pair_index_get(&l_key);
                             // First IN via ledger fallback: use SNAPSHOT of best prices for consistent classification
                             if (!l_pair_idx && l_pi && l_in_idx == 0) {
@@ -6803,10 +6767,9 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                         if (s_dex_history_enabled && l_tx_type == DEX_TX_TYPE_UPDATE && e) {
                             uint8_t l_side = e->side_version & 0x1;
                             dex_pair_key_t l_key = {};
-                            uint256_t l_new_price = uint256_0;
+                            uint256_t l_new_price = l_out_cond->subtype.srv_dex.rate;
                             s_dex_pair_normalize(l_sell_ticker, l_out_cond->subtype.srv_dex.sell_net_id,
-                                                 l_out_cond->subtype.srv_dex.buy_token, l_out_cond->subtype.srv_dex.buy_net_id,
-                                                 l_out_cond->subtype.srv_dex.rate, &l_key, &l_side, &l_new_price);
+                                                 l_out_cond->subtype.srv_dex.buy_token, l_out_cond->subtype.srv_dex.buy_net_id, &l_key, &l_side);
                             dex_bq_t l_bq = s_exec_to_canon_base_quote(l_out_cond->header.value, l_new_price, l_side);
                             s_dex_history_append(a_ledger, e->pair_key_ptr, a_tx->header.ts_created, l_new_price, l_bq.base, l_bq.quote,
                                                  a_tx_hash, &l_prev_hash, &e->level.match.root, e->seller_addr_ptr, NULL, DEX_OP_UPDATE,
@@ -6896,9 +6859,9 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                     if (s_dex_history_enabled && l_last_event_flags) {
                         dex_pair_key_t l_leftover_key = {};
                         uint8_t l_leftover_side = 0;
-                        uint256_t l_leftover_price = uint256_0;
+                        uint256_t l_leftover_price = l_out_cond->subtype.srv_dex.rate;
                         s_dex_pair_normalize(l_sell_ticker_new, a_ledger->net->pub.id, l_out_buy_token, a_ledger->net->pub.id,
-                                             l_out_cond->subtype.srv_dex.rate, &l_leftover_key, &l_leftover_side, &l_leftover_price);
+                                             &l_leftover_key, &l_leftover_side);
                         dex_bq_t l_leftover_bq = s_exec_to_canon_base_quote(l_out_cond->header.value, l_leftover_price, l_leftover_side);
                         dap_hash_fast_t l_blank = {};
                         s_dex_history_append(a_ledger, &l_leftover_key, a_tx->header.ts_created, l_leftover_price, l_leftover_bq.base,
@@ -6945,10 +6908,8 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                     }
                     if (l_sell_ticker_new && *l_sell_ticker_new) {
                         dex_pair_key_t l_key = {};
-                        uint8_t l_side = 0;
-                        uint256_t l_price_canon = uint256_0;
                         s_dex_pair_normalize(l_sell_ticker_new, a_ledger->net->pub.id, l_out_buy_token, a_ledger->net->pub.id,
-                                             l_out_cond->subtype.srv_dex.rate, &l_key, &l_side, &l_price_canon);
+                                             &l_key, NULL);
 
                         uint64_t l_bts = s_hist_bucket_ts(a_tx->header.ts_created, s_dex_history_bucket_sec);
                         dex_hist_pair_t *l_pair = NULL;
@@ -7005,11 +6966,8 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                 if (s_dex_history_enabled &&
                     (l_tx_type == DEX_TX_TYPE_EXCHANGE || l_tx_type == DEX_TX_TYPE_UPDATE || l_tx_type == DEX_TX_TYPE_INVALIDATE)) {
                     dex_pair_key_t l_key = {};
-                    uint8_t l_side = 0;
-                    uint256_t l_price_canon = uint256_0;
                     s_dex_pair_normalize(l_sell_ticker, l_prev_cout->subtype.srv_dex.sell_net_id, l_prev_cout->subtype.srv_dex.buy_token,
-                                         l_prev_cout->subtype.srv_dex.buy_net_id, l_prev_cout->subtype.srv_dex.rate, &l_key, &l_side,
-                                         &l_price_canon);
+                                         l_prev_cout->subtype.srv_dex.buy_net_id, &l_key, NULL);
 
                     uint64_t l_bts = s_hist_bucket_ts(a_tx->header.ts_created, s_dex_history_bucket_sec);
                     dex_hist_pair_t *l_pair = NULL;
@@ -7087,7 +7045,7 @@ bool dap_chain_net_srv_dex_pair_is_whitelisted(const char *a_sell_token, dap_cha
 {
     dap_ret_val_if_any(false, !a_sell_token, a_sell_token && !*a_sell_token, !a_buy_token, a_buy_token && !*a_buy_token);
     dex_pair_key_t l_pair_check = {};
-    s_dex_pair_normalize(a_sell_token, a_sell_net_id, a_buy_token, a_buy_net_id, uint256_0, &l_pair_check, NULL, NULL);
+    s_dex_pair_normalize(a_sell_token, a_sell_net_id, a_buy_token, a_buy_net_id, &l_pair_check, NULL);
     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
     bool l_allowed = s_dex_pair_index_get(&l_pair_check) != NULL;
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
@@ -7122,7 +7080,7 @@ dap_chain_net_srv_dex_create_error_t dap_chain_net_srv_dex_create(dap_chain_net_
     // Whitelist check: pair must be whitelisted via decree
     // Rate is expected in canonical form (QUOTE/BASE) for both ASK and BID
     dex_pair_key_t l_pair_check = {};
-    s_dex_pair_normalize(a_token_sell, a_net->pub.id, a_token_buy, a_net->pub.id, a_rate, &l_pair_check, NULL, NULL);
+    s_dex_pair_normalize(a_token_sell, a_net->pub.id, a_token_buy, a_net->pub.id, &l_pair_check, NULL);
     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
     dex_pair_index_t *l_pair_whitelist = s_dex_pair_index_get(&l_pair_check);
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
@@ -7919,10 +7877,8 @@ dap_chain_net_srv_dex_cancel_all_by_seller(dap_chain_net_t *a_net, const dap_cha
             const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &it->cur_hash);
             if (!l_sell_tok)
                 continue;
-            uint8_t l_side = 0;
-            uint256_t l_price = uint256_0;
             s_dex_pair_normalize(l_sell_tok, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                                 l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key, &l_side, &l_price);
+                                 l_out_cond->subtype.srv_dex.buy_net_id, &l_key, NULL);
             if (dap_strcmp(l_key.token_base, a_base_token) || dap_strcmp(l_key.token_quote, a_quote_token))
                 continue;
 
@@ -8686,10 +8642,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     continue;
                 dex_pair_key_t l_key_o = {};
                 uint8_t l_side_o = 0;
-                uint256_t l_price = {};
                 s_dex_pair_normalize(l_sell_tok, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                                     l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key_o, &l_side_o,
-                                     &l_price);
+                                     l_out_cond->subtype.srv_dex.buy_net_id, &l_key_o, &l_side_o);
                 // Filter by pair if specified
                 if (l_pair_str &&
                     (strcmp(l_key_o.token_quote, l_ticker_quote) || strcmp(l_key_o.token_base, l_ticker_base) ||
@@ -8711,7 +8665,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                                                   : l_out_cond->subtype.srv_dex.order_root_hash;
                 json_object_object_add(o, "root", json_object_new_string(dap_hash_fast_to_str_static(&l_root_hash)));
                 json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&it->cur_hash)));
-                json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_price).frac));
+                json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_out_cond->subtype.srv_dex.rate).frac));
                 json_object_object_add(o, "value_sell", json_object_new_string(dap_uint256_to_char_ex(l_out_cond->header.value).frac));
                 uint8_t l_fill_pct = 0;
                 s_dex_calc_order_fill_pct_ledger(l_net, &l_root_hash, &l_fill_pct);
@@ -8891,10 +8845,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     continue;
                 dex_pair_key_t l_key_o = {};
                 uint8_t l_side_o = 0;
-                uint256_t l_price = {};
+                uint256_t l_price = l_out_cond->subtype.srv_dex.rate;
                 s_dex_pair_normalize(l_sell_tok, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                                     l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key_o, &l_side_o,
-                                     &l_price);
+                                     l_out_cond->subtype.srv_dex.buy_net_id, &l_key_o, &l_side_o);
                 if (dap_strcmp(l_key_o.token_quote, l_ticker_quote) || dap_strcmp(l_key_o.token_base, l_ticker_base))
                     continue;
                 uint256_t l_bin_pair = l_price;
@@ -9118,10 +9071,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     if (!l_sell_tok)
                         continue;
                     uint8_t l_side_o = 0;
-                    uint256_t l_price = {};
+                    uint256_t l_price = l_out_cond->subtype.srv_dex.rate;
                     s_dex_pair_normalize(l_sell_tok, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                                         l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key, &l_side_o,
-                                         &l_price);
+                                         l_out_cond->subtype.srv_dex.buy_net_id, &l_key, &l_side_o);
                     if (strcmp(l_key.token_quote, l_ticker_quote) || strcmp(l_key.token_base, l_ticker_base))
                         continue;
                     if (l_side_o == DEX_SIDE_ASK) {
@@ -9233,11 +9185,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     SUM_256_256(l_sum, l_out_cond->header.value, &l_sum);
                     if (l_by_str && !dap_strcmp(l_by_str, "pair")) {
                         dex_pair_key_t l_key_o = {};
-                        uint8_t l_side_o = 0;
-                        uint256_t l_price_o = uint256_0;
                         s_dex_pair_normalize(l_sell_tok_tx, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                                             l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key_o, &l_side_o,
-                                             &l_price_o);
+                                             l_out_cond->subtype.srv_dex.buy_net_id, &l_key_o, NULL);
                         char l_key_buf[TVL_PAIR_LEN];
                         // Emit pair as BASE/QUOTE → l_key_o.buy_token/l_key_o.sell_token
                         snprintf(l_key_buf, sizeof(l_key_buf), "%s/%s", l_key_o.token_base, l_key_o.token_quote);
@@ -9356,10 +9305,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         continue;
                     dex_pair_key_t l_key = (dex_pair_key_t){};
                     uint8_t l_side = 0;
-                    uint256_t l_price = uint256_0;
+                    uint256_t l_price = l_out_cond->subtype.srv_dex.rate;
                     s_dex_pair_normalize(l_sell_tok_tx, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                                         l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key, &l_side,
-                                         &l_price);
+                                         l_out_cond->subtype.srv_dex.buy_net_id, &l_key, &l_side);
                     if (dap_strcmp(l_key.token_quote, l_ticker_quote) || dap_strcmp(l_key.token_base, l_ticker_base))
                         continue;
                     if (l_side == DEX_SIDE_ASK) {
@@ -9607,10 +9555,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     const char *l_sell_tok = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_order_root);
                     if (l_out && l_sell_tok && *l_sell_tok) {
                         dex_pair_key_t l_key = {};
-                        uint8_t l_side = 0;
-                        uint256_t l_price = uint256_0;
                         s_dex_pair_normalize(l_sell_tok, l_out->subtype.srv_dex.sell_net_id, l_out->subtype.srv_dex.buy_token,
-                                             l_out->subtype.srv_dex.buy_net_id, l_out->subtype.srv_dex.rate, &l_key, &l_side, &l_price);
+                                             l_out->subtype.srv_dex.buy_net_id, &l_key, NULL);
                         if (*l_key.token_base && *l_key.token_quote) {
                             if (l_pair_str) {
                                 if (dap_strcmp(l_ticker_base, l_key.token_base) || dap_strcmp(l_ticker_quote, l_key.token_quote))
@@ -9718,10 +9664,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     break;
                 // Normalize pair once (all events in chain have same pair)
                 uint8_t l_side = 0;
-                uint256_t l_price_canon = uint256_0;
+                uint256_t l_price_canon = l_prev_out->subtype.srv_dex.rate;
                 s_dex_pair_normalize(l_sell_tok, l_prev_out->subtype.srv_dex.sell_net_id, l_prev_out->subtype.srv_dex.buy_token,
-                                        l_prev_out->subtype.srv_dex.buy_net_id, l_prev_out->subtype.srv_dex.rate, &l_key, &l_side,
-                                        &l_price_canon);
+                                        l_prev_out->subtype.srv_dex.buy_net_id, &l_key, &l_side);
                 if (dap_strcmp(l_key.token_quote, l_ticker_quote) || dap_strcmp(l_key.token_base, l_ticker_base))
                     break; // Pair mismatch, empty result
                 // Walk the chain
@@ -9890,10 +9835,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         if (!l_sell_tok)
                             continue;
                         uint8_t l_side = 0;
-                        uint256_t l_price_canon = uint256_0;
+                        uint256_t l_price_canon = l_prev->subtype.srv_dex.rate;
                         s_dex_pair_normalize(l_sell_tok, l_prev->subtype.srv_dex.sell_net_id, l_prev->subtype.srv_dex.buy_token,
-                                             l_prev->subtype.srv_dex.buy_net_id, l_prev->subtype.srv_dex.rate, &l_key, &l_side,
-                                             &l_price_canon);
+                                             l_prev->subtype.srv_dex.buy_net_id, &l_key, &l_side);
                         if (dap_strcmp(l_key.token_quote, l_ticker_quote) || dap_strcmp(l_key.token_base, l_ticker_base)) {
                             l_dex_in_i++;
                             continue;
@@ -10101,11 +10045,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     if (!l_sell_tok)
                         continue;
                     dex_pair_key_t l_key = {};
-                    uint8_t l_side = 0;
-                    uint256_t l_price = uint256_0;
                     s_dex_pair_normalize(l_sell_tok, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                                         l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key, &l_side,
-                                         &l_price);
+                                         l_out_cond->subtype.srv_dex.buy_net_id, &l_key, NULL);
                     if (strcmp(l_key.token_base, l_ticker_base) || strcmp(l_key.token_quote, l_ticker_quote))
                         continue;
                     json_object *o = json_object_new_object();
@@ -10472,16 +10413,15 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 if (!l_sell_tok_tx)
                     continue;
                 uint8_t l_side = 0;
-                uint256_t l_price = uint256_0;
                 s_dex_pair_normalize(l_sell_tok_tx, l_out_cond->subtype.srv_dex.sell_net_id, l_out_cond->subtype.srv_dex.buy_token,
-                                     l_out_cond->subtype.srv_dex.buy_net_id, l_out_cond->subtype.srv_dex.rate, &l_key, &l_side, &l_price);
+                                     l_out_cond->subtype.srv_dex.buy_net_id, &l_key, &l_side);
                 if (dap_strcmp(l_key.token_quote, l_ticker_quote) || dap_strcmp(l_key.token_base, l_ticker_base))
                     continue;
                 if ((l_side_buy && l_side != DEX_SIDE_ASK) || (!l_side_buy && l_side != DEX_SIDE_BID))
                     continue;
                 dex_order_level_t *l_lvl = DAP_NEW_Z(dex_order_level_t);
                 l_lvl->match.value = l_out_cond->header.value;
-                l_lvl->match.rate = l_price;
+                l_lvl->match.rate = l_out_cond->subtype.srv_dex.rate;
                 l_lvl->match.min_fill = l_out_cond->subtype.srv_dex.min_fill;
                 l_lvl->match.root = dap_ledger_get_first_chain_tx_hash(l_net->pub.ledger, l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX);
                 l_lvl->match.tail = it->cur_hash;
@@ -10730,7 +10670,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
 
         dex_pair_key_t l_key = {};
         uint8_t l_side = 0;
-        s_dex_pair_normalize(l_crit.token_sell, l_crit.net_id_sell, l_crit.token_buy, l_crit.net_id_buy, l_crit.rate_cap, &l_key, &l_side, NULL);
+        s_dex_pair_normalize(l_crit.token_sell, l_crit.net_id_sell, l_crit.token_buy, l_crit.net_id_buy, &l_key, &l_side);
         uint256_t l_leftover = uint256_0;
         dex_match_table_entry_t *l_matches = s_dex_matches_build_by_criteria(l_net, &l_crit, &l_leftover);
 

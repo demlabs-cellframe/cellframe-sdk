@@ -25,6 +25,17 @@ rate = QUOTE_amount / BASE_amount
 
 Example: 1 KEL = 2.5 USDT → rate = 2.5
 
+**Input rule:**
+- For DEX orders and purchases, `rate` is always provided in canonical QUOTE/BASE, independent of order side.
+  Example: for KEL/USDT, a BID still uses `rate = 2.5` (USDT per KEL).
+
+**Example (same canonical rate for both sides):**
+- ASK: sell KEL, buy USDT -> rate = 2.5 (USDT per KEL)
+- BID: sell USDT, buy KEL -> rate = 2.5 (USDT per KEL)
+
+**Example (spread):**
+- Best ASK = 2.50, Best BID = 2.45 -> Spread = 0.05 (USDT per KEL)
+
 ---
 
 ## Order Sides
@@ -42,6 +53,21 @@ Example: 1 KEL = 2.5 USDT → rate = 2.5
 **Buyer perspective:**
 - ASK = buyer pays QUOTE, receives BASE
 - BID = buyer pays BASE, receives QUOTE
+
+**Order value (locked amount):**
+- `out_cond.value` always equals the amount of `sell_token` locked by the seller.
+
+**Example:**
+- ASK: sell 100 CELL at rate 0.5 -> lock 100 CELL, receive 50 USDT on full fill.
+- BID: sell 50 USDT at rate 0.5 -> lock 50 USDT, receive 100 CELL on full fill.
+
+---
+
+## Order Book
+
+- **Best ASK** - lowest ASK price (cheapest sell offer)
+- **Best BID** - highest BID price (best buy offer)
+- **Spread** - Best ASK - Best BID (in QUOTE/BASE)
 
 ---
 
