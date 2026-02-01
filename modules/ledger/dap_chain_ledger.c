@@ -58,6 +58,9 @@ typedef struct dap_ledger_service_info {
 static dap_ledger_service_info_t *s_services;
 static pthread_rwlock_t s_services_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
+// Global ledger registry for find functions
+static dap_ledger_t *s_ledger_registry = NULL; // Using uthash
+
 bool g_debug_ledger = true;
 
 static void s_threshold_txs_free(dap_ledger_t *a_ledger);
@@ -952,6 +955,9 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
     // Decrees initializing
     dap_ledger_decree_init(l_ledger);
     
+    // Add to global registry for find_by_name lookup
+    HASH_ADD_STR(s_ledger_registry, name, l_ledger);
+    
     log_it(L_INFO, "Created ledger '%s' with net_id=%016" DAP_UINT64_FORMAT_X " and %zu chain(s)", 
            l_ledger->name, l_ledger->net_id.uint64, l_ledger->chain_ids_count);
     
@@ -988,9 +994,6 @@ dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger)
 {
     return a_ledger ? a_ledger->net_id : (dap_chain_net_id_t){0};
 }
-
-// Global ledger registry for find functions
-static dap_ledger_t *s_ledger_registry = NULL; // Using uthash
 
 /**
  * @brief Find ledger by name
