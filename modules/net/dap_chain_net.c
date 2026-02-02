@@ -91,6 +91,7 @@
 #include "dap_chain_net_balancer.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_wallet.h"  // For wallet callback wrappers
 #include "dap_chain_srv.h"
 #include "dap_global_db.h"
 #include "dap_chain_net_ch_pkt.h"
@@ -1976,6 +1977,16 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
         
         // Set ledger callbacks and context
         a_net->pub.ledger->load_mode = true;
+        
+        // Register wallet callbacks with ledger for tx create and other wallet operations
+        dap_ledger_set_wallet_callbacks(a_net->pub.ledger,
+            NULL,  // sign callback - not needed for basic operations
+            NULL,  // get_pkey_hash callback
+            NULL,  // get_pkey callback
+            dap_chain_wallet_get_addr_by_name,  // get_addr callback
+            dap_chain_wallet_check_sign_by_name  // check_sign callback
+        );
+        log_it(L_INFO, "Registered wallet callbacks for ledger %s", a_net->pub.name);
         
         // Transfer PoA keys from network to ledger for decree signature verification
         if (a_net->pub.keys) {

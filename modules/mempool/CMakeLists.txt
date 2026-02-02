@@ -18,6 +18,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../wallet/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../wallet-cache/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../net/tx/include)
 
 if (INSTALL_SDK)

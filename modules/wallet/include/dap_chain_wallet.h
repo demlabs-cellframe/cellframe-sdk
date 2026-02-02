@@ -118,6 +118,10 @@ int dap_chain_wallet_add_wallet_opened_notify(dap_chain_wallet_opened_callback_t
 int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_t a_callback, void *a_arg);
 
 int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_out_hash);
+
+// Callback wrappers for ledger integration - these open wallet by name internally
+void* dap_chain_wallet_get_addr_by_name(const char *a_wallet_name, dap_chain_net_id_t a_net_id);
+const char* dap_chain_wallet_check_sign_by_name(const char *a_wallet_name);
 char *dap_chain_wallet_get_pkey_str(dap_chain_wallet_t *a_wallet, const char *a_str_type);
 
 dap_list_t* dap_chain_wallet_get_local_addr();

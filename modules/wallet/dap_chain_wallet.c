@@ -555,6 +555,61 @@ dap_chain_addr_t *dap_chain_wallet_get_addr(dap_chain_wallet_t *a_wallet, dap_ch
 }
 
 /**
+ * @brief dap_chain_wallet_get_addr_by_name - Callback wrapper for ledger integration
+ * Opens wallet by name and returns address for the specified network
+ * @param a_wallet_name wallet name
+ * @param a_net_id network id
+ * @return address (caller must free) or NULL on error
+ */
+void* dap_chain_wallet_get_addr_by_name(const char *a_wallet_name, dap_chain_net_id_t a_net_id)
+{
+    if (!a_wallet_name || !a_wallet_name[0])
+        return NULL;
+    
+    const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
+    if (!l_wallets_path)
+        return NULL;
+    
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_name, l_wallets_path, NULL);
+    if (!l_wallet) {
+        log_it(L_WARNING, "Cannot open wallet '%s' for address lookup", a_wallet_name);
+        return NULL;
+    }
+    
+    dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, a_net_id);
+    dap_chain_wallet_close(l_wallet);
+    
+    return l_addr;
+}
+
+/**
+ * @brief dap_chain_wallet_check_sign_by_name - Callback wrapper for ledger integration
+ * Opens wallet by name and returns signature type string
+ * @param a_wallet_name wallet name
+ * @return signature type string or NULL on error
+ */
+const char* dap_chain_wallet_check_sign_by_name(const char *a_wallet_name)
+{
+    if (!a_wallet_name || !a_wallet_name[0])
+        return NULL;
+    
+    const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
+    if (!l_wallets_path)
+        return NULL;
+    
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_name, l_wallets_path, NULL);
+    if (!l_wallet) {
+        log_it(L_WARNING, "Cannot open wallet '%s' for sign check", a_wallet_name);
+        return NULL;
+    }
+    
+    const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
+    dap_chain_wallet_close(l_wallet);
+    
+    return l_sign_str;
+}
+
+/**
  * @brief dap_cert_to_addr
  * @param a_cert
  * @param a_net_id

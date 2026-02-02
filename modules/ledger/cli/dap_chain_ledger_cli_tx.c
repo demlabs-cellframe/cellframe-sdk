@@ -15,7 +15,11 @@
 #include "dap_chain_tx_compose_api.h"
 #include "dap_cli_server.h"  // For dap_cli_server_cmd_find_option_val
 #include "dap_chain_common.h" // For CHAIN_TYPE_TX
-// NO wallet/net/mempool includes - access via ledger callbacks only!
+#include "dap_cert.h"        // For certificate handling in emission-based TX
+#include "dap_chain_mempool.h" // For dap_chain_mempool_base_tx_create
+#include "dap_chain_net.h"    // For dap_chain_net_get_default_chain_by_chain_type
+#include "dap_chain_type_dag_event.h" // For dap_chain_type_dag_event_get_datum
+#include "dap_chain_datum.h"  // For dap_chain_datum_calc_hash
 
 #define LOG_TAG "ledger_cli_tx"
 
@@ -48,6 +52,9 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
     const char *l_value_str = NULL;
     const char *l_fee_str = NULL;
     const char *l_hash_out_type = NULL;
+    const char *l_from_emission_str = NULL;
+    const char *l_chain_emission_name = NULL;
+    const char *l_cert_str = NULL;
     
     // Parse parameters
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name);
@@ -58,10 +65,21 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-H", &l_hash_out_type);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-from_emission", &l_from_emission_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain_emission", &l_chain_emission_name);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
     
     if (!l_hash_out_type) {
         l_hash_out_type = "hex";
     }
+    
+    // Debug: show parsed parameters
+    log_it(L_INFO, "tx create PARAMS: net=%s from_emission=%s from_wallet=%s chain_emission=%s cert=%s",
+           l_net_name ? l_net_name : "NULL",
+           l_from_emission_str ? l_from_emission_str : "NULL",
+           l_from_wallet ? l_from_wallet : "NULL",
+           l_chain_emission_name ? l_chain_emission_name : "NULL",
+           l_cert_str ? l_cert_str : "NULL");
     
     // Validate required parameters
     if (!l_net_name) {
@@ -71,10 +89,146 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
         return dap_cli_error_code_get("LEDGER_NET_PARAM_ERR");
     }
     
+    // Get ledger early - needed for both emission and wallet flows
+    dap_ledger_t *l_ledger = cli_get_ledger_by_net_name(l_net_name, a_json_arr_reply);
+    if (!l_ledger) {
+        return dap_cli_error_code_get("LEDGER_NET_FIND_ERR");
+    }
+    
+    // Parse fee
+    uint256_t l_fee = l_fee_str ? dap_chain_balance_scan(l_fee_str) : uint256_0;
+    
+    // ==========================================================================
+    // EMISSION-BASED TRANSACTION PATH
+    // ==========================================================================
+    log_it(L_INFO, "tx create: checking emission path, l_from_emission_str=%p", (void*)l_from_emission_str);
+    if (l_from_emission_str) {
+        log_it(L_INFO, "tx create: ENTERING EMISSION PATH with hash %s", l_from_emission_str);
+        // Parse emission hash
+        dap_chain_hash_fast_t l_emission_hash = {};
+        if (dap_chain_hash_fast_from_str(l_from_emission_str, &l_emission_hash)) {
+            dap_json_rpc_error_add(a_json_arr_reply, 
+                dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
+                "Invalid emission hash: %s", l_from_emission_str);
+            return dap_cli_error_code_get("LEDGER_PARAM_ERR");
+        }
+        
+        // Get emission chain
+        if (!l_chain_emission_name) {
+            dap_json_rpc_error_add(a_json_arr_reply, 
+                dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
+                "Emission chain required (-chain_emission) when using -from_emission");
+            return dap_cli_error_code_get("LEDGER_PARAM_ERR");
+        }
+        
+        // Need certificate for signing emission TX
+        if (!l_cert_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, 
+                dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
+                "Certificate required (-cert) for emission-based transaction");
+            return dap_cli_error_code_get("LEDGER_PARAM_ERR");
+        }
+        
+        dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
+        if (!l_cert) {
+            dap_json_rpc_error_add(a_json_arr_reply, 
+                dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
+                "Certificate not found: %s", l_cert_str);
+            return dap_cli_error_code_get("LEDGER_PARAM_ERR");
+        }
+        
+        // Get emission chain by name from ledger registry
+        dap_chain_t *l_emission_chain = NULL;
+        dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
+        HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+            if (l_chain_info->chain_name[0] && strcmp(l_chain_info->chain_name, l_chain_emission_name) == 0) {
+                l_emission_chain = (dap_chain_t *)l_chain_info->chain_ptr;
+                break;
+            }
+        }
+        
+        if (!l_emission_chain) {
+            dap_json_rpc_error_add(a_json_arr_reply, 
+                dap_cli_error_code_get("LEDGER_CHAIN_NOT_FOUND"), 
+                "Emission chain not found: %s", l_chain_emission_name);
+            return dap_cli_error_code_get("LEDGER_CHAIN_NOT_FOUND");
+        }
+        
+        // Get TX chain from network
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_ledger->net_id);
+        dap_chain_t *l_tx_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        if (!l_tx_chain) {
+            dap_json_rpc_error_add(a_json_arr_reply, 
+                dap_cli_error_code_get("LEDGER_CHAIN_NOT_FOUND"), 
+                "TX chain not found in network");
+            return dap_cli_error_code_get("LEDGER_CHAIN_NOT_FOUND");
+        }
+        
+        // The -from_emission parameter can be either:
+        // 1. The event hash (DAG event containing the emission datum)
+        // 2. The datum hash directly
+        // We need to try both approaches to find the emission
+        
+        dap_chain_hash_fast_t l_datum_hash = l_emission_hash;  // Start with the provided hash
+        
+        // First, check if this is a DAG event hash by trying to get the event
+        size_t l_event_size = 0;
+        dap_chain_atom_ptr_t l_event = dap_chain_get_atom_by_hash(l_emission_chain, &l_emission_hash, &l_event_size);
+        
+        if (l_event && l_event_size > 0) {
+            // It's a DAG event - extract the datum and compute its hash
+            log_it(L_INFO, "Found DAG event, extracting datum hash");
+            dap_chain_datum_t *l_datum = dap_chain_type_dag_event_get_datum(
+                (dap_chain_type_dag_event_t *)l_event, l_event_size);
+            if (l_datum) {
+                dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
+                log_it(L_INFO, "Computed datum hash: %s", dap_chain_hash_fast_to_str_static(&l_datum_hash));
+            } else {
+                log_it(L_WARNING, "Failed to extract datum from DAG event");
+            }
+        } else {
+            log_it(L_INFO, "No DAG event found with hash, assuming it's a direct datum hash");
+        }
+        
+        // Create base TX from emission using the datum hash
+        log_it(L_INFO, "Creating base TX from emission hash: %s on chain %s", 
+               dap_chain_hash_fast_to_str_static(&l_datum_hash), l_tx_chain->name);
+        char *l_tx_hash_str = dap_chain_mempool_base_tx_create(
+            l_tx_chain, 
+            &l_datum_hash, 
+            l_emission_chain->id,
+            uint256_0, NULL, NULL,  // Get value/token/addr from emission itself
+            l_cert->enc_key, 
+            l_hash_out_type, 
+            l_fee
+        );
+        
+        if (!l_tx_hash_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, 
+                dap_cli_error_code_get("LEDGER_TX_CREATE_FAILED"), 
+                "Failed to create base TX from emission");
+            return dap_cli_error_code_get("LEDGER_TX_CREATE_FAILED");
+        }
+        
+        // Success - return hash
+        dap_json_t *l_result = dap_json_object_new();
+        dap_json_object_add_string(l_result, "status", "success");
+        dap_json_object_add_string(l_result, "emission", "Ok");
+        dap_json_object_add_string(l_result, "hash", l_tx_hash_str);
+        dap_json_array_add(a_json_arr_reply, l_result);
+        
+        DAP_DELETE(l_tx_hash_str);
+        log_it(L_NOTICE, "Base TX from emission created successfully");
+        return 0;
+    }
+    
+    // ==========================================================================
+    // WALLET-BASED TRANSACTION PATH (original flow)
+    // ==========================================================================
     if (!l_from_wallet) {
         dap_json_rpc_error_add(a_json_arr_reply, 
             dap_cli_error_code_get("LEDGER_WALLET_PARAM_ERR"), 
-            "Source wallet required (-from_wallet)");
+            "Source wallet required (-from_wallet) or emission (-from_emission)");
         return dap_cli_error_code_get("LEDGER_WALLET_PARAM_ERR");
     }
     
@@ -99,12 +253,6 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
         return dap_cli_error_code_get("LEDGER_TX_CREATE_VALUE_INVALID");
     }
     
-    // Get ledger
-    dap_ledger_t *l_ledger = cli_get_ledger_by_net_name(l_net_name, a_json_arr_reply);
-    if (!l_ledger) {
-        return dap_cli_error_code_get("LEDGER_NET_FIND_ERR");
-    }
-    
     // Parse value
     uint256_t l_value = dap_chain_balance_scan(l_value_str);
     if (IS_ZERO_256(l_value)) {
@@ -113,9 +261,6 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
             "Invalid value: %s", l_value_str);
         return dap_cli_error_code_get("LEDGER_TX_CREATE_VALUE_INVALID");
     }
-    
-    // Parse fee
-    uint256_t l_fee = l_fee_str ? dap_chain_balance_scan(l_fee_str) : uint256_0;
     
     // Parse destination address
     dap_chain_addr_t *l_addr_to = dap_chain_addr_from_str(l_to_addr_str);

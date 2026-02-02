@@ -70,6 +70,7 @@
 // REMOVED: dap_chain_block_tx.h - deprecated wrapper functions removed to break mempool <-> blocks cycle
 // REMOVED: dap_chain_wallet.h - dead include, not used
 #include "dap_chain_ledger.h"  // Normal dependency: mempool (high) → ledger (mid)
+#include "dap_chain_wallet_cache.h" // For dap_chain_wallet_cache_tx_find_outs_with_val
 #include "dap_chain_mempool_cli.h"
 
 #define LOG_TAG "dap_chain_mempool"
@@ -360,6 +361,160 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed)
     
     dap_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
+}
+
+/**
+ * @brief Create base transaction from emission
+ * @details Creates a transaction that spends an emission. The emission value goes to the
+ *          specified destination address, minus any fees.
+ */
+char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
+                                       dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, 
+                                       const char *a_ticker, dap_chain_addr_t *a_addr_to, 
+                                       dap_enc_key_t *a_private_key, const char *a_hash_out_type, 
+                                       uint256_t a_value_fee)
+{
+    dap_return_val_if_fail(a_chain && a_emission_hash && a_private_key, NULL);
+    uint256_t l_net_fee = {};
+    uint256_t l_total_fee = a_value_fee;
+    uint256_t l_value_transfer = {};
+    dap_chain_addr_t l_addr_to_fee = {};
+    dap_chain_addr_t l_addr_from_fee = {};
+
+    dap_chain_addr_t *l_addr_to = a_addr_to;
+    uint256_t l_emission_value = a_emission_value;
+    const char *l_emission_ticker = a_ticker;
+
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    if (!l_net) {
+        log_it(L_WARNING, "Network not found for chain");
+        return NULL;
+    }
+    
+    log_it(L_INFO, "base_tx_create: net=%s, chain=%s, a_addr_to=%p", 
+           l_net->pub.name, a_chain->name, (void*)a_addr_to);
+
+    if (!a_addr_to) {
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
+        log_it(L_INFO, "Looking for emission with hash: %s in ledger %p", l_hash_str, (void*)l_net->pub.ledger);
+        
+        dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(l_net->pub.ledger, a_emission_hash);
+        if (!l_emission) {
+            log_it(L_WARNING, "Specified emission not found (hash: %s)", l_hash_str);
+            return NULL;
+        }
+        log_it(L_INFO, "Found emission: ticker=%s value=%s", l_emission->hdr.ticker, 
+               dap_uint256_uninteger_to_char(l_emission->hdr.value));
+        l_emission_ticker = l_emission->hdr.ticker;
+        l_emission_value = l_emission->hdr.value;
+        l_addr_to = &l_emission->hdr.address;
+    }
+
+    const char *l_native_ticker = l_net->pub.native_ticker;
+    bool not_native = dap_strcmp(l_emission_ticker, l_native_ticker);
+    bool l_net_fee_used = IS_ZERO_256(a_value_fee) ? false :
+                                                     dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_to_fee);
+    if (l_net_fee_used)
+        SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
+
+    dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
+    l_tx->header.ts_created = time(NULL);
+
+    // Add emission input
+    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(a_emission_chain_id, a_emission_hash, l_emission_ticker);
+    if (l_in_ems) {
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_in_ems);
+        DAP_DELETE(l_in_ems);
+    } else {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    if (not_native && !IS_ZERO_256(l_total_fee)) {
+        // Non-native token with fee - need UTXO for fee payment
+        if (dap_chain_addr_fill_from_key(&l_addr_from_fee, a_private_key, a_chain->net_id) != 0) {
+            log_it(L_WARNING, "Can't fill address from transfer");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        // List of transaction with 'out' items from wallet cache
+        dap_list_t *l_list_used_out = NULL;
+        int l_cache_ret = dap_chain_wallet_cache_tx_find_outs_with_val(l_net, l_native_ticker, &l_addr_from_fee, 
+                                                                       &l_list_used_out, l_total_fee, &l_value_transfer);
+        if (l_cache_ret != 0 || !l_list_used_out) {
+            log_it(L_WARNING, "Not enough funds to transfer (wallet cache ret %d)", l_cache_ret);
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        // Add inputs
+        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+        assert(EQUAL_256(l_value_to_items, l_value_transfer));
+        dap_list_free_full(l_list_used_out, NULL);
+
+        // Add outputs
+        uint256_t l_value_back = l_value_transfer;
+        // Network fee
+        if (l_net_fee_used) {
+            SUBTRACT_256_256(l_value_back, l_net_fee, &l_value_back);
+            if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_to_fee, l_net_fee, l_native_ticker)) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+        if (!IS_ZERO_256(a_value_fee)) {
+            SUBTRACT_256_256(l_value_back, a_value_fee, &l_value_back);
+            if (!dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee)) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+        // Coin back
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_from_fee, l_value_back, l_native_ticker)) {
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_to, l_emission_value, l_emission_ticker)) {
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    } else {
+        // Native ticker or zero fee
+        if (!IS_ZERO_256(a_value_fee)) {
+            SUBTRACT_256_256(l_emission_value, a_value_fee, &l_emission_value);
+            if (!dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee)) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+        if (l_net_fee_used) {
+            SUBTRACT_256_256(l_emission_value, l_net_fee, &l_emission_value);
+            if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_to_fee, l_net_fee, l_native_ticker)) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_to, l_emission_value, l_emission_ticker)) {
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+    }
+
+    // Sign the transaction
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_private_key) < 0) {
+        log_it(L_WARNING, "No private key for sign");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+
+    // Pack transaction into the datum
+    dap_chain_datum_t *l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    dap_chain_datum_tx_delete(l_tx);
+    char *l_ret = dap_chain_mempool_datum_add(l_datum_tx, a_chain, a_hash_out_type);
+    DAP_DELETE(l_datum_tx);
+    return l_ret;
 }
 
 /**
