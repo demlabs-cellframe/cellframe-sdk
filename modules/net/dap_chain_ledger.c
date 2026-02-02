@@ -1844,6 +1844,33 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t *a_ledger, c
 }
 
 /**
+ * @brief Check if UTXO is blocked by token ticker (public wrapper for wallet cache)
+ * @param a_ledger Ledger instance
+ * @param a_token_ticker Token ticker string
+ * @param a_tx_hash Transaction hash
+ * @param a_out_idx Output index
+ * @return true if UTXO is blocked, false otherwise
+ */
+bool dap_ledger_utxo_is_blocked_by_ticker(dap_ledger_t *a_ledger, const char *a_token_ticker,
+                                          const dap_chain_hash_fast_t *a_tx_hash, int a_out_idx)
+{
+    if (!a_ledger || !a_token_ticker || !a_tx_hash)
+        return false;
+    
+    // Find token item using internal function (has PVT() access)
+    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token_ticker);
+    if (!l_token_item)
+        return false;
+    
+    // Check if UTXO blocking is disabled for this token
+    if (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED)
+        return false;
+    
+    // Use the standard blocking check from dap_chain_ledger_utxo.c
+    return dap_ledger_utxo_is_blocked(l_token_item, (dap_chain_hash_fast_t *)a_tx_hash, a_out_idx, a_ledger);
+}
+
+/**
  * @brief update current_supply in token cache
  *
  * @param a_ledger ledger object
@@ -6116,6 +6143,20 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
                 debug_if(s_debug_more, L_DEBUG, "UTXO address mismatch: search=%s utxo=%s",
                         dap_chain_addr_to_str_static(a_addr), dap_chain_addr_to_str_static(&l_addr));
                 continue;
+            }
+            // CRITICAL: Check if UTXO is blocked in token-specific blocklist
+            // This prevents blocked UTXOs from being selected for transactions
+            // Check applies to ALL output types (regular OUT, OUT_EXT, OUT_STD, and OUT_COND)
+            // Blocked UTXO cannot be used in any transaction type
+            if (l_token) {
+                dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token);
+                if (l_token_item && 
+                    !(l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
+                    dap_ledger_utxo_is_blocked(l_token_item, &l_cur->tx_hash_fast, l_out_idx, a_ledger)) {
+                    debug_if(s_debug_more, L_DEBUG, "UTXO %s:%d is blocked for token %s - skipping",
+                            dap_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx, l_token);
+                    continue;
+                }
             }
             if (a_mempool_check && dap_chain_mempool_out_is_used(a_ledger->net, &l_cur->tx_hash_fast, l_out_idx))
                 continue;

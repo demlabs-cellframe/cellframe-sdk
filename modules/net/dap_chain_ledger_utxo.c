@@ -197,6 +197,12 @@ bool dap_ledger_utxo_is_blocked(dap_ledger_token_item_t *a_token_item,
     return dap_ledger_utxo_block_get_state_at_time(a_token_item, a_tx_hash, a_out_idx, l_blockchain_time);
 }
 
+/**
+ * @brief Check if UTXO is blocked by token ticker (public wrapper - implemented in dap_chain_ledger.c)
+ * @note This is just a declaration, implementation is in dap_chain_ledger.c to access PVT() macro
+ */
+// Declaration moved to dap_chain_ledger.c for PVT() access
+
 int dap_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
                               dap_chain_hash_fast_t *a_tx_hash,
                               uint32_t a_out_idx,

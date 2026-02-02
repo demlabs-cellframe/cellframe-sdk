@@ -46,6 +46,8 @@
 #include "dap_chain.h"
 #include "dap_common.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_ledger.h"
+#include "dap_chain_ledger_utxo.h"
 
 
 
@@ -583,6 +585,16 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
             if (a_mempool_check && dap_chain_mempool_out_is_used(a_net, &l_item_cur->key.tx_hash, l_item_cur->key.out_idx))
                 continue;
 
+            // CRITICAL: Check if UTXO is blocked in token-specific blocklist
+            // This check MUST be in wallet cache to prevent bypassing ledger blocking check
+            // Applies to all output types (OUT, OUT_EXT, OUT_STD, OUT_COND)
+            if (dap_ledger_utxo_is_blocked_by_ticker(a_net->pub.ledger, a_token_ticker,
+                                                      &l_item_cur->key.tx_hash, l_item_cur->key.out_idx)) {
+                debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] UTXO %s:%u is blocked for token %s - skipping",
+                        dap_hash_fast_to_str_static(&l_item_cur->key.tx_hash), l_item_cur->key.out_idx, a_token_ticker);
+                continue;
+            }
+
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_item_cur->key.tx_hash, (uint32_t)l_item_cur->key.out_idx, l_value};
             l_list_used_out = dap_list_append(l_list_used_out, l_item);
@@ -706,6 +718,16 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
 
             if (a_mempool_check && dap_chain_mempool_out_is_used(a_net, &l_item_cur->key.tx_hash, l_item_cur->key.out_idx))
                 continue;
+
+            // CRITICAL: Check if UTXO is blocked in token-specific blocklist
+            // This check MUST be in wallet cache to prevent bypassing ledger blocking check
+            // Applies to all output types (OUT, OUT_EXT, OUT_STD, OUT_COND)
+            if (dap_ledger_utxo_is_blocked_by_ticker(a_net->pub.ledger, a_token_ticker,
+                                                      &l_item_cur->key.tx_hash, l_item_cur->key.out_idx)) {
+                debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] UTXO %s:%u is blocked for token %s - skipping",
+                        dap_hash_fast_to_str_static(&l_item_cur->key.tx_hash), l_item_cur->key.out_idx, a_token_ticker);
+                continue;
+            }
 
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_item_cur->key.tx_hash, (uint32_t)l_item_cur->key.out_idx, l_value};

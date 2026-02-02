@@ -61,6 +61,17 @@ bool dap_ledger_utxo_is_blocked(dap_ledger_token_item_t *a_token_item,
                                 dap_ledger_t *a_ledger);
 
 /**
+ * @brief Check if UTXO is blocked by token ticker (public wrapper for wallet cache)
+ * @param a_ledger Ledger instance
+ * @param a_token_ticker Token ticker string
+ * @param a_tx_hash Transaction hash
+ * @param a_out_idx Output index
+ * @return true if UTXO is blocked, false otherwise
+ */
+bool dap_ledger_utxo_is_blocked_by_ticker(dap_ledger_t *a_ledger, const char *a_token_ticker,
+                                          const dap_chain_hash_fast_t *a_tx_hash, int a_out_idx);
+
+/**
  * @brief Add UTXO to blocklist
  * @param a_token_item Token item
  * @param a_tx_hash Transaction hash

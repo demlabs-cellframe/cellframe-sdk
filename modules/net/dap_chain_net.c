@@ -2128,6 +2128,32 @@ static void *s_net_load(void *a_arg)
     }
     dap_ledger_load_end(l_net->pub.ledger);
     
+    // Load fee_addr from main.cfg configuration
+    // This ensures fee_addr persists across node restarts and is available for arbitrage transactions
+    char l_main_cfg_path[MAX_PATH + 1] = { '\0' };
+    snprintf(l_main_cfg_path, MAX_PATH, "network/%s/main", l_net->pub.name);
+    dap_config_t *l_main_cfg = dap_config_open(l_main_cfg_path);
+    if (l_main_cfg) {
+        const char *l_fee_addr_str = dap_config_get_item_str(l_main_cfg, "esbocs", "fee_addr");
+        if (l_fee_addr_str && strlen(l_fee_addr_str) > 0) {
+            dap_chain_addr_t *l_fee_addr_parsed = dap_chain_addr_from_str(l_fee_addr_str);
+            if (l_fee_addr_parsed) {
+                l_net->pub.fee_addr = *l_fee_addr_parsed;
+                DAP_DELETE(l_fee_addr_parsed);
+                log_it(L_INFO, "Loaded fee_addr from config for network %s: %s", 
+                       l_net->pub.name, dap_chain_addr_to_str_static(&l_net->pub.fee_addr));
+            } else {
+                log_it(L_WARNING, "Failed to parse fee_addr from config for network %s: %s", 
+                       l_net->pub.name, l_fee_addr_str);
+            }
+        } else {
+            log_it(L_DEBUG, "No fee_addr configured in main.cfg for network %s", l_net->pub.name);
+        }
+        dap_config_close(l_main_cfg);
+    } else {
+        log_it(L_DEBUG, "Cannot open main.cfg for network %s, fee_addr will not be loaded from config", l_net->pub.name);
+    }
+    
     // CRITICAL: Log final state before transitioning to OFFLINE
     // Note: Detailed ledger_items count logging is done in dap_ledger_tx_load and dap_ledger_tx_add
     // with [LEDGER_TX_LOAD] and [LEDGER_TX_ADD] prefixes
