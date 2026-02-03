@@ -1055,6 +1055,15 @@ int main(int argc, char *argv[]) {
         s_teardown();
         return ret;
     }
+
+    // Cancel with extra native input (cashback scenario)
+    ret = run_cancel_extra_native_input_tests(fixture);
+    if (ret != 0) {
+        log_it(L_ERROR, "Cancel extra native input tests FAILED with code %d", ret);
+        dex_test_fixture_destroy(fixture);
+        s_teardown();
+        return ret;
+    }
     
     // TODO: Add when implemented
     // run_leftover_tests(fixture);

@@ -222,7 +222,7 @@ static int exec_purchase_and_add(
     dap_chain_datum_tx_t *tx = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
         f->net->net, order_tail, budget, is_budget_buy,
-        f->network_fee, buyer_wallet, false, uint256_0, &tx
+        f->network_fee, buyer_wallet, false, uint256_0, 0, &tx
     );
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx) {
@@ -441,7 +441,7 @@ static int run_phase_full_buy(test_context_t *ctx) {
         dap_chain_datum_tx_t *tx_self = NULL;
         dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, uint256_0, false,
-            f->network_fee, seller_wallet, false, uint256_0, &tx_self
+            f->network_fee, seller_wallet, false, uint256_0, 0, &tx_self
         );
         
         if (err == DEX_PURCHASE_ERROR_OK && tx_self) {
@@ -464,7 +464,7 @@ static int run_phase_full_buy(test_context_t *ctx) {
         dap_chain_datum_tx_t *tx_insuff = NULL;
         dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, huge_budget, false,
-            f->network_fee, buyer_wallet, false, uint256_0, &tx_insuff
+            f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_insuff
         );
         if (err == DEX_PURCHASE_ERROR_OK && tx_insuff) {
             dap_chain_datum_tx_delete(tx_insuff);
@@ -501,7 +501,7 @@ static int run_phase_full_buy(test_context_t *ctx) {
         dap_chain_datum_tx_t *tx_template = NULL;
         dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, uint256_0, false,
-            f->network_fee, buyer_wallet, false, uint256_0, &tx_template
+            f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_template
         );
         
         if (err != DEX_PURCHASE_ERROR_OK || !tx_template) {
@@ -634,7 +634,7 @@ static int run_phase_full_buy(test_context_t *ctx) {
             dap_chain_datum_tx_t *tx_consumed = NULL;
             dap_chain_net_srv_dex_purchase_error_t consumed_err = dap_chain_net_srv_dex_purchase(
                 f->net->net, &order->tail, uint256_0, false,
-                f->network_fee, buyer_wallet, false, uint256_0, &tx_consumed
+                f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_consumed
             );
             
             if (consumed_err == DEX_PURCHASE_ERROR_OK && tx_consumed) {
@@ -681,7 +681,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         dap_chain_datum_tx_t *tx_dust = NULL;
         dap_chain_net_srv_dex_purchase_error_t err_dust = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, dust_budget, true,
-            f->network_fee, buyer_wallet, false, uint256_0, &tx_dust
+            f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_dust
         );
         if (err_dust == DEX_PURCHASE_ERROR_OK && tx_dust) {
             dap_hash_fast_t h_dust = {0};
@@ -698,7 +698,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         tx_dust = NULL;
         err_dust = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, dust_budget, false,
-            f->network_fee, buyer_wallet, false, uint256_0, &tx_dust
+            f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_dust
         );
         if (err_dust == DEX_PURCHASE_ERROR_OK && tx_dust) {
             dap_hash_fast_t h_dust = {0};
@@ -747,7 +747,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         log_it(L_INFO, "--- AON: partial 80%% with budget in BUY token ---");
         err = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, budget_buy, true,
-            f->network_fee, buyer_wallet, false, uint256_0, &tx_aon
+            f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_aon
         );
         if (err == DEX_PURCHASE_ERROR_OK && tx_aon) {
             log_it(L_ERROR, "AON partial (budget in BUY) should be rejected");
@@ -760,7 +760,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         log_it(L_INFO, "--- AON: partial 80%% with budget in SELL token ---");
         err = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, budget_sell, false,
-            f->network_fee, buyer_wallet, false, uint256_0, &tx_aon
+            f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_aon
         );
         if (err == DEX_PURCHASE_ERROR_OK && tx_aon) {
             log_it(L_ERROR, "AON partial (budget in SELL) should be rejected");
@@ -777,7 +777,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         // Step 3: Compose partial (now allowed with min_fill=0)
         err = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, budget_buy, true,
-            f->network_fee, buyer_wallet, false, uint256_0, &tx_aon
+            f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_aon
         );
         
         // Step 4: Restore min_fill before verification
@@ -816,7 +816,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         dap_chain_datum_tx_t *tx_full = NULL;
         err = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, uint256_0, true,
-            f->network_fee, buyer_wallet, false, uint256_0, &tx_full
+            f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_full
         );
         if (err != DEX_PURCHASE_ERROR_OK || !tx_full) {
             log_it(L_ERROR, "AON full buy failed: err=%d", err);
@@ -888,7 +888,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
     // Step 1a: Budget in BUY token below min_fill → composer rejects
     log_it(L_INFO, "--- Partial %d%% in BUY token (below min_fill=%s) ---", below_pct, get_minfill_desc(min_fill));
     err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_buy_below, true,
-                                          f->network_fee, buyer_wallet, false, uint256_0, &tx);
+                                          f->network_fee, buyer_wallet, false, uint256_0, 0, &tx);
     if (err == DEX_PURCHASE_ERROR_OK && tx) {
         log_it(L_ERROR, "Below-min_fill (BUY) should be rejected by composer");
         dap_chain_datum_tx_delete(tx);
@@ -899,7 +899,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
     // Step 1b: Budget in SELL token below min_fill → composer rejects
     log_it(L_INFO, "--- Partial %d%% in SELL token (below min_fill=%s) ---", below_pct, get_minfill_desc(min_fill));
     err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_sell_below, false,
-                                          f->network_fee, buyer_wallet, false, uint256_0, &tx);
+                                          f->network_fee, buyer_wallet, false, uint256_0, 0, &tx);
     if (err == DEX_PURCHASE_ERROR_OK && tx) {
         log_it(L_ERROR, "Below-min_fill (SELL) should be rejected by composer");
         dap_chain_datum_tx_delete(tx);
@@ -913,7 +913,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
     test_dex_adjust_minfill(f, &order->tail, 0, &orig_minfill);
     
     err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_buy_below, true,
-                                          f->network_fee, buyer_wallet, false, uint256_0, &tx);
+                                          f->network_fee, buyer_wallet, false, uint256_0, 0, &tx);
     test_dex_adjust_minfill(f, &order->tail, orig_minfill, NULL);
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx) {
@@ -959,7 +959,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         
         log_it(L_INFO, "--- Boundary partial %d%% in BUY token ---", pct);
         err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_buy_boundary, true,
-                                              f->network_fee, buyer_wallet, false, uint256_0, &tx);
+                                              f->network_fee, buyer_wallet, false, uint256_0, 0, &tx);
         if (err != DEX_PURCHASE_ERROR_OK || !tx) {
             log_it(L_ERROR, "Boundary partial failed: err=%d", err);
             return -42;
@@ -997,7 +997,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         dap_chain_datum_tx_t *tx_tiny = NULL;
         dap_chain_net_srv_dex_purchase_error_t err_tiny = dap_chain_net_srv_dex_purchase(
             f->net->net, &order->tail, tiny_budget, true,
-            f->network_fee, buyer_wallet, false, uint256_0, &tx_tiny
+            f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_tiny
         );
         if (err_tiny == DEX_PURCHASE_ERROR_OK && tx_tiny) {
             dap_hash_fast_t h_tiny = {0};
@@ -1041,7 +1041,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
     test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_before);
     
     err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_buy_valid, true,
-                                          f->network_fee, buyer_wallet, false, uint256_0, &tx);
+                                          f->network_fee, buyer_wallet, false, uint256_0, 0, &tx);
     if (err != DEX_PURCHASE_ERROR_OK || !tx) {
         log_it(L_ERROR, "Valid partial (BASE) failed: err=%d", err);
         return -5;
@@ -1159,7 +1159,7 @@ static int run_phase_partial_buy(test_context_t *ctx) {
     test_dex_snap_take_pair(f->net->net->pub.ledger, p.net_fee_collector, ctx->pair, &net_before);
     
     err = dap_chain_net_srv_dex_purchase(f->net->net, &order->tail, budget_sell_valid, false,
-                                          f->network_fee, buyer_wallet, false, uint256_0, &tx);
+                                          f->network_fee, buyer_wallet, false, uint256_0, 0, &tx);
     if (err != DEX_PURCHASE_ERROR_OK || !tx) {
         log_it(L_ERROR, "Valid partial (QUOTE) failed: err=%d", err);
         return -8;
@@ -1282,7 +1282,7 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
     dap_chain_datum_tx_t *tx_partial = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
         f->net->net, &order->tail, partial_amount, true,
-        f->network_fee, buyer_wallet, false, uint256_0, &tx_partial
+        f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_partial
     );
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx_partial) {
@@ -1333,7 +1333,7 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
     dap_chain_datum_tx_t *tx_test = NULL;
     err = dap_chain_net_srv_dex_purchase(
         f->net->net, &partial_hash, test_amount, true,
-        f->network_fee, buyer_wallet, false, uint256_0, &tx_test
+        f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_test
     );
     
     if (err == DEX_PURCHASE_ERROR_OK && tx_test) {
@@ -1353,7 +1353,7 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
     tx_test = NULL;
     err = dap_chain_net_srv_dex_purchase(
         f->net->net, &partial_hash, budget_sell_test, false,
-        f->network_fee, buyer_wallet, false, uint256_0, &tx_test
+        f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_test
     );
     
     if (err == DEX_PURCHASE_ERROR_OK && tx_test) {
@@ -1380,7 +1380,7 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
     dap_chain_datum_tx_t *tx_tampered = NULL;
     err = dap_chain_net_srv_dex_purchase(
         f->net->net, &partial_hash, test_amount, true,
-        f->network_fee, buyer_wallet, false, uint256_0, &tx_tampered
+        f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_tampered
     );
     
     // Restore original policy BEFORE adding to ledger
@@ -1420,7 +1420,7 @@ static int run_phase_sub_minfill(test_context_t *ctx) {
     dap_chain_datum_tx_t *tx_full = NULL;
     err = dap_chain_net_srv_dex_purchase(
         f->net->net, &partial_hash, uint256_0, true,
-        f->network_fee, buyer_wallet, false, uint256_0, &tx_full
+        f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_full
     );
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx_full) {
@@ -1882,6 +1882,200 @@ int run_cancel_all_active(dex_test_fixture_t *f) {
     // Dump orderbook after cancel-all to verify cleanup
     test_dex_dump_orderbook(f, "After CANCEL-ALL");
     
+    return 0;
+}
+
+static int s_create_test_order(
+    dex_test_fixture_t *f,
+    const test_pair_config_t *pair,
+    wallet_id_t seller_id,
+    uint8_t side,
+    uint8_t min_fill,
+    const char *rate_str,
+    const char *amount_str,
+    dap_hash_fast_t *out_hash);
+
+static bool s_is_out_item(byte_t a_type) {
+    return a_type == TX_ITEM_TYPE_OUT_OLD || a_type == TX_ITEM_TYPE_OUT || a_type == TX_ITEM_TYPE_OUT_EXT ||
+           a_type == TX_ITEM_TYPE_OUT_STD || a_type == TX_ITEM_TYPE_OUT_COND;
+}
+
+static bool s_tx_has_in_ref(dap_chain_datum_tx_t *a_tx, const dap_hash_fast_t *a_hash, uint32_t a_out_idx) {
+    dap_ret_val_if_any(false, !a_tx, !a_hash);
+    byte_t *it; size_t sz;
+    TX_ITEM_ITER_TX(it, sz, a_tx) {
+        if (*it != TX_ITEM_TYPE_IN)
+            continue;
+        dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t *)it;
+        if (l_in->header.tx_out_prev_idx == a_out_idx && dap_hash_fast_compare(&l_in->header.tx_prev_hash, a_hash))
+            return true;
+    }
+    return false;
+}
+
+static dap_chain_datum_tx_t *s_clone_tx_wo_sigs(dap_chain_datum_tx_t *a_tx) {
+    dap_ret_val_if_any(NULL, !a_tx);
+    uint8_t *l_first_sig = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+    if (!l_first_sig)
+        return NULL;
+    size_t l_tx_size_no_sig = (size_t)(l_first_sig - (uint8_t*)a_tx);
+    dap_chain_datum_tx_t *l_copy = DAP_DUP_SIZE(a_tx, l_tx_size_no_sig);
+    if (!l_copy)
+        return NULL;
+    l_copy->header.tx_items_size = l_tx_size_no_sig - sizeof(dap_chain_datum_tx_t);
+    return l_copy;
+}
+
+static int s_find_unspent_out_for_addr(dex_test_fixture_t *a_f, const dap_chain_addr_t *a_addr, const char *a_token,
+                                       dap_chain_datum_tx_t *a_tx_skip, dap_hash_fast_t *a_out_hash, uint32_t *a_out_idx,
+                                       uint256_t *a_out_value)
+{
+    dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net, !a_addr, !a_token || !*a_token, !a_out_hash, !a_out_idx, !a_out_value);
+    dap_ledger_datum_iter_t *l_it = dap_ledger_datum_iter_create(a_f->net->net);
+    if (!l_it)
+        return -2;
+    int l_ret = -3;
+    for (dap_chain_datum_tx_t *l_tx = dap_ledger_datum_iter_get_first(l_it); l_tx; l_tx = dap_ledger_datum_iter_get_next(l_it)) {
+        int l_out_idx = 0;
+        byte_t *it; size_t sz;
+        TX_ITEM_ITER_TX(it, sz, l_tx) {
+            if (!s_is_out_item(*it))
+                continue;
+            bool l_match = false;
+            uint256_t l_value = uint256_0;
+            if (*it == TX_ITEM_TYPE_OUT_STD) {
+                dap_chain_tx_out_std_t *o = (dap_chain_tx_out_std_t *)it;
+                if (dap_chain_addr_compare(&o->addr, a_addr) && !dap_strcmp(o->token, a_token)) {
+                    l_match = !IS_ZERO_256(o->value);
+                    l_value = o->value;
+                }
+            } else if (*it == TX_ITEM_TYPE_OUT_EXT) {
+                dap_chain_tx_out_ext_t *o = (dap_chain_tx_out_ext_t *)it;
+                if (dap_chain_addr_compare(&o->addr, a_addr) && !dap_strcmp(o->token, a_token)) {
+                    l_match = !IS_ZERO_256(o->header.value);
+                    l_value = o->header.value;
+                }
+            }
+            if (l_match &&
+                !dap_ledger_tx_hash_is_used_out_item(a_f->net->net->pub.ledger, &l_it->cur_hash, l_out_idx, NULL) &&
+                (!a_tx_skip || !s_tx_has_in_ref(a_tx_skip, &l_it->cur_hash, l_out_idx))) {
+                *a_out_hash = l_it->cur_hash;
+                *a_out_idx = (uint32_t)l_out_idx;
+                *a_out_value = l_value;
+                l_ret = 0;
+                goto find_out_end;
+            }
+            l_out_idx++;
+        }
+    }
+find_out_end:
+    dap_ledger_datum_iter_delete(l_it);
+    return l_ret;
+}
+
+static int s_run_cancel_extra_native_input_pair(dex_test_fixture_t *f, const test_pair_config_t *pair) {
+    dap_ret_val_if_any(-1, !f, !pair);
+    const char *l_native = f->net->net->pub.native_ticker;
+    uint8_t l_side = SIDE_ASK;
+    wallet_id_t l_seller_id = WALLET_ALICE;
+    const char *l_rate = "2.5", *l_amount = "10.0";
+    if (pair->base_is_native) {
+        l_side = SIDE_ASK;
+        l_seller_id = WALLET_ALICE;
+        l_rate = "2.5";
+    } else if (pair->quote_is_native) {
+        l_side = SIDE_BID;
+        l_seller_id = WALLET_BOB;
+        l_rate = "0.4";
+    }
+    const char *l_sell_token = NULL, *l_buy_token = NULL;
+    get_order_tokens(pair, l_side, &l_sell_token, &l_buy_token);
+    bool l_sell_is_native = l_sell_token && !dap_strcmp(l_sell_token, l_native);
+    log_it(L_NOTICE, "--- CANCEL extra IN: %s side=%s sell=%s buy=%s native=%s ---",
+           pair->description, l_side == SIDE_ASK ? "ASK" : "BID",
+           l_sell_token ? l_sell_token : "?", l_buy_token ? l_buy_token : "?", l_sell_is_native ? "yes" : "no");
+
+    dap_hash_fast_t l_order_hash = {};
+    if (s_create_test_order(f, pair, l_seller_id, l_side, MINFILL_NONE, l_rate, l_amount, &l_order_hash) != 0)
+        return -2;
+
+    dap_chain_wallet_t *l_wallet = get_wallet(f, l_seller_id);
+    if (!l_wallet)
+        return -3;
+
+    dap_chain_datum_tx_t *l_tx_template = NULL;
+    dap_chain_net_srv_dex_remove_error_t l_err =
+        dap_chain_net_srv_dex_remove(f->net->net, &l_order_hash, f->network_fee, l_wallet, &l_tx_template);
+    if (l_err != DEX_REMOVE_ERROR_OK || !l_tx_template) {
+        log_it(L_ERROR, "Cancel compose failed for %s: err=%d", pair->description, l_err);
+        dap_chain_datum_tx_delete(l_tx_template);
+        return -4;
+    }
+
+    dap_chain_datum_tx_t *l_tx = s_clone_tx_wo_sigs(l_tx_template);
+    dap_chain_datum_tx_delete(l_tx_template);
+    if (!l_tx) {
+        log_it(L_ERROR, "Cancel clone without signature failed");
+        return -5;
+    }
+
+    const dap_chain_addr_t *l_seller_addr = get_wallet_addr(f, l_seller_id);
+    dap_hash_fast_t l_utxo_hash = {};
+    uint32_t l_utxo_idx = 0;
+    uint256_t l_utxo_value = uint256_0;
+    if (s_find_unspent_out_for_addr(f, l_seller_addr, l_native, l_tx, &l_utxo_hash, &l_utxo_idx, &l_utxo_value) != 0) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Cancel extra IN: no native UTXO for seller");
+        return -6;
+    }
+
+    if (dap_chain_datum_tx_add_in_item(&l_tx, &l_utxo_hash, l_utxo_idx) != 1 ||
+        dap_chain_datum_tx_add_out_std_item(&l_tx, l_seller_addr, l_utxo_value, l_native, 0) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Cancel extra IN: failed to append IN/OUT");
+        return -7;
+    }
+
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet, 0);
+    if (!l_key || dap_chain_datum_tx_add_sign_item(&l_tx, l_key) <= 0) {
+        DAP_DEL_Z(l_key);
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Cancel extra IN: failed to sign");
+        return -8;
+    }
+    DAP_DELETE(l_key);
+
+    dap_hash_fast_t l_hash = {0};
+    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_hash);
+    if (dap_ledger_tx_add(f->net->net->pub.ledger, l_tx, &l_hash, false, NULL) != 0) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Cancel extra IN: ledger rejected");
+        return -9;
+    }
+    dap_chain_datum_tx_delete(l_tx);
+
+    log_it(L_NOTICE, "✓ CANCEL extra IN accepted: %s", pair->description);
+    return 0;
+}
+
+int run_cancel_extra_native_input_tests(dex_test_fixture_t *f) {
+    dap_ret_val_if_any(-1, !f);
+    log_it(L_NOTICE, " ");
+    log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
+    log_it(L_NOTICE, "║  CANCEL WITH EXTRA NATIVE INPUT                          ║");
+    log_it(L_NOTICE, "╚══════════════════════════════════════════════════════════╝");
+
+    test_set_net_fee_collector(f, NET_FEE_DAVE);
+    const test_pair_config_t *pairs = test_get_standard_pairs();
+    size_t pairs_count = test_get_standard_pairs_count();
+    for (size_t p = 0; p < pairs_count; p++) {
+        int ret = s_run_cancel_extra_native_input_pair(f, &pairs[p]);
+        if (ret != 0) {
+            log_it(L_ERROR, "CANCEL extra IN failed for pair %s: %d", pairs[p].description, ret);
+            return ret;
+        }
+    }
+    log_it(L_NOTICE, "✓ CANCEL extra IN tests passed for all pairs");
     return 0;
 }
 
@@ -2393,7 +2587,7 @@ static int run_phase_update_aon(test_context_t *ctx) {
     dap_chain_datum_tx_t *tx_partial = NULL;
     dap_chain_net_srv_dex_purchase_error_t purchase_err = dap_chain_net_srv_dex_purchase(
         f->net->net, &ctx->order_hash, budget, false,
-        f->network_fee, buyer_wallet, false, uint256_0, &tx_partial
+        f->network_fee, buyer_wallet, false, uint256_0, 0, &tx_partial
     );
     
     if (purchase_err == DEX_PURCHASE_ERROR_OK && tx_partial) {
@@ -2620,7 +2814,7 @@ static int s_run_m01_seller_partial_current(dex_test_fixture_t *f, const test_pa
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &order_hash, budget_20, true, f->network_fee, f->bob, false, uint256_0, &tx1
+        f->net->net, &order_hash, budget_20, true, f->network_fee, f->bob, false, uint256_0, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M01: First partial purchase failed: err=%d", err1);
@@ -2646,7 +2840,7 @@ static int s_run_m01_seller_partial_current(dex_test_fixture_t *f, const test_pa
     
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &leftover_hash, budget_10, true, f->network_fee, f->carol, false, uint256_0, &tx2
+        f->net->net, &leftover_hash, budget_10, true, f->network_fee, f->carol, false, uint256_0, 0, &tx2
     );
     if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
         log_it(L_ERROR, "M01: Second purchase failed: err=%d", err2);
@@ -2724,7 +2918,7 @@ static int s_run_m02_seller_partial_origin(dex_test_fixture_t *f, const test_pai
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &order_hash, budget_30, true, f->network_fee, f->bob, false, uint256_0, &tx1
+        f->net->net, &order_hash, budget_30, true, f->network_fee, f->bob, false, uint256_0, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M02: First purchase failed: err=%d", err1);
@@ -2748,7 +2942,7 @@ static int s_run_m02_seller_partial_origin(dex_test_fixture_t *f, const test_pai
     
     dap_chain_datum_tx_t *tx_reject = NULL;
     dap_chain_net_srv_dex_purchase_error_t err_reject = dap_chain_net_srv_dex_purchase(
-        f->net->net, &leftover_hash, budget_5, true, f->network_fee, f->carol, false, uint256_0, &tx_reject
+        f->net->net, &leftover_hash, budget_5, true, f->network_fee, f->carol, false, uint256_0, 0, &tx_reject
     );
     
     if (err_reject == DEX_PURCHASE_ERROR_OK && tx_reject) {
@@ -2772,7 +2966,7 @@ static int s_run_m02_seller_partial_origin(dex_test_fixture_t *f, const test_pai
     
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &leftover_hash, budget_10, true, f->network_fee, f->carol, false, uint256_0, &tx2
+        f->net->net, &leftover_hash, budget_10, true, f->network_fee, f->carol, false, uint256_0, 0, &tx2
     );
     if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
         log_it(L_ERROR, "M02: Final purchase failed: err=%d", err2);
@@ -2833,7 +3027,7 @@ static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_confi
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget_15, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget_15, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M03: Bob's purchase with leftover failed: err=%d", err1);
@@ -2858,7 +3052,7 @@ static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_confi
     
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &bob_order, budget_5, true, f->network_fee, f->alice, false, uint256_0, &tx2
+        f->net->net, &bob_order, budget_5, true, f->network_fee, f->alice, false, uint256_0, 0, &tx2
     );
     if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
         log_it(L_ERROR, "M03: Alice's match failed: err=%d", err2);
@@ -2983,7 +3177,7 @@ static int s_run_m04_bid_partial_current(dex_test_fixture_t *f, const test_pair_
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &order_hash, budget_20, false, f->network_fee, f->alice, false, uint256_0, &tx1
+        f->net->net, &order_hash, budget_20, false, f->network_fee, f->alice, false, uint256_0, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M04: First partial purchase failed: err=%d", err1);
@@ -3008,7 +3202,7 @@ static int s_run_m04_bid_partial_current(dex_test_fixture_t *f, const test_pair_
     
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &leftover_hash, budget_10, false, f->network_fee, f->carol, false, uint256_0, &tx2
+        f->net->net, &leftover_hash, budget_10, false, f->network_fee, f->carol, false, uint256_0, 0, &tx2
     );
     if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
         log_it(L_ERROR, "M04: Second purchase failed: err=%d", err2);
@@ -3075,7 +3269,7 @@ static int s_run_m05_bid_partial_origin(dex_test_fixture_t *f, const test_pair_c
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &order_hash, budget_30, false, f->network_fee, f->alice, false, uint256_0, &tx1
+        f->net->net, &order_hash, budget_30, false, f->network_fee, f->alice, false, uint256_0, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M05: First purchase failed: err=%d", err1);
@@ -3100,7 +3294,7 @@ static int s_run_m05_bid_partial_origin(dex_test_fixture_t *f, const test_pair_c
     
     dap_chain_datum_tx_t *tx_reject = NULL;
     dap_chain_net_srv_dex_purchase_error_t err_reject = dap_chain_net_srv_dex_purchase(
-        f->net->net, &leftover_hash, budget_5, false, f->network_fee, f->carol, false, uint256_0, &tx_reject
+        f->net->net, &leftover_hash, budget_5, false, f->network_fee, f->carol, false, uint256_0, 0, &tx_reject
     );
     
     if (err_reject == DEX_PURCHASE_ERROR_OK && tx_reject) {
@@ -3123,7 +3317,7 @@ static int s_run_m05_bid_partial_origin(dex_test_fixture_t *f, const test_pair_c
     
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &leftover_hash, budget_10, false, f->network_fee, f->carol, false, uint256_0, &tx2
+        f->net->net, &leftover_hash, budget_10, false, f->network_fee, f->carol, false, uint256_0, 0, &tx2
     );
     if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
         log_it(L_ERROR, "M05: Final purchase failed: err=%d", err2);
@@ -3182,7 +3376,7 @@ static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_c
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &bob_order, budget_15, false, f->network_fee, f->alice, true, leftover_rate, &tx1
+        f->net->net, &bob_order, budget_15, false, f->network_fee, f->alice, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M06: Alice's purchase with leftover failed: err=%d", err1);
@@ -3207,7 +3401,7 @@ static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_c
     
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &alice_leftover, budget_5, true, f->network_fee, f->carol, false, uint256_0, &tx2
+        f->net->net, &alice_leftover, budget_5, true, f->network_fee, f->carol, false, uint256_0, 0, &tx2
     );
     if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
         log_it(L_ERROR, "M06: Carol's match failed: err=%d", err2);
@@ -3325,7 +3519,7 @@ static int s_run_m07_buyer_leftover_update(dex_test_fixture_t *f, const test_pai
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M07: Bob's purchase failed: err=%d", err1);
@@ -3444,7 +3638,7 @@ static int s_run_m08_buyer_leftover_cancel(dex_test_fixture_t *f, const test_pai
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M08: Bob's purchase failed: err=%d", err1);
@@ -3547,7 +3741,7 @@ static int s_run_m09_buyer_leftover_double_cancel(dex_test_fixture_t *f, const t
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M09: Bob's purchase failed: err=%d", err1);
@@ -3636,7 +3830,7 @@ static int s_run_m10_buyer_leftover_foreign_ops(dex_test_fixture_t *f, const tes
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M10: Bob's purchase failed: err=%d", err1);
@@ -3792,7 +3986,7 @@ static int s_run_m11_fee_exceeds_executed(dex_test_fixture_t *f, const test_pair
 
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &order_hash, budget1, true, f->network_fee, f->bob, false, uint256_0, &tx1
+        f->net->net, &order_hash, budget1, true, f->network_fee, f->bob, false, uint256_0, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "M11: Bob's first purchase failed: err=%d", err1);
@@ -3830,7 +4024,7 @@ static int s_run_m11_fee_exceeds_executed(dex_test_fixture_t *f, const test_pair
 
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &tx1_hash, budget2, true, f->network_fee, f->bob, false, uint256_0, &tx2
+        f->net->net, &tx1_hash, budget2, true, f->network_fee, f->bob, false, uint256_0, 0, &tx2
     );
     if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
         log_it(L_ERROR, "M11: Bob's second purchase failed: err=%d", err2);
@@ -3918,7 +4112,7 @@ static int s_run_m12_aon_fractional_rate(dex_test_fixture_t *f, const test_pair_
         // Buyer purchases full order (budget=0 = unlimited)
         dap_chain_datum_tx_t *tx = NULL;
         dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-            f->net->net, &order_hash, uint256_0, true, f->network_fee, buyer, false, uint256_0, &tx
+            f->net->net, &order_hash, uint256_0, true, f->network_fee, buyer, false, uint256_0, 0, &tx
         );
         
         if (err != DEX_PURCHASE_ERROR_OK || !tx) {
@@ -4176,7 +4370,7 @@ static int s_run_m13_dust_refund(dex_test_fixture_t *f, const test_pair_config_t
         uint256_t partial_budget = dap_chain_coins_to_balance("0.5");
         dap_chain_datum_tx_t *tx_partial = NULL;
         dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-            f->net->net, &order_hash, partial_budget, true, f->network_fee, f->bob, false, uint256_0, &tx_partial);
+            f->net->net, &order_hash, partial_budget, true, f->network_fee, f->bob, false, uint256_0, 0, &tx_partial);
         
         if (err != DEX_PURCHASE_ERROR_OK || !tx_partial) {
             log_it(L_ERROR, "T_DUST4: Failed to create partial TX (err=%d)", err);
@@ -4278,7 +4472,7 @@ static int s_run_m13_dust_refund(dex_test_fixture_t *f, const test_pair_config_t
 
         dap_chain_datum_tx_t *tx = NULL;
         dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-            f->net->net, &order_hash, budget, is_budget_buy, f->network_fee, buyer, false, uint256_0, &tx);
+            f->net->net, &order_hash, budget, is_budget_buy, f->network_fee, buyer, false, uint256_0, 0, &tx);
 
         // For AON: purchase should fail at compose stage (no match possible)
         if (mf == MINFILL_AON) {
@@ -4629,7 +4823,7 @@ static int s_run_t_bl01_nonzero_root(dex_test_fixture_t *f, const test_pair_conf
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
     
@@ -4670,7 +4864,7 @@ static int s_run_t_bl02_wrong_chain_root(dex_test_fixture_t *f, const test_pair_
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
     
@@ -4686,7 +4880,7 @@ static int s_run_t_bl02_wrong_chain_root(dex_test_fixture_t *f, const test_pair_
     uint256_t budget_5 = dap_chain_coins_to_balance("5.0");
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &tx1_hash, budget_5, false, f->network_fee, f->alice, false, uint256_0, &tx2
+        f->net->net, &tx1_hash, budget_5, false, f->network_fee, f->alice, false, uint256_0, 0, &tx2
     );
     
     int result = 0;
@@ -4722,7 +4916,7 @@ static int s_run_t_bl03_value_inflate(dex_test_fixture_t *f, const test_pair_con
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
     
@@ -4749,7 +4943,7 @@ static int s_run_t_bl04_addr_hijack(dex_test_fixture_t *f, const test_pair_confi
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
     
@@ -4792,7 +4986,7 @@ static int s_run_t_bl05_over_exec(dex_test_fixture_t *f, const test_pair_config_
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget_38, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
     
@@ -4808,7 +5002,7 @@ static int s_run_t_bl05_over_exec(dex_test_fixture_t *f, const test_pair_config_
     uint256_t budget_3 = dap_chain_coins_to_balance("3.0");
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &tx1_hash, budget_3, false, f->network_fee, f->alice, false, uint256_0, &tx2
+        f->net->net, &tx1_hash, budget_3, false, f->network_fee, f->alice, false, uint256_0, 0, &tx2
     );
     
     int result = 0;
@@ -4857,7 +5051,7 @@ static int s_run_t_bl06_match_wrong_root(dex_test_fixture_t *f, const test_pair_
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
     
@@ -4873,7 +5067,7 @@ static int s_run_t_bl06_match_wrong_root(dex_test_fixture_t *f, const test_pair_
     uint256_t budget_3 = dap_chain_coins_to_balance("3.0");
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &tx1_hash, budget_3, false, f->network_fee, f->alice, false, uint256_0, &tx2
+        f->net->net, &tx1_hash, budget_3, false, f->network_fee, f->alice, false, uint256_0, 0, &tx2
     );
     
     int result = 0;
@@ -4931,7 +5125,7 @@ static int s_run_t_bl07_update_with_root(dex_test_fixture_t *f, const test_pair_
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
     
@@ -5016,7 +5210,7 @@ static int s_run_t_bl08_cancel_foreign_order(dex_test_fixture_t *f, const test_p
     
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, &tx1
+        f->net->net, &carol_order, budget, true, f->network_fee, f->bob, true, leftover_rate, 0, &tx1
     );
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) return -2;
     
@@ -5097,7 +5291,7 @@ static int s_run_t_sl01_blank_root(dex_test_fixture_t *f, const test_pair_config
     uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, 0, &tx1);
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx1) {
         dap_chain_datum_tx_t *order_tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
@@ -5137,7 +5331,7 @@ static int s_run_t_sl02_wrong_root(dex_test_fixture_t *f, const test_pair_config
     uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, 0, &tx1);
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx1) {
         ret = -3;
@@ -5182,7 +5376,7 @@ static int s_run_t_sl03_addr_hijack(dex_test_fixture_t *f, const test_pair_confi
     uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, 0, &tx1);
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx1) {
         dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
@@ -5223,7 +5417,7 @@ static int s_run_t_sl04_wrong_rate(dex_test_fixture_t *f, const test_pair_config
     uint256_t budget_10 = dap_chain_coins_to_balance("10.0");
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, 0, &tx1);
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx1) {
         dap_chain_datum_tx_t *tx = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &alice_order);
@@ -5262,7 +5456,7 @@ static int s_run_t_sl05_double_spend(dex_test_fixture_t *f, const test_pair_conf
     // Bob composes tx1 (partial purchase) - DO NOT add to ledger yet
     dap_chain_datum_tx_t *tx1 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err1 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, &tx1);
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->bob, false, uint256_0, 0, &tx1);
     
     if (err1 != DEX_PURCHASE_ERROR_OK || !tx1) {
         log_it(L_ERROR, "T_SL05: Bob's purchase compose failed: %d", err1);
@@ -5275,7 +5469,7 @@ static int s_run_t_sl05_double_spend(dex_test_fixture_t *f, const test_pair_conf
     // Carol composes tx2 on the SAME order - both target alice_order UTXO
     dap_chain_datum_tx_t *tx2 = NULL;
     dap_chain_net_srv_dex_purchase_error_t err2 = dap_chain_net_srv_dex_purchase(
-        f->net->net, &alice_order, budget_10, true, f->network_fee, f->carol, false, uint256_0, &tx2);
+        f->net->net, &alice_order, budget_10, true, f->network_fee, f->carol, false, uint256_0, 0, &tx2);
     
     if (err2 != DEX_PURCHASE_ERROR_OK || !tx2) {
         log_it(L_ERROR, "T_SL05: Carol's purchase compose failed: %d", err2);

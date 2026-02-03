@@ -159,6 +159,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
     dap_chain_wallet_t *a_wallet,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
+    uint8_t a_leftover_min_fill,
     dap_chain_datum_tx_t **a_tx
 );
 ```
@@ -182,6 +183,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(
     dap_chain_wallet_t *a_wallet,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
+    uint8_t a_leftover_min_fill,
     dap_chain_datum_tx_t **a_tx
 );
 ```
@@ -204,6 +206,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
     dap_chain_wallet_t *a_wallet,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
+    uint8_t a_leftover_min_fill,
     dap_chain_datum_tx_t **a_tx,        // Can be NULL for dry-run
 );
 ```

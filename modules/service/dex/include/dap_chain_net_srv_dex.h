@@ -201,13 +201,15 @@ typedef enum dap_chain_net_srv_dex_purchase_error_list {
  * @param a_wallet          Buyer wallet for signing and UTXO source
  * @param a_create_buyer_order_on_leftover If true, create new order from unspent funds
  * @param a_leftover_rate   Rate for buyer-leftover order (ignored if above is false)
+ * @param a_leftover_min_fill Min fill policy for buyer-leftover order (combined, 0 = PARTIAL_OK)
  * @param a_tx              [out] Composed trade TX
  * @return Error code; self-purchase prohibited
  */
 dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash,
                                                                       uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee,
                                                                       dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover,
-                                                                      uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx);
+                                                                      uint256_t a_leftover_rate, uint8_t a_leftover_min_fill,
+                                                                      dap_chain_datum_tx_t **a_tx);
 
 /**
  * @brief Execute trade against multiple orders in single TX (M:1)
@@ -220,6 +222,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(dap_chain_
  * @param a_wallet          Buyer wallet
  * @param a_create_buyer_order_on_leftover Create order from unspent
  * @param a_leftover_rate   Rate for leftover order
+ * @param a_leftover_min_fill Min fill policy for buyer-leftover order (combined, 0 = PARTIAL_OK)
  * @param a_tx              [out] Composed trade TX
  * @return Error code; all orders must belong to same canonical pair
  */
@@ -227,7 +230,8 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(dap_
                                                                             size_t a_orders_count, uint256_t a_value, bool a_is_budget_buy,
                                                                             uint256_t a_fee, dap_chain_wallet_t *a_wallet,
                                                                             bool a_create_buyer_order_on_leftover,
-                                                                            uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx);
+                                                                            uint256_t a_leftover_rate, uint8_t a_leftover_min_fill,
+                                                                            dap_chain_datum_tx_t **a_tx);
 
 /**
  * @brief Auto-match purchase: find best orders and execute trade
@@ -241,13 +245,15 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(dap_
  * @param a_wallet          Buyer wallet
  * @param a_create_buyer_order_on_leftover Create order from unspent
  * @param a_leftover_rate   Rate for leftover order
+ * @param a_leftover_min_fill Min fill policy for buyer-leftover order (combined, 0 = PARTIAL_OK)
  * @param a_tx              [out] Composed TX (can be NULL for dry-run)
  * @return Error code; uses cache for matching, ledger fallback
  */
 dap_chain_net_srv_dex_purchase_error_t
 dap_chain_net_srv_dex_purchase_auto(dap_chain_net_t *a_net, const char *a_sell_token, const char *a_buy_token, uint256_t a_value,
                                     bool a_is_budget_buy, uint256_t a_fee, uint256_t a_rate_cap, dap_chain_wallet_t *a_wallet,
-                                    bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate, dap_chain_datum_tx_t **a_tx);
+                                    bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate, uint8_t a_leftover_min_fill,
+                                    dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Legacy Migration (XCHANGE -> DEX)

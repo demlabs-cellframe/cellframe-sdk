@@ -112,7 +112,9 @@ srv_dex purchase \
   [-unit sell|buy] \
   -fee <validator_fee> \
   [-create_leftover_order] \
-  [-leftover_rate <rate>]
+  [-leftover_rate <rate>] \
+  [-leftover_fill_policy AON|min|min_from_origin] \
+  [-leftover_min_fill_pct <0-100>]
 ```
 
 **Parameters:**
@@ -126,6 +128,8 @@ srv_dex purchase \
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
 | `-create_leftover_order` | No | Create order from unspent budget |
 | `-leftover_rate` | Conditional | Rate for leftover order in canonical QUOTE/BASE (required if `-create_leftover_order` is set) |
+| `-leftover_fill_policy` | No | Min-fill policy for leftover order: `AON`, `min`, `min_from_origin` |
+| `-leftover_min_fill_pct` | No | Min-fill percent for leftover order (0-100; requires `-leftover_fill_policy`) |
 
 **Example:**
 ```bash
@@ -157,7 +161,9 @@ srv_dex purchase_multi \
   -fee <validator_fee> \
   [-unit sell|buy] \
   [-create_leftover_order] \
-  [-leftover_rate <rate>]
+  [-leftover_rate <rate>] \
+  [-leftover_fill_policy AON|min|min_from_origin] \
+  [-leftover_min_fill_pct <0-100>]
 ```
 
 **Parameters:**
@@ -171,6 +177,8 @@ srv_dex purchase_multi \
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
 | `-create_leftover_order` | No | Create order from unspent budget |
 | `-leftover_rate` | Conditional | Rate for leftover order in canonical QUOTE/BASE (required if `-create_leftover_order`; forbidden otherwise) |
+| `-leftover_fill_policy` | No | Min-fill policy for leftover order: `AON`, `min`, `min_from_origin` |
+| `-leftover_min_fill_pct` | No | Min-fill percent for leftover order (0-100; requires `-leftover_fill_policy`) |
 
 **Example:**
 ```bash
@@ -205,6 +213,8 @@ srv_dex purchase_auto \
   -fee <validator_fee> \
   [-create_leftover_order] \
   [-leftover_rate <rate>] \
+  [-leftover_fill_policy AON|min|min_from_origin] \
+  [-leftover_min_fill_pct <0-100>] \
   [-dry-run]
 ```
 
@@ -221,6 +231,8 @@ srv_dex purchase_auto \
 | `-rate_cap` | No | Price limit in canonical QUOTE/BASE: BID skips rate > cap, ASK skips rate < cap |
 | `-create_leftover_order` | No | Create order from unspent budget |
 | `-leftover_rate` | Conditional | Rate for leftover order in canonical QUOTE/BASE (required if `-create_leftover_order`; forbidden otherwise) |
+| `-leftover_fill_policy` | No | Min-fill policy for leftover order: `AON`, `min`, `min_from_origin` |
+| `-leftover_min_fill_pct` | No | Min-fill percent for leftover order (0-100; requires `-leftover_fill_policy`) |
 | `-dry-run` | No | Simulate matching without submitting TX (returns match plan in JSON) |
 
 **Notes:**
@@ -494,9 +506,12 @@ Matches owned by the provided address are excluded.
 | `rate` | Order rate (canonical QUOTE/BASE) |
 | `budget` | Remaining value of the analyzed order |
 | `budget_token` | Token of `budget` (always analyzed order sell token) |
+| `fill_pct` | Executable percentage of `budget` (string, 2 decimals) |
 | `addr_matches_owner` | `true` if `-addr` matches order owner |
 | `warning` | Optional warning string (e.g., `addr_not_owner`) |
 | `matches_count` | Number of matching orders |
+| `spend_total` | Total amount and token the analyzed order would spend |
+| `receive_total` | Total amount and token the analyzed order would receive |
 | `matches[]` | Array of match objects |
 | `matches[].root` | Matched order root hash |
 | `matches[].tail` | Matched order tail hash |
@@ -521,7 +536,10 @@ srv_dex find_matches -net TestNet \
   "rate": "2.5",
   "budget": "100",
   "budget_token": "KEL",
+  "fill_pct": "34.00",
   "addr_matches_owner": true,
+  "spend_total": "34 KEL",
+  "receive_total": "85 USDT",
   "matches_count": 2,
   "matches": [
     {
@@ -654,6 +672,10 @@ Notes:
 
 - `spent` and `received` include the token ticker in the same string (for example, `100.0 KEL`).
 - `remained` is included for partially filled orders and shows remaining locked amount with its ticker.
+- `locked_initial` is the locked amount at last CREATE/UPDATE (sell token).
+- `amount` is the remaining locked amount after the last event (sell token, `0` for cancel).
+- `total_receive` is the total received amount (buy token).
+- `remaining` is the expected receive amount left (buy token, `0` for cancel).
 
 ---
 
@@ -777,10 +799,12 @@ srv_dex history -net TestNet -pair KEL/USDT -view events -type trade -limit 10
       "price": "8.0150",
       "base": "100.0",
       "quote": "801.50",
+      "amount": "400.0",
+      "remaining": "3206.0",
       "tx_hash": "0x1234...abcd",
       "prev_tail": "0x5678...efgh",
       "order_root": "0x9abc...def0",
-      "filled_pct": 12,
+      "filled_pct": "12.00",
       "seller": "mJUaYn...",
       "buyer": "mZkPqR...",
       "type": "market"
@@ -1073,12 +1097,14 @@ srv_dex orders -net TestNet -pair KEL/USDT
       "tail": "0x456...",
       "price": "2.500000000000000000",
       "value_sell": "100.000000000000000000",
+      "locked_initial": "100.000000000000000000",
       "filled_pct": 0,
       "seller": "mJUUJk5RwvMCFv6gHJjRdQqLqw3MPHaNS7w9w2w3KtKjoZu4MNH64G",
       "created": "Wed, 25 Dec 2024 12:00:00 GMT",
       "expires": "Fri, 25 Dec 2025 12:00:00 GMT",
       "ts": 1735128000,
       "min_fill_pct": 50,
+      "min_fill_value": "50.000000000000000000",
       "min_fill_from_origin": false
     },
     {
@@ -1087,11 +1113,13 @@ srv_dex orders -net TestNet -pair KEL/USDT
       "tail": "0xabc...",
       "price": "2.400000000000000000",
       "value_sell": "50.000000000000000000",
+      "locked_initial": "50.000000000000000000",
       "filled_pct": 0,
       "seller": "mJUUJkA2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P7Q8R9S0T1U2V3W4",
       "created": "Wed, 25 Dec 2024 11:58:20 GMT",
       "ts": 1735127900,
       "min_fill_pct": 0,
+      "min_fill_value": "0",
       "min_fill_from_origin": false
     }
   ]
@@ -1106,12 +1134,14 @@ srv_dex orders -net TestNet -pair KEL/USDT
 | `tail` | Tail transaction hash (current state) |
 | `price` | Exchange rate (quote per base unit) |
 | `value_sell` | Remaining sell amount |
+| `locked_initial` | Locked amount at last CREATE/UPDATE (sell token) |
 | `filled_pct` | Current fill percentage (0-100) relative to last update |
 | `seller` | Seller wallet address |
 | `created` | Creation timestamp (RFC822 format) |
 | `expires` | Expiration timestamp (RFC822), omitted if no expiration |
 | `ts` | Numeric timestamp (for programmatic sorting) |
 | `min_fill_pct` | Minimum fill percentage (0-100) |
+| `min_fill_value` | Minimum fill amount in sell token (computed from policy) |
 | `min_fill_from_origin` | If true, min_fill is calculated from original order value |
 
 **Note:** When `-pair` is omitted, each order includes an additional `pair` field.

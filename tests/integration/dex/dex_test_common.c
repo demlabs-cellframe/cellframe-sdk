@@ -644,8 +644,8 @@ int test_dex_order_purchase(
     
     dap_chain_datum_tx_t *tx = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-        fixture->net->net, (dap_hash_fast_t *)order_hash, budget, true, network_fee, wallet, 
-        false, uint256_0, &tx
+        fixture->net->net, (dap_hash_fast_t *)order_hash, budget, true, network_fee, wallet,
+        false, uint256_0, 0, &tx
     );
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx) {
@@ -687,7 +687,7 @@ int test_dex_order_purchase_auto(
     dap_chain_datum_tx_t *tx = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase_auto(
         fixture->net->net, token_sell, token_buy, budget, !use_sell_budget, network_fee, uint256_0,
-        buyer, create_buyer_leftover, uint256_0, &tx
+        buyer, create_buyer_leftover, uint256_0, 0, &tx
     );
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx) {

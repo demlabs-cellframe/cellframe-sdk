@@ -1610,6 +1610,7 @@ int run_automatch_test(dex_test_fixture_t *f, const automatch_test_template_t *t
         l_wallet,
         tmpl->create_leftover,
         l_leftover_rate,
+        0,
         &l_tx
     );
     
@@ -2136,6 +2137,7 @@ static int s_run_tamper_test(dex_test_fixture_t *f, const tamper_test_template_t
         l_wallet,
         tmpl->create_leftover,
         l_leftover_rate,
+        0,
         &l_tx
     );
     

@@ -377,12 +377,14 @@ if (l_reqs.side == DEX_SIDE_ASK) {
     // Matched ASK → create BID: sell QUOTE, buy BASE
     l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_dex(...,
         l_key0->net_id_quote, l_leftover_sell_value,  // sell QUOTE
-        l_key0->net_id_base, l_token_base, ...);      // buy BASE
+        l_key0->net_id_base, l_token_base,            // buy BASE
+        ..., a_leftover_min_fill, ...);
 } else {
     // Matched BID → create ASK: sell BASE, buy QUOTE
     l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_dex(...,
         l_key0->net_id_base, l_leftover_sell_value,   // sell BASE
-        l_key0->net_id_quote, l_token_quote, ...);    // buy QUOTE
+        l_key0->net_id_quote, l_token_quote,          // buy QUOTE
+        ..., a_leftover_min_fill, ...);
 }
 ```
 
@@ -474,6 +476,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
     dap_chain_wallet_t *a_wallet,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
+    uint8_t a_leftover_min_fill,
     dap_chain_datum_tx_t **a_tx
 );
 ```
@@ -509,6 +512,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
     dap_chain_wallet_t *a_wallet,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
+    uint8_t a_leftover_min_fill,
     dap_chain_datum_tx_t **a_tx,
     dex_match_table_entry_t **a_matches  // Optional: return matches
 );
