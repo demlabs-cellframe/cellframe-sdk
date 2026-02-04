@@ -177,7 +177,7 @@ static int s_run_tps_test(tps_test_config_t *a_config, tps_test_results_t *a_res
     }
     
     log_it(L_NOTICE, "End time: %s", a_results->end_time_str);
-    log_it(L_NOTICE, "Duration: %ld seconds", l_duration);
+    log_it(L_NOTICE, "Duration: %"DAP_INT64_FORMAT" seconds", (int64_t)l_duration);
     log_it(L_NOTICE, "Transactions processed: %zu", a_config->tx_count);
     log_it(L_NOTICE, "TPS: %.3Lf", a_results->tps);
     log_it(L_NOTICE, "=== TPS Performance Test Complete ===");

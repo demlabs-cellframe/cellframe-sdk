@@ -1660,7 +1660,7 @@ int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, 
         return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_IN_JSON;
     }
     l_net = l_net ? l_net : a_net;
-    log_it(L_NOTICE, "Json TX: found %lu items", l_items_count);
+    log_it(L_NOTICE, "Json TX: found %zu items", l_items_count);
 
     // Create transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));

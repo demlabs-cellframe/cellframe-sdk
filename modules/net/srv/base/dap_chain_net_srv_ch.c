@@ -1529,9 +1529,12 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                     l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                     break;
             }
-            log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash),
-                            l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes,
-                            dap_chain_srv_unit_enum_to_str(a_usage->price->units_uid.enm));
+            intmax_t l_remain_value = l_remain_service->limits_ts
+                    ? (intmax_t)l_remain_service->limits_ts
+                    : l_remain_service->limits_bytes;
+            log_it(L_INFO, "User %s has %jd %s remain service. Start service without paying.",
+                   dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash),
+                   l_remain_value, dap_chain_srv_unit_enum_to_str(a_usage->price->units_uid.enm));
             size_t l_success_size = sizeof (dap_chain_net_srv_ch_pkt_success_hdr_t );
             dap_chain_net_srv_ch_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_success_t,
                                                                                     l_success_size);

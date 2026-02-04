@@ -791,7 +791,8 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         }
         dap_ht_clear_hh(hh_select, l_tmp);
         if (l_hashes_linked < l_hashes_size) {
-            log_it(L_ERROR, "No enough unlinked events present (only %lu of %lu), a dummy round?", l_hashes_linked, l_hashes_size);
+            log_it(L_ERROR, "No enough unlinked events present (only %zu of %zu), a dummy round?",
+                   l_hashes_linked, l_hashes_size);
             return false;
         }
     }

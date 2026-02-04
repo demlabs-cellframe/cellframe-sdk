@@ -1696,7 +1696,7 @@ dap_list_t *dap_ledger_token_get_auth_pkeys_hashes(dap_ledger_t *a_ledger, const
     dap_ledger_token_item_t *l_token_item = dap_ledger_pvt_find_token(a_ledger, a_token_ticker);
     if (!l_token_item)
         return l_ret;
-    debug_if(g_debug_ledger, L_INFO, " ! Token %s : total %lu auth signs", a_token_ticker, l_token_item->auth_signs_total);
+    debug_if(g_debug_ledger, L_INFO, " ! Token %s : total %zu auth signs", a_token_ticker, l_token_item->auth_signs_total);
     for (size_t i = 0; i < l_token_item->auth_signs_total; i++)
         l_ret = dap_list_append(l_ret, l_token_item->auth_pkey_hashes + i);
     return l_ret;
