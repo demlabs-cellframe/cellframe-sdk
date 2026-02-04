@@ -230,7 +230,9 @@ void s_http_balancer_link_prepare_success(void *a_response,
         log_it(L_ERROR, "Invalid balancer response size %zu (expected %zu) in net %s from %s:%u", a_response_size, l_response_size_need, l_balancer_request->net->pub.name, l_balancer_request->host_addr, l_balancer_request->host_port);
         l_balancer_request->request_info->request_time = dap_time_now();
     } else {
-        log_it(L_INFO, "Valid balancer response from %s:%u in net %s with %"DAP_UINT64_FORMAT_U" links", l_balancer_request->host_addr, l_balancer_request->host_port, l_balancer_request->net->pub.name, l_link_full_node_list->count_node);
+        log_it(L_INFO, "Valid balancer response from %s:%u in net %s with %"DAP_UINT64_FORMAT_U" links",
+               l_balancer_request->host_addr, l_balancer_request->host_port, l_balancer_request->net->pub.name,
+               (uint64_t)l_link_full_node_list->count_node);
         s_balancer_link_prepare_success(l_balancer_request->net, l_link_full_node_list, l_balancer_request->host_addr, l_balancer_request->host_port);
         l_balancer_request->request_info->request_time = 0;
     }
@@ -566,7 +568,8 @@ void dap_chain_net_balancer_request(void *a_arg)
         *l_links = s_get_node_addrs(l_arg->net, l_required_links_count, l_ignored_addrs, false);
 // links from local GDB
     if (l_links) {
-        log_it(L_INFO, "%"DAP_UINT64_FORMAT_U" links successful prepared from global-db in net %s", l_links->count_node, l_arg->net->pub.name);
+        log_it(L_INFO, "%"DAP_UINT64_FORMAT_U" links successful prepared from global-db in net %s",
+               (uint64_t)l_links->count_node, l_arg->net->pub.name);
         s_balancer_link_prepare_success(l_arg->net, l_links, NULL, 0);
         if (l_links->count_node >= l_required_links_count)
             return DAP_DEL_MULTY(a_arg, l_ignored_addrs, l_links);
