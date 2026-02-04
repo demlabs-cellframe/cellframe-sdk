@@ -36,6 +36,7 @@
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_list.h"
+#include "dap_list_utils.h"
 #include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_chain_datum.h"
@@ -1537,7 +1538,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                     }
 
                     // Free the list and its elements
-                    dap_list_free_full(l_list, free);
+                    dap_list_free_full(l_list, dap_delete_cb);
                 }
 
                 dap_json_object_add_object(l_json_obj_out, "keys", l_json_array_keys);
@@ -3312,11 +3313,7 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
     }
 
     if (json_obj_out) {
-        const char *json_string_sdfasf = dap_json_to_string(a_json_arr_reply);
-        char *result_string_sadfasf = strdup(json_string_sdfasf);
         dap_json_array_add(a_json_arr_reply, json_obj_out);
-        const char *json_string = dap_json_to_string(a_json_arr_reply);
-        char* result_string = strdup(json_string);
     } else {
         dap_json_array_add(a_json_arr_reply, dap_json_object_new_string("empty"));
     }
@@ -3500,7 +3497,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
 static dap_list_t* s_hashes_parse_str_list(const char *a_hashes_str)
 {
     dap_list_t *l_ret_list = NULL;
-    char *l_hash_str_dup = strdup(a_hashes_str), *l_hash_str, *l_hashes_tmp_ptrs = NULL;
+    char *l_hash_str_dup = dap_strdup(a_hashes_str), *l_hash_str, *l_hashes_tmp_ptrs = NULL;
     if (!l_hash_str_dup)
         return log_it(L_CRITICAL, "%s", c_error_memory_alloc), NULL;
     dap_hash_sha3_256_t l_hash = { };

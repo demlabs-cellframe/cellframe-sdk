@@ -644,7 +644,11 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, dap_jso
     if (l_remove_signs) {
         size_t l_added_tsd_size = 0;
         char *l_remove_signs_ptrs = NULL;
-        char *l_remove_signs_dup = strdup(l_remove_signs);
+        char *l_remove_signs_dup = dap_strdup(l_remove_signs);
+        if (!l_remove_signs_dup) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            return -ENOMEM;
+        }
         char *l_remove_signs_str = strtok_r(l_remove_signs_dup, ",", &l_remove_signs_ptrs);
         for (; l_remove_signs_str; l_remove_signs_str = strtok_r(NULL, ",", &l_remove_signs_ptrs)) {
             dap_hash_sha3_256_t l_hf;

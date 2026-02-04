@@ -20,6 +20,7 @@
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_hash.h"
+#include "dap_list_utils.h"
 #include <pthread.h>
 #include <string.h>
 #include <stdint.h>
@@ -513,7 +514,7 @@ static void test_ledger_event_pkey_list(void)
     dap_assert(l_count == 3, "All pkeys retrieved");
 
     // Clean up
-    dap_list_free_full(l_list, (dap_callback_destroyed_t)free);
+    dap_list_free_full(l_list, dap_delete_cb);
 
     teardown_test();
 }
@@ -628,7 +629,7 @@ static void *thread_pkey_operations(void *a_arg)
         // List keys
         dap_list_t *l_list = dap_ledger_event_pkey_list(l_fixture->ledger);
         if (l_list)
-            dap_list_free_full(l_list, (dap_callback_destroyed_t)free);
+            dap_list_free_full(l_list, dap_delete_cb);
     }
 
     return NULL;
@@ -718,4 +719,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-

@@ -34,6 +34,7 @@
 #include "dap_chain_tx.h"
 #include "dap_json.h"
 #include "dap_list.h"
+#include "dap_list_utils.h"
 #include "dap_chain_type_blocks.h"
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_datum_tx_receipt.h"
@@ -1603,7 +1604,7 @@ static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net
         if (l_list_used_out_fee) {
             uint256_t l_value_got_fee = dap_chain_datum_tx_add_in_item_list(a_tx, l_list_used_out_fee);
             assert(EQUAL_256(l_value_got_fee, l_value_transfer_fee));
-            dap_list_free_full(l_list_used_out_fee, free);
+            dap_list_free_full(l_list_used_out_fee, dap_delete_cb);
             // add 'out' item for coin fee back
             uint256_t  l_value_back;
             SUBTRACT_256_256(l_value_got_fee, a_value_need_fee, &l_value_back);
@@ -1614,7 +1615,7 @@ static int s_append_in_items(dap_chain_datum_tx_t **a_tx, dap_chain_net_t *a_net
         } else {
             SUM_256_256(a_value_need, a_value_need_fee, &a_value_need);
         }
-        dap_list_free_full(l_list_used_out, free);
+        dap_list_free_full(l_list_used_out, dap_delete_cb);
         if(!IS_ZERO_256(l_value_got)) {
             // add 'out' item for coin back
             uint256_t l_value_back;

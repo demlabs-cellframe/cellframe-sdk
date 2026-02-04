@@ -25,6 +25,7 @@
 #include "dap_time.h"
 #include "dap_hash.h"
 #include "dap_list.h"
+#include "dap_list_utils.h"
 #include "dap_cert.h"
 
 #define LOG_TAG "test_voting_comprehensive"
@@ -154,7 +155,7 @@ static void test_teardown(void)
 {
     // Cleanup options list
     if (g_test_options) {
-        dap_list_free_full(g_test_options, free);
+        dap_list_free_full(g_test_options, dap_delete_cb);
         g_test_options = NULL;
     }
 
@@ -318,7 +319,7 @@ static void test_2_5_poll_insufficient_options(void)
 
     dap_assert_PIF(tx == NULL, "Should fail with < 2 options");
 
-    dap_list_free_full(one_option, free);
+    dap_list_free_full(one_option, dap_delete_cb);
     log_it(L_INFO, "✅ TEST 2.5 PASSED");
 }
 
@@ -647,7 +648,7 @@ static void test_6_1_poll_max_options(void)
     // We're testing that the function handles many options without crashing
     dap_assert_PIF(true, "Should process poll with many options");
 
-    dap_list_free_full(many_options, free);
+    dap_list_free_full(many_options, dap_delete_cb);
     log_it(L_INFO, "✅ TEST 6.1 PASSED");
 }
 

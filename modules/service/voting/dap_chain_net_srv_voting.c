@@ -22,6 +22,8 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <string.h>
+
 #include "dap_common.h"
 #include "dap_chain_net_srv_voting.h"
 #include "dap_chain_net_srv_voting_compose.h"  // For compose init/deinit
@@ -32,6 +34,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet_cache.h"  // For wallet_cache TX outs API
 #include "dap_ht_utils.h"
+#include "dap_list_utils.h"
 #include "dap_chain_srv.h"
 #include "dap_cli_server.h"
 // REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
@@ -601,11 +604,13 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
 
 dap_list_t* dap_get_options_list_from_str(const char* a_str)
 {
+    dap_return_val_if_fail(a_str, NULL);
+
     dap_list_t* l_ret = NULL;
-    char * l_options_str_dup = strdup(a_str);
+    char *l_options_str_dup = dap_strdup(a_str);
     if (!l_options_str_dup) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-        return 0;
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return NULL;
     }
 
     size_t l_opt_str_len = strlen(l_options_str_dup);
@@ -634,7 +639,8 @@ dap_list_t* dap_get_options_list_from_str(const char* a_str)
         }
     }
 
-    free(l_options_str_dup);
+    DAP_DELETE(l_options_str_dup);
+    l_options_str_dup = NULL;
 
     return l_ret;
 }

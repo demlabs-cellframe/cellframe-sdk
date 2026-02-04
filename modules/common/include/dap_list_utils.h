@@ -1,10 +1,16 @@
 #pragma once
 
+#include "dap_common.h"
 #include "dap_dl.h"
 #include "dap_sl.h"
 
 #ifndef DAP_LIST_UTILS_H
 #define DAP_LIST_UTILS_H
+
+static inline void dap_delete_cb(void *a_data)
+{
+    DAP_DELETE(a_data);
+}
 
 #ifndef dap_dl_search_cmp
 #define dap_dl_search_cmp(head, out, elt, cmp) do { \

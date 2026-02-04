@@ -583,7 +583,8 @@ if (keys) {
         dap_hash_sha3_256_t *key = (dap_hash_sha3_256_t*)it->data;
         // Use key...
     }
-    dap_list_free_full(keys, (dap_callback_destroyed_t)free);
+    // Use dap_delete_cb() from dap_list_utils.h to free list items allocated by DAP SDK
+    dap_list_free_full(keys, dap_delete_cb);
 }
 ```
 

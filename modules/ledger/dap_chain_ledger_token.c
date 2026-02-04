@@ -26,6 +26,7 @@
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_net_utils.h"
 #include "dap_json.h"
+#include "dap_strfuncs.h"
 
 #define LOG_TAG "dap_ledger_token"
 
@@ -609,7 +610,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (!a_apply)
                 break;
             DAP_DEL_Z(a_item_apply_to->description);
-            a_item_apply_to->description = strdup((char *)l_tsd->data);
+            a_item_apply_to->description = dap_strdup((char *)l_tsd->data);
         } break;
 
         // Set signs count value need to emission be valid

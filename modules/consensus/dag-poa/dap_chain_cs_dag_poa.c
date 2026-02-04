@@ -714,8 +714,10 @@ static void s_callback_delete(dap_chain_type_dag_t *a_dag)
         if ( l_poa_pvt->auth_certs )
             DAP_DELETE ( l_poa_pvt->auth_certs);
 
-        if ( l_poa_pvt->auth_certs_prefix )
-            free ( l_poa_pvt->auth_certs_prefix );
+        if (l_poa_pvt->auth_certs_prefix) {
+            DAP_DELETE(l_poa_pvt->auth_certs_prefix);
+            l_poa_pvt->auth_certs_prefix = NULL;
+        }
 
         if ( l_poa_pvt->callback_pre_sign )
             DAP_DELETE( l_poa_pvt->callback_pre_sign );
