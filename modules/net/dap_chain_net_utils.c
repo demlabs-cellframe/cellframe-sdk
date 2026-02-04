@@ -25,7 +25,7 @@
 #include "dap_chain.h"
 #include "dap_chain_net_types.h"
 #include "dap_chain_net_utils.h"
-#include "utlist.h"
+#include "dap_list_utils.h"
 
 /**
  * @brief dap_chain_net_get_default_chain_by_chain_type
@@ -39,7 +39,7 @@ dap_chain_t * dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_n
     if (!a_net)
         return NULL;
 
-    DL_FOREACH(a_net->pub.chains, l_chain)
+    dap_dl_foreach(a_net->pub.chains, l_chain)
     {
         for(int i = 0; i < l_chain->default_datum_types_count; i++) {
             if(l_chain->default_datum_types[i] == a_datum_type)

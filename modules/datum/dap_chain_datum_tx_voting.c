@@ -136,9 +136,9 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool
     return l_tsd;
 }
 
-dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_chain_hash_fast_t a_voting_hash)
+dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_hash_sha3_256_t a_voting_hash)
 {   
-    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&a_voting_hash, VOTING_TSD_TYPE_CANCEL, sizeof(dap_chain_hash_fast_t));
+    dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&a_voting_hash, VOTING_TSD_TYPE_CANCEL, sizeof(dap_hash_sha3_256_t));
 
     return l_tsd;
 }
@@ -155,7 +155,7 @@ dap_chain_tx_tsd_t *dap_chain_datum_voting_token_tsd_create(const char *a_token_
     return l_tsd;
 }
 
-dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_chain_hash_fast_t a_tx_hash, int a_out_idx)
+dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_tx_cond_tsd_create(dap_hash_sha3_256_t a_tx_hash, int a_out_idx)
 {
     dap_chain_tx_voting_tx_cond_t l_temp = {
         .tx_hash = a_tx_hash,
@@ -230,7 +230,7 @@ dap_json_t *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_t
     return l_object;
 }
 
-dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx)
+dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_hash_sha3_256_t *a_voting_hash, uint64_t *a_answer_idx)
 {
     if (!a_voting_hash)
         return NULL;
@@ -245,7 +245,7 @@ dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *
 dap_json_t *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote, int a_version)
 {
     dap_json_t *l_object = dap_json_object_new();
-    char *l_voting_hash_str = dap_hash_fast_to_str_new(&a_vote->voting_hash);
+    char *l_voting_hash_str = dap_hash_sha3_256_to_str_new(&a_vote->voting_hash);
     dap_json_t *l_voting_hash = dap_json_object_new_string(l_voting_hash_str);
     DAP_DELETE(l_voting_hash_str);
     dap_json_t *l_answer_idx = dap_json_object_new_uint64(a_vote->answer_idx);

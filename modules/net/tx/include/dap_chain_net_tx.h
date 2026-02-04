@@ -22,6 +22,8 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include "dap_ht.h"
+
 
 #include "dap_chain_net_types.h"  // For dap_chain_net_t and dap_chain_net_id_t
 #include "dap_chain_net_core.h"   // For network registry (dap_chain_net_by_name, etc.)
@@ -77,17 +79,17 @@ typedef enum dap_chain_net_tx_search_type {
 
 typedef struct dap_chain_datum_tx_spends_item{
     dap_chain_datum_tx_t * tx;
-    dap_hash_fast_t tx_hash;
+    dap_hash_sha3_256_t tx_hash;
 
     dap_chain_tx_out_cond_t *out_cond;
     dap_chain_tx_in_cond_t *in_cond;
 
     dap_chain_datum_tx_t * tx_next;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 }dap_chain_datum_tx_spends_item_t;
 
 typedef struct dap_chain_datum_tx_cond_list_item {
-    dap_hash_fast_t hash;
+    dap_hash_sha3_256_t hash;
     dap_chain_datum_tx_t *tx;
 } dap_chain_datum_tx_cond_list_item_t;
 
@@ -95,17 +97,17 @@ typedef struct dap_chain_datum_tx_spends_items{
     dap_chain_datum_tx_spends_item_t * tx_outs;
     dap_chain_datum_tx_spends_item_t * tx_ins;
 } dap_chain_datum_tx_spends_items_t;
-typedef void (dap_chain_net_tx_hash_callback_t)(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg);
+typedef void (dap_chain_net_tx_hash_callback_t)(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, void *a_arg);
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // TX functions
-dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
+dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_hash_sha3_256_t * a_tx_hash,
                                                      dap_chain_net_tx_search_type_t a_search_type);
 
-dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_srv_uid_t a_srv_uid);
+dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_sha3_256_t * a_tx_hash, dap_chain_srv_uid_t a_srv_uid);
 
 void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_type_t a_search_type ,dap_chain_net_tx_hash_callback_t a_tx_callback, void * a_arg);
 
@@ -115,7 +117,7 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
                                                      const dap_chain_net_tx_search_type_t a_search_type);
 dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap_chain_addr_t * a_addr, dap_chain_srv_uid_t a_srv_uid);
 
-dap_list_t * dap_chain_net_get_tx_all_from_tx(dap_chain_net_t * a_net, dap_hash_fast_t * l_tx_hash);
+dap_list_t * dap_chain_net_get_tx_all_from_tx(dap_chain_net_t * a_net, dap_hash_sha3_256_t * l_tx_hash);
 
 dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_srv_uid_t a_srv_uid,
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,

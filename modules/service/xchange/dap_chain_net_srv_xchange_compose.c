@@ -39,8 +39,8 @@ dap_chain_net_srv_xchange_price_t *dap_xchange_price_from_order(
     dap_ledger_t *a_ledger,
     dap_chain_tx_out_cond_t *a_cond_tx, 
     dap_time_t a_ts_created, 
-    dap_hash_fast_t *a_order_hash, 
-    dap_hash_fast_t *a_hash_out, 
+    dap_hash_sha3_256_t *a_order_hash, 
+    dap_hash_sha3_256_t *a_hash_out, 
     const char *a_token_ticker,
     uint256_t *a_fee, 
     bool a_ret_is_invalid)
@@ -66,7 +66,7 @@ dap_chain_net_srv_xchange_price_t *dap_xchange_price_from_order(
     l_price->creator_addr = a_cond_tx->subtype.srv_xchange.seller_addr;
     l_price->rate = a_cond_tx->subtype.srv_xchange.rate;
     
-    if (!dap_hash_fast_is_blank(a_hash_out)) {
+    if (!dap_hash_sha3_256_is_blank(a_hash_out)) {
         l_price->tx_hash = *a_hash_out;
         return l_price;
     } else {
@@ -82,12 +82,12 @@ dap_chain_net_srv_xchange_price_t *dap_xchange_price_from_order(
  */
 dap_chain_tx_out_cond_t *dap_xchange_find_last_tx(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_order_hash,
+    dap_hash_sha3_256_t *a_order_hash,
     dap_chain_addr_t *a_seller_addr,
     dap_time_t *a_ts_created,
     char **a_token_ticker,
     int32_t *a_prev_cond_idx,
-    dap_hash_fast_t *a_hash_out)
+    dap_hash_sha3_256_t *a_hash_out)
 {
     dap_return_val_if_fail(a_ledger && a_order_hash && a_seller_addr, NULL);
     
@@ -138,14 +138,14 @@ dap_chain_tx_out_cond_t *dap_xchange_find_last_tx(
         *a_hash_out = *a_order_hash;
     
     // Now use ledger API to find the final TX in the chain
-    dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
+    dap_hash_sha3_256_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
         a_ledger, 
         DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, 
         a_order_hash, 
         false  // include spent
     );
     
-    if (dap_hash_fast_is_blank(&l_final_hash)) {
+    if (dap_hash_sha3_256_is_blank(&l_final_hash)) {
         // Order has no continuation - initial TX is the last
         if (a_prev_cond_idx)
             *a_prev_cond_idx = l_cond_idx;
@@ -324,7 +324,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
  */
 dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_order_hash,
+    dap_hash_sha3_256_t *a_order_hash,
     uint256_t a_fee,
     dap_chain_addr_t *a_wallet_addr)
 {
@@ -337,13 +337,13 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
     }
     
     log_it(L_INFO, "Creating xchange invalidate TX for order %s",
-           dap_hash_fast_to_str_static(a_order_hash));
+           dap_hash_sha3_256_to_str_static(a_order_hash));
     
     // 1. Find last TX in order chain
     dap_time_t l_ts_created = 0;
     char *l_token_ticker = NULL;
     int32_t l_prev_cond_idx = 0;
-    dap_hash_fast_t l_tx_hash = {};
+    dap_hash_sha3_256_t l_tx_hash = {};
     
     dap_chain_tx_out_cond_t *l_cond_out = dap_xchange_find_last_tx(
         a_ledger,
@@ -428,7 +428,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
  */
 dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_order_hash,
+    dap_hash_sha3_256_t *a_order_hash,
     uint256_t a_value,
     uint256_t a_fee,
     dap_chain_addr_t *a_wallet_addr)
@@ -446,14 +446,14 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
     }
     
     log_it(L_INFO, "Creating xchange purchase TX for order %s, value %s",
-           dap_hash_fast_to_str_static(a_order_hash),
+           dap_hash_sha3_256_to_str_static(a_order_hash),
            dap_uint256_to_char(a_value, NULL));
     
     // 1. Find last TX in order chain
     dap_time_t l_ts_created = 0;
     char *l_token_ticker_sell = NULL;
     int32_t l_prev_cond_idx = 0;
-    dap_hash_fast_t l_tx_hash = {};
+    dap_hash_sha3_256_t l_tx_hash = {};
     dap_chain_addr_t l_seller_addr = {};
     
     dap_chain_tx_out_cond_t *l_cond_out = dap_xchange_find_last_tx(
@@ -721,7 +721,7 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
 typedef struct xchange_order_invalidate_params {
     const char *wallet_name;        // Wallet for signing
     dap_chain_addr_t *wallet_addr;  // Wallet address (must be order owner)
-    dap_hash_fast_t *order_hash;    // Order hash to invalidate
+    dap_hash_sha3_256_t *order_hash;    // Order hash to invalidate
     uint256_t fee;                   // Transaction fee
 } xchange_order_invalidate_params_t;
 
@@ -826,7 +826,7 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
 typedef struct xchange_purchase_params {
     const char *wallet_name;        // Wallet for signing
     dap_chain_addr_t *wallet_addr;  // Buyer wallet address
-    dap_hash_fast_t *order_hash;    // Order hash to purchase from
+    dap_hash_sha3_256_t *order_hash;    // Order hash to purchase from
     uint256_t value;                 // Amount to purchase
     uint256_t fee;                   // Transaction fee
 } xchange_purchase_params_t;

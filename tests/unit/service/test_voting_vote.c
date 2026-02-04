@@ -44,7 +44,7 @@ DAP_MOCK_CUSTOM(uint256_t, dap_ledger_calc_balance,
 
 // Ledger tx_find mock - избегаем обращения к _internal
 DAP_MOCK_CUSTOM(dap_chain_datum_tx_t *, dap_ledger_tx_find_by_hash,
-                (dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash))
+                (dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash))
     UNUSED(a_ledger);
     UNUSED(a_tx_hash);
     // Mock implementation: poll не найден (NULL)
@@ -57,7 +57,7 @@ DAP_MOCK_CUSTOM(dap_chain_datum_tx_t *, dap_ledger_tx_find_by_hash,
 
 static unit_test_context_t *g_unit_ctx = NULL;  // ✓ Unit test context
 static dap_chain_addr_t g_test_addr = {0};
-static dap_hash_fast_t g_test_poll_hash = {0};
+static dap_hash_sha3_256_t g_test_poll_hash = {0};
 static dap_ledger_t g_mock_ledger = {0};
 static dap_list_t *g_test_options = NULL;
 
@@ -116,7 +116,7 @@ static void test_setup(void)
     g_test_addr.net_id.uint64 = 1;
     
     // Initialize test poll hash
-    memset(&g_test_poll_hash, 0x33, sizeof(dap_hash_fast_t));
+    memset(&g_test_poll_hash, 0x33, sizeof(dap_hash_sha3_256_t));
     
     // Setup mock ledger
     memset(&g_mock_ledger, 0, sizeof(dap_ledger_t));

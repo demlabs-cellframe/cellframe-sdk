@@ -61,14 +61,14 @@ DAP_STATIC_INLINE const char *dap_chain_ch_pkt_type_to_str(uint8_t a_pkt_type)
 // *** Legacy *** //
 
 typedef struct dap_chain_ch_sync_request_old {
-    dap_chain_hash_fast_t hash_from;
+    dap_hash_sha3_256_t hash_from;
     uint64_t num_from;
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_old_t;
 
 // *** Active *** //
 
 typedef struct dap_chain_ch_sync_request {
-    dap_chain_hash_fast_t hash_from;
+    dap_hash_sha3_256_t hash_from;
     uint64_t num_from;
     uint16_t generation;
 } DAP_ALIGN_PACKED dap_chain_ch_sync_request_t;
@@ -81,8 +81,8 @@ typedef struct dap_chain_ch_summary {
 } DAP_ALIGN_PACKED dap_chain_ch_summary_t;
 
 typedef struct dap_chain_ch_miss_info {
-    dap_hash_fast_t missed_hash;
-    dap_hash_fast_t last_hash;
+    dap_hash_sha3_256_t missed_hash;
+    dap_hash_sha3_256_t last_hash;
     uint64_t last_num;
 } DAP_ALIGN_PACKED dap_chain_ch_miss_info_t;
 

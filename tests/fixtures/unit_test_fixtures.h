@@ -45,7 +45,7 @@ DAP_MOCK_DECLARE(dap_sign_verify, { .return_value.i = 0 });
 DAP_MOCK_DECLARE(dap_sign_get_size, { .return_value.u64 = 64 });
 DAP_MOCK_DECLARE(dap_sign_get_pkey_hash, { .return_value.ptr = NULL });
 
-DAP_MOCK_DECLARE(dap_hash_fast, { });
+DAP_MOCK_DECLARE(dap_hash_sha3_256, { });
 DAP_MOCK_DECLARE(dap_hash_slow, { });
 
 // Global DB mocks
@@ -261,7 +261,7 @@ int unit_test_mock_toggle(unit_test_context_t *a_ctx,
  * @param a_seed Seed value
  * @param a_hash Output hash
  */
-void unit_test_hash_generate(uint32_t a_seed, dap_hash_fast_t *a_hash);
+void unit_test_hash_generate(uint32_t a_seed, dap_hash_sha3_256_t *a_hash);
 
 /**
  * @brief Generate test address

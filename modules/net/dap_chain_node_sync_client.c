@@ -105,7 +105,7 @@ static void s_try_match_response(dap_chain_node_sync_client_t *a_sync_client,
     pthread_rwlock_rdlock(&a_sync_client->requests_lock);
     
     dap_chain_node_sync_request_t *l_request, *l_tmp;
-    HASH_ITER(hh, a_sync_client->pending_requests, l_request, l_tmp) {
+    dap_ht_foreach_hh(hh, a_sync_client->pending_requests, l_request, l_tmp) {
         // Check channel match
         if (l_request->channel_id != a_channel_id)
             continue;
@@ -241,7 +241,7 @@ static void s_stage_error_callback(dap_client_t *a_client, void *a_arg)
         // Wake up all pending requests with error
         pthread_rwlock_rdlock(&l_sync_client->requests_lock);
         dap_chain_node_sync_request_t *l_request, *l_tmp;
-        HASH_ITER(hh, l_sync_client->pending_requests, l_request, l_tmp) {
+        dap_ht_foreach_hh(hh, l_sync_client->pending_requests, l_request, l_tmp) {
             pthread_mutex_lock(&l_request->mutex);
             l_request->status = SYNC_REQUEST_STATUS_ERROR;
             l_request->error_code = DAP_SYNC_ERROR_DISCONNECTED;
@@ -482,7 +482,7 @@ int dap_chain_node_sync_request_ex(
     
     // Add to pending requests hash table
     pthread_rwlock_wrlock(&a_client->requests_lock);
-    HASH_ADD(hh, a_client->pending_requests, request_id, sizeof(uint64_t), l_request);
+    dap_ht_add_hh(hh, a_client->pending_requests, request_id, l_request);
     pthread_rwlock_unlock(&a_client->requests_lock);
     
     // Send request packet
@@ -491,7 +491,7 @@ int dap_chain_node_sync_request_ex(
     if (l_sent <= 0) {
         log_it(L_ERROR, "Sync request: failed to send packet");
         pthread_rwlock_wrlock(&a_client->requests_lock);
-        HASH_DEL(a_client->pending_requests, l_request);
+        dap_ht_del(a_client->pending_requests, l_request);
         pthread_rwlock_unlock(&a_client->requests_lock);
         pthread_mutex_destroy(&l_request->mutex);
         pthread_cond_destroy(&l_request->cond);
@@ -558,7 +558,7 @@ int dap_chain_node_sync_request_ex(
     
     // Cleanup request
     pthread_rwlock_wrlock(&a_client->requests_lock);
-    HASH_DEL(a_client->pending_requests, l_request);
+    dap_ht_del(a_client->pending_requests, l_request);
     pthread_rwlock_unlock(&a_client->requests_lock);
     
     pthread_mutex_destroy(&l_request->mutex);
@@ -587,13 +587,13 @@ void dap_chain_node_sync_client_close(dap_chain_node_sync_client_t *a_client)
     // Cancel all pending requests
     pthread_rwlock_wrlock(&a_client->requests_lock);
     dap_chain_node_sync_request_t *l_request, *l_tmp;
-    HASH_ITER(hh, a_client->pending_requests, l_request, l_tmp) {
+    dap_ht_foreach_hh(hh, a_client->pending_requests, l_request, l_tmp) {
         pthread_mutex_lock(&l_request->mutex);
         l_request->status = SYNC_REQUEST_STATUS_ERROR;
         l_request->error_code = DAP_SYNC_ERROR_DISCONNECTED;
         pthread_cond_signal(&l_request->cond);
         pthread_mutex_unlock(&l_request->mutex);
-        HASH_DEL(a_client->pending_requests, l_request);
+        dap_ht_del(a_client->pending_requests, l_request);
     }
     pthread_rwlock_unlock(&a_client->requests_lock);
     

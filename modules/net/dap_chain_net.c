@@ -57,8 +57,8 @@
 #endif
 
 
-#include "uthash.h"
-#include "utlist.h"
+#include "dap_ht_utils.h"
+#include "dap_list_utils.h"
 #include "dap_chain.h"
 #include "dap_list.h"
 #include "dap_time.h"
@@ -159,7 +159,7 @@ struct chain_sync_context {
     dap_stream_node_addr_t  current_link;
     dap_chain_t             *cur_chain;
     dap_chain_cell_t        *cur_cell;
-    dap_hash_fast_t         requested_atom_hash;
+    dap_hash_sha3_256_t         requested_atom_hash;
     uint64_t                requested_atom_num;
 };
 
@@ -275,7 +275,7 @@ static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl
 static void *s_net_load(void *a_arg);
 static int s_net_try_online(dap_chain_net_t *a_net);
 // CLI command handler moved to dap_chain_net_cli.c
-static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
+static uint8_t *s_net_set_acl(dap_hash_sha3_256_t *a_pkey_hash);
 static void s_sync_timer_callback(void *a_arg);
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t *a_json_out, int a_version);
 // Forward declarations for CLI helper functions from dap_chain_net_cli.c
@@ -639,7 +639,7 @@ dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
         return NULL;
     
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(a_net->pub.chains, l_chain) {
+    dap_dl_foreach(a_net->pub.chains, l_chain) {
         dap_json_t *l_jobj_chain = dap_json_object_new();
         if (!l_jobj_chain) {
             dap_json_object_free(l_jobj_chains_array);
@@ -806,9 +806,9 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
         return log_it(L_ERROR, "Can't create l_net, can't read name or ID config"), NULL;
 
     dap_chain_net_t *l_net_sought = NULL;
-    HASH_FIND_STR(s_nets_by_name, l_net_name_str, l_net_sought);
+    dap_ht_find_str(s_nets_by_name, l_net_name_str, l_net_sought);
     if (!l_net_sought)
-        HASH_FIND(hh2, s_nets_by_id, &l_net_id, sizeof(l_net_id), l_net_sought);
+        dap_ht_find_hh(hh2, s_nets_by_id, &l_net_id, sizeof(l_net_id), l_net_sought);
     if (l_net_sought) {
         log_it(L_ERROR, "Can't create net %s ID %"DAP_UINT64_FORMAT_U", an already existent net "
                         "%s ID %"DAP_UINT64_FORMAT_U" has the same name or ID.\n"\
@@ -859,8 +859,8 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     l_ret->pub.config = a_cfg;
     l_ret->pub.gdb_groups_prefix
         = dap_config_get_item_str_default( a_cfg, "general", "gdb_groups_prefix", dap_config_get_item_str(a_cfg, "general", "name") );
-    HASH_ADD_STR(s_nets_by_name, pub.name, l_ret);
-    HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_ret);
+    dap_ht_add_str(s_nets_by_name, pub.name, l_ret);
+    dap_ht_add_hh(hh2, s_nets_by_id, pub.id, l_ret);
     return l_ret;
 }
 
@@ -894,7 +894,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg)
  */
 void dap_chain_net_load_all()
 {
-    int l_nets_count = HASH_COUNT(s_nets_by_name), i = 0, l_err;
+    int l_nets_count = dap_ht_count(s_nets_by_name), i = 0, l_err;
     if (!l_nets_count)
         return log_it(L_ERROR, "No networks initialized!");
     pthread_t l_tids[l_nets_count];
@@ -1001,8 +1001,8 @@ void dap_chain_net_purge(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_pvt = PVT(a_net);
     struct block_reward *l_reward, *l_tmp;
-    DL_FOREACH_SAFE(l_pvt->rewards, l_reward, l_tmp) {
-        DL_DELETE(l_pvt->rewards, l_reward);
+    dap_dl_foreach_safe(l_pvt->rewards, l_reward, l_tmp) {
+        dap_dl_delete(l_pvt->rewards, l_reward);
         DAP_DELETE(l_reward);
     }
     dap_chain_srv_purge_all(a_net->pub.id);
@@ -1012,8 +1012,8 @@ void dap_chain_net_purge(dap_chain_net_t *a_net)
     }
     if (a_net->pub.chains) {
         dap_chain_t *l_chain = NULL, *l_tmp = NULL;
-        DL_FOREACH_SAFE(a_net->pub.chains, l_chain, l_tmp) {
-            DL_DELETE(a_net->pub.chains, l_chain);
+        dap_dl_foreach_safe(a_net->pub.chains, l_chain, l_tmp) {
+            dap_dl_delete(a_net->pub.chains, l_chain);
             dap_chain_delete(l_chain);
         }
     }
@@ -1249,9 +1249,9 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-prev_day", &l_prev_day_str);
                 time_t l_ts_now = time(NULL);
                 if (l_from_str) {
-                    strptime( (char *)l_from_str, c_time_fmt, &l_from_tm );
+                    dap_strptime((char *)l_from_str, c_time_fmt, &l_from_tm);
                     if (l_to_str) {
-                        strptime( (char *)l_to_str, c_time_fmt, &l_to_tm );
+                        dap_strptime((char *)l_to_str, c_time_fmt, &l_to_tm);
                     } else { // If not set '-to' - we set up current time
                         localtime_r(&l_ts_now, &l_to_tm);
                     }
@@ -1605,10 +1605,10 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                                                "Can't serialize public key of certificate \"%s\"", l_cert_string);
                         return DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD;
                     }
-                    dap_chain_hash_fast_t l_pkey_hash;
-                    dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+                    dap_hash_sha3_256_t l_pkey_hash;
+                    dap_hash_sha3_256(l_pub_key, l_pub_key_size, &l_pkey_hash);
                     DAP_DELETE(l_pub_key);
-                    l_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+                    l_hash_hex_str = dap_hash_sha3_256_to_str_new(&l_pkey_hash);
                     //l_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
                 } else {
                     l_hash_hex_str = !dap_strncmp(l_hash_string, "0x", 2) || !dap_strncmp(l_hash_string, "0X", 2)
@@ -1739,10 +1739,10 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
             }
             for (dap_list_t *it = l_net->pub.keys; it; it = it->next) {
-                dap_hash_fast_t l_pkey_hash;
-                char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_hash_sha3_256_t l_pkey_hash;
+                char l_pkey_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
                 dap_pkey_get_hash(it->data, &l_pkey_hash);
-                dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                dap_hash_sha3_256_to_str(&l_pkey_hash, l_pkey_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
                 dap_json_t *l_jobj_hash_key = dap_json_object_new_string(l_pkey_hash_str);
                 if (!l_jobj_hash_key) {
                     dap_json_object_free(l_jobj_pkeys);
@@ -1794,7 +1794,7 @@ void dap_chain_net_deinit()
     dap_link_manager_deinit();
     dap_chain_net_balancer_deinit();
     dap_chain_net_t *l_net, *l_tmp;
-    HASH_ITER(hh2, s_nets_by_id, l_net, l_tmp) {
+    dap_ht_foreach_hh(hh2, s_nets_by_id, l_net, l_tmp) {
         dap_chain_net_delete(l_net);
     }
     dap_http_ban_list_client_deinit();
@@ -1814,8 +1814,8 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     DAP_DEL_ARRAY(l_pvt->seed_nodes_hosts, l_pvt->seed_nodes_count);
     DAP_DEL_MULTY(l_pvt->permanent_links_hosts, l_pvt->seed_nodes_hosts, l_pvt->permanent_links_addrs, l_pvt->node_info);
     // TODO: delete sync_timer and whatever else is initialized AFTER chains load
-    HASH_DEL(s_nets_by_name, a_net);
-    HASH_DELETE(hh2, s_nets_by_id, a_net);
+    dap_ht_del(s_nets_by_name, a_net);
+    dap_ht_del_hh(hh2, s_nets_by_id, a_net);
     dap_chain_policy_net_remove(a_net->pub.id);
     dap_config_close(a_net->pub.config);
     DAP_DELETE(a_net);
@@ -1869,21 +1869,21 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
                 log_it(L_ERROR, "Can't open chain config %s, skip it", l_dir_entry->d_name);
                 continue;
             }
-            HASH_ADD_KEYPTR(hh, l_all_chain_configs, l_chain_config->path, strlen(l_chain_config->path), l_chain_config);
+            dap_ht_add_keyptr_hh(hh, l_all_chain_configs, l_chain_config->path, strlen(l_chain_config->path), l_chain_config);
         }
     }
     closedir(l_chains_dir);
     if (!l_all_chain_configs)
         return log_it(L_ERROR, "Can't find any chains for network %s", a_net->pub.name), -2;
 
-    HASH_SORT(l_all_chain_configs, s_cmp_cfg_pri);
+    dap_ht_sort(l_all_chain_configs, s_cmp_cfg_pri);
     dap_chain_t *l_chain;
     dap_chain_type_t *l_types_arr;
     char l_occupied_default_types[CHAIN_TYPE_MAX] = { 0 };
     int l_poa_signers = 0, l_poa_signers_min = 0;
-    HASH_ITER(hh, l_all_chain_configs, l_chain_config, l_tmp_cfg) {
+    dap_ht_foreach_hh(hh, l_all_chain_configs, l_chain_config, l_tmp_cfg) {
         if (( l_chain = dap_chain_load_from_cfg(a_net->pub.name, a_net->pub.id, l_chain_config) )) {
-            DL_APPEND(a_net->pub.chains, l_chain);
+            dap_dl_append(a_net->pub.chains, l_chain);
             l_types_arr = l_chain->default_datum_types;
             uint16_t
                 i = 0,
@@ -1911,12 +1911,12 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
                 a_net->pub.keys_min_count += l_min_count;
             }
         } else {
-            HASH_DEL(l_all_chain_configs, l_chain_config);
+            dap_ht_del(l_all_chain_configs, l_chain_config);
             dap_config_close(l_chain_config);
             return -3;
         }
     }
-    HASH_CLEAR(hh, l_all_chain_configs);
+    dap_ht_clear_hh(hh, l_all_chain_configs);
     return 0;
 }
 
@@ -2069,7 +2069,7 @@ static void *s_net_load(void *a_arg)
     l_net_pvt->balancer_type = dap_config_get_item_bool_default(l_net->pub.config, "general", "use_dns_links", false);
     char l_gdb_groups_mask[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
     dap_chain_t *l_chain;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
+    dap_dl_foreach(l_net->pub.chains, l_chain) {
         if (s_load_skip)
             break;
         l_net->pub.fee_value = uint256_0;
@@ -2160,7 +2160,7 @@ static void *s_net_load(void *a_arg)
                                   dap_config_get_item_uint16_default(l_net->pub.config, "general", "links_required", 3)) )
         log_it(L_WARNING, "Can't add net %s to link manager", l_net->pub.name);
 
-    DL_FOREACH(l_net->pub.chains, l_chain)
+    dap_dl_foreach(l_net->pub.chains, l_chain)
         dap_chain_cs_load(l_chain, l_net->pub.config);
 
     l_net_pvt->node_info->address.uint64 = g_node_addr.uint64;
@@ -2209,7 +2209,7 @@ dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
         return NULL;
     }
     dap_chain_t *l_chain;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
+    dap_dl_foreach(l_net->pub.chains, l_chain) {
         if (l_chain == a_chain)
             return l_mempool;
         assert(l_mempool);
@@ -2278,7 +2278,7 @@ bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stre
 }
 
 size_t dap_chain_net_count() {
-    return HASH_COUNT(s_nets_by_name);
+    return dap_ht_count(s_nets_by_name);
 }
 
 dap_chain_net_t *dap_chain_net_iter_start() {
@@ -2386,7 +2386,7 @@ dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_c
     if (l_chain)
         return l_chain;
 
-    DL_FOREACH(a_net->pub.chains, l_chain) {
+    dap_dl_foreach(a_net->pub.chains, l_chain) {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             dap_chain_type_t l_datum_type = l_chain->datum_types[i];
             if(l_datum_type == a_datum_type)
@@ -2406,7 +2406,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
     dap_chain_t *l_chain;
     if (!a_net)
         return NULL;
-    DL_FOREACH(a_net->pub.chains, l_chain)
+    dap_dl_foreach(a_net->pub.chains, l_chain)
     {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type) {
@@ -2459,7 +2459,7 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
 void dap_chain_net_proc_mempool(dap_chain_net_t *a_net)
 {
     dap_chain_t *l_chain;
-    DL_FOREACH(a_net->pub.chains, l_chain)
+    dap_dl_foreach(a_net->pub.chains, l_chain)
         dap_chain_node_mempool_process_all(l_chain, true);
 }
 
@@ -2474,7 +2474,7 @@ void dap_chain_net_proc_mempool(dap_chain_net_t *a_net)
  * @param a_datum
  * @return
  */
-int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_datum_hash)
+int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_sha3_256_t *a_datum_hash)
 {
     dap_return_val_if_pass(!a_datum, -10);
     dap_return_val_if_pass(!a_chain, -11);
@@ -2492,12 +2492,12 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
                     const char *l_tx_fee_str; dap_uint256_to_char(l_tx_fee, &l_tx_fee_str);
                     const char *l_min_fee_str; dap_uint256_to_char(l_min_fee, &l_min_fee_str);
                     log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
-                           l_tx_fee_str, l_min_fee_str, dap_get_data_hash_str(l_tx, dap_chain_datum_tx_get_size(l_tx)).s);
+                           l_tx_fee_str, l_min_fee_str, dap_hash_sha3_256_data_to_str(l_tx, dap_chain_datum_tx_get_size(l_tx)).s);
                     return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_FEE;
                 }
             } else {
                 if (!dap_ledger_tx_poa_signed(l_net->pub.ledger->poa_keys, l_tx)) {
-                    log_it(L_WARNING, "Can't get fee value from tx %s", dap_get_data_hash_str(l_tx, dap_chain_datum_tx_get_size(l_tx)).s);
+                    log_it(L_WARNING, "Can't get fee value from tx %s", dap_hash_sha3_256_data_to_str(l_tx, dap_chain_datum_tx_get_size(l_tx)).s);
                     return -157;
                 }
                 log_it(L_DEBUG, "Process service tx without fee");
@@ -2545,17 +2545,17 @@ const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datu
  * @return true
  * @return false
  */
-static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pkey_hash)
+static bool s_net_check_acl(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_pkey_hash)
 {
     const char *l_auth_type = dap_config_get_item_str(a_net->pub.config, "auth", "type");
     bool l_authorized = true;
     if (l_auth_type && !strcmp(l_auth_type, "ca")) {
-        if (dap_hash_fast_is_blank(a_pkey_hash)) {
+        if (dap_hash_sha3_256_is_blank(a_pkey_hash)) {
             return false;
         }
         l_authorized = false;
-        char l_auth_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(a_pkey_hash, l_auth_hash_str, sizeof(l_auth_hash_str));
+        char l_auth_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+        dap_hash_sha3_256_to_str(a_pkey_hash, l_auth_hash_str, sizeof(l_auth_hash_str));
         uint16_t l_acl_list_len = 0;
         const char **l_acl_list = dap_config_get_array_str(a_net->pub.config, "auth", "acl_accept_ca_list", &l_acl_list_len);
         for (uint16_t i = 0; i < l_acl_list_len; i++) {
@@ -2586,9 +2586,9 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
                     dap_cert_t *l_cert = (dap_cert_t *)l_tmp->data;
                     size_t l_pkey_size;
                     uint8_t *l_pkey_ser = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pkey_size);
-                    dap_chain_hash_fast_t l_cert_hash;
-                    dap_hash_fast(l_pkey_ser, l_pkey_size, &l_cert_hash);
-                    if (!memcmp(&l_cert_hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {
+                    dap_hash_sha3_256_t l_cert_hash;
+                    dap_hash_sha3_256(l_pkey_ser, l_pkey_size, &l_cert_hash);
+                    if (!memcmp(&l_cert_hash, a_pkey_hash, sizeof(dap_hash_sha3_256_t))) {
                         l_authorized = true;
                     }
                     DAP_DELETE(l_pkey_ser);
@@ -2602,12 +2602,12 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
 /**
  * @brief s_acl_callback function. Usually called from enc_http_proc
  * set acl (l_enc_key_ks->acl_list) from acl_accept_ca_list, acl_accept_ca_gdb chain config parameters in [auth] section
- * @param a_pkey_hash dap_chain_hash_fast_t hash object
+ * @param a_pkey_hash dap_hash_sha3_256_t hash object
  * @return uint8_t*
  */
-static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
+static uint8_t *s_net_set_acl(dap_hash_sha3_256_t *a_pkey_hash)
 {
-    uint16_t l_cnt = HASH_COUNT(s_nets_by_name);
+    uint16_t l_cnt = dap_ht_count(s_nets_by_name);
     if ( !l_cnt )
         return NULL;
     uint8_t *l_ret = DAP_NEW_Z_COUNT(uint8_t, l_cnt);
@@ -2685,7 +2685,7 @@ dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
     return l_list;
 }
 
-static int s_load_state_from_datum(dap_chain_net_id_t a_net_id, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_datum_hash)
+static int s_load_state_from_datum(dap_chain_net_id_t a_net_id, dap_chain_datum_t *a_datum, dap_hash_sha3_256_t *a_datum_hash)
 {
     dap_chain_datum_service_state_t *l_state = (dap_chain_datum_service_state_t *)a_datum->data;
     return dap_chain_srv_load_state(a_net_id, l_state->srv_uid, l_state->states, l_state->state_size, l_state->states_count);
@@ -2698,7 +2698,7 @@ static int s_load_state_from_datum(dap_chain_net_id_t a_net_id, dap_chain_datum_
  * @param a_datum_size
  * @return
  */
-int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
+int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_sha3_256_t *a_datum_hash, void *a_datum_index_data)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
     if (a_datum_size != l_datum_data_size + sizeof(a_datum->header)) {
@@ -2709,14 +2709,14 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_ledger_t *l_ledger = l_net->pub.ledger;
     if ( dap_ledger_datum_is_enforced(l_ledger, a_datum_hash, false) )
-        return log_it(L_ERROR, "Datum %s is blacklisted", dap_hash_fast_to_str_static(a_datum_hash)), -100;
+        return log_it(L_ERROR, "Datum %s is blacklisted", dap_hash_sha3_256_to_str_static(a_datum_hash)), -100;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
             size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
             if (l_decree_size != l_datum_data_size) {
                 log_it(L_WARNING, "Corrupted decree %s, datum size %zd is not equal to size of decree %zd",
-                                            dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_decree_size);
+                                            dap_hash_sha3_256_to_str_static(a_datum_hash), l_datum_data_size, l_decree_size);
                 return -102;
             }
             return dap_ledger_decree_load(l_net->pub.ledger, l_decree, a_chain->id, a_datum_hash);
@@ -2726,7 +2726,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             size_t l_anchor_size = dap_chain_datum_anchor_get_size(l_anchor);
             if (l_anchor_size != l_datum_data_size) {
                 log_it(L_WARNING, "Corrupted anchor %s, datum size %zd is not equal to size of anchor %zd",
-                                            dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_anchor_size);
+                                            dap_hash_sha3_256_to_str_static(a_datum_hash), l_datum_data_size, l_anchor_size);
                 return -102;
             }
             return dap_ledger_anchor_load(l_net->pub.ledger, l_anchor, a_chain->id, a_datum_hash);
@@ -2742,14 +2742,14 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
             if (l_tx_size != l_datum_data_size) {
                 log_it(L_WARNING, "Corrupted transaction %s, datum size %zd is not equal to size of TX %zd",
-                                            dap_hash_fast_to_str_static(a_datum_hash), l_datum_data_size, l_tx_size);
+                                            dap_hash_sha3_256_to_str_static(a_datum_hash), l_datum_data_size, l_tx_size);
                 return -102;
             }
             dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, 0);
             if (l_sig && dap_sign_type_is_deprecated(l_sig->header.type)){
                 dap_chain_addr_t l_addr = {};
                 dap_chain_addr_fill_from_sign(&l_addr, l_sig, a_chain->net_id);
-                log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_chain_hash_fast_to_str_static(a_datum_hash));
+                log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_hash_sha3_256_to_str_static(a_datum_hash));
             }
             return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
         }
@@ -2773,7 +2773,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
  * @param a_datum_size
  * @return
  */
-int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash)
+int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_sha3_256_t *a_datum_hash)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
     if (a_datum_size < l_datum_data_size + sizeof(a_datum->header)) {
@@ -2838,21 +2838,21 @@ int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_
     l_new_reward->block_number = a_block_num;
     l_new_reward->reward = a_reward;
     // Place new reward at begining
-    DL_PREPEND(PVT(a_net)->rewards, l_new_reward);
+    dap_dl_prepend(PVT(a_net)->rewards, l_new_reward);
     return 0;
 }
 
 void dap_chain_net_remove_last_reward(dap_chain_net_t *a_net)
 {
     struct block_reward *l_last_reward = PVT(a_net)->rewards;
-    DL_DELETE(PVT(a_net)->rewards, l_last_reward);
+    dap_dl_delete(PVT(a_net)->rewards, l_last_reward);
     DAP_DELETE(l_last_reward);
 }
 
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
 {
     struct block_reward *l_reward;
-    DL_FOREACH(PVT(a_net)->rewards, l_reward) {
+    dap_dl_foreach(PVT(a_net)->rewards, l_reward) {
         if (l_reward->block_number <= a_block_num)
             return l_reward->reward;
     }
@@ -2902,7 +2902,7 @@ static int s_net_try_online(dap_chain_net_t *a_net)
 void dap_chain_net_try_online_all() {
     int32_t l_ret = 0;
 
-    if( !HASH_COUNT(s_nets_by_name) )
+    if( !dap_ht_count(s_nets_by_name) )
         return log_it(L_ERROR, "Can't find any nets");
 
     if ( !dap_config_get_item_bool_default(g_config ,"general", "auto_online", false) )
@@ -2970,14 +2970,14 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         if (!l_net_pvt->sync_context.cur_chain)
             break;
         dap_chain_ch_miss_info_t *l_miss_info = (dap_chain_ch_miss_info_t *)(((dap_chain_ch_pkt_t *)(a_data))->data);
-        if (!dap_hash_fast_compare(&l_miss_info->missed_hash, &l_net_pvt->sync_context.requested_atom_hash)) {
-            char l_missed_hash_str[DAP_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(&l_miss_info->missed_hash, l_missed_hash_str, DAP_HASH_FAST_STR_SIZE);
+        if (!dap_hash_sha3_256_compare(&l_miss_info->missed_hash, &l_net_pvt->sync_context.requested_atom_hash)) {
+            char l_missed_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(&l_miss_info->missed_hash, l_missed_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
             log_it(L_WARNING, "Get irrelevant chain sync MISSED packet from " NODE_ADDR_FP_STR
                                                         " with missed hash %s, but requested hash is %s. Net %s chain %s",
                                                         NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
                                                         l_missed_hash_str,
-                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash),
+                                                        dap_hash_sha3_256_to_str_static(&l_net_pvt->sync_context.requested_atom_hash),
                                                         l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
             dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
                                              l_net_pvt->sync_context.cur_chain->id,
@@ -3023,7 +3023,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                         " for net %s and chain %s, hash from %s, num from %" DAP_UINT64_FORMAT_U,
                                                         NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
                                                         l_net->pub.name, l_net_pvt->sync_context.cur_chain->name,
-                                                        dap_hash_fast_to_str_static(&l_request.hash_from), l_request.num_from);
+                                                        dap_hash_sha3_256_to_str_static(&l_request.hash_from), l_request.num_from);
         dap_chain_ch_pkt_write_unsafe(a_ch,
                                       DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ,
                                       l_net->pub.id,
@@ -3092,7 +3092,7 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net)
     dap_stream_ch_add_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
                                 DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback, a_net);
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(a_net->pub.chains, l_chain) {
+    dap_dl_foreach(a_net->pub.chains, l_chain) {
         l_chain->state = CHAIN_SYNC_STATE_IDLE;
     }
     l_net_pvt->sync_context.stage_last_activity = dap_time_now();
@@ -3208,7 +3208,7 @@ static void s_sync_timer_callback(void *a_arg)
                     " for net %s and chain %s, last hash %s, last num %" DAP_UINT64_FORMAT_U,
                                                     NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
                                                     l_net->pub.name, l_net_pvt->sync_context.cur_chain->name,
-                                                    dap_hash_fast_to_str_static(&l_request.hash_from), l_last_num);
+                                                    dap_hash_sha3_256_to_str_static(&l_request.hash_from), l_last_num);
     dap_stream_ch_pkt_send_by_addr(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
                                     DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ, l_chain_pkt,
                                     dap_chain_ch_pkt_get_size(l_chain_pkt));
@@ -3302,7 +3302,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_cluster_broadcast(PVT(a_net)->nodes_cluster->links_cluster, DAP_CHAIN_NET_CH_ID,
                               DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR, l_error, l_error_size, NULL, 0);
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, false);
-        DL_FOREACH(a_net->pub.chains, l_chain)
+        dap_dl_foreach(a_net->pub.chains, l_chain)
             dap_chain_cs_stop(l_chain);
     } else if (PVT(a_net)->state == NET_STATE_OFFLINE) {
         dap_link_manager_set_net_condition(a_net->pub.id.uint64, true);
@@ -3322,7 +3322,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
             PVT(a_net)->sync_context.current_link.uint64 = 0;
             PVT(a_net)->sync_context.cur_chain = NULL;
             PVT(a_net)->sync_context.cur_cell = NULL;
-            DL_FOREACH(a_net->pub.chains, l_chain)
+            dap_dl_foreach(a_net->pub.chains, l_chain)
                 dap_chain_cs_start(l_chain);
         }
     }

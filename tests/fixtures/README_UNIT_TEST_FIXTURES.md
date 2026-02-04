@@ -155,7 +155,7 @@ unit_test_mock_toggle(g_ctx, "crypto", true);
 
 ```c
 // Детерминированный хеш
-dap_hash_fast_t hash;
+dap_hash_sha3_256_t hash;
 unit_test_hash_generate(42, &hash);  // Seed = 42
 
 // Детерминированный адрес

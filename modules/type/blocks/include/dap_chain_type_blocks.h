@@ -35,10 +35,10 @@ typedef struct dap_chain_type_blocks dap_chain_type_blocks_t;
 
 typedef void (*dap_chain_type_blocks_callback_t)(dap_chain_type_blocks_t *);
 typedef void (*dap_chain_type_blocks_callback_op_results_t)(dap_chain_type_blocks_t * a_cs_blocks, int a_rc, void * a_arg);
-typedef int (*dap_chain_type_blocks_callback_block_verify_t)(dap_chain_type_blocks_t *a_cs_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size);
+typedef int (*dap_chain_type_blocks_callback_block_verify_t)(dap_chain_type_blocks_t *a_cs_blocks, dap_chain_block_t *a_block, dap_hash_sha3_256_t *a_block_hash, size_t a_block_size);
 typedef size_t (*dap_chain_type_blocks_callback_block_sign_t)(dap_chain_type_blocks_t *, dap_chain_block_t **, size_t);
 typedef dap_chain_block_t *(*dap_chain_type_blocks_callback_block_move_t)(dap_chain_type_blocks_t *, size_t *);
-typedef void (*dap_chain_type_blocks_callback_fork_resolved_t)(dap_chain_t *a_chain, dap_hash_fast_t a_block_before_fork_hash, dap_list_t *a_reverted_blocks, 
+typedef void (*dap_chain_type_blocks_callback_fork_resolved_t)(dap_chain_t *a_chain, dap_hash_sha3_256_t a_block_before_fork_hash, dap_list_t *a_reverted_blocks, 
                                                                 uint64_t a_reverted_blocks_cnt, uint64_t a_main_blocks_cnt, void * a_arg);
 
 typedef struct dap_chain_type_blocks {
@@ -80,7 +80,7 @@ typedef enum s_com_blocks_err{
 
 typedef struct dap_chain_type_blocks_reward
 {
-    dap_hash_fast_t pkey_hash;
+    dap_hash_sha3_256_t pkey_hash;
     uint256_t reward;
 } dap_chain_cs_block_rewards_t;
 
@@ -89,7 +89,7 @@ typedef struct dap_chain_type_blocks_reward
 
 int dap_chain_type_blocks_init();
 void dap_chain_type_blocks_deinit();
-dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_type_blocks_t *a_blocks, dap_chain_hash_fast_t *a_block_hash);
+dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_type_blocks_t *a_blocks, dap_hash_sha3_256_t *a_block_hash);
 dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_type_blocks_t * a_blocks,  uint64_t a_block_number);
 
 dap_ledger_hardfork_fees_t *dap_chain_type_blocks_fees_aggregate(dap_chain_t *a_chain);
@@ -105,6 +105,6 @@ DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_reward_group(const char *a_net_n
     return dap_strdup_printf("local.%s.rewards", a_net_name);
 }
 
-dap_pkey_t *dap_chain_type_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash);
+dap_pkey_t *dap_chain_type_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_pkey_hash);
 
-dap_list_t *dap_chain_type_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash);
+dap_list_t *dap_chain_type_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_block_hash);

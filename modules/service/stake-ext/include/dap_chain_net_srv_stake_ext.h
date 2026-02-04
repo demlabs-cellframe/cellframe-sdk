@@ -30,7 +30,7 @@
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_ledger.h"
 #include "dap_time.h"
-#include "uthash.h"
+#include "dap_ht_utils.h"
 
 // Stake_ext service ID
 #define DAP_CHAIN_NET_SRV_STAKE_EXT_ID 0x07
@@ -81,8 +81,8 @@ typedef enum {
 // Single lock information in stake_ext cache
 typedef struct dap_chain_srv_stake_ext_lock_cache_item {
     union {
-        dap_hash_fast_t hash;          // Transaction hash (packed)
-        uint8_t hash_key[DAP_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+        dap_hash_sha3_256_t hash;          // Transaction hash (packed)
+        uint8_t hash_key[DAP_HASH_SHA3_256_SIZE];  // Aligned key for dap_ht (natural alignment)
     } lock_tx_hash;
     uint256_t lock_amount;             // Amount of the lock
     uint8_t range_end;                 // Range end (1-8)
@@ -90,7 +90,7 @@ typedef struct dap_chain_srv_stake_ext_lock_cache_item {
     dap_time_t created_time;           // When lock was created
     bool is_unlocked;                  // Whether lock was unlocked
    
-    UT_hash_handle hh;                 // Hash table handle by lock_tx_hash.hash_key
+    dap_ht_handle_t hh;                 // Hash table handle by lock_tx_hash.hash_key
 } dap_chain_srv_stake_ext_lock_cache_item_t;
 
 // Position aggregation in stake_ext
@@ -99,14 +99,14 @@ typedef struct dap_chain_srv_stake_ext_position_cache_item {
     uint256_t total_amount;            // Total amount lock for this position
     uint32_t active_locks_count;        // Number of active (non-unlockn) locks
     dap_chain_srv_stake_ext_lock_cache_item_t *locks;// Hash table of locks by lock_tx_hash  
-    UT_hash_handle hh;                 // Hash table handle by position_hash
+    dap_ht_handle_t hh;                 // Hash table handle by position_hash
 } dap_chain_srv_stake_ext_position_cache_item_t;
 
 // Stake_ext information in cache
 typedef struct dap_chain_srv_stake_ext_cache_item {
     union {
-        dap_hash_fast_t hash;          // Transaction hash (packed)
-        uint8_t hash_key[DAP_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+        dap_hash_sha3_256_t hash;          // Transaction hash (packed)
+        uint8_t hash_key[DAP_HASH_SHA3_256_SIZE];  // Aligned key for dap_ht (natural alignment)
     } stake_ext_tx_hash;
     dap_chain_net_id_t net_id;         // Network ID
     char *guuid;                       // Event group name for this stake_ext
@@ -132,8 +132,8 @@ typedef struct dap_chain_srv_stake_ext_cache_item {
     uint8_t winners_cnt;               // Number of winners in this stake_ext
     uint32_t *winners_ids;             // Array of winner position IDs from event data
     
-    UT_hash_handle hh;                 // Hash handle for table keyed by GUUID
-    UT_hash_handle hh_hash;            // Hash handle for table keyed by stake_ext_tx_hash.hash_key
+    dap_ht_handle_t hh;                 // Hash handle for table keyed by GUUID
+    dap_ht_handle_t hh_hash;            // Hash handle for table keyed by stake_ext_tx_hash.hash_key
 } dap_chain_srv_stake_ext_cache_item_t;
 
 // Position information in stake_ext (for external API)
@@ -146,7 +146,7 @@ typedef struct dap_chain_net_srv_stake_ext_position {
 
 // Single stake_ext structure (for external API)
 typedef struct dap_chain_net_srv_stake_ext {
-    dap_hash_fast_t stake_ext_hash;
+    dap_hash_sha3_256_t stake_ext_hash;
     char *guuid;                        // Stake-ext GUUID from cache
     dap_chain_srv_stake_ext_status_t status;
     dap_time_t start_time;
@@ -174,7 +174,7 @@ void dap_chain_net_srv_stake_ext_deinit(void);
 
 // External API for frontend and CLI
 dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t *a_net, 
-                                                             dap_chain_hash_fast_t *a_hash);
+                                                             dap_hash_sha3_256_t *a_hash);
 void dap_chain_net_srv_stake_ext_delete(dap_chain_net_srv_stake_ext_t *a_stake_ext);
 
 // Get list of all stake_ext (with optional filtering)
@@ -184,7 +184,7 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
 
 // Get detailed stake_ext information with all positions
 dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chain_net_t *a_net,
-                                                                     dap_chain_hash_fast_t *a_hash);
+                                                                     dap_hash_sha3_256_t *a_hash);
 
 // Get statistics about stake_ext
 typedef struct {
@@ -203,10 +203,10 @@ const char *dap_chain_srv_stake_ext_status_to_str(dap_chain_srv_stake_ext_status
 dap_chain_srv_stake_ext_status_t dap_chain_srv_stake_ext_status_from_event_type(uint16_t a_event_type);
 
 // Transaction creation functions 
-char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_fast_t *a_stake_ext_hash, 
+char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_sha3_256_t *a_stake_ext_hash, 
                                 uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_position_id, uint256_t a_fee, int *a_ret_code);
 
-char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_fast_t *a_lock_tx_hash, uint256_t a_fee, uint256_t *a_value, int *a_ret_code);
+char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_lock_tx_hash, uint256_t a_fee, uint256_t *a_value, int *a_ret_code);
 
 byte_t *dap_chain_srv_stake_ext_started_tx_event_create(size_t *a_data_size, uint32_t a_multiplier, dap_time_t a_duration,
                                                         dap_chain_tx_event_data_time_unit_t a_time_unit,
@@ -227,15 +227,15 @@ typedef struct stake_ext dap_chain_srv_stake_ext_cache_t;
 
 dap_chain_srv_stake_ext_cache_t *dap_chain_srv_stake_ext_cache_create(void);
 void dap_chain_srv_stake_ext_cache_delete(dap_chain_srv_stake_ext_cache_t *a_cache);
-int dap_chain_srv_stake_ext_cache_add_stake_ext(dap_chain_srv_stake_ext_cache_t *a_cache, dap_hash_fast_t *a_stake_ext_hash, dap_chain_net_id_t a_net_id, const char *a_guuid, dap_chain_tx_event_data_stake_ext_started_t *a_started_data, dap_time_t a_tx_timestamp);
-int dap_chain_srv_stake_ext_cache_add_lock(dap_chain_srv_stake_ext_cache_t *a_cache, dap_hash_fast_t *a_stake_ext_hash, dap_hash_fast_t *a_lock_hash, uint256_t a_lock_amount, dap_time_t a_lock_time, dap_time_t a_created_time, uint64_t a_position_id);
-int dap_chain_srv_stake_ext_cache_unlock_lock(dap_chain_srv_stake_ext_position_cache_item_t *a_cache, dap_hash_fast_t *a_lock_hash);
-dap_chain_srv_stake_ext_cache_item_t *dap_chain_srv_stake_ext_cache_find_stake_ext(dap_chain_srv_stake_ext_cache_t *a_cache, dap_hash_fast_t *a_stake_ext_hash);
+int dap_chain_srv_stake_ext_cache_add_stake_ext(dap_chain_srv_stake_ext_cache_t *a_cache, dap_hash_sha3_256_t *a_stake_ext_hash, dap_chain_net_id_t a_net_id, const char *a_guuid, dap_chain_tx_event_data_stake_ext_started_t *a_started_data, dap_time_t a_tx_timestamp);
+int dap_chain_srv_stake_ext_cache_add_lock(dap_chain_srv_stake_ext_cache_t *a_cache, dap_hash_sha3_256_t *a_stake_ext_hash, dap_hash_sha3_256_t *a_lock_hash, uint256_t a_lock_amount, dap_time_t a_lock_time, dap_time_t a_created_time, uint64_t a_position_id);
+int dap_chain_srv_stake_ext_cache_unlock_lock(dap_chain_srv_stake_ext_position_cache_item_t *a_cache, dap_hash_sha3_256_t *a_lock_hash);
+dap_chain_srv_stake_ext_cache_item_t *dap_chain_srv_stake_ext_cache_find_stake_ext(dap_chain_srv_stake_ext_cache_t *a_cache, dap_hash_sha3_256_t *a_stake_ext_hash);
 dap_chain_srv_stake_ext_cache_item_t *dap_chain_srv_stake_ext_cache_find_stake_ext_by_name(dap_chain_srv_stake_ext_cache_t *a_cache, const char *a_guuid);
-int dap_chain_srv_stake_ext_cache_update_stake_ext_status(dap_chain_srv_stake_ext_cache_t *a_cache, dap_hash_fast_t *a_stake_ext_hash, dap_chain_srv_stake_ext_status_t a_new_status);
-dap_chain_srv_stake_ext_lock_cache_item_t *dap_chain_srv_stake_ext_cache_find_lock(dap_chain_srv_stake_ext_cache_item_t *a_stake_ext, dap_hash_fast_t *a_lock_hash);
+int dap_chain_srv_stake_ext_cache_update_stake_ext_status(dap_chain_srv_stake_ext_cache_t *a_cache, dap_hash_sha3_256_t *a_stake_ext_hash, dap_chain_srv_stake_ext_status_t a_new_status);
+dap_chain_srv_stake_ext_lock_cache_item_t *dap_chain_srv_stake_ext_cache_find_lock(dap_chain_srv_stake_ext_cache_item_t *a_stake_ext, dap_hash_sha3_256_t *a_lock_hash);
 dap_chain_srv_stake_ext_position_cache_item_t *dap_chain_srv_stake_ext_cache_find_position(dap_chain_srv_stake_ext_cache_item_t *a_stake_ext, uint64_t a_position_id);
-void dap_chain_srv_stake_ext_cache_event_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_fast_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode);
+void dap_chain_srv_stake_ext_cache_event_callback(void *a_arg, dap_ledger_t *a_ledger, dap_chain_tx_event_t *a_event, dap_hash_sha3_256_t *a_tx_hash, dap_ledger_notify_opcodes_t a_opcode);
 
 #ifdef __cplusplus
 }

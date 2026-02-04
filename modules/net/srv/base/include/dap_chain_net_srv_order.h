@@ -38,7 +38,7 @@ typedef struct dap_chain_net_srv_order {
     dap_chain_net_srv_order_direction_t direction; // Order direction - SELL or PURCHASE
     byte_t padding_dir[3];
     dap_chain_node_addr_t node_addr; // Node address that servs the order (if present)
-    dap_chain_hash_fast_t tx_cond_hash; // Hash index of conditioned transaction attached with order
+    dap_hash_sha3_256_t tx_cond_hash; // Hash index of conditioned transaction attached with order
     dap_chain_net_srv_price_unit_uid_t price_unit; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
     dap_time_t ts_created;
     dap_time_t ts_expires;
@@ -72,11 +72,11 @@ int8_t dap_chain_net_srv_order_continent_to_num(const char *l_continent_str);
 
 dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_net_t * a_net, const char * a_hash_str);
 
-DAP_STATIC_INLINE dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_hash)
+DAP_STATIC_INLINE dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash(dap_chain_net_t * a_net, dap_hash_sha3_256_t * a_hash)
 {
     if ( a_net && a_hash ){
-        char l_hash_str[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
-        dap_chain_hash_fast_to_str(a_hash,l_hash_str,sizeof(l_hash_str)-1);
+        char l_hash_str[DAP_HASH_SHA3_256_SIZE * 2 + 4];
+        dap_hash_sha3_256_to_str(a_hash,l_hash_str,sizeof(l_hash_str)-1);
         return  dap_chain_net_srv_order_find_by_hash_str(a_net, l_hash_str );
     }
     return NULL;
@@ -99,10 +99,10 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync( dap_chain_net_t *a_net, con
  * @param a_hash
  * @return
  */
-DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_hash)
+DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a_net, dap_hash_sha3_256_t * a_hash)
 {
-    char l_hash_str[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
-    dap_chain_hash_fast_to_str(a_hash,l_hash_str,sizeof(l_hash_str)-1);
+    char l_hash_str[DAP_HASH_SHA3_256_SIZE * 2 + 4];
+    dap_hash_sha3_256_to_str(a_hash,l_hash_str,sizeof(l_hash_str)-1);
     return dap_chain_net_srv_order_delete_by_hash_str_sync ( a_net, l_hash_str);
 }
 
@@ -110,7 +110,7 @@ char *dap_chain_net_srv_order_create(dap_chain_net_t * a_net,
         dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
-        dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
+        dap_hash_sha3_256_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -128,7 +128,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
-        dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
+        dap_hash_sha3_256_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],

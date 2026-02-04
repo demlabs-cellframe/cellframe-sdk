@@ -20,6 +20,8 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include "dap_ht.h"
+
 
 #include "dap_chain_ledger.h"
 #include "dap_global_db.h"
@@ -44,21 +46,21 @@ struct spec_address {
 };
 
 typedef struct dap_ledger_token_emission_item {
-    dap_chain_hash_fast_t datum_token_emission_hash;
+    dap_hash_sha3_256_t datum_token_emission_hash;
     dap_chain_datum_token_emission_t *datum_token_emission;
     size_t datum_token_emission_size;
-    dap_chain_hash_fast_t tx_used_out;
+    dap_hash_sha3_256_t tx_used_out;
     dap_nanotime_t ts_added;
     bool is_hardfork;  // Mark if emission was created during/after hardfork
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_ledger_token_emission_item_t;
 
 typedef struct dap_ledger_token_update_item {
-    dap_hash_fast_t			update_token_hash;
+    dap_hash_sha3_256_t			update_token_hash;
     dap_chain_datum_token_t	*datum_token_update;
     size_t					datum_token_update_size;
     time_t					updated_time;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_ledger_token_update_item_t;
 
 typedef struct dap_ledger_token_item {
@@ -79,7 +81,7 @@ typedef struct dap_ledger_token_item {
 
     // for auth operations
     dap_pkey_t ** auth_pkeys;
-    dap_chain_hash_fast_t *auth_pkey_hashes;
+    dap_hash_sha3_256_t *auth_pkey_hashes;
     size_t auth_signs_total;
     size_t auth_signs_valid;
     uint32_t             flags;
@@ -97,20 +99,20 @@ typedef struct dap_ledger_token_item {
     char delegated_from[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t emission_rate;
 
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_ledger_token_item_t;
 
 typedef struct dap_ledger_tx_out_metadata {
-    dap_hash_fast_t tx_spent_hash_fast;
+    dap_hash_sha3_256_t tx_spent_hash_fast;
     dap_list_t *trackers;
 } dap_ledger_tx_out_metadata_t;
 
 // ledger cache item - one of unspent outputs
 typedef struct dap_ledger_tx_item {
-    dap_chain_hash_fast_t tx_hash_fast;
+    dap_hash_sha3_256_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
     dap_nanotime_t ts_added;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
     struct {
         dap_time_t ts_created;      // Transation datum timestamp mirrored & cached
         uint32_t n_outs;
@@ -125,20 +127,20 @@ typedef struct dap_ledger_tx_item {
 } dap_ledger_tx_item_t;
 
 typedef struct dap_ledger_stake_lock_item {
-    dap_chain_hash_fast_t tx_for_stake_lock_hash;
-    dap_chain_hash_fast_t tx_used_out;
-    UT_hash_handle hh;
+    dap_hash_sha3_256_t tx_for_stake_lock_hash;
+    dap_hash_sha3_256_t tx_used_out;
+    dap_ht_handle_t hh;
 } dap_ledger_stake_lock_item_t;
 
 typedef struct dap_ledger_reward_key {
-    dap_hash_fast_t block_hash;
-    dap_hash_fast_t sign_pkey_hash;
+    dap_hash_sha3_256_t block_hash;
+    dap_hash_sha3_256_t sign_pkey_hash;
 } DAP_ALIGN_PACKED dap_ledger_reward_key_t;
 
 typedef struct dap_ledger_reward_item {
     dap_ledger_reward_key_t key;
-    dap_hash_fast_t spender_tx;
-    UT_hash_handle hh;
+    dap_hash_sha3_256_t spender_tx;
+    dap_ht_handle_t hh;
 } dap_ledger_reward_item_t;
 
 // in-memory wallet balance
@@ -146,49 +148,49 @@ typedef struct dap_ledger_wallet_balance {
     char *key;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t balance;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_ledger_wallet_balance_t;
 
 typedef struct dap_ledger_hal_item {
     union {
-        dap_chain_hash_fast_t hash;     // Datum hash (packed)
-        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash (natural alignment)
+        dap_hash_sha3_256_t hash;     // Datum hash (packed)
+        uint8_t hash_key[DAP_HASH_SHA3_256_SIZE];  // Aligned key for dap_ht (natural alignment)
     } hash_field;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_ledger_hal_item_t;
 
 // private types definition
 typedef struct dap_ledger_decree_item {
-    dap_hash_fast_t decree_hash;
+    dap_hash_sha3_256_t decree_hash;
     bool wait_for_apply, is_applied;
     dap_chain_datum_decree_t *decree;
-    dap_hash_fast_t anchor_hash;
+    dap_hash_sha3_256_t anchor_hash;
     dap_chain_id_t storage_chain_id;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_ledger_decree_item_t;
 
 typedef struct dap_ledger_anchor_item {
-    dap_hash_fast_t anchor_hash;
+    dap_hash_sha3_256_t anchor_hash;
     dap_chain_datum_anchor_t *anchor;
     dap_chain_id_t storage_chain_id;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_ledger_anchor_item_t;
 
 typedef struct dap_ledger_event {
     dap_chain_srv_uid_t srv_uid;
     dap_time_t timestamp;
-    dap_hash_fast_t tx_hash;
-    dap_hash_fast_t pkey_hash;
+    dap_hash_sha3_256_t tx_hash;
+    dap_hash_sha3_256_t pkey_hash;
     char *group_name;
     uint16_t event_type;
     void *event_data;
     size_t event_data_size;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_ledger_event_t;
 
 typedef struct dap_ledger_event_pkey_item {
-    dap_hash_fast_t pkey_hash;
-    UT_hash_handle hh;
+    dap_hash_sha3_256_t pkey_hash;
+    dap_ht_handle_t hh;
 } dap_ledger_event_pkey_item_t;
 
 // dap_ledger_t private section
@@ -273,15 +275,15 @@ bool dap_ledger_pvt_cache_gdb_load_balances_callback(dap_global_db_instance_t *a
                                                       int a_rc, const char *a_group,
                                                       const size_t a_values_total, const size_t a_values_count,
                                                       dap_global_db_obj_t *a_values, void *a_arg);
-int dap_ledger_pvt_threshold_txs_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
+int dap_ledger_pvt_threshold_txs_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash);
 void dap_ledger_pvt_threshold_txs_proc(dap_ledger_t *a_ledger);
 dap_ledger_token_item_t *dap_ledger_pvt_find_token(dap_ledger_t *a_ledger, const char *a_token_ticker);
 bool dap_ledger_pvt_token_supply_check(dap_ledger_token_item_t *a_token_item, uint256_t a_value);
 bool dap_ledger_pvt_token_supply_check_update(dap_ledger_t *a_ledger, dap_ledger_token_item_t *a_token_item, uint256_t a_value, bool a_for_removing);
 dap_ledger_token_emission_item_t *dap_ledger_pvt_emission_item_find(dap_ledger_t *a_ledger,
-                const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash, dap_ledger_token_item_t **a_token_item);
+                const char *a_token_ticker, const dap_hash_sha3_256_t *a_token_emission_hash, dap_ledger_token_item_t **a_token_item);
 dap_ledger_check_error_t dap_ledger_pvt_addr_check(dap_ledger_t *a_ledger, dap_ledger_token_item_t *a_token_item, dap_chain_addr_t *a_addr, bool a_receive);
 void dap_ledger_pvt_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
 int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse);
-int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply, bool a_from_mempool);
-int dap_ledger_pvt_event_remove(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
+int dap_ledger_pvt_event_verify_add(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash, dap_chain_datum_tx_t *a_tx, bool a_apply, bool a_from_mempool);
+int dap_ledger_pvt_event_remove(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash);

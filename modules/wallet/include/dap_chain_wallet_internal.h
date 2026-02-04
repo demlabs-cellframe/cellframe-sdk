@@ -23,6 +23,8 @@
 */
 
 #pragma once
+#include "dap_ht.h"
+
 
 #include "dap_cert.h"
 #include "dap_cert_file.h"
@@ -58,7 +60,7 @@ typedef struct dap_chain_wallet_n_pass {
     struct timespec exptm;                                                  /* A time of expiration of the record
                                                                               need RE-Activation steps */
 
-    UT_hash_handle hh;                                                      /* Context for hash-table */
+    dap_ht_handle_t hh;                                                      /* Context for hash-table */
 } dap_chain_wallet_n_pass_t;
 
 typedef struct dap_chain_wallet_cert_hdr{

@@ -21,7 +21,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "uthash.h"
+#include "dap_ht_utils.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_global_db.h"
@@ -191,7 +191,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
     if (a_load)
         madvise(l_new_vol->base, l_new_vol->size, MADV_SEQUENTIAL);
 #endif
-    DL_PREPEND(a_cell->mapping->volume, l_new_vol);
+    dap_dl_prepend(a_cell->mapping->volume, l_new_vol);
     return 0;
 }
 
@@ -201,14 +201,14 @@ DAP_STATIC_INLINE int s_cell_close(dap_chain_cell_t *a_cell) {
         a_cell->mapping->cursor = NULL;
         int i = 0;
         dap_chain_cell_mmap_volume_t *l_vol, *l_tmp;
-        DL_FOREACH_SAFE(a_cell->mapping->volume, l_vol, l_tmp) {
+        dap_dl_foreach_safe(a_cell->mapping->volume, l_vol, l_tmp) {
             debug_if(s_debug_more, L_DEBUG, "Unmap volume #%d, %lu bytes", i++, l_vol->size);
 #ifdef DAP_OS_WINDOWS
             pfnNtUnmapViewOfSection(GetCurrentProcess(), l_vol->base);
 #else
             munmap(l_vol->base, l_vol->size);
 #endif
-            DL_DELETE(a_cell->mapping->volume, l_vol);
+            dap_dl_delete(a_cell->mapping->volume, l_vol);
             DAP_DELETE(l_vol);
         }
 #ifdef DAP_OS_WINDOWS
@@ -240,7 +240,7 @@ int s_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool
         return -2;
     }
     s_cell_close(l_cell);
-    HASH_DEL(a_chain->cells, l_cell);
+    dap_ht_del(a_chain->cells, l_cell);
     dap_chain_cell_remit(a_chain);
     if (a_make_file_copy) {
         if (!a_remove_file)
@@ -299,9 +299,9 @@ void dap_chain_cell_close_all(dap_chain_t *a_chain) {
     dap_return_if_fail(a_chain);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
     dap_chain_cell_t *l_cell, *l_tmp;
-    HASH_ITER(hh, a_chain->cells, l_cell, l_tmp) {
+    dap_ht_foreach_hh(hh, a_chain->cells, l_cell, l_tmp) {
         s_cell_close(l_cell);
-        HASH_DEL(a_chain->cells, l_cell);
+        dap_ht_del(a_chain->cells, l_cell);
         DAP_DELETE(l_cell);
     }
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
@@ -365,7 +365,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     int l_ret = 0;    
     off_t l_el_size = 0, q = 0;
     dap_chain_atom_ptr_t l_atom;
-    dap_hash_fast_t l_atom_hash;
+    dap_hash_sha3_256_t l_atom_hash;
     if (a_cell->chain->is_mapped) {
         for ( off_t l_vol_rest = 0; !s_load_skip && l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += sizeof(uint64_t) + l_el_size ) {
             l_vol_rest = (off_t)( a_cell->mapping->volume->base + a_cell->mapping->volume->size - a_cell->mapping->cursor - sizeof(uint64_t) );
@@ -374,7 +374,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             if ( !l_el_size || l_el_size > l_full_size - l_pos )
                 break;
             l_atom = (dap_chain_atom_ptr_t)(a_cell->mapping->cursor + sizeof(uint64_t));
-            dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            dap_hash_sha3_256(l_atom, l_el_size, &l_atom_hash);
             dap_chain_atom_verify_res_t l_verif = a_cell->chain->callback_atom_prefetch
                 ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
                 : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
@@ -418,7 +418,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 l_ret = 10;
                 break;
             }
-            dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            dap_hash_sha3_256(l_atom, l_el_size, &l_atom_hash);
             dap_chain_atom_verify_res_t l_verif = a_cell->chain->callback_atom_prefetch
                 ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
                 : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
@@ -468,12 +468,12 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
 #define m_ret_err(err, ...) return ({ if (l_cell->file_storage) fclose(l_cell->file_storage); \
                                       DAP_DELETE(l_cell); log_it(L_ERROR, ##__VA_ARGS__), err; })
 
-    HASH_FIND(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
+    dap_ht_find_hh(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
     if (l_cell) {
         if (a_mode == 'w') {
             /* Attention! File rewriting requires that ledger was already purged */
             s_cell_close(l_cell);
-            HASH_DEL(a_chain->cells, l_cell);
+            dap_ht_del(a_chain->cells, l_cell);
             DAP_DELETE(l_cell);
         } else
             m_ret_err(EEXIST, "Cell \"%s\" is already loaded in chain \"%s : %s\"",
@@ -528,7 +528,7 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
     default:
         break;
     }
-    HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
+    dap_ht_add_hh(hh, a_chain->cells, id, l_cell);
     log_it(L_INFO, "Cell storage \"%s\" is %s for chain \"%s : %s\"",
                     a_filename, *mode == 'w' ? "created" : "opened", a_chain->net_name, a_chain->name);
     return 0;

@@ -80,7 +80,7 @@ dap_chain_datum_tx_t *dap_ledger_tx_create_event(
  * @return Unsigned TX or NULL on error
  */
 dap_chain_datum_tx_t *dap_ledger_tx_create_from_emission(
-    dap_chain_hash_fast_t *a_emission_hash,
+    dap_hash_sha3_256_t *a_emission_hash,
     dap_chain_id_t a_emission_chain_id,
     uint256_t a_emission_value,
     const char *a_ticker,

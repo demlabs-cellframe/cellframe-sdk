@@ -15,7 +15,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../include/  # datum headers
 )
 
-# Dependencies: только базовые datum типы и uthash
+# Dependencies: только базовые datum типы и dap_ht
 target_link_libraries(${PROJECT_NAME} 
     dap_core
     dap_chain

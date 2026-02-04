@@ -242,12 +242,12 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
         DAP_DELETE(l_balance_service);
         return; // price from order is not equal with service price
     }
-    char l_tx_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(&l_order->tx_cond_hash, l_tx_cond_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    char l_tx_cond_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+    dap_hash_sha3_256_to_str(&l_order->tx_cond_hash, l_tx_cond_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
     dap_chain_t *l_chain;
     dap_chain_datum_t *l_datum = NULL;
     dap_chain_datum_tx_t *l_tx_cond = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
+    dap_dl_foreach(l_net->pub.chains, l_chain) {
         size_t l_datum_size;
         char *l_gdb_group = dap_chain_mempool_group_new(l_chain);
         l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group, l_tx_cond_hash_str, &l_datum_size, NULL, NULL);
@@ -268,7 +268,7 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
     if (!l_cond_out || l_cond_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY) {
         log_it(L_DEBUG, "Condition with required subtype SRV_PAY not found in requested tx");
     }
-    dap_hash_fast_t l_sign_hash;
+    dap_hash_sha3_256_t l_sign_hash;
     if (!dap_sign_get_pkey_hash((dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size), &l_sign_hash)) {
          log_it(L_DEBUG, "Wrong order sign");
          return;

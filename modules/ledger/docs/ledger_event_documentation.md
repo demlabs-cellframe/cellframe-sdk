@@ -148,7 +148,7 @@
 │                                                               │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │  2. EVENT MANAGEMENT                                  │   │
-│  │     • Store events in hash table (uthash)            │   │
+│  │     • Store events in hash table (dap_ht)            │   │
 │  │     • Find events by transaction hash                │   │
 │  │     • List events by group name                      │   │
 │  │     • Remove events (fork resolution)                │   │
@@ -229,8 +229,8 @@ typedef struct dap_chain_tx_event {
     dap_chain_srv_uid_t srv_uid;        // Service UID
     dap_time_t timestamp;               // Event timestamp
     char *group_name;                   // Event group name (heap-allocated)
-    dap_chain_hash_fast_t tx_hash;      // Transaction hash
-    dap_chain_hash_fast_t pkey_hash;    // Creator's public key hash
+    dap_hash_sha3_256_t tx_hash;      // Transaction hash
+    dap_hash_sha3_256_t pkey_hash;    // Creator's public key hash
     uint16_t event_type;                // Event type
     void *event_data;                   // Custom event data (heap-allocated)
     size_t event_data_size;             // Size of event_data
@@ -252,19 +252,19 @@ typedef struct dap_chain_tx_event {
 typedef struct dap_ledger_event {
     dap_chain_srv_uid_t srv_uid;        // Service UID
     dap_time_t timestamp;               // Event timestamp
-    dap_hash_fast_t tx_hash;            // Transaction hash (hash key)
-    dap_hash_fast_t pkey_hash;          // Creator's public key hash
+    dap_hash_sha3_256_t tx_hash;            // Transaction hash (hash key)
+    dap_hash_sha3_256_t pkey_hash;          // Creator's public key hash
     uint16_t event_type;                // Event type
     char *group_name;                   // Event group name
     void *event_data;                   // Custom event data
     size_t event_data_size;             // Size of event_data
-    UT_hash_handle hh;                  // uthash handle (indexed by tx_hash)
+    dap_ht_handle_t hh;                 // dap_ht handle (indexed by tx_hash)
 } dap_ledger_event_t;
 ```
 
 **Hash Table Indexing:**
-- Индексирование по `tx_hash` (sizeof(dap_hash_fast_t))
-- Использование uthash для быстрого поиска O(1)
+- Индексирование по `tx_hash` (sizeof(dap_hash_sha3_256_t))
+- Использование dap_ht для быстрого поиска O(1)
 
 ---
 
@@ -341,7 +341,7 @@ typedef void (*dap_ledger_event_notify_t)(
     void *a_arg,                        // User data
     dap_ledger_t *a_ledger,             // Ledger instance
     dap_chain_tx_event_t *a_event,      // Event data
-    dap_hash_fast_t *a_tx_hash,         // Transaction hash
+    dap_hash_sha3_256_t *a_tx_hash,         // Transaction hash
     dap_ledger_notify_opcodes_t a_opcode // ADDED or DELETED
 );
 ```
@@ -362,7 +362,7 @@ typedef void (*dap_ledger_event_notify_t)(
 ```c
 void my_event_monitor(void *arg, dap_ledger_t *ledger, 
                       dap_chain_tx_event_t *event, 
-                      dap_hash_fast_t *tx_hash,
+                      dap_hash_sha3_256_t *tx_hash,
                       dap_ledger_notify_opcodes_t opcode)
 {
     if (opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
@@ -385,7 +385,7 @@ dap_ledger_event_notify_add(ledger, my_event_monitor, NULL);
 ```c
 dap_chain_tx_event_t *dap_ledger_event_find(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_tx_hash
+    dap_hash_sha3_256_t *a_tx_hash
 );
 ```
 
@@ -414,7 +414,7 @@ if (event) {
 
 **Implementation Details:**
 1. Захват read lock на `events_rwlock`
-2. Поиск в hash table через `HASH_FIND()`
+2. Поиск в hash table через `dap_ht_find_hh()`
 3. Освобождение lock
 4. Создание копии через `s_ledger_event_to_tx_event()`
 
@@ -481,7 +481,7 @@ if (events) {
 ```c
 int dap_ledger_event_pkey_check(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_pkey_hash
+    dap_hash_sha3_256_t *a_pkey_hash
 );
 ```
 
@@ -512,7 +512,7 @@ int dap_ledger_event_pkey_check(
 ```c
 int dap_ledger_event_pkey_add(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_pkey_hash
+    dap_hash_sha3_256_t *a_pkey_hash
 );
 ```
 
@@ -540,7 +540,7 @@ int dap_ledger_event_pkey_add(
 ```c
 int dap_ledger_event_pkey_rm(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_pkey_hash
+    dap_hash_sha3_256_t *a_pkey_hash
 );
 ```
 
@@ -572,7 +572,7 @@ dap_list_t *dap_ledger_event_pkey_list(
 Возвращает список всех разрешенных публичных ключей.
 
 **Returns:**
-- `dap_list_t*` - список `dap_hash_fast_t*` (требует освобождения)
+- `dap_list_t*` - список `dap_hash_sha3_256_t*` (требует освобождения)
 - `NULL` - список пуст или ошибка
 
 **Memory Management:**
@@ -580,7 +580,7 @@ dap_list_t *dap_ledger_event_pkey_list(
 dap_list_t *keys = dap_ledger_event_pkey_list(ledger);
 if (keys) {
     for (dap_list_t *it = keys; it; it = it->next) {
-        dap_hash_fast_t *key = (dap_hash_fast_t*)it->data;
+        dap_hash_sha3_256_t *key = (dap_hash_sha3_256_t*)it->data;
         // Use key...
     }
     dap_list_free_full(keys, (dap_callback_destroyed_t)free);
@@ -599,7 +599,7 @@ if (keys) {
 ```c
 int dap_ledger_pvt_event_verify_add(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_tx_hash,
+    dap_hash_sha3_256_t *a_tx_hash,
     dap_chain_datum_tx_t *a_tx,
     bool a_apply,
     bool a_from_mempool
@@ -639,7 +639,7 @@ int dap_ledger_pvt_event_verify_add(
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. Check if event already exists (HASH_FIND)               │
+│  1. Check if event already exists (dap_ht_find_hh)               │
 │     └─► Return -1 if exists                                 │
 ├─────────────────────────────────────────────────────────────┤
 │  2. Parse transaction items:                                │
@@ -683,7 +683,7 @@ int dap_ledger_pvt_event_verify_add(
 │  10. If verification passed and a_apply == true:            │
 │      • Allocate dap_ledger_event_t                          │
 │      • Copy all fields                                      │
-│      • Add to hash table (HASH_ADD_BYHASHVALUE)             │
+│      • Add to hash table (dap_ht_add_by_hashvalue_hh)             │
 │      • Notify all registered callbacks                      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -715,7 +715,7 @@ Notifiers вызываются **после** освобождения lock.
 ```c
 int dap_ledger_pvt_event_remove(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_tx_hash
+    dap_hash_sha3_256_t *a_tx_hash
 );
 ```
 
@@ -734,7 +734,7 @@ int dap_ledger_pvt_event_remove(
 1. Захват `wrlock` на `events_rwlock`
 2. Поиск события в hash table
 3. Создание копии для notifiers
-4. Удаление из hash table (`HASH_DEL`)
+4. Удаление из hash table (`dap_ht_del`)
 5. Освобождение памяти события
 6. Освобождение lock
 7. Вызов notifiers с опкодом `DELETED`
@@ -895,7 +895,7 @@ Client Request
     ├─► dap_ledger_event_find(tx_hash)
     │       │
     │       ├─► pthread_rwlock_rdlock(&events_rwlock)
-    │       ├─► HASH_FIND(events, tx_hash, ...)
+    │       ├─► dap_ht_find_hh(events, tx_hash, ...)
     │       ├─► pthread_rwlock_unlock(&events_rwlock)
     │       └─► s_ledger_event_to_tx_event()  ──► Returns copy
     │
@@ -918,7 +918,7 @@ Fork detected in blockchain
     │               └─► dap_ledger_pvt_event_remove(tx_hash)
     │                       │
     │                       ├─► pthread_rwlock_wrlock(&events_rwlock)
-    │                       ├─► HASH_FIND & HASH_DEL
+    │                       ├─► dap_ht_find_hh & dap_ht_del
     │                       ├─► pthread_rwlock_unlock(&events_rwlock)
     │                       └─► Notify subscribers (DELETED opcode)
     │
@@ -974,7 +974,7 @@ int my_service_event_verify(
     uint16_t a_event_type,
     dap_tsd_t *a_event_data,
     size_t a_event_data_size,
-    dap_hash_fast_t *a_tx_hash
+    dap_hash_sha3_256_t *a_tx_hash
 ) {
     // Verify event logic specific to service
     // Return 0 if valid, error code otherwise
@@ -1102,7 +1102,7 @@ int my_verify(/* ... */) {
 ```c
 void my_notifier(void *arg, dap_ledger_t *ledger, 
                  dap_chain_tx_event_t *event, 
-                 dap_hash_fast_t *tx_hash,
+                 dap_hash_sha3_256_t *tx_hash,
                  dap_ledger_notify_opcodes_t opcode)
 {
     my_context_t *ctx = arg;
@@ -1179,7 +1179,7 @@ if (dap_ledger_event_pkey_add(ledger, &key) != 0) {
 
 ### Hash Table Performance:
 
-- **Lookup:** O(1) average via uthash
+- **Lookup:** O(1) average via dap_ht
 - **Insert:** O(1) amortized
 - **Delete:** O(1) average
 - **Iteration:** O(n) where n = number of events
@@ -1191,7 +1191,7 @@ Per event in ledger:
 sizeof(dap_ledger_event_t) + 
 strlen(group_name) + 
 event_data_size + 
-uthash overhead (~32 bytes)
+dap_ht overhead (~32 bytes)
 ```
 
 ### Lock Contention:
@@ -1350,7 +1350,7 @@ if (event) {
 
 // In code:
 log_it(L_DEBUG, "Event verification: group=%s, type=0x%04x, tx=%s",
-       group_name, event_type, dap_hash_fast_to_str_static(tx_hash));
+       group_name, event_type, dap_hash_sha3_256_to_str_static(tx_hash));
 ```
 
 ### Dump event state:
@@ -1453,7 +1453,7 @@ if (ret != 0) {
 ```c
 void my_monitor(void *arg, dap_ledger_t *ledger,
                 dap_chain_tx_event_t *event,
-                dap_hash_fast_t *tx_hash,
+                dap_hash_sha3_256_t *tx_hash,
                 dap_ledger_notify_opcodes_t opcode)
 {
     if (opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
@@ -1597,4 +1597,3 @@ Licensed under GPLv3
 ---
 
 **End of Documentation**
-

@@ -39,7 +39,7 @@ struct service_list {
     dap_list_t *networks;   // List of networks with service enabled
     dap_chain_static_srv_callbacks_t callbacks;
     char name[32];
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 };
 
 // list of active services
@@ -52,11 +52,11 @@ void dap_chain_srv_deinit()
     struct service_list *it, *tmp;
     int err = pthread_rwlock_wrlock(&s_srv_list_lock);
     assert(!err);
-    HASH_ITER(hh, s_srv_list, it, tmp) {
+    dap_ht_foreach_hh(hh, s_srv_list, it, tmp) {
         // Clang bug at this, l_service_item should change at every loop cycle
-        HASH_DEL(s_srv_list, it);
+        dap_ht_del(s_srv_list, it);
         dap_list_t *itl, *tmpl;
-        DL_FOREACH_SAFE(it->networks, itl, tmpl) {
+        dap_dl_foreach_safe(it->networks, itl, tmpl) {
             struct network_service *l_service = itl->data;
             if (it->callbacks.purge)
                 it->callbacks.purge(l_service->net_id, l_service->service);
@@ -76,7 +76,7 @@ int dap_chain_srv_add(dap_chain_srv_uid_t a_uid, const char *a_name, dap_chain_s
 
     int err = pthread_rwlock_wrlock(&s_srv_list_lock);
     assert(!err);
-    HASH_FIND(hh, s_srv_list, &a_uid, sizeof(a_uid), l_service_item);
+    dap_ht_find_hh(hh, s_srv_list, &a_uid, sizeof(a_uid), l_service_item);
     if (l_service_item) {
         log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
         pthread_rwlock_unlock(&s_srv_list_lock);
@@ -93,7 +93,7 @@ int dap_chain_srv_add(dap_chain_srv_uid_t a_uid, const char *a_name, dap_chain_s
         dap_strncpy(l_service_item->name, a_name, sizeof(l_service_item->name));
     if (a_static_callbacks)
         l_service_item->callbacks = *a_static_callbacks;
-    HASH_ADD(hh, s_srv_list, uuid, sizeof(a_uid), l_service_item);
+    dap_ht_add_hh(hh, s_srv_list, uuid, l_service_item);
     pthread_rwlock_unlock(&s_srv_list_lock);
     return 0;
 }
@@ -113,7 +113,7 @@ static struct service_list *s_service_find(dap_chain_srv_uid_t a_srv_uid)
     struct service_list *l_service_item = NULL;
     int err = pthread_rwlock_rdlock(&s_srv_list_lock);
     assert(!err);
-    HASH_FIND(hh, s_srv_list, &a_srv_uid, sizeof(dap_chain_srv_uid_t), l_service_item);
+    dap_ht_find_hh(hh, s_srv_list, &a_srv_uid, sizeof(dap_chain_srv_uid_t), l_service_item);
     pthread_rwlock_unlock(&s_srv_list_lock);
     return l_service_item;
 }
@@ -171,15 +171,15 @@ int dap_chain_srv_delete(dap_chain_srv_uid_t a_srv_uid)
     struct service_list *l_service_item = NULL;
     int err = pthread_rwlock_wrlock(&s_srv_list_lock);
     assert(!err);
-    HASH_FIND(hh, s_srv_list, &a_srv_uid, sizeof(a_srv_uid), l_service_item);
+    dap_ht_find_hh(hh, s_srv_list, &a_srv_uid, sizeof(a_srv_uid), l_service_item);
     if (!l_service_item) {
         pthread_rwlock_unlock(&s_srv_list_lock);
         return -1;
     }
-    HASH_DEL(s_srv_list, l_service_item);
+    dap_ht_del(s_srv_list, l_service_item);
     pthread_rwlock_unlock(&s_srv_list_lock);
     dap_list_t *it, *tmp;
-    DL_FOREACH_SAFE(l_service_item->networks, it, tmp) {
+    dap_dl_foreach_safe(l_service_item->networks, it, tmp) {
         struct network_service *l_service = it->data;
         if (l_service_item->callbacks.purge)
             l_service_item->callbacks.purge(l_service->net_id, l_service->service);
@@ -239,13 +239,13 @@ dap_chain_srv_hardfork_state_t *dap_chain_srv_hardfork_all(dap_chain_net_id_t a_
         dap_chain_srv_hardfork_state_t *l_state = DAP_NEW_Z(dap_chain_srv_hardfork_state_t), *cur, *tmp;
         if (!l_state) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            DL_FOREACH_SAFE(ret, cur, tmp)
+            dap_dl_foreach_safe(ret, cur, tmp)
                 DAP_DELETE(cur);
             break;
         }
         l_state->uid = it->uuid;
         l_state->data = it->callbacks.hardfork_prepare(a_net_id, &l_state->size, &l_state->count, l_service->service);
-        DL_APPEND(ret, l_state);
+        dap_dl_append(ret, l_state);
     }
     pthread_rwlock_unlock(&s_srv_list_lock);
     return ret;
@@ -360,7 +360,7 @@ dap_list_t *dap_chain_srv_list(dap_chain_net_id_t a_net_id)
 }
 
 int dap_chain_srv_event_verify(dap_chain_net_id_t a_net_id, dap_chain_srv_uid_t a_srv_uid, const char *a_event_group_name, int a_event_type,
-                               void *a_event, size_t a_event_size, dap_hash_fast_t *a_event_tx_hash)
+                               void *a_event, size_t a_event_size, dap_hash_sha3_256_t *a_event_tx_hash)
 {
     struct service_list *l_service_item = s_service_find(a_srv_uid);
     if (!l_service_item)

@@ -15,7 +15,7 @@
 #include "dap_chain_datum_token.h"
 #include "dap_cert.h"
 #include "dap_sign.h"
-#include "uthash.h"
+#include "dap_ht_utils.h"
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -500,8 +500,8 @@ int integration_test_create_snet(void)
     // Register network using extern declarations
     extern dap_chain_net_t *s_nets_by_id;
     extern dap_chain_net_t *s_nets_by_name;
-    HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_net);
-    HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
+    dap_ht_add_hh(hh2, s_nets_by_id, pub.id, l_net);
+    dap_ht_add_str(s_nets_by_name, pub.name, l_net);
     
     log_it(L_NOTICE, "✅ Test network 'Snet' created and registered successfully!");
     

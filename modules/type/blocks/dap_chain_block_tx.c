@@ -81,11 +81,11 @@ char *dap_chain_block_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks,
     }
     for(dap_list_t *bl = a_block_list; bl; bl = bl->next) {
         uint256_t l_value_out_block = {};
-        dap_hash_fast_t *l_block_hash = bl->data;
+        dap_hash_sha3_256_t *l_block_hash = bl->data;
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(a_blocks, l_block_hash);
         if (!l_block_cache) {
-            char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(l_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+            char l_block_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(l_block_hash, l_block_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
             log_it(L_ERROR, "Can't find cache for block hash %s", l_block_hash_str);
             continue;
         }
@@ -111,8 +111,8 @@ char *dap_chain_block_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks,
         }
         SUM_256_256(l_value_out, l_value_out_block, &l_value_out);
     }
-    dap_hash_fast_t l_sign_pkey_hash;
-    dap_hash_fast(l_sign_pkey->pkey, l_sign_pkey->header.size, &l_sign_pkey_hash);
+    dap_hash_sha3_256_t l_sign_pkey_hash;
+    dap_hash_sha3_256(l_sign_pkey->pkey, l_sign_pkey->header.size, &l_sign_pkey_hash);
     DAP_DELETE(l_sign_pkey);
 
     if (dap_chain_datum_tx_get_size(l_tx) == sizeof(dap_chain_datum_tx_t)) {
@@ -241,23 +241,23 @@ char *dap_chain_block_tx_reward_create(dap_chain_type_blocks_t *a_blocks,
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    dap_hash_fast_t l_sign_pkey_hash;
+    dap_hash_sha3_256_t l_sign_pkey_hash;
     dap_pkey_get_hash(l_sign_pkey, &l_sign_pkey_hash);
     uint256_t l_value_out = uint256_0;
     for (dap_list_t *it = a_block_list; it; it = it->next) {
-        dap_hash_fast_t *l_block_hash = it->data;
+        dap_hash_sha3_256_t *l_block_hash = it->data;
         uint256_t l_reward_value = l_chain->callback_calc_reward(l_chain, l_block_hash, l_sign_pkey);
         if (IS_ZERO_256(l_reward_value)) {
-            char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(l_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+            char l_block_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(l_block_hash, l_block_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
             log_it(L_WARNING, "Block %s signatures does not match certificate key", l_block_hash_str);
             continue;
         }
         if (dap_ledger_is_used_reward(a_ledger, l_block_hash, &l_sign_pkey_hash)) {
-            char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(l_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
-            char l_sign_pkey_hash_str[DAP_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(&l_sign_pkey_hash, l_sign_pkey_hash_str, DAP_HASH_FAST_STR_SIZE);
+            char l_block_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(l_block_hash, l_block_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
+            char l_sign_pkey_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(&l_sign_pkey_hash, l_sign_pkey_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
             log_it(L_WARNING, "Block %s reward is already collected by signer %s", l_block_hash_str, l_sign_pkey_hash_str);
             continue;
         }
@@ -379,15 +379,15 @@ char *dap_chain_block_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks
 
     dap_return_val_if_fail(a_blocks && a_key_from && a_addr_to && a_ledger && a_native_ticker, NULL);
 
-    dap_hash_fast_t l_sign_pkey_hash;
-    dap_enc_key_get_pkey_hash(a_key_from, &l_sign_pkey_hash);
+    dap_hash_sha3_256_t l_sign_pkey_hash;
+    dap_enc_key_get_pkey_hash(a_key_from, DAP_HASH_TYPE_SHA3_256, (byte_t *)&l_sign_pkey_hash, sizeof(l_sign_pkey_hash));
     dap_chain_addr_t l_addr_to = { };
     dap_chain_addr_fill(&l_addr_to, dap_sign_type_from_key_type(a_key_from->type), &l_sign_pkey_hash, a_net_id);
     dap_chain_t *l_chain = a_blocks->chain;
     assert(l_chain);
     assert(a_ledger);
     log_it(L_INFO, "Try to find tx with OUT addr %s", dap_chain_addr_to_str_static(&l_addr_to));
-    dap_chain_hash_fast_t l_prev_tx_hash = {};
+    dap_hash_sha3_256_t l_prev_tx_hash = {};
     dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_addr(a_ledger, a_native_ticker, &l_addr_to, &l_prev_tx_hash, true);
     if (!l_prev_tx) {
         log_it(L_WARNING, "Can't find tx with OUT addr %s", dap_chain_addr_to_str_static(&l_addr_to));
@@ -497,4 +497,3 @@ char *dap_chain_block_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks
     DAP_DELETE(l_datum);
     return l_ret;
 }
-

@@ -53,7 +53,7 @@ typedef enum dap_balancer_uri_type {
 typedef struct dap_balancer_request_info {
     dap_chain_net_id_t net_id;
     dap_time_t request_time;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_balancer_request_info_t;
 
 static_assert(sizeof(dap_net_links_t) + sizeof(dap_chain_node_info_old_t) < DAP_BALANCER_MAX_REPLY_SIZE, "DAP_BALANCER_MAX_REPLY_SIZE cannot accommodate information minimum about 1 link");
@@ -380,8 +380,8 @@ static dap_net_links_t *s_balancer_issue_link(const char *a_net_name, uint16_t a
 void dap_chain_net_balancer_deinit()
 {
     dap_balancer_request_info_t *l_item = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, s_request_info_items, l_item, l_tmp)
-        HASH_DEL(s_request_info_items, l_item);
+    dap_ht_foreach_hh(hh, s_request_info_items, l_item, l_tmp)
+        dap_ht_del(s_request_info_items, l_item);
 }
 
 /**
@@ -546,11 +546,11 @@ void dap_chain_net_balancer_request(void *a_arg)
     dap_balancer_link_request_t *l_arg = (dap_balancer_link_request_t*)a_arg;
 // period request check
     dap_balancer_request_info_t *l_item = NULL;
-    HASH_FIND(hh, s_request_info_items, &l_arg->net->pub.id, sizeof(l_arg->net->pub.id), l_item);
+    dap_ht_find_hh(hh, s_request_info_items, &l_arg->net->pub.id, sizeof(l_arg->net->pub.id), l_item);
     if (!l_item) {
         l_item = DAP_NEW_Z_RET_IF_FAIL(dap_balancer_request_info_t);
         l_item->net_id = l_arg->net->pub.id;
-        HASH_ADD(hh, s_request_info_items, net_id, sizeof(l_item->net_id), l_item);
+        dap_ht_add_hh(hh, s_request_info_items, net_id, l_item);
     }
     if (l_item->request_time + DAP_BALANCER_REQUEST_DELAY > dap_time_now()) {
         log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", l_arg->net->pub.name);

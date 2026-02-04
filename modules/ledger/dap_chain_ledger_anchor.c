@@ -22,6 +22,7 @@
 */
 
 #include <memory.h>
+#include "dap_ht_utils.h"
 #include <assert.h>
 #include "dap_common.h"
 #include "dap_sign.h"
@@ -120,7 +121,7 @@ static int s_anchor_verify(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_a
         return -108;
     }
 
-    dap_hash_fast_t l_decree_hash = {};
+    dap_hash_sha3_256_t l_decree_hash = {};
     dap_chain_datum_decree_t *l_decree = NULL;
     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_decree_hash)) != 0) {
         log_it(L_WARNING, "Can't get hash from anchor data");
@@ -133,7 +134,7 @@ static int s_anchor_verify(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_a
     bool l_is_applied = false;
     l_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_decree_hash, &l_is_applied);
     if (!l_decree) {
-        log_it(L_WARNING, "Can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
+        log_it(L_WARNING, "Can't get decree by hash %s", dap_hash_sha3_256_to_str_static(&l_decree_hash));
         return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;
     }
     if (l_is_applied) {
@@ -150,7 +151,7 @@ int dap_ledger_anchor_verify(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a
    return s_anchor_verify(a_ledger, a_anchor, a_data_size, false);
 }
 
-int dap_ledger_anchor_load(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_anchor, dap_chain_id_t a_chain_id, dap_hash_fast_t *a_anchor_hash)
+int dap_ledger_anchor_load(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_anchor, dap_chain_id_t a_chain_id, dap_hash_sha3_256_t *a_anchor_hash)
 {
     int ret_val = 0;
 
@@ -166,7 +167,7 @@ int dap_ledger_anchor_load(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_a
         return ret_val;
     }
 
-    dap_chain_hash_fast_t l_hash = {0};
+    dap_hash_sha3_256_t l_hash = {0};
     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_hash)) != 0)
     {
         log_it(L_WARNING, "Can not find datum hash in anchor data");
@@ -181,9 +182,9 @@ int dap_ledger_anchor_load(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_a
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_anchor_item_t *l_new_anchor = NULL;
     unsigned l_hash_value;
-    HASH_VALUE(a_anchor_hash, sizeof(dap_hash_fast_t), l_hash_value);
+    l_hash_value = dap_ht_hash_value(a_anchor_hash, sizeof(dap_hash_sha3_256_t));;
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->anchors, a_anchor_hash, sizeof(dap_hash_fast_t), l_hash_value, l_new_anchor);
+    dap_ht_find_by_hashvalue_hh(hh, l_ledger_pvt->anchors, a_anchor_hash, sizeof(dap_hash_sha3_256_t), l_hash_value, l_new_anchor);
     if (!l_new_anchor) {
         l_new_anchor = DAP_NEW_Z(dap_ledger_anchor_item_t);
         if (!l_new_anchor) {
@@ -197,7 +198,7 @@ int dap_ledger_anchor_load(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_a
         // Ledger just stores the pointer
         l_new_anchor->anchor = a_anchor;
         l_new_anchor->storage_chain_id = a_chain_id;
-        HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->anchors, anchor_hash, sizeof(dap_hash_fast_t), l_hash_value, l_new_anchor);
+        dap_ht_add_by_hashvalue_hh(hh, l_ledger_pvt->anchors, anchor_hash, sizeof(dap_hash_sha3_256_t), l_hash_value, l_new_anchor);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     return ret_val;
@@ -210,17 +211,17 @@ int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
     dap_ledger_anchor_item_t *it = NULL, *tmp;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_ITER(hh, l_ledger_pvt->anchors, it, tmp) {
+    dap_ht_foreach_hh(hh, l_ledger_pvt->anchors, it, tmp) {
         if (it->storage_chain_id.uint64 != a_chain_id.uint64)
             continue;
-        HASH_DEL(l_ledger_pvt->anchors, it);
-        dap_hash_fast_t l_decree_hash;
+        dap_ht_del(l_ledger_pvt->anchors, it);
+        dap_hash_sha3_256_t l_decree_hash;
         if (!dap_chain_datum_anchor_get_hash_from_data(it->anchor, &l_decree_hash)) {
             dap_ledger_decree_item_t *l_decree = NULL;
-            HASH_FIND(hh, l_ledger_pvt->decrees, &l_decree_hash, sizeof(dap_hash_fast_t), l_decree);
+            dap_ht_find_hh(hh, l_ledger_pvt->decrees, &l_decree_hash, sizeof(dap_hash_sha3_256_t), l_decree);
             if (l_decree) {
                 l_decree->is_applied = l_decree->wait_for_apply = false;
-                l_decree->anchor_hash = (dap_hash_fast_t) { };
+                l_decree->anchor_hash = (dap_hash_sha3_256_t) { };
                 if (l_decree->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD) {
                     // Call reward removed callback if registered
                     if (a_ledger->reward_removed_callback) {
@@ -228,9 +229,9 @@ int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
                     }
                 }
             } else
-                log_it(L_ERROR, "Corrupted datum anchor, can't get decree by hash %s", dap_hash_fast_to_str_static(&l_decree_hash));
+                log_it(L_ERROR, "Corrupted datum anchor, can't get decree by hash %s", dap_hash_sha3_256_to_str_static(&l_decree_hash));
         } else
-            log_it(L_ERROR, "Corrupted datum anchor %s, can't get decree hash from it", dap_hash_fast_to_str_static(&it->anchor_hash));
+            log_it(L_ERROR, "Corrupted datum anchor %s, can't get decree hash from it", dap_hash_sha3_256_to_str_static(&it->anchor_hash));
         // Note: anchor memory management is handled by chain module
         // We just remove from our hash table, chain module is responsible for freeing if needed
         DAP_DELETE(it);
@@ -239,23 +240,23 @@ int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
     return 0;
 }
 
-static dap_ledger_anchor_item_t *s_find_anchor(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash)
+static dap_ledger_anchor_item_t *s_find_anchor(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_anchor_hash)
 {
     dap_ledger_anchor_item_t *l_anchor = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_FIND(hh, l_ledger_pvt->anchors, a_anchor_hash, sizeof(dap_hash_fast_t), l_anchor);
+    dap_ht_find_hh(hh, l_ledger_pvt->anchors, a_anchor_hash, sizeof(dap_hash_sha3_256_t), l_anchor);
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     return l_anchor;
 }
 
-dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash)
+dap_chain_datum_anchor_t *dap_ledger_anchor_find(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_anchor_hash)
 {
     dap_ledger_anchor_item_t *l_anchor = s_find_anchor(a_ledger, a_anchor_hash);
     return l_anchor ? l_anchor->anchor : NULL;
 }
 
-static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_anchor_hash, dap_ledger_t *a_ledger)
+static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_sha3_256_t *a_old_anchor_hash, dap_ledger_t *a_ledger)
 {
     dap_chain_datum_anchor_t * l_ret_anchor = NULL;
     dap_return_val_if_fail(a_old_anchor_hash && a_ledger, NULL);
@@ -267,7 +268,7 @@ static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_a
     }
 
     dap_chain_datum_anchor_t *l_old_anchor = l_anchor->anchor;
-    dap_hash_fast_t l_old_decrere_hash = {};
+    dap_hash_sha3_256_t l_old_decrere_hash = {};
     if (dap_chain_datum_anchor_get_hash_from_data(l_old_anchor, &l_old_decrere_hash) != 0)
         return NULL;
     dap_chain_datum_decree_t *l_old_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_old_decrere_hash, NULL);
@@ -275,12 +276,12 @@ static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_a
     uint16_t l_old_decree_subtype = l_old_decree->header.sub_type;
 
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    dap_ledger_anchor_item_t *l_anchors = HASH_LAST(l_ledger_pvt->anchors);
+    dap_ledger_anchor_item_t *l_anchors = dap_ht_last(l_ledger_pvt->anchors);
     for(; l_anchors; l_anchors = l_anchors->hh.prev){
         size_t l_datums_count = 0;
 
         dap_chain_datum_anchor_t *l_curr_anchor = l_anchors->anchor;
-        dap_hash_fast_t l_hash = {};
+        dap_hash_sha3_256_t l_hash = {};
         if (dap_chain_datum_anchor_get_hash_from_data(l_curr_anchor, &l_hash) != 0)
             continue;
         
@@ -320,20 +321,20 @@ static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_fast_t *a_old_a
     return l_ret_anchor;
 }
 
-void s_delete_anchor(dap_ledger_t *a_ledger, dap_hash_fast_t *a_anchor_hash)
+void s_delete_anchor(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_anchor_hash)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_anchor_item_t *l_anchor = NULL;
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_FIND(hh, l_ledger_pvt->anchors, a_anchor_hash, sizeof(dap_hash_fast_t), l_anchor);
+    dap_ht_find_hh(hh, l_ledger_pvt->anchors, a_anchor_hash, sizeof(dap_hash_sha3_256_t), l_anchor);
     if (l_anchor) {
-        HASH_DEL(l_ledger_pvt->anchors, l_anchor);
+        dap_ht_del(l_ledger_pvt->anchors, l_anchor);
         DAP_DEL_Z(l_anchor);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
 }
 
-int dap_ledger_anchor_unload(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t * a_anchor, dap_chain_id_t a_chain_id, dap_hash_fast_t *a_anchor_hash)
+int dap_ledger_anchor_unload(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t * a_anchor, dap_chain_id_t a_chain_id, dap_hash_sha3_256_t *a_anchor_hash)
 {
     int ret_val = 0;
 
@@ -351,7 +352,7 @@ int dap_ledger_anchor_unload(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t * 
         return ret_val;
     }
 
-    dap_hash_fast_t l_hash = {};
+    dap_hash_sha3_256_t l_hash = {};
     if (dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_hash) != 0)
         return -110;
             

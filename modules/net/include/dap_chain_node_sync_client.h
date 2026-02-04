@@ -27,7 +27,7 @@
 #include <stdbool.h>
 #include <stdatomic.h>
 
-#include "uthash.h"
+#include "dap_ht_utils.h"
 #include "dap_client.h"
 #include "dap_chain_node.h"
 #include "dap_chain_net.h"
@@ -98,7 +98,7 @@ struct dap_chain_node_sync_request {
     // Reference to parent client
     dap_chain_node_sync_client_t   *sync_client;
     
-    UT_hash_handle                  hh;                 // For hash table
+    dap_ht_handle_t                  hh;                 // For hash table
 };
 
 // Sync client - wrapper around async dap_client

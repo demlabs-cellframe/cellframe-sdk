@@ -159,7 +159,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_ENABLE(dap_sign_verify);
         DAP_MOCK_ENABLE(dap_sign_get_size);
         DAP_MOCK_ENABLE(dap_sign_get_pkey_hash);
-        DAP_MOCK_ENABLE(dap_hash_fast);
+        DAP_MOCK_ENABLE(dap_hash_sha3_256);
         DAP_MOCK_ENABLE(dap_hash_slow);
     } else {
         DAP_MOCK_DISABLE(dap_enc_key_new);
@@ -174,7 +174,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_sign_verify);
         DAP_MOCK_DISABLE(dap_sign_get_size);
         DAP_MOCK_DISABLE(dap_sign_get_pkey_hash);
-        DAP_MOCK_DISABLE(dap_hash_fast);
+        DAP_MOCK_DISABLE(dap_hash_sha3_256);
         DAP_MOCK_DISABLE(dap_hash_slow);
     }
     
@@ -446,11 +446,11 @@ int unit_test_mock_toggle(unit_test_context_t *a_ctx,
 /**
  * @brief Generate deterministic hash for testing
  */
-void unit_test_hash_generate(uint32_t a_seed, dap_hash_fast_t *a_hash) {
+void unit_test_hash_generate(uint32_t a_seed, dap_hash_sha3_256_t *a_hash) {
     dap_return_if_fail(a_hash);
     
-    memset(a_hash, 0, sizeof(dap_hash_fast_t));
-    for (size_t i = 0; i < sizeof(dap_hash_fast_t); i++) {
+    memset(a_hash, 0, sizeof(dap_hash_sha3_256_t));
+    for (size_t i = 0; i < sizeof(dap_hash_sha3_256_t); i++) {
         a_hash->raw[i] = (uint8_t)((a_seed + i * 17) % 256);
     }
 }

@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <pthread.h>
-#include "uthash.h"
+#include "dap_ht_utils.h"
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 
@@ -45,7 +45,7 @@ typedef struct dap_chain_cell {
     size_t cur_vol_start;
 #endif
     pthread_rwlock_t storage_rwlock;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_cell_t;
 
 /**
@@ -84,16 +84,16 @@ DAP_STATIC_INLINE int dap_chain_cell_create(dap_chain_t *a_chain, const dap_chai
     return dap_chain_cell_open(a_chain, a_cell_id, 'w');
 }
 
-DAP_INLINE dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id) {
+DAP_STATIC_INLINE dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id) {
     dap_chain_cell_t *l_cell = NULL;
-    HASH_FIND(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
+    dap_ht_find_hh(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
     return l_cell;
 }
-DAP_INLINE dap_chain_cell_t *dap_chain_cell_capture_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id) {
+DAP_STATIC_INLINE dap_chain_cell_t *dap_chain_cell_capture_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id) {
     pthread_rwlock_rdlock(&a_chain->cell_rwlock);
     return dap_chain_cell_find_by_id(a_chain, a_cell_id);
 }
-DAP_INLINE void dap_chain_cell_remit(dap_chain_t *a_chain) {
+DAP_STATIC_INLINE void dap_chain_cell_remit(dap_chain_t *a_chain) {
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
 }
 

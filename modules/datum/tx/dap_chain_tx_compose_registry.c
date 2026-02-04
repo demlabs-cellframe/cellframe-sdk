@@ -22,6 +22,7 @@
 */
 
 #include "dap_chain_tx_compose_registry.h"
+#include "dap_ht_utils.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include <pthread.h>
@@ -52,8 +53,8 @@ void dap_chain_tx_compose_registry_deinit(void)
     pthread_rwlock_wrlock(&s_registry_rwlock);
     
     dap_chain_tx_compose_registry_entry_t *l_entry, *l_tmp;
-    HASH_ITER(hh, s_registry, l_entry, l_tmp) {
-        HASH_DEL(s_registry, l_entry);
+    dap_ht_foreach_hh(hh, s_registry, l_entry, l_tmp) {
+        dap_ht_del(s_registry, l_entry);
         DAP_DELETE(l_entry->tx_type);
         DAP_DELETE(l_entry);
     }
@@ -83,11 +84,11 @@ int dap_chain_tx_compose_registry_add(
     
     // Check if already registered
     dap_chain_tx_compose_registry_entry_t *l_existing = NULL;
-    HASH_FIND_STR(s_registry, a_tx_type, l_existing);
+    dap_ht_find_str(s_registry, a_tx_type, l_existing);
     
     if (l_existing) {
         log_it(L_WARNING, "TX type '%s' already registered, replacing", a_tx_type);
-        HASH_DEL(s_registry, l_existing);
+        dap_ht_del(s_registry, l_existing);
         DAP_DELETE(l_existing->tx_type);
         DAP_DELETE(l_existing);
     }
@@ -105,7 +106,7 @@ int dap_chain_tx_compose_registry_add(
     l_entry->user_data = a_user_data;
     
     // Add to hash table
-    HASH_ADD_KEYPTR(hh, s_registry, l_entry->tx_type, strlen(l_entry->tx_type), l_entry);
+    dap_ht_add_keyptr_hh(hh, s_registry, l_entry->tx_type, strlen(l_entry->tx_type), l_entry);
     
     pthread_rwlock_unlock(&s_registry_rwlock);
     
@@ -125,10 +126,10 @@ void dap_chain_tx_compose_registry_remove(const char *a_tx_type)
     pthread_rwlock_wrlock(&s_registry_rwlock);
     
     dap_chain_tx_compose_registry_entry_t *l_entry = NULL;
-    HASH_FIND_STR(s_registry, a_tx_type, l_entry);
+    dap_ht_find_str(s_registry, a_tx_type, l_entry);
     
     if (l_entry) {
-        HASH_DEL(s_registry, l_entry);
+        dap_ht_del(s_registry, l_entry);
         DAP_DELETE(l_entry->tx_type);
         DAP_DELETE(l_entry);
         log_it(L_INFO, "TX Compose: unregistered builder for type '%s'", a_tx_type);
@@ -153,7 +154,7 @@ dap_chain_tx_compose_registry_entry_t* dap_chain_tx_compose_registry_find(
     pthread_rwlock_rdlock(&s_registry_rwlock);
     
     dap_chain_tx_compose_registry_entry_t *l_entry = NULL;
-    HASH_FIND_STR(s_registry, a_tx_type, l_entry);
+    dap_ht_find_str(s_registry, a_tx_type, l_entry);
     
     pthread_rwlock_unlock(&s_registry_rwlock);
     

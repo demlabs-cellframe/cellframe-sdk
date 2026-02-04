@@ -129,11 +129,11 @@ const dap_chain_net_srv_order_t *dap_chain_net_srv_order_check(const char *a_ord
     size_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
     if (l_order_size != a_order_size)
         return NULL;
-    dap_hash_fast_t l_hash, l_hash_real;
-    dap_hash_fast(a_order, a_order_size, &l_hash_real);
-    if (dap_chain_hash_fast_from_str(a_order_hash_str, &l_hash))
+    dap_hash_sha3_256_t l_hash, l_hash_real;
+    dap_hash_sha3_256(a_order, a_order_size, &l_hash_real);
+    if (dap_hash_sha3_256_from_str(a_order_hash_str, &l_hash))
         return NULL;
-    if (memcmp(&l_hash, &l_hash_real, sizeof(dap_hash_fast_t)))
+    if (memcmp(&l_hash, &l_hash_real, sizeof(dap_hash_sha3_256_t)))
         return NULL;
     return l_order;
 }
@@ -271,7 +271,7 @@ char * dap_chain_net_srv_order_create(
         dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
-        dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
+        dap_hash_sha3_256_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -298,7 +298,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
         dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
-        dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
+        dap_hash_sha3_256_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
         uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -376,10 +376,10 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
 {
     if (!a_net || !a_order)
         return NULL;
-    dap_chain_hash_fast_t l_order_hash;
+    dap_hash_sha3_256_t l_order_hash;
     size_t l_order_size = dap_chain_net_srv_order_get_size(a_order);
-    dap_hash_fast(a_order, l_order_size, &l_order_hash);
-    char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
+    dap_hash_sha3_256(a_order, l_order_size, &l_order_hash);
+    char *l_order_hash_str = dap_hash_sha3_256_to_str_new(&l_order_hash);
     char *l_gdb_group_str = a_common ? dap_chain_net_srv_order_get_common_group(a_net)
                                      : dap_chain_net_srv_order_get_gdb_group(a_net);
     if (!l_gdb_group_str)
@@ -529,11 +529,11 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
                                             const char *a_hash_out_type, const char *a_native_ticker)
 {
     if (a_order && a_str_out ){
-        dap_chain_hash_fast_t l_hash;
-        dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
+        dap_hash_sha3_256_t l_hash;
+        dap_hash_sha3_256(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
         const char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
-                : dap_chain_hash_fast_to_str_static(&l_hash);
+                : dap_hash_sha3_256_to_str_static(&l_hash);
 
         dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
@@ -567,7 +567,7 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
 
         l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
-                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);
+                : dap_hash_sha3_256_to_str_static(&a_order->tx_cond_hash);
         dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
         if(l_ext_out) {
@@ -577,9 +577,9 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
         else
             dap_string_append_printf(a_str_out, "  ext:              0x0\n");
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
-        dap_hash_fast_t l_sign_pkey = {0};
+        dap_hash_sha3_256_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
-        const char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
+        const char *l_sign_pkey_hash_str = dap_hash_sha3_256_to_str_static(&l_sign_pkey);
         dap_string_append_printf(a_str_out, "  pkey:             %s\n", l_sign_pkey_hash_str);
         DAP_DELETE(l_ext_out);
     }
@@ -591,11 +591,11 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
                                             const char *a_hash_out_type, const char *a_native_ticker, int a_version)
 {
     if (a_order && a_json_obj_out ){
-        dap_chain_hash_fast_t l_hash;
-        dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
+        dap_hash_sha3_256_t l_hash;
+        dap_hash_sha3_256(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
         const char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
-                : dap_chain_hash_fast_to_str_static(&l_hash);
+                : dap_hash_sha3_256_to_str_static(&l_hash);
 
         dap_json_object_add_string(a_json_obj_out, "order", l_hash_str);
         dap_json_object_add_uint64(a_json_obj_out, "version", a_order->version);
@@ -644,17 +644,17 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
 
         DAP_DELETE(l_region);
 
-        if (!dap_hash_fast_is_blank(&a_order->tx_cond_hash)){
+        if (!dap_hash_sha3_256_is_blank(&a_order->tx_cond_hash)){
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
-                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);      
+                : dap_hash_sha3_256_to_str_static(&a_order->tx_cond_hash);      
             dap_json_object_add_string(a_json_obj_out, "tx_cond_hash", l_hash_str);
         }
         dap_json_object_add_uint64(a_json_obj_out, "ext_size", a_order->ext_size);
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
-        dap_hash_fast_t l_sign_pkey = {0};
+        dap_hash_sha3_256_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
-        const char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
+        const char *l_sign_pkey_hash_str = dap_hash_sha3_256_to_str_static(&l_sign_pkey);
         dap_json_object_add_string(a_json_obj_out, "pkey", l_sign_pkey_hash_str);
     }
 }

@@ -44,8 +44,8 @@
 typedef struct test_ledger_event_fixture {
     dap_ledger_t *ledger;
     dap_chain_net_t *net;
-    dap_hash_fast_t test_tx_hash;
-    dap_hash_fast_t test_pkey_hash;
+    dap_hash_sha3_256_t test_tx_hash;
+    dap_hash_sha3_256_t test_pkey_hash;
     bool callback_called;
     int callback_count;
     dap_ledger_notify_opcodes_t last_opcode;
@@ -112,15 +112,15 @@ static void destroy_test_ledger(dap_ledger_t *a_ledger)
     if (l_priv) {
         // Clean up events
         dap_ledger_event_t *l_event, *l_tmp;
-        HASH_ITER(hh, l_priv->events, l_event, l_tmp) {
-            HASH_DEL(l_priv->events, l_event);
+        dap_ht_foreach_hh(hh, l_priv->events, l_event, l_tmp) {
+            dap_ht_del(l_priv->events, l_event);
             DAP_DEL_MULTY(l_event->event_data, l_event->group_name, l_event);
         }
         
         // Clean up event pkeys
         dap_ledger_event_pkey_item_t *l_pkey, *l_pkey_tmp;
-        HASH_ITER(hh, l_priv->event_pkeys_allowed, l_pkey, l_pkey_tmp) {
-            HASH_DEL(l_priv->event_pkeys_allowed, l_pkey);
+        dap_ht_foreach_hh(hh, l_priv->event_pkeys_allowed, l_pkey, l_pkey_tmp) {
+            dap_ht_del(l_priv->event_pkeys_allowed, l_pkey);
             DAP_DELETE(l_pkey);
         }
         
@@ -145,7 +145,7 @@ static void destroy_test_ledger(dap_ledger_t *a_ledger)
  */
 static void test_event_callback(void *a_arg, dap_ledger_t *a_ledger, 
                                 dap_chain_tx_event_t *a_event,
-                                dap_hash_fast_t *a_tx_hash,
+                                dap_hash_sha3_256_t *a_tx_hash,
                                 dap_ledger_notify_opcodes_t a_opcode)
 {
     UNUSED(a_ledger);
@@ -175,9 +175,9 @@ static void reset_test_fixture(void)
     g_fixture.ledger = create_test_ledger();
     
     // Generate test hashes
-    dap_hash_fast(g_fixture.test_tx_hash.raw, sizeof(g_fixture.test_tx_hash.raw),
+    dap_hash_sha3_256(g_fixture.test_tx_hash.raw, sizeof(g_fixture.test_tx_hash.raw),
                   &g_fixture.test_tx_hash);
-    dap_hash_fast(g_fixture.test_pkey_hash.raw, sizeof(g_fixture.test_pkey_hash.raw),
+    dap_hash_sha3_256(g_fixture.test_pkey_hash.raw, sizeof(g_fixture.test_pkey_hash.raw),
                   &g_fixture.test_pkey_hash);
     
     // Note: Mock resets not needed as we don't use mocks in this test
@@ -250,7 +250,7 @@ static void test_ledger_event_notify_trigger(void)
     l_event->srv_uid.uint64 = 100;
     l_event->timestamp = dap_time_now();
     
-    HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+    dap_ht_add_hh(hh, l_priv->events, tx_hash, l_event);
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
     // Trigger notification by removing event
@@ -288,7 +288,7 @@ static void test_ledger_event_find(void)
     l_event->timestamp = dap_time_now();
     l_event->pkey_hash = g_fixture.test_pkey_hash;
     
-    HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+    dap_ht_add_hh(hh, l_priv->events, tx_hash, l_event);
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
     // Test: Find existing event
@@ -300,7 +300,7 @@ static void test_ledger_event_find(void)
     dap_chain_tx_event_delete(l_found);
     
     // Test: Find non-existing event
-    dap_hash_fast_t l_non_existing_hash;
+    dap_hash_sha3_256_t l_non_existing_hash;
     memset(&l_non_existing_hash, 0xFF, sizeof(l_non_existing_hash));
     l_found = dap_ledger_event_find(g_fixture.ledger, &l_non_existing_hash);
     dap_assert(l_found == NULL, "Non-existing event returns NULL");
@@ -331,12 +331,12 @@ static void test_ledger_event_get_list_all(void)
         l_event->timestamp = dap_time_now();
         
         // Generate unique hash for each event
-        dap_hash_fast_t l_hash;
-        memcpy(&l_hash, &g_fixture.test_tx_hash, sizeof(dap_hash_fast_t));
+        dap_hash_sha3_256_t l_hash;
+        memcpy(&l_hash, &g_fixture.test_tx_hash, sizeof(dap_hash_sha3_256_t));
         l_hash.raw[0] = (uint8_t)i;
         l_event->tx_hash = l_hash;
         
-        HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+        dap_ht_add_hh(hh, l_priv->events, tx_hash, l_event);
     }
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
@@ -377,12 +377,12 @@ static void test_ledger_event_get_list_by_group(void)
         l_event->timestamp = dap_time_now();
         
         // Generate unique hash for each event
-        dap_hash_fast_t l_hash;
-        memcpy(&l_hash, &g_fixture.test_tx_hash, sizeof(dap_hash_fast_t));
+        dap_hash_sha3_256_t l_hash;
+        memcpy(&l_hash, &g_fixture.test_tx_hash, sizeof(dap_hash_sha3_256_t));
         l_hash.raw[0] = (uint8_t)i;
         l_event->tx_hash = l_hash;
         
-        HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+        dap_ht_add_hh(hh, l_priv->events, tx_hash, l_event);
     }
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
@@ -443,7 +443,7 @@ static void test_ledger_event_pkey_add_and_check(void)
     dap_assert(l_ret == 0, "Added key is allowed");
     
     // Test: Check that non-added pkey is not allowed
-    dap_hash_fast_t l_other_hash;
+    dap_hash_sha3_256_t l_other_hash;
     memset(&l_other_hash, 0xFF, sizeof(l_other_hash));
     l_ret = dap_ledger_event_pkey_check(g_fixture.ledger, &l_other_hash);
     dap_assert(l_ret == -1, "Non-added key is not allowed");
@@ -474,7 +474,7 @@ static void test_ledger_event_pkey_remove(void)
     dap_assert(l_list == NULL, "Removed key not in list");
     
     // Test: Remove non-existing pkey (should fail)
-    dap_hash_fast_t l_non_existing;
+    dap_hash_sha3_256_t l_non_existing;
     memset(&l_non_existing, 0xFF, sizeof(l_non_existing));
     l_ret = dap_ledger_event_pkey_rm(g_fixture.ledger, &l_non_existing);
     dap_assert(l_ret == -1, "Removing non-existing key fails");
@@ -494,9 +494,9 @@ static void test_ledger_event_pkey_list(void)
     dap_assert(l_list == NULL, "Empty pkey list returns NULL");
     
     // Add multiple pkeys
-    dap_hash_fast_t l_hashes[3];
+    dap_hash_sha3_256_t l_hashes[3];
     for (int i = 0; i < 3; i++) {
-        memcpy(&l_hashes[i], &g_fixture.test_pkey_hash, sizeof(dap_hash_fast_t));
+        memcpy(&l_hashes[i], &g_fixture.test_pkey_hash, sizeof(dap_hash_sha3_256_t));
         l_hashes[i].raw[0] = (uint8_t)i;
         dap_ledger_event_pkey_add(g_fixture.ledger, &l_hashes[i]);
     }
@@ -567,7 +567,7 @@ static void test_ledger_event_remove_existing(void)
     l_event->srv_uid.uint64 = 100;
     l_event->timestamp = dap_time_now();
     
-    HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+    dap_ht_add_hh(hh, l_priv->events, tx_hash, l_event);
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
     // Add notification callback
@@ -594,7 +594,7 @@ static void test_ledger_event_remove_non_existing(void)
     setup_test();
     
     // Test: Remove non-existing event
-    dap_hash_fast_t l_non_existing;
+    dap_hash_sha3_256_t l_non_existing;
     memset(&l_non_existing, 0xFF, sizeof(l_non_existing));
     
     int l_ret = dap_ledger_pvt_event_remove(g_fixture.ledger, &l_non_existing);
@@ -615,8 +615,8 @@ static void *thread_pkey_operations(void *a_arg)
     test_ledger_event_fixture_t *l_fixture = (test_ledger_event_fixture_t *)a_arg;
     
     for (int i = 0; i < 100; i++) {
-        dap_hash_fast_t l_hash;
-        memcpy(&l_hash, &l_fixture->test_pkey_hash, sizeof(dap_hash_fast_t));
+        dap_hash_sha3_256_t l_hash;
+        memcpy(&l_hash, &l_fixture->test_pkey_hash, sizeof(dap_hash_sha3_256_t));
         l_hash.raw[0] = (uint8_t)(i % 10);
         
         // Add key

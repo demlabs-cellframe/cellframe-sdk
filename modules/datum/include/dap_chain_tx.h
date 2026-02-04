@@ -25,7 +25,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_token.h"
 #include "dap_hash.h"
-#include "uthash.h"
+#include "dap_ht_utils.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_in.h"
@@ -40,7 +40,7 @@ typedef struct dap_chain_tx
     // Owner
     dap_chain_addr_t owner;
     const char * token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    dap_hash_fast_t token_hash;
+    dap_hash_sha3_256_t token_hash;
     dap_chain_datum_token_t *token;
 
     // Inputs
@@ -53,15 +53,15 @@ typedef struct dap_chain_tx
     // Previous
     struct dap_chain_tx ** prev;
     size_t prev_count;
-    dap_hash_fast_t * prev_hash;
+    dap_hash_sha3_256_t * prev_hash;
 
     struct dap_chain_tx ** next;
     size_t next_count;
-    dap_hash_fast_t * next_hash;
+    dap_hash_sha3_256_t * next_hash;
 
     // Hash and UT hash handle
-    dap_hash_fast_t hash;
-    UT_hash_handle hh;
+    dap_hash_sha3_256_t hash;
+    dap_ht_handle_t hh;
 } dap_chain_tx_t;
 
 dap_chain_tx_t * dap_chain_tx_wrap_packed(dap_chain_datum_tx_t * a_tx_packed);
@@ -73,10 +73,10 @@ void dap_chain_tx_hh_add (dap_chain_tx_t ** a_tx_hh, dap_chain_tx_t * a_tx);
  * @param a_tx_hash
  * @return
  */
-static inline dap_chain_tx_t * dap_chain_tx_hh_find (dap_chain_tx_t * a_tx_hh, dap_hash_fast_t* a_tx_hash)
+static inline dap_chain_tx_t * dap_chain_tx_hh_find (dap_chain_tx_t * a_tx_hh, dap_hash_sha3_256_t* a_tx_hash)
 {
     dap_chain_tx_t * l_ret = NULL;
-    HASH_FIND(hh, a_tx_hh, a_tx_hash, sizeof(*a_tx_hash), l_ret);
+    dap_ht_find_hh(hh, a_tx_hh, a_tx_hash, sizeof(*a_tx_hash), l_ret);
     return l_ret;
 }
 

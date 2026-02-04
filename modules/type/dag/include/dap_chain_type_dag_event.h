@@ -50,7 +50,7 @@ typedef struct dap_chain_type_dag_event {
 typedef struct dap_chain_type_dag_event_round_info {
     uint16_t reject_count;
     dap_nanotime_t ts_update;
-    dap_chain_hash_fast_t datum_hash; // for doubles finding
+    dap_hash_sha3_256_t datum_hash; // for doubles finding
 } DAP_ALIGN_PACKED dap_chain_type_dag_event_round_info_t;
 
 typedef struct dap_chain_type_dag_event_round_item {
@@ -61,7 +61,7 @@ typedef struct dap_chain_type_dag_event_round_item {
 } DAP_ALIGN_PACKED dap_chain_type_dag_event_round_item_t;
 
 dap_chain_type_dag_event_t *dap_chain_type_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t *a_datum,
-                                                     dap_enc_key_t *a_key, dap_chain_hash_fast_t *a_hashes, size_t a_hashes_count, size_t *a_event_size);
+                                                     dap_enc_key_t *a_key, dap_hash_sha3_256_t *a_hashes, size_t a_hashes_count, size_t *a_event_size);
 
 /**
  * @brief dap_chain_type_dag_event_get_datum
@@ -70,15 +70,15 @@ dap_chain_type_dag_event_t *dap_chain_type_dag_event_new(dap_chain_id_t a_chain_
  */
 static inline dap_chain_datum_t* dap_chain_type_dag_event_get_datum(dap_chain_type_dag_event_t * a_event,size_t a_event_size)
 {
-    return  a_event->header.hash_count * sizeof(dap_chain_hash_fast_t) <= a_event_size
-                ? (dap_chain_datum_t*)(a_event->hashes_n_datum_n_signs + a_event->header.hash_count * sizeof(dap_chain_hash_fast_t))
+    return  a_event->header.hash_count * sizeof(dap_hash_sha3_256_t) <= a_event_size
+                ? (dap_chain_datum_t*)(a_event->hashes_n_datum_n_signs + a_event->header.hash_count * sizeof(dap_hash_sha3_256_t))
                 : NULL;
 }
 
 static inline size_t dap_chain_type_dag_event_get_datum_size_maximum(dap_chain_type_dag_event_t * a_event,size_t a_event_size)
 {
-    return  a_event->header.hash_count * sizeof(dap_chain_hash_fast_t) <= a_event_size
-                ? a_event_size - a_event->header.hash_count * sizeof(dap_chain_hash_fast_t)
+    return  a_event->header.hash_count * sizeof(dap_hash_sha3_256_t) <= a_event_size
+                ? a_event_size - a_event->header.hash_count * sizeof(dap_hash_sha3_256_t)
                 : 0;
 }
 
@@ -99,9 +99,9 @@ uint64_t dap_chain_type_dag_event_calc_size(dap_chain_type_dag_event_t *a_event,
  * @param a_event
  * @param a_event_hash
  */
-static inline void dap_chain_type_dag_event_calc_hash(dap_chain_type_dag_event_t * a_event,size_t a_event_size, dap_chain_hash_fast_t * a_event_hash)
+static inline void dap_chain_type_dag_event_calc_hash(dap_chain_type_dag_event_t * a_event,size_t a_event_size, dap_hash_sha3_256_t * a_event_hash)
 {
-    dap_hash_fast(a_event, a_event_size, a_event_hash);
+    dap_hash_sha3_256(a_event, a_event_size, a_event_hash);
 }
 
 static inline size_t dap_chain_type_dag_event_round_item_get_size(dap_chain_type_dag_event_round_item_t * a_event_round_item){

@@ -13,18 +13,18 @@
 
 // Test: Hash generation is deterministic
 void test_hash_deterministic(void) {
-    dap_hash_fast_t hash1, hash2;
+    dap_hash_sha3_256_t hash1, hash2;
     
     // Same seed produces same hash
     unit_test_hash_generate(42, &hash1);
     unit_test_hash_generate(42, &hash2);
     
-    assert(memcmp(&hash1, &hash2, sizeof(dap_hash_fast_t)) == 0);
+    assert(memcmp(&hash1, &hash2, sizeof(dap_hash_sha3_256_t)) == 0);
     
     // Different seed produces different hash
-    dap_hash_fast_t hash3;
+    dap_hash_sha3_256_t hash3;
     unit_test_hash_generate(123, &hash3);
-    assert(memcmp(&hash1, &hash3, sizeof(dap_hash_fast_t)) != 0);
+    assert(memcmp(&hash1, &hash3, sizeof(dap_hash_sha3_256_t)) != 0);
     
     log_it(L_INFO, "✓ Hash generation is deterministic");
 }
@@ -114,7 +114,7 @@ void test_full_workflow(void) {
     assert(ret == 0);
     
     // 4. Generate test data
-    dap_hash_fast_t hash;
+    dap_hash_sha3_256_t hash;
     unit_test_hash_generate(999, &hash);
     
     dap_chain_addr_t addr;

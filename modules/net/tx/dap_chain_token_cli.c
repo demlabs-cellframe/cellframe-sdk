@@ -113,7 +113,7 @@ static int s_parse_net_chain_args(dap_json_t *a_json_arr_reply, int *a_arg_index
                 dap_string_append_printf(l_reply, "Invalid '-chain' parameter \"%s\", not found in net %s\nAvailable chains:",
                                                   l_chain_str, l_net_str);
                 dap_chain_t *l_chain;
-                DL_FOREACH((*a_net)->pub.chains, l_chain) {
+                dap_dl_foreach((*a_net)->pub.chains, l_chain) {
                     dap_string_append_printf(l_reply, "\n\t%s", l_chain->name);
                 }
                 char *l_str_reply = dap_string_free(l_reply, false);
@@ -211,17 +211,17 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
             "token_decl_sign need -datum <datum hash> argument");
         return -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NEED_DATUM_ARG_ERR;
     }
-    dap_hash_fast_t l_datum_hash = {};
+    dap_hash_sha3_256_t l_datum_hash = {};
     bool l_hash_out_base58 = false;
     // datum hash may be in hex or base58 format
     if (!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
-        if (dap_chain_hash_fast_from_hex_str(l_datum_hash_str, &l_datum_hash)) {
+        if (dap_hash_sha3_256_from_hex_str(l_datum_hash_str, &l_datum_hash)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR,
                 "token_decl_sign <datum hash> argument is incorrect");
             return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR;
         }
     } else {
-        if (dap_chain_hash_fast_from_base58_str(l_datum_hash_str, &l_datum_hash)) {
+        if (dap_hash_sha3_256_from_base58_str(l_datum_hash_str, &l_datum_hash)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR,
                 "token_decl_sign <datum hash> argument is incorrect");
             return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_HEX_PARAM_ERR;
@@ -260,7 +260,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
     
     size_t l_datum_size = 0;
     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group_mempool,
-                                                                             dap_chain_hash_fast_to_str_static(&l_datum_hash),
+                                                                             dap_hash_sha3_256_to_str_static(&l_datum_hash),
                                                                              &l_datum_size, NULL, NULL);
     if (!l_datum) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_FIND_DATUM_ERR,
@@ -324,12 +324,12 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
     DAP_DELETE(l_datum_token);
     // Calc datum's hash
     l_datum_size = dap_chain_datum_size(l_datum);
-    dap_chain_hash_fast_t l_new_datum_hash = { };
-    dap_hash_fast(l_datum->data, l_new_token_size, &l_new_datum_hash);
+    dap_hash_sha3_256_t l_new_datum_hash = { };
+    dap_hash_sha3_256(l_datum->data, l_new_token_size, &l_new_datum_hash);
     const char *l_out_hash_str = l_hash_out_base58 ? dap_enc_base58_encode_hash_to_str_static(&l_new_datum_hash)
-                                                   : dap_chain_hash_fast_to_str_static(&l_new_datum_hash);
+                                                   : dap_hash_sha3_256_to_str_static(&l_new_datum_hash);
     // Add datum to mempool with datum_token hash as a key
-    if( dap_global_db_set_sync(l_gdb_group_mempool, dap_chain_hash_fast_to_str_static(&l_new_datum_hash),
+    if( dap_global_db_set_sync(l_gdb_group_mempool, dap_hash_sha3_256_to_str_static(&l_new_datum_hash),
                                l_datum, dap_chain_datum_size(l_datum), false) != 0) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_CANT_BE_PL_MEMPOOL_ERR,
                                                 "Error! datum %s produced from %s can't be placed in mempool", l_out_hash_str, l_datum_hash_str);
@@ -338,7 +338,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
     }
     DAP_DELETE(l_datum);
     // Remove old datum from pool
-    if( dap_global_db_del_sync(l_gdb_group_mempool, dap_chain_hash_fast_to_str_static(&l_datum_hash) ) != 0) {                                   
+    if( dap_global_db_del_sync(l_gdb_group_mempool, dap_hash_sha3_256_to_str_static(&l_datum_hash) ) != 0) {                                   
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR,
                                     "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)", l_datum_hash_str, l_out_hash_str);
         DAP_DELETE(l_gdb_group_mempool);
@@ -647,9 +647,9 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, dap_jso
         char *l_remove_signs_dup = strdup(l_remove_signs);
         char *l_remove_signs_str = strtok_r(l_remove_signs_dup, ",", &l_remove_signs_ptrs);
         for (; l_remove_signs_str; l_remove_signs_str = strtok_r(NULL, ",", &l_remove_signs_ptrs)) {
-            dap_hash_fast_t l_hf;
-            if (dap_chain_hash_fast_from_str(l_remove_signs_str, &l_hf) == 0) {
-                dap_tsd_t *l_hf_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE, &l_hf, sizeof(dap_hash_fast_t));
+            dap_hash_sha3_256_t l_hf;
+            if (dap_hash_sha3_256_from_str(l_remove_signs_str, &l_hf) == 0) {
+                dap_tsd_t *l_hf_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE, &l_hf, sizeof(dap_hash_sha3_256_t));
                 size_t l_hf_tsd_size = dap_tsd_size(l_hf_tsd);
                 l_tsd_list = dap_list_append(l_tsd_list, l_hf_tsd);
                 l_added_tsd_size += l_hf_tsd_size;
@@ -874,7 +874,7 @@ int com_token_decl(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, UNU
 
                 dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
                 dap_strncpy((char*)l_tsd_section.ticker_token_from, l_params.ext.delegated_token_from, DAP_CHAIN_TICKER_SIZE_MAX);
-//				l_tsd_section.token_from = dap_hash_fast();
+//				l_tsd_section.token_from = dap_hash_sha3_256();
                 l_tsd_section.emission_rate = dap_chain_balance_coins_scan("0.001");//	TODO: 'm' 1:1000 tokens
                 dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                         DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
@@ -956,12 +956,12 @@ int com_token_decl(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, UNU
                         if(l_tsd->size >= sizeof(dap_pkey_t)){
                             char *l_hash_str;
                             dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
-                            dap_hash_fast_t l_hf = {0};
+                            dap_hash_sha3_256_t l_hf = {0};
                             if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
                                 log_it(L_DEBUG, "== TOTAL_PKEYS_ADD: <WRONG CALCULATION FINGERPRINT>");
                             } else {
                                 log_it(L_DEBUG, "== TOTAL_PKEYS_ADD: %s",
-                                    dap_chain_hash_fast_to_str_static(&l_hf));
+                                    dap_hash_sha3_256_to_str_static(&l_hf));
                             }
                         } else
                             log_it(L_DEBUG,"== TOTAL_PKEYS_ADD: <WRONG SIZE %u>", l_tsd->size);
@@ -1031,9 +1031,9 @@ int com_token_decl(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, UNU
     size_t l_datum_size = dap_chain_datum_size(l_datum);
 
     // Calc datum's hash
-    dap_chain_hash_fast_t l_key_hash;
+    dap_hash_sha3_256_t l_key_hash;
     dap_chain_datum_calc_hash(l_datum, &l_key_hash);
-    char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    char *l_key_str = dap_hash_sha3_256_to_str_new(&l_key_hash);
     const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
                            dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
 
@@ -1216,9 +1216,9 @@ int com_token_update(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, U
     size_t l_datum_size = dap_chain_datum_size(l_datum);
 
     // Calc datum's hash
-    dap_chain_hash_fast_t l_key_hash;
+    dap_hash_sha3_256_t l_key_hash;
     dap_chain_datum_calc_hash(l_datum, &l_key_hash);
-    char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    char *l_key_str = dap_hash_sha3_256_to_str_new(&l_key_hash);
     const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
                            dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
 
@@ -1262,7 +1262,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
 
     const char * l_emission_hash_str = NULL;
     const char * l_emission_hash_str_remove = NULL;
-    dap_chain_hash_fast_t l_emission_hash;
+    dap_hash_sha3_256_t l_emission_hash;
     dap_chain_datum_token_emission_t *l_emission = NULL;
     size_t l_emission_size;
 
@@ -1366,7 +1366,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         }
     } else {
         if (l_emission_hash_str) {
-            DL_FOREACH(l_net->pub.chains, l_chain_emission) {
+            dap_dl_foreach(l_net->pub.chains, l_chain_emission) {
                 // Get emission datum from mempool using GDB
                 char *l_mempool_group = dap_chain_mempool_group_new(l_chain_emission);
                 if (!l_mempool_group)
@@ -1438,7 +1438,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         l_emission = dap_chain_datum_emission_add_sign(l_certs[i]->enc_key, l_emission);
     // Calc emission's hash
     l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)l_emission);
-    dap_hash_fast(l_emission, l_emission_size, &l_emission_hash);
+    dap_hash_sha3_256(l_emission, l_emission_size, &l_emission_hash);
     // Produce datum
     dap_chain_datum_t *l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION,
             l_emission,

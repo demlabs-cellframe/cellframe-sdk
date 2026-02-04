@@ -209,7 +209,7 @@ void dap_chain_srv_stake_ext_test_cache_stake_ext_management(void)
     
     // Test 1: Add stake_ext to cache
     dap_test_msg("Test 1: Add stake_ext to cache");
-    dap_hash_fast_t l_stake_ext_hash;
+    dap_hash_sha3_256_t l_stake_ext_hash;
     generate_test_hash(1001, &l_stake_ext_hash);
     dap_chain_net_id_t l_net_id = generate_test_net_id(1);
     const char *l_group_name = "test_stake_ext_1";
@@ -229,7 +229,7 @@ void dap_chain_srv_stake_ext_test_cache_stake_ext_management(void)
     dap_assert_PIF(l_found_stake_ext != NULL, "Stake_ext should be found by hash");
     dap_assert_PIF(strcmp(l_found_stake_ext->guuid, l_group_name) == 0, "Group name should match");
     dap_assert_PIF(l_found_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE, "Status should be ACTIVE");
-    dap_assert_PIF(HASH_COUNT(l_found_stake_ext->positions) == 3, "Positions count should be 3");
+    dap_assert_PIF(dap_ht_count(l_found_stake_ext->positions) == 3, "Positions count should be 3");
     dap_pass_msg("Test 2: Testing stake_ext search by hash: passed");
     
     // Test 3: Find stake_ext by name
@@ -249,7 +249,7 @@ void dap_chain_srv_stake_ext_test_cache_stake_ext_management(void)
     
     // Test 5: Add second stake_ext
     dap_test_msg("Test 5: Add second stake_ext");
-    dap_hash_fast_t l_stake_ext_hash2;
+    dap_hash_sha3_256_t l_stake_ext_hash2;
     generate_test_hash(1002, &l_stake_ext_hash2);
     const char *l_group_name2 = "test_stake_ext_2";
     dap_chain_tx_event_data_stake_ext_started_t *l_started_data2 = create_test_stake_ext_started_data(2);
@@ -271,7 +271,7 @@ void dap_chain_srv_stake_ext_test_cache_stake_ext_management(void)
     
     // Test 7: Find non-existent stake_ext
     dap_test_msg("Test 7: Find non-existent stake_ext");
-    dap_hash_fast_t l_nonexistent_hash;
+    dap_hash_sha3_256_t l_nonexistent_hash;
     generate_test_hash(9999, &l_nonexistent_hash);
     dap_chain_srv_stake_ext_cache_item_t *l_not_found = dap_chain_srv_stake_ext_cache_find_stake_ext(l_cache, &l_nonexistent_hash);
     dap_assert_PIF(l_not_found == NULL, "Non-existent stake_ext should not be found");
@@ -306,7 +306,7 @@ void dap_chain_srv_stake_ext_test_cache_lock_management(void)
     dap_assert_PIF(l_cache != NULL, "Cache creation for lock management tests");
     
     // Setup test stake_ext
-    dap_hash_fast_t l_stake_ext_hash;
+    dap_hash_sha3_256_t l_stake_ext_hash;
     generate_test_hash(2001, &l_stake_ext_hash);
     dap_chain_net_id_t l_net_id = generate_test_net_id(2);
     const char *l_group_name = "test_stake_ext_locks";
@@ -319,7 +319,7 @@ void dap_chain_srv_stake_ext_test_cache_lock_management(void)
     
     // Test 1: Add lock to stake_ext
     dap_test_msg("Test 1: Add lock to stake_ext");
-    dap_hash_fast_t l_lock_hash;
+    dap_hash_sha3_256_t l_lock_hash;
     generate_test_hash(3001, &l_lock_hash);
     uint256_t l_lock_amount;
     generate_test_amount(100, &l_lock_amount);
@@ -349,7 +349,7 @@ void dap_chain_srv_stake_ext_test_cache_lock_management(void)
     
     // Test 4: Add second lock
     dap_test_msg("Test 4: Add second lock");
-    dap_hash_fast_t l_lock_hash2;
+    dap_hash_sha3_256_t l_lock_hash2;
     generate_test_hash(3002, &l_lock_hash2);
     uint256_t l_lock_amount2;
     generate_test_amount(200, &l_lock_amount2);
@@ -371,9 +371,9 @@ void dap_chain_srv_stake_ext_test_cache_lock_management(void)
        
     // Test 6: Add lock to non-existent stake_ext
     dap_test_msg("Test 7: Add lock to non-existent stake_ext");
-    dap_hash_fast_t l_nonexistent_stake_ext;
+    dap_hash_sha3_256_t l_nonexistent_stake_ext;
     generate_test_hash(9999, &l_nonexistent_stake_ext);
-    dap_hash_fast_t l_lock_hash3;
+    dap_hash_sha3_256_t l_lock_hash3;
     generate_test_hash(3003, &l_lock_hash3);
     
     l_result = dap_chain_srv_stake_ext_cache_add_lock(l_cache, &l_nonexistent_stake_ext, &l_lock_hash3, 
@@ -384,7 +384,7 @@ void dap_chain_srv_stake_ext_test_cache_lock_management(void)
     
     // Test 7: Find non-existent lock
     dap_test_msg("Test 8: Find non-existent lock");
-    dap_hash_fast_t l_nonexistent_lock;
+    dap_hash_sha3_256_t l_nonexistent_lock;
     generate_test_hash(8888, &l_nonexistent_lock);
     dap_chain_srv_stake_ext_lock_cache_item_t *l_not_found_lock = dap_chain_srv_stake_ext_cache_find_lock(l_stake_ext, &l_nonexistent_lock);
     dap_assert_PIF(l_not_found_lock == NULL, "Non-existent lock should not be found");
@@ -425,7 +425,7 @@ void dap_chain_srv_stake_ext_test_cache_statistics(void)
     dap_test_msg("Test 2: Counters after adding stake_ext");
     
     // Add first stake_ext
-    dap_hash_fast_t l_stake_ext_hash1;
+    dap_hash_sha3_256_t l_stake_ext_hash1;
     generate_test_hash(5001, &l_stake_ext_hash1);
     dap_chain_net_id_t l_net_id = generate_test_net_id(5);
     dap_chain_tx_event_data_stake_ext_started_t *l_started_data1 = create_test_stake_ext_started_data(2);
@@ -437,7 +437,7 @@ void dap_chain_srv_stake_ext_test_cache_statistics(void)
     dap_assert_PIF(l_cache->active_stake_ext == 1, "Active stake_ext should be 1");
     
     // Add second stake_ext
-    dap_hash_fast_t l_stake_ext_hash2;
+    dap_hash_sha3_256_t l_stake_ext_hash2;
     generate_test_hash(5002, &l_stake_ext_hash2);
     dap_chain_tx_event_data_stake_ext_started_t *l_started_data2 = create_test_stake_ext_started_data(3);
     
@@ -478,7 +478,7 @@ void dap_chain_srv_stake_ext_test_cache_statistics(void)
     dap_assert_PIF(l_stake_ext->locks_count == 0, "Initial locks count should be 0");
     
     // Add locks
-    dap_hash_fast_t l_lock_hash1, l_lock_hash2;
+    dap_hash_sha3_256_t l_lock_hash1, l_lock_hash2;
     generate_test_hash(6001, &l_lock_hash1);
     generate_test_hash(6002, &l_lock_hash2);
     uint256_t l_lock_amount;
@@ -551,7 +551,7 @@ void dap_chain_srv_stake_ext_test_status_transitions(void)
     dap_assert_PIF(l_cache != NULL, "Cache creation for status transition tests");
 
     // Setup test stake_ext
-    dap_hash_fast_t l_stake_ext_hash;
+    dap_hash_sha3_256_t l_stake_ext_hash;
     generate_test_hash(8001, &l_stake_ext_hash);
     dap_chain_net_id_t l_net_id = generate_test_net_id(8);
     const char *l_group_name = "test_status_transitions";
@@ -576,7 +576,7 @@ void dap_chain_srv_stake_ext_test_status_transitions(void)
     dap_pass_msg("Test 2: ACTIVE -> ENDED transition - ");
 
     // Test 3: Test another stake_ext for ACTIVE -> CANCELLED transition  
-    dap_hash_fast_t l_stake_ext_hash2;
+    dap_hash_sha3_256_t l_stake_ext_hash2;
     generate_test_hash(8002, &l_stake_ext_hash2);
     const char *l_group_name2 = "test_status_transitions_2";
     dap_chain_tx_event_data_stake_ext_started_t *l_started_data2 = create_test_stake_ext_started_data(1);
@@ -625,7 +625,7 @@ void dap_chain_srv_stake_ext_test_status_transitions(void)
     dap_test_msg("Test 8: UNKNOWN status transition works");
 
     // Test 9: Non-existent stake_ext status update
-    dap_hash_fast_t l_nonexistent_hash;
+    dap_hash_sha3_256_t l_nonexistent_hash;
     generate_test_hash(9999, &l_nonexistent_hash);
     l_result = dap_chain_srv_stake_ext_cache_update_stake_ext_status(l_cache, &l_nonexistent_hash, DAP_STAKE_EXT_STATUS_ENDED);
     dap_assert_PIF(l_result != 0, "Status update for non-existent stake_ext should fail");
@@ -760,9 +760,9 @@ void dap_chain_srv_stake_ext_test_event_processing(void)
     dap_assert_PIF(l_cache, "Failed to create test stake_ext cache");
     
     // Test data setup
-    dap_hash_fast_t l_stake_ext_hash;
+    dap_hash_sha3_256_t l_stake_ext_hash;
     generate_test_hash(3001, &l_stake_ext_hash);
-    dap_hash_fast_t l_tx_hash;
+    dap_hash_sha3_256_t l_tx_hash;
     generate_test_hash(3002, &l_tx_hash);
     const char *l_group_name = "test_event_stake_ext";
     
@@ -798,7 +798,7 @@ void dap_chain_srv_stake_ext_test_event_processing(void)
     dap_chain_srv_stake_ext_cache_item_t *l_found_stake_ext = dap_chain_srv_stake_ext_cache_find_stake_ext_by_name(l_cache, l_group_name);
     dap_assert_PIF(l_found_stake_ext, "Stake_ext should be added to cache after creation");
     dap_assert_PIF(l_found_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE, "Stake_ext status should be ACTIVE");
-    dap_assert_PIF(HASH_COUNT(l_found_stake_ext->positions) == 3, "Positions count should be 3");
+    dap_assert_PIF(dap_ht_count(l_found_stake_ext->positions) == 3, "Positions count should be 3");
     dap_assert_PIF(l_cache->active_stake_ext == 1, "Active stake_ext count should be 1");
     dap_assert_PIF(l_cache->total_stake_ext == 1, "Total stake_ext count should be 1");
     
@@ -866,7 +866,7 @@ void dap_chain_srv_stake_ext_test_event_processing(void)
     };
     
     // Add second stake_ext to cache for cancellation test
-    dap_hash_fast_t l_stake_ext_hash_cancel;
+    dap_hash_sha3_256_t l_stake_ext_hash_cancel;
     generate_test_hash(3003, &l_stake_ext_hash_cancel);
     l_result = dap_chain_srv_stake_ext_cache_add_stake_ext(l_cache, &l_stake_ext_hash_cancel, l_net_id, 
                                            l_group_name_cancel, l_started_data_cancel, l_event_cancel_start.timestamp);
@@ -1001,7 +1001,7 @@ void dap_chain_srv_stake_ext_test_lock_transactions(void)
     dap_assert_PIF(l_cache, "Failed to create stake_ext cache");
     
     // Setup test stake_ext
-    dap_hash_fast_t l_stake_ext_hash;
+    dap_hash_sha3_256_t l_stake_ext_hash;
     generate_test_hash(4001, &l_stake_ext_hash);
     const char *l_group_name = "test_lock_stake_ext";
     dap_chain_tx_event_data_stake_ext_started_t *l_started_data = create_test_stake_ext_started_data(3);
@@ -1044,10 +1044,10 @@ void dap_chain_srv_stake_ext_test_lock_transactions(void)
     
     // Verify position_id exists in stake_ext
     bool l_position_found = false;
-    if (HASH_COUNT(l_found_stake_ext->positions) > 0 && l_found_stake_ext->positions) {
+    if (dap_ht_count(l_found_stake_ext->positions) > 0 && l_found_stake_ext->positions) {
         // In real implementation, we would iterate through positions to find position_id
         // For test, we know position 1001 exists from create_test_stake_ext_started_data()
-        l_position_found = (l_position_id >= 1000 && l_position_id < 1000 + HASH_COUNT(l_found_stake_ext->positions));
+        l_position_found = (l_position_id >= 1000 && l_position_id < 1000 + dap_ht_count(l_found_stake_ext->positions));
     }
     dap_assert_PIF(l_position_found, "Position ID should exist in stake_ext");
     
@@ -1067,11 +1067,11 @@ void dap_chain_srv_stake_ext_test_lock_transactions(void)
     // Test position_id not in stake_ext
     uint32_t l_nonexistent_position_id = 9999;
     bool l_invalid_position_found = (l_nonexistent_position_id >= 1000 && 
-                                   l_nonexistent_position_id < 1000 + HASH_COUNT(l_found_stake_ext->positions));
+                                   l_nonexistent_position_id < 1000 + dap_ht_count(l_found_stake_ext->positions));
     dap_assert_PIF(!l_invalid_position_found, "Non-existent position_id should be rejected");
     
     // Test non-existent stake_ext hash
-    dap_hash_fast_t l_fake_stake_ext_hash;
+    dap_hash_sha3_256_t l_fake_stake_ext_hash;
     generate_test_hash(9999, &l_fake_stake_ext_hash);
     dap_chain_srv_stake_ext_cache_item_t *l_fake_stake_ext = dap_chain_srv_stake_ext_cache_find_stake_ext(l_cache, &l_fake_stake_ext_hash);
     dap_assert_PIF(!l_fake_stake_ext, "Non-existent stake_ext should not be found");
@@ -1086,7 +1086,7 @@ void dap_chain_srv_stake_ext_test_lock_transactions(void)
     
     // Simulate conditional output creation parameters
     struct {
-        dap_hash_fast_t stake_ext_hash;
+        dap_hash_sha3_256_t stake_ext_hash;
         dap_time_t lock_time;
         uint32_t position_id;
         uint256_t value;
@@ -1098,7 +1098,7 @@ void dap_chain_srv_stake_ext_test_lock_transactions(void)
     };
     
     // Verify structure integrity
-    dap_assert_PIF(memcmp(&l_simulated_lock_cond.stake_ext_hash, &l_stake_ext_hash, sizeof(dap_hash_fast_t)) == 0, 
+    dap_assert_PIF(memcmp(&l_simulated_lock_cond.stake_ext_hash, &l_stake_ext_hash, sizeof(dap_hash_sha3_256_t)) == 0, 
                    "Stake_ext hash should be preserved in conditional output");
     dap_assert_PIF(l_simulated_lock_cond.lock_time == l_lock_time, "Lock time should be preserved");
     dap_assert_PIF(l_simulated_lock_cond.position_id == l_position_id, "Position ID should be preserved");
@@ -1243,7 +1243,7 @@ void dap_chain_srv_stake_ext_test_unlock_transactions(void)
     dap_assert_PIF(l_cache, "Failed to create stake_ext cache");
     
     // Setup test stake_ext
-    dap_hash_fast_t l_stake_ext_hash;
+    dap_hash_sha3_256_t l_stake_ext_hash;
     generate_test_hash(5001, &l_stake_ext_hash);
     const char *l_group_name = "test_unlocking_stake_ext";
     dap_chain_tx_event_data_stake_ext_started_t *l_started_data = create_test_stake_ext_started_data(2);
@@ -1255,7 +1255,7 @@ void dap_chain_srv_stake_ext_test_unlock_transactions(void)
     dap_assert_PIF(l_result == 0, "Failed to add test stake_ext to cache");
     
     // Setup test lock parameters
-    dap_hash_fast_t l_lock_tx_hash;
+    dap_hash_sha3_256_t l_lock_tx_hash;
     generate_test_hash(5002, &l_lock_tx_hash);
     uint256_t l_lock_amount = dap_chain_uint256_from(2000);
     uint256_t l_unlocking_fee = dap_chain_uint256_from(5);
@@ -1288,7 +1288,7 @@ void dap_chain_srv_stake_ext_test_unlock_transactions(void)
     dap_assert_PIF(l_found_lock, "Lock should be found in cache");
     dap_assert_PIF(!l_found_lock->is_unlocked, "Lock should not be unlocked initially");
     
-    dap_hash_fast_t l_fake_lock_hash;
+    dap_hash_sha3_256_t l_fake_lock_hash;
     generate_test_hash(9998, &l_fake_lock_hash);
     dap_chain_srv_stake_ext_lock_cache_item_t *l_fake_lock = dap_chain_srv_stake_ext_cache_find_lock(l_stake_ext_for_lock, &l_fake_lock_hash);
     dap_assert_PIF(!l_fake_lock, "Non-existent lock should not be found");
@@ -1320,7 +1320,7 @@ void dap_chain_srv_stake_ext_test_unlock_transactions(void)
     dap_test_msg("Test 6: Testing unlocking transaction structure");
     
     struct {
-        dap_hash_fast_t lock_tx_hash;
+        dap_hash_sha3_256_t lock_tx_hash;
         uint256_t fee;
         uint256_t return_amount;
     } l_unlocking = {
@@ -1376,7 +1376,7 @@ void dap_chain_srv_stake_ext_test_event_callbacks(void)
     l_positions_array[2] = 1003;
     
     // Generate test hashes
-    dap_hash_fast_t l_stake_ext_hash, l_tx_hash;
+    dap_hash_sha3_256_t l_stake_ext_hash, l_tx_hash;
     generate_test_hash(4001, &l_stake_ext_hash);
     generate_test_hash(4002, &l_tx_hash);
     
@@ -1544,8 +1544,8 @@ void dap_chain_srv_stake_ext_test_ledger_sync(void)
         "sync_stake_ext_04"
     };
     
-    dap_hash_fast_t l_stake_ext_hashes[4];
-    dap_hash_fast_t l_tx_hashes[4];
+    dap_hash_sha3_256_t l_stake_ext_hashes[4];
+    dap_hash_sha3_256_t l_tx_hashes[4];
     
     // Generate test data
     for(int i = 0; i < 4; i++) {
@@ -1661,7 +1661,7 @@ void dap_chain_srv_stake_ext_test_ledger_sync(void)
     size_t l_stable_count = l_cache->total_stake_ext;
     
     // Attempt to add stake_ext with invalid parameters (should fail gracefully)
-    dap_hash_fast_t l_invalid_hash = {0}; // All zeros - invalid
+    dap_hash_sha3_256_t l_invalid_hash = {0}; // All zeros - invalid
     l_result = dap_chain_srv_stake_ext_cache_add_stake_ext(l_cache, &l_invalid_hash, l_net_id, 
                                            "", l_stake_ext_data, 0); // Empty name, invalid timestamp
     // This may succeed or fail depending on validation - key is that cache remains stable
@@ -1670,7 +1670,7 @@ void dap_chain_srv_stake_ext_test_ledger_sync(void)
     dap_assert_PIF(l_cache->total_stake_ext >= l_stable_count, "Cache should maintain minimum stability after errors");
     
     // Test recovery - add valid stake_ext after error
-    dap_hash_fast_t l_recovery_hash;
+    dap_hash_sha3_256_t l_recovery_hash;
     generate_test_hash(5999, &l_recovery_hash);
     l_result = dap_chain_srv_stake_ext_cache_add_stake_ext(l_cache, &l_recovery_hash, l_net_id, 
                                            "recovery_stake_ext", l_stake_ext_data, dap_time_now());
@@ -1756,7 +1756,7 @@ void dap_chain_srv_stake_ext_test_verificators(void)
     dap_assert_PIF(l_key_from, "Failed to generate test key for verificator");
     
     // Generate test stake_ext hash
-    dap_hash_fast_t l_stake_ext_hash;
+    dap_hash_sha3_256_t l_stake_ext_hash;
     generate_test_hash(6001, &l_stake_ext_hash);
     
     // Create test stake_ext for verificator testing
@@ -1803,7 +1803,7 @@ void dap_chain_srv_stake_ext_test_verificators(void)
     
     // Create simplified lock data for testing
     typedef struct test_lock_data {
-        dap_hash_fast_t stake_ext_hash;
+        dap_hash_sha3_256_t stake_ext_hash;
         uint64_t lock_amount;
         uint32_t lock_time;
         uint32_t position_id;
@@ -1835,7 +1835,7 @@ void dap_chain_srv_stake_ext_test_verificators(void)
     if(l_found_stake_ext && l_found_stake_ext->positions) {
         // In a real test we would check for specific position hashes
         // For testing purposes, just verify positions array is accessible
-        l_position_valid = (HASH_COUNT(l_found_stake_ext->positions) > 0);
+        l_position_valid = (dap_ht_count(l_found_stake_ext->positions) > 0);
     }
     dap_assert_PIF(l_position_valid, "Position ID should be valid in stake_ext");
     
@@ -1850,7 +1850,7 @@ void dap_chain_srv_stake_ext_test_verificators(void)
     dap_test_msg("Test 4: Testing invalid lock scenarios");
     
     // Test lock with non-existent stake_ext
-    dap_hash_fast_t l_fake_stake_ext_hash;
+    dap_hash_sha3_256_t l_fake_stake_ext_hash;
     generate_test_hash(9999, &l_fake_stake_ext_hash);
     
     test_lock_data_t l_invalid_lock = *l_lock_cond;
@@ -1899,7 +1899,7 @@ void dap_chain_srv_stake_ext_test_verificators(void)
     dap_test_msg("Test 6: Testing updater callback simulation");
     
     // Test lock addition to stake_ext cache (simulating updater callback)
-    dap_hash_fast_t l_lock_tx_hash;
+    dap_hash_sha3_256_t l_lock_tx_hash;
     generate_test_hash(6101, &l_lock_tx_hash);
     
     
@@ -1954,7 +1954,7 @@ void dap_chain_srv_stake_ext_test_verificators(void)
             // Check stake_ext status (verificator operation)
             volatile bool l_is_active = (l_perf_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE);
             // Check position validity (verificator operation)
-            volatile uint32_t l_position_count = HASH_COUNT(l_perf_stake_ext->positions);
+            volatile uint32_t l_position_count = dap_ht_count(l_perf_stake_ext->positions);
             (void)l_is_active; (void)l_position_count; // Prevent optimization
         }
     }
@@ -2110,7 +2110,7 @@ void dap_chain_srv_stake_ext_test_boundary_conditions(void)
             char l_group_name[64];
             snprintf(l_group_name, sizeof(l_group_name), "boundary_group_%d", i);
             
-            dap_hash_fast_t l_stake_ext_hash;
+            dap_hash_sha3_256_t l_stake_ext_hash;
             memset(&l_stake_ext_hash, i, sizeof(l_stake_ext_hash)); // Create unique hash
             
             dap_chain_net_id_t l_net_id = {.uint64 = 0x100 + i};
@@ -2150,16 +2150,16 @@ void dap_chain_srv_stake_ext_test_boundary_conditions(void)
     dap_test_msg("Test 5: Testing address and hash boundary conditions");
     
     // Test with all-zero hash
-    dap_hash_fast_t l_zero_hash = {0};
-    dap_assert_PIF(dap_hash_fast_is_blank(&l_zero_hash), "Zero hash should be detected as blank");
+    dap_hash_sha3_256_t l_zero_hash = {0};
+    dap_assert_PIF(dap_hash_sha3_256_is_blank(&l_zero_hash), "Zero hash should be detected as blank");
     
     // Test with all-ones hash
-    dap_hash_fast_t l_ones_hash;
+    dap_hash_sha3_256_t l_ones_hash;
     memset(&l_ones_hash, 0xFF, sizeof(l_ones_hash));
-    dap_assert_PIF(!dap_hash_fast_is_blank(&l_ones_hash), "All-ones hash should not be blank");
+    dap_assert_PIF(!dap_hash_sha3_256_is_blank(&l_ones_hash), "All-ones hash should not be blank");
     
     // Test hash comparison edge cases
-    dap_hash_fast_t l_hash1, l_hash2;
+    dap_hash_sha3_256_t l_hash1, l_hash2;
     memset(&l_hash1, 0xAA, sizeof(l_hash1));
     memset(&l_hash2, 0xAA, sizeof(l_hash2));
     dap_assert_PIF(memcmp(&l_hash1, &l_hash2, sizeof(l_hash1)) == 0, "Identical hashes should compare equal");
@@ -2271,7 +2271,7 @@ void dap_chain_srv_stake_ext_test_error_handling(void)
     dap_assert_PIF(l_cache, "Failed to create test stake_ext cache");
     
     // Test NULL cache operations
-    dap_hash_fast_t l_test_hash;
+    dap_hash_sha3_256_t l_test_hash;
     memset(&l_test_hash, 0x01, sizeof(l_test_hash));
     
     // These calls should fail gracefully with NULL cache
@@ -2286,13 +2286,13 @@ void dap_chain_srv_stake_ext_test_error_handling(void)
     dap_test_msg("Test 2: Testing invalid hash handling");
     
     // Test with zero hash
-    dap_hash_fast_t l_zero_hash;
+    dap_hash_sha3_256_t l_zero_hash;
     memset(&l_zero_hash, 0, sizeof(l_zero_hash));
     l_result = dap_chain_srv_stake_ext_cache_find_stake_ext(l_cache, &l_zero_hash);
     dap_assert_PIF(l_result == NULL, "Zero hash should not be found");
     
     // Test with maximum value hash
-    dap_hash_fast_t l_max_hash;
+    dap_hash_sha3_256_t l_max_hash;
     memset(&l_max_hash, 0xFF, sizeof(l_max_hash));
     l_result = dap_chain_srv_stake_ext_cache_find_stake_ext(l_cache, &l_max_hash);
     dap_assert_PIF(l_result == NULL, "Max hash should not be found");
@@ -2322,7 +2322,7 @@ void dap_chain_srv_stake_ext_test_error_handling(void)
     dap_chain_tx_event_data_stake_ext_started_t l_large_data;
     l_large_data.total_positions =  (byte_t)UINT16_MAX;
     
-    dap_hash_fast_t l_large_hash;
+    dap_hash_sha3_256_t l_large_hash;
     memset(&l_large_hash, 0x02, sizeof(l_large_hash));
     
     // This should handle gracefully (may succeed or fail, but shouldn't crash)
@@ -2348,7 +2348,7 @@ void dap_chain_srv_stake_ext_test_error_handling(void)
     
     // Create multiple stake_ext to test memory handling
     for(int i = 0; i < 10; i++) {
-        dap_hash_fast_t l_temp_hash;
+        dap_hash_sha3_256_t l_temp_hash;
         memset(&l_temp_hash, 0x10 + i, sizeof(l_temp_hash));
         
         l_add_result = dap_chain_srv_stake_ext_cache_add_stake_ext(l_cache, &l_temp_hash, l_net_id, 
@@ -2367,7 +2367,7 @@ void dap_chain_srv_stake_ext_test_error_handling(void)
     dap_test_msg("Test 8: Testing invalid event data handling");
     
     // Test with NULL event data
-    dap_hash_fast_t l_event_hash;
+    dap_hash_sha3_256_t l_event_hash;
     memset(&l_event_hash, 0x05, sizeof(l_event_hash));
     
     l_add_result = dap_chain_srv_stake_ext_cache_add_stake_ext(l_cache, &l_event_hash, l_net_id, 
@@ -2425,7 +2425,7 @@ void dap_chain_srv_stake_ext_test_thread_safety(void)
     
     // Simulate rapid concurrent operations (reader-writer pattern)
     for(int i = 0; i < 10; i++) {
-        dap_hash_fast_t l_stake_ext_hash;
+        dap_hash_sha3_256_t l_stake_ext_hash;
         memset(&l_stake_ext_hash, 0, sizeof(l_stake_ext_hash));
         l_stake_ext_hash.raw[0] = 0x50 + i; // Make each hash unique
         
@@ -2461,7 +2461,7 @@ void dap_chain_srv_stake_ext_test_thread_safety(void)
     dap_test_msg("Test 2: Testing resource locking behavior simulation");
     
     // Test multiple operations on same resource
-    dap_hash_fast_t l_shared_hash;
+    dap_hash_sha3_256_t l_shared_hash;
     memset(&l_shared_hash, 0, sizeof(l_shared_hash));
     l_shared_hash.raw[0] = 0xAB; // Unique shared hash
     
@@ -2502,7 +2502,7 @@ void dap_chain_srv_stake_ext_test_thread_safety(void)
     
     // Create multiple stake_ext and perform operations
     const int l_stake_ext_count = 20;
-    dap_hash_fast_t l_stake_ext_hashes[l_stake_ext_count];
+    dap_hash_sha3_256_t l_stake_ext_hashes[l_stake_ext_count];
     
     // Phase 1: Add all stake_ext
     for(int i = 0; i < l_stake_ext_count; i++) {
@@ -2560,7 +2560,7 @@ void dap_chain_srv_stake_ext_test_thread_safety(void)
     dap_test_msg("Test 5: Testing race condition prevention simulation");
     
     // Simulate add/remove race conditions
-    dap_hash_fast_t l_race_hash;
+    dap_hash_sha3_256_t l_race_hash;
     memset(&l_race_hash, 0, sizeof(l_race_hash));
     l_race_hash.raw[0] = 0xCC; // Unique race hash
     
@@ -2597,7 +2597,7 @@ void dap_chain_srv_stake_ext_test_thread_safety(void)
     dap_test_msg("Test 6: Testing lock operations thread safety simulation");
     
     // Create stake_ext for lock testing
-    dap_hash_fast_t l_lock_stake_ext_hash;
+    dap_hash_sha3_256_t l_lock_stake_ext_hash;
     memset(&l_lock_stake_ext_hash, 0, sizeof(l_lock_stake_ext_hash));
     l_lock_stake_ext_hash.raw[0] = 0xDD; // Unique lock stake_ext hash
     
@@ -2610,7 +2610,7 @@ void dap_chain_srv_stake_ext_test_thread_safety(void)
     
     // Simulate concurrent lock operations
     for(int i = 0; i < 5; i++) {
-        dap_hash_fast_t l_lock_hash;
+        dap_hash_sha3_256_t l_lock_hash;
         uint64_t l_position_id;
         uint256_t l_lock_amount;
         
@@ -2657,7 +2657,7 @@ void dap_chain_srv_stake_ext_test_thread_safety(void)
     
     if(l_test_cache) {
         // Test that basic operations work correctly in isolation
-        dap_hash_fast_t l_isolation_hash;
+        dap_hash_sha3_256_t l_isolation_hash;
         memset(&l_isolation_hash, 0, sizeof(l_isolation_hash));
         l_isolation_hash.raw[0] = 0xEE; // Unique isolation hash
         

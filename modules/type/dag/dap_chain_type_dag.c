@@ -26,8 +26,8 @@
 #include <pthread.h>
 #include <stdalign.h>
 #include "errno.h"
-#include "uthash.h"
-#include "utlist.h"
+#include "dap_ht_utils.h"
+#include "dap_list_utils.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -61,8 +61,8 @@
 #define LOG_TAG "dap_chain_type_dag"
 
 typedef struct dap_chain_type_dag_event_item {
-    dap_chain_hash_fast_t hash;
-    dap_chain_hash_fast_t datum_hash;
+    dap_hash_sha3_256_t hash;
+    dap_hash_sha3_256_t datum_hash;
     dap_nanotime_t ts_added;
     dap_time_t ts_created;
     dap_chain_type_dag_event_t *event;
@@ -70,12 +70,12 @@ typedef struct dap_chain_type_dag_event_item {
     uint64_t event_number;
     int ret_code;
     char *mapped_region;
-    UT_hash_handle hh, hh_select, hh_datums;
+    dap_ht_handle_t hh, hh_select, hh_datums;
 } dap_chain_type_dag_event_item_t;
 
 typedef struct dap_chain_type_dag_blocked {
-    dap_chain_hash_fast_t hash;
-    UT_hash_handle hh;
+    dap_hash_sha3_256_t hash;
+    dap_ht_handle_t hh;
 }dap_chain_type_dag_blocked_t;
 
 
@@ -97,20 +97,20 @@ static void s_threshold_free(dap_chain_type_dag_t *a_dag);
 static dap_chain_type_dag_event_item_t *s_dag_proc_treshold(dap_chain_type_dag_t *a_dag);
 
 // Atomic element organization callbacks
-static dap_chain_atom_verify_res_t s_chain_callback_atom_read(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash);
+static dap_chain_atom_verify_res_t s_chain_callback_atom_read(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_sha3_256_t *a_atom_hash);
 static unsigned s_chain_callback_prefetched_atoms_add(dap_chain_t *a_chain);
-static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash, bool a_atom_new); //    Accept new event in dag
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_sha3_256_t *a_atom_hash, bool a_atom_new); //    Accept new event in dag
 static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t * a_chain, size_t *a_event_size_out);                    //    Accept new event in dag from treshold
-static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash);                   //    Verify new event in dag
+static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_sha3_256_t *a_atom_hash);                   //    Verify new event in dag
 static size_t s_chain_callback_atom_get_static_hdr_size(void);                               //    Get dag event header size
 
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_sha3_256_t *a_hash_from);
 
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
-                                                                       dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
+                                                                       dap_hash_sha3_256_t * a_atom_hash, size_t * a_atom_size);
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
-static dap_chain_datum_t *s_chain_callback_atom_find_by_datum_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
-                                                                   dap_chain_hash_fast_t *a_event_hash, int *a_ret_code);
+static dap_chain_datum_t *s_chain_callback_atom_find_by_datum_hash(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_datum_hash,
+                                                                   dap_hash_sha3_256_t *a_event_hash, int *a_ret_code);
 static dap_chain_datum_t** s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size, size_t *a_datums_count);
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_type_dag_event_t *)a_atom)->header.ts_created; }
 //    Get event(s) from dag
@@ -338,7 +338,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     const char * l_static_genesis_event_hash_str = dap_config_get_item_str_default(a_chain_cfg,"dag","static_genesis_event",NULL);
     if ( l_static_genesis_event_hash_str ){
         int lhr;
-        if ( (lhr= dap_chain_hash_fast_from_str(l_static_genesis_event_hash_str,&l_dag->static_genesis_event_hash) )!= 0 ){
+        if ( (lhr= dap_hash_sha3_256_from_str(l_static_genesis_event_hash_str,&l_dag->static_genesis_event_hash) )!= 0 ){
             log_it( L_ERROR, "Can't read hash from static_genesis_event \"%s\", ret code %d ", l_static_genesis_event_hash_str, lhr);
         }
     }
@@ -353,8 +353,8 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             DAP_DELETE(l_dag);
             return -1;
         }
-        dap_chain_hash_fast_from_str(l_hard_accept_list[i], &l_hal_item->hash);
-        HASH_ADD(hh, l_dag->hal, hash, sizeof(l_hal_item->hash), l_hal_item);
+        dap_hash_sha3_256_from_str(l_hard_accept_list[i], &l_hal_item->hash);
+        dap_ht_add_hh(hh, l_dag->hal, hash, l_hal_item);
     }
 
     l_dag->is_static_genesis_event = (l_static_genesis_event_hash_str != NULL) && dap_config_get_item_bool_default(a_chain_cfg,"dag","is_static_genesis_event",false);
@@ -384,7 +384,7 @@ static void s_threshold_free(dap_chain_type_dag_t *a_dag)
     dap_nanotime_t  l_time_cut_off = dap_nanotime_now() - dap_nanotime_from_sec(7200); //7200 sec = 2 hours.
     pthread_mutex_lock(&l_pvt->events_mutex);
     //Free threshold
-    HASH_ITER(hh, l_pvt->events_treshold, l_current, l_tmp) {
+    dap_ht_foreach_hh(hh, l_pvt->events_treshold, l_current, l_tmp) {
         if (l_current->ts_added < l_time_cut_off) {
             dap_chain_type_dag_blocked_t *l_el = DAP_NEW(dap_chain_type_dag_blocked_t);
             if (!l_el) {
@@ -393,23 +393,23 @@ static void s_threshold_free(dap_chain_type_dag_t *a_dag)
                 return;
             }
             l_el->hash = l_current->hash;
-            HASH_ADD(hh, l_pvt->removed_events_from_treshold, hash, sizeof(dap_chain_hash_fast_t), l_el);
-            char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
+            dap_ht_add_hh(hh, l_pvt->removed_events_from_treshold, hash, l_el);
+            char *l_hash_dag = dap_hash_sha3_256_to_str_new(&l_current->hash);
             if (!a_dag->chain->is_mapped && !l_current->mapped_region)
                 DAP_DELETE(l_current->event);
-            HASH_DEL(l_pvt->events_treshold, l_current);
+            dap_ht_del(l_pvt->events_treshold, l_current);
             DAP_DELETE(l_current);
             log_it(L_NOTICE, "Removed DAG event with %s hash from trashold.", l_hash_dag);
             DAP_DELETE(l_hash_dag);
         }
     }
     //Fee treshold conflicted
-    HASH_ITER(hh, l_pvt->events_treshold_conflicted, l_current, l_tmp) {
+    dap_ht_foreach_hh(hh, l_pvt->events_treshold_conflicted, l_current, l_tmp) {
         if (l_current->ts_added < l_time_cut_off) {
-            char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
+            char *l_hash_dag = dap_hash_sha3_256_to_str_new(&l_current->hash);
             if (!a_dag->chain->is_mapped && !l_current->mapped_region)
                 DAP_DELETE(l_current->event);
-            HASH_DEL(l_pvt->events_treshold_conflicted, l_current);
+            dap_ht_del(l_pvt->events_treshold_conflicted, l_current);
             DAP_DELETE(l_current);
             log_it(L_NOTICE, "Removed DAG event with %s hash from trashold.", l_hash_dag);
             DAP_DELETE(l_hash_dag);
@@ -422,29 +422,29 @@ static int s_chain_cs_dag_purge(dap_chain_t *a_chain)
 {
     dap_chain_type_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_TYPE_DAG(a_chain));
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
-    HASH_CLEAR(hh_datums, l_dag_pvt->datums);
+    dap_ht_clear_hh(hh_datums, l_dag_pvt->datums);
     dap_chain_type_dag_event_item_t *l_event_current, *l_event_tmp;
     // Clang bug at this, l_event_current should change at every loop cycle
-    HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
-        HASH_DEL(l_dag_pvt->events, l_event_current);
+    dap_ht_foreach_hh(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
+        dap_ht_del(l_dag_pvt->events, l_event_current);
         if (!a_chain->is_mapped && !l_event_current->mapped_region)
             DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
-    HASH_ITER(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
-        HASH_DEL(l_dag_pvt->events_lasts_unlinked, l_event_current);
+    dap_ht_foreach_hh(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
+        dap_ht_del(l_dag_pvt->events_lasts_unlinked, l_event_current);
         //if (!a_chain->is_mapped && !l_event_current->mapped_region)
         //    DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
-    HASH_ITER(hh, l_dag_pvt->events_treshold, l_event_current, l_event_tmp) {
-        HASH_DEL(l_dag_pvt->events_treshold, l_event_current);
+    dap_ht_foreach_hh(hh, l_dag_pvt->events_treshold, l_event_current, l_event_tmp) {
+        dap_ht_del(l_dag_pvt->events_treshold, l_event_current);
         if (!a_chain->is_mapped && !l_event_current->mapped_region)
             DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
-    HASH_ITER(hh, l_dag_pvt->events_treshold_conflicted, l_event_current, l_event_tmp) {
-        HASH_DEL(l_dag_pvt->events_treshold_conflicted, l_event_current);
+    dap_ht_foreach_hh(hh, l_dag_pvt->events_treshold_conflicted, l_event_current, l_event_tmp) {
+        dap_ht_del(l_dag_pvt->events_treshold_conflicted, l_event_current);
         if (!a_chain->is_mapped && !l_event_current->mapped_region)
             DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
@@ -483,35 +483,35 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_type_dag_t *a_dag, dap
     size_t l_datum_size = dap_chain_datum_size(l_datum),
         l_datum_size_max = dap_chain_type_dag_event_get_datum_size_maximum(a_event_item->event, a_event_item->event_size);
     dap_return_val_if_pass_err( l_datum_size > l_datum_size_max, -1, "Event size exeeds max size permitted, %zd > %zd", l_datum_size, l_datum_size_max );
-    dap_hash_fast_t l_datum_hash;
+    dap_hash_sha3_256_t l_datum_hash;
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
         PVT(a_dag)->tx_count++;
     a_event_item->datum_hash = l_datum_hash;
     a_event_item->ret_code = l_ret;
-    a_event_item->event_number = HASH_COUNT(PVT(a_dag)->events) + 1;
+    a_event_item->event_number = dap_ht_count(PVT(a_dag)->events) + 1;
     unsigned l_hash_item_hashv;
-    HASH_VALUE(&l_datum_hash, sizeof(l_datum_hash), l_hash_item_hashv);
+    l_hash_item_hashv = dap_ht_hash_value(&l_datum_hash, sizeof(l_datum_hash));;
     pthread_mutex_lock(&PVT(a_dag)->events_mutex);
     dap_chain_type_dag_event_item_t *l_datum_present = NULL;
-    HASH_FIND_BYHASHVALUE(hh_datums, PVT(a_dag)->datums, &l_datum_hash, sizeof(l_datum_hash),
+    dap_ht_find_by_hashvalue_hh(hh_datums, PVT(a_dag)->datums, &l_datum_hash, sizeof(l_datum_hash),
                           l_hash_item_hashv, l_datum_present);
     if (!l_datum_present)
-        HASH_ADD_BYHASHVALUE(hh_datums, PVT(a_dag)->datums, datum_hash, sizeof(l_datum_hash),
+        dap_ht_add_by_hashvalue_hh(hh_datums, PVT(a_dag)->datums, datum_hash, sizeof(l_datum_hash),
                              l_hash_item_hashv, a_event_item);
     pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
     debug_if(s_debug_more, L_INFO, "Dag event %s checked, ret code %d : %s",
-             dap_chain_hash_fast_to_str_static(&a_event_item->hash), l_ret,
+             dap_hash_sha3_256_to_str_static(&a_event_item->hash), l_ret,
              l_ret ? dap_chain_net_verify_datum_err_code_to_str(l_datum, l_ret) : "Ok");
     return l_ret;
 }
 
-static bool s_dap_chain_check_if_event_is_present(dap_chain_type_dag_event_item_t * a_hash_table, const dap_chain_hash_fast_t * hash) {
+static bool s_dap_chain_check_if_event_is_present(dap_chain_type_dag_event_item_t * a_hash_table, const dap_hash_sha3_256_t * hash) {
     if(!a_hash_table)
         return false;
     dap_chain_type_dag_event_item_t * l_event_search = NULL;
-    HASH_FIND(hh, a_hash_table, hash, sizeof(*hash), l_event_search);
+    dap_ht_find_hh(hh, a_hash_table, hash, sizeof(*hash), l_event_search);
     return (l_event_search != NULL);
 }
 
@@ -521,7 +521,7 @@ static int s_sort_event_item(dap_chain_type_dag_event_item_t* a, dap_chain_type_
 }
 
 static dap_chain_atom_verify_res_t s_dag_event_integrity_check(dap_chain_type_dag_t *a_dag, uint64_t a_chain_id, dap_chain_type_dag_event_t *a_event,
-                                                               size_t a_event_size, dap_chain_hash_fast_t *a_atom_hash)
+                                                               size_t a_event_size, dap_hash_sha3_256_t *a_atom_hash)
 {
     dap_return_val_if_pass_err( a_event_size < sizeof(dap_chain_type_dag_event_t), ATOM_CORRUPTED,
                                 "Too small event size %zu", a_event_size );
@@ -531,7 +531,7 @@ static dap_chain_atom_verify_res_t s_dag_event_integrity_check(dap_chain_type_da
                                 "Wrong chain id %zu", a_event->header.chain_id.uint64 );
     if ( a_dag->hal ) {
         dap_chain_type_dag_hal_item_t *l_hash_search = NULL;
-        HASH_FIND(hh, a_dag->hal, a_atom_hash, sizeof(*a_atom_hash), l_hash_search);
+        dap_ht_find_hh(hh, a_dag->hal, a_atom_hash, sizeof(*a_atom_hash), l_hash_search);
         if (l_hash_search)
             return ATOM_ACCEPT;
     }
@@ -541,18 +541,18 @@ static dap_chain_atom_verify_res_t s_dag_event_integrity_check(dap_chain_type_da
     return ATOM_PASS;
 }
 
-static dap_chain_atom_verify_res_t s_chain_callback_atom_read(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_chain_hash_fast_t *a_atom_hash)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_read(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_sha3_256_t *a_atom_hash)
 {
     dap_chain_type_dag_t *l_dag = DAP_CHAIN_TYPE_DAG(a_chain);
     dap_chain_type_dag_event_t *l_event = (dap_chain_type_dag_event_t*)a_atom, *l_tmp;
     dap_chain_atom_verify_res_t l_verif = s_dag_event_integrity_check(l_dag, a_chain->id.uint64, l_event, a_atom_size, a_atom_hash);
-    dap_return_val_if_pass_err( l_verif == ATOM_CORRUPTED, l_verif, "Event %s is corrupted", dap_hash_fast_to_str_static(a_atom_hash) );
+    dap_return_val_if_pass_err( l_verif == ATOM_CORRUPTED, l_verif, "Event %s is corrupted", dap_hash_sha3_256_to_str_static(a_atom_hash) );
 
     dap_chain_type_dag_event_item_t *l_event_item = NULL;
     unsigned hashval = 0;
     static dap_time_t l_last_ts = 0;
-    HASH_VALUE(a_atom_hash, sizeof(*a_atom_hash), hashval);
-    HASH_FIND_BYHASHVALUE(hh, PVT(l_dag)->events_prefetched, a_atom_hash, sizeof(*a_atom_hash), hashval, l_event_item);
+    hashval = dap_ht_hash_value(a_atom_hash, sizeof(*a_atom_hash));;
+    dap_ht_find_by_hashvalue_hh(hh, PVT(l_dag)->events_prefetched, a_atom_hash, sizeof(*a_atom_hash), hashval, l_event_item);
     if (!l_event_item) {
         l_event_item = DAP_NEW(dap_chain_type_dag_event_item_t);
         *l_event_item = (dap_chain_type_dag_event_item_t) {
@@ -561,7 +561,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_read(dap_chain_t *a_cha
             .event_size = a_atom_size,
             .ts_created = l_event->header.ts_created
         };
-        HASH_ADD_BYHASHVALUE(hh, PVT(l_dag)->events_prefetched, hash, sizeof(*a_atom_hash), hashval, l_event_item);
+        dap_ht_add_by_hashvalue_hh(hh, PVT(l_dag)->events_prefetched, hash, sizeof(*a_atom_hash), hashval, l_event_item);
         if ( l_last_ts > l_event_item->ts_created )
             PVT(l_dag)->need_reorder = true;
         l_last_ts = l_event_item->ts_created;
@@ -572,13 +572,13 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_read(dap_chain_t *a_cha
 static unsigned s_chain_callback_prefetched_atoms_add(dap_chain_t *a_chain) {
     dap_chain_type_dag_t *l_dag = DAP_CHAIN_TYPE_DAG(a_chain);
     if ( PVT(l_dag)->need_reorder ) {
-        HASH_SORT( PVT(l_dag)->events_prefetched, s_sort_event_item );
+        dap_ht_sort( PVT(l_dag)->events_prefetched, s_sort_event_item );
         PVT(l_dag)->need_reorder = false;
     }
-    unsigned i = 0, q = HASH_COUNT(PVT(l_dag)->events_prefetched);
+    unsigned i = 0, q = dap_ht_count(PVT(l_dag)->events_prefetched);
     dap_chain_type_dag_event_item_t *l_event_item, *l_tmp;
-    HASH_ITER(hh, PVT(l_dag)->events_prefetched, l_event_item, l_tmp) {
-        HASH_DEL(PVT(l_dag)->events_prefetched, l_event_item);
+    dap_ht_foreach_hh(hh, PVT(l_dag)->events_prefetched, l_event_item, l_tmp) {
+        dap_ht_del(PVT(l_dag)->events_prefetched, l_event_item);
         s_chain_callback_atom_add(a_chain, l_event_item->event, l_event_item->event_size, &l_event_item->hash, false);
         DAP_DELETE(l_event_item);
         a_chain->load_progress = (int)((float)++i/q * 100 + 0.5);
@@ -593,12 +593,12 @@ static unsigned s_chain_callback_prefetched_atoms_add(dap_chain_t *a_chain) {
  * @param a_atom_size
  * @return 0 if verified and added well, otherwise if not
  */
-static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_sha3_256_t *a_atom_hash, bool a_atom_new)
 {
     dap_chain_type_dag_t *l_dag = DAP_CHAIN_TYPE_DAG(a_chain);
     dap_chain_type_dag_event_t * l_event = (dap_chain_type_dag_event_t*)a_atom;
 
-    debug_if(s_debug_more, L_DEBUG, "Processing event: %s ... (size %zd)",  dap_chain_hash_fast_to_str_static(a_atom_hash), a_atom_size);
+    debug_if(s_debug_more, L_DEBUG, "Processing event: %s ... (size %zd)",  dap_hash_sha3_256_to_str_static(a_atom_hash), a_atom_size);
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
     // check if we already have this event
     dap_chain_atom_verify_res_t ret = s_dap_chain_check_if_event_is_present(PVT(l_dag)->events, a_atom_hash) ||
@@ -635,9 +635,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD: {
         dap_chain_type_dag_blocked_t *el = NULL;
-        HASH_FIND(hh, PVT(l_dag)->removed_events_from_treshold, a_atom_hash, sizeof(dap_chain_hash_fast_t), el);
+        dap_ht_find_hh(hh, PVT(l_dag)->removed_events_from_treshold, a_atom_hash, sizeof(dap_hash_sha3_256_t), el);
         if (!el) {
-            HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(*a_atom_hash), l_event_item);
+            dap_ht_add_hh(hh, PVT(l_dag)->events_treshold, hash, l_event_item);
             debug_if(s_debug_more, L_DEBUG, "... added to threshold");
         } else {
             ret = ATOM_REJECT;
@@ -670,7 +670,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             debug_if(s_debug_more, L_WARNING, "... added with ledger code %d", l_consensus_check);
             break;
         }
-        HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
+        dap_ht_add_hh(hh, PVT(l_dag)->events, hash, l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
         dap_chain_atom_notify(l_dag->chain, l_event->header.cell_id, &l_event_item->hash, (const byte_t*)l_event_item->event, l_event_item->event_size, l_event->header.ts_created);
         dap_chain_atom_add_from_threshold(a_chain);
@@ -730,7 +730,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_return_val_if_fail(a_datum && a_chain, false);
     dap_chain_type_dag_t * l_dag = DAP_CHAIN_TYPE_DAG(a_chain);
     /* If datum passes thru rounds, let's check if it wasn't added before */
-    dap_chain_hash_fast_t l_datum_hash;
+    dap_hash_sha3_256_t l_datum_hash;
     dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
     if (!l_dag->is_add_directly) {
         bool l_dup_found = false;
@@ -738,15 +738,15 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_dag->gdb_group_events_round_new, &l_objs_count);
         for (size_t i = 0; i < l_objs_count; ++i) {
             dap_chain_type_dag_event_round_item_t *l_round_item = (dap_chain_type_dag_event_round_item_t*)l_objs[i].value;
-            if (!memcmp(&l_datum_hash, &(l_round_item->round_info.datum_hash), sizeof(dap_chain_hash_fast_t))) {
+            if (!memcmp(&l_datum_hash, &(l_round_item->round_info.datum_hash), sizeof(dap_hash_sha3_256_t))) {
                 l_dup_found = true;
                 break;
             }
         }
         dap_global_db_objs_delete(l_objs, l_objs_count);
         if (l_dup_found) {
-            char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-            dap_chain_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, sizeof(l_datum_hash_str));
+            char l_datum_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(&l_datum_hash, l_datum_hash_str, sizeof(l_datum_hash_str));
             log_it(L_ERROR, "Datum %s was already added to round, drop it", l_datum_hash_str);
             return false;
         }
@@ -758,8 +758,8 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         log_it(L_ERROR, "Configuration mismatch, no hashed to be linked");
         return false;
     }
-    dap_chain_hash_fast_t *l_hashes = l_hashes_size
-            ? DAP_NEW_STACK_SIZE(dap_chain_hash_fast_t, l_hashes_size * sizeof(dap_chain_hash_fast_t))
+    dap_hash_sha3_256_t *l_hashes = l_hashes_size
+            ? DAP_NEW_STACK_SIZE(dap_hash_sha3_256_t, l_hashes_size * sizeof(dap_hash_sha3_256_t))
             : NULL;
     if (!l_hashes) {
         log_it(L_CRITICAL, "Stack limit reached");
@@ -768,7 +768,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
 
     /* Prepare round */
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-    if (!HASH_COUNT(PVT(l_dag)->events_lasts_unlinked)) {
+    if (!dap_ht_count(PVT(l_dag)->events_lasts_unlinked)) {
         pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         log_it(L_INFO, "Nothing to link");
         if (!s_seed_mode)
@@ -777,19 +777,19 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         /* We'll use modification-safe iteration thru the additional hashtable thus the chosen events will not repeat */
 #define always_true(ev) true
         dap_chain_type_dag_event_item_t *l_tmp = NULL, *l_cur_ev, *l_tmp_ev;
-        HASH_SELECT(hh_select, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, always_true); /* Always true predicate */
+        dap_ht_select_hh(hh_select, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, always_true); /* Always true predicate */
         pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
-        while ((l_hashes_linked < l_hashes_size) && (HASH_CNT(hh_select, l_tmp) > 0)) {
-            int l_random_id = rand() % HASH_CNT(hh_select, l_tmp), l_hash_id = 0;
-            HASH_ITER(hh_select, l_tmp, l_cur_ev, l_tmp_ev) {
+        while ((l_hashes_linked < l_hashes_size) && (dap_ht_count_hh(hh_select, l_tmp) > 0)) {
+            int l_random_id = rand() % dap_ht_count_hh(hh_select, l_tmp), l_hash_id = 0;
+            dap_ht_foreach_hh(hh_select, l_tmp, l_cur_ev, l_tmp_ev) {
                 if (l_hash_id++ == l_random_id) {
                     l_hashes[l_hashes_linked++] = l_cur_ev->hash;
-                    HASH_DELETE(hh_select, l_tmp, l_cur_ev);
+                    dap_ht_del_hh(hh_select, l_tmp, l_cur_ev);
                     break;
                 }
             }
         }
-        HASH_CLEAR(hh_select, l_tmp);
+        dap_ht_clear_hh(hh_select, l_tmp);
         if (l_hashes_linked < l_hashes_size) {
             log_it(L_ERROR, "No enough unlinked events present (only %lu of %lu), a dummy round?", l_hashes_linked, l_hashes_size);
             return false;
@@ -809,8 +809,8 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         log_it(L_ERROR,"Can't create new event!");
         return false;
     }
-    dap_hash_fast_t l_event_hash;
-    dap_hash_fast(l_event, l_event_size, &l_event_hash);
+    dap_hash_sha3_256_t l_event_hash;
+    dap_hash_sha3_256(l_event, l_event_size, &l_event_hash);
     bool l_res = false;
     if (l_dag->is_add_directly) {
         dap_chain_atom_verify_res_t l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size, &l_event_hash, true);
@@ -822,8 +822,8 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
             return true;
     }
     dap_chain_type_dag_event_round_item_t l_round_item = { .round_info.datum_hash = l_datum_hash };
-    char l_event_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    char l_event_hash_hex_str[DAP_HASH_SHA3_256_STR_SIZE];
+    dap_hash_sha3_256_to_str(&l_event_hash, l_event_hash_hex_str, DAP_HASH_SHA3_256_STR_SIZE);
     l_res = dap_chain_type_dag_event_gdb_set(l_dag, l_event_hash_hex_str, l_event, l_event_size, &l_round_item);
     DAP_DELETE(l_event);
     log_it(l_res ? L_INFO : L_ERROR,
@@ -839,11 +839,11 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
  * @param a_hash
  * @return
  */
-dap_chain_type_dag_event_t* dap_chain_type_dag_find_event_by_hash(dap_chain_type_dag_t * a_dag, dap_chain_hash_fast_t * a_hash)
+dap_chain_type_dag_event_t* dap_chain_type_dag_find_event_by_hash(dap_chain_type_dag_t * a_dag, dap_hash_sha3_256_t * a_hash)
 {
     dap_chain_type_dag_event_item_t* l_event_item = NULL;
     pthread_mutex_lock(&PVT(a_dag)->events_mutex);
-    HASH_FIND(hh, PVT(a_dag)->events ,a_hash,sizeof(*a_hash), l_event_item);
+    dap_ht_find_hh(hh, PVT(a_dag)->events ,a_hash,sizeof(*a_hash), l_event_item);
     pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
     dap_chain_type_dag_event_t * l_event = l_event_item? l_event_item->event: NULL;
     return l_event;
@@ -855,7 +855,7 @@ dap_chain_type_dag_event_t* dap_chain_type_dag_find_event_by_hash(dap_chain_type
  * @param a_atom
  * @return
  */
-static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_chain_hash_fast_t *a_atom_hash)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_sha3_256_t *a_atom_hash)
 {
     dap_chain_type_dag_event_t *l_event = (dap_chain_type_dag_event_t*)a_atom;
     dap_chain_type_dag_t *l_dag = DAP_CHAIN_TYPE_DAG(a_chain);
@@ -863,7 +863,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
         if ( l_dag->hal ) {
             /* We should check HAL twice, because we can't tell HAL'ed event from passed after prefetching */
             dap_chain_type_dag_hal_item_t *l_hash_search = NULL;
-            HASH_FIND(hh, l_dag->hal, a_atom_hash, sizeof(*a_atom_hash), l_hash_search);
+            dap_ht_find_hh(hh, l_dag->hal, a_atom_hash, sizeof(*a_atom_hash), l_hash_search);
             if (l_hash_search)
                 return ATOM_ACCEPT;
         }
@@ -882,13 +882,13 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
     if ( !l_event->header.hash_count ) {
         if ( s_seed_mode ) /* TODO: lock with mutex too. Is this yet used?...*/
             return !PVT(l_dag)->events
-                ? log_it(L_NOTICE,"Treating event %s as genesis. Time to turn seed mode off!", dap_hash_fast_to_str_static(a_atom_hash)), ATOM_ACCEPT
+                ? log_it(L_NOTICE,"Treating event %s as genesis. Time to turn seed mode off!", dap_hash_sha3_256_to_str_static(a_atom_hash)), ATOM_ACCEPT
                 : ( log_it(L_ERROR, "Genesis event is already present! Turn off seed mode and try again!"), ATOM_REJECT );
         if ( l_dag->is_static_genesis_event ) {
             dap_return_val_if_pass_err( memcmp( a_atom_hash, &l_dag->static_genesis_event_hash, sizeof(*a_atom_hash) ),
                                         /* l_load_mode ? ATOM_CORRUPTED : */ ATOM_REJECT, "Wrong genesis event: preconfigured \"%s\" != \"%s\"",
-                                        dap_hash_fast_to_str_static(&l_dag->static_genesis_event_hash), dap_hash_fast_to_str_static(a_atom_hash) );
-            debug_if(s_debug_more, L_INFO, "Accepting static genesis event \"%s\"", dap_hash_fast_to_str_static(a_atom_hash));
+                                        dap_hash_sha3_256_to_str_static(&l_dag->static_genesis_event_hash), dap_hash_sha3_256_to_str_static(a_atom_hash) );
+            debug_if(s_debug_more, L_INFO, "Accepting static genesis event \"%s\"", dap_hash_sha3_256_to_str_static(a_atom_hash));
             return ATOM_ACCEPT;
         }
     }
@@ -898,14 +898,14 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
         return ATOM_MOVE_TO_THRESHOLD;
 
     for (size_t i = 0; i< l_event->header.hash_count; i++) {
-        dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
+        dap_hash_sha3_256_t * l_hash =  ((dap_hash_sha3_256_t *) l_event->hashes_n_datum_n_signs) + i;
         dap_chain_type_dag_event_item_t * l_event_search = NULL;
         pthread_mutex_lock(l_events_mutex);
-        HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
+        dap_ht_find_hh(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
         pthread_mutex_unlock(l_events_mutex);
         if (l_event_search == NULL) {
             debug_if(s_debug_more, L_WARNING, "Hash %s wasn't in hashtable of previously parsed, event %s goes to threshold",
-                                              dap_hash_fast_to_str_static(l_hash), dap_hash_fast_to_str_static(a_atom_hash));
+                                              dap_hash_sha3_256_to_str_static(l_hash), dap_hash_sha3_256_to_str_static(a_atom_hash));
             res = ATOM_MOVE_TO_THRESHOLD;
             break;
         }
@@ -934,12 +934,12 @@ void dap_chain_type_dag_proc_event_round_new(dap_chain_type_dag_t *a_dag)
 void s_dag_events_lasts_delete_linked_with_event(dap_chain_type_dag_t * a_dag, dap_chain_type_dag_event_t * a_event)
 {
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
-        dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
+        dap_hash_sha3_256_t * l_hash =  ((dap_hash_sha3_256_t *) a_event->hashes_n_datum_n_signs) + i;
         dap_chain_type_dag_event_item_t * l_event_item = NULL;
         dap_chain_type_dag_pvt_t * l_dag_pvt =  PVT(a_dag);
-        HASH_FIND(hh, l_dag_pvt->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
+        dap_ht_find_hh(hh, l_dag_pvt->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
         if ( l_event_item ){
-            HASH_DEL(PVT(a_dag)->events_lasts_unlinked,l_event_item);
+            dap_ht_del(PVT(a_dag)->events_lasts_unlinked,l_event_item);
             DAP_DEL_Z(l_event_item);
         }
     }
@@ -951,7 +951,7 @@ void s_dag_events_lasts_process_new_last_event(dap_chain_type_dag_t *a_dag, dap_
     s_dag_events_lasts_delete_linked_with_event(a_dag, a_event_item->event);
     //add self
     dap_chain_type_dag_event_item_t *l_event_last = DAP_DUP_RET_IF_FAIL(a_event_item);
-    HASH_ADD(hh, PVT(a_dag)->events_lasts_unlinked, hash, sizeof(l_event_last->hash), l_event_last);
+    dap_ht_add_hh(hh, PVT(a_dag)->events_lasts_unlinked, hash, l_event_last);
 }
 
 
@@ -973,18 +973,18 @@ int dap_chain_type_dag_event_verify_hashes_with_treshold(dap_chain_type_dag_t * 
     }
     dap_dag_threshold_verification_res_t ret = DAP_THRESHOLD_OK;
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
-        dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
+        dap_hash_sha3_256_t * l_hash =  ((dap_hash_sha3_256_t *) a_event->hashes_n_datum_n_signs) + i;
         dap_chain_type_dag_event_item_t * l_event_search = NULL;
-        HASH_FIND(hh, PVT(a_dag)->events_treshold_conflicted,l_hash ,sizeof (*l_hash),  l_event_search);
+        dap_ht_find_hh(hh, PVT(a_dag)->events_treshold_conflicted,l_hash ,sizeof (*l_hash),  l_event_search);
         if ( l_event_search ){
           //event is linked to event we consider conflicting
           ret = DAP_THRESHOLD_CONFLICTING;
           break;
         }
-        HASH_FIND(hh, PVT(a_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
+        dap_ht_find_hh(hh, PVT(a_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
         if ( l_event_search == NULL ){ // If not found in events - search in treshhold
             l_is_events_main_hashes = false;
-            HASH_FIND(hh, PVT(a_dag)->events_treshold ,l_hash ,sizeof (*l_hash),  l_event_search);
+            dap_ht_find_hh(hh, PVT(a_dag)->events_treshold ,l_hash ,sizeof (*l_hash),  l_event_search);
             if( l_event_search == NULL ){ // Hash is not in events or treshold table, keep the current item where it is
                 l_is_events_all_hashes = false;
                 break;
@@ -1010,13 +1010,13 @@ dap_chain_type_dag_event_item_t* s_dag_proc_treshold(dap_chain_type_dag_t * a_da
     bool res = false;
     dap_chain_type_dag_event_item_t * l_event_item = NULL, * l_event_item_tmp = NULL;
     pthread_mutex_lock(&PVT(a_dag)->events_mutex);
-    int l_count = HASH_COUNT(PVT(a_dag)->events_treshold);
+    int l_count = dap_ht_count(PVT(a_dag)->events_treshold);
     debug_if(s_debug_more, L_DEBUG, "*** %d events in threshold", l_count);
-    HASH_ITER(hh, PVT(a_dag)->events_treshold, l_event_item, l_event_item_tmp) {
+    dap_ht_foreach_hh(hh, PVT(a_dag)->events_treshold, l_event_item, l_event_item_tmp) {
         dap_dag_threshold_verification_res_t ret = dap_chain_type_dag_event_verify_hashes_with_treshold(a_dag, l_event_item->event);
         if (ret == DAP_THRESHOLD_OK) {
             debug_if(s_debug_more, L_DEBUG, "Processing event (threshold): %s...",
-                    dap_chain_hash_fast_to_str_static(&l_event_item->hash));
+                    dap_hash_sha3_256_to_str_static(&l_event_item->hash));
             if ( !l_event_item->mapped_region ) {
                 int l_err = dap_chain_atom_save(a_dag->chain, l_event_item->event->header.cell_id, (const byte_t*)l_event_item->event,
                                                 l_event_item->event_size, NULL, (char**)&l_event_item->event);
@@ -1027,9 +1027,9 @@ dap_chain_type_dag_event_item_t* s_dag_proc_treshold(dap_chain_type_dag_t * a_da
                 }
             }
             int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, l_event_item);
-            HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
+            dap_ht_del(PVT(a_dag)->events_treshold, l_event_item);
             if (!l_add_res) {
-                HASH_ADD(hh, PVT(a_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
+                dap_ht_add_hh(hh, PVT(a_dag)->events, hash, l_event_item);
                 s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
                 debug_if(s_debug_more, L_INFO, "... moved from threshold to chain");
                 dap_chain_atom_notify(a_dag->chain, l_event_item->event->header.cell_id, &l_event_item->hash,
@@ -1044,8 +1044,8 @@ dap_chain_type_dag_event_item_t* s_dag_proc_treshold(dap_chain_type_dag_t * a_da
             }
             break;
         } else if (ret == DAP_THRESHOLD_CONFLICTING) {
-            HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
-            HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash, sizeof (l_event_item->hash), l_event_item);
+            dap_ht_del(PVT(a_dag)->events_treshold, l_event_item);
+            dap_ht_add_hh(hh, PVT(a_dag)->events_treshold_conflicted, hash, l_event_item);
         }
     }
     pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
@@ -1122,11 +1122,11 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
             }
             for (uint16_t i = 0; i < l_event->header.hash_count; i++){
                 dap_chain_type_dag_event_item_t * l_link_item = NULL;
-                dap_chain_hash_fast_t * l_link_hash = (dap_chain_hash_fast_t *)
+                dap_hash_sha3_256_t * l_link_hash = (dap_hash_sha3_256_t *)
                         (l_event->hashes_n_datum_n_signs +
                         i*sizeof(*l_link_hash));
                 pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                HASH_FIND(hh, PVT(l_dag)->events,l_link_hash,sizeof(*l_link_hash),l_link_item);
+                dap_ht_find_hh(hh, PVT(l_dag)->events,l_link_hash,sizeof(*l_link_hash),l_link_item);
                 pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                 if ( l_link_item ){
                     l_ret[i] = l_link_item->event;
@@ -1134,9 +1134,9 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
                 }else {
                     char l_err_str[256];
                     unsigned l_off = snprintf(l_err_str, sizeof(l_err_str), "Can't find %s -> ",
-                        dap_chain_hash_fast_to_str_static(l_link_hash));
+                        dap_hash_sha3_256_to_str_static(l_link_hash));
                     snprintf(l_err_str + l_off, sizeof(l_err_str) - l_off, "%s links",
-                        l_event_item ? dap_chain_hash_fast_to_str_static(&l_event_item->hash) : "<null>");
+                        l_event_item ? dap_hash_sha3_256_to_str_static(&l_event_item->hash) : "<null>");
                     log_it(L_ERROR, "%s", l_err_str);
                     (*a_links_size_array)--;
                 }
@@ -1155,7 +1155,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
  * @param a_chain
  * @return
  */
-static dap_chain_atom_iter_t *s_chain_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from)
+static dap_chain_atom_iter_t *s_chain_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_sha3_256_t *a_hash_from)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     if (!l_atom_iter) {
@@ -1189,7 +1189,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get(dap_chain_atom_iter_t
         a_atom_iter->cur_item = l_dag_pvt->events;
         break;
     case DAP_CHAIN_ITER_OP_LAST:
-        a_atom_iter->cur_item = HASH_LAST(l_dag_pvt->events);
+        a_atom_iter->cur_item = dap_ht_last(l_dag_pvt->events);
         break;
     case DAP_CHAIN_ITER_OP_NEXT:
         if (a_atom_iter->cur_item)
@@ -1223,12 +1223,12 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get(dap_chain_atom_iter_t
  * @return
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t *a_atom_iter ,
-                                                                       dap_chain_hash_fast_t * a_atom_hash, size_t *a_atom_size)
+                                                                       dap_hash_sha3_256_t * a_atom_hash, size_t *a_atom_size)
 {
     dap_chain_type_dag_t *l_dag = DAP_CHAIN_TYPE_DAG(a_atom_iter->chain);
     dap_chain_type_dag_event_item_t *l_event_item = NULL;
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-    HASH_FIND(hh, PVT(l_dag)->events, a_atom_hash, sizeof(*a_atom_hash), l_event_item);
+    dap_ht_find_hh(hh, PVT(l_dag)->events, a_atom_hash, sizeof(*a_atom_hash), l_event_item);
     if (l_event_item) {
         a_atom_iter->cur_item = l_event_item;
         a_atom_iter->cur = l_event_item->event;
@@ -1315,13 +1315,13 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_ty
  * @param OUT a_ret_code
  * @return
  */
-static dap_chain_datum_t *s_chain_callback_atom_find_by_datum_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
-                                                                   dap_chain_hash_fast_t *a_event_hash, int *a_ret_code)
+static dap_chain_datum_t *s_chain_callback_atom_find_by_datum_hash(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_datum_hash,
+                                                                   dap_hash_sha3_256_t *a_event_hash, int *a_ret_code)
 {
     dap_chain_type_dag_t *l_dag = DAP_CHAIN_TYPE_DAG( a_chain );
     dap_chain_type_dag_event_item_t *l_event_item = NULL;
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-    HASH_FIND(hh_datums, PVT(l_dag)->datums, a_datum_hash, sizeof(*a_datum_hash), l_event_item);
+    dap_ht_find_hh(hh_datums, PVT(l_dag)->datums, a_datum_hash, sizeof(*a_datum_hash), l_event_item);
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     if ( l_event_item ){
         dap_chain_datum_t *l_datum = dap_chain_type_dag_event_get_datum(l_event_item->event, l_event_item->event_size);
@@ -1377,13 +1377,13 @@ static void s_json_dag_pack_event(dap_json_t *a_json_out, dap_chain_type_dag_eve
     dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, a_event_item->event->header.ts_created);
     dap_json_object_add_string(json_obj_event_i, "#", dap_itoa(i));
     dap_json_object_add_uint64(json_obj_event_i, a_version == 1 ? "event number" : "event_num", a_event_item->event_number);
-    dap_json_object_add_string(json_obj_event_i, a_version == 1 ? "hash" : "event_hash", dap_chain_hash_fast_to_str_static(&a_event_item->hash));
+    dap_json_object_add_string(json_obj_event_i, a_version == 1 ? "hash" : "event_hash", dap_hash_sha3_256_to_str_static(&a_event_item->hash));
     dap_json_object_add_string(json_obj_event_i, "ts_create", buf);
     dap_json_array_add(a_json_out, json_obj_event_i);
 }
 
-static bool s_filter_event(dap_chain_type_dag_event_item_t * a_event_item, dap_chain_hash_fast_t * a_to_hash,
-    dap_chain_hash_fast_t * a_from_hash, size_t * a_tmp, size_t a_arr_end, size_t a_arr_start,  
+static bool s_filter_event(dap_chain_type_dag_event_item_t * a_event_item, dap_hash_sha3_256_t * a_to_hash,
+    dap_hash_sha3_256_t * a_from_hash, size_t * a_tmp, size_t a_arr_end, size_t a_arr_start,  
     char * a_to_hash_str, char * a_from_hash_str, dap_time_t a_from_time, dap_time_t a_to_time,
     dap_json_t *a_json_out, int a_version, bool a_head, bool * a_hash_flag)
 {
@@ -1403,7 +1403,7 @@ static bool s_filter_event(dap_chain_type_dag_event_item_t * a_event_item, dap_c
             return true;
     }
     if (a_from_hash_str && !*a_hash_flag) {
-        if (!dap_hash_fast_compare(a_from_hash, &a_event_item->hash))
+        if (!dap_hash_sha3_256_compare(a_from_hash, &a_event_item->hash))
             return false;
         *a_hash_flag = true;
     }
@@ -1413,7 +1413,7 @@ static bool s_filter_event(dap_chain_type_dag_event_item_t * a_event_item, dap_c
     }
     (*a_tmp)++;
     s_json_dag_pack_event(a_json_out, a_event_item, *a_tmp, a_version);
-    if (a_to_hash_str && dap_hash_fast_compare(a_to_hash, &a_event_item->hash))
+    if (a_to_hash_str && dap_hash_sha3_256_compare(a_to_hash, &a_event_item->hash))
         return true;//break;
     return false;
 }
@@ -1444,7 +1444,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
     const char * l_round_cmd_str = NULL;
 
     const char* l_event_hash_str = NULL;
-    dap_chain_hash_fast_t l_event_hash = {0};
+    dap_hash_sha3_256_t l_event_hash = {0};
 
     const char * l_datum_hash_str = NULL;
     const char * l_cert_str;
@@ -1507,9 +1507,9 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
             for (size_t i = 0; i< l_objs_size; i++ ){
                 dap_chain_type_dag_event_round_item_t *l_round_item = (dap_chain_type_dag_event_round_item_t *)l_objs[i].value;
                 dap_chain_type_dag_event_t *l_event = (dap_chain_type_dag_event_t *)l_round_item->event_n_signs;
-                dap_hash_fast_t l_event_hash = {};
+                dap_hash_sha3_256_t l_event_hash = {};
                 size_t l_event_size = l_round_item->event_size;
-                dap_hash_fast(l_event, l_event_size, &l_event_hash);
+                dap_hash_sha3_256(l_event, l_event_size, &l_event_hash);
                 int l_ret_event_verify;
                 if ( ( l_ret_event_verify = l_dag->callback_cs_verify(l_dag, l_event, &l_event_hash) ) !=0 ) {// if consensus accept the event
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR,"Error! Event %s is not passing consensus verification, ret code %d\n",
@@ -1539,7 +1539,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 if (dap_chain_cell_file_update(l_chain->cells) > 0) {
                     // delete events from db
                     dap_list_t *l_el;
-                    DL_FOREACH(l_list_to_del, l_el) {
+                    dap_dl_foreach(l_list_to_del, l_el) {
                         dap_global_db_del_sync(l_dag->gdb_group_events_round_new, (char*)l_el->data);
                     }
                 }
@@ -1568,9 +1568,9 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                                           "no datum is known to look for in rounds.\n");
                 return 0;
             }
-            dap_hash_fast_t l_datum_hash = {0};
-            dap_chain_hash_fast_from_str(l_datum_in_hash, &l_datum_hash);
-            if (dap_hash_fast_is_blank(&l_datum_hash)) {
+            dap_hash_sha3_256_t l_datum_hash = {0};
+            dap_hash_sha3_256_from_str(l_datum_in_hash, &l_datum_hash);
+            if (dap_hash_sha3_256_is_blank(&l_datum_hash)) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR,"The -datum parameter is not a valid hash.\n");
                 return 0;
             }
@@ -1580,12 +1580,12 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
             dap_json_object_add_object(json_obj_round,a_version == 1 ? "Events" : "events", dap_json_object_new_string("empty"));
             for (size_t i = 0; i < l_objs_size;i++) {
                 dap_chain_type_dag_event_round_item_t *l_round_item = (dap_chain_type_dag_event_round_item_t *)l_objs[i].value;
-                if (dap_hash_fast_compare(&l_round_item->round_info.datum_hash, &l_datum_hash)) {
+                if (dap_hash_sha3_256_compare(&l_round_item->round_info.datum_hash, &l_datum_hash)) {
                     dap_chain_type_dag_event_t *l_event = (dap_chain_type_dag_event_t *)l_round_item->event_n_signs;
                     size_t l_event_size = l_round_item->event_size;
-                    dap_hash_fast_t ll_event_hash = {0};
-                    dap_hash_fast(l_event, l_event_size, &ll_event_hash);
-                    char *ll_event_hash_str = dap_hash_fast_to_str_new(&ll_event_hash);
+                    dap_hash_sha3_256_t ll_event_hash = {0};
+                    dap_hash_sha3_256(l_event, l_event_size, &ll_event_hash);
+                    char *ll_event_hash_str = dap_hash_sha3_256_to_str_new(&ll_event_hash);
                     l_search_events++;
                     dap_json_object_add_object(json_obj_round,a_version == 1 ? "events count" : "events_count", dap_json_object_new_uint64(l_search_events));
                     dap_json_object_add_object(json_obj_round,a_version == 1 ? "event hash" : "event_hash", dap_json_object_new_string(ll_event_hash_str));
@@ -1639,7 +1639,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
         }
 
         if (l_event_hash_hex_str)
-            dap_chain_hash_fast_from_str(l_event_hash_hex_str, &l_event_hash);
+            dap_hash_sha3_256_from_str(l_event_hash_hex_str, &l_event_hash);
 
         switch (l_event_subcmd) {
 
@@ -1661,7 +1661,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 } else if (l_from_events_str && strcmp(l_from_events_str,"events_lasts") == 0) {
                     dap_chain_type_dag_event_item_t * l_event_item = NULL;
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                    HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                    dap_ht_find_hh(hh,PVT(l_dag)->events_lasts_unlinked,&l_event_hash,sizeof(l_event_hash),l_event_item);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                     if ( l_event_item )
                         l_event = l_event_item->event;
@@ -1673,7 +1673,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 } else if (!l_from_events_str || strcmp(l_from_events_str,"events") == 0) {
                     dap_chain_type_dag_event_item_t * l_event_item = NULL;
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                    HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                    dap_ht_find_hh(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                     if ( l_event_item ) {
                         l_event = l_event_item->event;
@@ -1686,7 +1686,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 } else if (l_from_events_str && strcmp(l_from_events_str,"threshold") == 0) {
                     dap_chain_type_dag_event_item_t * l_event_item = NULL;
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                    HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                    dap_ht_find_hh(hh,PVT(l_dag)->events_treshold,&l_event_hash,sizeof(l_event_hash),l_event_item);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                     if (l_event_item)
                         l_event = l_event_item->event;
@@ -1712,7 +1712,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                         if (l_round_item->round_info.reject_count)
                             dap_json_object_add_object(json_obj_event,a_version == 1 ? "signs rejects" : "sig_reject_count", dap_json_object_new_uint64(l_round_item->round_info.reject_count));
                         dap_nanotime_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_round_item->round_info.ts_update);
-                        dap_json_object_add_object(json_obj_event,"datum_hash", dap_json_object_new_string(dap_chain_hash_fast_to_str_static(&l_round_item->round_info.datum_hash)));
+                        dap_json_object_add_object(json_obj_event,"datum_hash", dap_json_object_new_string(dap_hash_sha3_256_to_str_static(&l_round_item->round_info.datum_hash)));
                         dap_json_object_add_object(json_obj_event,"ts_update", dap_json_object_new_string(buf));
                     }
 
@@ -1731,11 +1731,11 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     // Hash links
                     dap_json_object_add_object(json_obj_event,a_version == 1 ? "hashes count" : "hashes_count", dap_json_object_new_uint64(l_event->header.hash_count));
                     for (uint16_t i=0; i < l_event->header.hash_count; i++){
-                        dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs +
-                                i*sizeof (dap_chain_hash_fast_t));
-                        dap_json_object_add_string(json_obj_event, a_version == 1 ? "hash" : "event_hash", dap_chain_hash_fast_to_str_static(l_hash));
+                        dap_hash_sha3_256_t * l_hash = (dap_hash_sha3_256_t *) (l_event->hashes_n_datum_n_signs +
+                                i*sizeof (dap_hash_sha3_256_t));
+                        dap_json_object_add_string(json_obj_event, a_version == 1 ? "hash" : "event_hash", dap_hash_sha3_256_to_str_static(l_hash));
                     }
-                    size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
+                    size_t l_offset =  l_event->header.hash_count*sizeof (dap_hash_sha3_256_t);
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
                     size_t l_datum_size =  dap_chain_datum_size(l_datum);
 
@@ -1761,11 +1761,11 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR," wrong sign size 0, stop parsing headers");
                             break;
                         }
-                        dap_chain_hash_fast_t l_pkey_hash;
+                        dap_hash_sha3_256_t l_pkey_hash;
                         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
                         const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                            : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
+                            : dap_hash_sha3_256_to_str_static(&l_pkey_hash);
 
                         dap_json_object_add_string(json_obj_event, a_version ? "type" : "sig_type", dap_sign_type_to_str( l_sign->header.type ));
                         dap_json_object_add_object(json_obj_event,"sig_pkey_hash", dap_json_object_new_string(l_hash_str));
@@ -1790,7 +1790,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 const char *l_limit_str = NULL, *l_offset_str = NULL, *l_head_str = NULL, *l_from_date_str = NULL, *l_to_date_str = NULL,
                 *l_from_hash_str = NULL, *l_to_hash_str = NULL;
                 bool l_hash_flag = false;
-                dap_hash_fast_t l_from_hash = {}, l_to_hash = {};
+                dap_hash_sha3_256_t l_from_hash = {}, l_to_hash = {};
                 dap_time_t l_from_time = 0, l_to_time = 0;
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-limit", &l_limit_str);
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-offset", &l_offset_str);
@@ -1804,13 +1804,13 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 size_t l_offset = l_offset_str ? strtoull(l_offset_str, &ptr, 10) : 0; 
                 
                 if (l_from_hash_str) {
-                    if (dap_chain_hash_fast_from_str(l_from_hash_str, &l_from_hash)) {
+                    if (dap_hash_sha3_256_from_str(l_from_hash_str, &l_from_hash)) {
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR, "Can't convert \"%s\" to hash", l_from_hash_str);
                         return DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR;
                     }
                 }
                 if (l_to_hash_str) {
-                    if (dap_chain_hash_fast_from_str(l_to_hash_str, &l_to_hash)) {
+                    if (dap_hash_sha3_256_from_str(l_to_hash_str, &l_to_hash)) {
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR, "Can't convert \"%s\" to hash", l_to_hash_str);
                         return DAP_CHAIN_NODE_CLI_COM_DAG_CONVERT_ERR;
                     }
@@ -1836,22 +1836,22 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
 
                 if (l_to_hash_str && l_from_hash_str) {
                     dap_chain_type_dag_event_item_t * l_event_item_to = NULL;
-                    HASH_FIND(hh,PVT(l_dag)->events,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
+                    dap_ht_find_hh(hh,PVT(l_dag)->events,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
                     if (!l_event_item_to) {
-                        HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
+                        dap_ht_find_hh(hh,PVT(l_dag)->events_treshold,&l_to_hash,sizeof(l_to_hash),l_event_item_to);
                         if (!l_event_item_to) {
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
-                                "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_to_hash));
+                                "Hash %s not found in events_treshold", dap_hash_sha3_256_to_str_static(&l_to_hash));
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
                     }
                     dap_chain_type_dag_event_item_t * l_event_item_from = NULL;
-                    HASH_FIND(hh,PVT(l_dag)->events,&l_from_hash,sizeof(l_from_hash),l_event_item_from);
+                    dap_ht_find_hh(hh,PVT(l_dag)->events,&l_from_hash,sizeof(l_from_hash),l_event_item_from);
                     if (!l_event_item_from) {
-                        HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_from_hash,sizeof(l_from_hash),l_event_item_from);
+                        dap_ht_find_hh(hh,PVT(l_dag)->events_treshold,&l_from_hash,sizeof(l_from_hash),l_event_item_from);
                         if (!l_event_item_from) {
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
-                                "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_from_hash));
+                                "Hash %s not found in events_treshold", dap_hash_sha3_256_to_str_static(&l_from_hash));
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
                     }                    
@@ -1861,12 +1861,12 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 // l_to_hash_str + l_from_date_str -> compare from_time with "to" event timestamp
                 if (l_to_hash_str && l_from_date_str) {
                     dap_chain_type_dag_event_item_t * l_event_item_to = NULL;
-                    HASH_FIND(hh, PVT(l_dag)->events, &l_to_hash, sizeof(l_to_hash), l_event_item_to);
+                    dap_ht_find_hh(hh, PVT(l_dag)->events, &l_to_hash, sizeof(l_to_hash), l_event_item_to);
                     if (!l_event_item_to) {
-                        HASH_FIND(hh, PVT(l_dag)->events_treshold, &l_to_hash, sizeof(l_to_hash), l_event_item_to);
+                        dap_ht_find_hh(hh, PVT(l_dag)->events_treshold, &l_to_hash, sizeof(l_to_hash), l_event_item_to);
                         if (!l_event_item_to) {
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
-                                "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_to_hash));
+                                "Hash %s not found in events_treshold", dap_hash_sha3_256_to_str_static(&l_to_hash));
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
                     }
@@ -1875,12 +1875,12 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 // l_to_date_str + l_from_hash_str -> compare "from" event timestamp with to_time
                 if (l_to_date_str && l_from_hash_str) {
                     dap_chain_type_dag_event_item_t * l_event_item_from = NULL;
-                    HASH_FIND(hh, PVT(l_dag)->events, &l_from_hash, sizeof(l_from_hash), l_event_item_from);
+                    dap_ht_find_hh(hh, PVT(l_dag)->events, &l_from_hash, sizeof(l_from_hash), l_event_item_from);
                     if (!l_event_item_from) {
-                        HASH_FIND(hh, PVT(l_dag)->events_treshold, &l_from_hash, sizeof(l_from_hash), l_event_item_from);
+                        dap_ht_find_hh(hh, PVT(l_dag)->events_treshold, &l_from_hash, sizeof(l_from_hash), l_event_item_from);
                         if (!l_event_item_from) {
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR,
-                                "Hash %s not found in events_treshold", dap_hash_fast_to_str_static(&l_from_hash));
+                                "Hash %s not found in events_treshold", dap_hash_sha3_256_to_str_static(&l_from_hash));
                             return DAP_CHAIN_NODE_CLI_COM_DAG_FIND_ERR;
                         }
                     }
@@ -1931,19 +1931,19 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                     size_t l_arr_start = 0;
                     size_t l_arr_end = 0;
-                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events), false);
+                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_ht_count(PVT(l_dag)->events), false);
                     
                     size_t i_tmp = 0;
                     dap_chain_type_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     if (l_head){
-                        HASH_ITER(hh, PVT(l_dag)->events, l_event_item, l_event_item_tmp) {
+                        dap_ht_foreach_hh(hh, PVT(l_dag)->events, l_event_item, l_event_item_tmp) {
                             if (s_filter_event(l_event_item, &l_to_hash, &l_from_hash, &i_tmp, l_arr_end, l_arr_start, (char *)l_to_hash_str, (char *)l_from_hash_str, 
                                             l_from_time, l_to_time, json_arr_obj_event, a_version, l_head, &l_hash_flag)) 
                                 break;                            
                         }
                     }
                     else {
-                        l_event_item = HASH_LAST(PVT(l_dag)->events);
+                        l_event_item = dap_ht_last(PVT(l_dag)->events);
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
                             if (s_filter_event(l_event_item, &l_to_hash, &l_from_hash, &i_tmp, l_arr_end, l_arr_start, (char *)l_to_hash_str, (char *)l_from_hash_str, 
                                             l_from_time, l_to_time, json_arr_obj_event, a_version, l_head, &l_hash_flag)) 
@@ -1952,7 +1952,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     }
                     
                     dap_json_object_add_object(json_obj_event_list, a_version == 1 ? "EVENTS" : "events", json_arr_obj_event);
-                    size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
+                    size_t l_events_count = dap_ht_count(PVT(l_dag)->events);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
 
                     dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "net name" : "net_name", dap_json_object_new_string(l_net->pub.name));
@@ -1965,18 +1965,18 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     dap_chain_type_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     size_t l_arr_start = 0;
                     size_t l_arr_end = 0;
-                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, HASH_COUNT(PVT(l_dag)->events_treshold),false);
+                    dap_chain_set_offset_limit_json(json_arr_obj_event, &l_arr_start, &l_arr_end, l_limit, l_offset, dap_ht_count(PVT(l_dag)->events_treshold),false);
 
                     size_t i_tmp = 0;
                     if (l_head){
-                        HASH_ITER(hh, PVT(l_dag)->events_treshold, l_event_item, l_event_item_tmp) {
+                        dap_ht_foreach_hh(hh, PVT(l_dag)->events_treshold, l_event_item, l_event_item_tmp) {
                             if (s_filter_event(l_event_item, &l_to_hash, &l_from_hash, &i_tmp, l_arr_end, l_arr_start, (char *)l_to_hash_str, (char *)l_from_hash_str, 
                                             l_from_time, l_to_time, json_arr_obj_event, a_version, l_head, &l_hash_flag)) 
                                 break;
                         }
                     }
                     else {
-                        l_event_item = HASH_LAST(PVT(l_dag)->events);
+                        l_event_item = dap_ht_last(PVT(l_dag)->events);
                         for(; l_event_item; l_event_item = l_event_item->hh.prev){
                             if (s_filter_event(l_event_item, &l_to_hash, &l_from_hash, &i_tmp, l_arr_end, l_arr_start, (char *)l_to_hash_str, (char *) l_from_hash_str, 
                                             l_from_time, l_to_time, json_arr_obj_event, a_version, l_head, &l_hash_flag)) 
@@ -1984,7 +1984,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                         }
                     }
                     dap_json_object_add_object(json_obj_event_list, a_version == 1 ? "TRESHOLD" : "threshold", json_arr_obj_event);
-                    size_t l_events_count = HASH_COUNT(PVT(l_dag)->events_treshold);
+                    size_t l_events_count = dap_ht_count(PVT(l_dag)->events_treshold);
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                     dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "net name" : "net_name", dap_json_object_new_string(l_net->pub.name));
                     dap_json_object_add_object(json_obj_event_list,"chain", dap_json_object_new_string(l_chain->name));
@@ -2008,8 +2008,8 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     size_t l_objs_count = dap_global_db_driver_count(l_gdb_group_events, c_dap_global_db_driver_hash_blank, false);
                     dap_json_object_add_int(json_obj_event_count, a_version == 1 ? "event count in round new" : "event_count_in_round_new", l_objs_count);
                 }
-                size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
-                size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
+                size_t l_event_count = dap_ht_count(PVT(l_dag)->events);
+                size_t l_event_treshold_count = dap_ht_count(PVT(l_dag)->events_treshold);
                 dap_json_object_add_object(json_obj_event_count,a_version == 1 ? "atom in events" : "atom_in_events", dap_json_object_new_uint64(l_event_count));
                 dap_json_object_add_object(json_obj_event_count,a_version == 1 ? "atom in threshold" : "atom_in_threshold", dap_json_object_new_uint64(l_event_treshold_count));
                 dap_json_array_add(a_json_arr_reply, json_obj_event_count);
@@ -2018,17 +2018,17 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 dap_json_t *json_obj_out = dap_json_object_new();
                 char l_tmp_buff[128] = {0};
                 pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                dap_chain_type_dag_event_item_t *l_last_item = HASH_LAST(PVT(l_dag)->events);
+                dap_chain_type_dag_event_item_t *l_last_item = dap_ht_last(PVT(l_dag)->events);
                 pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                 char l_buf[DAP_TIME_STR_SIZE];
                 if (l_last_item)
                     dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_item->ts_created);
                 dap_json_object_add_uint64(json_obj_out, a_version == 1 ? "Last event num" : "last_event_num", l_last_item ? l_last_item->event_number : 0);
                 dap_json_object_add_object(json_obj_out, a_version == 1 ? "Last event hash" : "last_event_hash", dap_json_object_new_string(l_last_item ?
-                                                                                dap_hash_fast_to_str_static(&l_last_item->hash) : "empty"));
+                                                                                dap_hash_sha3_256_to_str_static(&l_last_item->hash) : "empty"));
                 dap_json_object_add_string(json_obj_out, "ts_created", l_last_item ? l_buf : "never");
 
-                size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
+                size_t l_event_count = dap_ht_count(PVT(l_dag)->events);
                 snprintf(l_tmp_buff, sizeof(l_tmp_buff), "%s.%s has events", l_net->pub.name, l_chain->name);
                 dap_json_object_add_uint64(json_obj_out, l_tmp_buff, l_event_count);
                 dap_json_array_add(a_json_arr_reply, json_obj_out);
@@ -2041,20 +2041,20 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR, "Command 'event find' requires parameter '-datum'");
                     ret = DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
                 }
-                dap_hash_fast_t l_datum_hash = {};
+                dap_hash_sha3_256_t l_datum_hash = {};
                 int ret_code = 0;
                 int l_atoms_cnt = 0;
-                dap_chain_hash_fast_from_str(l_datum_hash_str, &l_datum_hash);
+                dap_hash_sha3_256_from_str(l_datum_hash_str, &l_datum_hash);
                 pthread_mutex_lock(&PVT(l_dag)->events_mutex);
                 // dap_chain_type_dag_event_item_t *l_curr_event = PVT(l_dag)->events;
                 dap_chain_type_dag_event_item_t *l_curr_event = NULL, *l_temp;
                 dap_json_t *json_arr_bl_cache_out = dap_json_array_new();
                 dap_json_t *json_obj_event = NULL;
                 // for (;l_curr_event;l_curr_event = l_curr_event->hh.next)
-                HASH_ITER(hh, PVT(l_dag)->events, l_curr_event, l_temp){                                        
-                    if (l_curr_event && dap_hash_fast_compare(&l_datum_hash, &l_curr_event->datum_hash)){
+                dap_ht_foreach_hh(hh, PVT(l_dag)->events, l_curr_event, l_temp){                                        
+                    if (l_curr_event && dap_hash_sha3_256_compare(&l_datum_hash, &l_curr_event->datum_hash)){
                         json_obj_event = dap_json_object_new();
-                        dap_json_object_add_string(json_obj_event, a_version == 1 ? "event hash" : "event_hash", dap_hash_fast_to_str_static(&l_curr_event->hash));
+                        dap_json_object_add_string(json_obj_event, a_version == 1 ? "event hash" : "event_hash", dap_hash_sha3_256_to_str_static(&l_curr_event->hash));
                         dap_json_array_add(json_arr_bl_cache_out, json_obj_event);
                         l_atoms_cnt++;
                     }
@@ -2079,9 +2079,9 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                         dap_chain_type_dag_event_t *l_event = DAP_DUP_SIZE((dap_chain_type_dag_event_t*)l_round_item->event_n_signs, l_event_size);
                         size_t l_event_size_new = dap_chain_type_dag_event_sign_add(&l_event, l_event_size, l_cert->enc_key);
                         if ( l_event_size_new ) {
-                            dap_chain_hash_fast_t l_event_new_hash;
+                            dap_hash_sha3_256_t l_event_new_hash;
                             dap_chain_type_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
-                            const char *l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_static(&l_event_new_hash);
+                            const char *l_event_new_hash_hex_str = dap_hash_sha3_256_to_str_static(&l_event_new_hash);
                             const char *l_event_new_hash_base58_str = NULL;
                             if (dap_strcmp(l_hash_out_type, "hex"))
                                 l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
@@ -2173,7 +2173,7 @@ static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain)
 {
     dap_chain_type_dag_t  *l_dag = DAP_CHAIN_TYPE_DAG(a_chain);
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-    uint64_t l_count = HASH_COUNT(PVT(l_dag)->events);
+    uint64_t l_count = dap_ht_count(PVT(l_dag)->events);
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     return l_count;
 }
@@ -2188,7 +2188,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     }
     size_t l_offset = a_count * (a_page - 1);
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-    size_t l_count = HASH_COUNT(l_dag_pvt->events);
+    size_t l_count = dap_ht_count(l_dag_pvt->events);
     if (a_page < 2)
         l_offset = 0;
     if (l_offset > l_count){
@@ -2199,7 +2199,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
 
-    dap_chain_type_dag_event_item_t *l_ptr = HASH_LAST(l_dag_pvt->events);
+    dap_chain_type_dag_event_item_t *l_ptr = dap_ht_last(l_dag_pvt->events);
     for (dap_chain_type_dag_event_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev){
         if (l_counter >= l_offset){
             dap_chain_type_dag_event_t *l_event = ptr->event;
@@ -2230,15 +2230,15 @@ static dap_json_t *s_dap_chain_callback_atom_to_json(dap_json_t **a_arr_out, dap
     // Hash links
     dap_json_t *l_jobj_hash_links = dap_json_array_new();
     for (uint16_t i=0; i < l_event->header.hash_count; i++){
-        dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs + i*sizeof (dap_chain_hash_fast_t));
+        dap_hash_sha3_256_t * l_hash = (dap_hash_sha3_256_t *) (l_event->hashes_n_datum_n_signs + i*sizeof (dap_hash_sha3_256_t));
         const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
                                  dap_enc_base58_encode_hash_to_str_static(l_hash) :
-                                 dap_hash_fast_to_str_static(l_hash);
+                                 dap_hash_sha3_256_to_str_static(l_hash);
         dap_json_t *l_hash_json = dap_json_object_new_string(l_hash_str);
         dap_json_array_add(l_jobj_hash_links, l_hash_json);
     }
     dap_json_object_add_object(l_jobj, "hash_links", l_jobj_hash_links);
-    size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
+    size_t l_offset =  l_event->header.hash_count*sizeof (dap_hash_sha3_256_t);
     // Nested datum
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
     const char *l_datum_type = NULL;
@@ -2256,11 +2256,11 @@ static dap_json_t *s_dap_chain_callback_atom_to_json(dap_json_t **a_arr_out, dap
             dap_json_rpc_error_add(*a_arr_out, DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR," wrong sign size 0, stop parsing headers");
             break;
         }
-        dap_chain_hash_fast_t l_pkey_hash;
+        dap_hash_sha3_256_t l_pkey_hash;
         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
         const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
+                : dap_hash_sha3_256_to_str_static(&l_pkey_hash);
         dap_json_object_add_string(l_jobj_signature, a_version == 1 ? "type" : "pkey_type", dap_sign_type_to_str( l_sign->header.type ));
         dap_json_object_add_string(l_jobj_signature,"pkey_hash", l_hash_str);
         dap_json_array_add(l_jobj_signatures, l_jobj_signature);

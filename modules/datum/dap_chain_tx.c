@@ -24,7 +24,7 @@
 #include "dap_chain_tx.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_common.h"
-#include "uthash.h"
+#include "dap_ht_utils.h"
 #define LOG_TAG "dap_chain_tx"
 
 /**
@@ -39,7 +39,7 @@ dap_chain_tx_t * dap_chain_tx_wrap_packed(dap_chain_datum_tx_t * a_tx_packed)
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
-    dap_hash_fast(a_tx_packed, dap_chain_datum_tx_get_size(a_tx_packed), &l_tx->hash);
+    dap_hash_sha3_256(a_tx_packed, dap_chain_datum_tx_get_size(a_tx_packed), &l_tx->hash);
     l_tx->datum_tx = a_tx_packed;
     return l_tx;
 }
@@ -80,14 +80,14 @@ dap_chain_tx_t* dap_chain_tx_dup(dap_chain_tx_t * a_tx)
  */
 void dap_chain_tx_hh_add (dap_chain_tx_t ** a_tx_hh, dap_chain_tx_t * a_tx)
 {
-    HASH_ADD(hh,*a_tx_hh,hash, sizeof(a_tx->hash),a_tx);
+    dap_ht_add_hh(hh, *a_tx_hh, hash, a_tx);
 }
 
 void dap_chain_tx_hh_free (dap_chain_tx_t * a_tx_hh)
 {
     dap_chain_tx_t * l_tx = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, a_tx_hh, l_tx, l_tmp){
-        HASH_DELETE(hh, a_tx_hh, l_tx);
+    dap_ht_foreach_hh(hh, a_tx_hh, l_tx, l_tmp){
+        dap_ht_del_hh(hh, a_tx_hh, l_tx);
         dap_chain_tx_delete(l_tx);
     }
 }

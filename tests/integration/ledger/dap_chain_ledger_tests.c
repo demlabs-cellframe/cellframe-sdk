@@ -33,7 +33,7 @@ static const uint64_t s_standard_value_tx = 500;
 static const char* s_token_ticker = "TestCoin";
 static const char* s_delegated_token_ticker = "mTestCoin";
 
-static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hash_prev, dap_enc_key_t *a_from_key, dap_chain_net_id_t a_net_id);
+static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_hash_prev, dap_enc_key_t *a_from_key, dap_chain_net_id_t a_net_id);
 
 /**
  * @brief Create token UPDATE datum
@@ -56,7 +56,7 @@ dap_chain_datum_token_t  *dap_ledger_test_create_datum_decl(dap_cert_t *a_cert, 
 
 dap_chain_datum_tx_t *dap_ledger_test_create_datum_base_tx(
         dap_chain_datum_token_emission_t *a_emi,
-        dap_chain_hash_fast_t *l_emi_hash,
+        dap_hash_sha3_256_t *l_emi_hash,
         dap_chain_addr_t  a_addr_to,
         dap_cert_t *a_cert) {
 	uint256_t l_value_fee = dap_chain_uint256_from(s_fee);
@@ -77,7 +77,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_datum_base_tx(
     return l_tx;
 }
 
-dap_chain_datum_tx_t *dap_ledger_test_create_tx(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
+dap_chain_datum_tx_t *dap_ledger_test_create_tx(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev,
                                                       dap_chain_addr_t *a_addr_to, uint256_t a_value, const char* a_token_ticker) {
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_hash_prev, 0);
@@ -90,7 +90,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx(dap_enc_key_t *a_key_from, dap_c
     return l_tx;
 }
 
-dap_chain_datum_tx_t *dap_ledger_test_create_tx_full(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
+dap_chain_datum_tx_t *dap_ledger_test_create_tx_full(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev,
                                                       dap_chain_addr_t *a_addr_to, uint256_t a_value, dap_ledger_t *a_ledger) {
 
     dap_chain_addr_t l_addr = {0};
@@ -116,7 +116,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_full(dap_enc_key_t *a_key_from, 
     return l_tx;
 }
 
-dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
+dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev,
                                                       dap_chain_addr_t *a_addr_to, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_addr_t l_addr = {0};
     dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net_id);
@@ -143,7 +143,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_tx_cond(dap_enc_key_t *a_key_from, 
     return l_tx;
 }
 
-dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev,
+dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev,
                                                       dap_enc_key_t *a_key_to, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_addr_t l_addr = {0};
     dap_chain_addr_fill_from_key(&l_addr, a_key_from, a_ledger->net_id);
@@ -187,7 +187,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_spend_tx_cond(dap_enc_key_t *a_key_
     return l_tx;
 }
 
-dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_chain_hash_fast_t *a_hash_prev,
+dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_hash_sha3_256_t *a_hash_prev,
                                                       dap_enc_key_t *a_key_to, dap_ledger_t *a_ledger) {
     // get previous transaction
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
@@ -210,7 +210,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_return_from_tx_cond(dap_chain_hash_
     return l_tx;
 }
 
-dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
+dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // get previous transaction
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
@@ -256,7 +256,7 @@ dap_chain_datum_tx_t *dap_ledger_test_create_stake_tx_cond(dap_enc_key_t *a_key_
     return l_tx;
 }
 
-dap_chain_datum_tx_t *dap_ledger_test_create_unstake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
+dap_chain_datum_tx_t *dap_ledger_test_create_unstake_tx_cond(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // get previous transaction
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
@@ -342,21 +342,21 @@ int dap_ledger_test_create_reward_decree(dap_ledger_t *a_ledger, dap_chain_t *a_
 
     // dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, l_decree, l_decree_size);
 
-    dap_hash_fast_t l_decree_hash = {};
-    dap_hash_fast(l_decree, l_decree_size, &l_decree_hash);
+    dap_hash_sha3_256_t l_decree_hash = {};
+    dap_hash_sha3_256(l_decree, l_decree_size, &l_decree_hash);
     // a_chain->callback_atom_add();
     dap_assert_PIF(dap_ledger_decree_apply(a_ledger, &l_decree_hash, l_decree, a_chain->id, NULL)==0, "Decree applying:");
     return 0;
 }
 
-/* int dap_ledger_test_create_reward_tx(dap_chain_t *a_chain, dap_enc_key_t *a_key_to, int block_num, dap_hash_fast_t a_block_hash, uint256_t a_value, dap_ledger_t *a_ledger)
+/* int dap_ledger_test_create_reward_tx(dap_chain_t *a_chain, dap_enc_key_t *a_key_to, int block_num, dap_hash_sha3_256_t a_block_hash, uint256_t a_value, dap_ledger_t *a_ledger)
 {
 
     dap_chain_t *l_chain = a_chain;
     //add tx
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_pkey_t *l_sign_pkey = dap_pkey_from_enc_key(a_key_to);
-    dap_hash_fast_t l_sign_pkey_hash;
+    dap_hash_sha3_256_t l_sign_pkey_hash;
     dap_pkey_get_hash(l_sign_pkey, &l_sign_pkey_hash);
     uint256_t l_value_out = uint256_0;
     dap_ledger_t *l_ledger = a_ledger;
@@ -411,7 +411,7 @@ void dap_ledger_test_create_delegate_key_approve_decree()
 
 }
 
-/*dap_chain_datum_tx_t *dap_ledger_test_create_delegate_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, dap_chain_hash_fast_t *a_stake_tx_hash,
+/*dap_chain_datum_tx_t *dap_ledger_test_create_delegate_tx_cond(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev, dap_hash_sha3_256_t *a_stake_tx_hash,
                                                                      uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // get previous transaction
@@ -481,7 +481,7 @@ uint256_t dap_ledger_test_print_delegate_balance(dap_ledger_t *a_ledger, const d
     return l_balance_after;
 }
 
-int dap_ledger_test_add_new_datum (uint16_t a_datum_type, void* a_datum, size_t a_datum_size, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash)
+int dap_ledger_test_add_new_datum (uint16_t a_datum_type, void* a_datum, size_t a_datum_size, dap_chain_t *a_chain, dap_hash_sha3_256_t *a_datum_hash)
 {
     dap_chain_datum_t* l_new_datum = dap_chain_datum_create(a_datum_type, a_datum, a_datum_size);
     size_t l_new_datum_size = a_datum_size + sizeof(l_new_datum->header);
@@ -490,20 +490,20 @@ int dap_ledger_test_add_new_datum (uint16_t a_datum_type, void* a_datum, size_t 
     return status;
 }
 
-dap_hash_fast_t dap_ledger_test_add_tx(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx) 
+dap_hash_sha3_256_t dap_ledger_test_add_tx(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx) 
 {
     dap_chain_t *l_chain_main = dap_chain_net_get_chain_by_name(a_net, "test_chain_main");
     dap_assert(a_tx, "Test of creating tx:"); 
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-    dap_hash_fast_t l_hash = {};
-    dap_hash_fast(a_tx, l_tx_size, &l_hash);
+    dap_hash_sha3_256_t l_hash = {};
+    dap_hash_sha3_256(a_tx, l_tx_size, &l_hash);
     dap_ledger_test_add_new_datum (DAP_CHAIN_DATUM_TX, a_tx, l_tx_size, l_chain_main, &l_hash);
     return l_hash;
 }
     
 
 
-void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_prev_hash, dap_enc_key_t  *a_from_key, dap_chain_net_id_t a_net_id) 
+void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_prev_hash, dap_enc_key_t  *a_from_key, dap_chain_net_id_t a_net_id) 
 {
     dap_print_module_name("dap_ledger_test_datums_removing");
     dap_cert_t *l_first_cert = dap_cert_generate_mem_with_seed("newCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, "FMknbirh8*^#$RYU*H", 18);
@@ -519,14 +519,14 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     // Check common tx removing
     dap_chain_datum_tx_t *l_first_tx = dap_ledger_test_create_tx_full(a_from_key, a_prev_hash, &l_addr_first, dap_chain_uint256_from(1U), l_net->pub.ledger);
     dap_print_module_name("step_2");
-    dap_chain_hash_fast_t l_first_tx_hash = dap_ledger_test_add_tx(l_net, l_first_tx);
+    dap_hash_sha3_256_t l_first_tx_hash = dap_ledger_test_add_tx(l_net, l_first_tx);
     dap_print_module_name("step_3");
     dap_ledger_test_print_balance(a_ledger, &l_addr);
 
     dap_chain_datum_tx_t *l_second_tx = dap_ledger_test_create_tx_full(a_from_key, &l_first_tx_hash, &l_addr_first, dap_chain_uint256_from(1U), l_net->pub.ledger);
     dap_assert(l_second_tx, "Test of creating second tx:");  
-    dap_chain_hash_fast_t l_second_tx_hash = {0};
-    dap_hash_fast(l_second_tx, dap_chain_datum_tx_get_size(l_second_tx), &l_second_tx_hash);
+    dap_hash_sha3_256_t l_second_tx_hash = {0};
+    dap_hash_sha3_256(l_second_tx, dap_chain_datum_tx_get_size(l_second_tx), &l_second_tx_hash);
     dap_assert(!dap_ledger_tx_add(a_ledger, l_second_tx, &l_second_tx_hash, false, NULL), "Test of second transaction adding to ledger:");
     dap_ledger_test_print_balance(a_ledger, &l_addr);
 
@@ -542,8 +542,8 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_test_create_tx_cond(a_from_key, a_prev_hash,
                                                                        &l_addr_first, dap_chain_uint256_from(1U),a_ledger);
     dap_assert_PIF(l_cond_tx, "Test of creating conditional transaction:");  
-    dap_chain_hash_fast_t l_cond_tx_hash = {0};
-    dap_hash_fast(l_cond_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_cond_tx_hash);
+    dap_hash_sha3_256_t l_cond_tx_hash = {0};
+    dap_hash_sha3_256(l_cond_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_cond_tx_hash);
     dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false, NULL), "Test of conditional transaction adding to ledger:");
     dap_ledger_test_print_balance(a_ledger, &l_addr);
     dap_assert(!dap_ledger_tx_remove(a_ledger, l_cond_tx, &l_cond_tx_hash), "Test of conditional transaction removing from ledger:");
@@ -555,8 +555,8 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     {
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_test_create_tx_cond(a_from_key, a_prev_hash,&l_addr_first, dap_chain_uint256_from(2U),a_ledger);
     dap_assert_PIF(l_cond_tx, "Test of creating conditional transaction:"); 
-    dap_hash_fast_t l_cond_tx_hash = {};
-    dap_hash_fast(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
+    dap_hash_sha3_256_t l_cond_tx_hash = {};
+    dap_hash_sha3_256(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
     dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false, NULL), "Test of conditional transaction adding to ledger:");
     dap_ledger_test_print_balance(a_ledger, &l_addr);
 
@@ -565,8 +565,8 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_chain_addr_fill_from_key(&l_cond_spender_addr, l_cond_spender_cert->enc_key, a_net_id);
     uint256_t l_cond_spending_balance_before = dap_ledger_test_print_balance(a_ledger, &l_cond_spender_addr);
     dap_chain_datum_tx_t *l_cond_spendind_tx = dap_ledger_test_create_spend_tx_cond(a_from_key, &l_cond_tx_hash, l_cond_spender_cert->enc_key, dap_chain_uint256_from(1U),a_ledger);
-    dap_chain_hash_fast_t l_spend_cond_tx_hash = {0};
-    dap_hash_fast(l_cond_spendind_tx, dap_chain_datum_tx_get_size(l_cond_spendind_tx), &l_spend_cond_tx_hash);
+    dap_hash_sha3_256_t l_spend_cond_tx_hash = {0};
+    dap_hash_sha3_256(l_cond_spendind_tx, dap_chain_datum_tx_get_size(l_cond_spendind_tx), &l_spend_cond_tx_hash);
     dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_spendind_tx, &l_spend_cond_tx_hash, false, NULL), "Test adding of transaction spending to a conditional transaction  to ledger:");
     uint256_t l_cond_spending_balance_after = dap_ledger_test_print_balance(a_ledger, &l_cond_spender_addr);
     dap_assert(!compare256(l_cond_spending_balance_after, dap_chain_uint256_from(1U)), "Check balance after spending:");
@@ -582,8 +582,8 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     // try to return funds from conditional tx and delete this tx
     {
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_test_create_tx_cond(a_from_key, a_prev_hash, &l_addr_first, dap_chain_uint256_from(2U),a_ledger);
-    dap_hash_fast_t l_cond_tx_hash = {};
-    dap_hash_fast(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
+    dap_hash_sha3_256_t l_cond_tx_hash = {};
+    dap_hash_sha3_256(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
     dap_assert(!dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false, NULL), "Adding of cond transaction to ledger is");
 
     dap_cert_t *l_cond_spending_cert = dap_cert_generate_mem_with_seed("newCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, "FMknbirh8*^#$RYU*q", 18);
@@ -591,8 +591,8 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_chain_addr_fill_from_key(&l_cond_spending_addr, l_cond_spending_cert->enc_key, a_net_id);
     uint256_t l_cond_spending_balance_before = dap_ledger_test_print_balance(a_ledger, &l_cond_spending_addr);
     dap_chain_datum_tx_t *l_cond_returning_tx = dap_ledger_test_create_return_from_tx_cond(&l_cond_tx_hash, a_from_key ,a_ledger);
-    dap_chain_hash_fast_t l_cond_returning_tx_hash = {0};
-    dap_hash_fast(l_cond_returning_tx, dap_chain_datum_tx_get_size(l_cond_returning_tx), &l_cond_returning_tx_hash);
+    dap_hash_sha3_256_t l_cond_returning_tx_hash = {0};
+    dap_hash_sha3_256(l_cond_returning_tx, dap_chain_datum_tx_get_size(l_cond_returning_tx), &l_cond_returning_tx_hash);
     int err_code = dap_ledger_tx_add(a_ledger, l_cond_returning_tx, &l_cond_returning_tx_hash, false, NULL);
     printf("err_code = %s\n", dap_ledger_check_error_str(err_code));
     dap_assert(!err_code, "Returning of funds from cond transaction is");
@@ -611,8 +611,8 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     // check stake adding and removing
     {
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_test_create_stake_tx_cond(a_from_key, a_prev_hash, dap_chain_uint256_from(20U), a_ledger);
-    dap_hash_fast_t l_cond_tx_hash = {};
-    dap_hash_fast(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
+    dap_hash_sha3_256_t l_cond_tx_hash = {};
+    dap_hash_sha3_256(l_cond_tx, dap_chain_datum_tx_get_size(l_cond_tx), &l_cond_tx_hash);
     int err_code = dap_ledger_tx_add(a_ledger, l_cond_tx, &l_cond_tx_hash, false, NULL);
     printf("err_code = %s\n", dap_ledger_check_error_str(err_code));
     dap_assert(!err_code, "Adding of stake cond transaction to ledger is");
@@ -626,8 +626,8 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     {
     // Create stake lock tx
     dap_chain_datum_tx_t *l_stake_cond_tx = dap_ledger_test_create_stake_tx_cond(a_from_key, a_prev_hash, dap_chain_uint256_from(20U), a_ledger);
-    dap_hash_fast_t l_stake_cond_tx_hash = {};
-    dap_hash_fast(l_stake_cond_tx, dap_chain_datum_tx_get_size(l_stake_cond_tx), &l_stake_cond_tx_hash);
+    dap_hash_sha3_256_t l_stake_cond_tx_hash = {};
+    dap_hash_sha3_256(l_stake_cond_tx, dap_chain_datum_tx_get_size(l_stake_cond_tx), &l_stake_cond_tx_hash);
     int err_code = dap_ledger_tx_add(a_ledger, l_stake_cond_tx, &l_stake_cond_tx_hash, false, NULL);
     printf("err_code = %s\n", dap_ledger_check_error_str(err_code));
     dap_assert(!err_code, "Adding of stake cond transaction to ledger is");
@@ -638,8 +638,8 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
     dap_assert(!compare256(l_balance_delegated_before_unstaking, dap_chain_uint256_from(2U)), "Compare delegated token balance before creating unstake transactions:")
     
     dap_chain_datum_tx_t *l_unstake_cond_tx = dap_ledger_test_create_unstake_tx_cond(a_from_key, &l_stake_cond_tx_hash, dap_chain_uint256_from(20U), a_ledger);
-    dap_hash_fast_t l_unstake_cond_tx_hash = {};
-    dap_hash_fast(l_unstake_cond_tx, dap_chain_datum_tx_get_size(l_unstake_cond_tx), &l_unstake_cond_tx_hash);
+    dap_hash_sha3_256_t l_unstake_cond_tx_hash = {};
+    dap_hash_sha3_256(l_unstake_cond_tx, dap_chain_datum_tx_get_size(l_unstake_cond_tx), &l_unstake_cond_tx_hash);
     err_code = dap_ledger_tx_add(a_ledger, l_unstake_cond_tx, &l_unstake_cond_tx_hash, false, NULL);
     printf("err_code = %s\n", dap_ledger_check_error_str(err_code));
     dap_assert(!err_code, "Adding of unstake cond transaction to ledger is");
@@ -683,21 +683,21 @@ void dap_ledger_test_datums_removing(dap_ledger_t *a_ledger, dap_hash_fast_t *a_
 
 }
 
-dap_hash_fast_t dap_ledger_test_double_spending(
-    dap_ledger_t *a_ledger, dap_hash_fast_t *a_prev_hash, dap_enc_key_t  *a_from_key, dap_chain_addr_t a_addr_to, dap_chain_net_id_t a_net_id) {
+dap_hash_sha3_256_t dap_ledger_test_double_spending(
+    dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_prev_hash, dap_enc_key_t  *a_from_key, dap_chain_addr_t a_addr_to, dap_chain_net_id_t a_net_id) {
     dap_print_module_name("dap_ledger_double_spending");
     dap_chain_datum_tx_t *l_first_tx = dap_ledger_test_create_tx(a_from_key, a_prev_hash,
                                                                        &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee), s_token_ticker);
     dap_assert_PIF(l_first_tx, "Can't creating base transaction.");
-    dap_chain_hash_fast_t l_first_tx_hash = {0};
-    dap_hash_fast(l_first_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_first_tx_hash);
+    dap_hash_sha3_256_t l_first_tx_hash = {0};
+    dap_hash_sha3_256(l_first_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_first_tx_hash);
     dap_assert_PIF(!dap_ledger_tx_add(a_ledger, l_first_tx, &l_first_tx_hash, false, NULL), "Can't add first transaction on ledger");
     //uint256_t l_balance = dap_ledger_calc_balance(a_ledger, &l_addr_first, s_token_ticker);
     // Second tx - double spending attempt (should fail)
     dap_chain_datum_tx_t *l_second_tx = dap_ledger_test_create_tx(a_from_key, a_prev_hash,
                                                                        &a_addr_to, dap_chain_uint256_from(s_standard_value_tx - s_fee), s_token_ticker);
-    dap_chain_hash_fast_t l_second_tx_hash = {0};
-    dap_hash_fast(l_second_tx, dap_chain_datum_tx_get_size(l_second_tx), &l_second_tx_hash);
+    dap_hash_sha3_256_t l_second_tx_hash = {0};
+    dap_hash_sha3_256(l_second_tx, dap_chain_datum_tx_get_size(l_second_tx), &l_second_tx_hash);
     dap_assert_PIF(dap_ledger_tx_add(a_ledger, l_second_tx, &l_second_tx_hash, false, NULL), "Added second transaction on ledger");
     dap_pass_msg("The verification test is not able to make two normal transactions per one basic transaction.");
     return l_first_tx_hash; 
@@ -714,16 +714,16 @@ void dap_ledger_test_excess_supply(dap_ledger_t *a_ledger, dap_cert_t *a_cert, d
     dap_assert_PIF(!dap_ledger_token_add(a_ledger, (byte_t *)l_decl, l_decl_size, 0), "Adding token declaration to ledger.");
     dap_chain_datum_token_emission_t *l_femi = dap_chain_datum_emission_create(l_value_first_emi, l_token_ticker, a_addr);
     l_femi = dap_chain_datum_emission_add_sign(a_cert->enc_key, l_femi);
-    dap_chain_hash_fast_t l_femi_hash = {0};
-    dap_hash_fast(l_femi, dap_chain_datum_emission_get_size((byte_t*)l_femi), &l_femi_hash);
+    dap_hash_sha3_256_t l_femi_hash = {0};
+    dap_hash_sha3_256(l_femi, dap_chain_datum_emission_get_size((byte_t*)l_femi), &l_femi_hash);
     dap_assert_PIF(!dap_ledger_token_emission_add(a_ledger, (byte_t*)l_femi,
                                                         dap_chain_datum_emission_get_size((byte_t*)l_femi),
                                                         &l_femi_hash), "Added first emission in ledger");
     //Second emi
     dap_chain_datum_token_emission_t *l_semi = dap_chain_datum_emission_create(l_value_second_emi, l_token_ticker, a_addr);
     l_semi = dap_chain_datum_emission_add_sign(a_cert->enc_key, l_semi);
-    dap_chain_hash_fast_t l_semi_hash = {0};
-    dap_hash_fast(l_semi, dap_chain_datum_emission_get_size((byte_t*)l_semi), &l_semi_hash);
+    dap_hash_sha3_256_t l_semi_hash = {0};
+    dap_hash_sha3_256(l_semi, dap_chain_datum_emission_get_size((byte_t*)l_semi), &l_semi_hash);
     int res =dap_ledger_token_emission_add(a_ledger, (byte_t*)l_semi,
                                                         dap_chain_datum_emission_get_size((byte_t*)l_semi),
                                                         &l_semi_hash);
@@ -810,8 +810,8 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_create(
                 dap_chain_uint256_from(s_total_supply), l_token_ticker, l_addr_3->addr);
         l_emi = dap_chain_datum_emission_add_sign(a_cert->enc_key, l_emi);
-        dap_chain_hash_fast_t l_emi_hash = {0};
-        dap_hash_fast(l_emi, dap_chain_datum_emission_get_size((uint8_t*)l_emi), &l_emi_hash);
+        dap_hash_sha3_256_t l_emi_hash = {0};
+        dap_hash_sha3_256(l_emi, dap_chain_datum_emission_get_size((uint8_t*)l_emi), &l_emi_hash);
         dap_assert(dap_ledger_token_emission_add(a_ledger, (byte_t*)l_emi, dap_chain_datum_emission_get_size((byte_t*)l_emi),
                                                             &l_emi_hash) != 0,
                        "Checking the impossibility of emission to an address not from the white list.");
@@ -819,31 +819,31 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         dap_chain_datum_token_emission_t *l_emi_whi = dap_chain_datum_emission_create(
             dap_chain_uint256_from(s_total_supply), l_token_ticker, l_addr_4->addr);
         l_emi_whi = dap_chain_datum_emission_add_sign(a_cert->enc_key, l_emi_whi);
-        dap_chain_hash_fast_t l_emi_whi_hash = {0};
-        dap_hash_fast(l_emi_whi, dap_chain_datum_emission_get_size((uint8_t*)l_emi_whi), &l_emi_whi_hash);
+        dap_hash_sha3_256_t l_emi_whi_hash = {0};
+        dap_hash_sha3_256(l_emi_whi, dap_chain_datum_emission_get_size((uint8_t*)l_emi_whi), &l_emi_whi_hash);
         dap_assert_PIF(!dap_ledger_token_emission_add(a_ledger, (byte_t*)l_emi_whi, dap_chain_datum_emission_get_size((byte_t*)l_emi_whi),
                                             &l_emi_whi_hash),
                        "Can't add emission in white address");
         dap_chain_datum_tx_t *l_btx_addr1 = dap_ledger_test_create_datum_base_tx(l_emi_whi, &l_emi_whi_hash,
                                                                                       *l_addr_1->addr, a_cert);
-        dap_hash_fast_t l_btx_addr1_hash = {0};
-        dap_hash_fast(l_btx_addr1, dap_chain_datum_tx_get_size(l_btx_addr1), &l_btx_addr1_hash);
+        dap_hash_sha3_256_t l_btx_addr1_hash = {0};
+        dap_hash_sha3_256(l_btx_addr1, dap_chain_datum_tx_get_size(l_btx_addr1), &l_btx_addr1_hash);
         int l_ledger_add_code = dap_ledger_tx_add(a_ledger, l_btx_addr1, &l_btx_addr1_hash, false, NULL);
         char *l_ledger_tx_add_str = dap_strdup_printf("Can't add base tx in white address. Code: %d", l_ledger_add_code);
         dap_assert_PIF(!l_ledger_add_code, l_ledger_tx_add_str);
         DAP_DELETE(l_ledger_tx_add_str);
-        dap_hash_fast_t l_tx_addr4_hash = {0};
+        dap_hash_sha3_256_t l_tx_addr4_hash = {0};
         dap_chain_datum_tx_t *l_tx_to_addr4 = dap_ledger_test_create_tx(l_addr_1->enc_key, &l_btx_addr1_hash,
                                                                             l_addr_4->addr, dap_chain_uint256_from(s_total_supply/*-s_fee*/),
                                                                             l_token_ticker);
-        dap_hash_fast(l_tx_to_addr4, dap_chain_datum_tx_get_size(l_tx_to_addr4), &l_tx_addr4_hash);
+        dap_hash_sha3_256(l_tx_to_addr4, dap_chain_datum_tx_get_size(l_tx_to_addr4), &l_tx_addr4_hash);
         dap_assert_PIF(!dap_ledger_tx_add(a_ledger, l_tx_to_addr4, &l_tx_addr4_hash, false, NULL),
                        "Can't add transaction to address from white list in ledger");
         dap_chain_datum_tx_t *l_tx_to_addr3 = dap_ledger_test_create_tx(l_addr_4->enc_key, &l_tx_addr4_hash,
                                                                               l_addr_3->addr, dap_chain_uint256_from(s_total_supply/*-s_fee*/),
                                                                               l_token_ticker);
-        dap_hash_fast_t l_tx_addr3_hash = {0};
-        dap_hash_fast(l_tx_to_addr3, dap_chain_datum_tx_get_size(l_tx_to_addr3), &l_tx_addr3_hash);
+        dap_hash_sha3_256_t l_tx_addr3_hash = {0};
+        dap_hash_sha3_256(l_tx_to_addr3, dap_chain_datum_tx_get_size(l_tx_to_addr3), &l_tx_addr3_hash);
         int res_add_tx = dap_ledger_tx_add(a_ledger, l_tx_to_addr3, &l_tx_addr3_hash, false, NULL);
         if (!res_add_tx) {
             dap_fail("It was possible to carry out a transaction to a forbidden address");
@@ -926,8 +926,8 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         dap_chain_datum_token_emission_t *l_emi_block = dap_chain_datum_emission_create(
                 dap_chain_uint256_from(s_total_supply), l_token_ticker, l_addr_1->addr);
         l_emi_block = dap_chain_datum_emission_add_sign(a_cert->enc_key, l_emi_block);
-        dap_chain_hash_fast_t l_emi_block_hash = {0};
-        dap_hash_fast(l_emi_block, dap_chain_datum_emission_get_size((uint8_t*)l_emi_block), &l_emi_block_hash);
+        dap_hash_sha3_256_t l_emi_block_hash = {0};
+        dap_hash_sha3_256(l_emi_block, dap_chain_datum_emission_get_size((uint8_t*)l_emi_block), &l_emi_block_hash);
         dap_assert(dap_ledger_token_emission_add(a_ledger, (byte_t*)l_emi_block, dap_chain_datum_emission_get_size((byte_t*)l_emi_block),
                                                             &l_emi_block_hash),
                        "Test for emission rejection to an address from the prohibited list.");
@@ -935,30 +935,30 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
         dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_create(
                 dap_chain_uint256_from(s_total_supply), l_token_ticker, l_addr_2->addr);
         l_emi = dap_chain_datum_emission_add_sign(a_cert->enc_key, l_emi);
-        dap_chain_hash_fast_t l_emi_hash = {0};
-        dap_hash_fast(l_emi, dap_chain_datum_emission_get_size((uint8_t*)l_emi), &l_emi_hash);
+        dap_hash_sha3_256_t l_emi_hash = {0};
+        dap_hash_sha3_256(l_emi, dap_chain_datum_emission_get_size((uint8_t*)l_emi), &l_emi_hash);
         dap_assert(!dap_ledger_token_emission_add(a_ledger, (byte_t*)l_emi, dap_chain_datum_emission_get_size((byte_t*)l_emi),
                                                            &l_emi_hash),
                        "Emission test for a non-blacklisted address.");
         dap_chain_datum_tx_t *l_btx_addr2 = dap_ledger_test_create_datum_base_tx(l_emi, &l_emi_hash,
                                                                                        *l_addr_2->addr, a_cert);
-        dap_hash_fast_t l_btx_addr2_hash = {0};
-        dap_hash_fast(l_btx_addr2, dap_chain_datum_tx_get_size(l_btx_addr2), &l_btx_addr2_hash);
+        dap_hash_sha3_256_t l_btx_addr2_hash = {0};
+        dap_hash_sha3_256(l_btx_addr2, dap_chain_datum_tx_get_size(l_btx_addr2), &l_btx_addr2_hash);
         dap_assert_PIF(!dap_ledger_tx_add(a_ledger, l_btx_addr2, &l_btx_addr2_hash, false, NULL),
                        "Can't add base tx in white address");
         //Check tx in addr from block list
         dap_chain_datum_tx_t *l_tx_to_addr1 = dap_ledger_test_create_tx(l_addr_4->enc_key, &l_btx_addr2_hash,
                                                                               l_addr_1->addr, dap_chain_uint256_from(s_total_supply),
                                                                               l_token_ticker);
-        dap_hash_fast_t l_tx_addr1_hash = {0};
-        dap_hash_fast(l_tx_to_addr1, dap_chain_datum_tx_get_size(l_tx_to_addr1), &l_tx_addr1_hash);
+        dap_hash_sha3_256_t l_tx_addr1_hash = {0};
+        dap_hash_sha3_256(l_tx_to_addr1, dap_chain_datum_tx_get_size(l_tx_to_addr1), &l_tx_addr1_hash);
         dap_assert(dap_ledger_tx_add(a_ledger, l_tx_to_addr1, &l_tx_addr1_hash, false, NULL), "Transfer test to a forbidden address.");
         //Check tx in addr from list
         dap_chain_datum_tx_t *l_tx_to_addr3 = dap_ledger_test_create_tx(l_addr_4->enc_key, &l_tx_addr1_hash,
                                                                               l_addr_3->addr, dap_chain_uint256_from(s_total_supply),
                                                                               l_token_ticker);
-        dap_hash_fast_t l_tx_addr3_hash = {0};
-        dap_hash_fast(l_tx_to_addr3, dap_chain_datum_tx_get_size(l_tx_to_addr3), &l_tx_addr3_hash);
+        dap_hash_sha3_256_t l_tx_addr3_hash = {0};
+        dap_hash_sha3_256(l_tx_to_addr3, dap_chain_datum_tx_get_size(l_tx_to_addr3), &l_tx_addr3_hash);
         dap_assert(dap_ledger_tx_add(a_ledger, l_tx_to_addr3, &l_tx_addr3_hash, false, NULL), "Transfer test to a not forbidden address.");
     }
 }
@@ -1015,14 +1015,14 @@ void dap_ledger_test_run(void){
     l_chain_zero->config = dap_config_create_empty();
     dap_config_set_item_str(l_chain_zero->config, "chain", "consensus", "dag_poa");
     dap_assert_PIF(dap_chain_cs_create(l_chain_zero, l_chain_zero->config) == 0, "Chain cs dag_poa creating: ");
-    DL_APPEND(l_net->pub.chains, l_chain_zero);
+    dap_dl_append(l_net->pub.chains, l_chain_zero);
 
     // Create main chain with esbocs consensus  
     dap_chain_t *l_chain_main =  dap_chain_create(l_net->pub.name, "test_chain_main", l_net->pub.id, (dap_chain_id_t){.uint64 = 1});
     l_chain_main->config = dap_config_create_empty();
     dap_config_set_item_str(l_chain_main->config, "chain", "consensus", "esbocs");
     dap_assert_PIF(dap_chain_cs_create(l_chain_main, l_chain_main->config) == 0, "Chain esbocs cs creating: ");
-    DL_APPEND(l_net->pub.chains, l_chain_main);
+    dap_dl_append(l_net->pub.chains, l_chain_main);
 
     // Setup blockchain timer callbacks for both chains
     dap_ledger_set_blockchain_timer(l_ledger, l_chain_zero);
@@ -1057,8 +1057,8 @@ void dap_ledger_test_run(void){
     dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_create(dap_chain_uint256_from(s_total_supply), s_token_ticker, &l_addr);
     l_emi = dap_chain_datum_emission_add_sign(l_cert->enc_key, l_emi);
     size_t l_emi_size = dap_chain_datum_emission_get_size((byte_t*)l_emi);
-    dap_chain_hash_fast_t l_emi_hash = {0};
-    dap_hash_fast(l_emi, l_emi_size, &l_emi_hash);
+    dap_hash_sha3_256_t l_emi_hash = {0};
+    dap_hash_sha3_256(l_emi, l_emi_size, &l_emi_hash);
     int l_emi_check = dap_ledger_token_emission_add_check(l_ledger, (byte_t*)l_emi, l_emi_size, &l_emi_hash);
     dap_assert_PIF(l_emi_check == 0, "check emission for add in ledger");
     dap_assert_PIF(!dap_ledger_token_emission_add(l_ledger, (byte_t*)l_emi, l_emi_size, &l_emi_hash), "Added emission in ledger");
@@ -1079,8 +1079,8 @@ void dap_ledger_test_run(void){
     //first base tx
     dap_chain_datum_tx_t *l_base_tx = dap_ledger_test_create_datum_base_tx(l_emi, &l_emi_hash, l_addr, l_cert);
     size_t l_base_tx_size = dap_chain_datum_tx_get_size(l_base_tx);
-    dap_hash_fast_t l_hash_btx = {0};
-    dap_hash_fast(l_base_tx, l_base_tx_size, &l_hash_btx);
+    dap_hash_sha3_256_t l_hash_btx = {0};
+    dap_hash_sha3_256(l_base_tx, l_base_tx_size, &l_hash_btx);
     dap_assert_PIF(!dap_ledger_tx_add_check(l_ledger, l_base_tx, l_base_tx_size, &l_hash_btx), "Check can added base tx in ledger");
     dap_assert_PIF(!dap_ledger_tx_add(l_ledger, l_base_tx, &l_hash_btx, false, NULL), "Added base tx in ledger.");
     uint256_t l_balance_example = dap_chain_uint256_from(s_standard_value_tx);
@@ -1098,8 +1098,8 @@ void dap_ledger_test_run(void){
     //second base tx
     dap_chain_datum_tx_t  *l_base_tx_second = dap_ledger_test_create_datum_base_tx(l_emi, &l_emi_hash, l_addr, l_cert);
     size_t l_base_tx_size2 = dap_chain_datum_tx_get_size(l_base_tx_second);
-    dap_hash_fast_t l_hash_btx_second = {0};
-    dap_hash_fast(l_base_tx_second, l_base_tx_size2, &l_hash_btx_second);
+    dap_hash_sha3_256_t l_hash_btx_second = {0};
+    dap_hash_sha3_256(l_base_tx_second, l_base_tx_size2, &l_hash_btx_second);
     if (dap_ledger_tx_add_check(l_ledger, l_base_tx_second, l_base_tx_size2, &l_hash_btx_second)) {
         dap_pass_msg("Checking can added second base tx in ledger");
     }
@@ -1112,7 +1112,7 @@ void dap_ledger_test_run(void){
     dap_cert_t *l_first_cert = dap_cert_generate_mem_with_seed("newCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, "FMknbirh8*^#$RYU*L", 18);
     dap_chain_addr_t l_addr_first = {0};
     dap_chain_addr_fill_from_key(&l_addr_first, l_first_cert->enc_key, l_iddn);
-    dap_hash_fast_t l_first_tx_hash = dap_ledger_test_double_spending(l_ledger, &l_hash_btx, l_cert->enc_key, l_addr_first, l_iddn);
+    dap_hash_sha3_256_t l_first_tx_hash = dap_ledger_test_double_spending(l_ledger, &l_hash_btx, l_cert->enc_key, l_addr_first, l_iddn);
     dap_ledger_test_excess_supply(l_ledger, l_cert, &l_addr);
     //dap_ledger_test_datums_adding(l_ledger, &l_hash_btx, l_cert->enc_key, l_iddn);//check adding all types of datums into ledger
     dap_ledger_test_datums_removing(l_ledger, &l_first_tx_hash, l_first_cert->enc_key, l_iddn);//check removing all types of datums from ledger
@@ -1228,7 +1228,7 @@ void dap_ledger_test_run(void){
  * @param a_ledger Ledger pointer
  * @return Created transaction or NULL
  */
-static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
+static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // get previous transaction
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
@@ -1259,7 +1259,7 @@ static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond(dap_enc
     return l_tx;
 }
 
-static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond_ems(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
+static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond_ems(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev, uint256_t a_value, dap_ledger_t *a_ledger) {
     dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create((dap_chain_id_t) {.uint64 = 0}, a_hash_prev, s_delegated_token_ticker);
     dap_chain_addr_t l_addr_to = {0};
     dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net_id);
@@ -1273,14 +1273,14 @@ static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_stake_tx_cond_ems(dap
     return l_tx;
 }
 
-static dap_chain_datum_tx_receipt_old_t *dap_ledger_test_create_receipt_old(dap_chain_hash_fast_t *a_burning_tx_hash) {
-    dap_chain_datum_tx_receipt_old_t *l_receipt = DAP_NEW_Z_SIZE(dap_chain_datum_tx_receipt_old_t, sizeof(dap_chain_datum_tx_receipt_old_t) + sizeof(dap_hash_fast_t));
+static dap_chain_datum_tx_receipt_old_t *dap_ledger_test_create_receipt_old(dap_hash_sha3_256_t *a_burning_tx_hash) {
+    dap_chain_datum_tx_receipt_old_t *l_receipt = DAP_NEW_Z_SIZE(dap_chain_datum_tx_receipt_old_t, sizeof(dap_chain_datum_tx_receipt_old_t) + sizeof(dap_hash_sha3_256_t));
     l_receipt->type = TX_ITEM_TYPE_RECEIPT_OLD;
     l_receipt->receipt_info.version = 1;
     l_receipt->receipt_info.srv_uid.uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID;
-    l_receipt->size = sizeof(dap_chain_datum_tx_receipt_old_t) + sizeof(dap_hash_fast_t);
-    l_receipt->exts_size = sizeof(dap_hash_fast_t);
-    memcpy(l_receipt->exts_n_signs, a_burning_tx_hash, sizeof(dap_hash_fast_t));
+    l_receipt->size = sizeof(dap_chain_datum_tx_receipt_old_t) + sizeof(dap_hash_sha3_256_t);
+    l_receipt->exts_size = sizeof(dap_hash_sha3_256_t);
+    memcpy(l_receipt->exts_n_signs, a_burning_tx_hash, sizeof(dap_hash_sha3_256_t));
     return l_receipt;
 }
 
@@ -1293,7 +1293,7 @@ static dap_chain_datum_tx_receipt_old_t *dap_ledger_test_create_receipt_old(dap_
  * @param a_ledger Ledger pointer
  * @return Created transaction or NULL
  */
-static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_unstake_tx_cond(dap_enc_key_t *a_key_from, dap_chain_hash_fast_t *a_hash_prev, dap_chain_hash_fast_t *a_burning_tx_hash, dap_ledger_t *a_ledger) {
+static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_unstake_tx_cond(dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_hash_prev, dap_hash_sha3_256_t *a_burning_tx_hash, dap_ledger_t *a_ledger) {
     // get previous transaction
     dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_hash_prev);
      // get previous cond out
@@ -1331,22 +1331,22 @@ static dap_chain_datum_tx_t *dap_ledger_test_create_legacy_unstake_tx_cond(dap_e
  * @param a_from_key Sender key
  * @param a_net_id Network ID
  */
-static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hash_prev, dap_enc_key_t *a_from_key, dap_chain_net_id_t a_net_id) {
+static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_hash_prev, dap_enc_key_t *a_from_key, dap_chain_net_id_t a_net_id) {
     dap_print_module_name("dap_ledger_test_legacy_stake_operations");
 
     // Test legacy stake transaction
-    dap_hash_fast_t l_stake_tx_ems_hash = {}, l_stake_tx_hash = {};
+    dap_hash_sha3_256_t l_stake_tx_ems_hash = {}, l_stake_tx_hash = {};
     {
         dap_chain_datum_tx_t *l_stake_tx = dap_ledger_test_create_legacy_stake_tx_cond(a_from_key, a_hash_prev, dap_chain_uint256_from(200U), a_ledger);
         if (l_stake_tx) {
-            dap_hash_fast(l_stake_tx, dap_chain_datum_tx_get_size(l_stake_tx), &l_stake_tx_hash);
+            dap_hash_sha3_256(l_stake_tx, dap_chain_datum_tx_get_size(l_stake_tx), &l_stake_tx_hash);
             // Try to add legacy stake transaction (should work with a_from_mempool == false)
             int err_code = dap_ledger_tx_add(a_ledger, l_stake_tx, &l_stake_tx_hash, false, NULL);
             printf("Legacy stake tx add result: %d\n", err_code);
             dap_assert(!err_code, "Adding of legacy stake transaction to ledger is");
 
             dap_chain_datum_tx_t *l_stake_tx_ems = dap_ledger_test_create_legacy_stake_tx_cond_ems(a_from_key, &l_stake_tx_hash, dap_chain_uint256_from(20U), a_ledger);
-            dap_hash_fast(l_stake_tx_ems, dap_chain_datum_tx_get_size(l_stake_tx_ems), &l_stake_tx_ems_hash);
+            dap_hash_sha3_256(l_stake_tx_ems, dap_chain_datum_tx_get_size(l_stake_tx_ems), &l_stake_tx_ems_hash);
             err_code = dap_ledger_tx_add_check(a_ledger, l_stake_tx_ems, dap_chain_datum_tx_get_size(l_stake_tx_ems), &l_stake_tx_ems_hash);
             printf("Legacy stake tx ems add checking result: %d\n", err_code);
             dap_assert(err_code == DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN, "Checking of legacy stake emission to ledger is");
@@ -1360,7 +1360,7 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
     // Test legacy unstake transaction
     {
         // Creating burning tx
-        dap_hash_fast_t l_burning_tx_hash = {};
+        dap_hash_sha3_256_t l_burning_tx_hash = {};
         dap_chain_datum_tx_t *l_stake_tx_ems = dap_ledger_tx_find_by_hash(a_ledger, &l_stake_tx_ems_hash);
         dap_assert(l_stake_tx_ems, "Get legacy stake cond tx ems");
         dap_chain_tx_out_ext_t *l_tx_prev_out_ext = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get(l_stake_tx_ems, NULL, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
@@ -1373,7 +1373,7 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
         dap_chain_datum_tx_add_item(&l_burning_tx, (const uint8_t*) l_out_burn);
         dap_chain_datum_tx_add_sign_item(&l_burning_tx, a_from_key);
         DAP_DEL_MULTY(l_in_ext, l_out_burn);
-        dap_hash_fast(l_burning_tx, dap_chain_datum_tx_get_size(l_burning_tx), &l_burning_tx_hash);
+        dap_hash_sha3_256(l_burning_tx, dap_chain_datum_tx_get_size(l_burning_tx), &l_burning_tx_hash);
         // Try to add legacy stake transaction (should work with a_from_mempool == false)
         int err_code = dap_ledger_tx_add(a_ledger, l_burning_tx, &l_burning_tx_hash, false, NULL);
         printf("Legacy burning tx add result: %d\n", err_code);
@@ -1382,8 +1382,8 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
         // Test with wrong key (not owner) - should fail verificator check
         dap_enc_key_t *l_wrong_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_BLISS, NULL, 0, NULL, 0, 0);
         dap_chain_datum_tx_t *l_unstake_tx_wrong = dap_ledger_test_create_legacy_unstake_tx_cond(l_wrong_key, &l_stake_tx_hash, &l_burning_tx_hash, a_ledger);
-        dap_hash_fast_t l_unstake_tx_wrong_hash = {};
-        dap_hash_fast(l_unstake_tx_wrong, dap_chain_datum_tx_get_size(l_unstake_tx_wrong), &l_unstake_tx_wrong_hash);
+        dap_hash_sha3_256_t l_unstake_tx_wrong_hash = {};
+        dap_hash_sha3_256(l_unstake_tx_wrong, dap_chain_datum_tx_get_size(l_unstake_tx_wrong), &l_unstake_tx_wrong_hash);
         err_code = dap_ledger_tx_add_check(a_ledger, l_unstake_tx_wrong, dap_chain_datum_tx_get_size(l_unstake_tx_wrong), &l_unstake_tx_wrong_hash);
         printf("Legacy unstake with wrong key check err_code = %d\n", err_code);
         dap_assert(err_code == DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE, "Checking of legacy unstake with wrong key is");
@@ -1392,8 +1392,8 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
         
         // Test with correct key (owner) - should pass
         dap_chain_datum_tx_t *l_unstake_tx = dap_ledger_test_create_legacy_unstake_tx_cond(a_from_key, &l_stake_tx_hash, &l_burning_tx_hash, a_ledger);
-        dap_hash_fast_t l_unstake_tx_hash = {};
-        dap_hash_fast(l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);
+        dap_hash_sha3_256_t l_unstake_tx_hash = {};
+        dap_hash_sha3_256(l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);
         err_code = dap_ledger_tx_add_check(a_ledger, l_unstake_tx, dap_chain_datum_tx_get_size(l_unstake_tx), &l_unstake_tx_hash);
         printf("Legacy unstake err_code = %d\n", err_code);
         dap_assert(err_code == DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE, "Checking of legacy unstake is");

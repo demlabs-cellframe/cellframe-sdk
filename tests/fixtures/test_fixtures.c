@@ -55,11 +55,11 @@ void test_network_delete(dap_chain_net_t *a_net) {
  * @param a_seed Seed value for generation
  * @param a_hash Output hash
  */
-void test_hash_generate(uint32_t a_seed, dap_hash_fast_t *a_hash) {
+void test_hash_generate(uint32_t a_seed, dap_hash_sha3_256_t *a_hash) {
     dap_return_if_fail(a_hash);
     
-    memset(a_hash, 0, sizeof(dap_hash_fast_t));
-    for (size_t i = 0; i < sizeof(dap_hash_fast_t); i++) {
+    memset(a_hash, 0, sizeof(dap_hash_sha3_256_t));
+    for (size_t i = 0; i < sizeof(dap_hash_sha3_256_t); i++) {
         a_hash->raw[i] = (uint8_t)((a_seed + i * 17) % 256);
     }
 }

@@ -29,7 +29,7 @@
 DAP_MOCK_DECLARE(dap_ledger_tx_remove, { .return_value.i = 0 });
 
 DAP_MOCK_WRAPPER_DEFAULT(int, dap_ledger_tx_remove,
-    (dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash),
+    (dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash),
     (a_ledger, a_tx, a_tx_hash))
 
 // =============================================================================
@@ -42,13 +42,13 @@ DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_add, DAP_MOCK_CONFIG_DEFAULT);
 DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_get_token_ticker_by_hash, DAP_MOCK_CONFIG_DEFAULT);
 
 DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
-    (dap_ledger_t* a_ledger, dap_hash_fast_t* a_tx_hash)
+    (dap_ledger_t* a_ledger, dap_hash_sha3_256_t* a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_find_by_hash;
     dap_chain_datum_tx_t* l_result = NULL;
     if (a_tx_hash) {
         bool l_is_zero = true;
-        for (size_t i = 0; i < sizeof(dap_hash_fast_t); i++) {
+        for (size_t i = 0; i < sizeof(dap_hash_sha3_256_t); i++) {
             if (((uint8_t*)a_tx_hash)[i] != 0) {
                 l_is_zero = false;
                 break;
@@ -66,7 +66,7 @@ DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
 }
 
 DAP_MOCK_WRAPPER_CUSTOM(int, dap_ledger_tx_add,
-    (dap_ledger_t* a_ledger, dap_chain_datum_tx_t* a_tx, dap_hash_fast_t* a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t* a_datum_index_data)
+    (dap_ledger_t* a_ledger, dap_chain_datum_tx_t* a_tx, dap_hash_sha3_256_t* a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t* a_datum_index_data)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_add;
     if (!a_ledger || !a_tx || !a_tx_hash) {
@@ -81,7 +81,7 @@ DAP_MOCK_WRAPPER_CUSTOM(int, dap_ledger_tx_add,
 }
 
 DAP_MOCK_WRAPPER_CUSTOM(const char*, dap_ledger_tx_get_token_ticker_by_hash,
-    (dap_ledger_t* a_ledger, dap_hash_fast_t* a_tx_hash)
+    (dap_ledger_t* a_ledger, dap_hash_sha3_256_t* a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_get_token_ticker_by_hash;
     if (a_tx_hash) {
@@ -102,8 +102,8 @@ DAP_MOCK_WRAPPER_CUSTOM(const char*, dap_ledger_tx_get_token_ticker_by_hash,
 // =============================================================================
 
 static dap_ledger_t s_mock_ledger = {0};
-static dap_hash_fast_t s_test_tx_hash1 = {0};
-static dap_hash_fast_t s_test_tx_hash2 = {0};
+static dap_hash_sha3_256_t s_test_tx_hash1 = {0};
+static dap_hash_sha3_256_t s_test_tx_hash2 = {0};
 static dap_chain_datum_tx_t *s_test_tx1 = NULL;
 static dap_chain_datum_tx_t *s_test_tx2 = NULL;
 
@@ -122,8 +122,8 @@ static void test_setup(void)
     log_it(L_INFO, "========================================");
     
     memset(&s_mock_ledger, 0, sizeof(s_mock_ledger));
-    memset(&s_test_tx_hash1, 0x11, sizeof(dap_hash_fast_t));
-    memset(&s_test_tx_hash2, 0x22, sizeof(dap_hash_fast_t));
+    memset(&s_test_tx_hash1, 0x11, sizeof(dap_hash_sha3_256_t));
+    memset(&s_test_tx_hash2, 0x22, sizeof(dap_hash_sha3_256_t));
     
     // Create TX using TX Compose API
     s_test_tx1 = dap_chain_datum_tx_create();
@@ -194,8 +194,8 @@ static void test_null_return(void)
 {
     log_it(L_INFO, "TEST 3: NULL return for non-existent TX");
     
-    dap_hash_fast_t l_hash = {0};
-    memset(&l_hash, 0xFF, sizeof(dap_hash_fast_t));
+    dap_hash_sha3_256_t l_hash = {0};
+    memset(&l_hash, 0xFF, sizeof(dap_hash_sha3_256_t));
     
     dap_chain_datum_tx_t *l_found = dap_ledger_tx_find_by_hash(&s_mock_ledger, &l_hash);
     dap_assert_PIF(l_found == NULL, "Should return NULL");
@@ -210,8 +210,8 @@ static void test_custom_mock_zero_hash(void)
 {
     log_it(L_INFO, "TEST 4: Custom mock - zero hash detection");
     
-    dap_hash_fast_t l_zero_hash = {0};
-    memset(&l_zero_hash, 0, sizeof(dap_hash_fast_t));
+    dap_hash_sha3_256_t l_zero_hash = {0};
+    memset(&l_zero_hash, 0, sizeof(dap_hash_sha3_256_t));
     
     // Custom mock should detect zero hash and return NULL
     dap_chain_datum_tx_t *l_result = dap_ledger_tx_find_by_hash(&s_mock_ledger, &l_zero_hash);
@@ -238,8 +238,8 @@ static void test_custom_mock_ticker_by_hash(void)
     dap_assert_PIF(strcmp(l_ticker2, "tCELL") == 0, "Hash 0x22 should return 'tCELL'");
     
     // Hash starting with 0xFF should return NULL
-    dap_hash_fast_t l_unknown_hash = {0};
-    memset(&l_unknown_hash, 0xFF, sizeof(dap_hash_fast_t));
+    dap_hash_sha3_256_t l_unknown_hash = {0};
+    memset(&l_unknown_hash, 0xFF, sizeof(dap_hash_sha3_256_t));
     const char *l_ticker3 = dap_ledger_tx_get_token_ticker_by_hash(&s_mock_ledger, &l_unknown_hash);
     dap_assert_PIF(l_ticker3 == NULL, "Unknown hash 0xFF should return NULL");
     

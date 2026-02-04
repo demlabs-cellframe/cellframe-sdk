@@ -22,6 +22,8 @@ You should have received a copy of the GNU General Public License
 along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include "dap_ht.h"
+
 
 #include "dap_chain.h"
 #include "dap_json.h"
@@ -105,7 +107,7 @@ typedef struct dap_chain_esbocs_message_hdr {
     dap_chain_id_t chain_id;
     dap_chain_cell_id_t cell_id;
     dap_stream_node_addr_t recv_addr;
-    dap_hash_fast_t candidate_hash;
+    dap_hash_sha3_256_t candidate_hash;
 } DAP_ALIGN_PACKED dap_chain_esbocs_message_hdr_t;
 
 typedef struct dap_chain_esbocs_message {
@@ -114,22 +116,22 @@ typedef struct dap_chain_esbocs_message {
 } DAP_ALIGN_PACKED dap_chain_esbocs_message_t;
 
 typedef struct dap_chain_esbocs_message_item {
-    dap_hash_fast_t message_hash;
+    dap_hash_sha3_256_t message_hash;
     dap_chain_esbocs_message_t *message;
     dap_chain_addr_t signing_addr;
     bool unprocessed;   // Do not count one message twice
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_esbocs_message_item_t;
 
 typedef struct dap_chain_esbocs_sync_item {
-    dap_hash_fast_t last_block_hash;
+    dap_hash_sha3_256_t last_block_hash;
     dap_list_t *messages;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_esbocs_sync_item_t;
 
 typedef struct dap_chain_esbocs_store {
-    dap_hash_fast_t candidate_hash;
-    dap_hash_fast_t precommit_candidate_hash;
+    dap_hash_sha3_256_t candidate_hash;
+    dap_hash_sha3_256_t precommit_candidate_hash;
     dap_chain_block_t *candidate;
     size_t candidate_size;
     dap_list_t *candidate_signs;
@@ -139,7 +141,7 @@ typedef struct dap_chain_esbocs_store {
     bool decide_reject;
     bool decide_approve;
     bool decide_commit;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_esbocs_store_t;
 
 typedef struct dap_chain_esbocs {
@@ -173,9 +175,9 @@ typedef struct dap_chain_esbocs_round {
     dap_time_t round_start_ts;
     dap_time_t prev_round_start_ts;
 
-    dap_hash_fast_t last_block_hash;
-    dap_hash_fast_t directive_hash;
-    dap_hash_fast_t attempt_candidate_hash;
+    dap_hash_sha3_256_t last_block_hash;
+    dap_hash_sha3_256_t directive_hash;
+    dap_hash_sha3_256_t attempt_candidate_hash;
     dap_chain_addr_t attempt_submit_validator;
 
     dap_list_t *all_validators;
@@ -208,7 +210,7 @@ typedef struct dap_chain_esbocs_validator {
 typedef struct dap_chain_esbocs_penalty_item {
         dap_chain_addr_t signing_addr;
         uint16_t miss_count;
-        UT_hash_handle hh;
+        dap_ht_handle_t hh;
 } dap_chain_esbocs_penalty_item_t;
 
 #define DAP_CHAIN_ESBOCS_PENALTY_KICK   3U      // Number of missed rounds to kick
@@ -284,7 +286,7 @@ uint256_t dap_chain_esbocs_get_collecting_level(dap_chain_t *a_chain);
 dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain);
 int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
 uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id);
-int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash);
+int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_sha3_256_t *a_validator_hash);
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);
 int dap_chain_esbocs_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs);
 int dap_chain_esbocs_set_hardfork_complete(dap_chain_t *a_chain);

@@ -34,7 +34,7 @@ void test_my_function(void) {
     unit_test_mock_dap_sdk(ctx, true, true, false);
     
     // Generate test data
-    dap_hash_fast_t hash;
+    dap_hash_sha3_256_t hash;
     unit_test_hash_generate(42, &hash);
     
     dap_chain_addr_t addr;
@@ -165,7 +165,7 @@ integration_test_mock_consensus(ctx, "dag-poa");
 ### Unit Tests
 ```c
 // Generate deterministic hash
-dap_hash_fast_t hash;
+dap_hash_sha3_256_t hash;
 unit_test_hash_generate(42, &hash);  // seed=42
 
 // Generate deterministic address

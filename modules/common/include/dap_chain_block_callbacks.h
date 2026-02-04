@@ -52,7 +52,7 @@ typedef struct dap_chain_sovereign_tax_info {
  */
 typedef dap_chain_sovereign_tax_info_t* (*dap_chain_sovereign_tax_callback_t)(
     dap_chain_net_id_t a_net_id,
-    dap_hash_fast_t *a_pkey_hash
+    dap_hash_sha3_256_t *a_pkey_hash
 );
 
 /**
@@ -81,7 +81,7 @@ void dap_chain_block_callbacks_register_sovereign_tax(dap_chain_sovereign_tax_ca
  */
 dap_chain_sovereign_tax_info_t* dap_chain_block_callbacks_get_sovereign_tax(
     dap_chain_net_id_t a_net_id,
-    dap_hash_fast_t *a_pkey_hash
+    dap_hash_sha3_256_t *a_pkey_hash
 );
 
 #ifdef __cplusplus
