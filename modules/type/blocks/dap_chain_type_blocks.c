@@ -1533,7 +1533,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 dap_json_array_add(a_json_arr_reply, json_arr_bl_out);
                 dap_json_t *json_obj_out = dap_json_object_new();
                 char *l_val = dap_strdup_printf("%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks\n",
-                                     l_net->pub.name, l_chain->name, l_block_count);
+                                     l_net->pub.name, l_chain->name, (uint64_t)l_block_count);
                 dap_json_object_add_string(json_obj_out, "status", l_val);
                 DAP_DELETE(l_val);
                 dap_json_array_add(a_json_arr_reply, json_obj_out);
