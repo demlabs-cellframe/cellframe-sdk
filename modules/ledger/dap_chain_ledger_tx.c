@@ -164,9 +164,10 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
     for (size_t i = 0; i < a_values_count; i++) {
         dap_ledger_cache_gdb_record_t *l_current_record = (dap_ledger_cache_gdb_record_t *)a_values[i].value;
-        if (a_values[i].value_len != l_current_record->cache_size + l_current_record->datum_size + sizeof(dap_ledger_cache_gdb_record_t)) {
-            log_it(L_ERROR, "ledger_cache_gdb_record %zu size mismatch, %zu != %zu",
-                            i, a_values[i].value_len, l_current_record->cache_size + l_current_record->datum_size + sizeof(dap_ledger_cache_gdb_record_t));
+        uint64_t l_expected_size = l_current_record->cache_size + l_current_record->datum_size + sizeof(dap_ledger_cache_gdb_record_t);
+        if ((uint64_t)a_values[i].value_len != l_expected_size) {
+            log_it(L_ERROR, "ledger_cache_gdb_record %zu size mismatch, %"DAP_UINT64_FORMAT_U" != %"DAP_UINT64_FORMAT_U"",
+                   i, (uint64_t)a_values[i].value_len, l_expected_size);
             continue;
         }
         dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_ledger_tx_item_t,
