@@ -1157,7 +1157,25 @@ int dap_chain_net_cli_init(void)
     dap_cli_server_cmd_add("node", com_node, NULL,
                            "Node operations",
                            -1, // auto ID
-                           "node { add | del | link | alias | connect | list | dump | connections | balancer }\n");
+                           "node add { -net <net_name> | -rpc [-port <port>] } | { -rpc -addr <node_address> -host <node_host> [-port <port>] }\n\n"
+                                    "node alias -addr <node_address> -alias <node_alias>\n\n"
+                                    "node balancer -net <net_name>\n"
+                                    "node ban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+
+
+                                    "node del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
+                                    "node link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
+                                    
+                                    "node connect -net <net_name> {-addr <node_address> | -alias <node_alias> | auto}\n\n"
+                                    "node handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
+                                    "node connections [-net <net_name>]\n"
+                                    
+                                    "node dump { [-net <net_name> | -addr <node_address>] } | { -rpc [-addr <node_address>] }\n\n"
+                                    "node list { -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full] } | -rpc\n\n"
+                                    
+                                    "node unban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                                    "node banlist\n\n");
+
 
     // Register net command
     dap_cli_server_cmd_add("net", s_cli_net, NULL,
