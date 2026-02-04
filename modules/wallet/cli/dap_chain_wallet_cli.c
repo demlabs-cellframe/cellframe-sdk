@@ -350,6 +350,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
         // wallet info
         case CMD_WALLET_INFO: {
             dap_ledger_t *l_ledger = NULL;
+            unsigned int l_wallet_status = 0;
             if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
                 "You should use either the -w or -addr option for the wallet info command.");
@@ -363,7 +364,15 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                     dap_json_object_free(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
-                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
+                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, &l_wallet_status);
+                // Check if wallet is protected but not activated
+                if (!l_wallet && l_wallet_status == 4) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR,
+                                           "Wallet '%s' is protected but not activated. Use 'wallet activate -w %s -password <password>' first.",
+                                           l_wallet_name, l_wallet_name);
+                    dap_json_object_free(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR;
+                }
                 l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
             } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
@@ -411,26 +420,28 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
             char **l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_addr_tokens, &l_addr_tokens_size);
             if (l_wallet) {
-                //Get sign for wallet
-                dap_json_t *l_jobj_sings = NULL;
+                // Get sign types for wallet
+                dap_json_t *l_jobj_signs = NULL;
                 dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
                 if (l_w_internal->certs_count == 1) {
-                    l_jobj_sings = dap_json_object_new_string(
+                    // Single certificate wallet
+                    l_jobj_signs = dap_json_object_new_string(
                         dap_sign_type_to_str(
                             dap_sign_type_from_key_type(l_w_internal->certs[0]->enc_key->type)));
                 } else {
-                    dap_string_t *l_str_signs = dap_string_new("");
+                    // Multi-signature wallet - output as JSON array with sig_multi_chained prefix
+                    l_jobj_signs = dap_json_array_new();
+                    dap_json_array_add(l_jobj_signs, dap_json_object_new_string("sig_multi_chained"));
                     for (size_t i = 0; i < l_w_internal->certs_count; i++) {
-                        dap_string_append_printf(l_str_signs, "%s%s",
-                                                 dap_sign_type_to_str(dap_sign_type_from_key_type(
-                                                     l_w_internal->certs[i]->enc_key->type)),
-                                                 ((i + 1) == l_w_internal->certs_count) ? "" : ", ");
+                        dap_json_array_add(l_jobj_signs, 
+                            dap_json_object_new_string(
+                                dap_sign_type_to_str(dap_sign_type_from_key_type(
+                                    l_w_internal->certs[i]->enc_key->type))));
                     }
-                    l_jobj_sings = dap_json_object_new_string(l_str_signs->str);
-                    dap_string_free(l_str_signs, true);
                 }
-                dap_json_object_add_object(json_obj_wall, "signs", l_jobj_sings);
+                dap_json_object_add_object(json_obj_wall, "signs", l_jobj_signs);
             } else {
+                // Searching by address - show sig_type from address
                 dap_json_object_add_object(json_obj_wall, "signs",
                                        dap_json_object_new_string(dap_sign_type_to_str(l_addr->sig_type)));
             }
@@ -498,6 +509,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
             break;
         }
         case CMD_WALLET_OUTPUTS: {
+            unsigned int l_wallet_status = 0;
             if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
                 "You should use either the -w or -addr option for the wallet info command.");
@@ -511,10 +523,17 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                     dap_json_object_free(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
-                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
+                l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, &l_wallet_status);
                 if (!l_wallet){
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
-                                           "Can't find wallet (%s)", l_wallet_name);
+                    // Check if wallet is protected but not activated
+                    if (l_wallet_status == 4) {
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                               "Wallet '%s' is protected but not activated. Use 'wallet activate -w %s -password <password>' first.",
+                                               l_wallet_name, l_wallet_name);
+                    } else {
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                               "Can't find wallet (%s)", l_wallet_name);
+                    }
                     dap_json_object_free(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
