@@ -82,11 +82,10 @@ typedef struct dap_chain_wallet_file_hdr{
     char        wallet_name[];
 } DAP_ALIGN_PACKED dap_chain_wallet_file_hdr_t;
 
-typedef struct dap_chain_wallet_file                                        /* On-disk structure */
-{
-    dap_chain_wallet_file_hdr_t header;
-    uint8_t data[];
-} DAP_ALIGN_PACKED dap_chain_wallet_file_t;
+/*
+ * On-disk wallet file layout is variable-length (header contains a flexible array member),
+ * so it must not be embedded into another struct (clang: -Wgnu-variable-sized-type-not-at-end).
+ */
 
 typedef struct dap_chain_wallet_internal
 {
@@ -98,4 +97,3 @@ typedef struct dap_chain_wallet_internal
 #define DAP_CHAIN_WALLET_INTERNAL(a) (a ? (dap_chain_wallet_internal_t *) a->_internal : NULL)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t); a->_internal = l_wallet_internal
-
