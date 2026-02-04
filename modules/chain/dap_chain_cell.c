@@ -281,7 +281,7 @@ int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
     }
     off_t l_pos = !fseeko(l_cell->file_storage, 0, SEEK_END) ? ftello(l_cell->file_storage) : -1;
     if (l_pos < (off_t)a_delta)
-        dap_return_val_if_fail_err(l_cell, -3, "Can't truncate more than file size %" DAP_UINT64_FORMAT_U, l_pos);
+        dap_return_val_if_fail_err(l_cell, -3, "Can't truncate more than file size %"DAP_INT64_FORMAT, (int64_t)l_pos);
     l_pos -= a_delta;
 #ifdef DAP_OS_WINDOWS
     if (l_cell->chain->is_mapped) {
@@ -291,7 +291,12 @@ int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
             log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
     } else
 #endif
-    ftruncate(fileno(l_cell->file_storage), l_pos);
+    if (ftruncate(fileno(l_cell->file_storage), l_pos) != 0) {
+        log_it(L_ERROR, "Failed to truncate cell file \"%s\": %s",
+               l_cell->file_storage_path, dap_strerror(errno));
+        dap_chain_cell_remit(a_chain);
+        return -4;
+    }
     dap_chain_cell_remit(a_chain);
     return 0;
 }
@@ -455,7 +460,11 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
         } else
 #endif
-            ftruncate(fileno(a_cell->file_storage), l_pos);
+            if (ftruncate(fileno(a_cell->file_storage), l_pos) != 0) {
+                log_it(L_ERROR, "Failed to truncate cell file \"%s\": %s",
+                       a_cell->file_storage_path, dap_strerror(errno));
+                l_ret = -10;
+            }
     }
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     if ( a_cell->chain->callback_atoms_prefetched_add )
@@ -507,7 +516,9 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
             m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot be loaded, code %d",
                              a_chain->net_name, a_chain->name, a_filename, l_load_res);
         // Otherwise, rewrite the file from scratch
-        ftruncate(fileno(l_cell->file_storage), 0);
+        if (ftruncate(fileno(l_cell->file_storage), 0) != 0)
+            m_ret_err(errno, "Failed to truncate cell file \"%s\": %s",
+                      a_filename, dap_strerror(errno));
         *mode = 'w';
     }
     case 'w': {
