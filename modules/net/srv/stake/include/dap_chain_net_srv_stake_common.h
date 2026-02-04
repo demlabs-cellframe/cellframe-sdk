@@ -27,7 +27,7 @@ typedef struct dap_pkey dap_pkey_t;
 
 /**
  * @brief Stake validator item structure
- * 
+ *
  * Common structure used by multiple modules (net-tx, esbocs, xchange, voting)
  * Extracted from stake module to break dependencies
  */

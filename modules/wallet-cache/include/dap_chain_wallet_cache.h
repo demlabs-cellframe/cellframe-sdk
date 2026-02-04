@@ -55,10 +55,10 @@ int dap_chain_wallet_cache_deinit();
 
 /**
  * @brief Register wallet cache callbacks for a specific chain
- * 
+ *
  * This function should be called by net module for each chain with TX support.
  * Wallet-cache module should NOT iterate networks itself.
- * 
+ *
  * @param a_chain Chain to register callbacks for
  * @param a_net Network context (stored in callback arg)
  * @return 0 on success, negative on error
@@ -77,11 +77,11 @@ int dap_chain_wallet_cache_register_chain(struct dap_chain *a_chain, void *a_net
  *         -100 - wrong arguments
  *         -101 - addr is not found in cache
  */
-int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_chain_datum_tx_t **a_tx, 
+int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_chain_datum_tx_t **a_tx,
                                                             dap_hash_sha3_256_t *a_tx_hash_curr, int* a_ret_code);
 
 /**
- * @brief Find next transactions after l_tx_hash_curr for wallet addr and save pointer to transaction into a_tx. 
+ * @brief Find next transactions after l_tx_hash_curr for wallet addr and save pointer to transaction into a_tx.
  *         If l_tx_hash_curr is NULL then function find first tx for addr.
  * @param a_addr  wallet address
  * @param a_token output parameter. Return tx msin token tiker
@@ -110,19 +110,19 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
  *         -100 - wrong arguments
  *         -101 - addr is not found in cache
  */
-int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
+int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr,
                                                     dap_list_t **a_outs_list, uint256_t a_value_needed, uint256_t *a_value_transfer, bool a_mempool_check);
-                                                    
-int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
+
+int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr,
                                                     dap_list_t **a_outs_list, uint256_t *a_value_transfer, bool a_mempool_check);
-                                                    
-DAP_STATIC_INLINE int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
+
+DAP_STATIC_INLINE int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr,
                                                     dap_list_t **a_outs_list, uint256_t a_value_needed, uint256_t *a_value_transfer)
 {
     return dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(a_net, a_token_ticker, a_addr, a_outs_list, a_value_needed, a_value_transfer, true);
 }
-                                                    
-DAP_STATIC_INLINE int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
+
+DAP_STATIC_INLINE int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr,
                                                     dap_list_t **a_outs_list, uint256_t *a_value_transfer)
 {
     return dap_chain_wallet_cache_tx_find_outs_mempool_check(a_net, a_token_ticker, a_addr, a_outs_list, a_value_transfer, true);

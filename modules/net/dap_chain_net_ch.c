@@ -115,7 +115,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
     if(l_ch_chain_net) {
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
         if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST)
-            return log_it(L_ATT, "Receive test data packet with hash %s", 
+            return log_it(L_ATT, "Receive test data packet with hash %s",
                                  dap_hash_sha3_256_data_to_str(l_ch_pkt->data, l_ch_pkt->hdr.data_size).s), false;
         if (l_ch_pkt->hdr.data_size < sizeof(dap_chain_net_ch_pkt_t))
             return log_it(L_WARNING, "Too small stream channel N packet size %u (header size %zu)",

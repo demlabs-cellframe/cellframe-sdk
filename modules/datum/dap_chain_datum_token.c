@@ -97,7 +97,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
                 .type       = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL,
                 .subtype    = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE,
                 .header_native_decl.decimals = l_token_old->header_simple.decimals,
-        };    
+        };
     } break;
 
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL: {
@@ -469,7 +469,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_append_sign(dap_sign_
     dap_chain_datum_token_emission_t *l_ret = DAP_REALLOC(a_emission, l_emission_size + dap_sign_get_size(a_sign));
     size_t l_sign_size = dap_sign_get_size(a_sign);
     memcpy(l_ret->tsd_n_signs + l_ret->data.type_auth.tsd_n_signs_size, a_sign, l_sign_size);
-    
+
     l_ret->data.type_auth.tsd_n_signs_size += l_sign_size;
     l_ret->data.type_auth.signs_count++;
     return l_ret;

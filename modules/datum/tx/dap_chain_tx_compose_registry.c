@@ -51,18 +51,18 @@ int dap_chain_tx_compose_registry_init(void)
 void dap_chain_tx_compose_registry_deinit(void)
 {
     pthread_rwlock_wrlock(&s_registry_rwlock);
-    
+
     dap_chain_tx_compose_registry_entry_t *l_entry, *l_tmp;
     dap_ht_foreach_hh(hh, s_registry, l_entry, l_tmp) {
         dap_ht_del(s_registry, l_entry);
         DAP_DELETE(l_entry->tx_type);
         DAP_DELETE(l_entry);
     }
-    
+
     s_registry = NULL;
-    
+
     pthread_rwlock_unlock(&s_registry_rwlock);
-    
+
     log_it(L_INFO, "TX Compose Registry deinitialized");
 }
 
@@ -79,20 +79,20 @@ int dap_chain_tx_compose_registry_add(
         log_it(L_ERROR, "Invalid parameters for registry_add");
         return -1;
     }
-    
+
     pthread_rwlock_wrlock(&s_registry_rwlock);
-    
+
     // Check if already registered
     dap_chain_tx_compose_registry_entry_t *l_existing = NULL;
     dap_ht_find_str(s_registry, a_tx_type, l_existing);
-    
+
     if (l_existing) {
         log_it(L_WARNING, "TX type '%s' already registered, replacing", a_tx_type);
         dap_ht_del(s_registry, l_existing);
         DAP_DELETE(l_existing->tx_type);
         DAP_DELETE(l_existing);
     }
-    
+
     // Create new entry
     dap_chain_tx_compose_registry_entry_t *l_entry = DAP_NEW_Z(dap_chain_tx_compose_registry_entry_t);
     if (!l_entry) {
@@ -100,16 +100,16 @@ int dap_chain_tx_compose_registry_add(
         pthread_rwlock_unlock(&s_registry_rwlock);
         return -2;
     }
-    
+
     l_entry->tx_type = dap_strdup(a_tx_type);
     l_entry->callback = a_callback;
     l_entry->user_data = a_user_data;
-    
+
     // Add to hash table
     dap_ht_add_keyptr_hh(hh, s_registry, l_entry->tx_type, strlen(l_entry->tx_type), l_entry);
-    
+
     pthread_rwlock_unlock(&s_registry_rwlock);
-    
+
     log_it(L_INFO, "TX Compose: registered builder for type '%s'", a_tx_type);
     return 0;
 }
@@ -122,12 +122,12 @@ void dap_chain_tx_compose_registry_remove(const char *a_tx_type)
     if (!a_tx_type) {
         return;
     }
-    
+
     pthread_rwlock_wrlock(&s_registry_rwlock);
-    
+
     dap_chain_tx_compose_registry_entry_t *l_entry = NULL;
     dap_ht_find_str(s_registry, a_tx_type, l_entry);
-    
+
     if (l_entry) {
         dap_ht_del(s_registry, l_entry);
         DAP_DELETE(l_entry->tx_type);
@@ -136,7 +136,7 @@ void dap_chain_tx_compose_registry_remove(const char *a_tx_type)
     } else {
         log_it(L_WARNING, "TX Compose: type '%s' not found for unregister", a_tx_type);
     }
-    
+
     pthread_rwlock_unlock(&s_registry_rwlock);
 }
 
@@ -150,14 +150,14 @@ dap_chain_tx_compose_registry_entry_t* dap_chain_tx_compose_registry_find(
     if (!a_tx_type) {
         return NULL;
     }
-    
+
     pthread_rwlock_rdlock(&s_registry_rwlock);
-    
+
     dap_chain_tx_compose_registry_entry_t *l_entry = NULL;
     dap_ht_find_str(s_registry, a_tx_type, l_entry);
-    
+
     pthread_rwlock_unlock(&s_registry_rwlock);
-    
+
     return l_entry;
 }
 

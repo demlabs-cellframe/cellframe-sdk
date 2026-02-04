@@ -50,7 +50,7 @@
 // Forward declarations
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
 static void s_stage_error_callback(dap_client_t *a_client, void *a_arg);
-static void s_universal_packet_in_callback(dap_stream_ch_t *a_ch, uint8_t a_type, 
+static void s_universal_packet_in_callback(dap_stream_ch_t *a_ch, uint8_t a_type,
                                            const void *a_data, size_t a_data_size, void *a_arg);
 
 /**
@@ -101,23 +101,23 @@ static void s_try_match_response(dap_chain_node_sync_client_t *a_sync_client,
 {
     if (!a_sync_client)
         return;
-    
+
     pthread_rwlock_rdlock(&a_sync_client->requests_lock);
-    
+
     dap_chain_node_sync_request_t *l_request, *l_tmp;
     dap_ht_foreach_hh(hh, a_sync_client->pending_requests, l_request, l_tmp) {
         // Check channel match
         if (l_request->channel_id != a_channel_id)
             continue;
-        
+
         // Use matcher for response correlation (required)
         if (!l_request->matcher)
             continue;
-            
+
         bool l_matched = l_request->matcher(l_request, a_pkt_type,
                                             a_pkt_data, a_pkt_size,
                                             l_request->matcher_arg);
-        
+
         if (l_matched) {
             pthread_mutex_lock(&l_request->mutex);
             // Copy response data
@@ -131,7 +131,7 @@ static void s_try_match_response(dap_chain_node_sync_client_t *a_sync_client,
             break;
         }
     }
-    
+
     pthread_rwlock_unlock(&a_sync_client->requests_lock);
 }
 
@@ -139,13 +139,13 @@ static void s_try_match_response(dap_chain_node_sync_client_t *a_sync_client,
  * @brief Universal packet in callback for any channel
  * Uses dap_stream_ch notifier mechanism
  */
-static void s_universal_packet_in_callback(dap_stream_ch_t *a_ch, uint8_t a_type, 
+static void s_universal_packet_in_callback(dap_stream_ch_t *a_ch, uint8_t a_type,
                                            const void *a_data, size_t a_data_size, void *a_arg)
 {
     dap_chain_node_sync_client_t *l_sync_client = (dap_chain_node_sync_client_t *)a_arg;
     if (!l_sync_client || !a_ch || !a_ch->proc)
         return;
-    
+
     uint8_t l_channel_id = a_ch->proc->id;
     s_try_match_response(l_sync_client, l_channel_id, a_type, a_data, a_data_size);
 }
@@ -157,10 +157,10 @@ static void s_add_channel_notifiers(dap_chain_node_sync_client_t *a_sync_client)
 {
     if (!a_sync_client || !a_sync_client->client || !a_sync_client->client->active_channels)
         return;
-    
+
     dap_stream_node_addr_t *l_addr = (dap_stream_node_addr_t *)&a_sync_client->node_info->address;
     const char *l_channels = a_sync_client->client->active_channels;
-    
+
     for (size_t i = 0; l_channels[i]; i++) {
         uint8_t l_ch_id = l_channels[i];
         int l_ret = dap_stream_ch_add_notifier(l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
@@ -179,10 +179,10 @@ static void s_del_channel_notifiers(dap_chain_node_sync_client_t *a_sync_client)
 {
     if (!a_sync_client || !a_sync_client->client || !a_sync_client->client->active_channels)
         return;
-    
+
     dap_stream_node_addr_t *l_addr = (dap_stream_node_addr_t *)&a_sync_client->node_info->address;
     const char *l_channels = a_sync_client->client->active_channels;
-    
+
     for (size_t i = 0; l_channels[i]; i++) {
         uint8_t l_ch_id = l_channels[i];
         dap_stream_ch_del_notifier(l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
@@ -198,16 +198,16 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     dap_chain_node_sync_client_t *l_sync_client = (dap_chain_node_sync_client_t *)a_arg;
     if (!l_sync_client)
         return;
-    
+
     log_it(L_NOTICE, "Sync client connected to %s:%u",
            l_sync_client->node_info->ext_host, l_sync_client->node_info->ext_port);
-    
+
     l_sync_client->esocket_uuid = DAP_CLIENT_PVT(a_client)->stream_es->uuid;
     l_sync_client->stream_worker = DAP_CLIENT_PVT(a_client)->stream_worker;
-    
+
     // Add universal notifier for all active channels
     s_add_channel_notifiers(l_sync_client);
-    
+
     // Signal connection established
     pthread_mutex_lock(&l_sync_client->conn_mutex);
     l_sync_client->is_connected = true;
@@ -225,11 +225,11 @@ static void s_stage_error_callback(dap_client_t *a_client, void *a_arg)
     dap_chain_node_sync_client_t *l_sync_client = (dap_chain_node_sync_client_t *)a_arg;
     if (!l_sync_client)
         return;
-    
+
     bool l_is_last_attempt = a_arg ? true : false;
-    
+
     log_it(L_WARNING, "Sync client connection error%s", l_is_last_attempt ? " (last attempt)" : "");
-    
+
     if (l_is_last_attempt) {
         pthread_mutex_lock(&l_sync_client->conn_mutex);
         l_sync_client->is_connected = false;
@@ -237,7 +237,7 @@ static void s_stage_error_callback(dap_client_t *a_client, void *a_arg)
         l_sync_client->conn_error = DAP_SYNC_ERROR_CONNECT_FAILED;
         pthread_cond_signal(&l_sync_client->conn_cond);
         pthread_mutex_unlock(&l_sync_client->conn_mutex);
-        
+
         // Wake up all pending requests with error
         pthread_rwlock_rdlock(&l_sync_client->requests_lock);
         dap_chain_node_sync_request_t *l_request, *l_tmp;
@@ -265,36 +265,36 @@ dap_chain_node_sync_client_t *dap_chain_node_sync_client_connect(
         log_it(L_ERROR, "Invalid arguments for sync client connect");
         return NULL;
     }
-    
+
     if (!a_node_info->ext_host[0] || !a_node_info->ext_port) {
         log_it(L_ERROR, "Node info has no valid address");
         return NULL;
     }
-    
+
     // Allocate sync client
     dap_chain_node_sync_client_t *l_sync_client = DAP_NEW_Z(dap_chain_node_sync_client_t);
     if (!l_sync_client) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
-    
+
     // Copy node info
-    l_sync_client->node_info = DAP_DUP_SIZE(a_node_info, 
+    l_sync_client->node_info = DAP_DUP_SIZE(a_node_info,
                                              sizeof(dap_chain_node_info_t) + a_node_info->ext_host_len + 1);
     if (!l_sync_client->node_info) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         DAP_DELETE(l_sync_client);
         return NULL;
     }
-    
+
     l_sync_client->net = a_net;
     l_sync_client->is_connecting = true;
     atomic_init(&l_sync_client->request_id_counter, 1);
-    
+
     // Initialize synchronization primitives
     pthread_mutex_init(&l_sync_client->conn_mutex, NULL);
     pthread_rwlock_init(&l_sync_client->requests_lock, NULL);
-    
+
     pthread_condattr_t l_condattr;
     pthread_condattr_init(&l_condattr);
 #ifndef DAP_OS_DARWIN
@@ -302,7 +302,7 @@ dap_chain_node_sync_client_t *dap_chain_node_sync_client_connect(
 #endif
     pthread_cond_init(&l_sync_client->conn_cond, &l_condattr);
     pthread_condattr_destroy(&l_condattr);
-    
+
     // Create underlying async client
     l_sync_client->client = dap_client_new(s_stage_error_callback, l_sync_client);
     if (!l_sync_client->client) {
@@ -313,26 +313,26 @@ dap_chain_node_sync_client_t *dap_chain_node_sync_client_connect(
         DAP_DEL_MULTY(l_sync_client->node_info, l_sync_client);
         return NULL;
     }
-    
+
     dap_client_set_is_always_reconnect(l_sync_client->client, false);
     dap_client_set_active_channels_unsafe(l_sync_client->client, a_channels);
-    
+
     // Set auth cert if configured
     const char *l_auth_cert_name = dap_config_get_item_str(a_net->pub.config, "general", "auth_cert");
     if (l_auth_cert_name)
         dap_client_set_auth_cert(l_sync_client->client, l_auth_cert_name);
-    
+
     // Setup uplink and start connection
-    dap_client_set_uplink_unsafe(l_sync_client->client, 
+    dap_client_set_uplink_unsafe(l_sync_client->client,
                                   &a_node_info->address,
-                                  a_node_info->ext_host, 
+                                  a_node_info->ext_host,
                                   a_node_info->ext_port);
-    
-    log_it(L_INFO, "Sync client connecting to %s:%u", 
+
+    log_it(L_INFO, "Sync client connecting to %s:%u",
            a_node_info->ext_host, a_node_info->ext_port);
-    
+
     dap_client_go_stage(l_sync_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
-    
+
     // Wait for connection with timeout
     struct timespec l_timeout;
     clock_gettime(CLOCK_MONOTONIC, &l_timeout);
@@ -342,7 +342,7 @@ dap_chain_node_sync_client_t *dap_chain_node_sync_client_connect(
         l_timeout.tv_sec++;
         l_timeout.tv_nsec -= 1000000000;
     }
-    
+
     pthread_mutex_lock(&l_sync_client->conn_mutex);
     while (l_sync_client->is_connecting) {
         int l_wait_ret = pthread_cond_timedwait(&l_sync_client->conn_cond,
@@ -361,7 +361,7 @@ dap_chain_node_sync_client_t *dap_chain_node_sync_client_connect(
         }
     }
     pthread_mutex_unlock(&l_sync_client->conn_mutex);
-    
+
     // Check if connected
     if (!l_sync_client->is_connected) {
         log_it(L_ERROR, "Sync client failed to connect: %s",
@@ -369,7 +369,7 @@ dap_chain_node_sync_client_t *dap_chain_node_sync_client_connect(
         dap_chain_node_sync_client_close(l_sync_client);
         return NULL;
     }
-    
+
     return l_sync_client;
 }
 
@@ -384,10 +384,10 @@ int dap_chain_node_sync_handshake(
 {
     dap_chain_node_sync_client_t *l_client = dap_chain_node_sync_client_connect(
         a_net, a_node_info, a_channels, a_timeout_ms);
-    
+
     if (!l_client)
         return DAP_SYNC_ERROR_CONNECT_FAILED;
-    
+
     dap_chain_node_sync_client_close(l_client);
     return DAP_SYNC_ERROR_NONE;
 }
@@ -418,7 +418,7 @@ int dap_chain_node_sync_request(
 {
     return dap_chain_node_sync_request_ex(a_client, a_channel_id, a_request_type,
                                            a_request_data, a_request_size,
-                                           s_simple_response_matcher, 
+                                           s_simple_response_matcher,
                                            (void *)(uintptr_t)a_expected_response,
                                            a_out_data, a_out_size, a_timeout_ms);
 }
@@ -442,26 +442,26 @@ int dap_chain_node_sync_request_ex(
         log_it(L_ERROR, "Sync request: NULL client");
         return DAP_SYNC_ERROR_INVALID_ARGS;
     }
-    
+
     if (!a_client->is_connected) {
         log_it(L_ERROR, "Sync request: client not connected");
         return DAP_SYNC_ERROR_DISCONNECTED;
     }
-    
+
     // Find channel
     dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client->client, a_channel_id);
     if (!l_ch) {
         log_it(L_ERROR, "Sync request: channel '%c' not found", a_channel_id);
         return DAP_SYNC_ERROR_CHANNEL_NOT_FOUND;
     }
-    
+
     // Create request context
     dap_chain_node_sync_request_t *l_request = DAP_NEW_Z(dap_chain_node_sync_request_t);
     if (!l_request) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return DAP_SYNC_ERROR_MEMORY;
     }
-    
+
     l_request->request_id = atomic_fetch_add(&a_client->request_id_counter, 1);
     l_request->channel_id = a_channel_id;
     l_request->request_type = a_request_type;
@@ -469,9 +469,9 @@ int dap_chain_node_sync_request_ex(
     l_request->matcher = a_matcher;
     l_request->matcher_arg = a_matcher_arg;
     l_request->sync_client = a_client;
-    
+
     pthread_mutex_init(&l_request->mutex, NULL);
-    
+
     pthread_condattr_t l_condattr;
     pthread_condattr_init(&l_condattr);
 #ifndef DAP_OS_DARWIN
@@ -479,14 +479,14 @@ int dap_chain_node_sync_request_ex(
 #endif
     pthread_cond_init(&l_request->cond, &l_condattr);
     pthread_condattr_destroy(&l_condattr);
-    
+
     // Add to pending requests hash table
     pthread_rwlock_wrlock(&a_client->requests_lock);
     dap_ht_add_hh(hh, a_client->pending_requests, request_id, l_request);
     pthread_rwlock_unlock(&a_client->requests_lock);
-    
+
     // Send request packet
-    ssize_t l_sent = dap_stream_ch_pkt_write_unsafe(l_ch, a_request_type, 
+    ssize_t l_sent = dap_stream_ch_pkt_write_unsafe(l_ch, a_request_type,
                                                      (void *)a_request_data, a_request_size);
     if (l_sent <= 0) {
         log_it(L_ERROR, "Sync request: failed to send packet");
@@ -498,9 +498,9 @@ int dap_chain_node_sync_request_ex(
         DAP_DELETE(l_request);
         return DAP_SYNC_ERROR_SEND_FAILED;
     }
-    
+
     dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
-    
+
     // Wait for response with timeout
     struct timespec l_timeout;
     clock_gettime(CLOCK_MONOTONIC, &l_timeout);
@@ -510,9 +510,9 @@ int dap_chain_node_sync_request_ex(
         l_timeout.tv_sec++;
         l_timeout.tv_nsec -= 1000000000;
     }
-    
+
     int l_ret = DAP_SYNC_ERROR_NONE;
-    
+
     pthread_mutex_lock(&l_request->mutex);
     while (l_request->status == SYNC_REQUEST_STATUS_PENDING) {
         int l_wait_ret = pthread_cond_timedwait(&l_request->cond,
@@ -530,7 +530,7 @@ int dap_chain_node_sync_request_ex(
         }
     }
     pthread_mutex_unlock(&l_request->mutex);
-    
+
     // Extract result
     switch (l_request->status) {
         case SYNC_REQUEST_STATUS_COMPLETED:
@@ -542,30 +542,30 @@ int dap_chain_node_sync_request_ex(
                 *a_out_size = l_request->response_size;
             l_ret = DAP_SYNC_ERROR_NONE;
             break;
-            
+
         case SYNC_REQUEST_STATUS_TIMEOUT:
             l_ret = DAP_SYNC_ERROR_REQUEST_TIMEOUT;
             break;
-            
+
         case SYNC_REQUEST_STATUS_ERROR:
             l_ret = l_request->error_code ? l_request->error_code : DAP_SYNC_ERROR_INTERNAL;
             break;
-            
+
         default:
             l_ret = DAP_SYNC_ERROR_INTERNAL;
             break;
     }
-    
+
     // Cleanup request
     pthread_rwlock_wrlock(&a_client->requests_lock);
     dap_ht_del(a_client->pending_requests, l_request);
     pthread_rwlock_unlock(&a_client->requests_lock);
-    
+
     pthread_mutex_destroy(&l_request->mutex);
     pthread_cond_destroy(&l_request->cond);
     DAP_DEL_Z(l_request->response_data);
     DAP_DELETE(l_request);
-    
+
     return l_ret;
 }
 
@@ -576,14 +576,14 @@ void dap_chain_node_sync_client_close(dap_chain_node_sync_client_t *a_client)
 {
     if (!a_client)
         return;
-    
+
     log_it(L_INFO, "Closing sync client to %s:%u",
            a_client->node_info ? a_client->node_info->ext_host : "?",
            a_client->node_info ? a_client->node_info->ext_port : 0);
-    
+
     // Remove channel notifiers
     s_del_channel_notifiers(a_client);
-    
+
     // Cancel all pending requests
     pthread_rwlock_wrlock(&a_client->requests_lock);
     dap_chain_node_sync_request_t *l_request, *l_tmp;
@@ -596,16 +596,16 @@ void dap_chain_node_sync_client_close(dap_chain_node_sync_client_t *a_client)
         dap_ht_del(a_client->pending_requests, l_request);
     }
     pthread_rwlock_unlock(&a_client->requests_lock);
-    
+
     // Close underlying client
     if (a_client->client)
         dap_client_delete_unsafe(a_client->client);
-    
+
     // Destroy sync primitives
     pthread_mutex_destroy(&a_client->conn_mutex);
     pthread_cond_destroy(&a_client->conn_cond);
     pthread_rwlock_destroy(&a_client->requests_lock);
-    
+
     // Free memory
     DAP_DEL_Z(a_client->node_info);
     DAP_DELETE(a_client);

@@ -153,7 +153,7 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
         if ( (l_data_size - sizeof(dap_chain_node_net_states_info_v1_t)) % sizeof(dap_chain_node_addr_t) )
             return DAP_DELETE(l_node_info_data), log_it(L_ERROR, "Irrelevant size of node %s info", a_node_addr_str);
         dap_chain_node_net_states_info_v1_t *l_info_old = (dap_chain_node_net_states_info_v1_t*)l_node_info_data;
-        l_node_info = DAP_NEW_Z_SIZE( dap_chain_node_net_states_info_t, sizeof(dap_chain_node_net_states_info_t) 
+        l_node_info = DAP_NEW_Z_SIZE( dap_chain_node_net_states_info_t, sizeof(dap_chain_node_net_states_info_t)
                                       + (l_info_old->uplinks_count + l_info_old->downlinks_count) * sizeof(dap_chain_node_addr_t) );
         l_node_info->version_info = 1;
         memcpy( (byte_t*)l_node_info + node_info_v1_shift, l_info_old, l_data_size );
@@ -165,7 +165,7 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
     dap_string_append_printf(l_info_str,
         "Record timestamp: %s\nRecord version: %u\nNode version: %s\nNode addr: %s\nNet: %s\nRole: %s\n"
         "Events count: %"DAP_UINT64_FORMAT_U"\nAtoms count: %"DAP_UINT64_FORMAT_U"\nUplinks count: %u\nDownlinks count: %u\n",
-        l_ts, l_node_info->version_info, l_node_info->version_node, a_node_addr_str, a_net->pub.name, 
+        l_ts, l_node_info->version_info, l_node_info->version_node, a_node_addr_str, a_net->pub.name,
         dap_chain_node_role_to_str(l_node_info->role), l_node_info->info_v1.events_count, l_node_info->info_v1.atoms_count,
         l_node_info->info_v1.uplinks_count, l_node_info->info_v1.downlinks_count);
     size_t l_max_links = dap_max(l_node_info->info_v1.uplinks_count, l_node_info->info_v1.downlinks_count);
@@ -176,10 +176,10 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
         "-----------------------------------------------------------------\n");
     }
     for (size_t i = 0; i < l_max_links; ++i) {
-        char *l_upnlink_str = i < l_node_info->info_v1.uplinks_count 
+        char *l_upnlink_str = i < l_node_info->info_v1.uplinks_count
             ? dap_stream_node_addr_to_str(l_node_info->info_v1.links_addrs[i], false)
             : dap_strdup("\t\t");
-        char *l_downlink_str = i < l_node_info->info_v1.downlinks_count 
+        char *l_downlink_str = i < l_node_info->info_v1.downlinks_count
             ? dap_stream_node_addr_to_str(l_node_info->info_v1.links_addrs[i + l_node_info->info_v1.uplinks_count], false)
             : dap_strdup("\t\t");
         dap_string_append_printf(l_info_str, "|\t%s\t|\t%s\t|\n", l_upnlink_str, l_downlink_str);
@@ -234,16 +234,16 @@ void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
         dap_global_db_driver_delete(a_obj, 1);
         return;
     }
-    
+
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     dap_return_if_fail(l_net);
-    
+
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)a_obj->value;
     if (!l_node_info || a_obj->value_len < sizeof(dap_chain_node_info_t)) {
         log_it(L_ERROR, "Invalid node info for key %s", a_obj->key);
         return;
     }
-    
+
     // check node in nodes.states
     bool l_state_active = false;
     dap_nanotime_t l_info_state_timestamp = 0;
@@ -260,7 +260,7 @@ void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
                 return;
             }
             dap_chain_node_net_states_info_v1_t *l_info_old = (dap_chain_node_net_states_info_v1_t*)l_node_info_states_data;
-            l_node_info_states = DAP_NEW_Z_SIZE( dap_chain_node_net_states_info_t, sizeof(dap_chain_node_net_states_info_t) 
+            l_node_info_states = DAP_NEW_Z_SIZE( dap_chain_node_net_states_info_t, sizeof(dap_chain_node_net_states_info_t)
                                         + (l_info_old->uplinks_count + l_info_old->downlinks_count) * sizeof(dap_chain_node_addr_t) );
             if (!l_node_info_states) {
                 DAP_DELETE(l_node_info_states_data);
@@ -275,7 +275,7 @@ void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
     }
 
     // check is node active for last two hours
-    if (l_info_state_timestamp > (dap_nanotime_now() - dap_nanotime_from_sec(s_node_list_record_ttl)) 
+    if (l_info_state_timestamp > (dap_nanotime_now() - dap_nanotime_from_sec(s_node_list_record_ttl))
         && l_node_info_states && l_node_info_states->info_v1.downlinks_count > 0) {
             l_state_active = true;
             log_it(L_DEBUG, "Node %s [ %s : %u ] is active in nodes.states, rewrite to node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
@@ -299,7 +299,7 @@ void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
         log_it(L_DEBUG, "Node %s [ %s : %u ] is not active, delete them from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
         dap_global_db_del_ex(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, NULL, NULL);
     }
-    
+
     DAP_DELETE(l_node_info_states);
 }
 
@@ -471,7 +471,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if (!a_force && !l_net->pub.mempool_autoproc)
         return;
-    
+
     char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
@@ -921,9 +921,9 @@ void dap_chain_node_hardfork_data_cleanup(dap_chain_t *a_chain)
     dap_return_if_fail(a_chain);
     if (!a_chain->hardfork_data)
         return;
-    
+
     struct hardfork_states *l_states = a_chain->hardfork_data;
-    
+
     // Free anchors list
     dap_ledger_hardfork_anchors_t *l_anchor, *l_anchor_tmp;
     dap_dl_foreach_safe(l_states->anchors, l_anchor, l_anchor_tmp) {
@@ -931,7 +931,7 @@ void dap_chain_node_hardfork_data_cleanup(dap_chain_t *a_chain)
         DAP_DEL_Z(l_anchor->anchor);
         DAP_DELETE(l_anchor);
     }
-    
+
     // Free balances list
     dap_ledger_hardfork_balances_t *l_balance, *l_balance_tmp;
     dap_dl_foreach_safe(l_states->balances, l_balance, l_balance_tmp) {
@@ -939,7 +939,7 @@ void dap_chain_node_hardfork_data_cleanup(dap_chain_t *a_chain)
         dap_list_free(l_balance->trackers);
         DAP_DELETE(l_balance);
     }
-    
+
     // Free condouts list
     dap_ledger_hardfork_condouts_t *l_condout, *l_condout_tmp;
     dap_dl_foreach_safe(l_states->condouts, l_condout, l_condout_tmp) {
@@ -949,7 +949,7 @@ void dap_chain_node_hardfork_data_cleanup(dap_chain_t *a_chain)
         dap_list_free(l_condout->trackers);
         DAP_DELETE(l_condout);
     }
-    
+
     // Free events list
     dap_ledger_hardfork_events_t *l_event, *l_event_tmp;
     dap_dl_foreach_safe(l_states->events, l_event, l_event_tmp) {
@@ -957,21 +957,21 @@ void dap_chain_node_hardfork_data_cleanup(dap_chain_t *a_chain)
         DAP_DEL_Z(l_event->event);
         DAP_DELETE(l_event);
     }
-    
+
     // Free service states list
     dap_chain_srv_hardfork_state_t *l_srv_state, *l_srv_state_tmp;
     dap_dl_foreach_safe(l_states->service_states, l_srv_state, l_srv_state_tmp) {
         dap_dl_delete(l_states->service_states, l_srv_state);
         DAP_DELETE(l_srv_state);
     }
-    
+
     // Note: trusted_addrs is not freed here as it may be owned by esbocs
     // and is already freed in dap_chain_esbocs_set_hardfork_complete
-    
+
     DAP_DELETE(l_states);
     a_chain->hardfork_data = NULL;
     a_chain->hardfork_generation = 0;
-    
+
     log_it(L_INFO, "Hardfork data cleaned up for chain %s", a_chain->name);
 }
 
@@ -1392,7 +1392,7 @@ bool dap_chain_node_mempool_autoproc_init()
 {
     if (!dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", false))
         return false;
-    
+
     for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
         switch (dap_chain_net_get_role(it).enums) {
             case NODE_ROLE_ROOT:
@@ -1413,7 +1413,7 @@ bool dap_chain_node_mempool_autoproc_init()
 /**
  * @brief comparing dap_chain_node_states_info_t
  * @param a_first - pointer to first item
- * @param a_second - pointer to second 
+ * @param a_second - pointer to second
  * @return a_first < a_second -1, a_first > a_second 1, a_first = a_second 0
  */
 static int s_node_states_info_cmp(dap_list_t *a_first, dap_list_t *a_second)
@@ -1446,7 +1446,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
 // func work
     size_t l_node_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_node_count);
-    if (!l_node_count || !l_objs) {        
+    if (!l_node_count || !l_objs) {
         log_it(L_ERROR, "Node list in net %s is empty", a_net->pub.name);
         return NULL;
     }
@@ -1566,7 +1566,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(dap_json_t *a_json_ar
             if (( *a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type) ))
                 return 0;
             else {
-                dap_json_rpc_error_add(a_json_arr_reply, 
+                dap_json_rpc_error_add(a_json_arr_reply,
                         DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE,
                         "Unable to get the default chain of type %s for the network.", dap_chain_type_to_str(a_default_chain_type));
                 return DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE;

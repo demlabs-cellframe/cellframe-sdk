@@ -24,10 +24,10 @@ int dap_chain_wallet_shared_notify_init();
 
 /**
  * @brief Register wallet shared notify callback for a specific chain
- * 
+ *
  * This should be called by net module for each chain.
  * Implements dependency inversion - wallet-shared doesn't iterate nets!
- * 
+ *
  * @param a_chain Chain to register callback for
  * @return 0 on success, negative on error
  */

@@ -419,7 +419,7 @@ void dap_chain_wallet_deinit(void)
 {
     // MOVED_TO_WALLET_TX: Unregister wallet TX builders
     // MOVED_TO_WALLET_TX: dap_wallet_tx_builders_unregister();
-    
+
     DAP_DELETE(s_wallets_path);
 }
 
@@ -484,7 +484,7 @@ dap_chain_wallet_internal_t *l_wallet_internal = NULL;
         for (dap_list_t *l_tmp = s_wallet_created_notificators; l_tmp; l_tmp=l_tmp->next){
             dap_chain_wallet_notificator_t *l_notificator = (dap_chain_wallet_notificator_t*)l_tmp->data;
             if (l_notificator->callback)
-                l_notificator->callback(l_wallet, l_notificator->arg); 
+                l_notificator->callback(l_wallet, l_notificator->arg);
         }
 
         return l_wallet;
@@ -1047,7 +1047,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         for (dap_list_t *l_tmp = s_wallet_open_notificators; l_tmp; l_tmp=l_tmp->next){
             dap_chain_wallet_notificator_t *l_notificator = (dap_chain_wallet_notificator_t*)l_tmp->data;
             if (l_notificator->callback)
-                l_notificator->callback(l_wallet, l_notificator->arg); 
+                l_notificator->callback(l_wallet, l_notificator->arg);
         }
     }
 
@@ -1104,7 +1104,7 @@ ssize_t     l_rc, l_pass_len;
 // MOVED_TO_WALLET_CACHE: {
 // MOVED_TO_WALLET_CACHE:     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
 // MOVED_TO_WALLET_CACHE:     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
-// MOVED_TO_WALLET_CACHE: 
+// MOVED_TO_WALLET_CACHE:
 // MOVED_TO_WALLET_CACHE:     uint256_t ret = (l_net) ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
 // MOVED_TO_WALLET_CACHE:     DAP_DEL_Z(l_addr);
 // MOVED_TO_WALLET_CACHE:     return ret;
@@ -1320,23 +1320,23 @@ int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_
 // MOVED_TO_WALLET_CACHE:             dap_chain_wallet_close(l_wallet);
 // MOVED_TO_WALLET_CACHE:             return NULL;
 // MOVED_TO_WALLET_CACHE:         }
-// MOVED_TO_WALLET_CACHE:         
-// MOVED_TO_WALLET_CACHE:         const char *l_correct_str = strlen(dap_chain_wallet_check_sign(l_wallet)) != 0 
-// MOVED_TO_WALLET_CACHE:                                    ? dap_chain_wallet_check_sign(l_wallet) 
+// MOVED_TO_WALLET_CACHE:
+// MOVED_TO_WALLET_CACHE:         const char *l_correct_str = strlen(dap_chain_wallet_check_sign(l_wallet)) != 0
+// MOVED_TO_WALLET_CACHE:                                    ? dap_chain_wallet_check_sign(l_wallet)
 // MOVED_TO_WALLET_CACHE:                                    : "correct";
 // MOVED_TO_WALLET_CACHE:         dap_json_t *l_jobj_correct_str = dap_json_object_new_string(l_correct_str);
 // MOVED_TO_WALLET_CACHE:         if (l_jobj_correct_str)
 // MOVED_TO_WALLET_CACHE:             dap_json_object_add_object(l_json_ret, "inf_correct", l_jobj_correct_str);
-// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:
 // MOVED_TO_WALLET_CACHE:         dap_json_t *l_status_str = NULL;
 // MOVED_TO_WALLET_CACHE:         if(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)
 // MOVED_TO_WALLET_CACHE:             l_status_str = dap_json_object_new_string("protected-active");
 // MOVED_TO_WALLET_CACHE:         else
 // MOVED_TO_WALLET_CACHE:             l_status_str = dap_json_object_new_string("unprotected");
-// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:
 // MOVED_TO_WALLET_CACHE:         if (l_status_str)
 // MOVED_TO_WALLET_CACHE:             dap_json_object_add_object(l_json_ret, "status", l_status_str);
-// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:
 // MOVED_TO_WALLET_CACHE:         dap_json_t *l_jobj_signs = NULL;
 // MOVED_TO_WALLET_CACHE:         dap_chain_wallet_internal_t *l_w_internal = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
 // MOVED_TO_WALLET_CACHE:         if (l_w_internal->certs_count == 1) {
@@ -1452,19 +1452,19 @@ int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_
 // MOVED_TO_WALLET_CACHE:         dap_json_t *l_obj_ret = dap_json_object_new();
 // MOVED_TO_WALLET_CACHE:         if (!l_obj_ret)
 // MOVED_TO_WALLET_CACHE:             return NULL;
-// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:
 // MOVED_TO_WALLET_CACHE:         dap_json_t *l_status_obj = NULL;
 // MOVED_TO_WALLET_CACHE:         if (res == 4)
 // MOVED_TO_WALLET_CACHE:             l_status_obj = dap_json_object_new_string("protected-inactive");
 // MOVED_TO_WALLET_CACHE:         else if (res)
 // MOVED_TO_WALLET_CACHE:             l_status_obj = dap_json_object_new_string("invalid");
-// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:
 // MOVED_TO_WALLET_CACHE:         if (l_status_obj)
 // MOVED_TO_WALLET_CACHE:             dap_json_object_add_object(l_obj_ret, "status", l_status_obj);
-// MOVED_TO_WALLET_CACHE:         
+// MOVED_TO_WALLET_CACHE:
 // MOVED_TO_WALLET_CACHE:         return l_obj_ret;
 // MOVED_TO_WALLET_CACHE:     }
-// MOVED_TO_WALLET_CACHE: 
+// MOVED_TO_WALLET_CACHE:
 // MOVED_TO_WALLET_CACHE: }
 
 int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_sha3_256_t *a_out_hash)

@@ -41,7 +41,7 @@ static int s_decree_stake_approve_handler(
     uint256_t l_value = {};
     dap_chain_addr_t l_addr = {};
     dap_chain_node_addr_t l_node_addr = {};
-    
+
     if (dap_chain_datum_decree_get_hash(a_decree, &l_hash)){
         log_it(L_WARNING,"Can't get tx hash from decree.");
         return -105;
@@ -108,12 +108,12 @@ static int s_decree_stake_invalidate_handler(
     }
     if (!a_anchored)
         return 0;
-    
+
     // Minimum validators count should be checked by ESBOCS module decree handler
     // Stake module doesn't have direct dependency on ESBOCS (architectural layering)
     // If this check is needed, it should be done via decree validation chain where
     // ESBOCS handler validates consensus requirements before stake handler executes
-    
+
     if (!a_apply)
         return 0;
     dap_chain_net_srv_stake_remove_approving_decree_info(a_net, &l_addr);
@@ -172,13 +172,13 @@ static int s_decree_stake_min_validators_count_handler(
     }
     if (!a_apply)
         return 0;
-    
+
     // Setting min validators count should be done by ESBOCS module decree handler
     // This handler (s_decree_stake_min_validators_count_handler) should be moved to ESBOCS module
     // when ESBOCS is refactored. Stake module validates that we have enough validators,
     // but actual consensus parameter update is ESBOCS responsibility.
     log_it(L_WARNING, "ESBOCS min validators count update requires ESBOCS module (currently being refactored)");
-    
+
     return 0;
 }
 
@@ -210,7 +210,7 @@ static int s_decree_max_weight_handler(
 int dap_chain_net_srv_stake_decree_init(void)
 {
     int l_ret = 0;
-    
+
     // Register all stake-related decree handlers
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
@@ -218,47 +218,47 @@ int dap_chain_net_srv_stake_decree_init(void)
         s_decree_stake_approve_handler,
         "stake_approve"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE,
         s_decree_stake_pkey_update_handler,
         "stake_pkey_update"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE,
         s_decree_stake_invalidate_handler,
         "stake_invalidate"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE,
         s_decree_stake_min_value_handler,
         "stake_min_value"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT,
         s_decree_stake_min_validators_count_handler,
         "stake_min_validators_count"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT,
         s_decree_max_weight_handler,
         "max_weight"
     );
-    
+
     if (l_ret != 0) {
         log_it(L_ERROR, "Failed to register some stake decree handlers");
         return -1;
     }
-    
+
     log_it(L_NOTICE, "Stake decree handlers registered successfully");
     return 0;
 }
@@ -290,6 +290,6 @@ void dap_chain_net_srv_stake_decree_deinit(void)
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT
     );
-    
+
     log_it(L_NOTICE, "Stake decree handlers unregistered");
 }

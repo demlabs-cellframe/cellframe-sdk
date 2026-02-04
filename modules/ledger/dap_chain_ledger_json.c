@@ -1,8 +1,8 @@
 /**
  * @file dap_chain_ledger_json.c
- * @brief JSON-related functions for ledger 
+ * @brief JSON-related functions for ledger
  * @details Includes datum_dump_json moved from datum module to avoid circular dependencies
- * 
+ *
  * @date 2025-10-05
  */
 
@@ -30,8 +30,8 @@
  * @param a_need_all_outputs Get all outputs or stop when value is reached
  * @return List of dap_chain_tx_used_out_item_t or NULL
  */
-dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, int a_outputs_count, 
-                                                     uint256_t a_value_need, uint256_t *a_value_transfer, 
+dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, int a_outputs_count,
+                                                     uint256_t a_value_need, uint256_t *a_value_transfer,
                                                      bool a_need_all_outputs)
 {
     if (!a_outputs_array || a_outputs_count <= 0) {
@@ -46,7 +46,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, i
         if (!l_output || !dap_json_is_object(l_output)) {
             continue;
         }
-        
+
         dap_json_t *l_value_datosi_obj = NULL;
         dap_json_object_get_ex(l_output, "value_datosi", &l_value_datosi_obj);
         if (!l_value_datosi_obj) {
@@ -65,7 +65,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, i
             continue;
         }
         const char *l_prev_hash_str = dap_json_get_string(l_prev_hash_obj);
-        
+
         dap_json_t *l_out_prev_idx_obj = NULL;
         dap_json_object_get_ex(l_output, "out_prev_idx", &l_out_prev_idx_obj);
         if (!l_out_prev_idx_obj) {
@@ -91,7 +91,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, i
             DAP_DELETE(l_item);
             return NULL;
         }
-        
+
         SUM_256_256(l_value_transfer, l_value, &l_value_transfer);
 
         if (!a_need_all_outputs && compare256(l_value_transfer, a_value_need) >= 0) {
@@ -122,8 +122,8 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, i
  * @param a_verbose Verbose output
  * @param a_version Output format version
  */
-void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_out,  
-                                 dap_chain_datum_t *a_datum, const char *a_hash_out_type, 
+void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_out,
+                                 dap_chain_datum_t *a_datum, const char *a_hash_out_type,
                                  dap_chain_net_id_t a_net_id, bool a_verbose, int a_version)
 {
     if (!a_datum) {

@@ -145,7 +145,7 @@ void dap_chain_net_srv_client_close(dap_chain_net_srv_client_t *a_client);
  */
 DAP_STATIC_INLINE bool dap_chain_net_srv_client_is_connected(dap_chain_net_srv_client_t *a_client)
 {
-    return a_client && a_client->sync_client && 
+    return a_client && a_client->sync_client &&
            dap_chain_node_sync_client_is_connected(a_client->sync_client);
 }
 

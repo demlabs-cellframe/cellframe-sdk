@@ -46,7 +46,7 @@ typedef enum s_net_tx_create_json_err {
     DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_ARGUMENTS,
     DAP_CHAIN_NET_TX_CREATE_JSON_ENOUGH_MEMORY,
     DAP_CHAIN_NET_TX_CREATE_JSON_INTEGER_OVERFLOW,
-    DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR,    
+    DAP_CHAIN_NET_TX_CREATE_JSON_TRANSACTION_NOT_CORRECT_ERR,
     DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,
     DAP_CHAIN_NET_TX_CREATE_JSON_SIGN_VERIFICATION_FAILED
 }s_net_tx_create_json_err_t;
@@ -130,7 +130,7 @@ bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, da
 
 
 /**
- * @brief Compose transaction from json. If a_net is NULL it means offline tx creation and 
+ * @brief Compose transaction from json. If a_net is NULL it means offline tx creation and
  *          tx will be created from json as is without any checks and conversions.
  * @param a_tx_json input json
  * @param a_net network. If NULL it means offline tx creation
@@ -138,20 +138,20 @@ bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, da
  * @param a_out_tx pointer to output transaction pointer
  * @param a_items_count count of total items in input json transaction
  * @param a_items_ready count of valid items in output transaction
- * 
+ *
  * @return s_com_tx_create_json_err_t status code
  */
-int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_json_obj_error, 
+int dap_chain_net_tx_create_by_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_json_obj_error,
     dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 
-int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_jobj_errors, 
+int dap_chain_tx_datum_from_json(dap_json_t *a_tx_json, dap_chain_net_t *a_net, dap_json_t *a_jobj_errors,
     dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready);
 
 /**
  * @brief Convert binary transaction to json
  * @param a_tx input transaction
  * @param a_out_json pointer to json object created by dap_json_object_new()
- * 
+ *
  * @return s_com_tx_create_json_err_t status code
  */
 int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json);

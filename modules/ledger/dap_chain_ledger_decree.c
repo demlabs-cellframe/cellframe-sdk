@@ -207,7 +207,7 @@ int dap_ledger_decree_apply(dap_hash_sha3_256_t *a_decree_hash, dap_chain_datum_
     dap_return_val_if_fail(a_decree_hash && a_chain, -107);
     int ret_val = 0;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    
+
     if (!l_net) {
         log_it(L_WARNING, "Invalid net ID 0x%016" DAP_UINT64_FORMAT_x, a_chain->net_id.uint64);
         return -108;

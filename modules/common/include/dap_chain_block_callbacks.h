@@ -30,7 +30,7 @@ extern "C" {
 
 /**
  * @brief Sovereign tax information for a validator key
- * 
+ *
  * This structure is returned by sovereign tax callback to allow
  * blocks module to apply tax without depending on stake module
  */
@@ -42,10 +42,10 @@ typedef struct dap_chain_sovereign_tax_info {
 
 /**
  * @brief Callback type for checking sovereign tax on a validator key
- * 
+ *
  * Allows stake service to provide sovereign tax information to blocks
  * module without creating circular dependency
- * 
+ *
  * @param a_net_id Network ID
  * @param a_pkey_hash Hash of the signing public key
  * @return Tax info structure, or NULL if no tax applies
@@ -67,14 +67,14 @@ void dap_chain_block_callbacks_deinit(void);
 
 /**
  * @brief Register sovereign tax callback
- * 
+ *
  * @param a_callback Callback function from stake service
  */
 void dap_chain_block_callbacks_register_sovereign_tax(dap_chain_sovereign_tax_callback_t a_callback);
 
 /**
  * @brief Get sovereign tax info for a key (calls registered callback)
- * 
+ *
  * @param a_net_id Network ID
  * @param a_pkey_hash Signing key hash
  * @return Tax info or NULL if no callback registered or no tax

@@ -109,12 +109,12 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
  */
 dap_chain_net_srv_xchange_price_t *dap_xchange_price_from_order(
     dap_ledger_t *a_ledger,
-    dap_chain_tx_out_cond_t *a_cond_tx, 
-    dap_time_t a_ts_created, 
-    dap_hash_sha3_256_t *a_order_hash, 
-    dap_hash_sha3_256_t *a_hash_out, 
+    dap_chain_tx_out_cond_t *a_cond_tx,
+    dap_time_t a_ts_created,
+    dap_hash_sha3_256_t *a_order_hash,
+    dap_hash_sha3_256_t *a_hash_out,
     const char *a_token_ticker,
-    uint256_t *a_fee, 
+    uint256_t *a_fee,
     bool a_ret_is_invalid);
 
 /**

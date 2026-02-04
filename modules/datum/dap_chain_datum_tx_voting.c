@@ -137,7 +137,7 @@ dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool
 }
 
 dap_chain_tx_tsd_t* dap_chain_datum_voting_cancel_tsd_create(dap_hash_sha3_256_t a_voting_hash)
-{   
+{
     dap_chain_tx_tsd_t* l_tsd = dap_chain_datum_tx_item_tsd_create(&a_voting_hash, VOTING_TSD_TYPE_CANCEL, sizeof(dap_hash_sha3_256_t));
 
     return l_tsd;

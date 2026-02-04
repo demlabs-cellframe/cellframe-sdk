@@ -89,7 +89,7 @@ typedef struct dap_chain_srv_stake_ext_lock_cache_item {
     dap_time_t lock_time;              // Lock time in seconds
     dap_time_t created_time;           // When lock was created
     bool is_unlocked;                  // Whether lock was unlocked
-   
+
     dap_ht_handle_t hh;                 // Hash table handle by lock_tx_hash.hash_key
 } dap_chain_srv_stake_ext_lock_cache_item_t;
 
@@ -98,7 +98,7 @@ typedef struct dap_chain_srv_stake_ext_position_cache_item {
     uint64_t position_id;               // ID of the position
     uint256_t total_amount;            // Total amount lock for this position
     uint32_t active_locks_count;        // Number of active (non-unlockn) locks
-    dap_chain_srv_stake_ext_lock_cache_item_t *locks;// Hash table of locks by lock_tx_hash  
+    dap_chain_srv_stake_ext_lock_cache_item_t *locks;// Hash table of locks by lock_tx_hash
     dap_ht_handle_t hh;                 // Hash table handle by position_hash
 } dap_chain_srv_stake_ext_position_cache_item_t;
 
@@ -111,27 +111,27 @@ typedef struct dap_chain_srv_stake_ext_cache_item {
     dap_chain_net_id_t net_id;         // Network ID
     char *guuid;                       // Event group name for this stake_ext
     dap_chain_srv_stake_ext_status_t status;       // Current stake_ext status
-    
+
     // Stake-ext timing
     dap_time_t start_time;             // When lockding started
     dap_time_t end_time;               // When stake_ext ends/ended
-    
+
     // Stake-ext data - TODO: Define specific stake_ext data structure
     char *description;                 // Stake-ext description (if available)
     uint256_t min_lock_amount;          // Minimum lock amount (if specified)
-    
+
     // Locks tracking
     uint32_t locks_count;               // Total number of locks
     uint32_t active_locks_count;        // Number of non-unlockn locks
-    
+
     // Positions tracking
     dap_chain_srv_stake_ext_position_cache_item_t *positions; // Hash table of positions by position_id
-    
+
     // Winner tracking (for ended stake_ext)
     bool has_winner;                   // Whether stake_ext has determined winner
     uint8_t winners_cnt;               // Number of winners in this stake_ext
     uint32_t *winners_ids;             // Array of winner position IDs from event data
-    
+
     dap_ht_handle_t hh;                 // Hash handle for table keyed by GUUID
     dap_ht_handle_t hh_hash;            // Hash handle for table keyed by stake_ext_tx_hash.hash_key
 } dap_chain_srv_stake_ext_cache_item_t;
@@ -154,12 +154,12 @@ typedef struct dap_chain_net_srv_stake_ext {
     char *description;
     uint32_t locks_count;
     uint32_t positions_count;
-    
+
     // Winner information (if stake_ext ended)
     bool has_winner;                      // Whether stake_ext has determined winner
     uint8_t winners_cnt;                  // Number of winners
     uint32_t *winners_ids;                // Array of winner position IDs
-    
+
     // Positions array (if requested)
     dap_chain_net_srv_stake_ext_position_t *positions;
 } dap_chain_net_srv_stake_ext_t;
@@ -173,13 +173,13 @@ int dap_chain_net_srv_stake_ext_init(void);
 void dap_chain_net_srv_stake_ext_deinit(void);
 
 // External API for frontend and CLI
-dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t *a_net, 
+dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t *a_net,
                                                              dap_hash_sha3_256_t *a_hash);
 void dap_chain_net_srv_stake_ext_delete(dap_chain_net_srv_stake_ext_t *a_stake_ext);
 
 // Get list of all stake_ext (with optional filtering)
-dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net, 
-                                                dap_chain_srv_stake_ext_status_t a_status_filter, 
+dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
+                                                dap_chain_srv_stake_ext_status_t a_status_filter,
                                                 bool a_include_positions);
 
 // Get detailed stake_ext information with all positions
@@ -202,8 +202,8 @@ dap_chain_srv_stake_ext_stats_t *dap_chain_net_srv_stake_ext_get_stats(dap_chain
 const char *dap_chain_srv_stake_ext_status_to_str(dap_chain_srv_stake_ext_status_t a_status);
 dap_chain_srv_stake_ext_status_t dap_chain_srv_stake_ext_status_from_event_type(uint16_t a_event_type);
 
-// Transaction creation functions 
-char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_sha3_256_t *a_stake_ext_hash, 
+// Transaction creation functions
+char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_sha3_256_t *a_stake_ext_hash,
                                 uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_position_id, uint256_t a_fee, int *a_ret_code);
 
 char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, dap_hash_sha3_256_t *a_lock_tx_hash, uint256_t a_fee, uint256_t *a_value, int *a_ret_code);

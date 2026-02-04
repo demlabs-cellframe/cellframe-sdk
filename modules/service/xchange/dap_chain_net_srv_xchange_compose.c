@@ -1,7 +1,7 @@
 /**
  * @file dap_chain_net_srv_xchange_compose.c
  * @brief XChange service transaction compose functions
- * 
+ *
  * ARCHITECTURE REFACTORED 2025-01-08:
  * - Removed dap_chain_tx_compose_config_t dependency
  * - Direct ledger API usage instead of RPC calls
@@ -37,35 +37,35 @@
  */
 dap_chain_net_srv_xchange_price_t *dap_xchange_price_from_order(
     dap_ledger_t *a_ledger,
-    dap_chain_tx_out_cond_t *a_cond_tx, 
-    dap_time_t a_ts_created, 
-    dap_hash_sha3_256_t *a_order_hash, 
-    dap_hash_sha3_256_t *a_hash_out, 
+    dap_chain_tx_out_cond_t *a_cond_tx,
+    dap_time_t a_ts_created,
+    dap_hash_sha3_256_t *a_order_hash,
+    dap_hash_sha3_256_t *a_hash_out,
     const char *a_token_ticker,
-    uint256_t *a_fee, 
+    uint256_t *a_fee,
     bool a_ret_is_invalid)
 {
     dap_return_val_if_fail(a_ledger && a_cond_tx && a_order_hash, NULL);
-    
+
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     if (!l_price) {
         log_it(L_ERROR, "Memory allocation failed");
         return NULL;
     }
-    
+
     l_price->creation_date = a_ts_created;
     dap_strncpy(l_price->token_buy, a_cond_tx->subtype.srv_xchange.buy_token, sizeof(l_price->token_buy) - 1);
     l_price->order_hash = *a_order_hash;
     dap_strncpy(l_price->token_sell, a_token_ticker, sizeof(l_price->token_sell) - 1);
     l_price->token_sell[sizeof(l_price->token_sell) - 1] = '\0';
-    
+
     if (a_fee)
         l_price->fee = *a_fee;
-    
+
     l_price->datoshi_sell = a_cond_tx->header.value;
     l_price->creator_addr = a_cond_tx->subtype.srv_xchange.seller_addr;
     l_price->rate = a_cond_tx->subtype.srv_xchange.rate;
-    
+
     if (!dap_hash_sha3_256_is_blank(a_hash_out)) {
         l_price->tx_hash = *a_hash_out;
         return l_price;
@@ -90,14 +90,14 @@ dap_chain_tx_out_cond_t *dap_xchange_find_last_tx(
     dap_hash_sha3_256_t *a_hash_out)
 {
     dap_return_val_if_fail(a_ledger && a_order_hash && a_seller_addr, NULL);
-    
+
     // Get the initial transaction
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, a_order_hash);
     if (!l_tx) {
         log_it(L_ERROR, "Order transaction not found");
         return NULL;
     }
-    
+
     // Find the conditional output in the initial TX
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
     int32_t l_cond_idx = 0;
@@ -115,50 +115,50 @@ dap_chain_tx_out_cond_t *dap_xchange_find_last_tx(
             l_cond_idx++;
         }
     }
-    
+
     if (!l_tx_out_cond) {
         log_it(L_ERROR, "No xchange conditional output found in order");
         return NULL;
     }
-    
+
     // Get token ticker from TX
     if (a_token_ticker) {
         const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_order_hash);
         if (l_ticker)
             *a_token_ticker = dap_strdup(l_ticker);
     }
-    
+
     // Get timestamp
     if (a_ts_created) {
         *a_ts_created = l_tx->header.ts_created;
     }
-    
+
     // Save hash
     if (a_hash_out)
         *a_hash_out = *a_order_hash;
-    
+
     // Now use ledger API to find the final TX in the chain
     dap_hash_sha3_256_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
-        a_ledger, 
-        DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, 
-        a_order_hash, 
+        a_ledger,
+        DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
+        a_order_hash,
         false  // include spent
     );
-    
+
     if (dap_hash_sha3_256_is_blank(&l_final_hash)) {
         // Order has no continuation - initial TX is the last
         if (a_prev_cond_idx)
             *a_prev_cond_idx = l_cond_idx;
         return l_tx_out_cond;
     }
-    
+
     // Get the final TX
     dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_final_hash);
     if (!l_final_tx) {
         log_it(L_ERROR, "Final TX not found");
         return NULL;
     }
-    
+
     // Find conditional output in final TX
     l_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_final_cond = NULL;
@@ -178,7 +178,7 @@ dap_chain_tx_out_cond_t *dap_xchange_find_last_tx(
             l_cond_idx++;
         }
     }
-    
+
     return l_final_cond ? l_final_cond : l_tx_out_cond;
 }
 
@@ -197,7 +197,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
     dap_chain_addr_t *a_wallet_addr)
 {
     dap_return_val_if_fail(a_ledger && a_token_buy && a_token_sell && a_wallet_addr, NULL);
-    
+
     // Validate parameters (FAIL-FAST)
     if (IS_ZERO_256(a_rate)) {
         log_it(L_ERROR, "Invalid parameter: rate is zero");
@@ -211,26 +211,26 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
         log_it(L_ERROR, "Invalid parameter: value_sell is zero");
         return NULL;
     }
-    
+
     // Get network ID from ledger
     dap_chain_net_id_t l_net_id = dap_ledger_get_net_id(a_ledger);
-    
+
     // Get native ticker from ledger structure
     const char *l_native_ticker = a_ledger->native_ticker;
     if (!l_native_ticker || !*l_native_ticker) {
         log_it(L_ERROR, "Native ticker not set in ledger");
         return NULL;
     }
-    
+
     // Check if both tokens exist in ledger
     // (This would require a new ledger API function - for now assume valid)
-    
+
     // Calculate balance
     uint256_t l_balance_sell = dap_ledger_calc_balance(a_ledger, a_wallet_addr, a_token_sell);
     uint256_t l_value_needed = a_datoshi_sell;
-    
+
     bool l_sell_is_native = !dap_strcmp(a_token_sell, l_native_ticker);
-    
+
     if (l_sell_is_native) {
         // If selling native token, add fee to required amount
         uint256_t l_value_with_fee;
@@ -248,14 +248,14 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
             return NULL;
         }
     }
-    
+
     // Check if enough balance
     if (compare256(l_balance_sell, l_value_needed) == -1) {
         log_it(L_ERROR, "Not enough %s tokens. Need %s, have %s",
                a_token_sell, dap_uint256_to_char(l_value_needed, NULL), dap_uint256_to_char(l_balance_sell, NULL));
         return NULL;
     }
-    
+
     // Create xchange price structure
     dap_chain_net_srv_xchange_price_t l_price = {
         .datoshi_sell = a_datoshi_sell,
@@ -266,17 +266,17 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
     dap_strncpy(l_price.token_sell, a_token_sell, sizeof(l_price.token_sell) - 1);
     dap_strncpy(l_price.token_buy, a_token_buy, sizeof(l_price.token_buy) - 1);
     memcpy(&l_price.creator_addr, a_wallet_addr, sizeof(dap_chain_addr_t));
-    
+
     // Create unsigned TX with conditional output
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx) {
         log_it(L_ERROR, "Failed to create transaction");
         return NULL;
     }
-    
+
     // Get xchange service UID
     extern const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid;
-    
+
     // Create conditional output for xchange
     // Parameters: srv_uid, sell_net_id, value_sell, buy_net_id, token_buy, rate, seller_addr, params, params_size
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_xchange(
@@ -295,7 +295,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    
+
     if (dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_tx_out_cond) != 1) {
         log_it(L_ERROR, "Failed to add conditional output to TX");
         DAP_DELETE(l_tx_out_cond);
@@ -303,7 +303,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
         return NULL;
     }
     DAP_DELETE(l_tx_out_cond);
-    
+
     // Add fee output
     // NOTE: Inputs will be added by compose callback from UTXO selection
     if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
@@ -311,11 +311,11 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    
+
     log_it(L_INFO, "Created xchange order TX (unsigned, inputs will be added by compose layer): sell %s %s for %s at rate %s",
            dap_uint256_to_char(a_datoshi_sell, NULL), a_token_sell, a_token_buy,
            dap_uint256_to_char(a_rate, NULL));
-    
+
     return l_tx;
 }
 
@@ -329,22 +329,22 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
     dap_chain_addr_t *a_wallet_addr)
 {
     dap_return_val_if_fail(a_ledger && a_order_hash && a_wallet_addr, NULL);
-    
+
     // Validate fee
     if (IS_ZERO_256(a_fee)) {
         log_it(L_ERROR, "Invalid parameter: fee is zero");
         return NULL;
     }
-    
+
     log_it(L_INFO, "Creating xchange invalidate TX for order %s",
            dap_hash_sha3_256_to_str_static(a_order_hash));
-    
+
     // 1. Find last TX in order chain
     dap_time_t l_ts_created = 0;
     char *l_token_ticker = NULL;
     int32_t l_prev_cond_idx = 0;
     dap_hash_sha3_256_t l_tx_hash = {};
-    
+
     dap_chain_tx_out_cond_t *l_cond_out = dap_xchange_find_last_tx(
         a_ledger,
         a_order_hash,
@@ -354,19 +354,19 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
         &l_prev_cond_idx,
         &l_tx_hash
     );
-    
+
     if (!l_cond_out) {
         log_it(L_ERROR, "Cannot find order conditional output");
         return NULL;
     }
-    
+
     // 2. Verify caller owns the order
     if (memcmp(&l_cond_out->subtype.srv_xchange.seller_addr, a_wallet_addr, sizeof(dap_chain_addr_t)) != 0) {
         log_it(L_ERROR, "Order does not belong to specified wallet");
         DAP_DEL_Z(l_token_ticker);
         return NULL;
     }
-    
+
     // 3. Get native ticker
     const char *l_native_ticker = a_ledger->native_ticker;
     if (!l_native_ticker || !*l_native_ticker) {
@@ -374,7 +374,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
         DAP_DEL_Z(l_token_ticker);
         return NULL;
     }
-    
+
     // 4. Check balance for fee
     uint256_t l_balance = dap_ledger_calc_balance(a_ledger, a_wallet_addr, l_native_ticker);
     if (compare256(l_balance, a_fee) == -1) {
@@ -383,7 +383,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
         DAP_DEL_Z(l_token_ticker);
         return NULL;
     }
-    
+
     // 5. Create unsigned TX
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx) {
@@ -391,7 +391,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
         DAP_DEL_Z(l_token_ticker);
         return NULL;
     }
-    
+
     // 6. Add input spending the conditional output
     if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0) != 1) {
         log_it(L_ERROR, "Failed to add conditional input");
@@ -399,7 +399,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
         DAP_DEL_Z(l_token_ticker);
         return NULL;
     }
-    
+
     // 7. Add output returning funds to seller
     uint256_t l_value_return = l_cond_out->header.value;
     if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, l_value_return, l_token_ticker) != 1) {
@@ -408,9 +408,9 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
         DAP_DEL_Z(l_token_ticker);
         return NULL;
     }
-    
+
     DAP_DEL_Z(l_token_ticker);
-    
+
     // 8. Add fee output
     // NOTE: Inputs for fee will be added by compose callback from UTXO selection
     if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
@@ -418,7 +418,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    
+
     log_it(L_INFO, "Created xchange invalidate TX (unsigned, inputs will be added by compose layer)");
     return l_tx;
 }
@@ -434,7 +434,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
     dap_chain_addr_t *a_wallet_addr)
 {
     dap_return_val_if_fail(a_ledger && a_order_hash && a_wallet_addr, NULL);
-    
+
     // Validate parameters
     if (IS_ZERO_256(a_value)) {
         log_it(L_ERROR, "Invalid parameter: value is zero");
@@ -444,18 +444,18 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         log_it(L_ERROR, "Invalid parameter: fee is zero");
         return NULL;
     }
-    
+
     log_it(L_INFO, "Creating xchange purchase TX for order %s, value %s",
            dap_hash_sha3_256_to_str_static(a_order_hash),
            dap_uint256_to_char(a_value, NULL));
-    
+
     // 1. Find last TX in order chain
     dap_time_t l_ts_created = 0;
     char *l_token_ticker_sell = NULL;
     int32_t l_prev_cond_idx = 0;
     dap_hash_sha3_256_t l_tx_hash = {};
     dap_chain_addr_t l_seller_addr = {};
-    
+
     dap_chain_tx_out_cond_t *l_cond_out = dap_xchange_find_last_tx(
         a_ledger,
         a_order_hash,
@@ -465,18 +465,18 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         &l_prev_cond_idx,
         &l_tx_hash
     );
-    
+
     if (!l_cond_out) {
         log_it(L_ERROR, "Cannot find order conditional output");
         return NULL;
     }
-    
+
     // 2. Get order parameters
     uint256_t l_rate = l_cond_out->subtype.srv_xchange.rate;
     uint256_t l_value_available = l_cond_out->header.value;
     const char *l_token_buy = l_cond_out->subtype.srv_xchange.buy_token;
     dap_chain_addr_t l_seller = l_cond_out->subtype.srv_xchange.seller_addr;
-    
+
     // 3. Validate purchase value
     if (compare256(a_value, l_value_available) == 1) {
         log_it(L_ERROR, "Purchase value %s exceeds available %s",
@@ -485,7 +485,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
-    
+
     // 4. Calculate amounts
     // value_to_pay = value * rate (in buy tokens)
     uint256_t l_value_to_pay = {};
@@ -494,7 +494,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
-    
+
     // 5. Check buyer has enough buy tokens
     uint256_t l_balance_buy = dap_ledger_calc_balance(a_ledger, a_wallet_addr, l_token_buy);
     uint256_t l_total_needed = {};
@@ -503,7 +503,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
-    
+
     if (compare256(l_balance_buy, l_total_needed) == -1) {
         log_it(L_ERROR, "Not enough %s tokens. Need %s, have %s",
                l_token_buy,
@@ -512,7 +512,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
-    
+
     // 6. Create unsigned TX
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx) {
@@ -520,7 +520,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
-    
+
     // 7. Add input spending the conditional output
     if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0) != 1) {
         log_it(L_ERROR, "Failed to add conditional input");
@@ -528,7 +528,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
-    
+
     // 8. Add output to buyer (purchased tokens)
     if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_wallet_addr, a_value, l_token_ticker_sell) != 1) {
         log_it(L_ERROR, "Failed to add buyer output");
@@ -536,7 +536,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
-    
+
     // 9. Add output to seller (payment)
     if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_seller, l_value_to_pay, l_token_buy) != 1) {
         log_it(L_ERROR, "Failed to add seller payment output");
@@ -544,16 +544,16 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
-    
+
     // 10. If order not fully filled, create new conditional output with remaining
     uint256_t l_value_remaining = {};
     SUBTRACT_256_256(l_value_available, a_value, &l_value_remaining);
-    
+
     if (!IS_ZERO_256(l_value_remaining)) {
         // Get xchange service UID
         extern const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid;
         dap_chain_net_id_t l_net_id = dap_ledger_get_net_id(a_ledger);
-        
+
         // Create new conditional output with remaining amount
         dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_xchange(
             c_dap_chain_net_srv_xchange_uid,
@@ -566,14 +566,14 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
             NULL,
             0
         );
-        
+
         if (!l_tx_out_cond) {
             log_it(L_ERROR, "Failed to create new conditional output");
             dap_chain_datum_tx_delete(l_tx);
             DAP_DEL_Z(l_token_ticker_sell);
             return NULL;
         }
-        
+
         if (dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_tx_out_cond) != 1) {
             log_it(L_ERROR, "Failed to add new conditional output to TX");
             DAP_DELETE(l_tx_out_cond);
@@ -583,9 +583,9 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         }
         DAP_DELETE(l_tx_out_cond);
     }
-    
+
     DAP_DEL_Z(l_token_ticker_sell);
-    
+
     // 11. Add fee output
     // NOTE: Inputs for payment and fee will be added by compose callback from UTXO selection
     if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) != 1) {
@@ -593,11 +593,11 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    
+
     log_it(L_INFO, "Created xchange purchase TX (unsigned, inputs will be added by compose layer): bought %s, paid %s",
            dap_uint256_to_char(a_value, NULL),
            dap_uint256_to_char(l_value_to_pay, NULL));
-    
+
     return l_tx;
 }
 
@@ -642,7 +642,7 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
         l_params->fee,
         l_params->wallet_addr
     );
-    
+
     if (!l_tx) {
         log_it(L_ERROR, "Failed to build xchange order TX");
         return NULL;
@@ -653,7 +653,7 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
         for (dap_list_t *l_iter = a_list_used_outs; l_iter; l_iter = l_iter->next) {
             dap_chain_tx_used_out_t *l_used_out = (dap_chain_tx_used_out_t *)l_iter->data;
             if (!l_used_out) continue;
-            
+
             if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_prev_hash, l_used_out->tx_out_prev_idx) != 1) {
                 log_it(L_ERROR, "Failed to add input item");
                 dap_chain_datum_tx_delete(l_tx);
@@ -661,7 +661,7 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
             }
         }
     }
-    
+
     // 3. Add fee output
     if (!IS_ZERO_256(l_params->fee)) {
         if (dap_chain_datum_tx_add_fee_item(&l_tx, l_params->fee) != 1) {
@@ -747,7 +747,7 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
         l_params->fee,
         l_params->wallet_addr
     );
-    
+
     if (!l_tx) {
         log_it(L_ERROR, "Failed to build xchange invalidate TX");
         return NULL;
@@ -758,7 +758,7 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
         for (dap_list_t *l_iter = a_list_used_outs; l_iter; l_iter = l_iter->next) {
             dap_chain_tx_used_out_t *l_used_out = (dap_chain_tx_used_out_t *)l_iter->data;
             if (!l_used_out) continue;
-            
+
             if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_prev_hash, l_used_out->tx_out_prev_idx) != 1) {
                 log_it(L_ERROR, "Failed to add input item for fee");
                 dap_chain_datum_tx_delete(l_tx);
@@ -766,7 +766,7 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
             }
         }
     }
-    
+
     // 3. Add fee output
     if (!IS_ZERO_256(l_params->fee)) {
         if (dap_chain_datum_tx_add_fee_item(&l_tx, l_params->fee) != 1) {
@@ -854,7 +854,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
         l_params->fee,
         l_params->wallet_addr
     );
-    
+
     if (!l_tx) {
         log_it(L_ERROR, "Failed to build xchange purchase TX");
         return NULL;
@@ -865,7 +865,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
         for (dap_list_t *l_iter = a_list_used_outs; l_iter; l_iter = l_iter->next) {
             dap_chain_tx_used_out_t *l_used_out = (dap_chain_tx_used_out_t *)l_iter->data;
             if (!l_used_out) continue;
-            
+
             if (dap_chain_datum_tx_add_in_item(&l_tx, &l_used_out->tx_prev_hash, l_used_out->tx_out_prev_idx) != 1) {
                 log_it(L_ERROR, "Failed to add input item for payment");
                 dap_chain_datum_tx_delete(l_tx);
@@ -873,7 +873,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
             }
         }
     }
-    
+
     // 3. Add fee output
     if (!IS_ZERO_256(l_params->fee)) {
         if (dap_chain_datum_tx_add_fee_item(&l_tx, l_params->fee) != 1) {
@@ -936,7 +936,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
 int dap_chain_net_srv_xchange_compose_init(void)
 {
     log_it(L_NOTICE, "Initializing XChange compose module");
-    
+
     // Register xchange_order_create TX builder with Plugin API
     int l_ret = dap_chain_tx_compose_register(
         "xchange_order_create",
@@ -947,7 +947,7 @@ int dap_chain_net_srv_xchange_compose_init(void)
         log_it(L_ERROR, "Failed to register xchange_order_create TX builder");
         return -1;
     }
-    
+
     // Register xchange_order_invalidate TX builder
     l_ret = dap_chain_tx_compose_register(
         "xchange_order_invalidate",
@@ -959,7 +959,7 @@ int dap_chain_net_srv_xchange_compose_init(void)
         dap_chain_tx_compose_unregister("xchange_order_create");
         return -1;
     }
-    
+
     // Register xchange_purchase TX builder
     l_ret = dap_chain_tx_compose_register(
         "xchange_purchase",
@@ -972,7 +972,7 @@ int dap_chain_net_srv_xchange_compose_init(void)
         dap_chain_tx_compose_unregister("xchange_order_invalidate");
         return -1;
     }
-    
+
     log_it(L_NOTICE, "XChange compose module initialized (all 3 TX builders registered)");
     return 0;
 }
@@ -980,11 +980,11 @@ int dap_chain_net_srv_xchange_compose_init(void)
 void dap_chain_net_srv_xchange_compose_deinit(void)
 {
     log_it(L_NOTICE, "Deinitializing XChange compose module");
-    
+
     // Unregister all TX builders
     dap_chain_tx_compose_unregister("xchange_order_create");
     dap_chain_tx_compose_unregister("xchange_order_invalidate");
     dap_chain_tx_compose_unregister("xchange_purchase");
-    
+
     log_it(L_NOTICE, "XChange compose module deinitialized");
 }

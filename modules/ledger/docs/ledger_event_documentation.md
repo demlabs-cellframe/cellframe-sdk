@@ -1,10 +1,10 @@
 # 📚 DAP Ledger Event Module - Technical Documentation
 
-**Module:** `dap_ledger_event`  
-**Source:** `cellframe-sdk/modules/ledger/dap_chain_ledger_event.c`  
-**Author:** Roman Khlopkov <roman.khlopkov@demlabs.net>  
-**Version:** 1.0 (2025)  
-**License:** GPLv3  
+**Module:** `dap_ledger_event`
+**Source:** `cellframe-sdk/modules/ledger/dap_chain_ledger_event.c`
+**Author:** Roman Khlopkov <roman.khlopkov@demlabs.net>
+**Version:** 1.0 (2025)
+**License:** GPLv3
 
 ---
 
@@ -327,7 +327,7 @@ void dap_ledger_event_notify_add(
 );
 ```
 
-**Description:**  
+**Description:**
 Регистрирует callback-функцию для получения уведомлений о добавлении/удалении событий.
 
 **Parameters:**
@@ -360,13 +360,13 @@ typedef void (*dap_ledger_event_notify_t)(
 
 **Example:**
 ```c
-void my_event_monitor(void *arg, dap_ledger_t *ledger, 
-                      dap_chain_tx_event_t *event, 
+void my_event_monitor(void *arg, dap_ledger_t *ledger,
+                      dap_chain_tx_event_t *event,
                       dap_hash_sha3_256_t *tx_hash,
                       dap_ledger_notify_opcodes_t opcode)
 {
     if (opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
-        log_it(L_INFO, "New event: group=%s, type=0x%04x", 
+        log_it(L_INFO, "New event: group=%s, type=0x%04x",
                event->group_name, event->event_type);
     }
 }
@@ -389,7 +389,7 @@ dap_chain_tx_event_t *dap_ledger_event_find(
 );
 ```
 
-**Description:**  
+**Description:**
 Находит событие по хэшу транзакции.
 
 **Parameters:**
@@ -402,7 +402,7 @@ dap_chain_tx_event_t *dap_ledger_event_find(
 
 **Thread Safety:** ✅ Использует `pthread_rwlock_rdlock()` для безопасного чтения.
 
-**Memory Management:**  
+**Memory Management:**
 ⚠️ Возвращаемое значение - **новая копия** события, требует освобождения:
 ```c
 dap_chain_tx_event_t *event = dap_ledger_event_find(ledger, &tx_hash);
@@ -436,7 +436,7 @@ dap_list_t *dap_ledger_event_get_list_ex(
 );
 ```
 
-**Description:**  
+**Description:**
 Возвращает список событий, опционально фильтруя по имени группы.
 
 **Parameters:**
@@ -468,7 +468,7 @@ if (events) {
 - `a_group_name == NULL` → все события
 - `a_group_name != NULL` → только события с совпадающим `group_name`
 
-**Error Handling:**  
+**Error Handling:**
 При ошибке выделения памяти весь список освобождается и возвращается `NULL`.
 
 ---
@@ -485,7 +485,7 @@ int dap_ledger_event_pkey_check(
 );
 ```
 
-**Description:**  
+**Description:**
 Проверяет, разрешено ли публичному ключу создавать события.
 
 **Parameters:**
@@ -496,10 +496,10 @@ int dap_ledger_event_pkey_check(
 - `0` - ключ разрешен (или whitelist пуст)
 - `-1` - ключ запрещен
 
-**Default Policy:**  
+**Default Policy:**
 ⚠️ Если список разрешенных ключей пуст (`event_pkeys_allowed == NULL`), **все ключи разрешены** по умолчанию.
 
-**Use Case:**  
+**Use Case:**
 Ограничение круга лиц, способных создавать любые события (не специфично для типов событий).
 
 **Thread Safety:** ✅ Использует `pthread_rwlock_rdlock()`.
@@ -516,7 +516,7 @@ int dap_ledger_event_pkey_add(
 );
 ```
 
-**Description:**  
+**Description:**
 Добавляет публичный ключ в whitelist разрешенных для создания событий.
 
 **Parameters:**
@@ -527,7 +527,7 @@ int dap_ledger_event_pkey_add(
 - `0` - успешно добавлен
 - `-1` - ошибка (уже существует, NULL параметр, ошибка памяти)
 
-**Authorization:**  
+**Authorization:**
 Обычно вызывается через **PoA декреты** владельцами root-нод сети.
 
 **Thread Safety:** ✅ Использует `pthread_rwlock_wrlock()`.
@@ -544,7 +544,7 @@ int dap_ledger_event_pkey_rm(
 );
 ```
 
-**Description:**  
+**Description:**
 Удаляет публичный ключ из whitelist.
 
 **Parameters:**
@@ -568,7 +568,7 @@ dap_list_t *dap_ledger_event_pkey_list(
 );
 ```
 
-**Description:**  
+**Description:**
 Возвращает список всех разрешенных публичных ключей.
 
 **Returns:**
@@ -606,7 +606,7 @@ int dap_ledger_pvt_event_verify_add(
 );
 ```
 
-**Description:**  
+**Description:**
 Внутренняя функция для верификации и добавления события в ledger.
 
 **Parameters:**
@@ -700,7 +700,7 @@ if (l_ret || !a_apply) {
 - **From mempool:** возвращает код ошибки при провале верификации → транзакция отклоняется
 - **From blockchain:** возвращает 0 даже при провале → транзакция принимается (для начальной синхронизации и загрузки)
 
-**Thread Safety:**  
+**Thread Safety:**
 ⚠️ Функция захватывает:
 - `wrlock` если `a_apply == true`
 - `rdlock` если `a_apply == false`
@@ -719,7 +719,7 @@ int dap_ledger_pvt_event_remove(
 );
 ```
 
-**Description:**  
+**Description:**
 Удаляет событие из ledger (используется при разрешении форков).
 
 **Parameters:**
@@ -754,7 +754,7 @@ dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(
 );
 ```
 
-**Description:**  
+**Description:**
 Собирает все события для hardfork-миграции.
 
 **Returns:**
@@ -769,12 +769,12 @@ typedef struct dap_ledger_hardfork_events {
 } dap_ledger_hardfork_events_t;
 ```
 
-**Use Case:**  
+**Use Case:**
 При hardfork вся история блокчейна уничтожается, и события переносятся в новые чейны целиком (event item + TSD item).
 
 **Thread Safety:** ✅ Использует `pthread_rwlock_rdlock()`.
 
-**Bug Fix:**  
+**Bug Fix:**
 ⚠️ В исходной версии была опечатка: `pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock)` → **исправлено на** `events_rwlock`.
 
 ---
@@ -881,7 +881,7 @@ Block sync from network
     └─► Block processed successfully
 ```
 
-**Key Difference:**  
+**Key Difference:**
 - Mempool → strict verification (reject invalid)
 - Blockchain → permissive (accept for sync, just don't store)
 
@@ -1033,21 +1033,21 @@ int stake_ext_event_verify(...) {
         // - Group name is unique (no active stake with same GUID)
         // - Calculation rule exists
         break;
-        
+
     case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_LOCK_PLACED:
         // Verify:
         // - Group name references active stake
         // - Position ID is valid
         // - Lock amount matches expected
         break;
-        
+
     // ... other types
     }
     return 0;  // or error code
 }
 ```
 
-**Transaction Verification:**  
+**Transaction Verification:**
 При обработке stake-транзакции, ledger проверяет наличие соответствующих событий:
 
 ```c
@@ -1088,20 +1088,20 @@ int my_verify(/* ... */) {
     // Validate ALL fields
     if (!a_event_data || a_event_data_size < sizeof(my_data_t))
         return -1;
-    
+
     // Check business logic
     my_data_t *data = (my_data_t*)a_event_data->data;
     if (data->value > MAX_ALLOWED)
         return -2;
-    
+
     return 0;
 }
 ```
 
 4. **Make notifiers thread-safe:**
 ```c
-void my_notifier(void *arg, dap_ledger_t *ledger, 
-                 dap_chain_tx_event_t *event, 
+void my_notifier(void *arg, dap_ledger_t *ledger,
+                 dap_chain_tx_event_t *event,
                  dap_hash_sha3_256_t *tx_hash,
                  dap_ledger_notify_opcodes_t opcode)
 {
@@ -1188,9 +1188,9 @@ if (dap_ledger_event_pkey_add(ledger, &key) != 0) {
 
 Per event in ledger:
 ```
-sizeof(dap_ledger_event_t) + 
-strlen(group_name) + 
-event_data_size + 
+sizeof(dap_ledger_event_t) +
+strlen(group_name) +
+event_data_size +
 dap_ht overhead (~32 bytes)
 ```
 
@@ -1398,7 +1398,7 @@ dap_chain_srv_set_event_verificator(MY_SRV_UID, my_event_verify);
 
 ```c
 // Create event item
-dap_chain_tx_item_event_t *event_item = 
+dap_chain_tx_item_event_t *event_item =
     dap_chain_datum_tx_event_create(
         MY_SRV_UID,
         "stake-abc123",  // group GUID
@@ -1459,7 +1459,7 @@ void my_monitor(void *arg, dap_ledger_t *ledger,
     if (opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
         log_it(L_INFO, "New event: %s (type 0x%04x)",
                event->group_name, event->event_type);
-        
+
         // Update external database, index, etc.
         update_my_database(event);
     }
@@ -1569,14 +1569,14 @@ Licensed under GPLv3
 
 ## 📞 Contact & Support
 
-**Author:** Roman Khlopkov <roman.khlopkov@demlabs.net>  
-**Organization:** DeM Labs Inc. (https://demlabs.net)  
+**Author:** Roman Khlopkov <roman.khlopkov@demlabs.net>
+**Organization:** DeM Labs Inc. (https://demlabs.net)
 **Project:** CellFrame SDK (https://cellframe.net)
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** 2025-11-05  
+**Document Version:** 1.0
+**Last Updated:** 2025-11-05
 **Reviewed By:** AI Assistant (СЛК documentation standards)
 
 ---

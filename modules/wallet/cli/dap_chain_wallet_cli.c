@@ -53,17 +53,17 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
 
 /**
  * @brief Initialize wallet CLI commands
- * 
+ *
  * Registers all wallet-related commands with the CLI server.
  * This function should be called during wallet module initialization.
- * 
+ *
  * @return 0 on success, negative error code on failure
  */
 int dap_chain_wallet_cli_init(void)
 {
     // Register wallet CLI error codes
     dap_chain_wallet_cli_error_codes_init();
-    
+
     // Register wallet command
     dap_cli_server_cmd_add("wallet", com_tx_wallet, NULL,
                            "Wallet operations",
@@ -82,7 +82,7 @@ int dap_chain_wallet_cli_init(void)
 
 /**
  * @brief Cleanup wallet CLI
- * 
+ *
  * Unregisters wallet commands from CLI server.
  */
 void dap_chain_wallet_cli_deinit(void)
@@ -180,9 +180,9 @@ static void s_wallet_list(const char *a_wallet_path, dap_json_t *a_json_arr_out,
                 dap_json_object_add_string(json_obj_wall, a_version == 1 ? "Wallet" : "wallet", l_file_name);
                 dap_json_object_add_string(json_obj_wall, "status", "Backup");
             }
-            if (dap_json_object_length(json_obj_wall)) 
+            if (dap_json_object_length(json_obj_wall))
                 dap_json_array_add(a_json_arr_out, json_obj_wall);
-            else 
+            else
                 dap_json_object_free(json_obj_wall);
         }
         if (a_addr && (dap_json_array_length(a_json_arr_out) == 0)) {
@@ -210,7 +210,7 @@ static dap_json_t *wallet_list_json_collect(int a_version)
 
 /**
  * @brief Helper function to create wallet info JSON (simplified for notifications)
- * 
+ *
  * NOTE: This is a simplified version - full wallet info with balances should use
  * wallet-cache and ledger APIs. This is just for wallet opened/created notifications.
  */
@@ -218,26 +218,26 @@ static dap_json_t *s_wallet_info_to_json_simple(const char *a_name, const char *
 {
     if (!a_name || !a_path)
         return NULL;
-    
+
     unsigned int l_res = 0;
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_name, a_path, &l_res);
     if (!l_wallet)
         return NULL;
-    
+
     dap_json_t *l_json_ret = dap_json_object_new();
     if (!l_json_ret) {
         dap_chain_wallet_close(l_wallet);
         return NULL;
     }
-    
+
     // Add basic wallet info
     dap_json_object_add_string(l_json_ret, "name", a_name);
     dap_json_object_add_string(l_json_ret, "path", a_path);
-    
+
     const char *l_check_sign = dap_chain_wallet_check_sign(l_wallet);
     const char *l_correct_str = (l_check_sign && strlen(l_check_sign) != 0) ? l_check_sign : "correct";
     dap_json_object_add_string(l_json_ret, "check", l_correct_str);
-    
+
     dap_chain_wallet_close(l_wallet);
     return l_json_ret;
 }
@@ -250,14 +250,14 @@ static void s_new_wallet_info_notify(const char *a_wallet_name)
     dap_json_t *l_json = dap_json_object_new();
     dap_json_object_add_string(l_json, "class", "WalletInfo");
     dap_json_t *l_json_wallet_info = dap_json_object_new();
-    
+
     dap_json_t *l_wallet_info = s_wallet_info_to_json_simple(a_wallet_name, dap_chain_wallet_get_path(g_config));
     if (l_wallet_info) {
         dap_json_object_add_object(l_json_wallet_info, a_wallet_name, l_wallet_info);
     } else {
         dap_json_object_add_string(l_json_wallet_info, a_wallet_name, "error");
     }
-    
+
     dap_json_object_add_object(l_json, "wallet", l_json_wallet_info);
     char *l_json_str = dap_json_to_string(l_json);
     dap_notify_server_send(l_json_str);
@@ -267,7 +267,7 @@ static void s_new_wallet_info_notify(const char *a_wallet_name)
 
 /**
  * @brief Main wallet command handler
- * 
+ *
  * NOTE: This is a MASSIVE function (~650 lines) that handles ALL wallet operations.
  * It should eventually be refactored into smaller functions, but for now we're
  * maintaining compatibility with the original cmd module implementation.
@@ -275,7 +275,7 @@ static void s_new_wallet_info_notify(const char *a_wallet_name)
 static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-    enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, 
+    enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE,
                 CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT, CMD_WALLET_OUTPUTS, CMD_WALLET_FIND, CMD_WALLET_SHARED };
     int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
@@ -304,7 +304,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
     if(cmd_num == CMD_NONE) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
                 "Format of command: wallet { new -w <wallet_name> | list | info | activate | deactivate | convert | outputs | find | shared }");
-        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;        
+        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
     }
 
     const char *l_addr_str = NULL, *l_wallet_name = NULL, *l_net_name = NULL, *l_sign_type_str = NULL, *l_restore_str = NULL,
@@ -369,7 +369,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
             } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
             }
-            
+
             if (!l_addr || dap_chain_addr_is_blank(l_addr)){
                 if (l_wallet) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CAN_NOT_GET_ADDR,
@@ -530,7 +530,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                 l_addr = dap_chain_addr_from_str(l_addr_str);
                 if (!l_net)
                     l_net = dap_chain_net_by_id(l_addr->net_id);
-                
+
                 if(!l_net) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
                                             "Can't get net from wallet addr");
@@ -569,7 +569,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                     l_cond_type = dap_chain_tx_out_cond_subtype_from_str_short(l_cond_type_str);
                     if (l_cond_type == DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED) {
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
-                                               "Invalid conditional output type '%s'. Available types: srv_pay, srv_xchange, srv_stake_pos_delegate, srv_stake_lock, fee", 
+                                               "Invalid conditional output type '%s'. Available types: srv_pay, srv_xchange, srv_stake_pos_delegate, srv_stake_lock, fee",
                                                 l_cond_type_str);
                         dap_json_object_free(json_arr_out);
                         return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
@@ -619,9 +619,9 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                 if (l_addr) {
                     if (l_file_path)
                         s_wallet_list(l_file_path, json_arr_out, l_addr, a_version);
-                    else 
+                    else
                         s_wallet_list(c_wallets_path, json_arr_out, l_addr, a_version);
-                }                    
+                }
                 else {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR,
                         "addr not recognized");
@@ -631,7 +631,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR,
                                                 "You should use -addr option for the wallet find command.");
                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR;
-            }           
+            }
         } break;
         case CMD_WALLET_SHARED:
             return dap_chain_wallet_shared_cli(a_argc, a_argv, a_json_arr_reply, a_version);
@@ -722,7 +722,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                                                "Invalid characters used for password.");
                         return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD;
                     }
-                    // create wallet backup 
+                    // create wallet backup
                     dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
                     snprintf(l_file_name->file_name, sizeof(l_file_name->file_name), "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
                     if ( dap_chain_wallet_save(l_wallet, NULL) ) {
@@ -731,7 +731,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                         dap_json_object_free(json_arr_out);
                         return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR;
                     }
-                    if (l_remove_password) {  
+                    if (l_remove_password) {
                         if (dap_chain_wallet_deactivate(l_wallet_name, strlen(l_wallet_name))){
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR,
                                                 "Can't deactivate wallet");

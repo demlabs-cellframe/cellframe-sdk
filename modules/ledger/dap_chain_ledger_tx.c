@@ -1,4 +1,4 @@
- 
+
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
@@ -442,10 +442,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK
                 };
                 static const size_t l_subtypes_count = sizeof(l_supported_service_subtypes) / sizeof(l_supported_service_subtypes[0]);
-                
+
                 dap_chain_tx_out_cond_t *l_tx_service_out_cond = NULL;
                 uint16_t l_detected_subtype = 0;
-                
+
                 // Find any supported service OUT_COND in the transaction
                 for (size_t i = 0; i < l_subtypes_count; i++) {
                     uint16_t l_subtype = l_supported_service_subtypes[i];
@@ -610,20 +610,20 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 debug_if(g_debug_ledger, L_WARNING, "Reward for block %s sign %s already spent by %s", l_block_hash_str, l_sign_hash_str, l_spender_hash_str);
                 break;
             }
-            
+
             // Get reward value from TX OUT items (reward goes to OUT_STD)
             // We trust the value in the TX - full validation requires chain callback
             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(
                 a_tx, NULL, NULL, TX_ITEM_TYPE_OUT, NULL);
-            
+
             if (!l_tx_out) {
                 l_err_num = DAP_LEDGER_TX_CHECK_REWARD_ITEM_ILLEGAL;
                 log_it(L_WARNING, "Reward TX has IN_REWARD but no OUT");
                 break;
             }
-            
+
             l_value = l_tx_out->header.value;
-            
+
             if (IS_ZERO_256(l_value)) {
                 l_err_num = DAP_LEDGER_TX_CHECK_REWARD_ITEM_ILLEGAL;
                 char l_block_hash_str[DAP_HASH_SHA3_256_STR_SIZE],
@@ -844,7 +844,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                         l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
                     break;
                 }
-                
+
                 l_bound_item->cond = l_tx_prev_out_cond;
                 l_value = l_tx_prev_out_cond->header.value;
                 if (l_tx_prev_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
@@ -1073,7 +1073,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_res = s_tokenizer_find(l_values_from_cur_tx, l_value_cur->token_ticker);
                 if ( !l_res || !EQUAL_256(l_res->sum, l_value_cur->sum) ) {
                     if (g_debug_ledger) {
-                        char *l_balance = dap_chain_balance_coins_print(l_res ? l_res->sum : uint256_0), 
+                        char *l_balance = dap_chain_balance_coins_print(l_res ? l_res->sum : uint256_0),
                              *l_balance_cur = dap_chain_balance_coins_print(l_value_cur->sum);
                         log_it(L_ERROR, "Sum of values of out items from current tx (%s) is not equal outs from previous txs (%s) for token %s",
                                 l_balance, l_balance_cur, l_value_cur->token_ticker);
@@ -1227,20 +1227,20 @@ static dap_json_t *s_wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger
         char l_addr_str[l_addr_len + 1];
         dap_strncpy(l_addr_str, a_bal->key, l_addr_len + 1);
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
-        
+
         // Get wallet name via CALLBACK (if registered)
         const dap_ledger_callbacks_t *l_cb = dap_ledger_callbacks_get();
         const char *l_wallet_name = l_cb->addr_to_wallet_name ? l_cb->addr_to_wallet_name(l_addr) : NULL;
-        
+
         DAP_DELETE(l_addr);
         if (l_wallet_name && l_cb->wallet_info_to_json) {
             dap_json_t *l_json = dap_json_object_new();
             dap_json_object_add_string(l_json, "class", "WalletInfo");
             dap_json_t *l_jobj_wallet = dap_json_object_new();
-            
+
             // Add wallet info via CALLBACK (callback gets wallet_path from config if needed)
             l_cb->wallet_info_to_json(l_jobj_wallet, l_wallet_name, NULL);
-            
+
             dap_json_object_add_object(l_json, "wallet", l_jobj_wallet);
             return l_json;
         }
@@ -1627,7 +1627,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             break;
         }
     }
-    
+
     if (!dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true))
         assert(!l_err_num);
     (void)l_err_num;
@@ -1936,7 +1936,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     l_tx_item->ts_added = dap_nanotime_now();
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
     // Check if in load mode or syncing state (state value 2 = syncing chains)
-    if ((a_ledger->net_get_load_mode_callback ? a_ledger->net_get_load_mode_callback(a_ledger->net_id) : false) || 
+    if ((a_ledger->net_get_load_mode_callback ? a_ledger->net_get_load_mode_callback(a_ledger->net_id) : false) ||
         (a_ledger->net_get_state_callback ? a_ledger->net_get_state_callback(a_ledger->net_id) : 0) == 2)
         dap_ht_add_hh(hh, l_ledger_pvt->ledger_items, tx_hash_fast, l_tx_item);
     else
@@ -2374,7 +2374,7 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const c
         dap_ht_find_hh(hh, l_ledger_pvt->ledger_items, a_tx_first_hash, sizeof(dap_hash_sha3_256_t), l_iter_start);
         if (!l_iter_start || !l_iter_start->hh.next){
             pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-            return NULL;            
+            return NULL;
         }
          // start searching from the next hash after a_tx_first_hash
         l_iter_start = l_iter_start->hh.next;
@@ -2635,7 +2635,7 @@ void dap_ledger_tx_clear_colour(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_t
         log_it(L_WARNING, "Trying to clear colour for blank transaction hash");
         return;
     }
-    
+
     dap_ledger_tx_item_t *l_item_out = NULL;
     dap_chain_datum_tx_t *l_tx = s_tx_find_by_hash(a_ledger, a_tx_hash, &l_item_out, false);
     if (!l_item_out)    // TX is not in ledger, it's OK
@@ -3018,11 +3018,11 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
 
 /**
  * @brief Register ledger TX builders
- * 
+ *
  * This function is intentionally empty as the new Plugin API
  * handles TX builder registration through dap_chain_tx_compose_api.
  * Kept for backward compatibility with code that calls it during init.
- * 
+ *
  * @return 0 (always success)
  */
 int dap_ledger_tx_builders_register(void)
@@ -3034,7 +3034,7 @@ int dap_ledger_tx_builders_register(void)
 
 /**
  * @brief Unregister ledger TX builders
- * 
+ *
  * This function is intentionally empty as the new Plugin API
  * handles TX builder cleanup automatically.
  * Kept for backward compatibility with code that calls it during deinit.

@@ -124,7 +124,7 @@ static dap_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t 
     l_ret->count_node = l_links_count + l_low_availability_count + 1;
     if (dap_log_level_get() <= L_DEBUG ) {
         char l_ignored_str[4096];
-        int l_pos = snprintf(l_ignored_str, sizeof(l_ignored_str), 
+        int l_pos = snprintf(l_ignored_str, sizeof(l_ignored_str),
                              "Next %"DAP_UINT64_FORMAT_U" nodes will be ignored in balancer links preparing in net %s:\n"
                              "\tSelf:\n\t\t"NODE_ADDR_FP_STR"\n\tActive links (%zu):\n",
                              l_ret->count_node, a_net->pub.name, NODE_ADDR_FP_ARGS(l_curr_addr), l_links_count);
@@ -352,7 +352,7 @@ static dap_net_links_t *s_balancer_issue_link(const char *a_net_name, uint16_t a
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
     if (!l_net)
         return log_it(L_WARNING, "There isn't any network by name \"%s\"", a_net_name), NULL;
-        
+
     if ( a_protocol_version == 1 )
         return s_get_node_addrs_old(l_net, a_links_need);
     // prepare list of the ignred addrs
@@ -432,7 +432,7 @@ void s_http_node_issue_link(dap_http_simple_t *a_http_simple, dap_http_status_co
         }
         *(l_ignored_str - 1) = 0; // set 0 terminator to split string
         l_ignored_str += sizeof(l_ignored_token) - 1;
-    } 
+    }
     log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_str);
     dap_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, l_links_need, l_protocol_version, l_ignored_str);
     if (!l_link_full_node_list) {
@@ -582,7 +582,7 @@ void dap_chain_net_balancer_request(void *a_arg)
     l_arg->request_info = l_item;
     log_it(L_DEBUG, "Start balancer %s request to %s:%u in net %s",
                     dap_chain_net_balancer_type_to_str(l_arg->type), l_arg->host_addr, l_arg->host_port, l_arg->net->pub.name);
-    
+
     if (l_arg->type == DAP_CHAIN_NET_BALANCER_TYPE_HTTP) {
         char *l_ignored_addrs_str = NULL;
         if (l_ignored_addrs) {
@@ -600,7 +600,7 @@ void dap_chain_net_balancer_request(void *a_arg)
                                                 l_arg->net->pub.name,
                                                 l_ignored_addrs_str ? l_ignored_addrs_str : "");
         if (! dap_client_http_request(l_arg->worker, l_arg->host_addr, l_arg->host_port, "GET", "text/text",
-                                      l_request, NULL, 0, NULL, s_http_balancer_link_prepare_success, 
+                                      l_request, NULL, 0, NULL, s_http_balancer_link_prepare_success,
                                       s_http_balancer_link_prepare_error, l_arg, NULL) )
             log_it(L_ERROR, "Can't process balancer link %s request in net %s", l_bal_type, l_net_name);
         DAP_DEL_MULTY(l_ignored_addrs_str, l_request);
@@ -633,7 +633,7 @@ dap_json_t *dap_chain_net_balancer_get_node_str(dap_chain_net_t *a_net)
     if (!l_jobj_list_array) return dap_json_rpc_allocation_put(l_jobj_out);
     dap_json_object_add_object(l_jobj_out, "links_list", l_jobj_list_array);
     dap_net_links_t *l_links_info_list = s_get_node_addrs(a_net, 0, NULL, false);  // TODO
-    
+
     uint64_t l_node_num = l_links_info_list ? l_links_info_list->count_node : 0;
     for (uint64_t i = 0; i < l_node_num; ++i) {
         dap_link_info_t *l_link_info = (dap_link_info_t *)l_links_info_list->nodes_info + i;

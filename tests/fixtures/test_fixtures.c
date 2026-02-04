@@ -21,7 +21,7 @@
  */
 dap_chain_net_t *test_network_create(const char *a_net_name, uint64_t a_net_id) {
     dap_return_val_if_fail(a_net_name, NULL);
-    
+
     // This is a simplified test network creation
     // In real tests, you'd initialize the full network stack
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
@@ -29,9 +29,9 @@ dap_chain_net_t *test_network_create(const char *a_net_name, uint64_t a_net_id) 
         log_it(L_NOTICE, "Test network '%s' already exists", a_net_name);
         return l_net;
     }
-    
+
     log_it(L_NOTICE, "Creating test network '%s' with ID %"PRIu64, a_net_name, a_net_id);
-    
+
     // Real implementation would call dap_chain_net_create or similar
     // For now, return NULL - tests will need to be updated with proper network init
     return NULL;
@@ -43,7 +43,7 @@ dap_chain_net_t *test_network_create(const char *a_net_name, uint64_t a_net_id) 
  */
 void test_network_delete(dap_chain_net_t *a_net) {
     if (!a_net) return;
-    
+
     log_it(L_NOTICE, "Deleting test network '%s'", a_net->pub.name);
     // Real implementation would clean up network resources
 }
@@ -57,7 +57,7 @@ void test_network_delete(dap_chain_net_t *a_net) {
  */
 void test_hash_generate(uint32_t a_seed, dap_hash_sha3_256_t *a_hash) {
     dap_return_if_fail(a_hash);
-    
+
     memset(a_hash, 0, sizeof(dap_hash_sha3_256_t));
     for (size_t i = 0; i < sizeof(dap_hash_sha3_256_t); i++) {
         a_hash->raw[i] = (uint8_t)((a_seed + i * 17) % 256);
@@ -71,7 +71,7 @@ void test_hash_generate(uint32_t a_seed, dap_hash_sha3_256_t *a_hash) {
  */
 void test_addr_generate(uint32_t a_seed, dap_chain_addr_t *a_addr) {
     dap_return_if_fail(a_addr);
-    
+
     memset(a_addr, 0, sizeof(dap_chain_addr_t));
     // Simple deterministic address generation for testing
     for (size_t i = 0; i < sizeof(dap_chain_addr_t); i++) {

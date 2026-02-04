@@ -34,15 +34,15 @@
  */
 unit_test_context_t *unit_test_fixture_init(const char *a_test_name) {
     dap_return_val_if_fail(a_test_name, NULL);
-    
+
     unit_test_context_t *l_ctx = DAP_NEW_Z(unit_test_context_t);
     if (!l_ctx) {
         log_it(L_ERROR, "Failed to allocate unit test context");
         return NULL;
     }
-    
+
     // Create temporary test directory
-    l_ctx->test_dir = dap_strdup_printf("/tmp/cellframe_test_%s_%d", 
+    l_ctx->test_dir = dap_strdup_printf("/tmp/cellframe_test_%s_%d",
                                          a_test_name, (int)getpid());
     if (mkdir(l_ctx->test_dir, 0755) != 0 && errno != EEXIST) {
         log_it(L_ERROR, "Failed to create test directory: %s", l_ctx->test_dir);
@@ -50,10 +50,10 @@ unit_test_context_t *unit_test_fixture_init(const char *a_test_name) {
         DAP_DELETE(l_ctx);
         return NULL;
     }
-    
+
     // Create config path
     l_ctx->config_path = dap_strdup_printf("%s/test.cfg", l_ctx->test_dir);
-    
+
     log_it(L_INFO, "Initialized unit test context: %s", l_ctx->test_dir);
     return l_ctx;
 }
@@ -63,12 +63,12 @@ unit_test_context_t *unit_test_fixture_init(const char *a_test_name) {
  */
 void unit_test_fixture_cleanup(unit_test_context_t *a_ctx) {
     if (!a_ctx) return;
-    
+
     // Close config
     if (a_ctx->config) {
         dap_config_close(a_ctx->config);
     }
-    
+
     // Remove temporary directory
     if (a_ctx->test_dir) {
         char *l_cmd = dap_strdup_printf("rm -rf %s", a_ctx->test_dir);
@@ -76,10 +76,10 @@ void unit_test_fixture_cleanup(unit_test_context_t *a_ctx) {
         DAP_DELETE(l_cmd);
         DAP_DELETE(a_ctx->test_dir);
     }
-    
+
     DAP_DELETE(a_ctx->config_path);
     DAP_DELETE(a_ctx);
-    
+
     log_it(L_INFO, "Cleaned up unit test context");
 }
 
@@ -90,35 +90,35 @@ int unit_test_config_generate(unit_test_context_t *a_ctx,
                                const char *a_section,
                                const char **a_params) {
     dap_return_val_if_fail(a_ctx && a_section, -1);
-    
+
     FILE *l_cfg_file = fopen(a_ctx->config_path, "a");
     if (!l_cfg_file) {
         log_it(L_ERROR, "Failed to open config file: %s", a_ctx->config_path);
         return -2;
     }
-    
+
     fprintf(l_cfg_file, "[%s]\n", a_section);
-    
+
     if (a_params) {
         for (const char **p = a_params; *p; p++) {
             fprintf(l_cfg_file, "%s\n", *p);
         }
     }
-    
+
     fprintf(l_cfg_file, "\n");
     fclose(l_cfg_file);
-    
+
     // Reload config
     if (a_ctx->config) {
         dap_config_close(a_ctx->config);
     }
-    
+
     a_ctx->config = dap_config_open(a_ctx->config_path);
     if (!a_ctx->config) {
         log_it(L_ERROR, "Failed to load generated config");
         return -3;
     }
-    
+
     log_it(L_INFO, "Generated config section [%s]", a_section);
     return 0;
 }
@@ -129,19 +129,19 @@ int unit_test_config_generate(unit_test_context_t *a_ctx,
 int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
                                const dap_sdk_mock_flags_t *a_mock_flags) {
     dap_return_val_if_fail(a_ctx && a_mock_flags, -1);
-    
+
     // Copy flags to context
     memcpy(&a_ctx->mock_flags, a_mock_flags, sizeof(dap_sdk_mock_flags_t));
-    
+
     // Update legacy flags for backward compatibility
     a_ctx->crypto_mocked = a_mock_flags->mock_crypto;
     a_ctx->db_mocked = a_mock_flags->mock_global_db;
     a_ctx->events_mocked = a_mock_flags->mock_events;
     a_ctx->network_mocked = a_mock_flags->mock_net_client || a_mock_flags->mock_net_server;
-    
+
     // Log enabled mocks
     log_it(L_INFO, "DAP SDK module mocks enabled:");
-    
+
     // ========================================================================
     // CRYPTO MODULE MOCKS
     // ========================================================================
@@ -177,7 +177,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_hash_sha3_256);
         DAP_MOCK_DISABLE(dap_hash_slow);
     }
-    
+
     // ========================================================================
     // GLOBAL DB MOCKS
     // ========================================================================
@@ -197,7 +197,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_global_db_driver_add);
         DAP_MOCK_DISABLE(dap_global_db_driver_delete);
     }
-    
+
     // ========================================================================
     // TIME MOCKS
     // ========================================================================
@@ -209,7 +209,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_time_now);
         DAP_MOCK_DISABLE(dap_nanotime_now);
     }
-    
+
     // ========================================================================
     // JSON MOCKS
     // ========================================================================
@@ -225,7 +225,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_json_object_get);
         DAP_MOCK_DISABLE(dap_json_object_to_json_string);
     }
-    
+
     // ========================================================================
     // FILE UTILS MOCKS
     // ========================================================================
@@ -241,7 +241,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_file_set_contents);
         DAP_MOCK_DISABLE(dap_mkdir_with_parents);
     }
-    
+
     // ========================================================================
     // EVENTS MOCKS
     // ========================================================================
@@ -257,7 +257,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_events_stop);
         DAP_MOCK_DISABLE(dap_events_socket_create_type_unix_client);
     }
-    
+
     // ========================================================================
     // NETWORK CLIENT MOCKS
     // ========================================================================
@@ -273,7 +273,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_client_connect);
         DAP_MOCK_DISABLE(dap_client_disconnect);
     }
-    
+
     // ========================================================================
     // NETWORK SERVER MOCKS
     // ========================================================================
@@ -287,7 +287,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_server_delete);
         DAP_MOCK_DISABLE(dap_server_listen);
     }
-    
+
     // ========================================================================
     // STREAM MOCKS
     // ========================================================================
@@ -303,7 +303,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_stream_write);
         DAP_MOCK_DISABLE(dap_stream_read);
     }
-    
+
     // ========================================================================
     // PROC THREAD MOCKS
     // ========================================================================
@@ -317,7 +317,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_proc_thread_delete);
         DAP_MOCK_DISABLE(dap_proc_thread_assign_on_worker_inter);
     }
-    
+
     // ========================================================================
     // WORKER MOCKS
     // ========================================================================
@@ -331,7 +331,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_worker_exec_callback_on);
         DAP_MOCK_DISABLE(dap_worker_exec_callback_inter);
     }
-    
+
     // ========================================================================
     // RING BUFFER MOCKS
     // ========================================================================
@@ -347,9 +347,9 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
         DAP_MOCK_DISABLE(dap_ring_buffer_write);
         DAP_MOCK_DISABLE(dap_ring_buffer_read);
     }
-    
+
     log_it(L_INFO, "✅ DAP SDK mocks configured via dap_mock framework");
-    
+
     return 0;
 }
 
@@ -361,7 +361,7 @@ int unit_test_mock_dap_sdk(unit_test_context_t *a_ctx,
                             bool a_mock_db,
                             bool a_mock_events) {
     dap_return_val_if_fail(a_ctx, -1);
-    
+
     // Convert to new API
     dap_sdk_mock_flags_t l_flags = {
         .mock_crypto = a_mock_crypto,
@@ -378,7 +378,7 @@ int unit_test_mock_dap_sdk(unit_test_context_t *a_ctx,
         .mock_file_utils = false,
         .mock_ring_buffer = false
     };
-    
+
     return unit_test_mock_dap_sdk_ex(a_ctx, &l_flags);
 }
 
@@ -389,9 +389,9 @@ int unit_test_mock_toggle(unit_test_context_t *a_ctx,
                            const char *a_module_name,
                            bool a_enable) {
     dap_return_val_if_fail(a_ctx && a_module_name, -1);
-    
+
     bool *l_flag = NULL;
-    
+
     // Find the corresponding flag
     if (strcmp(a_module_name, "crypto") == 0) {
         l_flag = &a_ctx->mock_flags.mock_crypto;
@@ -426,7 +426,7 @@ int unit_test_mock_toggle(unit_test_context_t *a_ctx,
         log_it(L_ERROR, "Unknown DAP SDK module: %s", a_module_name);
         return -2;
     }
-    
+
     if (l_flag) {
         bool l_old_value = *l_flag;
         *l_flag = a_enable;
@@ -435,7 +435,7 @@ int unit_test_mock_toggle(unit_test_context_t *a_ctx,
                l_old_value ? "ON" : "OFF",
                a_enable ? "ON" : "OFF");
     }
-    
+
     return 0;
 }
 
@@ -448,7 +448,7 @@ int unit_test_mock_toggle(unit_test_context_t *a_ctx,
  */
 void unit_test_hash_generate(uint32_t a_seed, dap_hash_sha3_256_t *a_hash) {
     dap_return_if_fail(a_hash);
-    
+
     memset(a_hash, 0, sizeof(dap_hash_sha3_256_t));
     for (size_t i = 0; i < sizeof(dap_hash_sha3_256_t); i++) {
         a_hash->raw[i] = (uint8_t)((a_seed + i * 17) % 256);
@@ -460,10 +460,10 @@ void unit_test_hash_generate(uint32_t a_seed, dap_hash_sha3_256_t *a_hash) {
  */
 void unit_test_addr_generate(uint32_t a_seed, uint64_t a_net_id, dap_chain_addr_t *a_addr) {
     dap_return_if_fail(a_addr);
-    
+
     memset(a_addr, 0, sizeof(dap_chain_addr_t));
     a_addr->net_id.uint64 = a_net_id;
-    
+
     // Generate deterministic hash part
     for (size_t i = 0; i < sizeof(a_addr->data.hash); i++) {
         a_addr->data.hash[i] = (uint8_t)((a_seed * 7 + i * 11) % 256);
@@ -476,24 +476,24 @@ void unit_test_addr_generate(uint32_t a_seed, uint64_t a_net_id, dap_chain_addr_
 dap_sign_t *unit_test_sign_generate(uint32_t a_seed, const void *a_data, size_t a_data_size) {
     UNUSED(a_data);
     UNUSED(a_data_size);
-    
+
     // Create minimal signature for testing
     size_t l_sign_size = sizeof(dap_sign_t) + 64; // Mock signature data
     dap_sign_t *l_sign = DAP_NEW_Z_SIZE(dap_sign_t, l_sign_size);
     if (!l_sign) {
         return NULL;
     }
-    
+
     // Set mock signature type
     l_sign->header.type.type = SIG_TYPE_NULL;
     l_sign->header.sign_size = 64;
-    
+
     // Fill with deterministic data
     uint8_t *l_sign_data = (uint8_t*)(l_sign + 1);
     for (size_t i = 0; i < 64; i++) {
         l_sign_data[i] = (uint8_t)((a_seed + i * 13) % 256);
     }
-    
+
     return l_sign;
 }
 
@@ -502,7 +502,7 @@ dap_sign_t *unit_test_sign_generate(uint32_t a_seed, const void *a_data, size_t 
  */
 void unit_test_uint256_generate(uint64_t a_value, uint256_t *a_out) {
     dap_return_if_fail(a_out);
-    
+
     memset(a_out, 0, sizeof(uint256_t));
     *((uint64_t*)a_out) = a_value;
 }

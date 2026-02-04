@@ -99,7 +99,7 @@
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "rand/dap_rand.h"
-#include "dap_chain_net_api.h" 
+#include "dap_chain_net_api.h"
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
@@ -180,7 +180,7 @@ typedef struct dap_chain_net_pvt {
 
     uint16_t permanent_links_hosts_count;
     struct request_link_info **permanent_links_hosts;
-    
+
     uint16_t seed_nodes_count;
     struct request_link_info **seed_nodes_hosts;
 
@@ -297,7 +297,7 @@ int dap_chain_net_init()
         log_it(L_ERROR, "Failed to initialize network core module (code %d)", l_ret);
         return l_ret;
     }
-    
+
     dap_ledger_init();
     dap_chain_ch_init();
     dap_chain_net_ch_init();
@@ -305,9 +305,9 @@ int dap_chain_net_init()
     dap_http_ban_list_client_init();
     dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
-    
+
     // NO MORE callback registration - datum_dump_json moved to ledger module
-    
+
     // CLI command registration moved to dap_chain_net_cli.c
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
@@ -343,11 +343,11 @@ int dap_chain_net_init()
         log_it(L_WARNING, "Can't open entries on path %s, error %d: \"%s\"", l_path, errno, dap_strerror(errno));
 
     dap_enc_http_set_acl_callback(s_net_set_acl);
-    
+
     // Phase 5.3: Network API registration MOVED to dap_chain_net_core_init()
     // This resolves circular dependency between net and net_core modules
     // Core functions (by_id, by_name, etc.) are defined in net_core, so registration should be there too
-    
+
     log_it(L_NOTICE,"Chain networks initialized");
     return 0;
 }
@@ -566,7 +566,7 @@ int s_link_manager_link_request(uint64_t a_net_id)
     }
     struct request_link_info *l_balancer_link = s_balancer_link_from_cfg(l_net);
     if (!l_balancer_link)
-        return log_it(L_ERROR, "Can't process balancer link %s request in net %s", 
+        return log_it(L_ERROR, "Can't process balancer link %s request in net %s",
                         dap_chain_net_balancer_type_to_str(PVT(l_net)->balancer_type), l_net->pub.name), -5;
     dap_balancer_link_request_t *l_arg = DAP_NEW_Z(dap_balancer_link_request_t);
     l_arg->net = l_net;
@@ -637,7 +637,7 @@ dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
     dap_json_t *l_jobj_chains_array = dap_json_object_new();
     if (!l_jobj_chains_array)
         return NULL;
-    
+
     dap_chain_t *l_chain = NULL;
     dap_dl_foreach(a_net->pub.chains, l_chain) {
         dap_json_t *l_jobj_chain = dap_json_object_new();
@@ -647,7 +647,7 @@ dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
         }
         dap_json_t *l_jobj_chain_status = NULL;
         dap_json_t *l_jobj_percent = NULL;
-        
+
         switch (l_chain->state) {
             case CHAIN_SYNC_STATE_ERROR:
                 l_jobj_chain_status = dap_json_object_new_string("error");
@@ -721,14 +721,14 @@ dap_json_t *dap_chain_net_list_json_collect(int a_version){
     dap_json_t *l_json = dap_json_object_new();
     if (!l_json)
         return NULL;
-    
+
     dap_json_object_add_string(l_json, "class", a_version == 1 ? "NetList" : "net_list");
     dap_json_t *l_json_networks = dap_json_array_new();
     if (!l_json_networks) {
         dap_json_object_free(l_json);
         return NULL;
     }
-    
+
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         dap_json_t *l_net_name = dap_json_object_new_string(l_net->pub.name);
         if (l_net_name)
@@ -849,13 +849,13 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
     dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
     l_ret->pub.native_ticker = a_native_ticker;
-    
+
     if ( dap_chain_policy_net_add(l_ret->pub.id, a_cfg) ) {
         log_it(L_ERROR, "Can't add net %s to policy module", l_ret->pub.name);
         DAP_DEL_MULTY(l_ret->pub.name, l_ret);
         return NULL;
     }
-    
+
     l_ret->pub.config = a_cfg;
     l_ret->pub.gdb_groups_prefix
         = dap_config_get_item_str_default( a_cfg, "general", "gdb_groups_prefix", dap_config_get_item_str(a_cfg, "general", "name") );
@@ -960,11 +960,11 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
         dap_json_t *l_bridget = dap_json_array_new();
         uint16_t l_bridget_count = 0;  // if can't get any info about bridget net
         for (uint16_t i = 0; i < a_net->pub.bridged_networks_count; ++i) {
-            dap_chain_net_t *l_bridget_net = dap_chain_net_by_id(a_net->pub.bridged_networks[i]); 
+            dap_chain_net_t *l_bridget_net = dap_chain_net_by_id(a_net->pub.bridged_networks[i]);
             if (l_bridget_net) {
                 dap_json_t *l_net_item = dap_json_object_new();
                 sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, a_net->pub.bridged_networks[i].uint64);
-                    
+
                 dap_json_object_add_object(l_net_item, "name", dap_json_object_new_string(l_bridget_net->pub.name));
                 dap_json_object_add_object(l_net_item, "id", dap_json_object_new_string(l_id_buff));
                 dap_json_object_add_object(l_net_item, "native_ticker", dap_json_object_new_string(l_bridget_net->pub.native_ticker));
@@ -1304,7 +1304,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 DAP_DELETE(l_tps_str);
                 if (!l_jobj_tpd || !l_jobj_total || !l_jobj_tps) {
                     dap_json_object_free(l_jobj_tps);
-                    
+
                     dap_json_object_free(l_jobj_return);
                     dap_json_object_free(l_jobj_stats);
                     dap_json_object_free(l_jobj_from);
@@ -1579,7 +1579,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                                            "One of -cert or -hash parameters is mandatory");
                     return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD;
                 }
-                
+
                 char *l_hash_hex_str = NULL;
 
                 if (l_cert_string) {
@@ -1949,28 +1949,28 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
             log_it(L_ERROR, "Failed to create ledger options for net %s", a_net->pub.name);
             return -1;
         }
-        
+
         // Configure ledger options from network
         dap_strncpy(l_opts->name, a_net->pub.name, sizeof(l_opts->name));
         l_opts->net_id = a_net->pub.id;
         l_opts->flags = l_ledger_flags;
         l_opts->native_ticker = a_net->pub.native_ticker;
-        
+
         // Create ledger
         a_net->pub.ledger = dap_ledger_create(l_opts);
         DAP_DELETE(l_opts);
-        
+
         if (!a_net->pub.ledger) {
             log_it(L_ERROR, "Failed to create ledger for net %s", a_net->pub.name);
             return -1;
         }
-        
+
         // Set ledger callbacks and context
         a_net->pub.ledger->load_mode = true;
     }
-    
+
     return l_res;
-    
+
 }
 
 /**
@@ -2062,7 +2062,7 @@ static void *s_net_load(void *a_arg)
         }
         closedir(l_service_cfg_dir);
     }
-    
+
     dap_chain_srv_start_all(l_net->pub.id);
 
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
@@ -2785,7 +2785,7 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
     dap_ledger_t *l_ledger = l_net->pub.ledger;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
-            return 0; 
+            return 0;
         }
         case DAP_CHAIN_DATUM_ANCHOR: {
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
@@ -2883,7 +2883,7 @@ void dap_chain_net_announce_addr(dap_chain_net_t *a_net)
 
 /**
  * @brief try net to go online
- * @param a_net dap_chain_net_t *: network 
+ * @param a_net dap_chain_net_t *: network
  * @return 0 if ok
  **/
 static int s_net_try_online(dap_chain_net_t *a_net)
@@ -3318,7 +3318,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
             }
             PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;
         }
-        if (a_new_state == NET_STATE_ONLINE) {        
+        if (a_new_state == NET_STATE_ONLINE) {
             PVT(a_net)->sync_context.current_link.uint64 = 0;
             PVT(a_net)->sync_context.cur_chain = NULL;
             PVT(a_net)->sync_context.cur_cell = NULL;

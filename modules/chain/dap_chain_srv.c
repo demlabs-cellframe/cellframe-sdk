@@ -209,7 +209,7 @@ int dap_chain_srv_purge_all(dap_chain_net_id_t a_net_id)
     int ret = 0;
     int err = pthread_rwlock_rdlock(&s_srv_list_lock);
     assert(!err);
-    for (struct service_list *it = s_srv_list; it; it = it->hh.next) {      
+    for (struct service_list *it = s_srv_list; it; it = it->hh.next) {
         if (!it->callbacks.purge)
             continue;
         struct network_service *l_service = s_net_service_find(it, a_net_id);

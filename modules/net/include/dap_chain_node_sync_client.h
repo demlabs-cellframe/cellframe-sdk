@@ -80,24 +80,24 @@ struct dap_chain_node_sync_request {
     uint64_t                        request_id;         // Unique request ID
     uint8_t                         channel_id;         // Channel where request was sent
     uint8_t                         request_type;       // Sent packet type
-    
+
     // Synchronization primitives
     pthread_mutex_t                 mutex;
     pthread_cond_t                  cond;
-    
+
     // Response storage
     dap_sync_request_status_t       status;
     void                           *response_data;      // Response data (caller must free)
     size_t                          response_size;
     int                             error_code;
-    
+
     // Optional custom matcher
     dap_chain_node_sync_matcher_t   matcher;
     void                           *matcher_arg;
-    
+
     // Reference to parent client
     dap_chain_node_sync_client_t   *sync_client;
-    
+
     dap_ht_handle_t                  hh;                 // For hash table
 };
 
@@ -106,19 +106,19 @@ struct dap_chain_node_sync_client {
     dap_client_t                   *client;             // Underlying async client
     dap_chain_net_t                *net;                // Network context
     dap_chain_node_info_t          *node_info;          // Remote node info
-    
+
     // Connection state
     pthread_mutex_t                 conn_mutex;
     pthread_cond_t                  conn_cond;
     volatile bool                   is_connected;
     volatile bool                   is_connecting;
     volatile int                    conn_error;
-    
+
     // Request management
     pthread_rwlock_t                requests_lock;      // Protects pending_requests
     dap_chain_node_sync_request_t  *pending_requests;   // Hash table by request_id
     atomic_uint_fast64_t            request_id_counter; // For generating unique IDs
-    
+
     // Stream worker reference
     dap_stream_worker_t            *stream_worker;
     dap_events_socket_uuid_t        esocket_uuid;

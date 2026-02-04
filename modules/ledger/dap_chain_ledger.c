@@ -90,26 +90,26 @@ static bool s_tag_check_event(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond)
 {
-        dap_hash_sha3_256_t *l_tx_prev_hash = &a_in_cond->header.tx_prev_hash;    
+        dap_hash_sha3_256_t *l_tx_prev_hash = &a_in_cond->header.tx_prev_hash;
         uint32_t l_tx_prev_out_idx = a_in_cond->header.tx_out_prev_idx;
         dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash (a_ledger,l_tx_prev_hash);
-        
+
         if (!l_tx_prev) return NULL;
         byte_t* l_item_res = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_item_res;
-        
+
         if (l_type != TX_ITEM_TYPE_OUT_COND) return NULL;
 
-        
+
         return (dap_chain_tx_out_cond_t*)l_item_res;
 }
 
 static dap_chain_addr_t s_get_out_addr(byte_t *out_item)
 {
     dap_chain_tx_item_type_t l_type = *(uint8_t *)out_item;
-    
+
     switch (l_type) {
-        case TX_ITEM_TYPE_OUT: { 
+        case TX_ITEM_TYPE_OUT: {
             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)out_item;
             return l_tx_out->addr;
         } break;
@@ -132,9 +132,9 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     //crosschain transfer
     //regular transfer
     //comission transfer
-    
+
     // fee transfer: in_cond item linked to out_cond_fee
-    if (a_items_grp->items_in_cond) 
+    if (a_items_grp->items_in_cond)
     {
        for (dap_list_t *it = a_items_grp->items_in_cond; it; it = it->next) {
             dap_chain_tx_in_cond_t *l_tx_in = it->data;
@@ -143,7 +143,7 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
             if (l_tx_out_cond && l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
                 if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
                 return true;
-            }   
+            }
         }
     }
 
@@ -154,18 +154,18 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     {
         dap_chain_addr_t addr_to = {0};
         for (dap_list_t *it =  a_items_grp->items_out_all; it; it = it->next) {
-            
+
             dap_chain_addr_t l_tx_out_to = s_get_out_addr(it->data);
-        
+
             //tag cross-chain _outputs_ transactions (recepient-tx is emission-based)
             if (l_tx_out_to.net_id.uint64 != a_ledger->net_id.uint64 && !dap_chain_addr_is_blank(&l_tx_out_to)) {
                 if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN;
                 return true;
             }
-        }   
+        }
     }
 
-    //regular transfers 
+    //regular transfers
     //have no other ins except regular in
     //have no OUT_COND except fee
     //have no vote
@@ -175,19 +175,19 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
     if (a_items_grp->items_in_cond ||
         a_items_grp->items_in_ems ||
         a_items_grp->items_in_reward ) {
-        return false;   
+        return false;
     }
-    
+
     //have any of those -> not regular transfer
-    if ( 
+    if (
         a_items_grp->items_out_cond_srv_pay ||
         a_items_grp->items_out_cond_srv_stake_lock ||
         a_items_grp->items_out_cond_srv_stake_pos_delegate ||
-        a_items_grp->items_out_cond_srv_xchange) 
+        a_items_grp->items_out_cond_srv_xchange)
     {
         return false;
     }
-    
+
     //not voting or vote...
     if (a_items_grp->items_vote || a_items_grp->items_voting || dap_list_length(a_items_grp->items_tsd) > 1 || (a_items_grp->items_tsd && !dap_chain_datum_tx_item_get_tsd_by_type(a_tx, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT)))
         return false;
@@ -201,9 +201,9 @@ static bool s_tag_check_transfer(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a
 
 int dap_ledger_service_add(dap_chain_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback)
 {
-    
+
     dap_ledger_service_info_t *l_new_sinfo = NULL;
-    
+
     int l_tmp = a_uid.raw_ui64;
 
     pthread_rwlock_rdlock(&s_services_rwlock);
@@ -222,7 +222,7 @@ int dap_ledger_service_add(dap_chain_srv_uid_t a_uid, char *tag_str, dap_ledger_
     l_new_sinfo->service_uid = a_uid;
     l_new_sinfo->callback = a_callback;
     dap_strncpy(l_new_sinfo->tag_str, tag_str, sizeof(l_new_sinfo->tag_str));
-    
+
     pthread_rwlock_wrlock(&s_services_rwlock);
     dap_ht_add_int(s_services, service_uid.raw_ui64, l_new_sinfo);
     pthread_rwlock_unlock(&s_services_rwlock);
@@ -240,13 +240,13 @@ int dap_ledger_service_add(dap_chain_srv_uid_t a_uid, char *tag_str, dap_ledger_
 int dap_ledger_init()
 {
     g_debug_ledger = dap_config_get_item_bool_default(g_config, "ledger", "debug_more",false);
-    
+
     // Register ledger TX builders in TX Compose API
     if (dap_ledger_tx_builders_register() != 0) {
         log_it(L_ERROR, "Failed to register ledger TX builders");
         return -1;
     }
-    
+
     //register native ledger services
     dap_chain_srv_uid_t l_uid_transfer = { .uint64 = DAP_CHAIN_NET_SRV_TRANSFER_ID };
     dap_ledger_service_add(l_uid_transfer, "transfer", s_tag_check_transfer);
@@ -328,7 +328,7 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     pthread_rwlock_destroy(&PVT(a_ledger)->event_pkeys_rwlock);
     pthread_mutex_destroy(&PVT(a_ledger)->load_mutex);
     pthread_cond_destroy(&PVT(a_ledger)->load_cond);
-    
+
     // Free chain IDs array
     DAP_DEL_Z(a_ledger->chain_ids);
 
@@ -358,7 +358,7 @@ static void s_tx_header_print(dap_json_t *a_json_out, dap_chain_datum_tx_t *a_tx
     dap_json_object_add_string(a_json_out, "time ", l_time_str);
 }
 
-static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspent, dap_ledger_t *a_ledger, 
+static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspent, dap_ledger_t *a_ledger,
             dap_chain_addr_t *a_addr, const char *a_hash_out_type, dap_json_t *json_arr_out) {
     if (a_unspent && a_item->cache_data.ts_spent) {
         // With 'unspent' flag spent ones are ignored
@@ -440,7 +440,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
         default:
             break;
         }
-        if ( !dap_chain_addr_is_blank(&l_src_addr) && !dap_chain_addr_is_blank(&l_dst_addr) 
+        if ( !dap_chain_addr_is_blank(&l_src_addr) && !dap_chain_addr_is_blank(&l_dst_addr)
             && dap_chain_addr_compare(&l_dst_addr, &l_src_addr) )
             continue;   // send to self
         if ( dap_chain_addr_compare(&l_src_addr, a_addr)) {
@@ -450,7 +450,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                 l_header_printed = true;
             }
             //const char *l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
-            const char *l_dst_addr_str = !dap_chain_addr_is_blank(&l_dst_addr) 
+            const char *l_dst_addr_str = !dap_chain_addr_is_blank(&l_dst_addr)
                 ? dap_chain_addr_to_str_static(&l_dst_addr)
                 : dap_chain_tx_out_cond_subtype_to_str( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype );
             dap_json_object_add_string(l_json_obj_datum, "send", dap_uint256_to_char(l_value, NULL));
@@ -466,9 +466,9 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             }
             const char *l_dst_token = (l_type == TX_ITEM_TYPE_OUT_EXT) ?
                         (const char *)(((dap_chain_tx_out_ext_t *)l_item)->token) : NULL;
-            const char *l_src_addr_str = l_base_tx 
+            const char *l_src_addr_str = l_base_tx
                 ? "emission"
-                : ( !dap_chain_addr_is_blank(&l_src_addr) 
+                : ( !dap_chain_addr_is_blank(&l_src_addr)
                     ? dap_chain_addr_to_str_static(&l_src_addr)
                     : dap_chain_tx_out_cond_subtype_to_str(l_src_subtype) );
             dap_json_object_add_string(l_json_obj_datum, "recv", dap_uint256_to_char(l_value, NULL));
@@ -511,7 +511,7 @@ dap_json_t *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_add
 static bool s_pack_ledger_threshold_info_json (dap_json_t *a_json_arr_out, dap_ledger_tx_item_t *a_tx_item, int a_version)
 {
     dap_json_t *json_obj_tx = dap_json_object_new();
-    if (!json_obj_tx) 
+    if (!json_obj_tx)
         return 1;
     char l_tx_prev_hash_str[DAP_HASH_SHA3_256_STR_SIZE]={0};
     char l_time[DAP_TIME_STR_SIZE] = {0};
@@ -525,7 +525,7 @@ static bool s_pack_ledger_threshold_info_json (dap_json_t *a_json_arr_out, dap_l
 }
 static bool s_pack_ledger_balance_info_json (dap_json_t *a_json_arr_out, dap_ledger_wallet_balance_t *a_balance_item, int a_version)
 {
-    dap_json_t *json_obj_tx = dap_json_object_new();   
+    dap_json_t *json_obj_tx = dap_json_object_new();
     dap_json_object_add_string(json_obj_tx, a_version == 1 ? "Ledger balance key" : "balance_key", a_balance_item->key);
     dap_json_object_add_string(json_obj_tx, "token_ticker", a_balance_item->token_ticker);
     dap_json_object_add_string(json_obj_tx, "balance", dap_uint256_to_char(a_balance_item->balance, NULL));
@@ -567,7 +567,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
         dap_ht_foreach_hh(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp) {
             if (i_tmp < l_arr_start)
             {
-                i_tmp++;                
+                i_tmp++;
                 continue;
             }
             i_tmp++;
@@ -575,7 +575,7 @@ dap_json_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, si
                 pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
                 dap_json_object_free(json_arr_out);
                 return NULL;
-            }            
+            }
             l_counter++;
             if (i_tmp >= l_arr_end)
                 break;
@@ -646,7 +646,7 @@ dap_json_t *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, size
         dap_json_t *json_obj_tx = dap_json_object_new();
         dap_json_object_add_string(json_obj_tx, a_version == 1 ? "No items in ledger balance_accounts" : "info_status", "empty");
         dap_json_array_add(json_arr_out, json_obj_tx);
-    } 
+    }
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
     return json_arr_out;
 }
@@ -884,15 +884,15 @@ dap_ledger_create_options_t *dap_ledger_create_options_default(void)
     dap_ledger_create_options_t *l_opts = DAP_NEW_Z(dap_ledger_create_options_t);
     if (!l_opts)
         return NULL;
-    
+
     // Generate random net_id (caller should verify uniqueness)
     for (size_t i = 0; i < sizeof(dap_chain_net_id_t); i++) {
         ((uint8_t*)&l_opts->net_id)[i] = dap_random_byte();
     }
-    
+
     // Default name from net_id hex
     snprintf(l_opts->name, sizeof(l_opts->name), "%016" DAP_UINT64_FORMAT_X, l_opts->net_id.uint64);
-    
+
     // Default: single chain with id=0
     l_opts->chain_ids = DAP_NEW_Z(dap_chain_id_t);
     if (!l_opts->chain_ids) {
@@ -902,7 +902,7 @@ dap_ledger_create_options_t *dap_ledger_create_options_default(void)
     l_opts->chain_ids[0].uint64 = 0;
     l_opts->chain_ids_count = 1;
     l_opts->flags = 0;
-    
+
     return l_opts;
 }
 
@@ -912,19 +912,19 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
         log_it(L_ERROR, "NULL options passed to dap_ledger_create");
         return NULL;
     }
-    
+
     dap_ledger_t *l_ledger = dap_ledger_handle_new();
     dap_return_val_if_fail(l_ledger, NULL);
 
     // Set identification from options
     dap_strncpy(l_ledger->name, a_options->name, sizeof(l_ledger->name));
     l_ledger->net_id = a_options->net_id;
-    
+
     // Set native ticker if provided
     if (a_options->native_ticker && *a_options->native_ticker) {
         dap_strncpy(l_ledger->native_ticker, a_options->native_ticker, sizeof(l_ledger->native_ticker));
     }
-    
+
     // Copy chain IDs
     if (a_options->chain_ids_count > 0 && a_options->chain_ids) {
         l_ledger->chain_ids = DAP_NEW_Z_COUNT(dap_chain_id_t, a_options->chain_ids_count);
@@ -944,18 +944,18 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
-    
+
     // Initialize callbacks to NULL
     l_ledger->net_get_load_mode_callback = NULL;
     l_ledger->net_get_state_callback = NULL;
     l_ledger->net_get_name_callback = NULL;
-    
+
     // Decrees initializing
     dap_ledger_decree_init(l_ledger);
-    
-    log_it(L_INFO, "Created ledger '%s' with net_id=%016" DAP_UINT64_FORMAT_X " and %zu chain(s)", 
+
+    log_it(L_INFO, "Created ledger '%s' with net_id=%016" DAP_UINT64_FORMAT_X " and %zu chain(s)",
            l_ledger->name, l_ledger->net_id.uint64, l_ledger->chain_ids_count);
-    
+
     return l_ledger;
 }
 
@@ -966,7 +966,7 @@ bool dap_ledger_has_chain_id(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
 {
     if (!a_ledger || !a_ledger->chain_ids)
         return false;
-    
+
     for (size_t i = 0; i < a_ledger->chain_ids_count; i++) {
         if (a_ledger->chain_ids[i].uint64 == a_chain_id.uint64)
             return true;
@@ -1002,9 +1002,9 @@ dap_ledger_t *dap_ledger_find_by_name(const char *a_name)
 {
     if (!a_name)
         return NULL;
-    
+
     dap_ledger_t *l_ledger = NULL;
-    dap_ht_find_str(s_ledger_registry, a_name, l_ledger); 
+    dap_ht_find_str(s_ledger_registry, a_name, l_ledger);
     return l_ledger;
 }
 
@@ -1026,41 +1026,41 @@ dap_ledger_t *dap_ledger_find_by_net_id(dap_chain_net_id_t a_net_id)
 /**
  * @brief Register balance change notification callback
  */
-void dap_ledger_balance_change_notifier_register(dap_ledger_t *a_ledger, 
+void dap_ledger_balance_change_notifier_register(dap_ledger_t *a_ledger,
                                                   dap_ledger_balance_change_callback_t a_callback,
                                                   void *a_user_data)
 {
     if (!a_ledger || !a_callback)
         return;
-    
+
     dap_ledger_balance_change_notifier_t *l_notifier = DAP_NEW_Z(dap_ledger_balance_change_notifier_t);
     if (!l_notifier) {
         log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
-    
+
     l_notifier->callback = a_callback;
     l_notifier->user_data = a_user_data;
-    
+
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     l_notifier->next = l_pvt->balance_change_notifiers;
     l_pvt->balance_change_notifiers = l_notifier;
-    
+
     log_it(L_INFO, "Registered balance change notifier for ledger '%s'", a_ledger->name);
 }
 
 /**
  * @brief Unregister balance change notification callback
  */
-void dap_ledger_balance_change_notifier_unregister(dap_ledger_t *a_ledger, 
+void dap_ledger_balance_change_notifier_unregister(dap_ledger_t *a_ledger,
                                                     dap_ledger_balance_change_callback_t a_callback)
 {
     if (!a_ledger || !a_callback)
         return;
-    
+
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     dap_ledger_balance_change_notifier_t **l_current = &l_pvt->balance_change_notifiers;
-    
+
     while (*l_current) {
         if ((*l_current)->callback == a_callback) {
             dap_ledger_balance_change_notifier_t *l_to_delete = *l_current;
@@ -1131,9 +1131,9 @@ void dap_ledger_set_hal_hrl(dap_ledger_t *a_ledger, dap_chain_t *a_chain, const 
 {
     if (!a_ledger || !a_chain)
         return;
-    
+
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    
+
     // Setup blacklist (HRL - Hard Reject List)
     for (uint16_t i = 0; i < a_blacklist_size; ++i) {
         dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
@@ -1142,7 +1142,7 @@ void dap_ledger_set_hal_hrl(dap_ledger_t *a_ledger, dap_chain_t *a_chain, const 
         dap_hash_sha3_256_from_str(a_blacklist[i], &l_item->hash_field.hash);
         dap_ht_add_hh(hh, l_ledger_pvt->hrl_items, hash_field.hash_key, l_item);
     }
-    
+
     // Setup whitelist (HAL - Hard Accept List)
     for (uint16_t i = 0; i < a_whitelist_size; ++i) {
         dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
@@ -1151,7 +1151,7 @@ void dap_ledger_set_hal_hrl(dap_ledger_t *a_ledger, dap_chain_t *a_chain, const 
         dap_hash_sha3_256_from_str(a_whitelist[i], &l_item->hash_field.hash);
         dap_ht_add_hh(hh, l_ledger_pvt->hal_items, hash_field.hash_key, l_item);
     }
-    
+
     log_it(L_DEBUG, "Chain %s has %d datums in HAL and %d datums in HRL", a_chain->name, a_whitelist_size, a_blacklist_size);
 }
 
@@ -1163,10 +1163,10 @@ void dap_ledger_set_blockchain_timer(dap_ledger_t *a_ledger, dap_chain_t *a_chai
 {
     if (!a_ledger || !a_chain)
         return;
-        
+
     dap_chain_add_callback_timer(a_chain, s_blockchain_timer_callback, a_ledger);
     dap_chain_atom_confirmed_notify_add(a_chain, s_blockchain_cutoff_callback, a_ledger, 0);
-    
+
     log_it(L_DEBUG, "Blockchain timer callbacks registered for chain %s", a_chain->name);
 }
 
@@ -1198,15 +1198,15 @@ bool dap_ledger_tx_poa_signed(dap_list_t *a_poa_keys, dap_chain_datum_tx_t *a_tx
 {
     if (!a_poa_keys || !a_tx)
         return false;
-        
+
     dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
     if (!l_tx_sig)
         return false;
-        
+
     dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign((dap_chain_tx_sig_t *)l_tx_sig);
     if (!l_sign)
         return false;
-        
+
     return dap_list_find(a_poa_keys, l_sign, s_callback_sign_compare) != NULL;
 }
 
@@ -1218,7 +1218,7 @@ services we know now
 0x04 bridge
 0x.05 - custom datum
 0x06 voting
-0x12 - stake_lock 
+0x12 - stake_lock
 */
 
 const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag)
@@ -1249,7 +1249,7 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
 {
     if (!a_str)
         return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
-    
+
     if (strcmp("unknown", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
     if (strcmp("regular", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
     if (strcmp("comission", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
@@ -1264,11 +1264,11 @@ dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *
     if (strcmp("take", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE;
     if (strcmp("refill", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL;
     if (strcmp("event", a_str) == 0) return DAP_CHAIN_TX_TAG_ACTION_EVENT;
-    
+
     return DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
 }
 
-bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash, 
+bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash,
                                 dap_chain_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action)
 {
     //find tx
@@ -1277,19 +1277,19 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_t
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     dap_ht_find_hh(hh, l_ledger_pvt->ledger_items, a_tx_hash, sizeof(dap_hash_sha3_256_t), l_tx_item);
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    
+
     if(l_tx_item) {
         dap_ledger_service_info_t *l_sinfo = NULL;
         pthread_rwlock_rdlock(&s_services_rwlock);
         dap_ht_find_int(s_services, l_tx_item->cache_data.tag, l_sinfo);
         pthread_rwlock_unlock(&s_services_rwlock);
         if (l_sinfo)
-        { 
+        {
             if(a_uid) *a_uid = l_sinfo->service_uid;
             if (a_service_name) *a_service_name = l_sinfo->tag_str;
             if (a_action) *a_action = l_tx_item->cache_data.action;
-            return true; 
-        } 
+            return true;
+        }
     }
 
     if (a_action) *a_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
@@ -1300,7 +1300,7 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 {
     dap_ledger_service_info_t *l_sinfo_current, *l_sinfo_tmp;
 
-    
+
     dap_chain_datum_tx_item_groups_t l_items_groups = {0};
     dap_chain_datum_tx_group_items(a_tx, &l_items_groups);
 
@@ -1317,7 +1317,7 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             l_res = true;
             l_deductions_ok ++;
         }
-    } 
+    }
     pthread_rwlock_unlock(&s_services_rwlock);
 
     if (l_deductions_ok > 1)
@@ -1327,18 +1327,18 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         dap_hash_sha3_256_to_str(&l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
 
         log_it(L_WARNING, "Transaction %s identyfied by multiple services (%d):", l_tx_hash_str, l_deductions_ok);
-    
+
         pthread_rwlock_rdlock(&s_services_rwlock);
         dap_ht_foreach_hh(hh, s_services , l_sinfo_current, l_sinfo_tmp) {
             dap_chain_tx_tag_action_type_t action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
             if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &l_items_groups,&action))  {
                 log_it(L_WARNING, "%s %s", l_sinfo_current->tag_str, dap_ledger_tx_action_str(action));
             }
-        } 
+        }
 
         pthread_rwlock_unlock(&s_services_rwlock);
     }
-    
+
     dap_chain_datum_tx_group_items_free(&l_items_groups);
 
     return l_res;
@@ -1347,13 +1347,13 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 const char *dap_ledger_tx_tag_str_by_uid(dap_chain_srv_uid_t a_service_uid)
 {
     dap_ledger_service_info_t *l_new_sinfo = NULL;
-    
+
     int l_tmp = a_service_uid.raw_ui64;
 
     pthread_rwlock_rdlock(&s_services_rwlock);
     dap_ht_find_int(s_services, l_tmp, l_new_sinfo);
     pthread_rwlock_unlock(&s_services_rwlock);
-    
+
     return l_new_sinfo ? l_new_sinfo->tag_str : "unknown";
 }
 
@@ -1375,18 +1375,18 @@ int dap_ledger_chain_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id, si
     // Purge ledger data for specific chain
     // Chain module should handle chain-specific operations (cells, services, etc.)
     dap_return_val_if_fail(a_ledger && a_chain_id.uint64, -1);
-    
+
     // Purge transactions (ledger-wide, not chain-specific)
     dap_ledger_tx_purge(a_ledger, false);
     dap_ledger_event_purge(a_ledger);
     // Purge anchors for this chain
     if (dap_ledger_anchor_purge(a_ledger, a_chain_id))
         return -2;
-    
+
     // Purge decrees for this chain
     if (dap_ledger_decree_purge(a_ledger, a_chain_id))
         return -3;
-    
+
     return 0;
 }
 
@@ -1851,24 +1851,24 @@ void dap_ledger_set_fee_callback(dap_ledger_t *a_ledger, dap_ledger_set_fee_call
     }
 }
 // Chain registration implementation
-int dap_ledger_register_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id, const char *a_chain_name, 
+int dap_ledger_register_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id, const char *a_chain_name,
                                 uint16_t a_chain_type, void *a_chain_ptr)
 {
     if (!a_ledger || !a_chain_name)
         return -1;
-    
+
     dap_chain_info_t *l_info = DAP_NEW_Z(dap_chain_info_t);
     if (!l_info)
         return -2;
-    
+
     l_info->chain_id = a_chain_id;
     dap_strncpy(l_info->chain_name, a_chain_name, sizeof(l_info->chain_name) - 1);
     l_info->chain_type = a_chain_type;
     l_info->chain_ptr = a_chain_ptr;
-    
+
     dap_ht_add_hh(hh, a_ledger->chains_registry, chain_id, l_info);
-    
-    log_it(L_INFO, "Ledger %s: registered chain '%s' (id=%"PRIu64", type=%u)", 
+
+    log_it(L_INFO, "Ledger %s: registered chain '%s' (id=%"PRIu64", type=%u)",
            a_ledger->name, a_chain_name, a_chain_id.uint64, a_chain_type);
     return 0;
 }
@@ -1877,7 +1877,7 @@ void dap_ledger_unregister_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_
 {
     if (!a_ledger)
         return;
-    
+
     dap_chain_info_t *l_info = NULL;
     dap_ht_find_hh(hh, a_ledger->chains_registry, &a_chain_id, sizeof(dap_chain_id_t), l_info);
     if (l_info) {
@@ -1890,7 +1890,7 @@ dap_chain_info_t* dap_ledger_get_chain_info(dap_ledger_t *a_ledger, dap_chain_id
 {
     if (!a_ledger)
         return NULL;
-    
+
     dap_chain_info_t *l_info = NULL;
     dap_ht_find_hh(hh, a_ledger->chains_registry, &a_chain_id, sizeof(dap_chain_id_t), l_info);
     return l_info;
@@ -1900,7 +1900,7 @@ dap_chain_info_t* dap_ledger_get_chain_info_by_name(dap_ledger_t *a_ledger, cons
 {
     if (!a_ledger || !a_chain_name)
         return NULL;
-    
+
     dap_chain_info_t *l_info, *l_tmp;
     dap_ht_foreach_hh(hh, a_ledger->chains_registry, l_info, l_tmp) {
         if (strcmp(l_info->chain_name, a_chain_name) == 0)
@@ -1910,7 +1910,7 @@ dap_chain_info_t* dap_ledger_get_chain_info_by_name(dap_ledger_t *a_ledger, cons
 }
 
 // Wallet callbacks registration - hardware wallet friendly
-void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger, 
+void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger,
                                        dap_ledger_wallet_sign_callback_t a_sign_cb,
                                        dap_ledger_wallet_get_pkey_hash_callback_t a_get_pkey_hash_cb,
                                        dap_ledger_wallet_get_pkey_callback_t a_get_pkey_cb,
@@ -1919,13 +1919,13 @@ void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger,
 {
     if (!a_ledger)
         return;
-    
+
     a_ledger->wallet_sign_callback = a_sign_cb;
     a_ledger->wallet_get_pkey_hash_callback = a_get_pkey_hash_cb;
     a_ledger->wallet_get_pkey_callback = a_get_pkey_cb;
     a_ledger->wallet_get_addr_callback = a_get_addr_cb;
     a_ledger->wallet_check_sign_callback = a_check_sign_cb;
-    
+
     log_it(L_INFO, "Ledger %s: wallet callbacks registered (hardware wallet compatible)", a_ledger->name);
 }
 
@@ -1938,20 +1938,20 @@ void dap_ledger_set_wallet_cache_callbacks(dap_ledger_t *a_ledger,
 {
     if (!a_ledger)
         return;
-    
+
     a_ledger->wallet_cache_tx_find_in_history_callback = a_tx_find_in_history_cb;
     a_ledger->wallet_cache_iter_create_callback = a_iter_create_cb;
     a_ledger->wallet_cache_iter_get_callback = a_iter_get_cb;
     a_ledger->wallet_cache_iter_delete_callback = a_iter_delete_cb;
-    
+
     log_it(L_INFO, "Ledger %s: wallet cache callbacks registered", a_ledger->name);
 }
 
 // Universal data signing API - hardware wallet friendly
 // May wait up to 30 seconds for hardware wallets
-dap_sign_t *dap_ledger_sign_data(dap_ledger_t *a_ledger, 
+dap_sign_t *dap_ledger_sign_data(dap_ledger_t *a_ledger,
                                    const char *a_wallet_name,
-                                   const void *a_data, 
+                                   const void *a_data,
                                    size_t a_data_size,
                                    uint32_t a_key_idx)
 {
@@ -1959,22 +1959,22 @@ dap_sign_t *dap_ledger_sign_data(dap_ledger_t *a_ledger,
         log_it(L_ERROR, "Invalid parameters for dap_ledger_sign_data");
         return NULL;
     }
-    
+
     if (!a_ledger->wallet_sign_callback) {
         log_it(L_ERROR, "Ledger %s: wallet sign callback not registered", a_ledger->name);
         return NULL;
     }
-    
+
     // Call wallet sign callback - may wait up to 30 seconds for hardware wallet
     log_it(L_DEBUG, "Ledger %s: signing %zu bytes with wallet '%s' (may take up to 30s for hardware wallet)",
            a_ledger->name, a_data_size, a_wallet_name);
-    
+
     dap_sign_t *l_sign = a_ledger->wallet_sign_callback(a_wallet_name, a_data, a_data_size, a_key_idx);
-    
+
     if (!l_sign) {
         log_it(L_WARNING, "Ledger %s: failed to sign data with wallet '%s'", a_ledger->name, a_wallet_name);
     }
-    
+
     return l_sign;
 }
 
@@ -1987,12 +1987,12 @@ dap_pkey_t *dap_ledger_get_pkey(dap_ledger_t *a_ledger,
         log_it(L_ERROR, "Invalid parameters for dap_ledger_get_pkey");
         return NULL;
     }
-    
+
     if (!a_ledger->wallet_get_pkey_callback) {
         log_it(L_ERROR, "Ledger %s: wallet get_pkey callback not registered", a_ledger->name);
         return NULL;
     }
-    
+
     return a_ledger->wallet_get_pkey_callback(a_wallet_name, a_key_idx);
 }
 
@@ -2005,12 +2005,12 @@ dap_hash_sha3_256_t *dap_ledger_get_pkey_hash(dap_ledger_t *a_ledger,
         log_it(L_ERROR, "Invalid parameters for dap_ledger_get_pkey_hash");
         return NULL;
     }
-    
+
     if (!a_ledger->wallet_get_pkey_hash_callback) {
         log_it(L_ERROR, "Ledger %s: wallet get_pkey_hash callback not registered", a_ledger->name);
         return NULL;
     }
-    
+
     return a_ledger->wallet_get_pkey_hash_callback(a_wallet_name, a_key_idx);
 }
 
@@ -2021,10 +2021,10 @@ void dap_ledger_set_mempool_callbacks(dap_ledger_t *a_ledger,
 {
     if (!a_ledger)
         return;
-    
+
     a_ledger->mempool_add_datum_callback = a_add_datum_cb;
     a_ledger->mempool_create_tx_callback = a_create_tx_cb;
-    
+
     log_it(L_INFO, "Ledger %s: mempool callbacks registered", a_ledger->name);
 }
 
@@ -2034,15 +2034,15 @@ void dap_ledger_set_get_cur_cell_callback(dap_ledger_t *a_ledger,
 {
     if (!a_ledger)
         return;
-    
+
     a_ledger->get_cur_cell_callback = a_get_cur_cell_cb ? a_get_cur_cell_cb : s_default_get_cur_cell;
-    
+
     log_it(L_INFO, "Ledger %s: get_cur_cell callback registered", a_ledger->name);
 }
 
 /**
  * @brief Find unspent outputs (UTXO) that cover the specified value
- * 
+ *
  * PUBLIC API для TX Compose - поиск UTXO для создания транзакций
  */
 dap_list_t *dap_ledger_get_utxo_for_value(
@@ -2057,22 +2057,22 @@ dap_list_t *dap_ledger_get_utxo_for_value(
         log_it(L_ERROR, "Invalid parameters for dap_ledger_get_utxo_for_value");
         return NULL;
     }
-    
+
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_list_t *l_list_used_outs = NULL;
     uint256_t l_value_transfer = {};
-    
+
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
-    
+
     dap_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
     dap_ht_foreach_hh(hh, l_ledger_pvt->ledger_items, l_tx_item, l_tx_tmp) {
         // Skip spent transactions
         if (l_tx_item->cache_data.ts_spent) {
             continue;
         }
-        
+
         dap_chain_datum_tx_t *l_tx = l_tx_item->tx;
-        
+
         // Iterate through all outputs in the transaction
         byte_t *l_tx_item_ptr = NULL;
         size_t l_tx_item_size = 0;
@@ -2080,12 +2080,12 @@ dap_list_t *dap_ledger_get_utxo_for_value(
             if (*l_tx_item_ptr != TX_ITEM_TYPE_OUT && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_EXT) {
                 continue;
             }
-            
+
             // Get output address and value
             dap_chain_addr_t l_out_addr = {};
             uint256_t l_out_value = {};
             const char *l_out_token = NULL;
-            
+
             if (*l_tx_item_ptr == TX_ITEM_TYPE_OUT) {
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_tx_item_ptr;
                 l_out_addr = l_out->addr;
@@ -2097,31 +2097,31 @@ dap_list_t *dap_ledger_get_utxo_for_value(
                 l_out_value = l_out_ext->header.value;
                 l_out_token = l_out_ext->token;
             }
-            
+
             // Check if output matches our criteria
             if (!dap_chain_addr_compare(&l_out_addr, a_addr_from)) {
                 continue;
             }
-            
+
             if (dap_strcmp(l_out_token, a_token_ticker) != 0) {
                 continue;
             }
-            
+
             // Found matching output - add to list
             dap_chain_tx_used_out_t *l_used_out = DAP_NEW_Z(dap_chain_tx_used_out_t);
             if (!l_used_out) {
                 log_it(L_ERROR, "Memory allocation failed");
                 break;
             }
-            
+
             l_used_out->tx_prev_hash = l_tx_item->tx_hash_fast;
             l_used_out->tx_out_prev_idx = (l_tx_item_ptr - (byte_t *)l_tx) / sizeof(void *); // Simplified index calculation
             l_used_out->value = l_out_value;
             l_used_out->addr = l_out_addr;
-            
+
             l_list_used_outs = dap_list_append(l_list_used_outs, l_used_out);
             SUM_256_256(l_value_transfer, l_out_value, &l_value_transfer);
-            
+
             // Check if we have enough
             if (compare256(l_value_transfer, a_value_need) >= 0) {
                 *a_value_found = l_value_transfer;
@@ -2131,20 +2131,20 @@ dap_list_t *dap_ledger_get_utxo_for_value(
             }
         }
     }
-    
+
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    
+
     // Insufficient funds - cleanup and return NULL
     if (compare256(l_value_transfer, a_value_need) < 0) {
         log_it(L_WARNING, "Insufficient UTXO: needed %s, found %s %s",
                dap_uint256_to_char(a_value_need, NULL),
                dap_uint256_to_char(l_value_transfer, NULL),
                a_token_ticker);
-        
+
         dap_list_free_full(l_list_used_outs, NULL);
         return NULL;
     }
-    
+
     *a_value_found = l_value_transfer;
     return l_list_used_outs;
 }

@@ -100,14 +100,14 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
                             "for a specific address. The -brief and -addr options are mutually exclusive.\n");
         return;
     }
-    
+
     // Создаем основной объект для цепочки и сразу добавляем его в a_json_obj
     dap_json_t *l_obj_chain = dap_json_object_new();
     if (!l_obj_chain) {
         dap_json_rpc_allocation_error(a_json_arr_reply);
         return;
     }
-    
+
     // Добавляем имя цепочки
     dap_json_t *l_obj_chain_name = dap_json_object_new_string(a_chain->name);
     if (!l_obj_chain_name) {
@@ -116,11 +116,11 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
         return;
     }
     dap_json_object_add_object(l_obj_chain, "name", l_obj_chain_name);
-    
+
     // Фильтрация mempool и добавление информации об удаленных записях
     int l_removed = 0;
     dap_chain_mempool_filter(a_chain, &l_removed);
-    
+
     dap_json_t *l_jobj_removed = dap_json_object_new_int(l_removed);
     if (!l_jobj_removed) {
         dap_json_object_free(l_obj_chain);
@@ -128,7 +128,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
         return;
     }
     dap_json_object_add_object(l_obj_chain, "removed", l_jobj_removed);
-    
+
     // Получаем все объекты из mempool
     size_t l_objs_count = 0;
     char * l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
@@ -138,7 +138,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
         return;
     }
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
-    DAP_DELETE(l_gdb_group_mempool);    
+    DAP_DELETE(l_gdb_group_mempool);
     // Создаем массив для datums
     dap_json_t *l_jobj_datums = dap_json_array_new();
     if (!l_jobj_datums) {
@@ -164,7 +164,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
         }
         dap_json_object_add_object(l_obj_chain, "offset", l_jobj_offset);
     }
-    
+
     size_t l_arr_end = l_objs_count;
     if (a_limit) {
         l_arr_end = a_offset + a_limit;
@@ -179,7 +179,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
         }
         dap_json_object_add_object(l_obj_chain, "limit", l_jobj_limit);
     }
-    
+
     // Обработка каждого объекта из mempool
     for (size_t i = l_arr_start; i < l_arr_end; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t *) l_objs[i].value;
@@ -188,7 +188,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
                     a_net->pub.name, a_chain->name, l_objs[i].key, l_datum->header.data_size, l_objs[i].value_len);
             continue;
         }
-        
+
         // Создаем объект для текущего datum
         dap_json_t *l_jobj_datum = dap_json_object_new();
         if (!l_jobj_datum) {
@@ -198,22 +198,22 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
             return;
         }
          dap_json_array_add(l_jobj_datums, l_jobj_datum);
-        
+
         // Заполняем информацию о времени создания и хеше
         dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
         const char *l_datum_type = dap_chain_datum_type_id_to_str(l_datum->header.type_id);
-        
+
         dap_hash_sha3_256_t l_datum_real_hash = {0};
         dap_hash_sha3_256_t l_datum_hash_from_key = {0};
         dap_chain_datum_calc_hash(l_datum, &l_datum_real_hash);
         dap_hash_sha3_256_from_str(l_objs[i].key, &l_datum_hash_from_key);
-        
+
         char buff_time[DAP_TIME_STR_SIZE];
         dap_time_to_str_rfc822(buff_time, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
-        
+
         // Добавляем основную информацию о datum
         // Создаем JSON объекты для типа, хеша и времени создания
-        dap_json_t *l_jobj_type = dap_json_object_new_string(l_datum_type);      
+        dap_json_t *l_jobj_type = dap_json_object_new_string(l_datum_type);
         if (!l_jobj_type) {
             dap_json_object_free(l_obj_chain);
             dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -237,9 +237,9 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
             return;
         }
         dap_json_object_add_object(l_jobj_datum, "created", l_jobj_ts_created);
-        
-        
-        dap_json_t *l_jobj_ts_created_time_stamp = dap_json_object_new_uint64(l_ts_create);      
+
+
+        dap_json_t *l_jobj_ts_created_time_stamp = dap_json_object_new_uint64(l_ts_create);
         if (!l_jobj_ts_created_time_stamp) {
             dap_json_object_free(l_obj_chain);
             dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -255,24 +255,24 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
             return;
         }
         dap_json_object_add_object(l_jobj_ts_created, "str", l_jobj_ts_created_str);
-        
+
         // Проверяем соответствие хеша и ключа
         if (!dap_hash_sha3_256_compare(&l_datum_real_hash, &l_datum_hash_from_key)) {
             char *l_drh_str = dap_hash_sha3_256_to_str_new(&l_datum_real_hash);
             char *l_wgn = dap_strdup_printf("Key field in DB %s does not match datum's hash %s\n",
                                             l_objs[i].key, l_drh_str);
             DAP_DELETE(l_drh_str);
-            
+
             if (!l_wgn) {
                 dap_json_object_free(l_obj_chain);
                 dap_global_db_objs_delete(l_objs, l_objs_count);
                 dap_json_rpc_allocation_error(a_json_arr_reply);
                 return;
             }
-            
+
             dap_json_t *l_jobj_warning = dap_json_object_new_string(l_wgn);
             DAP_DELETE(l_wgn);
-            
+
             if (!l_jobj_warning) {
                 dap_json_object_free(l_obj_chain);
                 dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -289,7 +289,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
             continue;
         }
 
-        // Обработка различных типов datum            
+        // Обработка различных типов datum
         bool l_datum_is_accepted_addr = false;
         switch (l_datum->header.type_id) {
             case DAP_CHAIN_DATUM_TX: {
@@ -343,7 +343,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
 
                 // Добавляем информацию о batching
                 dap_json_t *l_jobj_batching = dap_json_object_new_string(
-                    !dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT) ? "false" : "true");     
+                    !dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT) ? "false" : "true");
                 if (!l_jobj_batching) {
                     dap_json_object_free(l_obj_chain);
                     dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -351,7 +351,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
                     return;
                 }
                 dap_json_object_add_object(l_jobj_datum, "batching", l_jobj_batching);
-            
+
                 // Получаем подпись транзакции
                 dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t*)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
                 if (!l_sig) {
@@ -780,18 +780,18 @@ return_obj_chain:
     l_nets_str = dap_strdup_printf("%s.%s: %zu", a_net->pub.name, a_chain->name, l_objs_count);
     dap_json_t *l_object_total = dap_json_object_new_string(l_nets_str);
     DAP_DELETE(l_nets_str);
-    
+
     if (!l_object_total) {
         dap_json_object_free(l_obj_chain);
         dap_json_rpc_allocation_error(a_json_arr_reply);
         return;
     }
-    
+
     // Добавляем total в chain объект
     dap_json_object_add_object(l_obj_chain, "total", l_object_total);
-    
+
     // Добавляем chain в общий массив JSON объектов
-     dap_json_array_add(a_json_obj, l_obj_chain);    
+     dap_json_array_add(a_json_obj, l_obj_chain);
 }
 
 static int mempool_delete_for_chain(dap_chain_t *a_chain, const char *a_datum_hash_str, dap_json_t *a_json_arr_reply) {
@@ -1605,7 +1605,7 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
         dap_json_rpc_error_add(a_json_arr_reply, -1,
                                "Command requires one of parameters '-json <json file path> or -tx_obj <string>'");
         return -1;
-    } 
+    }
 
     // Open json file
     dap_json_t *l_json = NULL;
@@ -1650,7 +1650,7 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
         dap_json_object_free(l_json);
         return -1;
     }
-    
+
     // Read chain from json file
     if(!l_chain_name) {
         dap_json_t *l_json_chain = NULL;
@@ -1669,7 +1669,7 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
         dap_json_object_free(l_json);
         return -1;
     }
-    
+
     dap_json_t *l_jobj_arr_errors = dap_json_array_new();
     size_t l_items_ready = 0, l_items_count = 0;
     dap_chain_datum_tx_t *l_tx = NULL;
@@ -1725,9 +1725,9 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
 
 /**
  * @brief Initialize mempool CLI commands
- * 
+ *
  * Registers all mempool-related commands with the CLI server.
- * 
+ *
  * @return 0 on success, negative error code on failure
  */
 int dap_chain_mempool_cli_init(void)
@@ -1742,7 +1742,7 @@ int dap_chain_mempool_cli_init(void)
                         "  mempool delete -net main -datum 0x123...\n"
                         "  mempool add -net main -json /path/to/tx.json\n";
     dap_cli_server_cmd_add("mempool", com_mempool, NULL, "Mempool operations", 0, l_doc);
-    
+
     // Register mempool_add as separate command for backwards compatibility
     const char *l_doc_add = "mempool_add -net <net_name> [-chain <chain_name>] { -json <file> | -tx_obj <json_string> }\n"
                             "Add transaction from JSON to mempool\n"

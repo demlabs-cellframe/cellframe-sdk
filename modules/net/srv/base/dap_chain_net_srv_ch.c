@@ -234,7 +234,7 @@ static dap_time_t s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
         DAP_DELETE(l_ban_group);
         return *(dap_time_t*)l_ret;
     }
-        
+
     s_unban_client(a_usage);
     DAP_DELETE(l_ban_group);
     return 0;
@@ -393,7 +393,7 @@ void dap_chain_net_srv_ch_grace_control_mt(void *a_arg)
             l_args->grace_item->grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_args->grace_item->grace->usage->service, l_args->grace_item->grace->usage->price, NULL, 0, &l_args->grace_item->grace->usage->tx_cond_hash);
             l_new_receipt = l_args->grace_item->grace->usage->receipt;
         }
-        
+
         l_args->grace_item->grace->usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
 
         //start timeout timer
@@ -428,7 +428,7 @@ int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_
         // log_it(L_ERROR, "Can't find dap_chain_tx_out_cond_t in dap_chain_datum_tx_t");
         return -102;
     }
-    
+
     if (l_net_srv->uid.uint64 != l_out_cond->header.srv_uid.uint64) {
         log_it(L_ERROR, "out_cond uid doesn't match with net_srv uid.");
         return -103;
@@ -737,7 +737,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         log_it(L_ERROR, "Grace period is over. Can't find tx for paying.");
         a_grace_item->grace->usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
         s_service_substate_go_to_error(a_grace_item->grace->usage);
-    } else 
+    } else
         s_service_substate_pay_service(a_grace_item->grace->usage);
 
     DAP_DEL_Z(a_grace_item->grace);
@@ -862,7 +862,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             log_it(L_INFO, "Delete receipt timeout timer.");
             dap_timerfd_delete_unsafe(l_usage->receipts_timeout_timer);
             l_usage->receipts_timeout_timer = NULL;
-        } 
+        }
 
         if (dap_chain_net_get_state(l_usage->net) == NET_STATE_OFFLINE) {
             log_it(L_ERROR, "Can't pay service because net %s is offline.", l_usage->net->pub.name);
@@ -1132,7 +1132,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     pthread_mutex_unlock(&l_srv->grace_mutex);
                 }
             }
-            
+
             size_t l_success_size = sizeof (dap_chain_net_srv_ch_pkt_success_hdr_t );
             dap_chain_net_srv_ch_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_success_t,
                                                                                 l_success_size);
@@ -1144,7 +1144,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
             l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
-            DAP_DELETE(l_success);  
+            DAP_DELETE(l_success);
         } else {
             log_it(L_NOTICE, "No new transaction expected. Exit.");
         }
@@ -1189,9 +1189,9 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
     char *l_hash_str = dap_hash_sha3_256_to_str_new(&a_usage->tx_cond_hash);
     log_it(L_NOTICE, "Creating cond_input TX from %s with receipt (Plugin API)", l_hash_str);
     DAP_DEL_Z(l_hash_str);
-    
+
     // REFACTORED: Use Plugin TX Compose API - NO legacy functions!
-    
+
     // 1. Find previous conditional output TX
     dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
     if (!l_prev_tx) {
@@ -1200,20 +1200,20 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
         s_service_substate_go_to_error(a_usage);
         return PAY_SERVICE_STATUS_TX_ERROR;
     }
-    
+
     // 2. Find conditional output in prev TX
     int l_out_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(
         l_prev_tx, &l_out_cond_idx, NULL, TX_ITEM_TYPE_OUT_COND, NULL
     );
-    
+
     if (!l_out_cond) {
         log_it(L_ERROR, "No conditional output found in TX");
         a_usage->last_err_code = -2;
         s_service_substate_go_to_error(a_usage);
         return PAY_SERVICE_STATUS_TX_ERROR;
     }
-    
+
     // 3. Get wallet name from certificate
     dap_cert_t *l_cert = a_usage->service->receipt_sign_cert;
     if (!l_cert || !*l_cert->name) {  // Check for empty string, not NULL (name is array)
@@ -1222,7 +1222,7 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
         s_service_substate_go_to_error(a_usage);
         return PAY_SERVICE_STATUS_TX_ERROR;
     }
-    
+
     // 4. Prepare parameters for cond_input builder
     typedef struct {
         dap_hash_sha3_256_t *tx_prev_hash;
@@ -1233,11 +1233,11 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
         const char *ticker;
         const char *wallet_name;
     } net_srv_cond_input_params_t;
-    
+
     // Get token from srv_pay unit (price_unit_uid_t is just uint32, native ticker is separate)
     // NOTE: For service payments, token comes from network's native ticker
     const char *l_token_ticker = "UNKNOWN";  // Placeholder - need proper token resolution
-    
+
     net_srv_cond_input_params_t l_params = {
         .tx_prev_hash = &a_usage->tx_cond_hash,
         .tx_out_prev_idx = l_out_cond_idx,
@@ -1247,7 +1247,7 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
         .ticker = l_token_ticker,
         .wallet_name = l_cert->name
     };
-    
+
     // 5. Create TX via Plugin API (NO UTXO needed for cond_input!)
     dap_chain_datum_t *l_datum = dap_chain_tx_compose_create(
         "cond_input",
@@ -1255,14 +1255,14 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
         NULL,  // No UTXO needed - spending specific cond output
         &l_params
     );
-    
+
     if (!l_datum) {
         log_it(L_ERROR, "Failed to create cond_input TX via Plugin API");
         a_usage->last_err_code = -4;
         s_service_substate_go_to_error(a_usage);
         return PAY_SERVICE_STATUS_TX_ERROR;
     }
-    
+
     // 6. Add to mempool
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_usage->net, CHAIN_TYPE_TX);
     if (!l_chain) {
@@ -1272,22 +1272,22 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
         s_service_substate_go_to_error(a_usage);
         return PAY_SERVICE_STATUS_TX_ERROR;
     }
-    
+
     char *l_tx_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
     DAP_DELETE(l_datum);
-    
+
     if (!l_tx_hash_str) {
         log_it(L_ERROR, "Failed to add TX to mempool");
         a_usage->last_err_code = -6;
         s_service_substate_go_to_error(a_usage);
         return PAY_SERVICE_STATUS_TX_ERROR;
     }
-    
+
     // 7. Update usage hash and return success
     dap_hash_sha3_256_from_str(l_tx_hash_str, &a_usage->tx_cond_hash);
     log_it(L_NOTICE, "Created cond_input TX %s via Plugin API", l_tx_hash_str);
     DAP_DEL_Z(l_tx_hash_str);
-    
+
     return PAY_SERVICE_STATUS_SUCCESS;
 }
 
@@ -1357,9 +1357,9 @@ static void s_service_state_go_to_normal(dap_chain_net_srv_usage_t *a_usage)
 {
     if (!a_usage)
         return;
-   
+
     if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE ||
-        (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE && 
+        (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE &&
         a_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING)){
         a_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL;
         if (a_usage->service->callbacks.response_success){
@@ -1378,7 +1378,7 @@ static void s_service_state_go_to_normal(dap_chain_net_srv_usage_t *a_usage)
             return;
         }
 
-    }  else if ((a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE && 
+    }  else if ((a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE &&
         a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING)) {
         a_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL;
     } else {
@@ -1406,9 +1406,9 @@ static void s_service_state_go_to_error(dap_chain_net_srv_usage_t *a_usage)
         if(l_ch)
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &a_usage->last_err_code, sizeof (a_usage->last_err_code));
         if (a_usage->service && a_usage->service->callbacks.response_error){
-            dap_chain_net_srv_ch_pkt_error_t l_err = (dap_chain_net_srv_ch_pkt_error_t){.code = a_usage->last_err_code, 
-                .net_id = a_usage->net->pub.id, 
-                .srv_uid = a_usage->service->uid, 
+            dap_chain_net_srv_ch_pkt_error_t l_err = (dap_chain_net_srv_ch_pkt_error_t){.code = a_usage->last_err_code,
+                .net_id = a_usage->net->pub.id,
+                .srv_uid = a_usage->service->uid,
                 .usage_id = a_usage->id};
             a_usage->service->callbacks.response_error(a_usage->service,a_usage->id, a_usage->client, &l_err, sizeof (l_err));
         }
@@ -1509,14 +1509,14 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
 {
     dap_chain_net_srv_ch_pkt_error_t l_err;
 
-    if ((a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE && 
+    if ((a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE &&
         a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE) ||
-        (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE && 
+        (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE &&
         a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING)
     ) {
         dap_chain_net_srv_ch_remain_service_store_t* l_remain_service = NULL;
         l_remain_service = a_usage->service->callbacks.get_remain_service(a_usage->service, a_usage->id, a_usage->client);
-        if (l_remain_service && ((l_remain_service->limits_ts &&  a_usage->price->units_uid.enm == SERV_UNIT_SEC)  || 
+        if (l_remain_service && ((l_remain_service->limits_ts &&  a_usage->price->units_uid.enm == SERV_UNIT_SEC)  ||
             (l_remain_service->limits_bytes && a_usage->price->units_uid.enm == SERV_UNIT_B))){
 
             //Start with remain service
@@ -1529,8 +1529,8 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                     l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                     break;
             }
-            log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash), 
-                            l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, 
+            log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash),
+                            l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes,
                             dap_chain_srv_unit_enum_to_str(a_usage->price->units_uid.enm));
             size_t l_success_size = sizeof (dap_chain_net_srv_ch_pkt_success_hdr_t );
             dap_chain_net_srv_ch_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_success_t,
@@ -1547,25 +1547,25 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                 DAP_DELETE(l_success);
                 // create and fill first receipt
                 a_usage->receipt = dap_chain_datum_tx_receipt_create(a_usage->service->uid, a_usage->price->units_uid, a_usage->price->units, a_usage->price->value_datoshi, NULL, 0, &a_usage->tx_cond_hash);
-                s_service_state_go_to_normal(a_usage);               
-            }                        
+                s_service_state_go_to_normal(a_usage);
+            }
         } else {
             log_it(L_INFO, "Send first receipt to sign");
             a_usage->receipt = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0, &a_usage->tx_cond_hash);
             dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                 a_usage->receipt, a_usage->receipt->size);
-                
+
             a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN;
 
             //start timeout timer
             a_usage->receipt_timeout_timer_start_callback(a_usage);
         }
-    } else {  
+    } else {
         dap_chain_datum_tx_receipt_t *l_receipt = NULL;
-        if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE || 
+        if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE ||
             a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE)
             l_receipt = a_usage->receipt;
-        else 
+        else
             l_receipt = a_usage->receipt_next;
 
         int l_ret = s_pay_service(a_usage, l_receipt);
@@ -1575,7 +1575,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                 dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash), l_receipt, l_receipt->size, false, NULL, NULL);
                 if (a_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL)
                     s_service_state_go_to_normal(a_usage);
-                else 
+                else
                     s_service_substate_go_to_normal(a_usage);
                 return;
             break;
@@ -1583,7 +1583,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                 // TX not found in ledger and we not in grace, start grace
                 if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT){
                     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER;
-                } else if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL && 
+                } else if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL &&
                     a_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING &&
                     a_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER ){
                     log_it(L_ERROR, "Can't find tx cond. Start grace!");
@@ -1608,7 +1608,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                 if (a_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER &&
                     a_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT &&
                     a_usage->service_substate != DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT){
-                    
+
                     log_it(L_ERROR, "Tx cond have not enough funds");
                     if (a_usage->service_state == DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE)
                         s_service_state_go_to_grace(a_usage);
@@ -1618,7 +1618,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                 } else  {
                     log_it(L_ERROR, "New tx cond have not enough funds");
                     a_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NEW_TX_COND_NOT_ENOUGH;
-                } 
+                }
             break;
             case PAY_SERVICE_STATUS_MEMALLOC_ERROR:
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1634,7 +1634,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                     a_usage->last_err_code  = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_CREATION_ERROR;
             }
         }
-        s_service_substate_go_to_error(a_usage);   
+        s_service_substate_go_to_error(a_usage);
     }
 }
 
@@ -1650,8 +1650,8 @@ static void s_service_substate_go_to_waiting_prev_tx(dap_chain_net_srv_usage_t *
     l_grace->ch_uuid = a_usage->client->ch->uuid;
     l_grace->stream_worker = a_usage->client->ch->stream_worker;
     l_grace->usage = a_usage;
-    
-    // create and start grace-object 
+
+    // create and start grace-object
     dap_chain_net_srv_grace_usage_t *l_item = DAP_NEW_Z(dap_chain_net_srv_grace_usage_t);
     if (!l_item) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1675,7 +1675,7 @@ static void s_service_substate_go_to_waiting_prev_tx(dap_chain_net_srv_usage_t *
 
 static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a_usage)
 {
-    
+
     dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
     if (!l_grace) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1687,7 +1687,7 @@ static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a
     l_grace->stream_worker = a_usage->client->ch->stream_worker;
     l_grace->usage = a_usage;
 
-    // create and start grace-object 
+    // create and start grace-object
     dap_chain_net_srv_grace_usage_t *l_item = DAP_NEW_Z(dap_chain_net_srv_grace_usage_t);
     if (!l_item) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1706,7 +1706,7 @@ static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a
     pthread_mutex_unlock(&a_usage->service->grace_mutex);
     l_grace->timer = dap_timerfd_start_on_worker(l_grace->stream_worker->worker, l_grace->usage->service->grace_period * 1000,
                                                            (dap_timerfd_callback_t)s_grace_period_finish, l_item);
-    
+
     log_it(L_INFO, "Start grace timer %s for user %s.", l_grace->timer ? "successfuly." : "failed.", l_user_key);
     dap_chain_net_srv_ch_pkt_error_t l_err;
     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
@@ -1720,7 +1720,7 @@ static void s_service_substate_go_to_error(dap_chain_net_srv_usage_t *a_usage)
     if (!a_usage){
         s_service_state_go_to_error(a_usage);
         return;
-    }  
+    }
 
     if (a_usage->service_state ==  DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL){
         // wait until end of service in this substate
@@ -1729,9 +1729,9 @@ static void s_service_substate_go_to_error(dap_chain_net_srv_usage_t *a_usage)
         a_usage->service_substate=DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_ERROR;
         dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &a_usage->last_err_code, sizeof (a_usage->last_err_code));
         if (a_usage->service->callbacks.response_error){
-            dap_chain_net_srv_ch_pkt_error_t l_err = (dap_chain_net_srv_ch_pkt_error_t){.code = a_usage->last_err_code, 
-                                                                                                    .net_id = a_usage->net->pub.id, 
-                                                                                                    .srv_uid = a_usage->service->uid, 
+            dap_chain_net_srv_ch_pkt_error_t l_err = (dap_chain_net_srv_ch_pkt_error_t){.code = a_usage->last_err_code,
+                                                                                                    .net_id = a_usage->net->pub.id,
+                                                                                                    .srv_uid = a_usage->service->uid,
                                                                                                     .usage_id = a_usage->id};
             a_usage->service->callbacks.response_error(a_usage->service,a_usage->id, a_usage->client, &l_err, sizeof (l_err));
         }

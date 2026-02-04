@@ -243,7 +243,7 @@ void dap_chain_datum_decree_certs_dump_json(dap_json_t *a_json_out, byte_t *a_si
         dap_json_object_add_string(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", l_hash_str);
         dap_json_object_add_string(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_sign_type_to_str(l_sign->header.type));
         dap_json_object_add_uint64(json_obj_sign, a_version == 1 ? "sign size" : "sig_size", l_sign->header.sign_size);
-        dap_json_array_add(json_arr_certs_out, json_obj_sign);        
+        dap_json_array_add(json_arr_certs_out, json_obj_sign);
     }
     dap_json_object_add_object(a_json_out, a_version == 1 ? "SIGNS" : "signs", json_arr_certs_out);
 }

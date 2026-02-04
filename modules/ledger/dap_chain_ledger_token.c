@@ -73,7 +73,7 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_instance_t 
         }
         dap_ledger_token_emission_item_t *l_emission_item = DAP_NEW_Z(dap_ledger_token_emission_item_t);
         if ( !l_emission_item ) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);            
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return false;
         }
         dap_hash_sha3_256_from_str(a_values[i].key, &l_emission_item->datum_token_emission_hash);
@@ -123,9 +123,9 @@ bool dap_ledger_pvt_cache_gdb_load_tokens_callback(dap_global_db_instance_t *a_d
             continue;
         dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t *)(a_values[i].value + sizeof(uint256_t));
         size_t l_token_size = a_values[i].value_len - sizeof(uint256_t);
-        
+
         if (strcmp(l_token->ticker, a_values[i].key)) {
-            log_it(L_WARNING, "Corrupted token with ticker [%s], need to 'ledger reload' to update cache", a_values[i].key);            
+            log_it(L_WARNING, "Corrupted token with ticker [%s], need to 'ledger reload' to update cache", a_values[i].key);
             continue;
         }
         dap_ledger_token_add(l_ledger, (byte_t *)l_token, l_token_size, dap_time_now());
@@ -1030,7 +1030,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             l_token_hash = l_token_update_hash;
         else
             dap_hash_sha3_256(a_token, a_token_size, &l_token_hash);
-            
+
         if (!( l_is_whitelisted = dap_ledger_datum_is_enforced(a_ledger, &l_token_hash, true) )) {
             DAP_DELETE(l_token);
             return ret;
@@ -1938,7 +1938,7 @@ int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t 
         log_it(L_ERROR, "NULL ledger provided");
         return -1;
     }
-    
+
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     dap_ledger_token_item_t *l_token_item = NULL, *l_token_tmp = NULL;
     dap_ht_foreach_hh(hh, PVT(a_ledger)->tokens, l_token_item, l_token_tmp) {
@@ -1953,7 +1953,7 @@ int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t 
         }
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-    
+
     log_it(L_NOTICE, "Token emissions marked for hardfork at time %"DAP_UINT64_FORMAT_U, a_hardfork_time);
     return 0;
 }
@@ -1961,7 +1961,7 @@ int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t 
 /**
  * @brief Mark all token emissions created before hardfork time as spent
  * @details This function iterates through all tokens and their emissions, marking those
- * created before the specified hardfork time as spent by setting tx_used_out 
+ * created before the specified hardfork time as spent by setting tx_used_out
  * to a special hash with all bits set to 1 (0xFF...FF).
  * @param a_ledger Ledger object to process
  * @param a_hardfork_time Cutoff time - emissions created before this time will be marked as spent
@@ -1970,25 +1970,25 @@ int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t 
 int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t a_hardfork_time)
 {
     dap_return_val_if_fail(a_ledger, -1);
-    
+
     // Create special hash with all bits set to 1 to mark hardfork-spent emissions
     dap_hash_sha3_256_t l_hardfork_hash;
     memset(&l_hardfork_hash, 0xFF, DAP_HASH_SHA3_256_SIZE);
-    
+
     int l_marked_count = 0;
-    
+
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
-    
+
     dap_ledger_token_item_t *l_token_item, *l_tmp_token;
     dap_ht_foreach_hh(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_token) {
         pthread_rwlock_wrlock(&l_token_item->token_emissions_rwlock);
-        
+
         dap_ledger_token_emission_item_t *l_emission_item, *l_tmp_emission;
         dap_ht_foreach_hh(hh, l_token_item->token_emissions, l_emission_item, l_tmp_emission) {
             // Check if emission is already marked as used
             if (!dap_hash_sha3_256_is_blank(&l_emission_item->tx_used_out))
                 continue; // Skip already used emissions
-            
+
             // Check if emission was created before hardfork time
             // TODO: This logic needs to be moved to chain/net module via callback
             // Ledger should not have direct access to chain structures
@@ -2009,21 +2009,21 @@ int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t 
                 // Mark emission as spent with hardfork hash
                 l_emission_item->tx_used_out = l_hardfork_hash;
                 l_marked_count++;
-                
+
                 // Update cache if ledger uses caching
                 dap_ledger_pvt_emission_cache_update(a_ledger, l_emission_item);
-                
-                debug_if(g_debug_ledger, L_INFO, "Marked emission %s of token %s as hardfork-spent", 
+
+                debug_if(g_debug_ledger, L_INFO, "Marked emission %s of token %s as hardfork-spent",
                         dap_hash_sha3_256_to_str_static(&l_emission_item->datum_token_emission_hash),
                         l_token_item->ticker);
             }
         }
-        
+
         pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
     }
-    
+
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-    
+
     log_it(L_NOTICE, "Hardfork processing complete: marked %d emissions as spent", l_marked_count);
     return l_marked_count;
 }

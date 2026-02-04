@@ -29,39 +29,39 @@ static inline uint32_t s_make_key(uint16_t a_type, uint16_t a_subtype) {
 }
 
 // Register decree handler
-int dap_chain_decree_handler_register(uint16_t a_decree_type, 
+int dap_chain_decree_handler_register(uint16_t a_decree_type,
                                       uint16_t a_decree_subtype,
                                       dap_chain_decree_handler_t a_handler) {
     if (!a_handler) {
         log_it(L_ERROR, "NULL handler provided");
         return -1;
     }
-    
+
     uint32_t l_key = s_make_key(a_decree_type, a_decree_subtype);
-    
+
     // Check if already registered
     dap_chain_decree_handler_item_t *l_item = NULL;
     dap_ht_find_int(s_handlers, l_key, l_item);
-    
+
     if (l_item) {
         log_it(L_WARNING, "Handler for decree type=%u subtype=%u already registered, replacing",
                a_decree_type, a_decree_subtype);
         l_item->handler = a_handler;
         return 0;
     }
-    
+
     // Create new entry
     l_item = DAP_NEW_Z(dap_chain_decree_handler_item_t);
     if (!l_item) {
         log_it(L_CRITICAL, "Memory allocation failed");
         return -2;
     }
-    
+
     l_item->key = l_key;
     l_item->handler = a_handler;
-    
+
     dap_ht_add_int(s_handlers, key, l_item);
-    
+
     log_it(L_INFO, "Registered decree handler for type=%u subtype=%u", a_decree_type, a_decree_subtype);
     return 0;
 }
@@ -74,15 +74,15 @@ int dap_chain_decree_handler_call(uint16_t a_decree_type,
                                   dap_chain_t *a_chain,
                                   bool a_apply) {
     uint32_t l_key = s_make_key(a_decree_type, a_decree_subtype);
-    
+
     dap_chain_decree_handler_item_t *l_item = NULL;
     dap_ht_find_int(s_handlers, l_key, l_item);
-    
+
     if (!l_item || !l_item->handler) {
-        log_it(L_WARNING, "No handler registered for decree type=%u subtype=%u", 
+        log_it(L_WARNING, "No handler registered for decree type=%u subtype=%u",
                a_decree_type, a_decree_subtype);
         return -1;
     }
-    
+
     return l_item->handler(a_decree, a_ledger, a_chain, a_apply);
 }

@@ -38,7 +38,7 @@ typedef void (*dap_chain_type_blocks_callback_op_results_t)(dap_chain_type_block
 typedef int (*dap_chain_type_blocks_callback_block_verify_t)(dap_chain_type_blocks_t *a_cs_blocks, dap_chain_block_t *a_block, dap_hash_sha3_256_t *a_block_hash, size_t a_block_size);
 typedef size_t (*dap_chain_type_blocks_callback_block_sign_t)(dap_chain_type_blocks_t *, dap_chain_block_t **, size_t);
 typedef dap_chain_block_t *(*dap_chain_type_blocks_callback_block_move_t)(dap_chain_type_blocks_t *, size_t *);
-typedef void (*dap_chain_type_blocks_callback_fork_resolved_t)(dap_chain_t *a_chain, dap_hash_sha3_256_t a_block_before_fork_hash, dap_list_t *a_reverted_blocks, 
+typedef void (*dap_chain_type_blocks_callback_fork_resolved_t)(dap_chain_t *a_chain, dap_hash_sha3_256_t a_block_before_fork_hash, dap_list_t *a_reverted_blocks,
                                                                 uint64_t a_reverted_blocks_cnt, uint64_t a_main_blocks_cnt, void * a_arg);
 
 typedef struct dap_chain_type_blocks {

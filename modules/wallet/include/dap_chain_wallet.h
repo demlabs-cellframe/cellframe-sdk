@@ -75,7 +75,7 @@ dap_chain_wallet_t * dap_chain_wallet_create_with_pass(const char * a_wallet_nam
 // MOVED_TO_WALLET_CACHE:                                                        uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check);
 // MOVED_TO_WALLET_CACHE: dap_list_t *dap_chain_wallet_get_list_tx_outs_mempool_check(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
 // MOVED_TO_WALLET_CACHE:                                         uint256_t *a_value_transfer, bool a_mempool_check);
-// MOVED_TO_WALLET_CACHE: 
+// MOVED_TO_WALLET_CACHE:
 // MOVED_TO_WALLET_CACHE: DAP_STATIC_INLINE dap_list_t *dap_chain_wallet_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
 // MOVED_TO_WALLET_CACHE:                                                        uint256_t a_value_need, uint256_t *a_value_transfer)
 // MOVED_TO_WALLET_CACHE: {

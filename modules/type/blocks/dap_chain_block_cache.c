@@ -173,7 +173,7 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
 {
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
-    uint256_t l_value_transfer = {};    
+    uint256_t l_value_transfer = {};
     for (size_t i = 0; i < a_block_cache->datum_count; i++) {
         if (a_block_cache->datum[i]->header.type_id != DAP_CHAIN_DATUM_TX)
             continue;

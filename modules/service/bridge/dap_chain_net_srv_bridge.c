@@ -68,22 +68,22 @@ bool s_get_ems_bridge_action(dap_chain_datum_token_emission_t *a_ems, dap_chain_
         *a_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
 
     size_t src_tsd_size = 0;
-    
+
     src_tsd_size = 0;
     size_t subsrc_tsd_size = 0;
-    
+
     byte_t *ems_src = dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE, &src_tsd_size);
     byte_t *ems_subsrc = dap_chain_emission_get_tsd(a_ems, DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE_SUBTYPE, &subsrc_tsd_size);
 
     if (ems_src && src_tsd_size)
-    {   
+    {
         //old bridge ems
         if (s_tsd_str_cmp(ems_src, src_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_COMMISSION_OLD) == 0)
         {
             *a_action =  DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION;
-            return true;      
+            return true;
         }
-        
+
         //not bridge
         if (s_tsd_str_cmp(ems_src, src_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_BRIDGE) != 0)
             return false;
@@ -114,10 +114,10 @@ bool s_get_ems_bridge_action(dap_chain_datum_token_emission_t *a_ems, dap_chain_
         {
             *a_action =  DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR;
             return true;
-        }    
+        }
 
         if (s_tsd_str_cmp(ems_subsrc, subsrc_tsd_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_CROSSCHAIN)==0)
-        {   
+        {
             *a_action =  DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN;
             return true;
         }
@@ -131,10 +131,10 @@ static bool s_tag_check_bridge(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
     //bridged native transfer: destination addr netid differs from net we get datum
     //such tx are marked by TRANSFER service as CROSSCHAIN_TRANSFER
     //bridge txs are only received one
-    
 
-    //crosschain bridge AUTH emissions 
-    
+
+    //crosschain bridge AUTH emissions
+
     if (a_items_grp->items_in_ems){
         dap_chain_tx_in_ems_t *l_tx_in_ems = a_items_grp->items_in_ems->data;
         dap_hash_sha3_256_t ems_hash = l_tx_in_ems->header.token_emission_hash;
@@ -153,11 +153,11 @@ static bool s_tag_check_bridge(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
         int l_type;
         size_t l_size;
         byte_t *l_data = dap_chain_datum_tx_item_get_data(l_tx_tsd, &l_type, &l_size);
-        
-        
+
+
         if (l_type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE && s_tsd_str_cmp(l_data, l_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_BRIDGE) == 0)
             src_bridge = true;
-        
+
         if (l_type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE_SUBTYPE && s_tsd_str_cmp(l_data, l_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_SUBTYPE_BRIDGE_OUT) == 0)
             subtype_out = true;
     }
@@ -180,6 +180,6 @@ int dap_chain_net_srv_bridge_init()
 
 void dap_chain_net_srv_bridge_deinit()
 {
-    
+
 }
 

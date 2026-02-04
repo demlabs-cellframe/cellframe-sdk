@@ -50,14 +50,14 @@
  * @param a_hash_out_type Output hash type string
  * @return Transaction hash string on success, NULL on error
  */
-char *dap_chain_block_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks, 
+char *dap_chain_block_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks,
                                          dap_enc_key_t *a_key_from,
-                                         const dap_chain_addr_t *a_addr_to, 
+                                         const dap_chain_addr_t *a_addr_to,
                                          dap_list_t *a_block_list,
                                          dap_ledger_t *a_ledger,
                                          const char *a_native_ticker,
                                          dap_chain_net_id_t a_net_id,
-                                         uint256_t a_value_fee, 
+                                         uint256_t a_value_fee,
                                          const char *a_hash_out_type)
 {
     uint256_t                   l_value_out = {};
@@ -217,14 +217,14 @@ char *dap_chain_block_tx_coll_fee_create(dap_chain_type_blocks_t *a_blocks,
  * @param a_hash_out_type Output hash type string
  * @return Transaction hash string on success, NULL on error
  */
-char *dap_chain_block_tx_reward_create(dap_chain_type_blocks_t *a_blocks, 
+char *dap_chain_block_tx_reward_create(dap_chain_type_blocks_t *a_blocks,
                                        dap_enc_key_t *a_sign_key,
-                                       dap_chain_addr_t *a_addr_to, 
+                                       dap_chain_addr_t *a_addr_to,
                                        dap_list_t *a_block_list,
                                        dap_ledger_t *a_ledger,
                                        const char *a_native_ticker,
                                        dap_chain_net_id_t a_net_id,
-                                       uint256_t a_value_fee, 
+                                       uint256_t a_value_fee,
                                        const char *a_hash_out_type)
 {
     dap_return_val_if_fail(a_blocks && a_sign_key && a_addr_to && a_block_list && a_ledger && a_native_ticker, NULL);
@@ -364,13 +364,13 @@ char *dap_chain_block_tx_reward_create(dap_chain_type_blocks_t *a_blocks,
  * @param a_hash_out_type Output hash type string
  * @return Transaction hash string on success, NULL on error
  */
-char *dap_chain_block_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks, 
+char *dap_chain_block_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks,
                                                dap_enc_key_t *a_key_from,
                                                const dap_chain_addr_t *a_addr_to,
                                                dap_ledger_t *a_ledger,
                                                const char *a_native_ticker,
                                                dap_chain_net_id_t a_net_id,
-                                               uint256_t a_value_fee, 
+                                               uint256_t a_value_fee,
                                                const char *a_hash_out_type)
 {
     uint256_t                   l_net_fee = {};
@@ -398,7 +398,7 @@ char *dap_chain_block_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks
         log_it(L_WARNING, "Can't find OUT_STD item in tx with addr %s", dap_chain_addr_to_str_static(&l_addr_to));
         return NULL;
     }
-    
+
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {
         log_it(L_WARNING, "Can't create datum tx");
         return NULL;

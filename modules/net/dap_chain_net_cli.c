@@ -69,8 +69,8 @@ static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
                 l_atoms_count += l_chain->callback_count_atom(l_chain);
             }
         }
-        
-        dap_json_object_add_object(l_json_status, "atoms_processed", 
+
+        dap_json_object_add_object(l_json_status, "atoms_processed",
                                     dap_json_object_new_uint64(l_atoms_count));
     }
 
@@ -92,9 +92,9 @@ static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
     // Find -addr parameter
     const char *l_addr_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_argc, "-addr", &l_addr_str);
-    
+
     if (!l_addr_str) {
-        dap_json_rpc_error_add(a_json_arr_reply, -1, 
+        dap_json_rpc_error_add(a_json_arr_reply, -1,
                               "%s requires -addr parameter", a_cmd_name);
         return NULL;
     }
@@ -125,7 +125,7 @@ static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
 
 // REMOVED: int com_net() forward declaration - legacy CLI handler
 
-// Helper function to list nodes with full reply  
+// Helper function to list nodes with full reply
 // Implementation based on dap_chain_node_rpc_list logic
 static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_node_addr,
                                        bool a_is_full, const char *a_alias, dap_json_t *a_json_arr_reply)
@@ -133,7 +133,7 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
     // Get nodes from global_db (same as rpc_list does)
     char l_group_name[128];
     snprintf(l_group_name, sizeof(l_group_name), "node-info.%s", a_net->pub.gdb_groups_prefix);
-    
+
     size_t l_nodes_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group_name, &l_nodes_count);
 
@@ -285,7 +285,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
 
     // struct to write to the global db
     dap_chain_node_addr_t l_node_addr = {}, l_link;
-    uint32_t l_info_size = l_hostname 
+    uint32_t l_info_size = l_hostname
         ? sizeof(dap_chain_node_info_t) + dap_strlen(l_hostname) + 1
         : sizeof(dap_chain_node_info_t);
     dap_chain_node_info_t *l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
@@ -362,7 +362,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
             return l_res;
         }
         // Synchronous request, wait for reply
-        if ( !(l_port = l_node_info->ext_port) 
+        if ( !(l_port = l_node_info->ext_port)
              && !(l_port = dap_chain_net_get_my_node_info(l_net)->ext_port)
              && !(l_port = dap_config_get_item_int16(g_config, "server", DAP_CFG_PARAM_LEGACY_PORT)) )
         {
@@ -378,7 +378,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_UNSPECIFIED_PORT_ERR,
                                        "Unspecified port");
                 return -DAP_CHAIN_NODE_CLI_COM_NODE_ADD_CANT_UNSPECIFIED_PORT_ERR;
-            } 
+            }
         }
         dap_json_t *json_obj_out = NULL;
         switch ( l_res = dap_chain_net_node_list_request(l_net, l_port, true, 'a') )
@@ -476,11 +476,11 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
         int l_res = dap_chain_net_node_list_request(l_net, 0, true, 'r');
         dap_json_t *json_obj_out = NULL;
         switch (l_res) {
-            case 8: 
+            case 8:
                 json_obj_out = dap_json_object_new();
                 if (!json_obj_out) return dap_json_object_free(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
                 dap_json_object_add_string(json_obj_out, "status", "Successfully deleted");
-                dap_json_array_add(a_json_arr_reply, json_obj_out); 
+                dap_json_array_add(a_json_arr_reply, json_obj_out);
             return DAP_CHAIN_NODE_CLI_COM_NODE_OK;
             default: dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_DELL_CANT_PROCESS_REQUEST_ERR,
                                        "Can't process request, error %d", l_res);
@@ -792,19 +792,19 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
                                    "Node info not found for specified address");
             return -6;
         }
-        
+
         int timeout_ms = 5000;
         int res = dap_chain_node_sync_handshake(l_net, node_info, "CN", timeout_ms);
         DAP_DELETE(node_info);
-        
+
         if (res != DAP_SYNC_ERROR_NONE) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_RESPONSE_ERR,
                                    "No response from node: %s", dap_chain_node_sync_error_str(res));
             return -DAP_CHAIN_NODE_CLI_COM_NODE_HANDSHAKE_NO_RESPONSE_ERR;
         }
-        
+
         dap_json_t *json_obj_out = dap_json_object_new();
-        if (!json_obj_out) 
+        if (!json_obj_out)
             return dap_json_object_free(json_obj_out), DAP_CHAIN_NODE_CLI_COM_NODE_MEMORY_ALLOC_ERR;
         dap_json_object_add_string(json_obj_out, "status_handshake", "Connection established");
         dap_json_array_add(a_json_arr_reply, json_obj_out);
@@ -834,7 +834,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
                     break;
                 }
                 l_cluster = dap_cluster_find(l_guuid);
-                
+
                 if (!l_cluster) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CONNECTION_NOT_FOUND_CLUSTER_ID_ERR,
                                                     "Not found cluster with ID %s", l_guuid_str);
@@ -1019,7 +1019,7 @@ int dap_chain_net_cli_init(void)
 {
     // Register error codes FIRST
     dap_chain_net_cli_error_codes_init();
-    
+
     // Register node command
     dap_cli_server_cmd_add("node", com_node, NULL,
                            "Node operations",
@@ -1077,11 +1077,11 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, dap_json_t
         dap_json_t *l_bridget = dap_json_array_new();
         uint16_t l_bridget_count = 0;  // if can't get any info about bridget net
         for (uint16_t i = 0; i < a_net->pub.bridged_networks_count; ++i) {
-            dap_chain_net_t *l_bridget_net = dap_chain_net_by_id(a_net->pub.bridged_networks[i]); 
+            dap_chain_net_t *l_bridget_net = dap_chain_net_by_id(a_net->pub.bridged_networks[i]);
             if (l_bridget_net) {
                 dap_json_t *l_net_item = dap_json_object_new();
                 sprintf(l_id_buff,"0x%016"DAP_UINT64_FORMAT_x, a_net->pub.bridged_networks[i].uint64);
-                    
+
                 dap_json_object_add_object(l_net_item, "name", dap_json_object_new_string(l_bridget_net->pub.name));
                 dap_json_object_add_object(l_net_item, "id", dap_json_object_new_string(l_id_buff));
                 dap_json_object_add_object(l_net_item, "native_ticker", dap_json_object_new_string(l_bridget_net->pub.native_ticker));
@@ -1139,7 +1139,7 @@ void _s_print_chains(dap_json_t *a_obj_chain, dap_chain_t *a_chain) {
     if (!a_obj_chain || !a_chain)
         return;
     dap_json_object_add_string(a_obj_chain, "name", a_chain->name);
-    dap_json_object_add_object(a_obj_chain, "consensus", 
+    dap_json_object_add_object(a_obj_chain, "consensus",
                               dap_json_object_new_string(DAP_CHAIN_PVT(a_chain)->cs_name));
 
     if (a_chain->default_datum_types_count) {
@@ -1395,7 +1395,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 DAP_DELETE(l_tps_str);
                 if (!l_jobj_tpd || !l_jobj_total || !l_jobj_tps) {
                     dap_json_object_free(l_jobj_tps);
-                    
+
                     dap_json_object_free(l_jobj_return);
                     dap_json_object_free(l_jobj_stats);
                     dap_json_object_free(l_jobj_from);
@@ -1670,7 +1670,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                                            "One of -cert or -hash parameters is mandatory");
                     return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD;
                 }
-                
+
                 char *l_hash_hex_str = NULL;
 
                 if (l_cert_string) {

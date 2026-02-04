@@ -29,7 +29,7 @@
 
 /**
  * @brief UTXO (Unspent Transaction Output) descriptor
- * 
+ *
  * Represents an unspent output that can be used as input for new transactions.
  * This is a ledger-level concept - datum layer doesn't know about UTXO.
  */

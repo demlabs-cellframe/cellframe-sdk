@@ -197,7 +197,7 @@ bool dap_chain_type_dag_event_sign_exists(dap_chain_type_dag_event_t *a_event, s
 bool dap_chain_type_dag_event_round_sign_exists(dap_chain_type_dag_event_round_item_t *a_round_item, dap_enc_key_t *a_key) {
     return s_sign_exists(a_round_item->event_n_signs + a_round_item->event_size,
                         (size_t)(a_round_item->data_size - a_round_item->event_size),
-                        a_key); 
+                        a_key);
 }
 
 /**

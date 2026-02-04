@@ -39,10 +39,10 @@ int dap_chain_policy_anchor_reward_apply(dap_chain_datum_anchor_t *a_anchor, dap
         log_it(L_WARNING, "Network not found for chain");
         return -1;
     }
-    
+
     // Remove last reward
     dap_chain_net_remove_last_reward(l_net);
-    
+
     log_it(L_NOTICE, "Reward anchor applied for network %s", l_net->pub.name);
     return 0;
 }
@@ -58,17 +58,17 @@ int dap_chain_policy_anchor_stake_apply(dap_chain_datum_anchor_t *a_anchor, dap_
         log_it(L_WARNING, "Network not found for chain");
         return -1;
     }
-    
+
     // Extract signing address from anchor
     // This is a simplified version - full implementation would extract from anchor data
     dap_chain_addr_t l_signing_addr = {};
-    
+
     // Invalidate stake key
     dap_chain_net_srv_stake_key_invalidate(&l_signing_addr);
-    
+
     // Set minimum stake value
     dap_chain_net_srv_stake_set_allowed_min_value(a_chain->net_id, dap_chain_balance_coins_scan("1.0"));
-    
+
     log_it(L_NOTICE, "Stake anchor applied for network %s", l_net->pub.name);
     return 0;
 }

@@ -31,34 +31,34 @@
 
 /**
  * @brief TX Builder API - creates UNSIGNED transactions (PURE FUNCTIONS)
- * 
+ *
  * LAYER 1: Foundation - creates transaction structures WITHOUT signatures
- * 
+ *
  * Single Responsibility: Build TX structures from provided data
- * 
+ *
  * PURE FUNCTIONS:
  * - NO network access
- * - NO ledger access  
+ * - NO ledger access
  * - NO database queries
  * - Accept ALL data as parameters
  * - Zero coupling!
- * 
+ *
  * Hardware wallet friendly: Returns unsigned TX for external signing
  */
 
 /**
  * @brief Unspent output descriptor (input for TX Builder)
- * 
+ *
  * Pre-found unspent output to use as TX input.
  * Caller (Composer) finds these via ledger queries.
  */
 
 /**
  * @brief Create simple transfer transaction WITHOUT signature
- * 
+ *
  * Creates an unsigned transaction for transferring tokens.
  * Caller must add signature(s) using dap_chain_datum_tx_add_sign_item() before submitting to mempool.
- * 
+ *
  * @param a_net_id Network ID
  * @param a_pkey_from Public key of sender (for address calculation)
  * @param a_addr_from Source address
@@ -80,7 +80,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_transfer(
 
 /**
  * @brief Create multi-output transfer transaction WITHOUT signature
- * 
+ *
  * @param a_net_id Network ID
  * @param a_pkey_from Public key of sender
  * @param a_addr_from Source address
@@ -106,7 +106,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_multi_transfer(
 
 /**
  * @brief Create conditional output transaction WITHOUT signature
- * 
+ *
  * @param a_net_id Network ID
  * @param a_pkey_from Public key of sender
  * @param a_addr_from Source address
@@ -138,7 +138,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_cond_output(
 
 /**
  * @brief Create event transaction WITHOUT signature
- * 
+ *
  * @param a_net_id Network ID
  * @param a_pkey_from Public key of sender
  * @param a_pkey_service Public key of service
@@ -164,7 +164,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_event(
 
 /**
  * @brief Create base transaction from emission WITHOUT signature
- * 
+ *
  * @param a_net_id Network ID
  * @param a_emission_hash Emission hash
  * @param a_emission_chain_id Emission chain ID
@@ -185,11 +185,11 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_from_emission(
 );
 /**
  * @brief Add signature to unsigned transaction
- * 
+ *
  * This function adds a signature item to the transaction.
  * For hardware wallet support, the signature is obtained externally
  * (via dap_ledger_sign_data) and then added to the transaction.
- * 
+ *
  * @param a_tx Transaction pointer (will be reallocated)
  * @param a_sign Signature to add
  * @return 1 on success, 0 on error
@@ -198,10 +198,10 @@ int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
 
 /**
  * @brief Get transaction data for signing
- * 
+ *
  * Extracts the exact data that needs to be signed.
  * This data should be passed to dap_ledger_sign_data().
- * 
+ *
  * @param a_tx Transaction pointer
  * @param a_data_size Output: size of data to sign
  * @return Pointer to data buffer (must NOT be freed by caller, it's part of TX)

@@ -79,7 +79,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     memcpy((uint8_t*)tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
     *a_tx = tx_new;
-    
+
     return 1;
 }
 
@@ -247,7 +247,7 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
 /**
  * Add pre-computed signature to transaction
  * Hardware wallet friendly - accepts signature from external source
- * 
+ *
  * return 1 Ok, -1 Error
  */
 int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
@@ -256,7 +256,7 @@ int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
         log_it(L_ERROR, "Invalid parameters for datum_tx_add_sign");
         return -1;
     }
-    
+
     // Create TX item from signature using existing function
     return dap_chain_datum_tx_add_new_generic(a_tx, dap_chain_tx_sig_t,
                                                dap_chain_datum_tx_item_sign_create_from_sign(a_sign));
@@ -265,10 +265,10 @@ int dap_chain_datum_tx_add_sign(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
 /**
  * Add event item to transaction
  * FULL IMPLEMENTATION - NO STUBS!
- * 
+ *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx, 
+int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx,
                                       dap_pkey_t *a_pkey_service,
                                       dap_chain_srv_uid_t a_srv_uid,
                                       const char *a_group_name,
@@ -280,7 +280,7 @@ int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx,
         log_it(L_ERROR, "Invalid parameters for datum_tx_add_event_item");
         return -1;
     }
-    
+
     // Create event item using existing function
     dap_chain_tx_item_event_t *l_event_item = dap_chain_datum_tx_event_create(
         a_srv_uid,
@@ -288,12 +288,12 @@ int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx,
         a_event_type,
         dap_time_now()  // Current timestamp
     );
-    
+
     if (!l_event_item) {
         log_it(L_ERROR, "Failed to create event item");
         return -1;
     }
-    
+
     // Add TSD section for event data if provided
     if (a_event_data && a_event_data_size > 0) {
         // Event data is stored in TSD section
@@ -303,34 +303,34 @@ int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx,
             0x0001,  // Event data type
             a_event_data_size
         );
-        
+
         if (!l_tsd) {
             DAP_DELETE(l_event_item);
             log_it(L_ERROR, "Failed to create TSD for event data");
             return -1;
         }
-        
+
         // Add TSD first
         int l_ret = dap_chain_datum_tx_add_item(a_tx, l_tsd);
         DAP_DELETE(l_tsd);
-        
+
         if (l_ret != 1) {
             DAP_DELETE(l_event_item);
             log_it(L_ERROR, "Failed to add event data TSD");
             return -1;
         }
     }
-    
+
     // Add event item using generic add function
     int l_result = dap_chain_datum_tx_add_item(a_tx, l_event_item);
     DAP_DELETE(l_event_item);
-    
+
     if (l_result != 1) {
         log_it(L_ERROR, "Failed to add event item to transaction");
         return -1;
     }
-    
-    log_it(L_DEBUG, "Added event item to transaction (srv_uid=%"DAP_UINT64_FORMAT_U", type=%u)", 
+
+    log_it(L_DEBUG, "Added event item to transaction (srv_uid=%"DAP_UINT64_FORMAT_U", type=%u)",
            a_srv_uid.uint64, a_event_type);
     return 1;
 }
@@ -338,7 +338,7 @@ int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx,
 /**
  * Get data that needs to be signed
  * Returns pointer to transaction data for signing
- * 
+ *
  * return pointer to data, NULL on error
  */
 const void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, size_t *a_sign_data_size)
@@ -347,7 +347,7 @@ const void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, s
         log_it(L_ERROR, "Invalid parameters for datum_tx_get_sign_data");
         return NULL;
     }
-    
+
     // Sign everything except the header's reserved bytes
     // This is the standard cellframe signing approach
     *a_sign_data_size = dap_chain_datum_tx_get_size(a_tx);
@@ -382,7 +382,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
             return log_it(L_ERROR, "Sign not found in TX"), l_ret;
     } else
         l_sign_item = (dap_chain_tx_sig_t*)l_item;
-    
+
     dap_sign_t *l_sign = dap_chain_datum_tx_item_sig_get_sign(l_sign_item);
     if ( !l_sign )
         return log_it(L_ERROR, "Can't extract sign from item"), -1;
@@ -541,7 +541,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
 }
 
 void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_items_groups)
-{   
+{
     dap_list_free(a_items_groups->items_in);
     dap_list_free(a_items_groups->items_in_cond);
     dap_list_free(a_items_groups->items_in_reward);
@@ -573,10 +573,10 @@ void dap_chain_datum_tx_group_items_free( dap_chain_datum_tx_item_groups_t *a_it
 
 #define DAP_LIST_SAPPEND(X, Y) X = dap_list_append(X,Y)
 bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_res_group)
-{   
+{
     if(!a_tx || !a_res_group)
         return NULL;
-    
+
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {
         switch (*l_item) {
@@ -684,9 +684,9 @@ bool dap_chain_datum_tx_group_items(dap_chain_datum_tx_t *a_tx, dap_chain_datum_
 }
 
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_get_tsd_by_type(dap_chain_datum_tx_t *a_tx, int a_type)
-{   
+{
     dap_return_val_if_pass(!a_tx, NULL);
-    
+
     byte_t *l_item = NULL;
     size_t l_tx_item_size = 0;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx) {

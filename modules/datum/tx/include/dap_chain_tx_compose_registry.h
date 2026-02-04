@@ -29,9 +29,9 @@
 /**
  * @file dap_chain_tx_compose_registry.h
  * @brief Internal registry for TX Compose callbacks
- * 
+ *
  * ARCHITECTURE: Hash table registry for O(1) lookup
- * 
+ *
  * НЕ ИСПОЛЬЗУЙТЕ ЭТОТ HEADER В EXTERNAL МОДУЛЯХ!
  * Только для внутреннего использования в datum/tx модуле.
  */

@@ -97,7 +97,7 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
 
     // Verify all keys and its signatures
     uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
-    
+
     // Get first chain to check is_mapped flag
     bool l_is_mapped = false;
     if (a_ledger->chain_ids_count > 0) {
@@ -107,7 +107,7 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
             l_is_mapped = l_first_chain->is_mapped;
         }
     }
-    
+
     dap_chain_datum_decree_t *l_decree = l_is_mapped
         ? DAP_DUP_SIZE(a_decree, a_data_size)
         : a_decree;
@@ -156,7 +156,7 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
         log_it(L_WARNING, "Decree type is undefined!");
         return -100;
     }
-    
+
     // Call registered handler for this decree type/subtype
     int l_ret = dap_chain_decree_handler_call(
         a_decree->header.type,
@@ -166,9 +166,9 @@ static int s_decree_verify(dap_ledger_t *a_ledger, dap_chain_datum_decree_t *a_d
         NULL,  // chain is NULL for verification phase
         false  // verify only, don't apply
     );
-    
+
     if (l_ret) {
-        log_it(L_WARNING, "Decree verification failed (type=%u, subtype=%u): %d", 
+        log_it(L_WARNING, "Decree verification failed (type=%u, subtype=%u): %d",
                a_decree->header.type, l_subtype, l_ret);
         return l_ret;
     }
@@ -213,16 +213,16 @@ static int s_decree_clear(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
 int dap_ledger_decree_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
 {
     dap_return_val_if_fail(a_ledger, -1);
-    
+
     // Get chain info from ledger registry
     dap_chain_info_t *l_chain_info = dap_ledger_get_chain_info(a_ledger, a_chain_id);
     if (!l_chain_info || !l_chain_info->chain_ptr) {
         log_it(L_WARNING, "Chain not found in ledger");
         return -1;
     }
-    
+
     dap_chain_t *l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
-    
+
     // Check if chain supports decrees or anchors
     if (dap_chain_datum_type_supported_by_chain(l_chain, DAP_CHAIN_DATUM_DECREE)) {
         int ret = s_decree_clear(a_ledger, a_chain_id);
@@ -243,7 +243,7 @@ int dap_ledger_decree_apply(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_decre
 {
     dap_return_val_if_fail(a_decree_hash && a_ledger, -107);
     int ret_val = 0;
-    
+
     // Get chain from ledger
     dap_chain_info_t *l_chain_info = dap_ledger_get_chain_info(a_ledger, a_chain_id);
     if (!l_chain_info || !l_chain_info->chain_ptr) {
@@ -251,7 +251,7 @@ int dap_ledger_decree_apply(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_decre
         return -108;
     }
     dap_chain_t *l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
-    
+
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_decree_item_t *l_new_decree = NULL;
     unsigned l_hash_value;
@@ -370,7 +370,7 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_ledger_t *a_ledger)
 static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_ledger_t *a_ledger, dap_chain_t *a_chain, bool a_apply, bool a_anchored)
 {
     dap_return_val_if_fail(a_decree && a_ledger && a_chain, -112);
-    
+
     // Call the registered decree handler
     int ret = dap_chain_decree_handler_call(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
@@ -380,20 +380,20 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_ledge
         a_chain,
         a_apply
     );
-    
+
     // If no handler registered for this subtype, log warning
     if (ret == -1) {
         log_it(L_WARNING, "No handler registered for common decree subtype 0x%x", a_decree->header.sub_type);
         return -100;
     }
-    
+
     return ret;
 }
 
 static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_ledger_t *a_ledger, dap_chain_t *a_chain, bool a_apply)
 {
     dap_return_val_if_fail(a_decree && a_ledger && a_chain, -112);
-    
+
     // Call the registered decree handler
     int ret = dap_chain_decree_handler_call(
         DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE,
@@ -403,13 +403,13 @@ static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_ledg
         a_chain,
         a_apply
     );
-    
+
     // If no handler registered for this subtype, log warning
     if (ret == -1) {
         log_it(L_WARNING, "No handler registered for service decree subtype 0x%x", a_decree->header.sub_type);
         return -100;
     }
-    
+
     return ret;
 }
 

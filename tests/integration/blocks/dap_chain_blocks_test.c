@@ -29,7 +29,7 @@ typedef struct {
 
 void callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, dap_hash_sha3_256_t *a_atom_hash, void *a_atom, size_t a_atom_size, dap_time_t a_atom_time)
 {
-    notify_arg_t *l_arg = (notify_arg_t*)a_arg; 
+    notify_arg_t *l_arg = (notify_arg_t*)a_arg;
     (*l_arg->cnt)++;
     *l_arg->last_notified_hash = *a_atom_hash;
 }
@@ -39,11 +39,11 @@ static void *s_callback_list_copy(const void *a_data, UNUSED_ARG void *a_usr_dat
     return DAP_DUP((dap_hash_sha3_256_t *)a_data);
 }
 
-void callback_fork_resolved_notify(dap_chain_t *a_chain, dap_hash_sha3_256_t a_block_before_fork_hash, dap_list_t *a_reverted_blocks, 
+void callback_fork_resolved_notify(dap_chain_t *a_chain, dap_hash_sha3_256_t a_block_before_fork_hash, dap_list_t *a_reverted_blocks,
                                                                 uint64_t a_reverted_blocks_cnt, uint64_t a_main_blocks_cnt, void * a_arg)
 {
     last_fork_resolved_notification_data_t *l_arg = (last_fork_resolved_notification_data_t*)a_arg;
-    
+
     l_arg->reverted_blocks = dap_list_copy_deep(a_reverted_blocks, s_callback_list_copy, NULL);
     l_arg->main_blocks_cnt = a_main_blocks_cnt;
     l_arg->reverted_blocks_cnt = a_reverted_blocks_cnt;
@@ -76,7 +76,7 @@ bool dap_chain_block_test_compare_chain_hash_lists(dap_chain_t* a_chain, dap_lis
     dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, l_cell_id, NULL);
     dap_list_t *l_branch_temp = NULL;
     dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size_from_iter);
-    for (dap_list_t *l_branch_temp = a_atoms_hash_list; l_branch_temp && l_atom; 
+    for (dap_list_t *l_branch_temp = a_atoms_hash_list; l_branch_temp && l_atom;
         l_branch_temp = l_branch_temp->next, l_atom = a_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size_from_iter)) {
         char l_branch_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
         dap_hash_sha3_256_to_str((dap_hash_sha3_256_t *)l_branch_temp->data, l_branch_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
@@ -100,7 +100,7 @@ void dap_chain_blocks_test()
 
     const char *l_chain_net_name = "testnet";
     const char *l_chain_name = "testchain";
-    dap_chain_net_id_t l_chain_net_id = {.uint64 = 1}; 
+    dap_chain_net_id_t l_chain_net_id = {.uint64 = 1};
     dap_chain_id_t l_chain_id = {.uint64 = 1};
 
     dap_chain_t *l_chain =  dap_chain_create(l_chain_net_name, l_chain_name, l_chain_net_id, l_chain_id);
@@ -171,7 +171,7 @@ void dap_chain_blocks_test()
 
 
     dap_assert_PIF((s_custom_notify_counter == 1 && dap_hash_sha3_256_compare(&s_last_notified_block_hash, &l_genesis_block_hash)), "Check custom notify: ");
-    
+
     l_block_hash = dap_chain_block_test_add_new_block (&l_block_hash, l_chain, &l_block_repeat_middle_forked, &l_block_repeat_middle_forked_size);
     l_block_repeat_middle_forked_hash = l_block_hash;
     l_block_hash_copy = DAP_DUP(&l_block_hash);
@@ -181,7 +181,7 @@ void dap_chain_blocks_test()
 
     dap_chain_atom_verify_res_t ret_val = l_chain->callback_atom_add(l_chain, (dap_chain_atom_ptr_t)l_block_double_main_branch, l_block_double_main_branch_size, &l_block_double_main_branch_hash, false);
     dap_assert_PIF(ret_val == ATOM_PASS, "Add existing block into middle of main chain. Must be passed: ");
-    
+
     dap_assert_PIF(dap_chain_block_test_compare_chain_hash_lists(l_chain, l_first_branch_atoms_list), "Check chain after atoms adding to the main branch ");
 
     /* ========================== Forked branches testing ======================= */
@@ -209,7 +209,7 @@ void dap_chain_blocks_test()
     l_second_branch_atoms_list = dap_list_append(l_second_branch_atoms_list, l_block_hash_copy);
 
     dap_assert_PIF(dap_chain_block_test_compare_chain_hash_lists(l_chain, l_second_branch_atoms_list), "Check branches is switched: ");
-    dap_assert_PIF(dap_hash_sha3_256_compare(&s_fork_resolved_arg.block_before_fork_hash, &l_forked_block_hash) && 
+    dap_assert_PIF(dap_hash_sha3_256_compare(&s_fork_resolved_arg.block_before_fork_hash, &l_forked_block_hash) &&
                     s_fork_resolved_arg.main_blocks_cnt == 3 && s_fork_resolved_arg.reverted_blocks_cnt == 2, "Check branches is switched notification: ");
 
     dap_test_msg("Add block to former main branch");

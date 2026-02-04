@@ -204,7 +204,7 @@ static int s_blocks_sort_rev(const dap_json_t *a, const dap_json_t *b)
 
 static int s_print_for_block_list(dap_json_rpc_response_t *a_response, char **a_cmd_param, int a_cmd_cnt)
 {
-    
+
     dap_return_val_if_pass(!a_response || !a_response->result_json_object, -1);
 
     if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-h") == -1) {
@@ -258,11 +258,11 @@ static int s_print_for_block_list(dap_json_rpc_response_t *a_response, char **a_
         printf("\n");
     }
     printf("__________|____________________________________________________________________|_________________________________|\n\n");
-    if (l_limit) {            
+    if (l_limit) {
         printf("\tlimit: %s \n", l_limit);
         DAP_DELETE(l_limit);
     }
-    if (l_offset) {            
+    if (l_offset) {
         printf("\toffset: %s \n", l_offset);
         DAP_DELETE(l_offset);
     }
@@ -281,10 +281,10 @@ int dap_chain_type_blocks_init()
     dap_chain_type_add("blocks", l_callbacks);
 
     dap_chain_block_init();
-    
+
     // Register blocks decree handlers (empty_blockgen)
     dap_chain_blocks_decree_init();
-    
+
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add("block", s_cli_blocks, s_print_for_block_list, "Create and explore blockchains", 0,
@@ -336,11 +336,11 @@ int dap_chain_type_blocks_init()
             " -cert <priv_cert_name> -addr <addr>\n"
                 "\t\t Update reward and fees block table."
                     " Automatic collection of commission in case of triggering of the setting\n\n"
-        
+
         "Hint:\n"
         "\texample coins amount syntax (only natural) 1.0 123.4567\n"
         "\texample datoshi amount syntax (only integer) 1 20 0.4321e+4\n\n"
-        
+
                                         );
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
@@ -418,7 +418,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     pthread_rwlock_init(&l_cs_blocks_pvt->datums_rwlock, NULL);
     pthread_rwlock_init(&l_cs_blocks_pvt->forked_branches_rwlock, NULL);
 
-    
+
     l_cs_blocks_pvt->block_confirm_cnt = dap_config_get_item_uint64_default(a_chain_config,"blocks","blocks_for_confirmation",DAP_FORK_MAX_DEPTH_DEFAULT);
     const char * l_genesis_blocks_hash_str = dap_config_get_item_str_default(a_chain_config,"blocks","genesis_block",NULL);
     if ( l_genesis_blocks_hash_str ){
@@ -690,7 +690,7 @@ static int block_list_sort_by_date(const void *a, const void *b, bool a_forward)
 
     uint64_t ts_a = dap_json_object_get_int64(obj_a, "timestamp");
     uint64_t ts_b = dap_json_object_get_int64(obj_b, "timestamp");
-    
+
     return ts_a > ts_b ? (a_forward ? 1 : -1) : ts_a < ts_b ? (a_forward ? -1 : 1) : 0;
 }
 
@@ -774,7 +774,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
     int ret = 0;
     UNUSED(l_subcmd_str_arg);
     // Do subcommand action
-    switch ( l_subcmd ){        
+    switch ( l_subcmd ){
 
         case SUBCMD_DUMP:{
             const char *l_hash_out_type = NULL;
@@ -788,7 +788,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
             if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
-            }           
+            }
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-num", &l_num_str);
             if (!l_hash_str && !l_num_str) {
@@ -821,7 +821,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
             dap_json_object_add_uint64(json_obj_inf, a_version == 1 ? "Block number" : "block_num", l_block_cache->block_number);
             dap_json_object_add_string(json_obj_inf, a_version == 1 ? "hash" : "block_hash", l_block_cache->block_hash_str);
             snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%04X",l_block->hdr.version);
-            
+
             dap_json_object_add_string(json_obj_inf, "version", l_hexbuf);
             snprintf(l_hexbuf, sizeof(l_hexbuf), "0x%016"DAP_UINT64_FORMAT_X"",l_block->hdr.cell_id.uint64);
             dap_json_object_add_string(json_obj_inf, "cell_id", l_hexbuf);
@@ -876,10 +876,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 l_offset += sizeof(l_meta->hdr) + l_meta->hdr.data_size;
             }
             if (a_version == 1)
-                dap_json_array_add(a_json_arr_reply, json_arr_meta_out); 
+                dap_json_array_add(a_json_arr_reply, json_arr_meta_out);
             else
                 dap_json_object_add_object(json_obj_inf, "metadata", json_arr_meta_out);
-            
+
             if (a_version == 1) {
                 dap_json_t* json_obj_datum = dap_json_object_new();
                 dap_json_array_add(a_json_arr_reply, json_obj_datum);
@@ -916,7 +916,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     dap_json_object_add_object(json_obj_tx, "ts_create",dap_json_object_new_string(l_time_buf));
                     dap_json_object_add_object(json_obj_tx, "data_size",dap_json_object_new_int(l_datum->header.data_size));
                     dap_chain_datum_dump_json(a_json_arr_reply, json_obj_tx,l_datum,l_hash_out_type,l_net->pub.id, true, a_version);
-                }            
+                }
                 dap_json_array_add(json_arr_datum_out, json_obj_tx);
             }
             // Datums
@@ -1078,12 +1078,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
             size_t l_start_arr = 0;
             size_t l_arr_end = 0;
             dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_start_arr, &l_arr_end, l_limit, l_offset, PVT(l_blocks)->blocks_count, false);
-            
+
             size_t i_tmp = 0;
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
-            if (!l_head) {                
+            if (!l_head) {
                 l_block_cache = dap_ht_last(l_block_cache);
-            }             
+            }
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 if (i_tmp >= l_arr_end)
                     break;
@@ -1099,12 +1099,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     if (l_to_time && l_ts < l_to_time)
                         break;
                 }
-                if (!l_hash_flag) {                    
+                if (!l_hash_flag) {
                     if (l_from_hash_str) {
                         if (!dap_hash_sha3_256_compare(&l_from_hash, &l_block_cache->block_hash))
                             continue;
                         l_hash_flag = true;
-                    }                    
+                    }
                 }
                 if (l_first_signed_flag) {
                     dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
@@ -1173,11 +1173,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     break;
             }
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-            
+
             // Sort by time (Phase 14.3: Migrated to dap_json API)
             // Note: Using static helper functions for Clang compatibility (no nested functions)
             dap_json_array_sort(json_arr_bl_cache_out, l_head ? s_blocks_sort_fwd : s_blocks_sort_rev);
-            
+
             // Remove the timestamp and change block num
             size_t l_length = dap_json_array_length(json_arr_bl_cache_out);
             for (size_t i = 0; i < l_length; i++) {
@@ -1374,7 +1374,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
                 }
                 // NOTE: This call will modify source string
-                l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);            
+                l_block_list = s_block_parse_str_list((char *)l_hash_str, &l_hashes_count, l_chain);
                 if (!l_block_list || !l_hashes_count) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR,
                                                 "Block fee collection requires at least one hash to create a transaction");
@@ -1396,7 +1396,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                                                                      l_net_ctx->pub.ledger, l_net_ctx->pub.native_ticker,
                                                                      l_chain->net_id, l_fee_value, l_hash_out_type);
             }
-            
+
             if (l_hash_tx) {
                 dap_json_t *json_obj_out = dap_json_object_new();
                 char *l_val = dap_strdup_printf("TX for %s collection created successfully, hash = %s\n", l_subcmd_str, l_hash_tx);
@@ -1499,10 +1499,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                             l_block_count++;
                             break;
                         }
-                    } 
+                    }
                     if (l_ts < DAP_REWARD_INIT_TIMESTAMP)
                             continue;
-                    
+
                     if (!l_pub_key) {
                         bool l_found = false;
                         for (size_t i = 0; i < l_block_cache->sign_count ; i++) {
@@ -1554,7 +1554,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     break;
                 s_print_autocollect_table(l_net, json_obj_out, a_version == 1 ? "Fees" : "fees", a_version);
                 s_print_autocollect_table(l_net, json_obj_out, a_version == 1 ? "Rewards" : "rewards", a_version);
-            }            
+            }
         } break;
 
         case SUBCMD_UNDEFINED:
@@ -1661,7 +1661,7 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         dap_chain_block_cache_delete(l_block);
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-    
+
     dap_chain_block_datum_index_t *l_datum_index = NULL, *l_datum_index_tmp = NULL;
     pthread_rwlock_wrlock(&PVT(l_blocks)->datums_rwlock);
     dap_ht_foreach_hh(hh, PVT(l_blocks)->datum_index, l_datum_index, l_datum_index_tmp) {
@@ -1705,12 +1705,12 @@ static int s_add_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_block_
         dap_hash_sha3_256_t l_zero_hash = {0};
         if (!memcmp(l_datum_hash, &l_zero_hash, sizeof(dap_hash_sha3_256_t)))
             continue;
-        
+
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX || l_res != DAP_LEDGER_CHECK_ALREADY_CACHED) { // If this is any datum other than a already cached transaction
             l_ret++;
             if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
-                PVT(a_blocks)->tx_count++;  
+                PVT(a_blocks)->tx_count++;
             // Save datum hash -> block_hash link in hash table
             dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
             if (!l_datum_index) {
@@ -1788,7 +1788,7 @@ static bool s_select_longest_branch(dap_chain_type_blocks_t * a_blocks, dap_chai
         return false;
     }
 
-    // Find longest forked branch 
+    // Find longest forked branch
     dap_list_t *l_branch = a_bcache->forked_branches;
     dap_chain_block_forked_branch_t *l_longest_branch_cache_ptr = l_branch ? (dap_chain_block_forked_branch_t*)l_branch->data : NULL;
     uint64_t l_longest_branch_length = a_main_branch_length;
@@ -1812,7 +1812,7 @@ static bool s_select_longest_branch(dap_chain_type_blocks_t * a_blocks, dap_chai
         // First we must save all atoms from main branch into new forked branch
         unsigned l_curr_index;
         dap_chain_block_cache_t *l_atom = NULL;
-        for (l_atom = a_bcache->hh.next, l_curr_index = 0; 
+        for (l_atom = a_bcache->hh.next, l_curr_index = 0;
             a_main_branch_length > l_curr_index && l_atom; l_curr_index++){
                 dap_chain_block_forked_branch_atoms_table_t *l_new_item = DAP_NEW_Z(dap_chain_block_forked_branch_atoms_table_t);
                 l_new_item->block_cache = l_atom;
@@ -1835,7 +1835,7 @@ static bool s_select_longest_branch(dap_chain_type_blocks_t * a_blocks, dap_chai
             dap_chain_atom_remove_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, l_prev_block_timestamp);
         }
 
-        // Next we add all atoms from new main branch into blockchain 
+        // Next we add all atoms from new main branch into blockchain
         // and their datums into storages and remove old HT with former forked atoms
         dap_chain_block_forked_branch_atoms_table_t *new_main_branch = l_longest_branch_cache_ptr->forked_branch_atoms,
                                                     *l_temp = NULL, *l_item = NULL;
@@ -1935,7 +1935,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                             if (l_tmp->datum[i]->header.type_id == DAP_CHAIN_DATUM_TX)
                                 dap_ledger_tx_clear_colour(l_net->pub.ledger, l_tmp->datum_hash + i);
                     }
-                }    
+                }
                 return ATOM_ACCEPT;
             }
             for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){
@@ -1964,7 +1964,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                                 for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
                                 if (l_checked_atoms_cnt == 0 && l_tmp)
                                     l_notifier->callback(l_notifier->arg, a_chain, c_dap_chain_cell_id_null, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
-                            }    
+                            }
                         }
                     }
                     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
@@ -2070,7 +2070,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             dap_chain_block_forked_branch_t *forked_branch = DAP_NEW_Z(dap_chain_block_forked_branch_t);
             forked_branch->connected_block = l_prev_bcache;
             dap_ht_add_hh(hh, forked_branch->forked_branch_atoms, block_hash, l_new_item);
-            
+
             PVT(l_blocks)->forked_br_cnt++;
             PVT(l_blocks)->forked_branches = DAP_REALLOC_COUNT(PVT(l_blocks)->forked_branches, PVT(l_blocks)->forked_br_cnt);
             if (!PVT(l_blocks)->forked_branches) {
@@ -2587,7 +2587,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
         a_atom_iter->cur_hash   = &l_item->block_hash;
         a_atom_iter->cur_num    = l_item->block_number;
         a_atom_iter->cur_ts     = l_item->ts_created;
-    } else 
+    } else
         *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
                                                  .cell_id = a_atom_iter->cell_id };
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
@@ -2669,7 +2669,7 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->cur_atom_hash = &a_datum_index->block_cache->block_hash;
         a_datum_iter->ret_code = a_datum_index->ret_code;
         a_datum_iter->action = a_datum_index->action;
-        a_datum_iter->uid = a_datum_index->service_uid;    
+        a_datum_iter->uid = a_datum_index->service_uid;
         a_datum_iter->token_ticker = dap_strcmp(a_datum_index->token_ticker, "") ? a_datum_index->token_ticker : NULL;
     } else {
         a_datum_iter->cur = NULL;
@@ -2699,7 +2699,7 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_last(dap_chain_datum_i
     dap_chain_type_blocks_t * l_cs_blocks = DAP_CHAIN_TYPE_BLOCKS(a_datum_iter->chain);
     pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
     //dap_chain_block_datum_index_t *l_datum_index = PVT(l_cs_blocks)->datum_index;
-    dap_chain_block_datum_index_t *l_datum_index = dap_ht_last(PVT(l_cs_blocks)->datum_index);    
+    dap_chain_block_datum_index_t *l_datum_index = dap_ht_last(PVT(l_cs_blocks)->datum_index);
     s_datum_iter_fill(a_datum_iter, l_datum_index);
     pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     return a_datum_iter->cur;

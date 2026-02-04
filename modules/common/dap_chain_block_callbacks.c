@@ -57,17 +57,17 @@ dap_chain_sovereign_tax_info_t* dap_chain_block_callbacks_get_sovereign_tax(
 {
     if (!a_pkey_hash)
         return NULL;
-    
+
     dap_chain_sovereign_tax_callback_t l_callback = NULL;
     pthread_mutex_lock(&s_callback_mutex);
     l_callback = s_sovereign_tax_callback;
     pthread_mutex_unlock(&s_callback_mutex);
-    
+
     if (!l_callback) {
         // No callback registered - no tax applies (normal for non-stake networks)
         return NULL;
     }
-    
+
     return l_callback(a_net_id, a_pkey_hash);
 }
 

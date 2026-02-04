@@ -97,7 +97,7 @@ int dap_chain_init(void)
     dap_chain_cs_init();
     // Services init
     dap_chain_srv_init();
-    
+
     // Register decree dump callback
     dap_chain_datum_register_dump_decree_callback(dap_chain_datum_decree_dump_json);
 
@@ -122,14 +122,14 @@ void dap_chain_deinit(void)
 }
 
 /**
- * @brief 
+ * @brief
  * create dap chain object
  * @param a_ledger dap_ledger_t ledger object
  * @param a_chain_net_name blockchain network name
  * @param a_chain_name chain name
- * @param a_chain_net_id 
+ * @param a_chain_net_id
  * @param a_chain_id chain id
- * @return dap_chain_t* 
+ * @return dap_chain_t*
  */
 dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id)
 {
@@ -359,7 +359,7 @@ bool dap_chain_datum_type_supported_by_chain(dap_chain_t *a_chain, uint16_t a_da
  * @param a_chain_net_name - chain name, taken from config, for example - "home21-network"
  * @param a_chain_net_id - dap_chain_net_id_t chain network identification
  * @param a_chain_cfg_name chain config name, for example "network/home21-network/chain-0"
- * @return dap_chain_t* 
+ * @return dap_chain_t*
  */
 dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, dap_config_t *a_cfg)
 {
@@ -395,7 +395,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 
     /*if (!l_chain->cells)
         dap_chain_cell_create_fill( l_chain, (dap_chain_cell_id_t){ .uint64 = 0 } );*/
-    
+
     l_chain->config = a_cfg;
     l_chain->load_priority = dap_config_get_item_uint16_default(a_cfg, "chain", "load_priority", 100);
 

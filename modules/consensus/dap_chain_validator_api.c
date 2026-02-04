@@ -50,12 +50,12 @@ void dap_chain_validator_api_register(const dap_chain_validator_api_registry_t *
         log_it(L_ERROR, "Cannot register NULL validator API");
         return;
     }
-    
+
     pthread_mutex_lock(&s_api_mutex);
     s_validator_api = *a_registry;
     s_api_registered = true;
     pthread_mutex_unlock(&s_api_mutex);
-    
+
     log_it(L_INFO, "Validator API implementation registered");
 }
 

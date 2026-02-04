@@ -94,7 +94,7 @@ static int s_anchor_verify(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_a
 
     if (!l_num_of_unique_signs || !l_unique_signs)
         return log_it(L_WARNING, "No unique signatures!"), -106;
-    
+
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     for (size_t i = 0; i < l_num_of_unique_signs; i++) {
         for (dap_list_t *it = l_ledger_pvt->decree_owners_pkeys; it; it = it->next) {
@@ -207,7 +207,7 @@ int dap_ledger_anchor_load(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t *a_a
 int dap_ledger_anchor_purge(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
 {
     dap_return_val_if_fail(a_ledger, -1);
-    
+
     dap_ledger_anchor_item_t *it = NULL, *tmp;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
@@ -284,16 +284,16 @@ static dap_chain_datum_anchor_t *s_find_previous_anchor(dap_hash_sha3_256_t *a_o
         dap_hash_sha3_256_t l_hash = {};
         if (dap_chain_datum_anchor_get_hash_from_data(l_curr_anchor, &l_hash) != 0)
             continue;
-        
+
         bool l_is_applied = false;
         dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_hash, &l_is_applied);
         if (!l_decree)
             continue;
 
-        if (l_decree->header.type == l_old_decree_type && l_old_decree_type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON && 
+        if (l_decree->header.type == l_old_decree_type && l_old_decree_type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON &&
             l_old_decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE &&
             l_decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE){
-            
+
             dap_chain_addr_t l_addr_old, l_addr_new = {};
             if (dap_chain_datum_decree_get_stake_signing_addr(l_old_decree, &l_addr_old)){
                 continue;
@@ -355,7 +355,7 @@ int dap_ledger_anchor_unload(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t * 
     dap_hash_sha3_256_t l_hash = {};
     if (dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_hash) != 0)
         return -110;
-            
+
     dap_chain_datum_decree_t *l_decree = dap_ledger_decree_get_by_hash(a_ledger, &l_hash, NULL);
     if (!l_decree)
         return -111;
@@ -369,12 +369,12 @@ int dap_ledger_anchor_unload(dap_ledger_t *a_ledger, dap_chain_datum_anchor_t * 
 
     // No callback registered - decree/anchor unload logic should be handled by respective modules:
     // - Net module handles: FEE, REWARD
-    // - Services/stake module handles: STAKE_APPROVE, STAKE_INVALIDATE, STAKE_MIN_VALUE, STAKE_MIN_VALIDATORS_COUNT  
+    // - Services/stake module handles: STAKE_APPROVE, STAKE_INVALIDATE, STAKE_MIN_VALUE, STAKE_MIN_VALIDATORS_COUNT
     // - Consensus module handles: validators, esbocs-specific logic
     // Modules should register callbacks via dap_ledger_anchor_unload_set_callback()
-    log_it(L_WARNING, "No anchor unload callback registered for decree type=%u subtype=%u", 
+    log_it(L_WARNING, "No anchor unload callback registered for decree type=%u subtype=%u",
            l_decree->header.type, l_decree->header.sub_type);
-    
+
     return 0;
 }
 

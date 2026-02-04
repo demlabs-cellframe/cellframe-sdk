@@ -17,14 +17,14 @@
 /**
  * @file dap_chain_net_srv_stake_tx_builder.h
  * @brief Stake Transaction Builders - PURE FUNCTIONS
- * 
+ *
  * These functions create UNSIGNED stake transactions.
  * They follow the same pattern as wallet TX builders.
  */
 
 /**
  * @brief Create unsigned stake lock transaction from used outputs
- * 
+ *
  * @param a_list_used_outs List of used outputs (dap_chain_tx_used_out_t*)
  * @param a_wallet_addr Wallet address (for change output)
  * @param a_main_ticker Token ticker to stake
@@ -54,7 +54,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_lock(
 
 /**
  * @brief Create unsigned stake unlock transaction from used outputs
- * 
+ *
  * @param a_list_used_outs List of used outputs
  * @param a_stake_tx_hash Hash of stake lock transaction
  * @param a_prev_cond_idx Index of conditional output
@@ -78,7 +78,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_unlock(
 
 /**
  * @brief Create unsigned stake delegation transaction
- * 
+ *
  * @param a_list_used_outs List of used outputs
  * @param a_value Delegation value
  * @param a_fee Fee amount
@@ -104,7 +104,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_delegate(
 
 /**
  * @brief Create unsigned stake invalidation transaction
- * 
+ *
  * @param a_list_used_outs List of used outputs
  * @param a_tx_hash Hash of transaction to invalidate
  * @param a_fee Fee amount
@@ -118,17 +118,17 @@ dap_chain_datum_tx_t *dap_stake_tx_create_invalidate(
 
 /**
  * @brief Register stake TX builders in TX Compose API
- * 
+ *
  * Called during stake module initialization.
  * Registers all stake transaction types with TX Compose Plugin system.
- * 
+ *
  * @return 0 on success, negative on error
  */
 int dap_stake_tx_builders_register(void);
 
 /**
  * @brief Unregister stake TX builders
- * 
+ *
  * Called during stake module deinitialization.
  */
 void dap_stake_tx_builders_unregister(void);

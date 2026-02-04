@@ -97,7 +97,7 @@ static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
 
     dap_chain_t *l_chain = (dap_chain_t *)a_arg;
     if (!l_chain) {
-        log_it(L_WARNING, "Chain context is NULL in mempool TTL delete callback for group %s key %s", 
+        log_it(L_WARNING, "Chain context is NULL in mempool TTL delete callback for group %s key %s",
                a_obj->group, a_obj->key);
         dap_global_db_driver_delete(a_obj, 1);
         return;
@@ -130,7 +130,7 @@ static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
         }
     }
 
-    log_it(L_NOTICE, "Mempool TTL cleanup: removing %s datum with key %s from chain %s mempool group %s", 
+    log_it(L_NOTICE, "Mempool TTL cleanup: removing %s datum with key %s from chain %s mempool group %s",
            l_datum_type_str, a_obj->key, l_chain->name, a_obj->group);
 
     // Mark object as being deleted by TTL (set DEL flag for notifiers to recognize)
@@ -140,8 +140,8 @@ static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
     // IMPORTANT: Notify all cluster subscribers BEFORE actual deletion
     // This allows them to react to the deletion event (e.g., update caches, logs, etc.)
     if (l_cluster->notifiers) {
-        debug_if(g_dap_global_db_debug_more, L_DEBUG, 
-                 "Notifying cluster subscribers about TTL deletion of %s:%s", 
+        debug_if(g_dap_global_db_debug_more, L_DEBUG,
+                 "Notifying cluster subscribers about TTL deletion of %s:%s",
                  a_obj->group, a_obj->key);
         dap_global_db_cluster_notify(l_cluster, a_obj);
     }
@@ -158,32 +158,32 @@ static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
 int dap_chain_mempool_delete_callback_init()
 {
     int l_registered_count = 0;
-    
+
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         dap_chain_t *l_chain = NULL;
-        
+
         // Iterate through all chains in the network
         dap_dl_foreach(l_net->pub.chains, l_chain) {
             // Get the mempool cluster for this chain
             dap_global_db_cluster_t *l_cluster = dap_chain_net_get_mempool_cluster(l_chain);
-            
+
             if (!l_cluster) {
-                log_it(L_WARNING, "Can't find mempool cluster for chain %s in network %s", 
+                log_it(L_WARNING, "Can't find mempool cluster for chain %s in network %s",
                        l_chain->name, l_net->pub.name);
                 continue;
             }
-            
+
             // Register the delete callback
             l_cluster->del_callback = s_mempool_ttl_delete_callback;
             l_cluster->del_arg = l_chain;
-            
-            log_it(L_INFO, "Registered mempool TTL delete callback for chain %s (network %s, group mask %s)", 
+
+            log_it(L_INFO, "Registered mempool TTL delete callback for chain %s (network %s, group mask %s)",
                    l_chain->name, l_net->pub.name, l_cluster->groups_mask);
-            
+
             l_registered_count++;
         }
     }
-    
+
     if (l_registered_count > 0) {
         log_it(L_NOTICE, "Mempool TTL delete callbacks initialized for %d chain(s)", l_registered_count);
         return 0;
@@ -196,13 +196,13 @@ int dap_chain_mempool_delete_callback_init()
 int dap_datum_mempool_init(void)
 {
     dap_chain_mempool_delete_callback_init();
-    
+
     // Register mempool CLI commands
     int l_cli_res = dap_chain_mempool_cli_init();
     if (l_cli_res != 0) {
         log_it(L_WARNING, "Failed to initialize mempool CLI commands: %d", l_cli_res);
     }
-    
+
     return 0;
 }
 
@@ -285,34 +285,34 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_sha3_256_t *
     // Check if this UTXO is spent by any TX in mempool
     if (!a_net || !a_out_hash)
         return false;
-    
+
     // Iterate through all chains in network
     dap_chain_t *l_chain = NULL;
     dap_dl_foreach(a_net->pub.chains, l_chain) {
         char *l_gdb_group = dap_chain_mempool_group_new(l_chain);
         if (!l_gdb_group)
             continue;
-        
+
         // Get all datums from mempool
         size_t l_objs_count = 0;
         dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_count);
         DAP_DELETE(l_gdb_group);
-        
+
         // Check each TX in mempool
         for (size_t i = 0; i < l_objs_count; i++) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
                 continue;
-            
+
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-            
+
             // Check all inputs
             byte_t *l_item = NULL;
             size_t l_item_size = 0;
             TX_ITEM_ITER_TX(l_item, l_item_size, l_tx) {
                 if (*l_item != TX_ITEM_TYPE_IN && *l_item != TX_ITEM_TYPE_IN_COND)
                     continue;
-                
+
                 dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t *)l_item;
                 if (dap_hash_sha3_256_compare(&l_in->header.tx_prev_hash, a_out_hash) &&
                     l_in->header.tx_out_prev_idx == a_out_idx) {
@@ -321,10 +321,10 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_sha3_256_t *
                 }
             }
         }
-        
+
         dap_global_db_objs_delete(l_objs, l_objs_count);
     }
-    
+
     return false;  // Not found: output is unspent
 }
 
@@ -337,27 +337,27 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed)
 {
     if (!a_chain || !a_removed)
         return;
-    
+
     *a_removed = 0;
     char *l_gdb_group = dap_chain_mempool_group_new(a_chain);
     if (!l_gdb_group)
         return;
-    
+
     // Get all mempool datums
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_count);
-    
+
     // Filter logic: remove invalid/expired datums
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
         if (!l_datum)
             continue;
-        
+
         // TODO: Add filtering criteria (e.g., expired TXs, invalid format)
         // For now, just count valid datums
         UNUSED(l_datum);
     }
-    
+
     dap_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
 }

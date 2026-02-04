@@ -143,7 +143,7 @@ void dap_datum_token_dump_tsd_to_json(dap_json_t *json_obj_out, dap_chain_datum_
                     continue;
                 dap_json_object_add_array(json_obj_out, "total_pkeys_add", l_pkeys_array);
             }
-            
+
             if(l_tsd->size >= sizeof(dap_pkey_t)) {
                     char *l_hash_str;
                     dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
@@ -170,7 +170,7 @@ void dap_datum_token_dump_tsd_to_json(dap_json_t *json_obj_out, dap_chain_datum_
                     continue;
                 dap_json_object_add_array(json_obj_out, "total_pkeys_remove", l_pkeys_remove_array);
             }
-            
+
             if(l_tsd->size == sizeof(dap_hash_sha3_256_t) ){
                     char *l_hash_str = (!dap_strcmp(a_hash_out_type,"hex")|| !dap_strcmp(a_hash_out_type, "content_hash"))
                                            ? dap_hash_sha3_256_to_str_new((dap_hash_sha3_256_t*) l_tsd->data)
@@ -276,9 +276,9 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
     dap_json_t *json_arr_items = dap_json_array_new();
     if (!json_arr_items)
         return false;
-    
+
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
-    l_is_first ? 
+    l_is_first ?
     dap_json_object_add_object(json_obj_out, a_version == 1 ? "first transaction" : "first_transaction", dap_json_object_new_string("emit")):
     dap_json_object_add_object(json_obj_out, a_version == 1 ?  "first transaction" : "first_transaction", dap_json_object_new_string(a_version == 1 ? "" : "empty"));
     dap_json_object_add_object(json_obj_out, "hash", dap_json_object_new_string(l_hash_str));
@@ -321,7 +321,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("OUT"));
             dap_json_object_add_object(json_obj_item, a_version == 1 ? "Coins" : "coins", dap_json_object_new_string(l_coins_str));
             dap_json_object_add_object(json_obj_item, a_version == 1 ? "Value": "value", dap_json_object_new_string(l_value_str));
-            dap_json_object_add_object(json_obj_item, a_version == 1 ? "Address" : "addr", dap_json_object_new_string(l_addr_str));            
+            dap_json_object_add_object(json_obj_item, a_version == 1 ? "Address" : "addr", dap_json_object_new_string(l_addr_str));
         } break;
         case TX_ITEM_TYPE_IN_EMS: {
             char l_tmp_buff[70];
@@ -354,7 +354,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
             dap_sign_get_information_json(l_sign, json_obj_item, a_hash_out_type, a_version);
             dap_chain_addr_t l_sender_addr = {};
             dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign, a_net_id);
-            dap_json_object_add_object(json_obj_item, a_version == 1 ? "Sender addr" : "sender_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&l_sender_addr)));            
+            dap_json_object_add_object(json_obj_item, a_version == 1 ? "Sender addr" : "sender_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&l_sender_addr)));
         } break;
         case TX_ITEM_TYPE_RECEIPT_OLD:{
             dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)item;
@@ -369,12 +369,12 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
             dap_json_object_add_object(json_obj_item,"coins", dap_json_object_new_string(l_coins_str));
             dap_json_object_add_object(json_obj_item,"value", dap_json_object_new_string(l_value_str));
 
-            dap_json_object_add_object(json_obj_item,"Exts",dap_json_object_new_string(""));                         
+            dap_json_object_add_object(json_obj_item,"Exts",dap_json_object_new_string(""));
             switch (l_receipt_old->exts_size) {
             case (sizeof(dap_sign_t) * 2): {
                 dap_sign_t *l_client = (dap_sign_t*)(l_receipt_old->exts_n_signs  + sizeof(dap_sign_t));
                 dap_json_object_add_object(json_obj_item,"Client", dap_json_object_new_string(""));
-                dap_sign_get_information_json(l_client, json_obj_item, a_hash_out_type, a_version);                
+                dap_sign_get_information_json(l_client, json_obj_item, a_hash_out_type, a_version);
             }
             case (sizeof(dap_sign_t)): {
                 dap_sign_t *l_provider = (dap_sign_t*)(l_receipt_old->exts_n_signs);
@@ -397,12 +397,12 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
             dap_json_object_add_object(json_obj_item, "coins", dap_json_object_new_string(l_coins_str));
             dap_json_object_add_object(json_obj_item,"value", dap_json_object_new_string(l_value_str));
             if (a_version == 1)
-                dap_json_object_add_object(json_obj_item, "Exts",dap_json_object_new_string(""));                         
+                dap_json_object_add_object(json_obj_item, "Exts",dap_json_object_new_string(""));
             switch ( ((dap_chain_datum_tx_receipt_t*)item)->exts_size ) {
             case (sizeof(dap_sign_t) * 2): {
                 dap_sign_t *l_client = (dap_sign_t*)( ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs + sizeof(dap_sign_t) );
                 dap_json_object_add_object(json_obj_item, a_version == 1 ? "Client" : "sig_inf", dap_json_object_new_string(a_version == 1 ? "" : "client"));
-                dap_sign_get_information_json(l_client, json_obj_item, a_hash_out_type, a_version);                
+                dap_sign_get_information_json(l_client, json_obj_item, a_hash_out_type, a_version);
             }
             case (sizeof(dap_sign_t)): {
                 dap_sign_t *l_provider = (dap_sign_t*)( ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs );
@@ -485,10 +485,10 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
                             ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
                             : dap_hash_sha3_256_to_str_static(&l_hash_tmp);
                     dap_json_object_add_object(json_obj_item, a_version == 1 ? "signing_addr" : "sig_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(l_signing_addr)));
-                    dap_json_object_add_object(json_obj_item, a_version == 1 ? "with pkey hash" : "sig_pkey_hash", dap_json_object_new_string(l_hash_str));                    
+                    dap_json_object_add_object(json_obj_item, a_version == 1 ? "with pkey hash" : "sig_pkey_hash", dap_json_object_new_string(l_hash_str));
                     snprintf(l_tmp_buff, sizeof(l_tmp_buff), ""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(l_signer_node_addr));
                     dap_json_object_add_object(json_obj_item, a_version == 1 ? "signer_node_addr" : "sig_node_addr", dap_json_object_new_string(l_tmp_buff));
-                    
+
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
                     const char *l_rate_str;
@@ -512,7 +512,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
                     dap_json_object_add_string(json_obj_item, "stake_ext_hash", l_stake_ext_hash_str);
                     // Position ID
                     dap_json_object_add_uint64(json_obj_item, "position_id", ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.position_id);
-                    // Lock time  
+                    // Lock time
                     dap_json_object_add_uint64(json_obj_item, "lock_time", ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_ext_lock.lock_time);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: {
@@ -569,7 +569,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("VOTING"));
             dap_json_object_add_object(json_obj_item, a_version == 1 ? "Voting question" : "voting_question", dap_json_object_new_string(l_voting_params->question));
             dap_json_object_add_object(json_obj_item, a_version == 1 ? "Answer options" : "answer_options", dap_json_object_new_string(""));
-            
+
             dap_list_t *l_temp = l_voting_params->options;
             uint8_t l_index = 0;
             while (l_temp) {
@@ -579,20 +579,20 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
             }
             if (l_voting_params->voting_expire) {
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting_params->voting_expire);
-                dap_json_object_add_object(json_obj_item, a_version == 1 ? "Voting expire" : "voting_expire", dap_json_object_new_string(l_tmp_buf));                
+                dap_json_object_add_object(json_obj_item, a_version == 1 ? "Voting expire" : "voting_expire", dap_json_object_new_string(l_tmp_buf));
             }
             if (l_voting_params->votes_max_count) {
                 dap_json_object_add_object(json_obj_item, a_version == 1 ? "Votes max count" : "votes_max_count", dap_json_object_new_uint64(l_voting_params->votes_max_count));
             }
             if (a_version == 1) {
-                dap_json_object_add_object(json_obj_item,"Changing vote is", l_voting_params->vote_changing_allowed ? dap_json_object_new_string("available") : 
+                dap_json_object_add_object(json_obj_item,"Changing vote is", l_voting_params->vote_changing_allowed ? dap_json_object_new_string("available") :
                                     dap_json_object_new_string("not available"));
                 l_voting_params->delegate_key_required ?
                     dap_json_object_add_object(json_obj_item, "Delegated key for participating in voting", dap_json_object_new_string("required")) :
-                    dap_json_object_add_object(json_obj_item, "Delegated key for participating in voting", dap_json_object_new_string("not required"));  
+                    dap_json_object_add_object(json_obj_item, "Delegated key for participating in voting", dap_json_object_new_string("not required"));
             } else {
                 dap_json_object_add_bool(json_obj_item,"changing_vote", l_voting_params->vote_changing_allowed);
-                dap_json_object_add_bool(json_obj_item,"delegate_key_required", l_voting_params->delegate_key_required);   
+                dap_json_object_add_bool(json_obj_item,"delegate_key_required", l_voting_params->delegate_key_required);
             }
 
             dap_list_free_full(l_voting_params->options, NULL);

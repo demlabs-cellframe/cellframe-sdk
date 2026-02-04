@@ -32,10 +32,10 @@
 /**
  * @file dap_chain_net_srv_tx.h
  * @brief Network Service TX creation functions
- * 
+ *
  * Service-related TX operations:
  * - Conditional output - TX для сервисов с условиями
- * 
+ *
  * Эти функции регистрируются в TX Compose API при инициализации net/srv модуля
  */
 
@@ -45,7 +45,7 @@ extern "C" {
 
 /**
  * @brief Create conditional output transaction (PURE)
- * 
+ *
  * @param a_list_used_outs Pre-found UTXO inputs
  * @param a_pkey_cond_hash Public key hash for condition
  * @param a_token_ticker Token ticker
@@ -73,7 +73,7 @@ dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_output(
 
 /**
  * @brief Create conditional input transaction (spend conditional output)
- * 
+ *
  * @param a_tx_prev_hash Hash of TX with conditional output
  * @param a_tx_out_prev_idx Output index in previous TX
  * @param a_receipt Receipt for spending
@@ -93,16 +93,16 @@ dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_input(
 
 /**
  * @brief Register net/srv TX builders in TX Compose API
- * 
+ *
  * Called automatically during net/srv module initialization
- * 
+ *
  * @return 0 on success, negative on error
  */
 int dap_net_srv_tx_builders_register(void);
 
 /**
  * @brief Unregister net/srv TX builders
- * 
+ *
  * Called automatically during net/srv module deinitialization
  */
 void dap_net_srv_tx_builders_unregister(void);

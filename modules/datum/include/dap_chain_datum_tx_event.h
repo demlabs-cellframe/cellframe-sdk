@@ -70,13 +70,13 @@ DAP_STATIC_INLINE const char *dap_chain_tx_item_event_type_to_str(uint16_t a_eve
 
 DAP_STATIC_INLINE int dap_chain_tx_item_event_type_from_str(const char *a_event_type_str)
 {
-    if (!dap_strcmp(a_event_type_str, "stake_ext_started")) 
+    if (!dap_strcmp(a_event_type_str, "stake_ext_started"))
         return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED;
-    if (!dap_strcmp(a_event_type_str, "stake_ext_lock_placed")) 
+    if (!dap_strcmp(a_event_type_str, "stake_ext_lock_placed"))
         return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_LOCK_PLACED;
-    if (!dap_strcmp(a_event_type_str, "stake_ext_ended")) 
+    if (!dap_strcmp(a_event_type_str, "stake_ext_ended"))
         return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED;
-    if (!dap_strcmp(a_event_type_str, "stake_ext_cancelled")) 
+    if (!dap_strcmp(a_event_type_str, "stake_ext_cancelled"))
         return DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_CANCELLED;
     return -1;
 }

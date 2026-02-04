@@ -311,7 +311,7 @@ uint8_t *dap_chain_esbocs_get_custom_metadata(dap_chain_esbocs_session_t *a_sess
  * @param a_callback Callback function pointer or NULL to disable
  * @return 0 on success, negative error code on failure
  */
-int dap_chain_esbocs_set_custom_metadata_callback(dap_chain_net_id_t a_net_id, 
+int dap_chain_esbocs_set_custom_metadata_callback(dap_chain_net_id_t a_net_id,
                                                   dap_chain_esbocs_callback_set_custom_metadata_t a_callback);
 
 /**

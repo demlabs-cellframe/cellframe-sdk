@@ -67,7 +67,7 @@ int dap_chain_net_srv_datum_init()
 
     dap_chain_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_DATUM_ID };
     dap_ledger_service_add(l_uid, "datum", s_tag_check_datum);
-    
+
     return 0;
 }
 
@@ -145,7 +145,7 @@ static int s_srv_datum_cli(int argc, char ** argv, dap_json_t *a_json_arr_reply,
             size_t l_path_length = strlen(l_system_datum_folder)+8+strlen(l_datum_hash_str);
             char l_path[l_path_length];
             snprintf(l_path, l_path_length, "%s/%s.datum", l_system_datum_folder, l_datum_hash_str);
-            
+
             char * l_file_dir = dap_path_get_dirname(l_path);
             dap_mkdir_with_parents(l_file_dir);
             DAP_DELETE(l_file_dir);
@@ -193,7 +193,7 @@ static int s_srv_datum_cli(int argc, char ** argv, dap_json_t *a_json_arr_reply,
                 dap_json_t *json_obj_out = dap_json_object_new();
                 char *l_status = dap_strdup_printf("Datum custom %s was successfully placed to mempool", l_datum_hash_str);
                 dap_json_object_add_string(json_obj_out, "status", l_status);
-                DAP_DELETE(l_status); 
+                DAP_DELETE(l_status);
                 DAP_DELETE(l_ret);
                 dap_json_array_add(a_json_arr_reply, json_obj_out);
                 return 0;

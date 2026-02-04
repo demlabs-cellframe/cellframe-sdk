@@ -1,7 +1,7 @@
 /**
  * @file dap_chain_cs.h
  * @brief Chain callbacks helper functions
- * 
+ *
  * Callback structure dap_chain_cs_callbacks_t defined in dap_chain_cs_callbacks.h
  * This file provides registration and retrieval functions
  */
@@ -59,7 +59,7 @@ int dap_chain_cs_set_hardfork_state(dap_chain_t *a_chain, bool a_state);
 bool dap_chain_cs_hardfork_engaged(dap_chain_t *a_chain);
 
 // Stake service wrappers
-int dap_chain_cs_stake_check_pkey_hash(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_pkey_hash, 
+int dap_chain_cs_stake_check_pkey_hash(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_pkey_hash,
                                        uint256_t *a_sovereign_tax, dap_chain_addr_t *a_sovereign_addr);
 int dap_chain_cs_stake_hardfork_data_import(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_decree_hash);
 int dap_chain_cs_stake_switch_table(dap_chain_t *a_chain, bool a_to_sandbox);

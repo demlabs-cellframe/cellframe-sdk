@@ -56,15 +56,15 @@ static int s_policy_decree_dispatcher(dap_chain_datum_decree_t *a_decree, dap_ch
 {
     uint16_t l_subtype = a_decree->header.sub_type;
     dap_policy_decree_handler_t *l_handler = NULL;
-    
+
     pthread_rwlock_rdlock(&s_policy_decree_rwlock);
     dap_ht_find_hh(hh, s_policy_decree_handlers, &l_subtype, sizeof(uint16_t), l_handler);
     pthread_rwlock_unlock(&s_policy_decree_rwlock);
-    
+
     if (l_handler && l_handler->callback) {
         return l_handler->callback(a_decree, a_chain, a_apply, l_handler->arg);
     }
-    
+
     log_it(L_DEBUG, "No policy handler registered for decree subtype %u", l_subtype);
     return 0;  // Not an error - just no handler
 }
@@ -76,15 +76,15 @@ static int s_policy_anchor_dispatcher(dap_chain_datum_anchor_t *a_anchor, dap_ch
 {
     uint16_t l_subtype = a_anchor->header.sub_type;
     dap_policy_anchor_handler_t *l_handler = NULL;
-    
+
     pthread_rwlock_rdlock(&s_policy_anchor_rwlock);
     dap_ht_find_hh(hh, s_policy_anchor_handlers, &l_subtype, sizeof(uint16_t), l_handler);
     pthread_rwlock_unlock(&s_policy_anchor_rwlock);
-    
+
     if (l_handler && l_handler->callback) {
         return l_handler->callback(a_anchor, a_chain, a_anchor_hash, l_handler->arg);
     }
-    
+
     log_it(L_DEBUG, "No policy handler registered for anchor subtype %u", l_subtype);
     return 0;  // Not an error - just no handler
 }
@@ -101,21 +101,21 @@ int dap_chain_policy_decree_callback_register(
         log_it(L_ERROR, "Cannot register NULL policy decree callback");
         return -1;
     }
-    
+
     dap_policy_decree_handler_t *l_handler = DAP_NEW_Z(dap_policy_decree_handler_t);
     if (!l_handler) {
         log_it(L_CRITICAL, "Memory allocation failed");
         return -2;
     }
-    
+
     l_handler->decree_subtype = a_decree_subtype;
     l_handler->callback = a_callback;
     l_handler->arg = a_arg;
-    
+
     pthread_rwlock_wrlock(&s_policy_decree_rwlock);
     dap_ht_add_hh(hh, s_policy_decree_handlers, decree_subtype, l_handler);
     pthread_rwlock_unlock(&s_policy_decree_rwlock);
-    
+
     log_it(L_INFO, "Registered policy decree callback for subtype %u", a_decree_subtype);
     return 0;
 }
@@ -132,21 +132,21 @@ int dap_chain_policy_anchor_callback_register(
         log_it(L_ERROR, "Cannot register NULL policy anchor callback");
         return -1;
     }
-    
+
     dap_policy_anchor_handler_t *l_handler = DAP_NEW_Z(dap_policy_anchor_handler_t);
     if (!l_handler) {
         log_it(L_CRITICAL, "Memory allocation failed");
         return -2;
     }
-    
+
     l_handler->anchor_subtype = a_anchor_subtype;
     l_handler->callback = a_callback;
     l_handler->arg = a_arg;
-    
+
     pthread_rwlock_wrlock(&s_policy_anchor_rwlock);
     dap_ht_add_hh(hh, s_policy_anchor_handlers, anchor_subtype, l_handler);
     pthread_rwlock_unlock(&s_policy_anchor_rwlock);
-    
+
     log_it(L_INFO, "Registered policy anchor callback for subtype %u", a_anchor_subtype);
     return 0;
 }
@@ -159,7 +159,7 @@ int dap_chain_policy_anchor_callback_register(
 int dap_chain_policy_init(void)
 {
     log_it(L_NOTICE, "Initializing chain policy module");
-    
+
     // Register generic dispatcher with ledger for all decree types
     // Net/consensus/services will register specific handlers in policy
     dap_ledger_decree_handler_register(
@@ -167,13 +167,13 @@ int dap_chain_policy_init(void)
         s_policy_decree_dispatcher,
         NULL
     );
-    
+
     dap_ledger_anchor_handler_register(
         0,  // Will handle all subtypes
         s_policy_anchor_dispatcher,
         NULL
     );
-    
+
     log_it(L_NOTICE, "Chain policy module initialized successfully");
     return 0;
 }
@@ -184,21 +184,21 @@ int dap_chain_policy_init(void)
 void dap_chain_policy_deinit(void)
 {
     log_it(L_NOTICE, "Deinitializing chain policy module");
-    
+
     // Free decree handlers
     dap_policy_decree_handler_t *l_handler, *l_tmp;
     dap_ht_foreach_hh(hh, s_policy_decree_handlers, l_handler, l_tmp) {
         dap_ht_del(s_policy_decree_handlers, l_handler);
         DAP_DELETE(l_handler);
     }
-    
+
     // Free anchor handlers
     dap_policy_anchor_handler_t *l_anchor_handler, *l_anchor_tmp;
     dap_ht_foreach_hh(hh, s_policy_anchor_handlers, l_anchor_handler, l_anchor_tmp) {
         dap_ht_del(s_policy_anchor_handlers, l_anchor_handler);
         DAP_DELETE(l_anchor_handler);
     }
-    
+
     pthread_rwlock_destroy(&s_policy_decree_rwlock);
     pthread_rwlock_destroy(&s_policy_anchor_rwlock);
 }

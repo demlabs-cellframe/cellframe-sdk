@@ -119,8 +119,8 @@ typedef const char* (*dap_ledger_wallet_check_sign_callback_t)(const char *a_wal
 
 // Mempool callbacks - ledger calls these to add/check mempool
 typedef char* (*dap_ledger_mempool_add_datum_callback_t)(void *a_datum, void *a_chain, const char *a_hash_out_type);
-typedef char* (*dap_ledger_mempool_create_tx_callback_t)(void *a_chain, dap_enc_key_t *a_key, void *a_from, 
-                                                          const void **a_to, uint256_t *a_value, uint256_t *a_fee, 
+typedef char* (*dap_ledger_mempool_create_tx_callback_t)(void *a_chain, dap_enc_key_t *a_key, void *a_from,
+                                                          const void **a_to, uint256_t *a_value, uint256_t *a_fee,
                                                           const char *a_token, const char *a_hash_out_type);
 
 // Wallet cache callbacks - for optimized transaction history lookups
@@ -156,61 +156,61 @@ typedef struct dap_ledger {
     dap_chain_net_id_t net_id;         // Network ID
     dap_chain_id_t *chain_ids;         // Array of chain IDs managed by this ledger
     size_t chain_ids_count;            // Number of chain IDs
-    
+
     // Network context - set by net module via setters
     char native_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t fee_value;
     dap_chain_addr_t fee_addr;
     dap_list_t *poa_keys;  // PoA keys for signature validation
     uint16_t poa_keys_min_count;
-    
+
     // Ledger state flags
     bool is_hardfork_state;
     bool load_mode;
     bool check_ds;
     bool is_syncing;
-    
+
     // Callbacks
     dap_ledger_set_fee_callback_t set_fee_callback;
     dap_ledger_reward_removed_callback_t reward_removed_callback;
     dap_ledger_calc_reward_callback_t calc_reward_callback;  // Calculate reward for block
-    
+
     // Decree operation callbacks
     dap_ledger_decree_set_fee_callback_t decree_set_fee_callback;
     dap_ledger_get_cur_cell_callback_t get_cur_cell_callback;  // Get current cell for decree operations
-    
+
     // Generic decree handler - for subtypes not handled in ledger (hardfork, consensus-specific, etc)
     // This is registered by net/consensus/services modules for their specific decree subtypes
     dap_ledger_decree_handler_callback_t decree_generic_callback;
-    
+
     // Chain registry - chains register themselves with ledger
     dap_chain_info_t *chains_registry;  // Hash table of registered chains (from dap_chain.h)
-    
+
     // Wallet callbacks - for operations without exposing private keys
     dap_ledger_wallet_sign_callback_t wallet_sign_callback;
     dap_ledger_wallet_get_pkey_hash_callback_t wallet_get_pkey_hash_callback;
     dap_ledger_wallet_get_pkey_callback_t wallet_get_pkey_callback;
     dap_ledger_wallet_get_addr_callback_t wallet_get_addr_callback;
     dap_ledger_wallet_check_sign_callback_t wallet_check_sign_callback;
-    
+
     // Wallet cache callbacks - for optimized tx history lookups
     dap_ledger_wallet_cache_tx_find_in_history_callback_t wallet_cache_tx_find_in_history_callback;
     dap_ledger_wallet_cache_iter_create_callback_t wallet_cache_iter_create_callback;
     dap_ledger_wallet_cache_iter_get_callback_t wallet_cache_iter_get_callback;
     dap_ledger_wallet_cache_iter_delete_callback_t wallet_cache_iter_delete_callback;
-    
+
     // Mempool callbacks - for adding datums/tx to mempool
     dap_ledger_mempool_add_datum_callback_t mempool_add_datum_callback;
     dap_ledger_mempool_create_tx_callback_t mempool_create_tx_callback;
-    
+
     // Network callbacks - for net state queries (registered by net module)
     bool (*net_get_load_mode_callback)(dap_chain_net_id_t a_net_id);  // Is network in load mode?
     int (*net_get_state_callback)(dap_chain_net_id_t a_net_id);       // Get network state
     char* (*net_get_name_callback)(dap_chain_net_id_t a_net_id);      // Get network name
-    
+
     // Private data
     void *_internal;
-    
+
     // Hash table handle for global ledger registry
     dap_ht_handle_t hh;
 } dap_ledger_t;
@@ -340,13 +340,13 @@ typedef enum dap_ledger_check_error {
 
 typedef enum dap_ledger_notify_opcodes {
     DAP_LEDGER_NOTIFY_OPCODE_ADDED = 'a', // 0x61
-    DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64 
+    DAP_LEDGER_NOTIFY_OPCODE_DELETED = 'd', // 0x64
 } dap_ledger_notify_opcodes_t;
-typedef enum dap_chain_tx_tag_action_type {    
+typedef enum dap_chain_tx_tag_action_type {
 
     //subtags, till 32
     DAP_CHAIN_TX_TAG_ACTION_UNKNOWN  =              1 << 1,
-    
+
     DAP_CHAIN_TX_TAG_ACTION_TRANSFER_REGULAR =      1 << 2,
     DAP_CHAIN_TX_TAG_ACTION_TRANSFER_COMISSION =    1 << 3,
     DAP_CHAIN_TX_TAG_ACTION_TRANSFER_CROSSCHAIN =   1 << 4,
@@ -365,7 +365,7 @@ typedef enum dap_chain_tx_tag_action_type {
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_TAKE =    1 << 14,
     DAP_CHAIN_TX_TAG_ACTION_EMIT_DELEGATE_REFILL =  1 << 15,
     DAP_CHAIN_TX_TAG_ACTION_EVENT =                 1 << 16,
-   
+
     DAP_CHAIN_TX_TAG_ACTION_ALL =                          ~0,
 } dap_chain_tx_tag_action_type_t;
 
@@ -537,10 +537,10 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options);
 dap_ledger_create_options_t *dap_ledger_create_options_default(void);
 
 // Balance change notification registration
-void dap_ledger_balance_change_notifier_register(dap_ledger_t *a_ledger, 
+void dap_ledger_balance_change_notifier_register(dap_ledger_t *a_ledger,
                                                   dap_ledger_balance_change_callback_t a_callback,
                                                   void *a_user_data);
-void dap_ledger_balance_change_notifier_unregister(dap_ledger_t *a_ledger, 
+void dap_ledger_balance_change_notifier_unregister(dap_ledger_t *a_ledger,
                                                     dap_ledger_balance_change_callback_t a_callback);
 
 // Check if ledger manages specific chain_id
@@ -578,7 +578,7 @@ void dap_ledger_set_decree_set_fee_callback(dap_ledger_t *a_ledger, dap_ledger_d
 void dap_ledger_set_decree_generic_callback(dap_ledger_t *a_ledger, dap_ledger_decree_handler_callback_t a_callback);
 
 // Chain registration API - called by net module during chain initialization
-int dap_ledger_register_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id, const char *a_chain_name, 
+int dap_ledger_register_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id, const char *a_chain_name,
                                 uint16_t a_chain_type, void *a_chain_ptr);
 void dap_ledger_unregister_chain(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 dap_chain_info_t* dap_ledger_get_chain_info(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
@@ -586,7 +586,7 @@ dap_chain_info_t* dap_ledger_get_chain_info_by_name(dap_ledger_t *a_ledger, cons
 
 // Wallet callbacks registration - called by wallet module during init
 // Hardware wallet friendly - sign callback may take up to 30 seconds
-void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger, 
+void dap_ledger_set_wallet_callbacks(dap_ledger_t *a_ledger,
                                        dap_ledger_wallet_sign_callback_t a_sign_cb,
                                        dap_ledger_wallet_get_pkey_hash_callback_t a_get_pkey_hash_cb,
                                        dap_ledger_wallet_get_pkey_callback_t a_get_pkey_cb,
@@ -611,9 +611,9 @@ void dap_ledger_set_get_cur_cell_callback(dap_ledger_t *a_ledger,
 // Universal data signing API - hardware wallet friendly
 // Signs ANY data using wallet's sign callback, may wait up to 30 seconds for hardware wallets
 // Returns signature or NULL on error/timeout. Signature must be freed by caller.
-dap_sign_t *dap_ledger_sign_data(dap_ledger_t *a_ledger, 
+dap_sign_t *dap_ledger_sign_data(dap_ledger_t *a_ledger,
                                    const char *a_wallet_name,
-                                   const void *a_data, 
+                                   const void *a_data,
                                    size_t a_data_size,
                                    uint32_t a_key_idx);
 
@@ -724,7 +724,7 @@ const char *dap_ledger_tx_action_str(dap_chain_tx_tag_action_type_t a_tag);
 dap_chain_tx_tag_action_type_t dap_ledger_tx_action_str_to_action_t(const char *a_str);
 const char *dap_ledger_tx_tag_str_by_uid(dap_chain_srv_uid_t a_service_uid);
 
-bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash, 
+bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash,
                                 dap_chain_srv_uid_t *a_uid, char **a_service_name,  dap_chain_tx_tag_action_type_t *a_action);
 
 
@@ -799,10 +799,10 @@ dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, dap_chain_t
 
 /**
  * @brief Get list of UTXOs for specific address and value
- * 
+ *
  * This function finds sufficient UTXOs to cover the requested value.
  * It's used by TX builders to select inputs for transactions.
- * 
+ *
  * @param a_ledger Ledger instance
  * @param a_token_ticker Token ticker
  * @param a_addr_from Source address
@@ -821,16 +821,16 @@ bool dap_ledger_check_condition_owner(dap_ledger_t *a_ledger, dap_hash_sha3_256_
 
 /**
  * @brief Find unspent outputs (UTXO) that cover the specified value
- * 
+ *
  * PUBLIC API для TX Compose - поиск UTXO для создания транзакций
- * 
+ *
  * @param a_ledger Ledger context
  * @param a_token_ticker Token ticker
  * @param a_addr_from Source address
  * @param a_value_need Total value needed (включая fee)
  * @param a_value_found OUT: Total value found (может быть больше чем нужно)
  * @return List of dap_chain_tx_used_out_t* or NULL if insufficient funds
- * 
+ *
  * NOTE: Caller must free the returned list and its elements
  */
 dap_list_t *dap_ledger_get_utxo_for_value(
@@ -925,8 +925,8 @@ void dap_ledger_set_blockchain_time(dap_ledger_t *a_ledger, dap_time_t a_time);
  * @details Helper functions for compose operations working with JSON outputs
  * @note Moved from compose module to ledger to break circular dependencies
  */
-dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, int a_outputs_count, 
-                                                     uint256_t a_value_need, uint256_t *a_value_transfer, 
+dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, int a_outputs_count,
+                                                     uint256_t a_value_need, uint256_t *a_value_transfer,
                                                      bool a_need_all_outputs);
 
 /**
@@ -940,8 +940,8 @@ dap_list_t *dap_ledger_get_list_tx_outs_from_json(dap_json_t *a_outputs_array, i
  * @param a_verbose Verbose mode
  * @param a_version Output format version
  */
-void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_out,  
-                                 dap_chain_datum_t *a_datum, const char *a_hash_out_type, 
+void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_out,
+                                 dap_chain_datum_t *a_datum, const char *a_hash_out_type,
                                  dap_chain_net_id_t a_net_id, bool a_verbose, int a_version);
 
 #ifdef __cplusplus

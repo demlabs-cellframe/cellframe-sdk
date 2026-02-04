@@ -1,6 +1,6 @@
 /*
  * Unit Test Fixtures - DAP SDK Mocking & Isolation
- * 
+ *
  * Provides fixtures for isolated unit tests with DAP SDK mocking.
  * These fixtures ensure tests are independent from DAP SDK implementation.
  */
@@ -130,19 +130,19 @@ typedef struct {
     bool mock_events;            // dap-sdk/core/events
     bool mock_proc_thread;       // dap-sdk/core/proc_thread
     bool mock_worker;            // dap-sdk/core/worker
-    
+
     // Network modules
     bool mock_net_client;        // dap-sdk/net/client
     bool mock_net_server;        // dap-sdk/net/server
     bool mock_stream;            // dap-sdk/net/stream
-    
+
     // JSON module
     bool mock_json;              // dap-sdk/core/json
-    
+
     // Time & timer
     bool mock_time;              // dap-sdk/core/time
     bool mock_timerfd;           // dap-sdk/core/timerfd
-    
+
     // Memory & IO
     bool mock_file_utils;        // dap-sdk/core/file_utils
     bool mock_ring_buffer;       // dap-sdk/core/ring_buffer
@@ -156,15 +156,15 @@ typedef struct {
     char *test_dir;              // Temporary test directory
     char *config_path;           // Path to generated config
     dap_config_t *config;        // Test configuration
-    
+
     // DAP SDK mocking configuration
     dap_sdk_mock_flags_t mock_flags;
-    
+
     // Mocked components (references only, not owned)
     void *mock_crypto;           // Mocked crypto context
     void *mock_global_db;        // Mocked global DB
     void *mock_events;           // Mocked event system
-    
+
     // Legacy flags (deprecated, use mock_flags instead)
     bool crypto_mocked;
     bool db_mocked;
@@ -178,10 +178,10 @@ typedef struct {
 
 /**
  * @brief Initialize unit test context
- * 
+ *
  * Sets up isolated test environment with mocked DAP SDK components.
  * Creates temporary directory and minimal configuration.
- * 
+ *
  * @param a_test_name Test name (used for directory naming)
  * @return Initialized context or NULL on error
  */
@@ -189,33 +189,33 @@ unit_test_context_t *unit_test_fixture_init(const char *a_test_name);
 
 /**
  * @brief Cleanup unit test context
- * 
+ *
  * Removes temporary files and frees resources.
- * 
+ *
  * @param a_ctx Test context to cleanup
  */
 void unit_test_fixture_cleanup(unit_test_context_t *a_ctx);
 
 /**
  * @brief Generate minimal test configuration
- * 
+ *
  * Creates a minimal config file for unit tests without external dependencies.
- * 
+ *
  * @param a_ctx Test context
  * @param a_section Section name
  * @param a_params NULL-terminated array of "key=value" strings
  * @return 0 on success, negative on error
  */
-int unit_test_config_generate(unit_test_context_t *a_ctx, 
+int unit_test_config_generate(unit_test_context_t *a_ctx,
                                const char *a_section,
                                const char **a_params);
 
 /**
  * @brief Setup DAP SDK mocks with fine-grained control
- * 
+ *
  * Initializes mocks for specific DAP SDK modules to isolate unit tests.
  * Uses dap_mock framework for function wrapping.
- * 
+ *
  * @param a_ctx Test context
  * @param a_mock_flags Flags indicating which modules to mock
  * @return 0 on success, negative on error
@@ -225,7 +225,7 @@ int unit_test_mock_dap_sdk_ex(unit_test_context_t *a_ctx,
 
 /**
  * @brief Setup DAP SDK mocks (legacy API)
- * 
+ *
  * @deprecated Use unit_test_mock_dap_sdk_ex() for fine-grained control
  * @param a_ctx Test context
  * @param a_mock_crypto Enable crypto mocking
@@ -240,9 +240,9 @@ int unit_test_mock_dap_sdk(unit_test_context_t *a_ctx,
 
 /**
  * @brief Enable/disable specific DAP SDK module mock at runtime
- * 
+ *
  * Allows dynamic toggling of mocks during test execution.
- * 
+ *
  * @param a_ctx Test context
  * @param a_module_name Module name (e.g. "crypto", "global_db", "events")
  * @param a_enable Enable or disable the mock

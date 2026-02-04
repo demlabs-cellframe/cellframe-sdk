@@ -138,14 +138,14 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     // Receipt size calculation is non-trivial...
     case TX_ITEM_TYPE_RECEIPT_OLD:{
         if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
-            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_old_t) < a_max_size && 
-                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size < a_max_size ) ? 
+            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_old_t) < a_max_size &&
+                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size < a_max_size ) ?
                                     ((dap_chain_datum_tx_receipt_old_t*)a_item)->size : 0;
     }
     case TX_ITEM_TYPE_RECEIPT:{
-        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version == 2) 
-            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_t) < a_max_size && 
-                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size < a_max_size ) ? 
+        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version == 2)
+            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_t) < a_max_size &&
+                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size < a_max_size ) ?
                                         ((dap_chain_datum_tx_receipt_t*)a_item)->size : 0;
     }
     default: return 0;
@@ -298,7 +298,7 @@ DAP_INLINE dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_
 {
     dap_return_val_if_pass(!a_key ||!a_key->header.size, NULL);
     dap_hash_sha3_256_t l_key_hash = { };
-    
+
     return dap_hash_sha3_256(a_key->pkey, a_key->header.size, &l_key_hash) ?
         dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(&l_key_hash, a_srv_uid, a_value, a_value_max_per_unit, a_unit, a_params, a_params_size) :
         NULL;
@@ -372,7 +372,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     bool l_tsd_sovereign_addr = a_sovereign_addr && !dap_chain_addr_is_blank(a_sovereign_addr);
     size_t l_pkey_size = a_pkey ? dap_pkey_get_size(a_pkey) : 0;
     size_t l_tsd_total_size = dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(l_tsd_sovereign_addr, l_pkey_size);
-    
+
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + l_tsd_total_size, NULL);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
@@ -401,7 +401,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_deleg
 {
     if (IS_ZERO_256(a_value))
         return NULL;
-    
+
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
@@ -448,7 +448,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
 /**
  * @brief dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_lock
  * Create conditional output transaction item for stake_ext lock
- * 
+ *
  * @param a_srv_uid Service UID for stake_ext service
  * @param a_value Lock amount in datoshi
  * @param a_stake_ext_hash Hash of the stake_ext being lock on
@@ -467,28 +467,28 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_l
 {
     if (IS_ZERO_256(a_value) || !a_stake_ext_hash)
         return NULL;
-    
-    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, 
+
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t,
                                                                       sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
-    
+
     // Set header fields
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK;
     l_item->header.srv_uid = a_srv_uid;
-    
+
     // Set stake_ext lock specific fields
     l_item->subtype.srv_stake_ext_lock.stake_ext_hash = *a_stake_ext_hash;
     l_item->subtype.srv_stake_ext_lock.range_end = 1; // Default to 1
     l_item->subtype.srv_stake_ext_lock.lock_time = a_lock_time;
     l_item->subtype.srv_stake_ext_lock.position_id = a_position_id;
-    
+
     // Copy additional parameters if provided
     if (a_params && a_params_size) {
         l_item->tsd_size = (uint32_t)a_params_size;
         memcpy(l_item->tsd, a_params, a_params_size);
     }
-    
+
     return l_item;
 }
 

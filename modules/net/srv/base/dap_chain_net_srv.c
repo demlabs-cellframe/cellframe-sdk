@@ -80,7 +80,7 @@ int dap_chain_net_srv_init()
         log_it(L_ERROR, "Failed to register net/srv TX builders");
         return -1;
     }
-    
+
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL, NULL, s_pay_updater_callback, NULL, NULL);
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, NULL, "Network services managment",   0 ,
         "net_srv -net <net_name> order find [-direction {sell|buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
@@ -232,7 +232,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
             } else if (!dap_strcmp(l_order_str, "update")) {
                 if (!l_order_hash_str) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_ERR, "Can't find option '-hash'\n");
-                    l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_ERR;                    
+                    l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_ERR;
                 } else {
                     dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_hex_str);
                     if(!l_order) {
@@ -275,7 +275,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                         } else {
                             json_obj_net_srv = dap_json_object_new();
                             dap_json_object_add_string(json_obj_net_srv, "status", "not updated");
-                        }                            
+                        }
                         DAP_DELETE(l_order);
                     }
                 }
@@ -365,7 +365,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                 bool l_tx_to_json = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-tx_to_json", NULL);
                 if ( l_order_hash_str ){
                     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
-                    json_obj_net_srv = dap_json_object_new();                    
+                    json_obj_net_srv = dap_json_object_new();
                     if (l_order) {
                         if (l_tx_to_json) {
                             uint64_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
@@ -381,14 +381,14 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                             dap_chain_net_srv_order_dump_to_json(l_order, json_obj_net_srv, l_hash_out_type, l_net->pub.native_ticker, a_version);
                             l_ret = 0;
                         }
-                    } else {                        
+                    } else {
                         if(!dap_strcmp(l_hash_out_type,"hex"))
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DUMP_CANT_FIND_ERR,
                                                                     "Can't find order with hash %s\n", l_order_hash_hex_str );
                         else
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DUMP_CANT_FIND_ERR,
                                                                     "Can't find order with hash %s\n", l_order_hash_base58_str );
-                        l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DUMP_CANT_FIND_ERR;                        
+                        l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_DUMP_CANT_FIND_ERR;
                     }
                 }
                 // else {  memory ciller cmd
@@ -421,7 +421,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
 
-                    json_obj_net_srv = dap_json_object_new();                    
+                    json_obj_net_srv = dap_json_object_new();
                     l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
                     if (!l_ret)
                         dap_json_object_add_string(json_obj_net_srv, "order_hash", l_order_hash_str);
@@ -494,7 +494,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                     l_price = dap_chain_balance_scan(l_price_str);
 
                     uint64_t l_units = strtoull(l_units_str, NULL, 10);
-                    
+
                     if (!dap_strcmp(l_price_unit_str, "B")){
                         l_price_unit.enm = SERV_UNIT_B;
                     } else if (!dap_strcmp(l_price_unit_str, "KB")){
@@ -515,8 +515,8 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_UNDEF_PRICE_UNIT_ERR,
                                                                 "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
                         return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_UNDEF_PRICE_UNIT_ERR;
-                    } 
-                    
+                    }
+
                     strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                     size_t l_ext_len = l_ext ? strlen(l_ext) + 1 : 0;
                     // get cert to order sign
@@ -557,7 +557,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_ORDER_ERR,
                             "Error! Can't created order\n");
                         l_ret = -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_ORDER_ERR;
-                    }    
+                    }
                 } else {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_MISSED_PARAM_ERR,
                         "Missed some required params\n");

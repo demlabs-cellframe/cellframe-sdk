@@ -108,7 +108,7 @@ typedef struct dap_chain {
 
     bool is_datum_pool_proc;
     bool is_mapped;
-    atomic_int load_progress; 
+    atomic_int load_progress;
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;
 
@@ -186,11 +186,11 @@ typedef struct dap_chain {
     dap_hash_sha3_256_t hardfork_decree_hash;
     uint16_t hardfork_generation;
     struct hardfork_states *hardfork_data;
-    
+
     // Callbacks (break circular dependencies between modules)
     // All callbacks unified in single structure
     dap_chain_cs_callbacks_t *cs_callbacks;
-    
+
     void * _pvt; // private data
     void * _inheritor; // inheritor object
 } dap_chain_t;

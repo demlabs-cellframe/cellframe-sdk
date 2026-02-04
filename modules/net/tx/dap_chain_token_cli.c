@@ -257,14 +257,14 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
 
     log_it(L_DEBUG, "Requested to sign token declaration %s in gdb://%s with certs %s", l_gdb_group_mempool, l_datum_hash_str, l_certs_str);
-    
+
     size_t l_datum_size = 0;
     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group_mempool,
                                                                              dap_hash_sha3_256_to_str_static(&l_datum_hash),
                                                                              &l_datum_size, NULL, NULL);
     if (!l_datum) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_FIND_DATUM_ERR,
-                                                    "token_decl_sign can't find datum with %s hash in the mempool of %s:%s", 
+                                                    "token_decl_sign can't find datum with %s hash in the mempool of %s:%s",
                                                                                     l_datum_hash_str,
                                                                                     l_net ? l_net->pub.name: "<undefined>",
                                                                                     l_chain ? l_chain->name : "<undefined>");
@@ -338,7 +338,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
     }
     DAP_DELETE(l_datum);
     // Remove old datum from pool
-    if( dap_global_db_del_sync(l_gdb_group_mempool, dap_hash_sha3_256_to_str_static(&l_datum_hash) ) != 0) {                                   
+    if( dap_global_db_del_sync(l_gdb_group_mempool, dap_hash_sha3_256_to_str_static(&l_datum_hash) ) != 0) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR,
                                     "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)", l_datum_hash_str, l_out_hash_str);
         DAP_DELETE(l_gdb_group_mempool);
@@ -348,7 +348,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
     dap_json_object_add_bool(l_jobj_reply, "status_placed", true);
     dap_json_object_add_string(l_jobj_reply, "old_hash", l_datum_hash_str);
     dap_json_object_add_string(l_jobj_reply, "new_hash", l_out_hash_str);
-    log_it(L_NOTICE, "Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s", l_datum_hash_str, l_out_hash_str);   
+    log_it(L_NOTICE, "Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s", l_datum_hash_str, l_out_hash_str);
 
     return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_OK;
 }
@@ -1274,7 +1274,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     const char * l_chain_emission_str = NULL;
     dap_chain_t * l_chain_emission = NULL;
     dap_chain_net_t * l_net = NULL;
-    
+
     dap_json_t *json_obj_out = dap_json_object_new();
     dap_json_object_add_bool(json_obj_out, "status_placed", false);
     dap_json_array_add(a_json_arr_reply, json_obj_out);
@@ -1371,11 +1371,11 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
                 char *l_mempool_group = dap_chain_mempool_group_new(l_chain_emission);
                 if (!l_mempool_group)
                     continue;
-                
+
                 size_t l_objs_count = 0;
                 dap_store_obj_t *l_store_obj = dap_global_db_driver_read(l_mempool_group, l_emission_hash_str, &l_objs_count, false);
                 DAP_DELETE(l_mempool_group);
-                
+
                 if (l_store_obj && l_store_obj->value) {
                     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_store_obj->value;
                     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_EMISSION) {
@@ -1625,7 +1625,7 @@ int dap_chain_token_cli_init(void)
 {
     // Register token CLI error codes
     dap_chain_token_cli_error_codes_init();
-    
+
     // Register token_decl command
     dap_cli_server_cmd_add("token_decl", com_token_decl, NULL,
                            "Declare new token",

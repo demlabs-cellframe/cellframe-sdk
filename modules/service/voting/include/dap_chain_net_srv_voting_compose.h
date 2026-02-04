@@ -84,10 +84,10 @@ dap_json_t *dap_chain_tx_compose_poll_create(
     const char *a_options_list_str,
     const char *a_voting_expire_str,
     const char *a_max_votes_count_str,
-    const char *a_fee_str, 
+    const char *a_fee_str,
     bool a_is_delegated_key,
     bool a_is_vote_changing_allowed,
-    dap_chain_addr_t *a_wallet_addr, 
+    dap_chain_addr_t *a_wallet_addr,
     const char *a_token_str);
 
 /**

@@ -25,24 +25,24 @@ void test_my_function(void) {
     // Initialize isolated environment
     unit_test_context_t *ctx = unit_test_fixture_init("my_test");
     assert(ctx != NULL);
-    
+
     // Generate test config
     const char *params[] = {"key1=value1", "key2=value2", NULL};
     unit_test_config_generate(ctx, "my_section", params);
-    
+
     // Mock DAP SDK
     unit_test_mock_dap_sdk(ctx, true, true, false);
-    
+
     // Generate test data
     dap_hash_sha3_256_t hash;
     unit_test_hash_generate(42, &hash);
-    
+
     dap_chain_addr_t addr;
     unit_test_addr_generate(123, 0x01, &addr);
-    
+
     // Run test logic
     // ...
-    
+
     // Cleanup
     unit_test_fixture_cleanup(ctx);
 }
@@ -74,16 +74,16 @@ void test_ledger_integration(void) {
         true   // init ledger
     );
     assert(ctx != NULL);
-    
+
     // Create test wallet
     integration_test_create_wallet(ctx, "test_wallet");
-    
+
     // Create test token
     integration_test_create_token(ctx, "TST", 1000000);
-    
+
     // Run integration test
     // ...
-    
+
     // Cleanup
     integration_test_fixture_cleanup(ctx);
 }
@@ -129,7 +129,7 @@ Unit tests use `dap_mock` framework to mock DAP SDK functions:
 unit_test_context_t *ctx = unit_test_fixture_init("test");
 
 // Mock crypto, global_db, but not events
-unit_test_mock_dap_sdk(ctx, 
+unit_test_mock_dap_sdk(ctx,
     true,   // mock_crypto
     true,   // mock_db
     false   // mock_events

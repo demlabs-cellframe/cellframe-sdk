@@ -77,7 +77,7 @@ static unit_test_context_t *g_ctx = NULL;
 void test_setup(void) {
     // 1. Инициализация контекста
     g_ctx = unit_test_fixture_init("my_test");
-    
+
     // 2. Настройка моков DAP SDK
     dap_sdk_mock_flags_t flags = {
         .mock_crypto = true,      // ✓ Мокируем криптографию
@@ -86,9 +86,9 @@ void test_setup(void) {
         .mock_events = false,     // ✗ Не мокируем события
         // ... остальные false
     };
-    
+
     unit_test_mock_dap_sdk_ex(g_ctx, &flags);
-    
+
     // 3. Настройка моков для Cellframe SDK (ledger, TX, etc.)
     DAP_MOCK_DECLARE(dap_ledger_calc_balance, ...);
     DAP_MOCK_ENABLE(dap_ledger_calc_balance);
@@ -98,7 +98,7 @@ void test_teardown(void) {
     // Очистка моков Cellframe SDK
     DAP_MOCK_RESET(dap_ledger_calc_balance);
     dap_mock_deinit();
-    
+
     // Очистка unit test контекста
     unit_test_fixture_cleanup(g_ctx);
 }
@@ -182,16 +182,16 @@ void test_transaction_validation(void) {
         // ...
     };
     unit_test_mock_dap_sdk_ex(g_ctx, &flags);
-    
+
     // Настраиваем мок для проверки подписи
     DAP_MOCK_DECLARE(dap_sign_verify, { .return_value.i = 1 });
     DAP_MOCK_ENABLE(dap_sign_verify);
     DAP_MOCK_SET_RETURN(dap_sign_verify, (void*)(intptr_t)1);  // Always valid
-    
+
     // Тестируем логику валидации TX (без реальной криптографии)
     dap_chain_datum_tx_t *tx = create_test_tx();
     int ret = validate_transaction_logic(tx);
-    
+
     // Проверяем что мок был вызван
     int calls = DAP_MOCK_GET_CALL_COUNT(dap_sign_verify);
     dap_assert_PIF(calls > 0, "Should verify signature");
@@ -206,21 +206,21 @@ void test_poll_expiration(void) {
     // Мокируем время для детерминированных тестов
     dap_sdk_mock_flags_t flags = { .mock_time = true };
     unit_test_mock_dap_sdk_ex(g_ctx, &flags);
-    
+
     // Устанавливаем "текущее время"
     DAP_MOCK_DECLARE(dap_time_now, { .return_value.u64 = 1000000 });
     DAP_MOCK_ENABLE(dap_time_now);
-    
+
     // Создаём poll с истечением через 1000 секунд
     dap_chain_datum_tx_t *poll = create_poll(1000000 + 1000);
-    
+
     // Проверяем что poll НЕ истёк
     bool expired = is_poll_expired(poll);
     dap_assert_PIF(!expired, "Poll should not be expired yet");
-    
+
     // "Переносим время вперёд"
     DAP_MOCK_SET_RETURN(dap_time_now, (void*)(intptr_t)(1000000 + 2000));
-    
+
     // Теперь poll истёк
     expired = is_poll_expired(poll);
     dap_assert_PIF(expired, "Poll should be expired now");
@@ -234,15 +234,15 @@ void test_ledger_operations(void) {
     // Мокируем global_db для изоляции от файловой системы
     dap_sdk_mock_flags_t flags = { .mock_global_db = true };
     unit_test_mock_dap_sdk_ex(g_ctx, &flags);
-    
+
     // Мокируем операции ledger
     DAP_MOCK_DECLARE(dap_ledger_tx_add, { .return_value.i = 0 });
     DAP_MOCK_ENABLE(dap_ledger_tx_add);
-    
+
     // Тестируем добавление TX в ledger (без реальной БД)
     dap_chain_datum_tx_t *tx = create_test_tx();
     int ret = dap_ledger_tx_add(&g_mock_ledger, tx, &hash, false);
-    
+
     // Проверяем что мок был вызван
     dap_assert_PIF(DAP_MOCK_GET_CALL_COUNT(dap_ledger_tx_add) > 0,
                    "Should call ledger_tx_add");

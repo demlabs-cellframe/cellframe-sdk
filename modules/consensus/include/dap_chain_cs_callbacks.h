@@ -20,18 +20,18 @@ typedef struct dap_json dap_json_t;
 /**
  * @file dap_chain_cs_callbacks.h
  * @brief Consensus-Agnostic Callbacks Structure
- * 
+ *
  * ARCHITECTURE: Dependency Inversion for Consensus Layer
- * 
+ *
  * This structure provides a unified interface for consensus-specific operations
  * without forcing hard dependencies on particular consensus implementations (ESBOCS, DAG-PoA, etc).
- * 
+ *
  * PRINCIPLES:
  * 1. Consensus-agnostic: Same API for block-based (ESBOCS) and event-based (DAG) consensus
  * 2. Zero coupling: Modules using consensus don't know which consensus is running
  * 3. Plugin system: Each consensus registers its own implementations
  * 4. Optional callbacks: NULL callbacks mean "not supported by this consensus"
- * 
+ *
  * USAGE:
  * - Consensus module (esbocs/dag_poa) fills this structure during init
  * - Registers it via dap_chain_cs_set_callbacks()
@@ -83,7 +83,7 @@ typedef int (*dap_chain_cs_callback_add_validator_t)(dap_chain_t *a_chain, const
 
 /**
  * @brief Remove validator/node from consensus clusters/pools
- * @param a_chain Chain instance  
+ * @param a_chain Chain instance
  * @param a_node_addr Node address to remove
  * @return 0 on success, negative on error
  */
@@ -210,7 +210,7 @@ typedef int (*dap_chain_cs_callback_set_hardfork_complete_t)(dap_chain_t *a_chai
  * @param a_sovereign_addr Output: sovereign address if found
  * @return 0 if valid, negative on error
  */
-typedef int (*dap_chain_cs_callback_stake_check_pkey_hash_t)(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_pkey_hash, 
+typedef int (*dap_chain_cs_callback_stake_check_pkey_hash_t)(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_pkey_hash,
                                                               uint256_t *a_sovereign_tax, dap_chain_addr_t *a_sovereign_addr);
 
 /**
@@ -248,10 +248,10 @@ typedef char* (*dap_chain_cs_callback_mempool_datum_add_t)(dap_chain_t *a_chain,
 
 /**
  * @brief Consensus-agnostic callbacks structure
- * 
+ *
  * Each consensus implementation (ESBOCS, DAG-PoA) fills this structure
  * with pointers to its specific implementations.
- * 
+ *
  * NULL callbacks mean "not supported by this consensus".
  */
 typedef struct dap_chain_cs_callbacks {
@@ -259,38 +259,38 @@ typedef struct dap_chain_cs_callbacks {
     dap_chain_cs_callback_is_started_t is_started;
     dap_chain_cs_callback_get_min_validators_count_t get_min_validators_count;
     dap_chain_cs_callback_set_min_validators_count_t set_min_validators_count;
-    
+
     // Validator management
     dap_chain_cs_callback_add_validator_t add_validator;
     dap_chain_cs_callback_remove_validator_t remove_validator;
-    
+
     // Fee and reward
     dap_chain_cs_callback_get_fee_group_t get_fee_group;
     dap_chain_cs_callback_get_reward_group_t get_reward_group;
     dap_chain_cs_callback_get_fee_t get_fee;
-    
+
     // Signing
     dap_chain_cs_callback_get_sign_pkey_t get_sign_pkey;
     dap_chain_cs_callback_get_sign_key_t get_sign_key;
-    
+
     // Block/Event collection
     dap_chain_cs_callback_get_collecting_level_t get_collecting_level;
     dap_chain_cs_callback_add_block_collect_t add_block_collect;
     dap_chain_cs_callback_get_autocollect_status_t get_autocollect_status;
-    
+
     // Hardfork
     dap_chain_cs_callback_set_hardfork_state_t set_hardfork_state;
     dap_chain_cs_callback_hardfork_engaged_t hardfork_engaged;
     dap_chain_cs_callback_set_hardfork_prepare_t set_hardfork_prepare;
     dap_chain_cs_callback_set_hardfork_complete_t set_hardfork_complete;
-    
+
     // Stake service
     dap_chain_cs_callback_stake_check_pkey_hash_t stake_check_pkey_hash;
     dap_chain_cs_callback_stake_hardfork_data_import_t stake_hardfork_data_import;
     dap_chain_cs_callback_stake_switch_table_t stake_switch_table;
-    
+
     // Mempool
     dap_chain_cs_callback_mempool_datum_add_t mempool_datum_add;
-    
+
 } dap_chain_cs_callbacks_t;
 

@@ -121,7 +121,7 @@ int dap_chain_cell_init(void)
         pfnNtExtendSection      = (pfn_NtExtendSection)     GetProcAddress(ntdll, "NtExtendSection");
         pfnNtUnmapViewOfSection = (pfn_NtUnmapViewOfSection)GetProcAddress(ntdll, "NtUnmapViewOfSection");
     }
-    
+
 #endif
     return 0;
 }
@@ -155,7 +155,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
     off_t l_volume_offset = a_fpos ?
 #ifdef DAP_OS_WINDOWS
             dap_64k_rounddown(a_fpos)
-#else               
+#else
             dap_page_rounddown(a_fpos)
 #endif
             : 0,
@@ -163,7 +163,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
 #ifdef DAP_OS_WINDOWS
     int err = 0;
     LARGE_INTEGER Offset = { .QuadPart = l_volume_offset };
-    err = pfnNtMapViewOfSection(a_cell->mapping->section, GetCurrentProcess(), (HANDLE)&l_new_vol->base, 0, 0, 
+    err = pfnNtMapViewOfSection(a_cell->mapping->section, GetCurrentProcess(), (HANDLE)&l_new_vol->base, 0, 0,
                                 &Offset, &l_new_vol->size, ViewUnmap, MEM_RESERVE, PAGE_READONLY);
     if ( !NT_SUCCESS(err) ) {
         NtClose(a_cell->mapping->section);
@@ -187,7 +187,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
 #endif
 #endif
     a_cell->mapping->cursor = l_new_vol->base + l_offset;
-#ifndef DAP_OS_WINDOWS    
+#ifndef DAP_OS_WINDOWS
     if (a_load)
         madvise(l_new_vol->base, l_new_vol->size, MADV_SEQUENTIAL);
 #endif
@@ -316,7 +316,7 @@ static char *s_cell_get_key_count_name(dap_chain_cell_t *a_cell)
  * @brief dap_chain_cell_load
  * load cell file, which is pointed in a_cell_file_path variable, for example "0.dchaincell"
  * @param a_chain dap_chain_t object
- * @param a_cell_file_path contains name of chain, for example "0.dchaincell" 
+ * @param a_cell_file_path contains name of chain, for example "0.dchaincell"
  * @return
  */
 DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
@@ -360,9 +360,9 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     DAP_DELETE(l_key_name);
     if (!l_atom_count)
         log_it(L_WARNING, "Can't get atom count from global DB, will use file size to calculate progress");
-    
+
     /* Load atoms */
-    int l_ret = 0;    
+    int l_ret = 0;
     off_t l_el_size = 0, q = 0;
     dap_chain_atom_ptr_t l_atom;
     dap_hash_sha3_256_t l_atom_hash;
@@ -397,7 +397,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
         /* Reclaim the last volume */
         s_cell_reclaim_cur_volume(a_cell->mapping->volume);
 #endif
-    } else { 
+    } else {
         size_t l_read = 0;
         while (!s_load_skip && ( l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage) ) && !feof(a_cell->file_storage) ) {
             if ( !l_el_size || l_read != sizeof(l_el_size) ) {
@@ -552,7 +552,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
                                                      a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64, errno);
         if ( a_atom_size + sizeof(uint64_t) > (size_t)(a_cell->mapping->volume->base + a_cell->mapping->volume->size - a_cell->mapping->cursor) )
             dap_return_val_if_pass_err(
-                s_cell_map_new_volume(a_cell, l_pos, false), 
+                s_cell_map_new_volume(a_cell, l_pos, false),
                 -2, "Failed to create new map volume for \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
                 a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64
             );
@@ -596,7 +596,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
  * @brief s_cell_file_append
  * add atoms to selected chain
  * @param a_cell - cell object. Contains file path to cell storage data, for example - "0.dchaincell"
- * a_cell->chain contains 
+ * a_cell->chain contains
  *  name
  *  net_name
  *  filepath

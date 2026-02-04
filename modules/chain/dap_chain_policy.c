@@ -23,7 +23,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #include "dap_chain_policy.h"
-#include "dap_chain.h"  // Full definition needed in .c file  
+#include "dap_chain.h"  // Full definition needed in .c file
 #include "dap_chain_datum_decree.h"  // Full definition needed in .c file
 #include "dap_list.h"
 #include "dap_ht_utils.h"
@@ -418,7 +418,7 @@ dap_json_t *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version)
     }
     dap_json_object_add_string(l_ret, a_version == 1 ? "conditional active" : "conditional_active", l_active_str->str);
     dap_json_object_add_string(l_ret, a_version == 1 ? "conditional inactive" : "conditional_inactive", l_inactive_str->str);
-    
+
     dap_string_free(l_active_str, true);
     dap_string_erase(l_inactive_str, 0, -1);
     // add decree deactvated info

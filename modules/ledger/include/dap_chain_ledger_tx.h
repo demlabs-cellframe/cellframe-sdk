@@ -32,11 +32,11 @@
 /**
  * @file dap_chain_ledger_tx.h
  * @brief Ledger TX creation functions
- * 
+ *
  * Ledger-specific TX operations:
  * - Event TX - события в ledger
  * - Emission TX - эмиссия токенов
- * 
+ *
  * Эти функции регистрируются в TX Compose API при инициализации ledger модуля
  */
 
@@ -46,7 +46,7 @@ extern "C" {
 
 /**
  * @brief Create event transaction (PURE)
- * 
+ *
  * @param a_list_used_outs Pre-found UTXO inputs for fee
  * @param a_pkey_service Service public key
  * @param a_srv_uid Service UID
@@ -70,7 +70,7 @@ dap_chain_datum_tx_t *dap_ledger_tx_create_event(
 
 /**
  * @brief Create base transaction from emission (PURE)
- * 
+ *
  * @param a_emission_hash Emission hash
  * @param a_emission_chain_id Chain ID
  * @param a_emission_value Total emission value
@@ -90,16 +90,16 @@ dap_chain_datum_tx_t *dap_ledger_tx_create_from_emission(
 
 /**
  * @brief Register ledger TX builders in TX Compose API
- * 
+ *
  * Called automatically during ledger module initialization
- * 
+ *
  * @return 0 on success, negative on error
  */
 int dap_ledger_tx_builders_register(void);
 
 /**
  * @brief Unregister ledger TX builders
- * 
+ *
  * Called automatically during ledger module deinitialization
  */
 void dap_ledger_tx_builders_unregister(void);

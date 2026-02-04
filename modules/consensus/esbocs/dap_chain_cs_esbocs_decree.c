@@ -44,17 +44,17 @@ static int s_decree_hardfork_handler(
     }
     if (!a_apply)
         return 0;
-    
+
     // Extract stake information if present
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size,
                                     DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
     // Hardfork data available if needed for future processing
     UNUSED(l_tsd);  // Mark as intentionally unused for now
-    
+
     dap_hash_sha3_256_t l_decree_hash = {};
     dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
     l_chain->hardfork_decree_hash = l_decree_hash;
-    
+
     // TODO: Fix signature - last parameter should be dap_json_t*, not dap_hash_sha3_256_t*
     // return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_hardfork_data_size,
     //                                               l_hardfork_data, &l_decree_hash);
@@ -219,54 +219,54 @@ static int s_decree_emergency_validators_handler(
 int dap_chain_cs_esbocs_decree_init(void)
 {
     int l_ret = 0;
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK,
         s_decree_hardfork_handler,
         "hardfork"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_RETRY,
         s_decree_hardfork_retry_handler,
         "hardfork_retry"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE,
         s_decree_hardfork_complete_handler,
         "hardfork_complete"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_CANCEL,
         s_decree_hardfork_cancel_handler,
         "hardfork_cancel"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE,
         s_decree_check_signs_structure_handler,
         "check_signs_structure"
     );
-    
+
     l_ret += dap_chain_decree_registry_register_handler(
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS,
         s_decree_emergency_validators_handler,
         "emergency_validators"
     );
-    
+
     if (l_ret != 0) {
         log_it(L_ERROR, "Failed to register some esbocs decree handlers");
         return -1;
     }
-    
+
     log_it(L_NOTICE, "ESBOCS decree handlers registered successfully");
     return 0;
 }
@@ -297,7 +297,7 @@ void dap_chain_cs_esbocs_decree_deinit(void)
         DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS
     );
-    
+
     log_it(L_NOTICE, "ESBOCS decree handlers unregistered");
 }
 

@@ -163,7 +163,7 @@ bool dap_chain_cs_hardfork_engaged(dap_chain_t *a_chain)
 }
 
 // Stake service wrappers
-int dap_chain_cs_stake_check_pkey_hash(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_pkey_hash, 
+int dap_chain_cs_stake_check_pkey_hash(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_pkey_hash,
                                        uint256_t *a_sovereign_tax, dap_chain_addr_t *a_sovereign_addr)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
@@ -220,28 +220,28 @@ void dap_chain_cs_add(const char *a_cs_str, dap_chain_cs_lifecycle_t a_callbacks
 int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     const char *l_consensus = dap_config_get_item_str(a_chain_cfg, "chain", "consensus");
-    
+
     if (!l_consensus) {
         log_it(L_ERROR, "No consensus specified in chain config");
         return -1;
     }
-    
+
     dap_chain_cs_item_t *l_item = NULL;
     dap_ht_find_str(s_cs_registry, l_consensus, l_item);
     if (!l_item) {
         log_it(L_ERROR, "Consensus '%s' not registered", l_consensus);
         return -1;
     }
-    
+
     log_it(L_NOTICE, "Creating consensus '%s' for chain", l_item->name);
-    
+
     // Set consensus name BEFORE callback (callback will set cs_type to chain type)
     DAP_CHAIN_PVT(a_chain)->cs_name = dap_strdup(l_item->name);
-    
+
     int res = 0;
     if (l_item->callbacks.callback_init)
         res = l_item->callbacks.callback_init(a_chain, a_chain_cfg);
-    
+
     return res;
 }
 

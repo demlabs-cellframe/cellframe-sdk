@@ -38,7 +38,7 @@ static void s_make_key(const char *a_category, const char *a_command, char *a_ke
 /**
  * @brief Register CLI command
  */
-int dap_ledger_cli_cmd_register(const char *a_category, 
+int dap_ledger_cli_cmd_register(const char *a_category,
                                  const char *a_command,
                                  dap_ledger_cli_cmd_handler_t a_handler,
                                  const char *a_description)
@@ -47,22 +47,22 @@ int dap_ledger_cli_cmd_register(const char *a_category,
         log_it(L_ERROR, "Invalid parameters for CLI command registration");
         return -1;
     }
-    
+
     dap_ledger_cli_cmd_entry_t *l_entry = DAP_NEW_Z(dap_ledger_cli_cmd_entry_t);
     if (!l_entry) {
         log_it(L_CRITICAL, "Memory allocation failed");
         return -2;
     }
-    
+
     l_entry->category = dap_strdup(a_category);
     l_entry->command = dap_strdup(a_command);
     l_entry->handler = a_handler;
     l_entry->description = a_description ? dap_strdup(a_description) : NULL;
-    
+
     s_make_key(a_category, a_command, l_entry->key, sizeof(l_entry->key));
-    
+
     pthread_rwlock_wrlock(&s_registry_lock);
-    
+
     // Check if already registered
     dap_ledger_cli_cmd_entry_t *l_existing = NULL;
     dap_ht_find_str(s_cmd_registry, l_entry->key, l_existing);
@@ -72,10 +72,10 @@ int dap_ledger_cli_cmd_register(const char *a_category,
         dap_ledger_cli_cmd_unregister(a_category, a_command);
         pthread_rwlock_wrlock(&s_registry_lock);
     }
-    
+
     dap_ht_add_str(s_cmd_registry, key, l_entry);
     pthread_rwlock_unlock(&s_registry_lock);
-    
+
     log_it(L_INFO, "Registered CLI command: %s %s", a_category, a_command);
     return 0;
 }
@@ -88,15 +88,15 @@ void dap_ledger_cli_cmd_unregister(const char *a_category, const char *a_command
     if (!a_category || !a_command) {
         return;
     }
-    
+
     char l_key[256];
     s_make_key(a_category, a_command, l_key, sizeof(l_key));
-    
+
     pthread_rwlock_wrlock(&s_registry_lock);
-    
+
     dap_ledger_cli_cmd_entry_t *l_entry = NULL;
     dap_ht_find_str(s_cmd_registry, l_key, l_entry);
-    
+
     if (l_entry) {
         dap_ht_del(s_cmd_registry, l_entry);
         DAP_DELETE(l_entry->category);
@@ -105,14 +105,14 @@ void dap_ledger_cli_cmd_unregister(const char *a_category, const char *a_command
         DAP_DELETE(l_entry);
         log_it(L_INFO, "Unregistered CLI command: %s %s", a_category, a_command);
     }
-    
+
     pthread_rwlock_unlock(&s_registry_lock);
 }
 
 /**
  * @brief Find and execute registered command
  */
-int dap_ledger_cli_cmd_execute(const char *a_category, 
+int dap_ledger_cli_cmd_execute(const char *a_category,
                                 const char *a_command,
                                 int a_argc, char **a_argv,
                                 dap_json_t *a_json_arr_reply, int a_version)
@@ -121,24 +121,24 @@ int dap_ledger_cli_cmd_execute(const char *a_category,
         log_it(L_ERROR, "Invalid parameters for command execution");
         return -1;
     }
-    
+
     char l_key[256];
     s_make_key(a_category, a_command, l_key, sizeof(l_key));
-    
+
     pthread_rwlock_rdlock(&s_registry_lock);
-    
+
     dap_ledger_cli_cmd_entry_t *l_entry = NULL;
     dap_ht_find_str(s_cmd_registry, l_key, l_entry);
-    
+
     if (!l_entry) {
         pthread_rwlock_unlock(&s_registry_lock);
         log_it(L_DEBUG, "CLI command not found: %s %s", a_category, a_command);
         return -2;
     }
-    
+
     dap_ledger_cli_cmd_handler_t l_handler = l_entry->handler;
     pthread_rwlock_unlock(&s_registry_lock);
-    
+
     log_it(L_DEBUG, "Executing CLI command: %s %s", a_category, a_command);
     return l_handler(a_argc, a_argv, a_json_arr_reply, a_version);
 }
@@ -151,7 +151,7 @@ bool dap_ledger_cli_cmd_is_registered(const char *a_category, const char *a_comm
     if (!a_category) {
         return false;
     }
-    
+
     if (!a_command) {
         // Check if any command in this category exists
         pthread_rwlock_rdlock(&s_registry_lock);
@@ -165,15 +165,15 @@ bool dap_ledger_cli_cmd_is_registered(const char *a_category, const char *a_comm
         pthread_rwlock_unlock(&s_registry_lock);
         return false;
     }
-    
+
     char l_key[256];
     s_make_key(a_category, a_command, l_key, sizeof(l_key));
-    
+
     pthread_rwlock_rdlock(&s_registry_lock);
     dap_ledger_cli_cmd_entry_t *l_entry = NULL;
     dap_ht_find_str(s_cmd_registry, l_key, l_entry);
     pthread_rwlock_unlock(&s_registry_lock);
-    
+
     return l_entry != NULL;
 }
 
@@ -218,9 +218,9 @@ int dap_ledger_cli_cmd_registry_init(void)
 void dap_ledger_cli_cmd_registry_deinit(void)
 {
     log_it(L_INFO, "Deinitializing CLI command registry");
-    
+
     pthread_rwlock_wrlock(&s_registry_lock);
-    
+
     dap_ledger_cli_cmd_entry_t *l_entry, *l_tmp;
     dap_ht_foreach_hh(hh, s_cmd_registry, l_entry, l_tmp) {
         dap_ht_del(s_cmd_registry, l_entry);
@@ -229,7 +229,7 @@ void dap_ledger_cli_cmd_registry_deinit(void)
         DAP_DELETE(l_entry->description);
         DAP_DELETE(l_entry);
     }
-    
+
     s_cmd_registry = NULL;
     pthread_rwlock_unlock(&s_registry_lock);
     pthread_rwlock_destroy(&s_registry_lock);

@@ -106,7 +106,7 @@ int dap_chain_type_dag_poa_init()
         .callback_start = s_callback_start
     };
     dap_chain_cs_add("dag_poa", l_cs_callbacks);
-    
+
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",  0 ,  // Auto-assign ID
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
@@ -287,7 +287,7 @@ static int s_cli_dag_poa(int argc, char ** argv, dap_json_t *a_json_arr_reply, U
                                     l_poa_pvt->events_sign_cert->name, l_event_new_hash_base58_str);
                         }
                         ret = 0;
-                        if (l_event_is_ready && l_poa_pvt->auto_round_complete) { // cs done (minimum signs & verify passed) 
+                        if (l_event_is_ready && l_poa_pvt->auto_round_complete) { // cs done (minimum signs & verify passed)
                             dap_chain_type_dag_poa_round_item_t l_event_item = {
                                 .datum_hash.hash = l_round_item->round_info.datum_hash,
                                 .dag = l_dag
@@ -521,7 +521,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
                                                                     const size_t a_values_total, const size_t a_values_count,
                                                                     dap_global_db_obj_t *a_values, void *a_arg)
 {
-    if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS) 
+    if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS)
         return false;
     dap_chain_type_dag_poa_round_item_t *l_arg = (dap_chain_type_dag_poa_round_item_t*)a_arg;
     dap_chain_type_dag_t *l_dag = l_arg->dag;
@@ -797,9 +797,9 @@ static int s_callback_event_round_sync(dap_chain_type_dag_t * a_dag, const char 
             return s_round_event_cs_done(&l_event_item, a_by_us ? l_poa_pvt->confirmations_timeout : 2*l_poa_pvt->confirmations_timeout), l_ret;
         }
     } else {
-        if ( !l_poa_pvt->callback_pre_sign 
+        if ( !l_poa_pvt->callback_pre_sign
             || !l_poa_pvt->callback_pre_sign->callback
-            || !(l_ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size, l_poa_pvt->callback_pre_sign->arg)) 
+            || !(l_ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size, l_poa_pvt->callback_pre_sign->arg))
         ) {
             l_event = DAP_DUP_SIZE((dap_chain_type_dag_event_t*)l_round_item->event_n_signs, l_event_size);
             if (( l_event_size = dap_chain_type_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key) ))

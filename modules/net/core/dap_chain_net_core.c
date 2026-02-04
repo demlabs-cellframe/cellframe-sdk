@@ -133,7 +133,7 @@ int dap_chain_net_parse_net_chain(dap_json_t *a_json_arr_reply, int *a_arg_index
                 return 0;
             else {
                 dap_json_rpc_error_add(a_json_arr_reply, -104,
-                        "Unable to get the default chain of type %s for the network.", 
+                        "Unable to get the default chain of type %s for the network.",
                         dap_chain_type_to_str(a_default_chain_type));
                 return -104;
             }
@@ -195,7 +195,7 @@ int dap_chain_net_core_init(void)
     // Phase 5.3: Register network API functions for mid-level modules
     // This breaks cyclic dependencies by allowing blocks/esbocs/stake to use
     // core net functions without depending on full net module
-    // 
+    //
     // Registration is done in net_core (not net) because:
     // 1. Core functions (by_id, by_name, get_chain_by_name, get_chain_by_id) are defined here
     // 2. Registering in net caused multiple definition errors due to circular dependency
@@ -222,6 +222,6 @@ int dap_chain_net_core_init(void)
         return -1;
     }
     log_it(L_INFO, "Network core API functions registered for dependency inversion");
-    
+
     return 0;
 }

@@ -110,7 +110,7 @@ static dap_chain_srv_stake_ext_cache_item_t *s_find_stake_ext_by_hash_fast(struc
 static void *s_stake_ext_start_callback(dap_chain_net_id_t a_net_id, dap_config_t *a_config);
 
 // Cache manipulation functions
-static int s_stake_ext_cache_add_stake_ext(struct stake_ext *a_cache, 
+static int s_stake_ext_cache_add_stake_ext(struct stake_ext *a_cache,
                                   dap_hash_sha3_256_t *a_stake_ext_hash,
                                   dap_chain_net_id_t a_net_id,
                                   const char *a_guuid,
@@ -194,7 +194,7 @@ int dap_chain_net_srv_stake_ext_init(void)
                                s_stake_ext_lock_callback_verificator, NULL,
                                s_stake_ext_unlock_callback_updater, s_stake_ext_lock_callback_updater,
                                NULL, NULL);
-    
+
     dap_cli_server_cmd_add ("stake_ext", s_com_stake_ext, NULL, "Stake_ext commands", 0,
                 "lock -net <network> -stake_ext <stake_ext_name|tx_hash> -amount <value> -lock_period <3..24> -position <position_id> -fee <value> -w <wallet>\n"
                 "\tPlace a lock on an stake_ext for a specific position\n"
@@ -253,19 +253,19 @@ static struct stake_ext *s_stake_ext_service_create(void)
         log_it(L_CRITICAL, "Memory allocation error for stake_ext cache");
         return NULL;
     }
-    
+
     // Initialize read-write lock
     if (pthread_rwlock_init(&l_cache->cache_rwlock, NULL) != 0) {
         log_it(L_ERROR, "Failed to initialize cache rwlock");
         DAP_DELETE(l_cache);
         return NULL;
     }
-    
+
     l_cache->stake_ext = NULL;
     l_cache->stake_ext_by_hash = NULL;    // Initialize secondary hash table
     l_cache->total_stake_ext = 0;
     l_cache->active_stake_ext = 0;
-    
+
     log_it(L_DEBUG, "Stake_ext cache created successfully");
     return l_cache;
 }
@@ -277,7 +277,7 @@ static void *s_stake_ext_start_callback(dap_chain_net_id_t a_net_id, dap_config_
         log_it(L_CRITICAL, "Failed to create stake_ext cache");
         return NULL;
     }
-    
+
     log_it(L_DEBUG, "Stake_ext service created successfully");
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     if (!l_net) {
@@ -307,13 +307,13 @@ static void s_stake_ext_service_delete(struct stake_ext *a_cache)
 {
     if (!a_cache)
         return;
-    
+
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
-    
+
     // Clean up all stake_ext and their locks and positions
     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext, *l_tmp_stake_ext;
     dap_ht_foreach_hh(hh, a_cache->stake_ext, l_stake_ext, l_tmp_stake_ext) {
-        
+
         // Clean up all positions in this stake_ext
         dap_chain_srv_stake_ext_position_cache_item_t *l_position, *l_tmp_position;
         dap_ht_foreach_hh(hh, l_stake_ext->positions, l_position, l_tmp_position) {
@@ -326,22 +326,22 @@ static void s_stake_ext_service_delete(struct stake_ext *a_cache)
             }
             DAP_DELETE(l_position);
         }
-        
+
         // Remove stake_ext from both hash tables
         dap_ht_del_hh(hh, a_cache->stake_ext, l_stake_ext);           // Remove from primary table (by GUUID)
         dap_ht_del_hh(hh_hash, a_cache->stake_ext_by_hash, l_stake_ext); // Remove from secondary table (by stake_ext_tx_hash)
-        
+
         // Clean up stake_ext data
         DAP_DELETE(l_stake_ext->guuid);
         DAP_DELETE(l_stake_ext->description);
         DAP_DELETE(l_stake_ext->winners_ids);  // Clean up winners array
         DAP_DELETE(l_stake_ext);
     }
-    
+
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
     pthread_rwlock_destroy(&a_cache->cache_rwlock);
     DAP_DELETE(a_cache);
-    
+
     log_it(L_DEBUG, "Stake_ext cache deleted");
 }
 
@@ -355,7 +355,7 @@ static void s_stake_ext_service_delete(struct stake_ext *a_cache)
  * @param a_tx_timestamp Timestamp of the stake_ext transaction
  * @return Returns 0 on success, negative error code otherwise
  */
-static int s_stake_ext_cache_add_stake_ext(struct stake_ext *a_cache, 
+static int s_stake_ext_cache_add_stake_ext(struct stake_ext *a_cache,
                                   dap_hash_sha3_256_t *a_stake_ext_hash,
                                   dap_chain_net_id_t a_net_id,
                                   const char *a_guuid,
@@ -364,15 +364,15 @@ static int s_stake_ext_cache_add_stake_ext(struct stake_ext *a_cache,
 {
     if (!a_cache || !a_stake_ext_hash || !a_guuid)
         return -1;
-    
+
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
-    
+
     // Check if stake_ext already exists by GUUID (faster than hash iteration)
     dap_chain_srv_stake_ext_cache_item_t *l_existing = NULL;
     dap_ht_find_str(a_cache->stake_ext, a_guuid, l_existing);
     if (l_existing) {
         pthread_rwlock_unlock(&a_cache->cache_rwlock);
-        log_it(L_WARNING, "Stake_ext %s already exists in cache", 
+        log_it(L_WARNING, "Stake_ext %s already exists in cache",
                dap_hash_sha3_256_to_str_static(a_stake_ext_hash));
         return -2;
     }
@@ -416,10 +416,10 @@ static int s_stake_ext_cache_add_stake_ext(struct stake_ext *a_cache,
 
         // Add positions from the stake_ext started data
         if (a_started_data->total_positions > 0) {
-           
+
             // Create position cache entries for each position ID
             for (uint8_t i = 0; i < a_started_data->total_positions; i++) {
-                uint64_t l_position_id = a_started_data->position_ids[i];              
+                uint64_t l_position_id = a_started_data->position_ids[i];
                 // Create position cache item
                 dap_chain_srv_stake_ext_position_cache_item_t *l_position = NULL;
                 dap_ht_find_hh(hh, l_stake_ext->positions, &l_position_id, sizeof(uint64_t), l_position);
@@ -440,7 +440,7 @@ static int s_stake_ext_cache_add_stake_ext(struct stake_ext *a_cache,
         }
 
         const char *l_hash_str = dap_hash_sha3_256_to_str_static(a_stake_ext_hash);
-        log_it(L_DEBUG, "Added stake_ext %s with %u positions, duration: %" DAP_UINT64_FORMAT_U " %s", 
+        log_it(L_DEBUG, "Added stake_ext %s with %u positions, duration: %" DAP_UINT64_FORMAT_U " %s",
                l_hash_str,
                a_started_data->total_positions,
                a_started_data->duration,
@@ -452,10 +452,10 @@ static int s_stake_ext_cache_add_stake_ext(struct stake_ext *a_cache,
     dap_ht_add_hh(hh_hash, a_cache->stake_ext_by_hash, stake_ext_tx_hash.hash_key, l_stake_ext);  // Secondary table by tx hash (aligned key for ARM32)
     a_cache->total_stake_ext++;
     a_cache->active_stake_ext++;
-    
+
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
-    
-    log_it(L_DEBUG, "Added stake_ext %s to cache with ACTIVE status", 
+
+    log_it(L_DEBUG, "Added stake_ext %s to cache with ACTIVE status",
            dap_hash_sha3_256_to_str_static(a_stake_ext_hash));
     return 0;
 }
@@ -479,9 +479,9 @@ static int s_stake_ext_cache_add_lock(struct stake_ext *a_cache,
                               uint64_t a_position_id)
 {
     dap_return_val_if_fail(a_cache && a_lock_hash, -1);
-    
+
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
-    
+
     // Find stake_ext using ultra-fast O(1) hash lookup
     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = s_find_stake_ext_by_hash_fast(a_cache, a_stake_ext_hash);
     if (!l_stake_ext) {
@@ -489,7 +489,7 @@ static int s_stake_ext_cache_add_lock(struct stake_ext *a_cache,
         log_it(L_WARNING, "Stake_ext not found in cache for lock add (hash missing or not resolved by name)");
         return -2;
     }
-          
+
     // Find position in stake_ext cache
     dap_chain_srv_stake_ext_position_cache_item_t *l_position = NULL;
     dap_ht_find_hh(hh, l_stake_ext->positions, &a_position_id, sizeof(uint64_t), l_position);
@@ -518,16 +518,16 @@ static int s_stake_ext_cache_add_lock(struct stake_ext *a_cache,
                                              .lock_time = a_lock_time,
                                              .created_time = a_created_time
                                             };
-    
+
     // Add to stake_ext's locks (use aligned hash_key for dap_ht)
     dap_ht_add_hh(hh, l_position->locks, lock_tx_hash.hash_key, l_lock);
     l_position->active_locks_count++;
     l_stake_ext->locks_count++;
     l_stake_ext->active_locks_count++;
-        
+
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
-    
-    log_it(L_DEBUG, "Added lock %s to stake_ext %s in cache", 
+
+    log_it(L_DEBUG, "Added lock %s to stake_ext %s in cache",
                         dap_hash_sha3_256_to_str_static(a_lock_hash), dap_hash_sha3_256_to_str_static(a_stake_ext_hash));
     return 0;
 }
@@ -544,22 +544,22 @@ static int s_stake_ext_cache_update_stake_ext_status(struct stake_ext *a_cache,
                                            dap_chain_srv_stake_ext_status_t a_new_status)
 {
     dap_return_val_if_fail(a_cache && a_stake_ext_hash, -1);
-    
+
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
-    
+
     // Find stake_ext using ultra-fast O(1) hash lookup
     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = s_find_stake_ext_by_hash_fast(a_cache, a_stake_ext_hash);
-    
+
     if (!l_stake_ext) {
         pthread_rwlock_unlock(&a_cache->cache_rwlock);
-        log_it(L_WARNING, "Stake_ext %s not found in cache for status update", 
+        log_it(L_WARNING, "Stake_ext %s not found in cache for status update",
                dap_hash_sha3_256_to_str_static(a_stake_ext_hash));
         return -2;
     }
-    
+
     dap_chain_srv_stake_ext_status_t l_old_status = l_stake_ext->status;
     l_stake_ext->status = a_new_status;
-    
+
     // Update active stake_ext counter
     if (l_old_status == DAP_STAKE_EXT_STATUS_ACTIVE && a_new_status != DAP_STAKE_EXT_STATUS_ACTIVE) {
         if (a_cache->active_stake_ext > 0)
@@ -567,10 +567,10 @@ static int s_stake_ext_cache_update_stake_ext_status(struct stake_ext *a_cache,
     } else if (l_old_status != DAP_STAKE_EXT_STATUS_ACTIVE && a_new_status == DAP_STAKE_EXT_STATUS_ACTIVE) {
         a_cache->active_stake_ext++;
     }
-    
+
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
-    
-    log_it(L_DEBUG, "Updated stake_ext %s status from %s to %s", 
+
+    log_it(L_DEBUG, "Updated stake_ext %s status from %s to %s",
            dap_hash_sha3_256_to_str_static(a_stake_ext_hash),
            dap_chain_srv_stake_ext_status_to_str(l_old_status),
            dap_chain_srv_stake_ext_status_to_str(a_new_status));
@@ -598,7 +598,7 @@ static int s_stake_ext_cache_unlock_lock(dap_chain_srv_stake_ext_position_cache_
     l_lock->is_unlocked = true;
     if (a_cache->active_locks_count > 0)
         a_cache->active_locks_count--;
-    log_it(L_DEBUG, "Marked lock %s as unlocked in cache", 
+    log_it(L_DEBUG, "Marked lock %s as unlocked in cache",
            dap_hash_sha3_256_to_str_static(a_lock_hash));
     return 0;
 }
@@ -617,22 +617,22 @@ static int s_stake_ext_cache_set_winners(struct stake_ext *a_cache,
                                  uint32_t *a_winners_ids)
 {
     dap_return_val_if_fail(a_cache && a_stake_ext_hash && a_winners_ids && a_winners_cnt > 0, -1);
-    
+
     pthread_rwlock_wrlock(&a_cache->cache_rwlock);
-    
+
     // Find stake_ext using ultra-fast O(1) hash lookup
     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = s_find_stake_ext_by_hash_fast(a_cache, a_stake_ext_hash);
-    
+
     if (!l_stake_ext) {
         pthread_rwlock_unlock(&a_cache->cache_rwlock);
-        log_it(L_WARNING, "Stake_ext %s not found in cache for setting multiple winners", 
+        log_it(L_WARNING, "Stake_ext %s not found in cache for setting multiple winners",
                dap_hash_sha3_256_to_str_static(a_stake_ext_hash));
         return -2;
     }
-    
+
     // Clean up previous winners array if exists
     DAP_DELETE(l_stake_ext->winners_ids);
-    
+
     // Set multiple winners information
     l_stake_ext->has_winner = true;
     l_stake_ext->winners_cnt = a_winners_cnt;
@@ -642,20 +642,20 @@ static int s_stake_ext_cache_set_winners(struct stake_ext *a_cache,
         log_it(L_CRITICAL, "Memory allocation error for winners array");
         return -3;
     }
-    
+
     // Copy winners IDs
     memcpy(l_stake_ext->winners_ids, a_winners_ids, sizeof(uint32_t) * a_winners_cnt);
-    
+
     // Log the winners for debugging
     for (uint8_t i = 0; i < a_winners_cnt; i++) {
         log_it(L_DEBUG, "Winner #%u: position ID %u", i + 1, a_winners_ids[i]);
     }
-    
+
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
-    
-    log_it(L_DEBUG, "Set %u winners for stake_ext %s", 
+
+    log_it(L_DEBUG, "Set %u winners for stake_ext %s",
            a_winners_cnt, dap_hash_sha3_256_to_str_static(a_stake_ext_hash));
-    
+
     return 0;
 }
 
@@ -669,12 +669,12 @@ static dap_chain_srv_stake_ext_cache_item_t *s_stake_ext_cache_find_stake_ext(st
                                                          dap_hash_sha3_256_t *a_stake_ext_hash)
 {
     dap_return_val_if_fail(a_cache && a_stake_ext_hash, NULL);
-    
+
     pthread_rwlock_rdlock(&a_cache->cache_rwlock);
-    
+
     // Direct O(1) hash lookup using optimized secondary table
     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = s_find_stake_ext_by_hash_fast(a_cache, a_stake_ext_hash);
-    
+
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
     return l_stake_ext;
 }
@@ -689,7 +689,7 @@ static dap_chain_srv_stake_ext_cache_item_t *s_find_stake_ext_by_hash_fast(struc
 {
     if (!a_cache || !a_stake_ext_hash)
         return NULL;
-    
+
     // Direct O(1) hash lookup using secondary table (use raw bytes for aligned search)
     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = NULL;
     dap_ht_find_hh(hh_hash, a_cache->stake_ext_by_hash, a_stake_ext_hash->raw, DAP_HASH_SHA3_256_SIZE, l_stake_ext);
@@ -748,7 +748,7 @@ static dap_chain_srv_stake_ext_lock_cache_item_t *s_stake_ext_cache_find_lock(da
 {
     if (!a_stake_ext || !a_lock_hash)
         return NULL;
-    
+
     for (dap_chain_srv_stake_ext_position_cache_item_t *l_position = a_stake_ext->positions; l_position; l_position = l_position->hh.next) {
         dap_chain_srv_stake_ext_lock_cache_item_t *l_lock = NULL;
         dap_ht_find_hh(hh, l_position->locks, a_lock_hash, sizeof(dap_hash_sha3_256_t), l_lock);
@@ -756,7 +756,7 @@ static dap_chain_srv_stake_ext_lock_cache_item_t *s_stake_ext_cache_find_lock(da
             return l_lock;
         }
     }
-    
+
     return NULL;
 }
 
@@ -771,10 +771,10 @@ static dap_chain_srv_stake_ext_position_cache_item_t *s_stake_ext_cache_find_pos
 {
     if (!a_stake_ext || !a_position_id)
         return NULL;
-    
+
     dap_chain_srv_stake_ext_position_cache_item_t *l_position = NULL;
     dap_ht_find_hh(hh, a_stake_ext->positions, &a_position_id, sizeof(uint64_t), l_position);
-    
+
     return l_position;
 }
 
@@ -813,14 +813,14 @@ static int s_stake_ext_event_verify(dap_chain_net_id_t a_net_id, const char *a_e
  * @param a_tx_hash Transaction hash
  * @param a_opcode Operation code (added/deleted)
  */
-static void s_stake_ext_cache_event_callback(void *a_arg, 
+static void s_stake_ext_cache_event_callback(void *a_arg,
                                        dap_ledger_t *a_ledger,
                                        dap_chain_tx_event_t *a_event,
                                        dap_hash_sha3_256_t *a_tx_hash,
                                        dap_ledger_notify_opcodes_t a_opcode)
 {
     dap_return_if_fail(a_event && a_tx_hash);
-    
+
     // Дополнительный отладочный вывод по входящему событию
     const char *l_group_name = a_event->group_name ? a_event->group_name : "(null)";
     const char *l_opcode_str =
@@ -853,20 +853,20 @@ static void s_stake_ext_cache_event_callback(void *a_arg,
     // Handle only stake_ext-related events
     switch (a_event->event_type) {
         case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED: {
-            log_it(L_DEBUG, "Processing stake_ext started event for %s", 
+            log_it(L_DEBUG, "Processing stake_ext started event for %s",
                    dap_hash_sha3_256_to_str_static(&a_event->tx_hash));
-            
+
             if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
                 // Parse event data for stake_ext started info
                 if (a_event->event_data && a_event->event_data_size >= sizeof(dap_chain_tx_event_data_stake_ext_started_t)) {
-                    dap_chain_tx_event_data_stake_ext_started_t *l_started_data = 
+                    dap_chain_tx_event_data_stake_ext_started_t *l_started_data =
                         (dap_chain_tx_event_data_stake_ext_started_t *)a_event->event_data;
-                    
+
                     // Validate buffer size for potential position_ids array access
-                    size_t l_required_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) + 
+                    size_t l_required_size = sizeof(dap_chain_tx_event_data_stake_ext_started_t) +
                                            (l_started_data->total_positions * sizeof(uint32_t));
                     if (a_event->event_data_size < l_required_size) {
-                        log_it(L_ERROR, "Event data size %zu is insufficient for %u positions (required: %zu)", 
+                        log_it(L_ERROR, "Event data size %zu is insufficient for %u positions (required: %zu)",
                                a_event->event_data_size, l_started_data->total_positions, l_required_size);
                         return;
                     }
@@ -874,21 +874,21 @@ static void s_stake_ext_cache_event_callback(void *a_arg,
                     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = s_stake_ext_cache_find_stake_ext(l_stake_ext_service, &a_event->tx_hash);
                     if (l_stake_ext) {
                         // Stake_ext already exists, just ignore double event
-                        log_it(L_WARNING, "Stake_ext %s already exists in cache", 
+                        log_it(L_WARNING, "Stake_ext %s already exists in cache",
                             dap_hash_sha3_256_to_str_static(&a_event->tx_hash));
                         return;
                     }
                     // Create new stake_ext entry with proper stake_ext started data
-                    int l_result = s_stake_ext_cache_add_stake_ext(l_stake_ext_service, &a_event->tx_hash, 
+                    int l_result = s_stake_ext_cache_add_stake_ext(l_stake_ext_service, &a_event->tx_hash,
                                                                 dap_ledger_get_net_id(a_ledger), a_event->group_name,
                                                                 l_started_data, a_event->timestamp);
                     if (l_result != 0) {
-                        log_it(L_ERROR, "Failed to add stake_ext %s to cache: %d", 
+                        log_it(L_ERROR, "Failed to add stake_ext %s to cache: %d",
                                 dap_hash_sha3_256_to_str_static(&a_event->tx_hash), l_result);
                         return;
                     }
-                        
-                    log_it(L_INFO, "Stake_ext %s started with %u positions, duration: %"DAP_UINT64_FORMAT_U" %s", 
+
+                    log_it(L_INFO, "Stake_ext %s started with %u positions, duration: %"DAP_UINT64_FORMAT_U" %s",
                             dap_hash_sha3_256_to_str_static(&a_event->tx_hash),
                             l_started_data->total_positions,
                             l_started_data->duration,
@@ -896,30 +896,30 @@ static void s_stake_ext_cache_event_callback(void *a_arg,
                 }
             } else {
                 // TODO: Handle deleted stake_ext started event
-                log_it(L_DEBUG, "Processing deleted stake_ext started event for %s", 
+                log_it(L_DEBUG, "Processing deleted stake_ext started event for %s",
                        dap_hash_sha3_256_to_str_static(&a_event->tx_hash));
             }
         } break;
-        
+
         case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED: {
-            log_it(L_DEBUG, "Processing stake_ext ended event for %s", 
+            log_it(L_DEBUG, "Processing stake_ext ended event for %s",
                    dap_hash_sha3_256_to_str_static(&a_event->tx_hash));
-            
+
             if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
                 // Parse event data for winners information
                 if (a_event->event_data && a_event->event_data_size >= sizeof(dap_chain_tx_event_data_ended_t)) {
-                    dap_chain_tx_event_data_ended_t *l_ended_data = 
+                    dap_chain_tx_event_data_ended_t *l_ended_data =
                         (dap_chain_tx_event_data_ended_t *)a_event->event_data;
-                    
+
                     // Validate buffer size for winners array access
-                    size_t l_required_size = sizeof(dap_chain_tx_event_data_ended_t) + 
+                    size_t l_required_size = sizeof(dap_chain_tx_event_data_ended_t) +
                                            (l_ended_data->winners_cnt * sizeof(uint32_t));
                     if (a_event->event_data_size < l_required_size) {
-                        log_it(L_ERROR, "Event data size %zu is insufficient for %u winners (required: %zu)", 
+                        log_it(L_ERROR, "Event data size %zu is insufficient for %u winners (required: %zu)",
                                a_event->event_data_size, l_ended_data->winners_cnt, l_required_size);
                         return;
                     }
-                    
+
                     // Find stake_ext by name and update status + end time efficiently
                     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = s_stake_ext_cache_find_stake_ext_by_name(l_stake_ext_service, a_event->group_name);
                     if (l_stake_ext) {
@@ -928,49 +928,49 @@ static void s_stake_ext_cache_event_callback(void *a_arg,
                         dap_chain_srv_stake_ext_status_t l_old_status = l_stake_ext->status;
                         l_stake_ext->status = DAP_STAKE_EXT_STATUS_ENDED;
                         l_stake_ext->end_time = a_event->timestamp;
-                        
+
                         // Update active stake_ext counter
                         if (l_old_status == DAP_STAKE_EXT_STATUS_ACTIVE && l_stake_ext_service->active_stake_ext > 0) {
                             l_stake_ext_service->active_stake_ext--;
                         }
                         pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
-                        
-                        log_it(L_DEBUG, "Updated stake_ext %s status from %s to %s", 
+
+                        log_it(L_DEBUG, "Updated stake_ext %s status from %s to %s",
                                 dap_hash_sha3_256_to_str_static(&a_event->tx_hash),
                                 dap_chain_srv_stake_ext_status_to_str(l_old_status),
                                 dap_chain_srv_stake_ext_status_to_str(DAP_STAKE_EXT_STATUS_ENDED));
                     }
-                    
+
                     // Set winners
                     if (l_ended_data->winners_cnt > 0) {
                         const uint32_t *l_winners_ids = (const uint32_t *)((const byte_t *)l_ended_data +
                             offsetof(dap_chain_tx_event_data_ended_t, winners_ids));
                         s_stake_ext_cache_set_winners_by_name(l_stake_ext_service, a_event->group_name,
                                                              l_ended_data->winners_cnt, (uint32_t *)l_winners_ids);
-                        
-                        log_it(L_INFO, "Stake_ext %s ended with %u winner(s)", 
+
+                        log_it(L_INFO, "Stake_ext %s ended with %u winner(s)",
                                  dap_hash_sha3_256_to_str_static(&a_event->tx_hash),
                                  l_ended_data->winners_cnt);
-                        
+
                         // Log all winners
                         for (uint8_t i = 0; i < l_ended_data->winners_cnt; i++) {
                             log_it(L_DEBUG, "Winner #%u: position ID %u", i + 1, l_winners_ids[i]);
                         }
                     } else {
-                        log_it(L_INFO, "Stake_ext %s ended with no winners", 
+                        log_it(L_INFO, "Stake_ext %s ended with no winners",
                                  dap_hash_sha3_256_to_str_static(&a_event->tx_hash));
                     }
                 }
             } else {
                 // TODO: Handle deleted stake_ext ended event
-                log_it(L_DEBUG, "Processing deleted stake_ext ended event for %s", 
+                log_it(L_DEBUG, "Processing deleted stake_ext ended event for %s",
                        dap_hash_sha3_256_to_str_static(&a_event->tx_hash));
             }
         } break;
-        
+
         case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_CANCELLED: {
             log_it(L_DEBUG, "Processing stake_ext cancelled event for %s", a_event->group_name);
-            
+
             if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
                 // Find stake_ext once and update status + end time efficiently
                 dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = s_stake_ext_cache_find_stake_ext_by_name(l_stake_ext_service, a_event->group_name);
@@ -980,29 +980,29 @@ static void s_stake_ext_cache_event_callback(void *a_arg,
                     dap_chain_srv_stake_ext_status_t l_old_status = l_stake_ext->status;
                     l_stake_ext->status = DAP_STAKE_EXT_STATUS_CANCELLED;
                     l_stake_ext->end_time = a_event->timestamp;
-                    
+
                     // Update active stake_ext counter
                     if (l_old_status == DAP_STAKE_EXT_STATUS_ACTIVE && l_stake_ext_service->active_stake_ext > 0) {
                         l_stake_ext_service->active_stake_ext--;
                     }
                     pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
-                    
-                    log_it(L_DEBUG, "Updated stake_ext %s status from %s to %s", 
+
+                    log_it(L_DEBUG, "Updated stake_ext %s status from %s to %s",
                            a_event->group_name,
                            dap_chain_srv_stake_ext_status_to_str(l_old_status),
                            dap_chain_srv_stake_ext_status_to_str(DAP_STAKE_EXT_STATUS_CANCELLED));
                 } else {
-                    log_it(L_DEBUG, "Stake_ext %s not found in cache", 
+                    log_it(L_DEBUG, "Stake_ext %s not found in cache",
                            a_event->group_name);
                     return;
                 }
             } else {
                 // TODO: Handle deleted stake_ext cancelled event
-                log_it(L_DEBUG, "Processing deleted stake_ext cancelled event for %s", 
+                log_it(L_DEBUG, "Processing deleted stake_ext cancelled event for %s",
                        dap_hash_sha3_256_to_str_static(&a_event->tx_hash));
             }
         } break;
-        
+
         default:
             // Not an stake_ext event, ignore
             break;
@@ -1052,7 +1052,7 @@ void dap_chain_net_srv_stake_ext_deinit(void)
             s_stake_ext_service_delete(l_stake_ext_service);
         l_net = dap_chain_net_iter_next(l_net);
     }
-    
+
     log_it(L_NOTICE, "Stake_ext service deinitialized");
 }
 
@@ -1082,12 +1082,12 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
                                                     l_position_id);
 
     if (l_add_result == 0)
-        log_it(L_WARNING, "Failed to add lock %s to stake_ext %s cache (error: %d)", 
+        log_it(L_WARNING, "Failed to add lock %s to stake_ext %s cache (error: %d)",
                 dap_hash_sha3_256_to_str_static(a_tx_in_hash),
                 dap_hash_sha3_256_to_str_static(&l_stake_ext_hash),
                 l_add_result);
 
-    log_it(L_INFO, "Successfully added lock %s to stake_ext %s cache (position_id=%u, lock_time=%"DAP_UINT64_FORMAT_U", amount=%s)", 
+    log_it(L_INFO, "Successfully added lock %s to stake_ext %s cache (position_id=%u, lock_time=%"DAP_UINT64_FORMAT_U", amount=%s)",
             dap_hash_sha3_256_to_str_static(a_tx_in_hash),
             dap_hash_sha3_256_to_str_static(&l_stake_ext_hash),
             l_position_id,
@@ -1105,13 +1105,13 @@ static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chai
     }
     uint8_t *l_in_cond = dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
     if (!l_in_cond) {
-        log_it(L_ERROR, "No stake_ext lock conditional output found in transaction %s", 
+        log_it(L_ERROR, "No stake_ext lock conditional output found in transaction %s",
                 dap_hash_sha3_256_to_str_static(a_tx_in_hash));
         return;
     }
     dap_chain_tx_in_cond_t *l_in_cond_item = (dap_chain_tx_in_cond_t *)l_in_cond;
     dap_hash_sha3_256_t *l_lock_hash = &l_in_cond_item->header.tx_prev_hash;
-    log_it(L_DEBUG, "Processing lock unlocking for transaction %s", 
+    log_it(L_DEBUG, "Processing lock unlocking for transaction %s",
             dap_hash_sha3_256_to_str_static(l_lock_hash));
 
     // Extract stake_ext hash from conditional output
@@ -1137,7 +1137,7 @@ static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chai
     int l_result = s_stake_ext_cache_unlock_lock(l_position, l_lock_hash);
 
     pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
-    log_it(L_INFO, "%s lock %s from stake_ext %s", l_result ? "Failed to unlock" : "Successfully withdrew", 
+    log_it(L_INFO, "%s lock %s from stake_ext %s", l_result ? "Failed to unlock" : "Successfully withdrew",
                                 dap_hash_sha3_256_to_str_static(l_lock_hash),
                                 dap_hash_sha3_256_to_str_static(&l_stake_ext_hash));
 }
@@ -1169,7 +1169,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
         return -2;
     }
 
-    // Validate position_id 
+    // Validate position_id
     uint32_t l_position_id = a_prev_cond->subtype.srv_stake_ext_lock.position_id;
     if (l_position_id == 0) {
         log_it(L_WARNING, "Invalid position_id value 0 (must be > 0)");
@@ -1186,7 +1186,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
     dap_hash_sha3_256_t l_stake_ext_hash = a_prev_cond->subtype.srv_stake_ext_lock.stake_ext_hash;
     char l_stake_ext_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
     dap_hash_sha3_256_to_str(&l_stake_ext_hash, l_stake_ext_hash_str, sizeof(l_stake_ext_hash_str));
-    
+
     log_it(L_DEBUG, "Verifying unlocking for stake_ext hash %s by owner", l_stake_ext_hash_str);
 
     // 2. Find the stake_ext transaction by hash
@@ -1198,11 +1198,11 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
 
     int ret_code = 0;
     dap_time_t l_stake_ext_end_time = 0;
-    
+
 
     // 3. Check stake_ext status with thread-safe access
     pthread_rwlock_rdlock(&l_stake_ext_service->cache_rwlock);
-    
+
     // Find stake_ext using ultra-fast O(1) hash lookup
     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = s_find_stake_ext_by_hash_fast(l_stake_ext_service, &l_stake_ext_hash);
     if (!l_stake_ext) {
@@ -1237,7 +1237,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
                     }
                 }
             }
-            
+
             dap_chain_tx_in_cond_t *l_tx_in_cond_item = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
             assert(l_tx_in_cond_item);
             dap_hash_sha3_256_t l_lock_tx_hash = l_tx_in_cond_item->header.tx_prev_hash;
@@ -1252,12 +1252,12 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
                 } else {
                     dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
                     dap_time_t l_lock_end_time = l_stake_ext->end_time + a_prev_cond->subtype.srv_stake_ext_lock.lock_time;
-                    
+
                     if (l_current_time >= l_lock_end_time) {
                         log_it(L_DEBUG, "Unlocking allowed: stake_ext %s won and lock period expired", l_stake_ext_hash_str);
                         ret_code = 0;
                     } else {
-                        log_it(L_WARNING, "Unlocking denied: stake_ext %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")", 
+                        log_it(L_WARNING, "Unlocking denied: stake_ext %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")",
                             l_stake_ext_hash_str, l_current_time, l_lock_end_time);
                         ret_code = -7;
                     }
@@ -1298,12 +1298,12 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
 void dap_chain_net_srv_stake_ext_delete(dap_chain_net_srv_stake_ext_t *a_stake_ext)
 {
     dap_return_if_fail(a_stake_ext);
-    
+
     DAP_DEL_Z(a_stake_ext->guuid);
     DAP_DEL_Z(a_stake_ext->description);
-    DAP_DEL_Z(a_stake_ext->winners_ids);  // Free winners array   
+    DAP_DEL_Z(a_stake_ext->winners_ids);  // Free winners array
     DAP_DEL_Z(a_stake_ext->positions);     // Free positions array if present
-    
+
     DAP_DELETE(a_stake_ext);
 }
 
@@ -1319,21 +1319,21 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
     struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_net->pub.id);
     if(!l_stake_ext_service)
         return NULL;
-    
+
     // Search in stake_ext cache
     dap_chain_srv_stake_ext_cache_item_t *l_cached_stake_ext = s_stake_ext_cache_find_stake_ext(l_stake_ext_service, a_hash);
     if (!l_cached_stake_ext) {
         log_it(L_DEBUG, "Stake_ext %s not found in cache", dap_hash_sha3_256_to_str_static(a_hash));
         return NULL;
     }
-    
+
     // Create external API structure
     dap_chain_net_srv_stake_ext_t *l_stake_ext = DAP_NEW_Z(dap_chain_net_srv_stake_ext_t);
     if (!l_stake_ext) {
         log_it(L_CRITICAL, "Memory allocation error for stake_ext API structure");
         return NULL;
     }
-    
+
     // Fill stake_ext data from cache
     l_stake_ext->stake_ext_hash = l_cached_stake_ext->stake_ext_tx_hash.hash;
     l_stake_ext->guuid = l_cached_stake_ext->guuid ? dap_strdup(l_cached_stake_ext->guuid) : NULL;
@@ -1343,14 +1343,14 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
     l_stake_ext->description = l_cached_stake_ext->description ? dap_strdup(l_cached_stake_ext->description) : NULL;
     l_stake_ext->locks_count = l_cached_stake_ext->locks_count;
     l_stake_ext->positions_count = dap_ht_count(l_cached_stake_ext->positions);
-    
+
     // Winner information with proper memory management
     l_stake_ext->has_winner = l_cached_stake_ext->has_winner;
     if (l_cached_stake_ext->winners_cnt > 0 && l_cached_stake_ext->winners_ids) {
         l_stake_ext->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * l_cached_stake_ext->winners_cnt);
         if (l_stake_ext->winners_ids) {
             l_stake_ext->winners_cnt = l_cached_stake_ext->winners_cnt;
-            memcpy(l_stake_ext->winners_ids, l_cached_stake_ext->winners_ids, 
+            memcpy(l_stake_ext->winners_ids, l_cached_stake_ext->winners_ids,
                    sizeof(uint32_t) * l_cached_stake_ext->winners_cnt);
         } else {
             // Memory allocation failed - reset to consistent state
@@ -1362,17 +1362,17 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
         l_stake_ext->winners_cnt = 0;
         l_stake_ext->winners_ids = NULL;
     }
-    
+
     if (l_cached_stake_ext->description) {
         l_stake_ext->description = dap_strdup(l_cached_stake_ext->description);
     }
-    
+
     // Positions array is not filled here - use get_detailed for that
-    
-    log_it(L_DEBUG, "Found stake_ext %s in cache with status %s", 
+
+    log_it(L_DEBUG, "Found stake_ext %s in cache with status %s",
            dap_hash_sha3_256_to_str_static(a_hash),
            dap_chain_srv_stake_ext_status_to_str(l_stake_ext->status));
-    
+
     return l_stake_ext;
 }
 
@@ -1393,23 +1393,23 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
     struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_net->pub.id);
     if(!l_stake_ext_service)
         return NULL;
-    
+
     pthread_rwlock_rdlock(&l_stake_ext_service->cache_rwlock);
-    
+
     // Find stake_ext in cache using ultra-fast O(1) hash lookup
     dap_chain_srv_stake_ext_cache_item_t *l_cached_stake_ext = s_find_stake_ext_by_hash_fast(l_stake_ext_service, a_hash);
     if (!l_cached_stake_ext) {
         pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
         return NULL;
     }
-    
+
     // Create detailed stake_ext structure
     dap_chain_net_srv_stake_ext_t *l_stake_ext = DAP_NEW_Z(dap_chain_net_srv_stake_ext_t);
     if (!l_stake_ext) {
         pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
         return NULL;
     }
-    
+
     // Fill basic stake_ext data
     l_stake_ext->stake_ext_hash = l_cached_stake_ext->stake_ext_tx_hash.hash;
     l_stake_ext->guuid = l_cached_stake_ext->guuid ? dap_strdup(l_cached_stake_ext->guuid) : NULL;
@@ -1419,14 +1419,14 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
     l_stake_ext->description = l_cached_stake_ext->description ? dap_strdup(l_cached_stake_ext->description) : NULL;
     l_stake_ext->locks_count = l_cached_stake_ext->locks_count;
     l_stake_ext->positions_count = dap_ht_count(l_cached_stake_ext->positions);
-    
+
     // Winner information with proper memory management
     l_stake_ext->has_winner = l_cached_stake_ext->has_winner;
     if (l_cached_stake_ext->winners_cnt > 0 && l_cached_stake_ext->winners_ids) {
         l_stake_ext->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * l_cached_stake_ext->winners_cnt);
         if (l_stake_ext->winners_ids) {
             l_stake_ext->winners_cnt = l_cached_stake_ext->winners_cnt;
-            memcpy(l_stake_ext->winners_ids, l_cached_stake_ext->winners_ids, 
+            memcpy(l_stake_ext->winners_ids, l_cached_stake_ext->winners_ids,
                    sizeof(uint32_t) * l_cached_stake_ext->winners_cnt);
         } else {
             // Memory allocation failed - reset to consistent state
@@ -1438,7 +1438,7 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
         l_stake_ext->winners_cnt = 0;
         l_stake_ext->winners_ids = NULL;
     }
-    
+
     // Fill positions array
     if (l_stake_ext->positions_count) {
         l_stake_ext->positions = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_ext_position_t,
@@ -1454,17 +1454,17 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
                 l_stake_ext->positions[l_index].position_id = l_position->position_id;
                 l_stake_ext->positions[l_index].total_amount = l_position->total_amount;
                 l_stake_ext->positions[l_index].locks_count = dap_ht_count(l_position->locks);
-                l_stake_ext->positions[l_index].active_locks_count = l_position->active_locks_count; 
-                
+                l_stake_ext->positions[l_index].active_locks_count = l_position->active_locks_count;
+
                 l_index++;
             }
         }
     }
     pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
-    
-    log_it(L_DEBUG, "Retrieved detailed stake_ext %s with %u positions", 
+
+    log_it(L_DEBUG, "Retrieved detailed stake_ext %s with %u positions",
            dap_hash_sha3_256_to_str_static(a_hash), l_stake_ext->positions_count);
-    
+
     return l_stake_ext;
 }
 
@@ -1475,52 +1475,52 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
  * @param a_include_positions Whether to include basic position information
  * @return Returns list of stake_ext (must be freed with dap_list_free)
  */
-dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net, 
-                                                dap_chain_srv_stake_ext_status_t a_status_filter, 
+dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
+                                                dap_chain_srv_stake_ext_status_t a_status_filter,
                                                 bool a_include_positions)
 {
     dap_return_val_if_fail(a_net, NULL);
     struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_net->pub.id);
     if(!l_stake_ext_service)
         return NULL;
-    
+
     dap_list_t *l_list = NULL;
     pthread_rwlock_rdlock(&l_stake_ext_service->cache_rwlock);
-    
+
     // Diagnostic: Log current cache state
-    log_it(L_INFO, "Getting stake_ext list for network %s, status_filter=%d, include_positions=%s", 
+    log_it(L_INFO, "Getting stake_ext list for network %s, status_filter=%d, include_positions=%s",
            a_net->pub.name, a_status_filter, a_include_positions ? "true" : "false");
-    log_it(L_INFO, "Cache state: total_stake_ext=%u, active_stake_ext=%u, stake_ext_table=%s", 
+    log_it(L_INFO, "Cache state: total_stake_ext=%u, active_stake_ext=%u, stake_ext_table=%s",
            l_stake_ext_service->total_stake_ext, l_stake_ext_service->active_stake_ext,
            l_stake_ext_service->stake_ext ? "present" : "NULL");
-    
+
     // Verify cache integrity before iteration
     if (!l_stake_ext_service->stake_ext && l_stake_ext_service->total_stake_ext > 0) {
-        log_it(L_ERROR, "Cache corruption detected: NULL stake_ext table but total_stake_ext=%u", 
+        log_it(L_ERROR, "Cache corruption detected: NULL stake_ext table but total_stake_ext=%u",
                l_stake_ext_service->total_stake_ext);
         pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
         return NULL;
     }
-    
+
     // Early exit if no stake_ext in cache
     if (!l_stake_ext_service->stake_ext || l_stake_ext_service->total_stake_ext == 0) {
         log_it(L_INFO, "No stake_ext in cache - returning empty list");
         pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
         return NULL;
     }
-    
+
     uint32_t l_total_found = 0, l_network_matches = 0, l_status_matches = 0;
-    
+
     dap_chain_srv_stake_ext_cache_item_t *l_cached_stake_ext = NULL, *l_tmp_stake_ext = NULL;
         dap_ht_foreach_hh(hh, l_stake_ext_service->stake_ext, l_cached_stake_ext, l_tmp_stake_ext) {
         l_total_found++;
-        
+
         // Safety check to prevent segfault
         if (!l_cached_stake_ext) {
             log_it(L_ERROR, "NULL stake_ext found during iteration - cache corruption detected");
             continue;
         }
-        
+
         // Filter by network ID
         if (l_cached_stake_ext->net_id.uint64 != a_net->pub.id.uint64) {
             log_it(L_DEBUG, "Stake_ext %s: network mismatch (expected %"DAP_UINT64_FORMAT_U", got %"DAP_UINT64_FORMAT_U")",
@@ -1529,9 +1529,9 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
             continue;
         }
         l_network_matches++;
-        
+
         // Filter by status if specified
-        if (a_status_filter != DAP_STAKE_EXT_STATUS_UNKNOWN && 
+        if (a_status_filter != DAP_STAKE_EXT_STATUS_UNKNOWN &&
             l_cached_stake_ext->status != a_status_filter) {
             log_it(L_DEBUG, "Stake_ext %s: status mismatch (expected %d, got %d)",
                    l_cached_stake_ext->guuid ? l_cached_stake_ext->guuid : "no_name",
@@ -1539,12 +1539,12 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
             continue;
         }
         l_status_matches++;
-        
+
         // Create stake_ext structure
         dap_chain_net_srv_stake_ext_t *l_stake_ext = DAP_NEW_Z(dap_chain_net_srv_stake_ext_t);
         if (!l_stake_ext)
             continue;
-        
+
         // Fill basic data
         l_stake_ext->stake_ext_hash = l_cached_stake_ext->stake_ext_tx_hash.hash;
         l_stake_ext->guuid = l_cached_stake_ext->guuid ? dap_strdup(l_cached_stake_ext->guuid) : NULL;
@@ -1554,14 +1554,14 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
         l_stake_ext->description = l_cached_stake_ext->description ? dap_strdup(l_cached_stake_ext->description) : NULL;
         l_stake_ext->locks_count = l_cached_stake_ext->locks_count;
         l_stake_ext->positions_count = dap_ht_count(l_cached_stake_ext->positions);
-        
+
         // Winner information with proper memory management
         l_stake_ext->has_winner = l_cached_stake_ext->has_winner;
         if (l_cached_stake_ext->winners_cnt > 0 && l_cached_stake_ext->winners_ids) {
             l_stake_ext->winners_ids = DAP_NEW_Z_SIZE(uint32_t, sizeof(uint32_t) * l_cached_stake_ext->winners_cnt);
             if (l_stake_ext->winners_ids) {
                 l_stake_ext->winners_cnt = l_cached_stake_ext->winners_cnt;
-                memcpy(l_stake_ext->winners_ids, l_cached_stake_ext->winners_ids, 
+                memcpy(l_stake_ext->winners_ids, l_cached_stake_ext->winners_ids,
                        sizeof(uint32_t) * l_cached_stake_ext->winners_cnt);
             } else {
                 // Memory allocation failed - reset to consistent state
@@ -1573,7 +1573,7 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
             l_stake_ext->winners_cnt = 0;
             l_stake_ext->winners_ids = NULL;
         }
-        
+
         // Fill positions array if requested and available
         if (a_include_positions && l_stake_ext->positions_count > 0) {
             l_stake_ext->positions = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_net_srv_stake_ext_position_t,
@@ -1590,12 +1590,12 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
                     }
                     if (l_index >= l_stake_ext->positions_count)
                         break;
-                    
+
                     l_stake_ext->positions[l_index].position_id = l_position->position_id;
                     l_stake_ext->positions[l_index].total_amount = l_position->total_amount;
                     l_stake_ext->positions[l_index].locks_count = dap_ht_count(l_position->locks);
                     l_stake_ext->positions[l_index].active_locks_count = l_position->active_locks_count;
-                    
+
                     l_index++;
                 }
             } else {
@@ -1604,14 +1604,14 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
                 l_stake_ext->positions_count = 0;
             }
         }
-        
+
         l_list = dap_list_append(l_list, l_stake_ext);
     }
-    
+
     pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
-    
+
     uint32_t l_final_count = dap_list_length(l_list);
-    log_it(L_INFO, "Stake_ext filtering results: found=%u, network_matches=%u, status_matches=%u, final_list=%u", 
+    log_it(L_INFO, "Stake_ext filtering results: found=%u, network_matches=%u, status_matches=%u, final_list=%u",
            l_total_found, l_network_matches, l_status_matches, l_final_count);
     log_it(L_DEBUG, "Retrieved %u stake_ext from cache", l_final_count);
     return l_list;
@@ -1628,23 +1628,23 @@ dap_chain_srv_stake_ext_stats_t *dap_chain_net_srv_stake_ext_get_stats(dap_chain
     struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_net->pub.id);
     if(!l_stake_ext_service)
         return NULL;
-    
+
     dap_chain_srv_stake_ext_stats_t *l_stats = DAP_NEW_Z(dap_chain_srv_stake_ext_stats_t);
     if (!l_stats)
         return NULL;
-    
+
     pthread_rwlock_rdlock(&l_stake_ext_service->cache_rwlock);
-    
+
     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext = NULL, *l_tmp_stake_ext = NULL;
     dap_ht_foreach_hh(hh, l_stake_ext_service->stake_ext, l_stake_ext, l_tmp_stake_ext) {
         // Filter by network ID
         if (l_stake_ext->net_id.uint64 != a_net->pub.id.uint64)
             continue;
-        
+
         l_stats->total_stake_ext++;
         l_stats->total_locks += l_stake_ext->locks_count;
         l_stats->total_positions += dap_ht_count(l_stake_ext->positions);
-        
+
         switch (l_stake_ext->status) {
             case DAP_STAKE_EXT_STATUS_ACTIVE:
                 l_stats->active_stake_ext++;
@@ -1659,15 +1659,15 @@ dap_chain_srv_stake_ext_stats_t *dap_chain_net_srv_stake_ext_get_stats(dap_chain
                 break;
         }
     }
-    
+
     pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
-    
-    log_it(L_DEBUG, "Stake_ext stats: total=%u, active=%u, ended=%u, cancelled=%u", 
-           l_stats->total_stake_ext, l_stats->active_stake_ext, 
+
+    log_it(L_DEBUG, "Stake_ext stats: total=%u, active=%u, ended=%u, cancelled=%u",
+           l_stats->total_stake_ext, l_stats->active_stake_ext,
            l_stats->ended_stake_ext, l_stats->cancelled_stake_ext);
-    
+
     return l_stats;
-} 
+}
 
 /**
  * @brief Create unlock transaction
@@ -1683,7 +1683,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
     struct stake_ext *l_stake_ext_service = s_stake_ext_service_get(a_net->pub.id);
     if (!l_stake_ext_service)
         return NULL;
-    
+
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     if (!l_ledger) {
         log_it(L_ERROR, "Ledger not found");
@@ -1722,7 +1722,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
         set_ret_code(a_ret_code, -105);
         return NULL;
     }
-    
+
     // 4. Verify lock unlocking is allowed
     switch (l_stake_ext->status){
         case DAP_STAKE_EXT_STATUS_ENDED:
@@ -1744,14 +1744,14 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
             if (l_is_winner) { // If position is winner, check if lock period expired
                 dap_time_t l_current_time = dap_ledger_get_blockchain_time(l_ledger);
                 dap_time_t l_lock_end_time = l_stake_ext->end_time + l_out_cond->subtype.srv_stake_ext_lock.lock_time;
-                
+
                 if (l_current_time < l_lock_end_time) {
-                    log_it(L_WARNING, "Unlocking denied: stake_ext %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")", 
+                    log_it(L_WARNING, "Unlocking denied: stake_ext %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")",
                         dap_hash_sha3_256_to_str_static(&l_stake_ext_hash), l_current_time, l_lock_end_time);
                     set_ret_code(a_ret_code, -106);
                     return NULL;
                 }
-            } 
+            }
             break;
         }
         case DAP_STAKE_EXT_STATUS_ACTIVE:
@@ -1823,7 +1823,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
 
     // add 'in_cond' & 'in' items
     dap_chain_datum_tx_add_in_cond_item(&l_unlock_tx, a_lock_tx_hash, l_out_num, 0);
-    
+
     if (l_list_used_out) {
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_unlock_tx, l_list_used_out);
         assert(EQUAL_256(l_value_to_items, l_value_transfer));
@@ -1832,7 +1832,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
     }
 
     bool l_is_native = dap_strcmp(l_ticker_str, a_net->pub.native_ticker) == 0;
-    uint256_t l_value_pack = l_is_native ? l_out_cond->header.value : uint256_0;    
+    uint256_t l_value_pack = l_is_native ? l_out_cond->header.value : uint256_0;
     dap_chain_addr_t l_addr_fee = {};
     uint256_t l_net_fee = {}, l_fee_transfer = {};
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
@@ -1894,7 +1894,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
         set_ret_code(a_ret_code, -116);
         return NULL;
     }
-    
+
     // add burning 'out_ext'
     if (!IS_ZERO_256(l_value_delegated)) {
         if (dap_chain_datum_tx_add_out_ext_item(&l_unlock_tx, &c_dap_chain_addr_blank,
@@ -1928,18 +1928,18 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_unlock_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_unlock_tx, l_tx_size);
     dap_chain_datum_tx_delete(l_unlock_tx);
-    
+
     if (!l_datum) {
         log_it(L_ERROR, "Failed to create transaction datum");
         set_ret_code(a_ret_code, -120);
         return NULL;
     }
 
-    // 14. Add to mempool   
+    // 14. Add to mempool
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
     DAP_DELETE(l_datum);
-    
+
     if (!l_ret) {
         log_it(L_ERROR, "Failed to add stake_ext lock transaction to mempool");
         set_ret_code(a_ret_code, -121);
@@ -1965,7 +1965,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
  * @param a_ret_code Return code for error handling
  * @return Returns transaction hash string or NULL on error
  */
-char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_sha3_256_t *a_stake_ext_hash, 
+char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from, const dap_hash_sha3_256_t *a_stake_ext_hash,
                                      uint256_t a_amount, dap_time_t a_lock_time, uint32_t a_position_id, uint256_t a_fee, int *a_ret_code)
 {
     dap_return_val_if_fail(a_net && a_key_from && a_stake_ext_hash && !IS_ZERO_256(a_amount) && a_position_id != 0, NULL);
@@ -1979,22 +1979,22 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
         set_ret_code(a_ret_code, -100);
         return NULL;
     }
-    
+
     pthread_rwlock_rdlock(&l_stake_ext_service->cache_rwlock);
-    
+
     // Find stake_ext using ultra-fast O(1) hash lookup
     dap_chain_srv_stake_ext_cache_item_t *l_stake_ext_cache = s_find_stake_ext_by_hash_fast(l_stake_ext_service, a_stake_ext_hash);
-    
+
     if (!l_stake_ext_cache) {
         pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
         log_it(L_ERROR, "Stake_ext %s not found in cache", dap_hash_sha3_256_to_str_static(a_stake_ext_hash));
         set_ret_code(a_ret_code, -102);
         return NULL;
     }
-      
+
     uint64_t l_position_id = a_position_id;
     dap_chain_srv_stake_ext_position_cache_item_t *l_position = NULL;
-    dap_ht_find_hh(hh, l_stake_ext_cache->positions, &l_position_id, sizeof(uint64_t), l_position);    
+    dap_ht_find_hh(hh, l_stake_ext_cache->positions, &l_position_id, sizeof(uint64_t), l_position);
     pthread_rwlock_unlock(&l_stake_ext_service->cache_rwlock);
     if (!l_position) {
         log_it(L_ERROR, "Position ID %u not found in stake_ext", a_position_id);
@@ -2035,7 +2035,7 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
     uint256_t l_net_fee = {}, l_total_cost = a_amount;
     dap_chain_addr_t l_addr_net_fee = {};
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_net_fee);
-    
+
     if (l_net_fee_used) {
         if (SUM_256_256(l_total_cost, l_net_fee, &l_total_cost)) {
             log_it(L_ERROR, "Overflow detected when adding network fee to total cost");
@@ -2160,7 +2160,7 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     dap_chain_datum_tx_delete(l_tx);
-    
+
     if (!l_datum) {
         log_it(L_ERROR, "Failed to create transaction datum");
         set_ret_code(a_ret_code, -119);
@@ -2171,13 +2171,13 @@ char *dap_chain_net_srv_stake_ext_lock_create(dap_chain_net_t *a_net, dap_enc_ke
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
     DAP_DELETE(l_datum);
-    
+
     if (!l_ret) {
         log_it(L_ERROR, "Failed to add stake_ext lock transaction to mempool");
         set_ret_code(a_ret_code, -120);
         return NULL;
     }
-    
+
     log_it(L_INFO, "Successfully created and added stake_ext lock transaction to mempool: %s", l_ret);
     set_ret_code(a_ret_code, 0);
     return l_ret;
@@ -2200,7 +2200,7 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     const char *str_tmp = NULL;
-    
+
     // Ensure JSON reply is an array to avoid segfaults on json_object_array_add
     if (!a_json_arr_reply || !dap_json_is_array(a_json_arr_reply)) {
         return -1;
@@ -2330,7 +2330,7 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                 if (l_stake_ext)
                     l_stake_ext_hash = l_stake_ext->stake_ext_tx_hash.hash;
             }
-            // Check stake_ext is active           
+            // Check stake_ext is active
             if (!l_stake_ext) {
                 dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_NOT_FOUND_ERROR, "Stake_ext '%s' not found",
                                                                                 l_hash_parsed ? dap_hash_sha3_256_to_str_static(&l_stake_ext_hash) : l_stake_ext_id_str);
@@ -2354,10 +2354,10 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
 
             // Create stake_ext lock transaction
             int l_ret_code = 0;
-            char *l_tx_hash_str = dap_chain_net_srv_stake_ext_lock_create(l_net, l_enc_key, &l_stake_ext_hash, 
+            char *l_tx_hash_str = dap_chain_net_srv_stake_ext_lock_create(l_net, l_enc_key, &l_stake_ext_hash,
                                                          l_amount, l_lock_time, l_position_id, l_fee, &l_ret_code);
             DAP_DELETE(l_enc_key);
-            
+
             // Close wallet
             dap_chain_wallet_close(l_wallet);
 
@@ -2371,14 +2371,14 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                 dap_json_object_add_object(l_json_obj, "stake_ext_name", dap_json_object_new_string(l_stake_ext->guuid));
                 const char *l_amount_str = dap_uint256_to_char(l_amount, NULL);
                 dap_json_object_add_object(l_json_obj, "amount", dap_json_object_new_string(l_amount_str));
-                
-                
+
+
                 const char *l_fee_str = dap_uint256_to_char(l_fee, NULL);
                 dap_json_object_add_object(l_json_obj, "fee", dap_json_object_new_string(l_fee_str));
-                
+
                 dap_json_object_add_object(l_json_obj, "lock_months", dap_json_object_new_int(l_lock_months));
                 dap_json_array_add(a_json_arr_reply, l_json_obj);
-                
+
                 DAP_DELETE(l_tx_hash_str);
             } else {
                 // Error creating transaction - handle specific error codes
@@ -2523,9 +2523,9 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                 dap_json_object_add_object(l_json_obj, "value", dap_json_object_new_string(l_value_str));
                 const char *l_fee_str; dap_uint256_to_char(l_fee, &l_fee_str);
                 dap_json_object_add_object(l_json_obj, "fee", dap_json_object_new_string(l_fee_str));
-                
+
                 dap_json_array_add(a_json_arr_reply, l_json_obj);
-                
+
                 DAP_DELETE(l_tx_hash_str);
             } else {
                 // Error creating transaction - handle specific error codes
@@ -2635,7 +2635,7 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                 dap_json_rpc_error_add(a_json_arr_reply, STAKE_EXT_NOT_FOUND_ERROR, "Stake_ext '%s' not found",
                                                                                 l_hash_parsed ? dap_hash_sha3_256_to_str_static(&l_stake_ext_hash) : l_stake_ext_id_str);
                 return -2;
-            }          
+            }
             bool l_verbose = (dap_cli_server_cmd_check_option(argv, arg_index, argc, "-verbose") != -1);
             dap_json_t *l_json_obj = dap_json_object_new();
             dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("info"));
@@ -2643,11 +2643,11 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
             dap_json_object_add_object(l_json_obj, "verbose", dap_json_object_new_bool(l_verbose));
             dap_json_object_add_object(l_json_obj, "stake_ext_tx_hash", dap_json_object_new_string(dap_hash_sha3_256_to_str_static(&l_stake_ext->stake_ext_tx_hash.hash)));
             dap_json_object_add_object(l_json_obj, "stake_ext_name", dap_json_object_new_string(l_stake_ext->guuid));
-            
+
             // Basic stake_ext information
-            dap_json_object_add_object(l_json_obj, "stake_ext_status", 
+            dap_json_object_add_object(l_json_obj, "stake_ext_status",
                 dap_json_object_new_string(dap_chain_srv_stake_ext_status_to_str(l_stake_ext->status)));
-            
+
             // Format times as human-readable strings
             char info_start_time_str[DAP_TIME_STR_SIZE], info_end_time_str[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(info_start_time_str, DAP_TIME_STR_SIZE, l_stake_ext->start_time);
@@ -2656,39 +2656,39 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
             dap_json_object_add_object(l_json_obj, "end_time", dap_json_object_new_string(info_end_time_str));
             dap_json_object_add_object(l_json_obj, "locks_count", dap_json_object_new_uint64(l_stake_ext->locks_count));
             dap_json_object_add_object(l_json_obj, "positions_count", dap_json_object_new_uint64(dap_ht_count(l_stake_ext->positions)));
-            
+
             if (l_stake_ext->description) {
-                dap_json_object_add_object(l_json_obj, "description", 
+                dap_json_object_add_object(l_json_obj, "description",
                     dap_json_object_new_string(l_stake_ext->description));
             }
-            
+
             // Winners information
             if (l_stake_ext->has_winner && l_stake_ext->winners_cnt > 0) {
                 dap_json_t *l_winners_array = dap_json_array_new();
                 for (uint8_t i = 0; i < l_stake_ext->winners_cnt; i++) {
                 dap_json_t *l_winner_obj = dap_json_object_new();
-                    dap_json_object_add_object(l_winner_obj, "position_id", 
+                    dap_json_object_add_object(l_winner_obj, "position_id",
                         dap_json_object_new_uint64(l_stake_ext->winners_ids[i]));
                     dap_json_array_add(l_winners_array, l_winner_obj);
                 }
                 dap_json_object_add_object(l_json_obj, "winners", l_winners_array);
-                dap_json_object_add_object(l_json_obj, "winners_count", 
+                dap_json_object_add_object(l_json_obj, "winners_count",
                     dap_json_object_new_uint64(l_stake_ext->winners_cnt));
             }
-            
+
             // Positions information
             if (l_stake_ext->positions && dap_ht_count(l_stake_ext->positions) > 0) {
                 dap_json_t *l_positions_array = dap_json_array_new();
-                
+
                 for (dap_chain_srv_stake_ext_position_cache_item_t *l_position = l_stake_ext->positions; l_position; l_position = l_position->hh.next) {
                     dap_json_t *l_position_obj = dap_json_object_new();
                     dap_json_array_add(l_positions_array, l_position_obj);
                     // Position ID
                     dap_json_object_add_object(l_position_obj, "position_id", dap_json_object_new_uint64(l_position->position_id));
-                   
+
                     const char *l_total_amount_str = dap_uint256_to_char(l_position->total_amount, NULL);
                     dap_json_object_add_object(l_position_obj, "total_amount", dap_json_object_new_string(l_total_amount_str));
-                    
+
                     // Total amount in CELL
                     char *l_total_amount_coin_str = dap_uint256_decimal_to_char(l_position->total_amount);
                     if (l_total_amount_coin_str) {
@@ -2697,10 +2697,10 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                     } else {
                         dap_json_object_add_object(l_position_obj, "total_amount_coin", dap_json_object_new_string("0.0"));
                     }
-                    
-                    dap_json_object_add_object(l_position_obj, "locks_count", 
+
+                    dap_json_object_add_object(l_position_obj, "locks_count",
                         dap_json_object_new_uint64(dap_ht_count(l_position->locks)));
-                    dap_json_object_add_object(l_position_obj, "active_locks_count", 
+                    dap_json_object_add_object(l_position_obj, "active_locks_count",
                         dap_json_object_new_uint64(l_position->active_locks_count));
                     if (l_verbose) {
                         dap_json_t *l_locks_array = dap_json_array_new();
@@ -2718,10 +2718,10 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                         }
                     }
                 }
-                
+
                 dap_json_object_add_object(l_json_obj, "positions", l_positions_array);
             }
-            
+
             dap_json_array_add(a_json_arr_reply, l_json_obj);
 
         } break;
@@ -2768,7 +2768,7 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
             }
 
             dap_list_t *l_events = dap_ledger_event_get_list(l_net->pub.ledger, l_stake_ext->guuid);
-            
+
             dap_json_t *l_json_obj = dap_json_object_new();
             dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("events"));
             dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
@@ -2825,10 +2825,10 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
         case CMD_STATS: {
             // Get stake_ext statistics
             dap_chain_srv_stake_ext_stats_t *l_stats = dap_chain_net_srv_stake_ext_get_stats(l_net);
-            
+
             dap_json_t *l_json_obj = dap_json_object_new();
             dap_json_object_add_object(l_json_obj, "command", dap_json_object_new_string("stats"));
-            
+
             if (l_stats) {
                 dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
                 dap_json_object_add_object(l_json_obj, "total_stake_ext", dap_json_object_new_uint64(l_stats->total_stake_ext));
@@ -2837,13 +2837,13 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                 dap_json_object_add_object(l_json_obj, "cancelled_stake_ext", dap_json_object_new_uint64(l_stats->cancelled_stake_ext));
                 dap_json_object_add_object(l_json_obj, "total_locks", dap_json_object_new_uint64(l_stats->total_locks));
                 dap_json_object_add_object(l_json_obj, "total_positions", dap_json_object_new_uint64(l_stats->total_positions));
-                
+
                 DAP_DELETE(l_stats);
             } else {
                 dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("error"));
                 dap_json_object_add_object(l_json_obj, "message", dap_json_object_new_string("Failed to get statistics"));
             }
-            
+
             dap_json_array_add(a_json_arr_reply, l_json_obj);
         } break;
 
