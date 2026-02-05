@@ -38,7 +38,24 @@ tests:amd64.clang:
       - apt-get update
       - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gawk python3 libc6-dev
       - mkdir build
-      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
+      - |
+        cd build
+        cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON || {
+          echo "=== CMake configure failed ==="
+          echo "--- build/CMakeFiles/CMakeError.log ---"
+          tail -n 250 CMakeFiles/CMakeError.log || true
+          echo "--- build/CMakeFiles/CMakeOutput.log ---"
+          tail -n 250 CMakeFiles/CMakeOutput.log || true
+          echo "--- build/dap-sdk/3rdparty/libmdbx/CMakeFiles/CMakeError.log (if any) ---"
+          tail -n 250 dap-sdk/3rdparty/libmdbx/CMakeFiles/CMakeError.log || true
+          echo "--- build/dap-sdk/3rdparty/libmdbx/CMakeFiles/CMakeOutput.log (if any) ---"
+          tail -n 250 dap-sdk/3rdparty/libmdbx/CMakeFiles/CMakeOutput.log || true
+          echo "--- build/CMakeCache.txt (Threads*) ---"
+          if [ -f CMakeCache.txt ]; then grep -n \"^Threads\\|^CMAKE_.*PTHREAD\\|^CMAKE_THREAD\\|^THREADS_\" CMakeCache.txt || true; fi
+          exit 1
+        }
+        make -j$(nproc)
+        ctest --verbose
 
 
 tests:arm64.cross:
