@@ -7671,19 +7671,34 @@ dap_chain_net_srv_dex_remove_error_t dap_chain_net_srv_dex_remove(dap_chain_net_
         if (s_dex_add_cashback(&l_tx, l_value_transfer, l_total_fee, l_owner_addr, l_native_ticker) < 0)
             RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
     } else {
-        // Single channel: fee deducted from locked value
-        if (compare256(l_prev_cond->header.value, l_total_fee) <= 0)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+        // Single channel: fee can be deducted from locked value only if there is a non-zero remainder.
+        // Otherwise, pay fees from owner's additional native inputs and refund the full locked value.
+        if (compare256(l_prev_cond->header.value, l_total_fee) <= 0) {
+            if (s_dex_collect_utxo_for_ticker(l_ledger->net, l_native_ticker, l_owner_addr, l_total_fee, &l_tx, &l_value_transfer) < 0)
+                RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
 
-        // Add fees
-        if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_addr_fee, l_native_ticker) < 0)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+            // Add fees
+            if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_addr_fee, l_native_ticker) < 0)
+                RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
 
-        // Return remainder to owner
-        uint256_t l_coin_back = {};
-        SUBTRACT_256_256(l_prev_cond->header.value, l_total_fee, &l_coin_back);
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, l_owner_addr, l_coin_back, l_native_ticker, 0) == -1)
-            RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+            // Return locked coins to owner
+            if (dap_chain_datum_tx_add_out_std_item(&l_tx, l_owner_addr, l_prev_cond->header.value, l_native_ticker, 0) == -1)
+                RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+
+            // Fee cashback
+            if (s_dex_add_cashback(&l_tx, l_value_transfer, l_total_fee, l_owner_addr, l_native_ticker) < 0)
+                RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+        } else {
+            // Single channel: fee deducted from locked value
+            if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_net_fee_used ? l_net_fee : uint256_0, &l_addr_fee, l_native_ticker) < 0)
+                RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+
+            // Return remainder to owner
+            uint256_t l_coin_back = {};
+            SUBTRACT_256_256(l_prev_cond->header.value, l_total_fee, &l_coin_back);
+            if (dap_chain_datum_tx_add_out_std_item(&l_tx, l_owner_addr, l_coin_back, l_native_ticker, 0) == -1)
+                RET_ERR(DEX_REMOVE_ERROR_COMPOSE_TX);
+        }
     }
 
     // Sign TX
