@@ -17,7 +17,7 @@ srv_dex order create \
   -net <network_name> \
   -token_sell <ticker> \
   -token_buy <ticker> \
-  -w <wallet_path> \
+  (-w <wallet_path> | -unsigned -addr <addr>) \
   -value <amount> \
   -rate <price> \
   -fee <validator_fee> \
@@ -33,6 +33,8 @@ srv_dex order create \
 | `-token_sell` | Token to sell |
 | `-token_buy` | Token to receive |
 | `-w` | Wallet file path |
+| `-addr` | Owner address for unsigned TX (requires `-unsigned`) |
+| `-unsigned` | Compose unsigned JSON; requires `-addr`, forbids `-w` |
 | `-value` | Amount to sell |
 | `-rate` | Price in canonical QUOTE/BASE (QUOTE per 1 BASE) |
 | `-fee` | Validator fee in native |
@@ -44,6 +46,7 @@ srv_dex order create \
 - `-min_fill_pct` and `-min_fill_value` are mutually exclusive
 - `-min_fill_value` auto-computes percentage from `-value` and sets `min_from_origin` policy
 - If `-min_fill_value` >= `-value`, order becomes AON (100%)
+- `-w` and `-addr` are mutually exclusive (use `-unsigned -addr` for unsigned JSON)
 
 **Example:**
 ```bash
@@ -68,7 +71,7 @@ srv_dex order create -net TestNet -token_sell KEL -token_buy USDT \
 srv_dex order remove \
   -net <network_name> \
   -order <order_hash> \
-  -w <wallet_path> \
+  (-w <wallet_path> | -unsigned -addr <addr>) \
   -fee <validator_fee>
 ```
 
@@ -80,6 +83,8 @@ srv_dex order remove -net TestNet \
   -fee 0.05
 ```
 
+**Note:** Unsigned JSON uses `-unsigned -addr` (without `-w`).
+
 ---
 
 ### Update Order
@@ -88,12 +93,12 @@ srv_dex order remove -net TestNet \
 srv_dex order update \
   -net <network_name> \
   -order <root_hash> \
-  -w <wallet_path> \
+  (-w <wallet_path> | -unsigned -addr <addr>) \
   -value <new_value> \
   -fee <validator_fee>
 ```
 
-**Note:** Only the order owner can update. Updates the locked value (increase or decrease).
+**Note:** Only the order owner can update. `-value` must be > 0 (use `order remove` to close). Updates the locked value (increase or decrease). Unsigned JSON uses `-unsigned -addr` (without `-w`).
 
 ---
 
@@ -107,7 +112,7 @@ Execute trade against a single order. Buyer pays in the order's buy token and re
 srv_dex purchase \
   -net <network_name> \
   -order <order_hash> \
-  -w <wallet_path> \
+  (-w <wallet_path> [-addr <addr>] | -unsigned -addr <addr>) \
   -value <amount> \
   [-unit sell|buy] \
   -fee <validator_fee> \
@@ -122,7 +127,9 @@ srv_dex purchase \
 |-----------|----------|-------------|
 | `-net` | Yes | Network name |
 | `-order` | Yes | Order hash to purchase against |
-| `-w` | Yes | Wallet file path |
+| `-w` | Conditional | Wallet file path (payer) |
+| `-addr` | Conditional | Beneficiary address; if used with `-w`, payout goes to this address |
+| `-unsigned` | No | Compose unsigned JSON; requires `-addr`, forbids `-w` |
 | `-value` | Yes | Budget amount (`0` = unlimited) |
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
@@ -138,6 +145,12 @@ srv_dex purchase -net TestNet \
   -w /home/user/.cellframe/wallets/alice.dwallet \
   -value 50.0 -unit buy -fee 0.05
 
+# Payer wallet, beneficiary address:
+srv_dex purchase -net TestNet \
+  -order 0x1234...abcd \
+  -w /home/user/.cellframe/wallets/alice.dwallet -addr 0xBEEF... \
+  -value 50.0 -unit buy -fee 0.05
+
 # With leftover order (rate in canonical QUOTE/BASE):
 srv_dex purchase -net TestNet \
   -order 0x1234...abcd \
@@ -150,13 +163,13 @@ srv_dex purchase -net TestNet \
 
 ### Multi-Order Purchase
 
-Execute trade against multiple orders in a single transaction. Orders are processed in the provided order and the transaction is atomic.
+Execute trade against multiple orders in a single transaction. Orders are sorted by best price (input order is not preserved) and the transaction is atomic.
 
 ```bash
 srv_dex purchase_multi \
   -net <network_name> \
   -orders <hash1,hash2,...> \
-  -w <wallet_path> \
+  (-w <wallet_path> [-addr <addr>] | -unsigned -addr <addr>) \
   -value <amount> \
   -fee <validator_fee> \
   [-unit sell|buy] \
@@ -171,7 +184,9 @@ srv_dex purchase_multi \
 |-----------|----------|-------------|
 | `-net` | Yes | Network name |
 | `-orders` | Yes | Comma-separated list of order hashes |
-| `-w` | Yes | Wallet file path |
+| `-w` | Conditional | Wallet file path (payer) |
+| `-addr` | Conditional | Beneficiary address; if used with `-w`, payout goes to this address |
+| `-unsigned` | No | Compose unsigned JSON; requires `-addr`, forbids `-w` |
 | `-value` | Yes | Budget amount |
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
@@ -179,6 +194,9 @@ srv_dex purchase_multi \
 | `-leftover_rate` | Conditional | Rate for leftover order in canonical QUOTE/BASE (required if `-create_leftover_order`; forbidden otherwise) |
 | `-leftover_fill_policy` | No | Min-fill policy for leftover order: `AON`, `min`, `min_from_origin` |
 | `-leftover_min_fill_pct` | No | Min-fill percent for leftover order (0-100; requires `-leftover_fill_policy`) |
+
+**Notes:**
+- `-value` must be > 0 for `purchase_multi` (0 is invalid)
 
 **Example:**
 ```bash
@@ -206,7 +224,7 @@ srv_dex purchase_auto \
   -net <network_name> \
   -token_sell <ticker> \
   -token_buy <ticker> \
-  -w <wallet_path> \
+  (-w <wallet_path> [-addr <addr>] | -unsigned -addr <addr>) \
   -value <amount> \
   [-unit sell|buy] \
   [-rate_cap <rate>] \
@@ -224,7 +242,9 @@ srv_dex purchase_auto \
 | `-net` | Yes | Network name |
 | `-token_sell` | Yes | Token to sell (spend) |
 | `-token_buy` | Yes | Token to buy (receive) |
-| `-w` | Yes | Wallet file path |
+| `-w` | Conditional | Wallet file path (payer) |
+| `-addr` | Conditional | Beneficiary address; if used with `-w`, payout goes to this address |
+| `-unsigned` | No | Compose unsigned JSON; requires `-addr`, forbids `-w` |
 | `-value` | Yes | Budget amount (`0` = unlimited) |
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
@@ -233,16 +253,23 @@ srv_dex purchase_auto \
 | `-leftover_rate` | Conditional | Rate for leftover order in canonical QUOTE/BASE (required if `-create_leftover_order`; forbidden otherwise) |
 | `-leftover_fill_policy` | No | Min-fill policy for leftover order: `AON`, `min`, `min_from_origin` |
 | `-leftover_min_fill_pct` | No | Min-fill percent for leftover order (0-100; requires `-leftover_fill_policy`) |
-| `-dry-run` | No | Simulate matching without submitting TX (returns match plan in JSON) |
+| `-dry-run` | No | Simulate matching without submitting TX (returns match plan in JSON; not compatible with `-unsigned`) |
 
 **Notes:**
 - `-fee` is required even in `-dry-run` mode (validation requires non-zero fee).
+- `-dry-run` requires `-w` (signed mode) and cannot be combined with `-unsigned`.
 
 **Example:**
 ```bash
 srv_dex purchase_auto -net TestNet \
   -token_sell USDT -token_buy KEL \
   -w /home/user/.cellframe/wallets/alice.dwallet \
+  -value 50.0 -unit buy -rate_cap 2.0 -fee 0.05
+
+# Payer wallet, beneficiary address:
+srv_dex purchase_auto -net TestNet \
+  -token_sell USDT -token_buy KEL \
+  -w /home/user/.cellframe/wallets/alice.dwallet -addr 0xBEEF... \
   -value 50.0 -unit buy -rate_cap 2.0 -fee 0.05
 
 # ASK example (sell BASE, buy QUOTE; rate_cap still QUOTE/BASE):
@@ -274,8 +301,9 @@ srv_dex cancel_all_by_seller \
   -net <network_name> \
   -pair <BASE/QUOTE> \
   -seller <address> \
-  -w <wallet_path> \
+  (-w <wallet_path> | -unsigned -addr <addr>) \
   -fee <validator_fee> \
+  [-side ask|bid] \
   [-limit <N>] \
   [-dry-run]
 ```
@@ -286,10 +314,16 @@ srv_dex cancel_all_by_seller \
 | `-net` | Yes | Network name |
 | `-pair` | Yes | Canonical pair (e.g., `KEL/USDT`) |
 | `-seller` | Yes | Seller address (must match wallet) |
-| `-w` | Yes | Wallet file path |
+| `-w` | Conditional | Wallet file path |
+| `-addr` | Conditional | Owner address (required for unsigned; must match `-seller`) |
+| `-unsigned` | No | Compose unsigned JSON; requires `-addr`, forbids `-w` |
 | `-fee` | Yes | Validator fee in native token |
+| `-side` | No | Cancel only one side (`ask` or `bid`); if omitted, two TXs may be created (one per side) |
 | `-limit` | No | Maximum orders to cancel (default: unlimited) |
 | `-dry-run` | No | Report candidates only, don't create TX |
+
+**Notes:**
+- `-dry-run` and `-unsigned` are mutually exclusive
 
 **Example:**
 ```bash
@@ -341,7 +375,7 @@ srv_dex orderbook \
   -net <network_name> \
   -pair <BASE/QUOTE> \
   [-depth <N>] \
-  [-tick_price <decimals>] \
+  [-tick_price <step>] \
   [-tick <decimals>] \
   [-cumulative]
 ```
@@ -388,36 +422,16 @@ Lists all whitelisted trading pairs with fee configurations.
 
 ## Analytics
 
-### market_rate
+### VWAP and Volume (History)
 
-Calculate volume-weighted average price (VWAP) for a period.
-
-```bash
-srv_dex market_rate \
-  -net <network_name> \
-  -pair <BASE/QUOTE> \
-  [-from <timestamp>] \
-  [-to <timestamp>] \
-  [-bucket <seconds>]
-```
-
-Example:
-```bash
-srv_dex market_rate -net Backbone -pair KEL/USDT -from 1700000000 -to 1700100000 -bucket 3600
-```
-
-### volume
-
-Trading volume for a period (optionally bucketed).
+Use `srv_dex history` with `-view ohlc` or `-view volume`:
 
 ```bash
-srv_dex volume \
-  -net <network_name> \
-  -pair <BASE/QUOTE> \
-  [-from <timestamp>] \
-  [-to <timestamp>] \
-  [-bucket <seconds>]
+srv_dex history -net <network_name> -pair <BASE/QUOTE> -view ohlc [-bucket <seconds>]
+srv_dex history -net <network_name> -pair <BASE/QUOTE> -view volume [-bucket <seconds>]
 ```
+
+VWAP is reported as `totals.vwap`, volumes as `totals.sum_base` and `totals.sum_quote`.
 
 ### Spread
 
@@ -428,7 +442,7 @@ srv_dex spread \
   [-verbose]
 ```
 
-Returns: Best ASK, best BID, spread percentage.
+Returns: Best ASK, best BID, and absolute spread (price delta in QUOTE/BASE). With `-verbose`, includes best ask/bid root and tail hashes.
 
 ---
 
@@ -437,7 +451,7 @@ Returns: Best ASK, best BID, spread percentage.
 ```bash
 srv_dex tvl \
   -net <network_name> \
-  [-token <ticker>] \
+  -token <ticker> \
   [-by pair] \
   [-top <N>]
 ```
@@ -445,11 +459,11 @@ srv_dex tvl \
 **Parameters:**
 | Parameter | Description |
 |-----------|-------------|
-| `-token` | Filter by specific token |
+| `-token` | Token to aggregate (required) |
 | `-by pair` | Group results by trading pair |
 | `-top` | Show top N pairs by TVL |
 
-Returns: Total amount of token(s) locked in active orders.
+Returns: Total amount of the specified token locked in active orders (optionally grouped by pair).
 
 ---
 
@@ -663,7 +677,30 @@ srv_dex history -net TestNet -pair KEL/USDT -view summary -limit 10
 ```json
 {
   "pair": "KEL/USDT",
-  "summary": [...],
+  "summary": [
+    {
+      "pair": "KEL/USDT",
+      "order_root": "0x9abc...def0",
+      "tail": "0x1234...abcd",
+      "state": "partially filled",
+      "filled_pct": "12.00",
+      "side": "ask",
+      "ts_created": 1700000000,
+      "time_created": "Tue, 14 Nov 2023 10:13:20 GMT",
+      "ts_last": 1700000600,
+      "time_last": "Tue, 14 Nov 2023 10:23:20 GMT",
+      "seller": "mJUaYn...",
+      "last_event": "market",
+      "locked_initial": "100.000000000000000000",
+      "amount": "88.000000000000000000",
+      "total_receive": "96.180000000000000000",
+      "remaining": "705.320000000000000000",
+      "rate": "8.0150",
+      "spent": "12.000000000000000000 KEL",
+      "received": "96.180000000000000000 USDT",
+      "remained": "88.000000000000000000 KEL"
+    }
+  ],
   "count": 10
 }
 ```
@@ -977,13 +1014,13 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 | `-token_quote` | Yes | Quote token ticker |
 | `-net_base` | No | Base token network (default: `-net`) |
 | `-net_quote` | No | Quote token network (default: `-net`) |
-| `-fee_pct` | No | Percent fee (0.1% step) |
-| `-fee_native` | No | Native fee per trade (0.01 step) |
+| `-fee_pct` | No | Percent fee (0.1% step, max 12.7) |
+| `-fee_native` | No | Native fee per trade (0.01 step, max 1.27) |
 | `-fee_config` | No | Raw config byte (hex) |
 
 **Fee Options (mutually exclusive):**
-- `-fee_pct <percent>` — Percent fee from INPUT token (e.g., `2.0` = 2%)
-- `-fee_native <amount>` — Fixed native token fee per trade
+- `-fee_pct <percent>` — Percent fee from INPUT token (0.1% step, max 12.7)
+- `-fee_native <amount>` — Fixed native token fee per trade (0.01 step, max 1.27)
 - `-fee_config <byte>` — Raw config byte (for advanced use)
 
 **Note:** `fee_config` encoding uses mode/value (native vs percent) as described in `02_FEE_SYSTEM.md`.
@@ -1030,8 +1067,8 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 | `-token_quote` | Yes | Quote token ticker |
 | `-net_base` | No | Base token network (default: `-net`) |
 | `-net_quote` | No | Quote token network (default: `-net`) |
-| `-fee_pct` | One of | Percent fee (0.1% step) |
-| `-fee_native` | One of | Native fee per trade (0.01 step) |
+| `-fee_pct` | One of | Percent fee (0.1% step, max 12.7) |
+| `-fee_native` | One of | Native fee per trade (0.01 step, max 1.27) |
 | `-fee_config` | One of | Raw config byte (hex) |
 
 **Note:** Exactly one of `-fee_pct`, `-fee_native`, or `-fee_config` is required.
@@ -1050,8 +1087,8 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 **Parameters:**
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `-fee_pct` | One of | Percent fee for all pairs (0.1% step) |
-| `-fee_native` | One of | Native fee for all pairs (0.01 step) |
+| `-fee_pct` | One of | Percent fee for all pairs (0.1% step, max 12.7) |
+| `-fee_native` | One of | Native fee for all pairs (0.01 step, max 1.27) |
 | `-fee_config` | One of | Raw config byte (hex) |
 
 **Note:** Exactly one of `-fee_pct`, `-fee_native`, or `-fee_config` is required. Parameters `-fee_amount` and `-fee_addr` are not allowed for this method.
@@ -1068,13 +1105,15 @@ srv_dex migrate \
   -from <tx_hash> \
   -rate <new_rate> \
   -fee <validator_fee> \
-  -w <wallet_path>
+  (-w <wallet_path> | -unsigned -addr <addr>)
 ```
 
 Converts legacy DEX v1 orders to v2 format.
 `-rate` is interpreted as legacy XCHANGE price (BUY per SELL) and converted to canonical QUOTE/BASE when needed.
 
 See also: [DEX migration sync](09_MIGRATION_SYNC.md).
+
+**Note:** Unsigned JSON uses `-unsigned -addr` (without `-w`).
 
 ---
 

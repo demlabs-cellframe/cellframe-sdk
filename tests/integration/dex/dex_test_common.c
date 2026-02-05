@@ -595,7 +595,7 @@ int test_dex_order_create_ex(
     
     dap_chain_datum_tx_t *tx = NULL;
     dap_chain_net_srv_dex_create_error_t err = dap_chain_net_srv_dex_create(
-        fixture->net->net, token_buy, token_sell, value, rate_value, min_fill, network_fee, wallet, &tx
+        fixture->net->net, token_buy, token_sell, value, rate_value, min_fill, network_fee, wallet, NULL, &tx
     );
     
     if (err != DEX_CREATE_ERROR_OK || !tx) {
@@ -644,7 +644,7 @@ int test_dex_order_purchase(
     
     dap_chain_datum_tx_t *tx = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase(
-        fixture->net->net, (dap_hash_fast_t *)order_hash, budget, true, network_fee, wallet,
+        fixture->net->net, (dap_hash_fast_t *)order_hash, budget, true, network_fee, wallet, NULL,
         false, uint256_0, 0, &tx
     );
     
@@ -687,7 +687,7 @@ int test_dex_order_purchase_auto(
     dap_chain_datum_tx_t *tx = NULL;
     dap_chain_net_srv_dex_purchase_error_t err = dap_chain_net_srv_dex_purchase_auto(
         fixture->net->net, token_sell, token_buy, budget, !use_sell_budget, network_fee, uint256_0,
-        buyer, create_buyer_leftover, uint256_0, 0, &tx
+        buyer, NULL, create_buyer_leftover, uint256_0, 0, &tx
     );
     
     if (err != DEX_PURCHASE_ERROR_OK || !tx) {
@@ -722,7 +722,7 @@ int test_dex_order_cancel(
     
     dap_chain_datum_tx_t *tx = NULL;
     dap_chain_net_srv_dex_remove_error_t err = dap_chain_net_srv_dex_remove(
-        fixture->net->net, (dap_hash_fast_t *)order_hash, network_fee, owner, &tx
+        fixture->net->net, (dap_hash_fast_t *)order_hash, network_fee, owner, NULL, &tx
     );
     
     if (err != DEX_REMOVE_ERROR_OK || !tx) {
@@ -781,7 +781,7 @@ int test_dex_order_update(
     dap_chain_net_srv_dex_update_error_t err = dap_chain_net_srv_dex_update(
         fixture->net->net, (dap_hash_fast_t*)order_hash,
         l_has_new_value, l_new_value,
-        fixture->network_fee, wallet, &tx
+        fixture->network_fee, wallet, NULL, &tx
     );
     
     if (err != DEX_UPDATE_ERROR_OK || !tx) {

@@ -49,7 +49,7 @@ fee_amount = value * DAP_DEX_FEE_UNIT_NATIVE  // value × 0.01 native
 ### Percent Mode (bit7 = 1)
 
 ```c
-fee_pct = value & 0x7F  // 0-100 in 0.1% steps
+fee_pct = value & 0x7F  // 0-127 in 0.1% steps (max 12.7%)
 fee_amount = INPUT_amount × fee_pct / 1000
 ```
 
@@ -60,6 +60,8 @@ fee_amount = INPUT_amount × fee_pct / 1000
 | 0x8A | 1.0% | 1% of INPUT |
 | 0x94 | 2.0% | 2% of INPUT |
 | 0xE4 | 10.0% | 10% of INPUT (0x80 + 100) |
+
+Max percent is 12.7% (`0xFF`).
 
 ### INPUT Token Definition
 

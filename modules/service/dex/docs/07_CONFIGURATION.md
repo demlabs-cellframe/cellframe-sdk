@@ -51,16 +51,16 @@ debug_more=true
 
 | Value | Description |
 |-------|-------------|
-| `true` | Enable history cache (events, summary, OHLCV) |
-| `false` | No historical analytics |
+| `true` | Enable history cache (events/summary + faster OHLCV/volume) |
+| `false` | Disable history cache (events/summary unavailable; OHLCV/volume via ledger scan) |
 
 **Default:** `true`
 
 **Commands affected:**
-- `srv_dex history -view volume`
-- `srv_dex history -view ohlc`
-- `srv_dex history -view events`
-- `srv_dex history -view summary`
+- `srv_dex history -view events` (requires `history_cache=true` and `cache_enabled=true`)
+- `srv_dex history -view summary` (requires `history_cache=true` and `cache_enabled=true`)
+- `srv_dex history -view ohlc` (works without cache, but slower)
+- `srv_dex history -view volume` (works without cache, but slower)
 
 ---
 

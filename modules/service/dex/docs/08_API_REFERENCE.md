@@ -48,6 +48,7 @@ dap_chain_net_srv_dex_create_error_t dap_chain_net_srv_dex_create(
     uint8_t a_min_fill_combined,
     uint256_t a_fee,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     dap_chain_datum_tx_t **a_tx
 );
 ```
@@ -95,6 +96,7 @@ dap_chain_net_srv_dex_remove_error_t dap_chain_net_srv_dex_remove(
     dap_hash_fast_t *a_order_hash,
     uint256_t a_fee,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     dap_chain_datum_tx_t **a_tx
 );
 ```
@@ -127,9 +129,12 @@ dap_chain_net_srv_dex_update_error_t dap_chain_net_srv_dex_update(
     uint256_t a_new_value,
     uint256_t a_fee,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     dap_chain_datum_tx_t **a_tx
 );
 ```
+
+`a_new_value` must be > 0 (use remove to close the order).
 
 ### Error Codes
 
@@ -157,6 +162,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
     bool a_is_budget_buy,
     uint256_t a_fee,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
     uint8_t a_leftover_min_fill,
@@ -181,12 +187,15 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(
     bool a_is_budget_buy,
     uint256_t a_fee,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
     uint8_t a_leftover_min_fill,
     dap_chain_datum_tx_t **a_tx
 );
 ```
+
+`a_value` must be > 0 (multi-order does not support unlimited budget).
 
 ---
 
@@ -204,10 +213,11 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
     uint256_t a_fee,
     uint256_t a_rate_cap,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
     uint8_t a_leftover_min_fill,
-    dap_chain_datum_tx_t **a_tx,        // Can be NULL for dry-run
+    dap_chain_datum_tx_t **a_tx
 );
 ```
 
@@ -218,10 +228,10 @@ Rate cap semantics: BID skips orders with rate above the cap, ASK skips orders w
 ### Dry-Run Mode
 
 When `a_tx == NULL`, the function performs matching only without composing a transaction:
-- Builds match table as usual
-- Populates `a_matches` if provided
 - Does NOT create or sign transaction
-- Returns `DEX_PURCHASE_ERROR_OK` on successful matching
+- Returns `DEX_PURCHASE_ERROR_OK` if matches are found
+
+Note: the public API does not return the match table. Match details are available only in internal helpers.
 
 ---
 
@@ -254,6 +264,7 @@ dap_chain_net_srv_dex_migrate_error_t dap_chain_net_srv_dex_migrate(
     uint256_t a_rate_new,
     uint256_t a_fee,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     dap_chain_datum_tx_t **a_tx
 );
 ```
@@ -288,9 +299,11 @@ dap_chain_net_srv_dex_cancel_all_error_t dap_chain_net_srv_dex_cancel_all_by_sel
     const dap_chain_addr_t *a_seller,
     const char *a_base_token,
     const char *a_quote_token,
+    int a_side,
     int a_limit,
     uint256_t a_fee,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     dap_chain_datum_tx_t **a_tx
 );
 ```

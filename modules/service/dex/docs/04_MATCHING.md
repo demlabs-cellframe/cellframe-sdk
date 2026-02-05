@@ -27,7 +27,7 @@ If `rate_cap` is non-zero, orders are filtered by side: BID skips `rate > rate_c
 
 ### Taker Side Determination
 
-Taker's side is derived from token ordering via `s_pair_normalize`:
+Taker's side is derived from token ordering via `s_dex_pair_normalize`:
 
 ```c
 if (strcmp(a_sell_tok, a_buy_tok) < 0) {
@@ -152,11 +152,13 @@ HASH_ITER(hh, l_entries, l_cur, l_tmp) {
 dap_chain_datum_tx_t *s_dex_compose_from_match_table(
     dap_chain_net_t *a_net,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_buyer_addr,
     uint256_t a_fee,
     uint256_t a_leftover_budget,
     bool a_is_budget_buy,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
+    uint8_t a_leftover_min_fill,
     dex_match_table_entry_t *a_matches
 );
 ```
@@ -474,6 +476,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(
     bool a_is_budget_buy,
     uint256_t a_fee,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
     uint8_t a_leftover_min_fill,
@@ -492,8 +495,10 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(
     bool a_is_budget_buy,
     uint256_t a_fee,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
+    uint8_t a_leftover_min_fill,
     dap_chain_datum_tx_t **a_tx
 );
 ```
@@ -510,13 +515,15 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_auto(
     uint256_t a_fee,
     uint256_t a_rate_cap,
     dap_chain_wallet_t *a_wallet,
+    const dap_chain_addr_t *a_owner_addr,
     bool a_create_buyer_order_on_leftover,
     uint256_t a_leftover_rate,
     uint8_t a_leftover_min_fill,
-    dap_chain_datum_tx_t **a_tx,
-    dex_match_table_entry_t **a_matches  // Optional: return matches
+    dap_chain_datum_tx_t **a_tx
 );
 ```
+
+Note: match tables are internal; the public API does not return them.
 
 ---
 

@@ -5519,18 +5519,24 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
 
     }
     // Process special tx items
-    int l_err_num = 0;
+    int l_err_num = 0, l_counter = 0;
     byte_t *it; size_t l_size;
     TX_ITEM_ITER_TX(it, l_size, a_tx) {
         switch (*it) {
         case TX_ITEM_TYPE_VOTING:
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, a_tx_hash, true);
+            if (l_err_num)
+                log_it(L_MSG, "[!] Voting cb ret %d for item %d in tx %s", l_err_num, l_counter, dap_hash_fast_to_str_static(a_tx_hash));
             break;
         case TX_ITEM_TYPE_VOTE:
             l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, true);
+            if (l_err_num)
+                log_it(L_MSG, "[!] Vote cb ret %d for item %d in tx %s", l_err_num, l_counter, dap_hash_fast_to_str_static(a_tx_hash));
             break;
         case TX_ITEM_TYPE_EVENT:
             l_err_num = s_ledger_event_verify_add(a_ledger, a_tx_hash, a_tx, true, false);
+            if (l_err_num)
+                log_it(L_MSG, "[!] Event cb ret %d for item %d in tx %s", l_err_num, l_counter, dap_hash_fast_to_str_static(a_tx_hash));
             break;
         default:
             break;

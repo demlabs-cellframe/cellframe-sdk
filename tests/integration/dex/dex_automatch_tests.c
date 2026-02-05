@@ -1596,6 +1596,42 @@ int run_automatch_test(dex_test_fixture_t *f, const automatch_test_template_t *t
         tmpl->sell_token, dap_uint256_to_char(l_buyer_sell_before, NULL),
         tmpl->buy_token, dap_uint256_to_char(l_buyer_buy_before, NULL));
     
+    // Beneficiary test: payer pays, but different address receives the tokens
+    // Skip for: T-group (tamper tests where Dave may be seller), E06 (Dave as buyer)
+    bool l_skip_benef_test = (tmpl->name[0] == 'T') || (strcmp(tmpl->name, "E06") == 0);
+    if (!l_skip_benef_test && tmpl->expected_error == 0 && tmpl->expected_match_count != 0) {
+        log_it(L_INFO, "  Testing purchase_auto with beneficiary (Dave)");
+        dap_chain_datum_tx_t *l_benef_tx = NULL;
+        int l_benef_ret = dap_chain_net_srv_dex_purchase_auto(
+            f->net->net, tmpl->sell_token, tmpl->buy_token, l_budget, tmpl->is_budget_buy,
+            l_fee, l_min_rate, l_wallet, &f->dave_addr, false, uint256_0, 0, &l_benef_tx);
+        
+        if (l_benef_ret == 0 && l_benef_tx) {
+            dap_hash_fast_t l_benef_hash;
+            dap_hash_fast(l_benef_tx, dap_chain_datum_tx_get_size(l_benef_tx), &l_benef_hash);
+            int l_ledger_ret = dap_ledger_tx_add(f->net->net->pub.ledger, l_benef_tx, &l_benef_hash, false, NULL);
+            
+            if (l_ledger_ret != 0) {
+                log_it(L_ERROR, "Test %s: beneficiary TX failed verification: %d", tmpl->name, l_ledger_ret);
+                dap_chain_datum_tx_delete(l_benef_tx);
+                return -1;
+            }
+            log_it(L_NOTICE, "  ✓ Beneficiary purchase_auto passed verification");
+            
+            // Rollback
+            dap_chain_datum_tx_t *l_tx_remove = dap_ledger_tx_find_by_hash(f->net->net->pub.ledger, &l_benef_hash);
+            if (dap_ledger_tx_remove(f->net->net->pub.ledger, l_tx_remove, &l_benef_hash) != 0)
+                log_it(L_WARNING, "Test %s: beneficiary TX rollback failed", tmpl->name);
+            else
+                log_it(L_NOTICE, "  ✓ Beneficiary TX rolled back");
+        } else if (l_benef_ret != DEX_PURCHASE_AUTO_ERROR_NO_MATCHES) {
+            // NO_MATCHES is OK (some tests may not have matching orders), but other errors are failures
+            log_it(L_ERROR, "Test %s: beneficiary purchase_auto failed: %d", tmpl->name, l_benef_ret);
+            DAP_DEL_Z(l_benef_tx);
+            return -1;
+        }
+    }
+    
     // Execute purchase_auto
     dap_chain_datum_tx_t *l_tx = NULL;
     
@@ -1608,6 +1644,7 @@ int run_automatch_test(dex_test_fixture_t *f, const automatch_test_template_t *t
         l_fee,
         l_min_rate,
         l_wallet,
+        NULL,
         tmpl->create_leftover,
         l_leftover_rate,
         0,
@@ -1632,7 +1669,20 @@ int run_automatch_test(dex_test_fixture_t *f, const automatch_test_template_t *t
         return 0;
     }
     
-    if (l_ret != 0) {
+    // Handle no-matches case with leftover order creation (same as CLI)
+    if (l_ret == DEX_PURCHASE_AUTO_ERROR_NO_MATCHES && tmpl->create_leftover && !IS_ZERO_256(l_leftover_rate)) {
+        uint256_t l_value_sell = l_budget;
+        if (tmpl->is_budget_buy)
+            DIV_256_COIN(l_budget, l_leftover_rate, &l_value_sell);
+        dap_chain_net_srv_dex_create_error_t l_create_ret = dap_chain_net_srv_dex_create(
+            f->net->net, tmpl->buy_token, tmpl->sell_token,
+            l_value_sell, l_leftover_rate, 0, l_fee, l_wallet, NULL, &l_tx);
+        if (l_create_ret != DEX_CREATE_ERROR_OK) {
+            log_it(L_ERROR, "Test %s: fresh order creation failed with %d", tmpl->name, l_create_ret);
+            return -1;
+        }
+        log_it(L_INFO, "  Created fresh leftover order (no matches)");
+    } else if (l_ret != 0) {
         log_it(L_ERROR, "Test %s: purchase_auto failed with %d", tmpl->name, l_ret);
         return -1;
     }
@@ -1815,7 +1865,7 @@ static int s_create_attack_vector_2_orders(dex_test_fixture_t *f,
     dap_chain_datum_tx_t *l_tx_alice = NULL;
     dap_chain_net_srv_dex_create_error_t err = dap_chain_net_srv_dex_create(
         f->net->net, buy_token, sell_token, l_value, l_rate, 
-        MINFILL_NONE, f->network_fee, l_alice, &l_tx_alice
+        MINFILL_NONE, f->network_fee, l_alice, NULL, &l_tx_alice
     );
     if (err != DEX_CREATE_ERROR_OK || !l_tx_alice) {
         log_it(L_ERROR, "T09 setup: failed to create Alice order (err=%d)", err);
@@ -1835,7 +1885,7 @@ static int s_create_attack_vector_2_orders(dex_test_fixture_t *f,
     dap_chain_datum_tx_t *l_tx_carol = NULL;
     err = dap_chain_net_srv_dex_create(
         f->net->net, buy_token, sell_token, l_value, l_rate,
-        MINFILL_NONE, f->network_fee, l_carol, &l_tx_carol
+        MINFILL_NONE, f->network_fee, l_carol, NULL, &l_tx_carol
     );
     if (err != DEX_CREATE_ERROR_OK || !l_tx_carol) {
         log_it(L_ERROR, "T09 setup: failed to create Carol order (err=%d)", err);
@@ -1876,7 +1926,7 @@ static int s_create_t10_orders(dex_test_fixture_t *f,
     dap_chain_datum_tx_t *l_tx_alice = NULL;
     dap_chain_net_srv_dex_create_error_t err = dap_chain_net_srv_dex_create(
         f->net->net, buy_token, sell_token, l_value, l_rate_alice,
-        MINFILL_NONE, f->network_fee, f->alice, &l_tx_alice
+        MINFILL_NONE, f->network_fee, f->alice, NULL, &l_tx_alice
     );
     if (err != DEX_CREATE_ERROR_OK || !l_tx_alice) {
         log_it(L_ERROR, "T10 setup: failed to create Alice order (err=%d)", err);
@@ -1896,7 +1946,7 @@ static int s_create_t10_orders(dex_test_fixture_t *f,
     dap_chain_datum_tx_t *l_tx_dave = NULL;
     err = dap_chain_net_srv_dex_create(
         f->net->net, buy_token, sell_token, l_value, l_rate_dave,
-        MINFILL_NONE, f->network_fee, f->dave, &l_tx_dave
+        MINFILL_NONE, f->network_fee, f->dave, NULL, &l_tx_dave
     );
     if (err != DEX_CREATE_ERROR_OK || !l_tx_dave) {
         log_it(L_ERROR, "T10 setup: failed to create Dave order (err=%d)", err);
@@ -1937,7 +1987,7 @@ static int s_create_attack_vector_2_orders_bid(dex_test_fixture_t *f,
     dap_chain_datum_tx_t *l_tx_bob = NULL;
     dap_chain_net_srv_dex_create_error_t err = dap_chain_net_srv_dex_create(
         f->net->net, base_token, quote_token, l_value, l_rate,
-        MINFILL_NONE, f->network_fee, l_bob, &l_tx_bob
+        MINFILL_NONE, f->network_fee, l_bob, NULL, &l_tx_bob
     );
     if (err != DEX_CREATE_ERROR_OK || !l_tx_bob) {
         log_it(L_ERROR, "T11 setup: failed to create Bob BID order (err=%d)", err);
@@ -1957,7 +2007,7 @@ static int s_create_attack_vector_2_orders_bid(dex_test_fixture_t *f,
     dap_chain_datum_tx_t *l_tx_carol = NULL;
     err = dap_chain_net_srv_dex_create(
         f->net->net, base_token, quote_token, l_value, l_rate,
-        MINFILL_NONE, f->network_fee, l_carol, &l_tx_carol
+        MINFILL_NONE, f->network_fee, l_carol, NULL, &l_tx_carol
     );
     if (err != DEX_CREATE_ERROR_OK || !l_tx_carol) {
         log_it(L_ERROR, "T11 setup: failed to create Carol BID order (err=%d)", err);
@@ -1996,7 +2046,7 @@ static int s_create_t12_orders_bid(dex_test_fixture_t *f,
     dap_chain_datum_tx_t *l_tx_bob = NULL;
     dap_chain_net_srv_dex_create_error_t err = dap_chain_net_srv_dex_create(
         f->net->net, base_token, quote_token, l_value, l_rate_bob,
-        MINFILL_NONE, f->network_fee, f->bob, &l_tx_bob
+        MINFILL_NONE, f->network_fee, f->bob, NULL, &l_tx_bob
     );
     if (err != DEX_CREATE_ERROR_OK || !l_tx_bob) {
         log_it(L_ERROR, "T12 setup: failed to create Bob BID order (err=%d)", err);
@@ -2016,7 +2066,7 @@ static int s_create_t12_orders_bid(dex_test_fixture_t *f,
     dap_chain_datum_tx_t *l_tx_dave = NULL;
     err = dap_chain_net_srv_dex_create(
         f->net->net, base_token, quote_token, l_value, l_rate_dave,
-        MINFILL_NONE, f->network_fee, f->dave, &l_tx_dave
+        MINFILL_NONE, f->network_fee, f->dave, NULL, &l_tx_dave
     );
     if (err != DEX_CREATE_ERROR_OK || !l_tx_dave) {
         log_it(L_ERROR, "T12 setup: failed to create Dave BID order (err=%d)", err);
@@ -2135,6 +2185,7 @@ static int s_run_tamper_test(dex_test_fixture_t *f, const tamper_test_template_t
         l_fee,
         l_min_rate,
         l_wallet,
+        NULL,
         tmpl->create_leftover,
         l_leftover_rate,
         0,

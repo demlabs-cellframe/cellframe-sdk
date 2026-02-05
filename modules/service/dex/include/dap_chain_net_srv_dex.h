@@ -121,6 +121,7 @@ typedef enum dap_chain_net_srv_dex_create_error_list {
 dap_chain_net_srv_dex_create_error_t dap_chain_net_srv_dex_create(dap_chain_net_t *a_net, const char *a_token_buy, const char *a_token_sell,
                                                                   uint256_t a_value_sell, uint256_t a_rate, uint8_t a_min_fill_combined,
                                                                   uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                                                  const dap_chain_addr_t *a_owner_addr,
                                                                   dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
@@ -146,7 +147,8 @@ typedef enum dap_chain_net_srv_dex_remove_error_list {
  * @return Error code; only order owner can cancel
  */
 dap_chain_net_srv_dex_remove_error_t dap_chain_net_srv_dex_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_fee,
-                                                                  dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx);
+                                                                  dap_chain_wallet_t *a_wallet, const dap_chain_addr_t *a_owner_addr,
+                                                                  dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Order Update
@@ -172,7 +174,8 @@ typedef enum dap_chain_net_srv_dex_update_error_list {
  */
 dap_chain_net_srv_dex_update_error_t dap_chain_net_srv_dex_update(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_root,
                                                                   bool a_has_new_value, uint256_t a_new_value, uint256_t a_fee,
-                                                                  dap_chain_wallet_t *a_wallet, dap_chain_datum_tx_t **a_tx);
+                                                                  dap_chain_wallet_t *a_wallet, const dap_chain_addr_t *a_owner_addr,
+                                                                  dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Purchase (Trade Execution)
@@ -207,7 +210,8 @@ typedef enum dap_chain_net_srv_dex_purchase_error_list {
  */
 dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash,
                                                                       uint256_t a_value, bool a_is_budget_buy, uint256_t a_fee,
-                                                                      dap_chain_wallet_t *a_wallet, bool a_create_buyer_order_on_leftover,
+                                                                      dap_chain_wallet_t *a_wallet, const dap_chain_addr_t *a_owner_addr,
+                                                                      bool a_create_buyer_order_on_leftover,
                                                                       uint256_t a_leftover_rate, uint8_t a_leftover_min_fill,
                                                                       dap_chain_datum_tx_t **a_tx);
 
@@ -229,6 +233,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase(dap_chain_
 dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hashes,
                                                                             size_t a_orders_count, uint256_t a_value, bool a_is_budget_buy,
                                                                             uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                                                            const dap_chain_addr_t *a_owner_addr,
                                                                             bool a_create_buyer_order_on_leftover,
                                                                             uint256_t a_leftover_rate, uint8_t a_leftover_min_fill,
                                                                             dap_chain_datum_tx_t **a_tx);
@@ -252,6 +257,7 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(dap_
 dap_chain_net_srv_dex_purchase_error_t
 dap_chain_net_srv_dex_purchase_auto(dap_chain_net_t *a_net, const char *a_sell_token, const char *a_buy_token, uint256_t a_value,
                                     bool a_is_budget_buy, uint256_t a_fee, uint256_t a_rate_cap, dap_chain_wallet_t *a_wallet,
+                                    const dap_chain_addr_t *a_owner_addr,
                                     bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate, uint8_t a_leftover_min_fill,
                                     dap_chain_datum_tx_t **a_tx);
 
@@ -279,7 +285,7 @@ typedef enum dap_chain_net_srv_dex_migrate_error_list {
  */
 dap_chain_net_srv_dex_migrate_error_t dap_chain_net_srv_dex_migrate(dap_chain_net_t *a_net, dap_hash_fast_t *a_prev_hash,
                                                                     uint256_t a_rate_new, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-                                                                    dap_chain_datum_tx_t **a_tx);
+                                                                    const dap_chain_addr_t *a_owner_addr, dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Batch Cancellation
@@ -300,6 +306,7 @@ typedef enum dap_chain_net_srv_dex_cancel_all_error_list {
  * @param a_seller        Seller address (must match wallet)
  * @param a_base_token    Base token of canonical pair (required)
  * @param a_quote_token   Quote token of canonical pair (required)
+ * @param a_side          Side filter: DEX_CANCEL_SIDE_ASK, DEX_CANCEL_SIDE_BID, or DEX_CANCEL_SIDE_ANY
  * @param a_limit         Max orders to cancel (0 = unlimited, capped by TX size)
  * @param a_fee           Validator fee in native tokens (covers all cancellations)
  * @param a_wallet        Seller wallet (must match a_seller)
@@ -308,8 +315,9 @@ typedef enum dap_chain_net_srv_dex_cancel_all_error_list {
  */
 dap_chain_net_srv_dex_cancel_all_error_t
 dap_chain_net_srv_dex_cancel_all_by_seller(dap_chain_net_t *a_net, const dap_chain_addr_t *a_seller, const char *a_base_token,
-                                           const char *a_quote_token, int a_limit, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-                                           dap_chain_datum_tx_t **a_tx);
+                                           const char *a_quote_token, int a_side, int a_limit, uint256_t a_fee,
+                                           dap_chain_wallet_t *a_wallet,
+                                           const dap_chain_addr_t *a_owner_addr, dap_chain_datum_tx_t **a_tx);
 
 /* ============================================================================
  * Governance (Decree Callback)

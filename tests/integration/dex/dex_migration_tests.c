@@ -286,7 +286,7 @@ static int s_dex_cancel_order(dex_test_fixture_t *a_f, const dap_hash_fast_t *a_
     dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net, !a_order_hash);
     dap_chain_datum_tx_t *l_cancel_tx = NULL;
     dap_chain_net_srv_dex_remove_error_t l_err = dap_chain_net_srv_dex_remove(
-        a_f->net->net, (dap_hash_fast_t *)a_order_hash, a_f->network_fee, a_f->alice, &l_cancel_tx);
+        a_f->net->net, (dap_hash_fast_t *)a_order_hash, a_f->network_fee, a_f->alice, NULL, &l_cancel_tx);
     if (l_err != DEX_REMOVE_ERROR_OK || !l_cancel_tx)
         return -2;
     dap_hash_fast_t l_cancel_hash = {};
@@ -387,7 +387,7 @@ int run_migration_tests(dex_test_fixture_t *f)
     
     dap_chain_datum_tx_t *l_migrate_tx_a = NULL;
     dap_chain_net_srv_dex_migrate_error_t l_err = dap_chain_net_srv_dex_migrate(
-        f->net->net, &l_xchange_tail_a, l_rate_new, f->network_fee, f->alice, &l_migrate_tx_a);
+        f->net->net, &l_xchange_tail_a, l_rate_new, f->network_fee, f->alice, NULL, &l_migrate_tx_a);
     if (l_err != DEX_MIGRATE_ERROR_OK || !l_migrate_tx_a) {
         log_it(L_ERROR, "DEX migrate compose failed: %d", l_err);
         return -12;
@@ -451,7 +451,7 @@ int run_migration_tests(dex_test_fixture_t *f)
     }
 
     dap_chain_datum_tx_t *l_migrate_tx_b = NULL;
-    l_err = dap_chain_net_srv_dex_migrate(f->net->net, &l_xchange_tail_b, l_rate_new, f->network_fee, f->alice, &l_migrate_tx_b);
+    l_err = dap_chain_net_srv_dex_migrate(f->net->net, &l_xchange_tail_b, l_rate_new, f->network_fee, f->alice, NULL, &l_migrate_tx_b);
     if (l_err != DEX_MIGRATE_ERROR_OK || !l_migrate_tx_b) {
         log_it(L_ERROR, "DEX migrate compose failed for B: %d", l_err);
         return -22;
@@ -535,7 +535,7 @@ int run_migration_tests(dex_test_fixture_t *f)
     }
 
     dap_chain_datum_tx_t *l_migrate_tx_fail = NULL;
-    l_err = dap_chain_net_srv_dex_migrate(f->net->net, &l_xchange_tail_c, l_rate_new, f->network_fee, f->alice,
+    l_err = dap_chain_net_srv_dex_migrate(f->net->net, &l_xchange_tail_c, l_rate_new, f->network_fee, f->alice, NULL,
                                           &l_migrate_tx_fail);
     if (l_err != DEX_MIGRATE_ERROR_OK || !l_migrate_tx_fail) {
         log_it(L_ERROR, "DEX migrate compose failed after cutoff: %d", l_err);
