@@ -25,6 +25,8 @@ tests:amd64.gcc:
     extends: .tests
     image: demlabs/debian/amd64:qt6
     script:
+      - apt-get update
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gawk python3 libc6-dev
       - mkdir build
       - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
 
@@ -33,6 +35,8 @@ tests:amd64.clang:
     extends: .tests
     image: demlabs/debian/amd64:qt6
     script:
+      - apt-get update
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gawk python3 libc6-dev
       - mkdir build
       - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
 
