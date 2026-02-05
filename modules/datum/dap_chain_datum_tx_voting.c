@@ -60,11 +60,11 @@ dap_chain_datum_tx_voting_params_t *dap_chain_datum_tx_voting_parse_tsd(dap_chai
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
             l_voting_params->vote_changing_allowed = *l_tsd->data;
             break;
-        case VOTING_TSD_TYPE_TOKEN:
+        case VOTING_TSD_TYPE_TOKEN: {
             const char *l_src = (const char *)l_tsd->data;
             strncpy(l_voting_params->token_ticker, l_src, DAP_CHAIN_TICKER_SIZE_MAX - 1);
             l_voting_params->token_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
-            break;
+        } break;
         default:
             break;
         }
