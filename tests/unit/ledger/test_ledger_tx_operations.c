@@ -57,12 +57,10 @@ DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
         }
         if (l_is_zero) {
             log_it(L_DEBUG, "Custom mock: zero hash detected, returning NULL");
-            dap_mock_record_call(G_MOCK, NULL, 0, NULL);
             return NULL;
         }
     }
     l_result = (dap_chain_datum_tx_t*)G_MOCK->return_value.ptr;
-    dap_mock_record_call(G_MOCK, NULL, 0, (void*)(intptr_t)l_result);
     return l_result;
 }
 
@@ -308,7 +306,8 @@ static void test_call_counting(void)
     dap_ledger_tx_find_by_hash(&s_mock_ledger, &s_test_tx_hash1);
     dap_ledger_tx_find_by_hash(&s_mock_ledger, &s_test_tx_hash2);
 
-    dap_assert_PIF(g_mock_dap_ledger_tx_find_by_hash->call_count == 2, "Count should be 2");
+    // One call produces two records: prepare_call(args) + record_call(args, return_value)
+    dap_assert_PIF(g_mock_dap_ledger_tx_find_by_hash->call_count == 4, "Count should be 4");
 
     log_it(L_INFO, "✅ TEST 8 PASSED: Call counting works");
 }
