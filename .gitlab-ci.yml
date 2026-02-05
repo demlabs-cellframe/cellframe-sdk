@@ -40,7 +40,7 @@ tests:amd64.clang:
       - mkdir build
       - |
         cd build
-        cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON || {
+        cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DTHREADS_HAVE_PTHREAD_ARG=TRUE || {
           echo "=== CMake configure failed ==="
           echo "--- build/CMakeFiles (ls) ---"
           ls -la CMakeFiles || true
@@ -48,6 +48,8 @@ tests:amd64.clang:
           find CMakeFiles -maxdepth 4 -type f -name '*Threads*' -print || true
           find CMakeFiles -maxdepth 4 -type f -name 'CMakeError.log' -print || true
           find CMakeFiles -maxdepth 4 -type f -name 'CMakeOutput.log' -print || true
+          echo "--- build/CMakeFiles/CMakeConfigureLog.yaml (Threads/pthread snippets) ---"
+          if [ -f CMakeFiles/CMakeConfigureLog.yaml ]; then grep -nE 'Threads|pthread|-pthread' CMakeFiles/CMakeConfigureLog.yaml | tail -n 200 || true; fi
           echo "--- build/CMakeFiles/CMakeError.log (if any) ---"
           [ -f CMakeFiles/CMakeError.log ] && tail -n 400 CMakeFiles/CMakeError.log || true
           echo "--- build/CMakeFiles/CMakeOutput.log (if any) ---"
