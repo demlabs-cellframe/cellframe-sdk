@@ -72,7 +72,8 @@ void unit_test_fixture_cleanup(unit_test_context_t *a_ctx) {
     // Remove temporary directory
     if (a_ctx->test_dir) {
         char *l_cmd = dap_strdup_printf("rm -rf %s", a_ctx->test_dir);
-        system(l_cmd);
+        int l_rc = system(l_cmd);
+        (void)l_rc;
         DAP_DELETE(l_cmd);
         DAP_DELETE(a_ctx->test_dir);
     }

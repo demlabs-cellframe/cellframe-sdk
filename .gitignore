@@ -87,3 +87,6 @@ slc
 .DS_Store
 .vscode/
 .devcontainer
+
+# Build-time compatibility copy for embedded dap-sdk code generators
+/module/test/dap_tpl/

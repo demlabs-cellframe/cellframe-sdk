@@ -125,7 +125,8 @@ void integration_test_fixture_cleanup(integration_test_context_t *a_ctx) {
     // Remove test directory
     if (a_ctx->test_dir) {
         char *l_cmd = dap_strdup_printf("rm -rf %s", a_ctx->test_dir);
-        system(l_cmd);
+        int l_rc = system(l_cmd);
+        (void)l_rc;
         DAP_DELETE(l_cmd);
         DAP_DELETE(a_ctx->test_dir);
     }

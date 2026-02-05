@@ -1,8 +1,8 @@
 # Test Fixtures Libraries
 cmake_minimum_required(VERSION 3.10)
 
-# Include DAP Mock AutoWrap module
-include(${CMAKE_SOURCE_DIR}/dap-sdk/module/test/mocks/DAPMockAutoWrap.cmake)
+# Include DAP Mock AutoWrap module (Cellframe SDK shim)
+include(${CMAKE_SOURCE_DIR}/cmake/DAPMockAutoWrap.cmake)
 
 # Unit Test Fixtures (for unit tests with DAP SDK mocking)
 project(unit_test_fixtures)

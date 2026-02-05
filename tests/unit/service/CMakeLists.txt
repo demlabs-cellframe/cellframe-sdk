@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.10)
 project(test_voting_vote)
 
 # Include DAP Mock AutoWrap module
-include(${CMAKE_SOURCE_DIR}/dap-sdk/module/test/mocks/DAPMockAutoWrap.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/DAPMockAutoWrap.cmake)
 
 add_executable(${PROJECT_NAME}
     test_voting_vote.c

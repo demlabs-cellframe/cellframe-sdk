@@ -166,6 +166,17 @@ if(NOT TARGET dap_sdk)
         message(FATAL_ERROR "dap_tpl.sh not found at ${DAP_TPL_DIR}/dap_tpl.sh. Please ensure tools/dap_tpl is present.")
     endif()
 
+    # dap-sdk/module/crypto uses a hardcoded path for its Keccak SIMD codegen:
+    #   DAP_TPL_DIR=${CMAKE_SOURCE_DIR}/module/test/dap_tpl
+    # Ensure it exists when building Cellframe with embedded DAP SDK.
+    set(DAP_TPL_COMPAT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/module/test/dap_tpl")
+    if(NOT EXISTS "${DAP_TPL_COMPAT_DIR}/dap_tpl.sh")
+        file(MAKE_DIRECTORY "${DAP_TPL_COMPAT_DIR}")
+        file(COPY "${DAP_TPL_DIR}/" DESTINATION "${DAP_TPL_COMPAT_DIR}"
+            PATTERN ".git" EXCLUDE)
+        message(STATUS "[Cellframe] Created dap_tpl compat copy at: ${DAP_TPL_COMPAT_DIR}")
+    endif()
+
 
     include (dap-sdk/cmake/OS_Detection.cmake)
     add_subdirectory(dap-sdk)

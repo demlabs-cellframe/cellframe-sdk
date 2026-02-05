@@ -42,7 +42,8 @@ DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_add, DAP_MOCK_CONFIG_DEFAULT);
 DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_get_token_ticker_by_hash, DAP_MOCK_CONFIG_DEFAULT);
 
 DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
-    (dap_ledger_t* a_ledger, dap_hash_sha3_256_t* a_tx_hash)
+    PARAM(dap_ledger_t*, a_ledger),
+    PARAM(dap_hash_sha3_256_t*, a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_find_by_hash;
     dap_chain_datum_tx_t* l_result = NULL;
@@ -66,7 +67,11 @@ DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
 }
 
 DAP_MOCK_WRAPPER_CUSTOM(int, dap_ledger_tx_add,
-    (dap_ledger_t* a_ledger, dap_chain_datum_tx_t* a_tx, dap_hash_sha3_256_t* a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t* a_datum_index_data)
+    PARAM(dap_ledger_t*, a_ledger),
+    PARAM(dap_chain_datum_tx_t*, a_tx),
+    PARAM(dap_hash_sha3_256_t*, a_tx_hash),
+    PARAM(bool, a_from_threshold),
+    PARAM(dap_ledger_datum_iter_data_t*, a_datum_index_data)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_add;
     if (!a_ledger || !a_tx || !a_tx_hash) {
@@ -81,7 +86,8 @@ DAP_MOCK_WRAPPER_CUSTOM(int, dap_ledger_tx_add,
 }
 
 DAP_MOCK_WRAPPER_CUSTOM(const char*, dap_ledger_tx_get_token_ticker_by_hash,
-    (dap_ledger_t* a_ledger, dap_hash_sha3_256_t* a_tx_hash)
+    PARAM(dap_ledger_t*, a_ledger),
+    PARAM(dap_hash_sha3_256_t*, a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_get_token_ticker_by_hash;
     if (a_tx_hash) {

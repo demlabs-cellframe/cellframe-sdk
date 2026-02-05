@@ -31,24 +31,34 @@
 #define LOG_TAG "test_voting_comprehensive"
 
 
-// Ledger balance mock - необходим т.к. g_mock_ledger не имеет инициализированного _internal
-// NOTE: Используем DAP_MOCK_CUSTOM для uint256_t return type
+// Ledger balance mock - needed because the real ledger instance is not fully initialized in unit tests.
+//
+// NOTE: DAP_MOCK_WRAPPER_CUSTOM assumes scalar return types (casts via intptr_t) and does not work
+// with aggregate returns like uint256_t, so we provide an explicit GNU ld --wrap() wrapper here.
+DAP_MOCK_DECLARE_CUSTOM(dap_ledger_calc_balance, DAP_MOCK_CONFIG_DEFAULT);
 
-DAP_MOCK_CUSTOM(uint256_t, dap_ledger_calc_balance,
-                (dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr, const char *a_token_ticker))
+uint256_t __wrap_dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+                                        const char *a_token_ticker)
+{
     UNUSED(a_ledger);
     UNUSED(a_addr);
     UNUSED(a_token_ticker);
-    // Mock implementation: всегда возвращаем достаточный баланс (1M datoshi)
+    // Mock implementation: always return sufficient balance (1M datoshi)
     return GET_256_FROM_64(1000000);
 }
 
-// Ledger tx_find mock - избегаем обращения к _internal
-DAP_MOCK_CUSTOM(dap_chain_datum_tx_t *, dap_ledger_tx_find_by_hash,
-                (dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash))
+// Ledger tx_find mock - avoid accessing _internal in unit tests.
+DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_find_by_hash, DAP_MOCK_CONFIG_DEFAULT);
+
+DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t *, dap_ledger_tx_find_by_hash,
+    PARAM(dap_ledger_t*, a_ledger),
+    PARAM(dap_hash_sha3_256_t*, a_tx_hash)
+) {
+    dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_find_by_hash;
     UNUSED(a_ledger);
     UNUSED(a_tx_hash);
-    // Mock implementation: poll не найден (NULL)
+    (void)G_MOCK;
+    // Mock implementation: poll not found (NULL)
     return NULL;
 }
 
@@ -678,9 +688,9 @@ static void test_6_3_poll_long_question(void)
 
     // Create long question (4KB)
     char long_question[4096];
-    memset(long_question, 'A', sizeof(long_question) - 1);
+    memset(long_question, 'A', sizeof(long_question) - 2);
+    long_question[sizeof(long_question) - 2] = '?';
     long_question[sizeof(long_question) - 1] = '\0';
-    strcat(long_question, "?");
 
     uint256_t fee = uint256_1;
     dap_chain_datum_tx_t *tx = dap_voting_tx_create_poll(
