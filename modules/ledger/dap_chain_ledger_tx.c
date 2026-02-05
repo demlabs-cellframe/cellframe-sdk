@@ -2916,7 +2916,11 @@ static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap
     *l_new_condout = (dap_ledger_hardfork_condouts_t) {
             .hash = *a_tx_hash,
             .cond = DAP_DUP_SIZE(a_out_cond, dap_chain_datum_item_tx_get_size((byte_t *)a_out_cond, 0)),
-            .sign = DAP_DUP_SIZE(a_sign, dap_chain_datum_item_tx_get_size((byte_t *)a_sign, 0))
+            .sign = DAP_DUP_SIZE(a_sign, dap_chain_datum_item_tx_get_size((byte_t *)a_sign, 0)),
+            .ticker = { 0 },
+            .trackers = NULL,
+            .prev = NULL,
+            .next = NULL
     };
     dap_strncpy(l_new_condout->ticker, a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     if (g_debug_ledger) {

@@ -528,7 +528,7 @@ static dap_chain_atom_verify_res_t s_dag_event_integrity_check(dap_chain_type_da
     dap_return_val_if_pass_err( a_event->header.version, ATOM_CORRUPTED,
                                 "Unsupported event version %u", a_event->header.version );
     dap_return_val_if_fail_err( a_event->header.chain_id.uint64 == a_chain_id, ATOM_CORRUPTED,
-                                "Wrong chain id %zu", a_event->header.chain_id.uint64 );
+                                "Wrong chain id %"DAP_UINT64_FORMAT_U"", a_event->header.chain_id.uint64 );
     if ( a_dag->hal ) {
         dap_chain_type_dag_hal_item_t *l_hash_search = NULL;
         dap_ht_find_hh(hh, a_dag->hal, a_atom_hash, sizeof(*a_atom_hash), l_hash_search);
@@ -802,7 +802,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
      * or we have successfully chosen the hash(es) to link with.
      * No additional conditions required.
     */
-    uint64_t l_event_size = 0;
+    size_t l_event_size = 0;
     dap_chain_type_dag_event_t * l_event = l_dag->callback_cs_event_create
             ? l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size)
             : NULL;
