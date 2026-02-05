@@ -45,7 +45,9 @@ tests:amd64.clang:
           echo "--- build/CMakeFiles (ls) ---"
           ls -la CMakeFiles || true
           echo "--- build/CMakeFiles/*Threads* (find) ---"
-          find CMakeFiles -maxdepth 4 -type f \\( -name '*Threads*' -o -name 'CMakeError.log' -o -name 'CMakeOutput.log' \\) -print || true
+          find CMakeFiles -maxdepth 4 -type f -name '*Threads*' -print || true
+          find CMakeFiles -maxdepth 4 -type f -name 'CMakeError.log' -print || true
+          find CMakeFiles -maxdepth 4 -type f -name 'CMakeOutput.log' -print || true
           echo "--- build/CMakeFiles/CMakeError.log (if any) ---"
           [ -f CMakeFiles/CMakeError.log ] && tail -n 400 CMakeFiles/CMakeError.log || true
           echo "--- build/CMakeFiles/CMakeOutput.log (if any) ---"
