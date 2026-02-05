@@ -41,6 +41,8 @@ tests:arm64.cross:
     extends: .tests
     image: demlabs/debian/amd64:cross
     script:
+      - apt-get update
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gawk python3
       - mkdir build
       - cd build && cmake-arm64 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc) && ctest --verbose
 
@@ -49,6 +51,8 @@ tests:arm32.cross:
     extends: .tests
     image: demlabs/debian/amd64:cross
     script:
+      - apt-get update
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gawk python3
       - mkdir build
       - cd build && cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
 
