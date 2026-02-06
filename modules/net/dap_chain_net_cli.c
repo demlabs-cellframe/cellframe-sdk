@@ -1157,31 +1157,51 @@ int dap_chain_net_cli_init(void)
     dap_cli_server_cmd_add("node", com_node, NULL,
                            "Node operations",
                            -1, // auto ID
-                           "node add { -net <net_name> | -rpc [-port <port>] } | { -rpc -addr <node_address> -host <node_host> [-port <port>] }\n\n"
-                                    "node alias -addr <node_address> -alias <node_alias>\n\n"
-                                    "node balancer -net <net_name>\n"
-                                    "node ban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
-
-
-                                    "node del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
-                                    "node link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
-                                    
-                                    "node connect -net <net_name> {-addr <node_address> | -alias <node_alias> | auto}\n\n"
-                                    "node handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
-                                    "node connections [-net <net_name>]\n"
-                                    
-                                    "node dump { [-net <net_name> | -addr <node_address>] } | { -rpc [-addr <node_address>] }\n\n"
-                                    "node list { -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full] } | -rpc\n\n"
-                                    
-                                    "node unban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
-                                    "node banlist\n\n");
+                           "add { -net <net_name> | -rpc [-port <port>] } | { -rpc -addr <node_address> -host <node_host> [-port <port>] }\n\n"
+                                    "alias -addr <node_address> -alias <node_alias>\n\n"
+                                    "balancer -net <net_name>\n\n"
+                                    "ban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n\n"
+                                    "banlist\n\n"
+                                    "connections [-net <net_name>]\n"
+                                    "connect -net <net_name> {-addr <node_address> | -alias <node_alias> | auto}\n\n"
+                                    "del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
+                                    "dump { [-net <net_name> | -addr <node_address>] } | { -rpc [-addr <node_address>] }\n\n"
+                                    "handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
+                                    "link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
+                                    "list { -net <net_name> [-addr <node_address> | -alias <node_alias>] [-full] } | -rpc\n\n"
+                                    "unban -net <net_name> -certs <certs_name> [-addr <node_address> | -host <ip_v4_or_v6_address>]\n"
+                                    );
 
 
     // Register net command
     dap_cli_server_cmd_add("net", s_cli_net, NULL,
                            "Network operations",
                            -1, // auto ID
-                           "net { list | get | go | stats | sync }\n");
+        "net -net <net_name> <subcommand>\n"
+        "  ca add {-cert <cert_name> | -hash <cert_hash>}\n"
+            "\tAdd certificate to list of authority cetificates in GDB group\n"
+        "  ca del -hash <cert_hash> [-H {hex | base58(default)}]\n"
+            "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
+        "  ca list\n"
+            "\tPrint list of authority cetificates from GDB group\n"
+        "  get {status | fee | id}\n"
+            "\tDisplays the current status, current fee or net id\n"
+        "  [-mode {update | all}] go {online | offline | sync}\n"
+            "\tFind and establish links and stay online\n"
+            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
+        "  ledger reload\n"
+            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
+        "  link {list | add | del | info | disconnect_all}\n"
+            "\tList, add, del, dump or establish links\n"
+        "  poa_certs list\n"
+            "\tPrint list of PoA cerificates for this network\n"
+        "  stats tx [-from <from_time>] [-to <to_time>] [-prev_day <days>]\n"
+            "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds>\n"
+        "  [-mode {update | all}] sync\n"
+            "\tSynchronize network\n"
+            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
+        "net list [chains -net <net_name>]\n"
+            "\tList all networks or list all chains in selected network\n");
 
     // Register help command
     dap_cli_server_cmd_add("help", s_cli_help, NULL,

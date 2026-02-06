@@ -23,6 +23,22 @@
 
 #define LOG_TAG "ledger_cli_tx"
 
+// Forward declaration for JSON-based TX creation from net/tx module
+extern int dap_chain_net_tx_create_by_json(dap_json_t *a_json, dap_chain_net_t *a_net, 
+                                            dap_json_t *a_errors, dap_chain_datum_tx_t **a_tx,
+                                            size_t *a_items_count, size_t *a_items_ready);
+
+// Error codes for tx_create_json
+#define DAP_CHAIN_NET_TX_CREATE_JSON_OK                              0
+#define DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON          -1
+#define DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE          -2
+#define DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT               -3
+#define DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET           -4
+#define DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME           -5
+#define DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME         -6
+#define DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS                   -7
+#define DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL -8
+
 // Forward declaration for wallet TX params (defined in wallet module)
 typedef struct dap_chain_wallet_tx_transfer_params {
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -385,42 +401,230 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
 }
 
 /**
- * @brief tx create_json - Create transaction from JSON
+ * @brief tx create_json - Create transaction from JSON file or string
  * 
- * TODO: Implement using TX Compose API
+ * Creates a transaction from a JSON description and adds it to mempool.
+ * 
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON reply array
+ * @param a_version API version
+ * @return 0 on success, error code otherwise
  */
 int ledger_cli_tx_create_json(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
-    dap_json_rpc_error_add(a_json_arr_reply, 
-        dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
-        "tx create_json not yet implemented - use 'tx create' for now");
-    return dap_cli_error_code_get("LEDGER_PARAM_ERR");
+    int l_arg_index = 1;
+    const char *l_net_name = NULL;
+    const char *l_chain_name = NULL;
+    const char *l_json_file_path = NULL;
+    const char *l_json_str = NULL;
+
+    // Parse parameters
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_name);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-json", &l_json_file_path);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx_obj", &l_json_str);
+
+    if (!l_json_file_path && !l_json_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON,
+                               "Command requires one of parameters '-json <json_file_path>' or '-tx_obj <json_string>'");
+        return DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_JSON;
+    }
+
+    // Parse JSON from file or string
+    dap_json_t *l_json = NULL;
+    if (l_json_file_path) {
+        l_json = dap_json_from_file(l_json_file_path);
+        if (!l_json) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+                                   "Can't open json file: %s", l_json_file_path);
+            return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+        }
+    } else if (l_json_str) {
+        l_json = dap_json_parse_string(l_json_str);
+        if (!l_json) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE,
+                                   "Can't parse input JSON string");
+            return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_OPEN_JSON_FILE;
+        }
+    }
+
+    if (!dap_json_is_object(l_json)) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT, 
+                               "Wrong json format - expected object");
+        dap_json_object_free(l_json);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_WRONG_JSON_FORMAT;
+    }
+
+    // Read network from JSON if not specified
+    if (!l_net_name) {
+        dap_json_t *l_json_net = NULL;
+        dap_json_object_get_ex(l_json, "net", &l_json_net);
+        if (l_json_net && dap_json_is_string(l_json_net)) {
+            l_net_name = dap_json_get_string(l_json_net);
+        }
+        if (!l_net_name) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET,
+                                   "Network required: use '-net' parameter or set 'net' in JSON");
+            dap_json_object_free(l_json);
+            return DAP_CHAIN_NET_TX_CREATE_JSON_REQUIRE_PARAMETER_NET;
+        }
+    }
+
+    // Get ledger by network name
+    dap_ledger_t *l_ledger = cli_get_ledger_by_net_name(l_net_name, a_json_arr_reply);
+    if (!l_ledger) {
+        dap_json_object_free(l_json);
+        return dap_cli_error_code_get("LEDGER_NET_FIND_ERR");
+    }
+
+    // Get network from ledger
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_ledger->net_id);
+    if (!l_net) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME,
+                               "Network not found: %s", l_net_name);
+        dap_json_object_free(l_json);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_NET_BY_NAME;
+    }
+
+    // Read chain from JSON if not specified
+    if (!l_chain_name) {
+        dap_json_t *l_json_chain = NULL;
+        dap_json_object_get_ex(l_json, "chain", &l_json_chain);
+        if (l_json_chain && dap_json_is_string(l_json_chain)) {
+            l_chain_name = dap_json_get_string(l_json_chain);
+        }
+    }
+
+    // Get chain from ledger's registry
+    dap_chain_t *l_chain = NULL;
+    if (l_chain_name) {
+        dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
+        HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+            if (l_chain_info->chain_name[0] && strcmp(l_chain_info->chain_name, l_chain_name) == 0) {
+                l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
+                break;
+            }
+        }
+    }
+    if (!l_chain) {
+        // Find default TX chain
+        dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
+        HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+            if (l_chain_info->chain_type == CHAIN_TYPE_TX) {
+                l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
+                break;
+            }
+        }
+    }
+    if (!l_chain) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME,
+                               "Chain not found. Use '-chain' parameter or set 'chain' in JSON");
+        dap_json_object_free(l_json);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_NOT_FOUNT_CHAIN_BY_NAME;
+    }
+
+    // Create transaction from JSON
+    dap_json_t *l_jobj_errors = dap_json_array_new();
+    size_t l_items_ready = 0, l_items_count = 0;
+    dap_chain_datum_tx_t *l_tx = NULL;
+    
+    int l_ret = dap_chain_net_tx_create_by_json(l_json, l_net, l_jobj_errors, &l_tx, &l_items_count, &l_items_ready);
+    dap_json_object_free(l_json);
+    
+    if (l_ret != DAP_CHAIN_NET_TX_CREATE_JSON_OK) {
+        dap_json_rpc_error_add(a_json_arr_reply, l_ret, "Can't create transaction from JSON");
+        dap_json_object_free(l_jobj_errors);
+        return l_ret;
+    }
+
+    dap_json_t *l_jobj_ret = dap_json_object_new();
+
+    // Check if all items were processed successfully
+    if (l_items_ready < l_items_count) {
+        dap_json_object_add_bool(l_jobj_ret, "tx_create", false);
+        dap_json_object_add_uint64(l_jobj_ret, "valid_items", l_items_ready);
+        dap_json_object_add_uint64(l_jobj_ret, "total_items", l_items_count);
+        dap_json_object_add_object(l_jobj_ret, "errors", l_jobj_errors);
+        dap_json_array_add(a_json_arr_reply, l_jobj_ret);
+        DAP_DELETE(l_tx);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS;
+    }
+    dap_json_object_free(l_jobj_errors);
+
+    // Pack transaction into datum
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    size_t l_datum_size = dap_chain_datum_size(l_datum);
+    DAP_DELETE(l_tx);
+
+    // Calculate hash and add to mempool
+    dap_chain_hash_fast_t l_datum_hash;
+    dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
+    char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+
+    char *l_gdb_group = dap_chain_mempool_group_new(l_chain);
+    bool l_placed = !dap_global_db_set_sync(l_gdb_group, l_tx_hash_str, l_datum, l_datum_size, false);
+    DAP_DELETE(l_gdb_group);
+    DAP_DELETE(l_datum);
+
+    if (!l_placed) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
+                               "Can't add transaction to mempool");
+        DAP_DELETE(l_tx_hash_str);
+        dap_json_object_free(l_jobj_ret);
+        return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL;
+    }
+
+    // Success!
+    dap_json_object_add_bool(l_jobj_ret, "tx_create", true);
+    dap_json_object_add_string(l_jobj_ret, "hash", l_tx_hash_str);
+    dap_json_object_add_uint64(l_jobj_ret, "total_items", l_items_count);
+    dap_json_array_add(a_json_arr_reply, l_jobj_ret);
+    
+    DAP_DELETE(l_tx_hash_str);
+    log_it(L_NOTICE, "Transaction created from JSON successfully");
+    return DAP_CHAIN_NET_TX_CREATE_JSON_OK;
 }
 
 /**
- * @brief tx verify - Verify transaction
+ * @brief tx verify - Verify transaction in mempool
  * 
- * TODO: Implement using ledger verification API
+ * TODO: Implement transaction verification
+ * 
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON reply array
+ * @param a_version API version
+ * @return 0 on success, error code otherwise
  */
 int ledger_cli_tx_verify(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
-    dap_json_rpc_error_add(a_json_arr_reply, 
-        dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
-        "tx verify not yet implemented");
-    return dap_cli_error_code_get("LEDGER_PARAM_ERR");
+    UNUSED(a_argc);
+    UNUSED(a_argv);
+    UNUSED(a_version);
+    dap_json_rpc_error_add(a_json_arr_reply, -1, "tx verify: not yet implemented");
+    return -1;
 }
 
 /**
  * @brief tx history - Show transaction history
  * 
- * TODO: Implement using ledger history API
+ * TODO: Implement transaction history display
+ * 
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON reply array
+ * @param a_version API version
+ * @return 0 on success, error code otherwise
  */
 int ledger_cli_tx_history(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
-    dap_json_rpc_error_add(a_json_arr_reply, 
-        dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
-        "tx history not yet implemented");
-    return dap_cli_error_code_get("LEDGER_PARAM_ERR");
+    UNUSED(a_argc);
+    UNUSED(a_argv);
+    UNUSED(a_version);
+    dap_json_rpc_error_add(a_json_arr_reply, -1, "tx history: not yet implemented");
+    return -1;
 }
 
 /**

@@ -1630,25 +1630,139 @@ int dap_chain_token_cli_init(void)
     dap_cli_server_cmd_add("token_decl", com_token_decl, NULL,
                            "Declare new token",
                            -1, // auto ID
-                           "token_decl ...\n");
+        "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -total_supply <total_supply>\n"
+        "           -signs_total <sign_total> -signs_emission <signs_for_emission> -decimals <18>\n"
+        "           -certs <certs_list> [-type {private | CF20}] [-flags <flags_list>] [-H {hex | base58}]\n"
+        "           [<extended_params>]\n\n"
+        "  Declare new token for <net_name>:<chain_name> with ticker <token_ticker>\n\n"
+        "==Flags== (comma-separated list)\n"
+        "  ALL_ALLOWED\n"
+        "\tAllowed all permissions if not blocked them. Be careful with this mode\n"
+        "  ALL_BLOCKED\n"
+        "\tBlocked all permissions, usefull add it first and then add allows what you want to allow\n"
+        "  ALL_FROZEN\n"
+        "\tAll permissions are temporarily frozen\n"
+        "  ALL_UNFROZEN\n"
+        "\tUnfrozen permissions\n"
+        "  STATIC_ALL\n"
+        "\tNo token manipulations after declarations at all. Token declares statically and can't be changed after\n"
+        "  STATIC_FLAGS\n"
+        "\tNo token manipulations after declarations with flags\n"
+        "  STATIC_PERMISSIONS_ALL\n"
+        "\tNo all permissions lists manipulations after declarations\n"
+        "  STATIC_PERMISSIONS_DATUM_TYPE\n"
+        "\tNo datum type permissions lists manipulations after declarations\n"
+        "  STATIC_PERMISSIONS_TX_RECEIVER\n"
+        "\tNo tx receiver permissions lists manipulations after declarations\n"
+        "  STATIC_PERMISSIONS_TX_SENDER\n"
+        "\tNo tx sender permissions lists manipulations after declarations\n"
+        "  UTXO_ARBITRAGE_TX_DISABLED\n"
+        "\tDisables arbitrage transactions for this token\n"
+        "  UTXO_BLOCKING_DISABLED\n"
+        "\tDisables UTXO blocking mechanism (opt-out, blocking enabled by default)\n"
+        "  UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING\n"
+        "\tDisables address-based receiver blocking (tx_recv_block/tx_recv_allow ignored)\n"
+        "  UTXO_DISABLE_ADDRESS_SENDER_BLOCKING\n"
+        "\tDisables address-based sender blocking (tx_send_block/tx_send_allow ignored)\n"
+        "  UTXO_STATIC_BLOCKLIST\n"
+        "\tMakes UTXO blocklist immutable after token creation\n\n"
+        "==Extended params==\n"
+        "  -datum_type_allowed <value>\n"
+        "\tSet allowed datum type(s)\n"
+        "  -datum_type_blocked <value>\n"
+        "\tSet blocked datum type(s)\n"
+        "  -delegated_token_from <ticker>\n"
+        "\tCreate delegated token from specified token ticker\n"
+        "  -description <value>\n"
+        "\tDescription for this token\n"
+        "  -total_signs_valid <value>\n"
+        "\tSet valid signatures count's minimum\n"
+        "  -tx_receiver_allowed <value>\n"
+        "\tSet allowed tx receiver address(es)\n"
+        "  -tx_receiver_blocked <value>\n"
+        "\tSet blocked tx receiver address(es)\n"
+        "  -tx_sender_allowed <value>\n"
+        "\tSet allowed tx sender address(es)\n"
+        "  -tx_sender_blocked <value>\n"
+        "\tSet blocked tx sender address(es)\n"
+        );
 
     // Register token_update command
     dap_cli_server_cmd_add("token_update", com_token_update, NULL,
                            "Update token",
                            -1, // auto ID
-                           "token_update ...\n");
+        "token_update -net <net_name> [-chain <chain_name>] -token <token_ticker> -certs <certs_list>\n"
+        "             [-flag_set <flags>] [-flag_unset <flags>] [-total_supply_change <value>]\n"
+        "             [-H {hex | base58}] [<extended_params>]\n\n"
+        "  Update existing token for <net_name>:<chain_name> with ticker <token_ticker>\n\n"
+        "==Flags== (use with -flag_set / -flag_unset, comma-separated)\n"
+        "  ALL_ALLOWED\n"
+        "\tAllows all permissions unless they are blocked. Be careful with this mode\n"
+        "  ALL_BLOCKED\n"
+        "\tBlocks all permissions\n"
+        "  ALL_FROZEN\n"
+        "\tTemporarily freezes all permissions\n"
+        "  ALL_UNFROZEN\n"
+        "\tUnfreezes all frozen permissions\n"
+        "  STATIC_ALL\n"
+        "\tBlocks manipulations with a token after declaration\n"
+        "  STATIC_FLAGS\n"
+        "\tBlocks manipulations with token flags after declaration\n"
+        "  STATIC_PERMISSIONS_ALL\n"
+        "\tBlocks all manipulations with permissions list after declaration\n"
+        "  STATIC_PERMISSIONS_DATUM_TYPE\n"
+        "\tBlocks all manipulations with datum permissions list after declaration\n"
+        "  STATIC_PERMISSIONS_TX_RECEIVER\n"
+        "\tBlocks all manipulations with transaction receivers permissions list after declaration\n"
+        "  STATIC_PERMISSIONS_TX_SENDER\n"
+        "\tBlocks all manipulations with transaction senders permissions list after declaration\n"
+        "  UTXO_ARBITRAGE_TX_DISABLED\n"
+        "\tDisables arbitrage transactions for this token\n"
+        "  UTXO_BLOCKING_DISABLED\n"
+        "\tDisables UTXO blocking mechanism (opt-out)\n"
+        "  UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING\n"
+        "\tDisables tx_recv_block/tx_recv_allow checks\n"
+        "  UTXO_DISABLE_ADDRESS_SENDER_BLOCKING\n"
+        "\tDisables tx_send_block/tx_send_allow checks\n"
+        "  UTXO_STATIC_BLOCKLIST\n"
+        "\tMakes UTXO blocklist immutable after first set\n\n"
+        "==Extended params==\n"
+        "  -add_certs <cert_list>\n"
+        "\tAdds certificates to the token's certificates list\n"
+        "  -datum_type_allowed <value>\n"
+        "\tSet allowed datum type(s)\n"
+        "  -datum_type_blocked <value>\n"
+        "\tSet blocked datum type(s)\n"
+        "  -description <value>\n"
+        "\tUpdated description for this token\n"
+        "  -remove_certs <pkeys_hash>\n"
+        "\tRemoves certificates from the list using their public key hashes\n"
+        "  -total_signs_valid <value>\n"
+        "\tSets the minimum amount of valid signatures\n"
+        "  -tx_receiver_allowed <wallet_addr>\n"
+        "\tAdds wallet address to the list of allowed receivers\n"
+        "  -tx_receiver_blocked <wallet_addr>\n"
+        "\tAdds wallet address to the list of blocked receivers\n"
+        "  -tx_sender_allowed <wallet_addr>\n"
+        "\tAdds wallet address to the list of allowed senders\n"
+        "  -tx_sender_blocked <wallet_addr>\n"
+        "\tAdds wallet address to the list of blocked senders\n"
+        );
 
     // Register token_emit command
     dap_cli_server_cmd_add("token_emit", com_token_emit, NULL,
                            "Emit tokens",
                            -1, // auto ID
-                           "token_emit ...\n");
+                           "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
+                            "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n");
 
     // Register token_decl_sign command
     dap_cli_server_cmd_add("token_decl_sign", com_token_decl_sign, NULL,
                            "Sign token declaration",
                            -1, // auto ID
-                           "token_decl_sign ...\n");
+                           "token_decl_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
+            "\t Sign existent <datum_hash> in mempool with <certs_list>\n"
+            );
 
     // Register chain CA commands
     dap_cli_server_cmd_add("chain_ca_copy", com_chain_ca_copy, NULL,
@@ -1659,7 +1773,7 @@ int dap_chain_token_cli_init(void)
     dap_cli_server_cmd_add("chain_ca_pub", com_chain_ca_pub, NULL,
                            "Publish CA certificate",
                            -1, // auto ID
-                           "chain_ca_pub ...\n");
+                           "chain_ca_pub -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n");
 
     log_it(L_INFO, "Chain/Token CLI commands registered");
     return 0;

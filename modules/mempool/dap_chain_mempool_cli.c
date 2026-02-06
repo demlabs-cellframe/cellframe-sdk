@@ -1732,23 +1732,23 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
 int dap_chain_mempool_cli_init(void)
 {
     // Register mempool command
-    // Signature: dap_cli_server_cmd_add(name, callback, json_callback, doc, id, doc_ex)
-    const char *l_doc = "mempool { list | proc | proc_all | delete | add_ca | check | dump | count | add }\n"
-                        "Manage mempool operations\n"
-                        "\nExamples:\n"
-                        "  mempool list -net main -chain main\n"
-                        "  mempool proc -net main -datum 0x123...\n"
-                        "  mempool delete -net main -datum 0x123...\n"
-                        "  mempool add -net main -json /path/to/tx.json\n";
-    dap_cli_server_cmd_add("mempool", com_mempool, NULL, "Mempool operations", 0, l_doc);
+    const char *l_doc = "check -net <net_name> [-chain <chain_name>] -datum <datum_hash> [-H {hex|base58}]\n"
+                        "\tCheck mempool entrie for presence in selected chain network\n"
+                        "count -net <net_name> [-chain <chain_name>]\n"
+                        "\tDisplays the number of elements in the mempool of a given network\n"
+                        "delete -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
+                        "\tDelete datum with hash <datum hash> for selected chain network\n"
+                        "dump -net <net_name> [-chain <chain_name>] -datum <datum_hash> [-tx_to_json] [-H {hex|base58}]\n"
+                        "\tOutput information about datum in mempool\n"
+                        "list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset] [-H {hex|base58}]\n"
+                        "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
+                        "proc_all -net <net_name> -chain <chain_name>\n"
+                        "\tProc mempool all entries for selected chain network";
+    dap_cli_server_cmd_add("mempool", com_mempool, NULL, "Command for working with mempool", 0, l_doc);
     
     // Register mempool_add as separate command for backwards compatibility
-    const char *l_doc_add = "mempool_add -net <net_name> [-chain <chain_name>] { -json <file> | -tx_obj <json_string> }\n"
-                            "Add transaction from JSON to mempool\n"
-                            "\nExamples:\n"
-                            "  mempool_add -net main -json /path/to/tx.json\n"
-                            "  mempool_add -net main -tx_obj '{\"version\":1,...}'\n";
-    dap_cli_server_cmd_add("mempool_add", com_mempool_add, NULL, "Add TX from JSON to mempool", 0, l_doc_add);
+    const char *l_doc_add = "mempool_add  -net <net_name> [-chain <chain_name>] -json <json_file_path> | -tx_obj <tx_json_object>\n";
+    dap_cli_server_cmd_add("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool", 0, l_doc_add);
 
     log_it(L_INFO, "Mempool CLI commands registered");
     return 0;

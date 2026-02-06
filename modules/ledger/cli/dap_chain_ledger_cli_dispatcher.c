@@ -55,7 +55,7 @@ int dap_chain_ledger_cli_dispatcher(int a_argc, char **a_argv, dap_json_t *a_jso
     if (l_result == -2) {  // Command not found
         dap_json_rpc_error_add(a_json_arr_reply, 
             dap_cli_error_code_get("LEDGER_PARAM_ERR"), 
-            "Unknown tx subcommand '%s'. Available: create, verify, history", l_command);
+            "Unknown tx subcommand '%s'. Available: create, create_json, history, verify", l_command);
         return dap_cli_error_code_get("LEDGER_PARAM_ERR");
     }
     
@@ -80,10 +80,23 @@ int dap_chain_ledger_cli_module_init(void)
     
     // Register the "tx" command with CLI server to route to dispatcher
     dap_cli_server_cmd_add("tx", dap_chain_ledger_cli_dispatcher, NULL, 
-        "Transaction commands (create, verify, history)", 0,
-        "tx create - Create transaction\n"
-        "tx verify - Verify transaction\n"
-        "tx history - Show transaction history\n");
+        "Transaction commands", 0,
+        "tx <subcommand> [options]\n\n"
+        "==Subcommands==\n"
+        "  create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker>\n"
+        "         -to_addr <addr> {-from_wallet <wallet_name> | -from_emission <emission_hash>\n"
+        "         -chain_emission <chain_name> -cert <cert_name>} [-fee <value>] [-H {hex|base58}]\n"
+        "\tCreate transaction from wallet or emission\n\n"
+        "  create_json -net <net_name> [-chain <chain_name>] {-json <json_file_path> | -tx_obj <json_string>}\n"
+        "\tCreate transaction from JSON file or string\n\n"
+        "  history {-addr <addr> | -w <wallet_name>} -net <net_name> [-chain <chain_name>]\n"
+        "          [-limit <N>] [-offset <N>] [-head] [-srv <service>] [-act <action>] [-H {hex|base58}]\n"
+        "  history -all -net <net_name> [-chain <chain_name>] [-limit <N>] [-offset <N>] [-head] [-brief]\n"
+        "  history -tx <tx_hash> -net <net_name> [-chain <chain_name>]\n"
+        "  history -count -net <net_name>\n"
+        "\tShow transaction history for address, wallet, specific tx, or all transactions\n\n"
+        "  verify -net <net_name> [-chain <chain_name>] -tx <tx_hash>\n"
+        "\tVerify transaction in mempool before processing\n");
     
     // Future modules will register themselves:
     // dap_chain_ledger_cli_token_init();
