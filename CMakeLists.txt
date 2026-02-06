@@ -1,6 +1,17 @@
 cmake_minimum_required(VERSION 3.12)
 project(cellframe-sdk C)
 
+# =========================================
+# CLANG + PTHREADS FIX
+# =========================================
+# Clang on Linux may fail to find pthreads with newer CMake versions.
+# Pre-set pthread variables to help FindThreads module.
+if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND UNIX AND NOT APPLE)
+    set(CMAKE_THREAD_LIBS_INIT "-lpthread" CACHE STRING "")
+    set(CMAKE_HAVE_THREADS_LIBRARY 1 CACHE BOOL "")
+    set(THREADS_PREFER_PTHREAD_FLAG ON CACHE BOOL "")
+endif()
+
 set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "4.0.0")
 
