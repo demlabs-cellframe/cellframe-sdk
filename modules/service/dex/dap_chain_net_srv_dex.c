@@ -4771,12 +4771,17 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                     byte_t *l_prev_out = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_in->header.tx_out_prev_idx);
                     if (l_prev_out) {
                         switch (*l_prev_out) {
-                        case TX_ITEM_TYPE_OUT_OLD:
-                        case TX_ITEM_TYPE_OUT: {
+                        case TX_ITEM_TYPE_OUT_OLD: {
                             dap_chain_tx_out_old_t *o = (dap_chain_tx_out_old_t *)l_prev_out;
                             l_ins[l_in_idx].addr = o->addr;
-                            l_ins[l_in_idx].token = NULL; // Legacy OUT, no token field
+                            l_ins[l_in_idx].token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in->header.tx_prev_hash);
                             l_ins[l_in_idx].value = GET_256_FROM_64(o->header.value);
+                        } break;
+                        case TX_ITEM_TYPE_OUT: {
+                            dap_chain_tx_out_t *o = (dap_chain_tx_out_t *)l_prev_out;
+                            l_ins[l_in_idx].addr = o->addr;
+                            l_ins[l_in_idx].token = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in->header.tx_prev_hash);
+                            l_ins[l_in_idx].value = o->header.value;
                         } break;
                         case TX_ITEM_TYPE_OUT_STD: {
                             dap_chain_tx_out_std_t *o = (dap_chain_tx_out_std_t *)l_prev_out;
@@ -5219,8 +5224,13 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 continue;
             if (l_fee_payer_addr == l_buyer_addr)
                 l_fee_payer_addr = &l_ins[i].addr;
-            else if (!dap_chain_addr_compare(l_fee_payer_addr, &l_ins[i].addr))
+            else if (!dap_chain_addr_compare(l_fee_payer_addr, &l_ins[i].addr)) {
+                debug_if(s_debug_more, L_ERROR, "%s(): Native IN addr mismatch at IN #%d; Token: %s; IN #%d addr: %s; Expected fee payer: %s",
+                                               __FUNCTION__, i, l_ins[i].token, i,
+                                               dap_chain_addr_to_str_static(&l_ins[i].addr),
+                                               dap_chain_addr_to_str_static(l_fee_payer_addr));
                 RET_ERR(DEXV_FEE_NOT_FROM_BUYER);
+            }
         }
     }
 

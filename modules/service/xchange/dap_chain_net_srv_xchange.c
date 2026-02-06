@@ -643,6 +643,9 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
                         l_in_val = ((dap_chain_tx_out_std_t*)l_in_prev_item)->value;
                         break;
                     case TX_ITEM_TYPE_OUT_OLD:
+                        l_in_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in->header.tx_prev_hash);
+                        l_in_val = GET_256_FROM_64(((dap_chain_tx_out_old_t*)l_in_prev_item)->header.value);
+                        break;
                     case TX_ITEM_TYPE_OUT:
                         l_in_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in->header.tx_prev_hash);
                         l_in_val = ((dap_chain_tx_out_t*)l_in_prev_item)->header.value;
