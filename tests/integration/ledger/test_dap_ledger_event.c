@@ -643,7 +643,7 @@ static void test_ledger_event_pkey_thread_safety(void)
     setup_test();
 
     // Create multiple threads
-    const int THREAD_COUNT = 4;
+    #define THREAD_COUNT 4
     pthread_t l_threads[THREAD_COUNT];
 
     for (int i = 0; i < THREAD_COUNT; i++) {

@@ -735,8 +735,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
         [SUBCMD_FIND] = "find",
         [SUBCMD_UNDEFINED]=NULL
     };
-    const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
-    const char* l_subcmd_str_args[l_subcmd_str_count];
+    #define SUBCMD_STR_COUNT (sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs))
+    const char* l_subcmd_str_args[SUBCMD_STR_COUNT];
+    const size_t l_subcmd_str_count = SUBCMD_STR_COUNT;
 	for(size_t i=0;i<l_subcmd_str_count;i++)
         l_subcmd_str_args[i]=NULL;
     const char *l_subcmd_str_arg = NULL, *l_subcmd_str = NULL;

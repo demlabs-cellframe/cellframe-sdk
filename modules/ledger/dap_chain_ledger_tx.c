@@ -2943,6 +2943,7 @@ dap_ledger_hardfork_balances_t *dap_ledger_states_aggregate(dap_ledger_t *a_ledg
     dap_ledger_hardfork_condouts_t *l_cond_ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     size_t l_outs_count = 0, l_cond_outs_count = 0, l_locked_outs_count = 0, l_fees_count = 0;
+    (void)l_cond_outs_count; (void)l_fees_count;  // Counters for potential debug use
     dap_ledger_hardfork_fees_t *it;
     dap_dl_foreach(a_fees_list, it) {
         s_aggregate_out(&ret, a_ledger, a_ledger->native_ticker, &it->owner_addr, it->fees_n_rewards_sum, a_hardfork_decree_creation_time, NULL, a_changed_addrs, 0);

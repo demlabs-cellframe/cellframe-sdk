@@ -783,6 +783,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
     dap_chain_addr_t l_network_fee_addr = {}, l_out_addr = {};
     dap_chain_net_tx_get_fee(dap_ledger_get_net_id(a_ledger), NULL, &l_network_fee_addr);
     byte_t *l_item; size_t l_size; int i, l_item_idx = -1;
+    (void)l_item_idx;  // Index counter for potential debug use
     TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_tx_in) {
         ++l_item_idx;
         switch (*l_item) {

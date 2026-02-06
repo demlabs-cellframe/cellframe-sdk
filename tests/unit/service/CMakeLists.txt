@@ -26,9 +26,12 @@ target_link_libraries(${PROJECT_NAME}
 dap_mock_autowrap(${PROJECT_NAME})
 
 # Add --wrap for DAP_MOCK_CUSTOM() mocks (not auto-detected by autowrap)
-target_link_options(${PROJECT_NAME} PRIVATE
-    "-Wl,--wrap=dap_ledger_calc_balance"
-    "-Wl,--wrap=dap_ledger_tx_find_by_hash"
-)
+# Note: --wrap is Linux/ELF only, macOS uses dyld interpose via autowrap
+if(NOT APPLE)
+    target_link_options(${PROJECT_NAME} PRIVATE
+        "-Wl,--wrap=dap_ledger_calc_balance"
+        "-Wl,--wrap=dap_ledger_tx_find_by_hash"
+    )
+endif()
 
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})

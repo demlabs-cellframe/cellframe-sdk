@@ -162,6 +162,24 @@ function(dap_mock_autowrap TARGET_NAME)
         message(FATAL_ERROR "Mock macros fix-up failed for ${TARGET_NAME}:\n${MOCK_FIXUP_ERROR}")
     endif()
     
+    # On macOS, fix up the interpose file to add __real_* functions
+    if(APPLE)
+        set(INTERPOSE_FILE "${MOCK_GEN_DIR}/mock_interpose_macos.c")
+        if(EXISTS "${INTERPOSE_FILE}")
+            execute_process(
+                COMMAND python3 "${CMAKE_SOURCE_DIR}/cmake/dap_mock_macos_fixup.py"
+                    --interpose "${INTERPOSE_FILE}"
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                RESULT_VARIABLE MACOS_FIXUP_RESULT
+                OUTPUT_QUIET
+                ERROR_VARIABLE MACOS_FIXUP_ERROR
+            )
+            if(NOT MACOS_FIXUP_RESULT EQUAL 0)
+                message(WARNING "macOS interpose fix-up failed for ${TARGET_NAME}:\n${MACOS_FIXUP_ERROR}")
+            endif()
+        endif()
+    endif()
+    
     # STAGE 2: Setup re-generation on source file changes
     add_custom_command(
         OUTPUT ${WRAP_RESPONSE_FILE} ${CMAKE_FRAGMENT} ${MACROS_HEADER} ${CUSTOM_MOCKS_HEADER} ${LINKER_WRAPPER_HEADER}
@@ -210,6 +228,10 @@ function(dap_mock_autowrap TARGET_NAME)
                 # GCC and Clang support -Wl,@file for response files
                 # Note: macOS generates -Wl,-alias options, Linux generates --wrap options
                 target_link_options(${TARGET_NAME} PRIVATE "-Wl,@${WRAP_RESPONSE_FILE}")
+                # On macOS, add -flat_namespace and -interposable to make dyld interpose work
+                if(APPLE)
+                    target_link_options(${TARGET_NAME} PRIVATE "-Wl,-flat_namespace" "-Wl,-interposable")
+                endif()
                 #message(STATUS "✅ Mock autowrap enabled for ${TARGET_NAME} (via @file)")
             else()
                 # Fallback: read file and add options individually

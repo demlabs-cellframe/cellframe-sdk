@@ -1833,6 +1833,7 @@ static int s_nodes_hosts_init(dap_chain_net_t *a_net, dap_config_t *a_cfg, const
             return -1;
         }
         uint16_t i = 0, e = 0;
+        (void)e;  // Error counter for potential debug use
         for (; i < *a_hosts_count; ++i) {
             if (!( (*a_hosts)[i] = s_net_resolve_host(l_nodes_addrs[i]) )) {
                 log_it(L_ERROR, "Incorrect address %s, fix \"%s\" network config "

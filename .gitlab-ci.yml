@@ -19,6 +19,8 @@ stages:
 
   timeout: 3 hours 30 minutes
   dependencies: []
+  before_script:
+    - set -e  # Exit immediately on any command failure
   
   
 tests:amd64.gcc:
@@ -65,8 +67,7 @@ tests:windows.amd64:
     image: demlabs/windows/amd64:qt6
     script:
       - mkdir build
-      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/wine -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc)
-      - ctest --verbose
+      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/wine -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc) && ctest --verbose
 
 tests:macos.arm64:
     extends: .tests
@@ -74,8 +75,7 @@ tests:macos.arm64:
       - macos-native
     script:
       - mkdir build
-      - cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && make -j$(nproc)
-      - ctest --verbose
+      - cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && make -j$(sysctl -n hw.ncpu) && ctest --verbose
 
 
 build:android:

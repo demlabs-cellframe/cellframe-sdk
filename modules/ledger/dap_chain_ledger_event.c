@@ -475,6 +475,7 @@ dap_ledger_hardfork_events_t *dap_ledger_events_aggregate(dap_ledger_t *a_ledger
     dap_ledger_hardfork_events_t *ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     size_t l_events_count = 0;
+    (void)l_events_count;  // Used in debug_if
     pthread_rwlock_rdlock(&l_ledger_pvt->events_rwlock);
     dap_ledger_event_t *it = NULL, *tmp = NULL;
     dap_ht_foreach_hh(hh, l_ledger_pvt->events, it, tmp) {
@@ -515,6 +516,7 @@ void dap_ledger_event_purge(dap_ledger_t *a_ledger)
     pthread_rwlock_wrlock(&l_ledger_pvt->events_rwlock);
     dap_ledger_event_t *l_event_current, *l_event_tmp;
     size_t l_events_count = 0;
+    (void)l_events_count;  // Counter for potential debug use
     dap_ht_foreach_hh(hh, l_ledger_pvt->events, l_event_current, l_event_tmp) {
         dap_ht_del(l_ledger_pvt->events, l_event_current);
         DAP_DEL_MULTY(l_event_current->event_data, l_event_current->group_name, l_event_current);
@@ -527,6 +529,7 @@ void dap_ledger_event_purge(dap_ledger_t *a_ledger)
     pthread_rwlock_wrlock(&l_ledger_pvt->event_pkeys_rwlock);
     dap_ledger_event_pkey_item_t *l_pkey_current, *l_pkey_tmp;
     size_t l_pkeys_count = 0;
+    (void)l_pkeys_count;  // Counter for potential debug use
     dap_ht_foreach_hh(hh, l_ledger_pvt->event_pkeys_allowed, l_pkey_current, l_pkey_tmp) {
         dap_ht_del(l_ledger_pvt->event_pkeys_allowed, l_pkey_current);
         DAP_DELETE(l_pkey_current);
