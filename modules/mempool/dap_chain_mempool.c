@@ -1837,11 +1837,13 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
             dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t*)l_item;
             if (l_tx_in->header.tx_out_prev_idx == a_out_idx && dap_hash_fast_compare(&l_tx_in->header.tx_prev_hash, a_out_hash)) {
                 dap_global_db_objs_delete(l_objs, l_objs_count);
+                DAP_DELETE(l_gdb_group_mempool);
                 return true;
             }
         }
     }
     dap_global_db_objs_delete(l_objs, l_objs_count);
+    DAP_DELETE(l_gdb_group_mempool);
     return false;
 }
 

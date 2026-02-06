@@ -142,6 +142,8 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(con
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY;
     else if(!dap_strcmp(a_subtype_str, "srv_xchange"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
+    else if(!dap_strcmp(a_subtype_str, "srv_dex"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX;
     else if(!dap_strcmp(a_subtype_str, "srv_stake_pos_delegate"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
     else if (!dap_strcmp(a_subtype_str, "srv_stake_lock"))

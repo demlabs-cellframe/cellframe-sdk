@@ -306,7 +306,7 @@ typedef enum dap_chain_net_srv_dex_cancel_all_error_list {
  * @param a_seller        Seller address (must match wallet)
  * @param a_base_token    Base token of canonical pair (required)
  * @param a_quote_token   Quote token of canonical pair (required)
- * @param a_side          Side filter: DEX_CANCEL_SIDE_ASK, DEX_CANCEL_SIDE_BID, or DEX_CANCEL_SIDE_ANY
+ * @param a_side          Side filter: DEX_SIDE_ASK or DEX_SIDE_BID
  * @param a_limit         Max orders to cancel (0 = unlimited, capped by TX size)
  * @param a_fee           Validator fee in native tokens (covers all cancellations)
  * @param a_wallet        Seller wallet (must match a_seller)

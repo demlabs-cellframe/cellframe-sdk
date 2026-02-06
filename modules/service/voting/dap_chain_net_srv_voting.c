@@ -430,6 +430,16 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         const char *l_ticker_in = NULL;
         
         switch (*l_prev_out_union) {
+        case TX_ITEM_TYPE_OUT_OLD: {
+            dap_chain_tx_out_old_t *l_prev_out = (dap_chain_tx_out_old_t *)l_prev_out_union;
+            l_ticker_in = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in->header.tx_prev_hash);
+            if (SUM_256_256(l_weight, GET_256_FROM_64(l_prev_out->header.value), &l_weight)) {
+                log_it(L_WARNING, "Integer overflow while parsing vote tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash));
+                dap_list_free(l_ins_list);
+                return -DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
+            }
+            break;
+        }
         case TX_ITEM_TYPE_OUT: {
             dap_chain_tx_out_t *l_prev_out = (dap_chain_tx_out_t *)l_prev_out_union;
             l_ticker_in = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in->header.tx_prev_hash);

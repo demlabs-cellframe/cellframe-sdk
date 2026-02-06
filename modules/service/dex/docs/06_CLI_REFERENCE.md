@@ -303,7 +303,7 @@ srv_dex cancel_all_by_seller \
   -seller <address> \
   (-w <wallet_path> | -unsigned -addr <addr>) \
   -fee <validator_fee> \
-  [-side ask|bid] \
+  -side ask|bid \
   [-limit <N>] \
   [-dry-run]
 ```
@@ -318,12 +318,13 @@ srv_dex cancel_all_by_seller \
 | `-addr` | Conditional | Owner address (required for unsigned; must match `-seller`) |
 | `-unsigned` | No | Compose unsigned JSON; requires `-addr`, forbids `-w` |
 | `-fee` | Yes | Validator fee in native token |
-| `-side` | No | Cancel only one side (`ask` or `bid`); if omitted, two TXs may be created (one per side) |
+| `-side` | Yes | Cancel only one side (`ask` or `bid`) |
 | `-limit` | No | Maximum orders to cancel (default: unlimited) |
 | `-dry-run` | No | Report candidates only, don't create TX |
 
 **Notes:**
 - `-dry-run` and `-unsigned` are mutually exclusive
+- If there are no orders on the selected side, the command returns an error
 
 **Example:**
 ```bash
@@ -331,7 +332,7 @@ srv_dex cancel_all_by_seller -net TestNet \
   -pair KEL/USDT \
   -seller Ax7y9q... \
   -w /home/user/.cellframe/wallets/bob.dwallet \
-  -fee 0.05 -limit 10 -dry-run
+  -fee 0.05 -side ask -limit 10 -dry-run
 ```
 
 ---
