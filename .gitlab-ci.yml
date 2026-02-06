@@ -28,7 +28,7 @@ tests:amd64.gcc:
     image: demlabs/debian/amd64:qt6
     script:
       - apt-get update
-      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gawk python3 libc6-dev
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 libc6-dev
       - mkdir build
       - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
 
@@ -38,7 +38,7 @@ tests:amd64.clang:
     image: demlabs/debian/amd64:qt6
     script:
       - apt-get update
-      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gawk python3 libc6-dev
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 libc6-dev
       - mkdir build
       - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc) && ctest --verbose
 
@@ -48,7 +48,7 @@ tests:arm64.cross:
     image: demlabs/debian/amd64:cross
     script:
       - apt-get update
-      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gawk python3
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3
       - mkdir build
       - cd build && cmake-arm64 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc) && ctest --verbose
 
@@ -58,7 +58,7 @@ tests:arm32.cross:
     image: demlabs/debian/amd64:cross
     script:
       - apt-get update
-      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gawk python3
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3
       - mkdir build
       - cd build && cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
 
