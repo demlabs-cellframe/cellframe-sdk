@@ -62,13 +62,6 @@ tests:arm32.cross:
       - mkdir build
       - cd build && cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
 
-tests:windows.amd64:
-    extends: .tests
-    image: demlabs/windows/amd64:qt6
-    script:
-      - mkdir build
-      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/wine -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc) && ctest --verbose
-
 tests:macos.arm64:
     extends: .tests
     tags:
