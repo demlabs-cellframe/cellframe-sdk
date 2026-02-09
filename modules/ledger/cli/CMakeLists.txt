@@ -21,11 +21,14 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/.
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../type/dag/include/)
 # Include common headers for datum hash calculation
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../common/include/)
+# Include datum headers for dap_chain_datum_dump_json
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../datum/include/)
 
 # Dependencies - ONLY low-level modules, NO wallet/net/mempool link deps!
 target_link_libraries(${PROJECT_NAME}
     dap_core
     dap_chain
+    dap_chain_datum       # For dap_chain_datum_dump_json
     dap_chain_tx_compose  # NEW TX Compose API
     dap_cli_server
     dap_json_rpc

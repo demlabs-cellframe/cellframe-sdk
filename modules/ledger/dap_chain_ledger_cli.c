@@ -2005,7 +2005,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
     return 0;
 }
 
-
+#if 0
 /**
  * @brief com_token
  * token command
@@ -2085,7 +2085,7 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
             "The cellframe-node-cli token tx command is deprecated and no longer supported.\n");
         
         return DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
-#if 0
+
         tx_hash_processed_t *l_list_tx_hash_processd = NULL;
         enum { SUBCMD_TX_NONE, SUBCMD_TX_ALL, SUBCMD_TX_ADDR };
         // find subcommand
@@ -2227,13 +2227,13 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
             dap_json_rpc_error_add(a_json_arr_reply, -1, "not found parameter '-all', '-wallet' or '-addr'");
             return -1;
         }
-#endif
+
     }
 
     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN, "unknown command code %d", l_cmd);
     return -DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
 }
-
+#endif
 /**
  * @brief Create transaction from json file
  * com_tx_create command

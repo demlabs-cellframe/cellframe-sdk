@@ -8,6 +8,7 @@
 
 #include "dap_chain_ledger_cli_internal.h"
 #include "dap_chain_ledger_cli_tx.h"
+#include "dap_chain_ledger_cli_token.h"
 #include "dap_chain_ledger_cli_cmd_registry.h"
 #include "dap_cli_server.h"
 #include "dap_chain_ledger_cli_error_codes.h"
@@ -77,6 +78,7 @@ int dap_chain_ledger_cli_module_init(void)
     
     // Initialize command modules - they will self-register
     dap_chain_ledger_cli_tx_init();
+    dap_chain_ledger_cli_token_init();
     
     // Register the "tx" command with CLI server to route to dispatcher
     dap_cli_server_cmd_add("tx", dap_chain_ledger_cli_dispatcher, NULL, 
@@ -99,7 +101,6 @@ int dap_chain_ledger_cli_module_init(void)
         "\tVerify transaction in mempool before processing\n");
     
     // Future modules will register themselves:
-    // dap_chain_ledger_cli_token_init();
     // dap_chain_ledger_cli_event_init();
     // dap_chain_ledger_cli_balance_init();
     
@@ -116,10 +117,27 @@ void dap_chain_ledger_cli_module_deinit(void)
     
     // Deinitialize command modules
     dap_chain_ledger_cli_tx_deinit();
+    dap_chain_ledger_cli_token_deinit();
     
     // Deinitialize registry
     dap_ledger_cli_cmd_registry_deinit();
 }
 
+/**
+ * @brief Public API: Initialize ledger CLI
+ * @details Wrapper for dap_chain_ledger_cli_module_init (provides compatibility interface)
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_ledger_cli_init(void)
+{
+    return dap_chain_ledger_cli_module_init();
+}
 
-
+/**
+ * @brief Public API: Deinitialize ledger CLI
+ * @details Wrapper for dap_chain_ledger_cli_module_deinit
+ */
+void dap_chain_ledger_cli_deinit(void)
+{
+    dap_chain_ledger_cli_module_deinit();
+}

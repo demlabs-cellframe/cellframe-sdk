@@ -64,6 +64,8 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_utils.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_cli.h"
+#include "dap_chain_ledger_cli_token.h"  // For com_token
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_chain_srv.h"
@@ -73,6 +75,7 @@
 #include "dap_chain_mempool_cli.h"
 #include "dap_cert_file.h"
 
+static int s_print_for_token_list(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt);
 /**
  * @brief Local utility: Parse -net and -chain arguments
  * @details Local copy to avoid dependency on net/cmd modules (modular architecture)
@@ -1686,6 +1689,30 @@ int dap_chain_token_cli_init(void)
         "  -tx_sender_blocked <value>\n"
         "\tSet blocked tx sender address(es)\n"
         );
+    // Token info
+    dap_cli_server_cmd_add("token", com_token, s_print_for_token_list, "Token info", -1,
+        "token list -net <net_name> [-full] [-h]\n"
+        "\tLists all tokens in specified network. Use -full for detailed information.\n\n"
+        "token info -net <net_name> -name <token_ticker> [-history_limit <N>] [-h]\n"
+        "\tDisplays detailed token information including:\n"
+        "\t  - Token properties (ticker, type, supply, decimals)\n"
+        "\t  - Flags (including UTXO blocking and arbitrage flags)\n"
+        "\t  - Permissions (sender/receiver allow/block lists)\n"
+        "\t  - UTXO blocklist (if UTXO blocking is enabled):\n"
+        "\t      * tx_hash: Transaction hash of blocked UTXO\n"
+        "\t      * out_idx: Output index\n"
+        "\t      * blocked_time: When UTXO was added to blocklist\n"
+        "\t      * becomes_effective: When blocking activates (delayed activation)\n"
+        "\t      * becomes_unblocked: When blocking expires (0 = permanent)\n"
+        "\t      * history_recent: Last N blocking history changes (ADD/REMOVE/CLEAR)\n"
+        "\t      * history_total_count: Total number of history records\n"
+        "\t  - Emission history\n"
+        "\t  - Update history\n\n"
+        "\tOPTIONS:\n"
+        "\t  -history_limit <N>: Number of history items to display (default: 10)\n"
+        "\t                      Use 0 to display all history items\n\n"
+        "\tNOTE: UTXO blocklist is displayed only if UTXO_BLOCKING_DISABLED flag is NOT set.\n");
+
 
     // Register token_update command
     dap_cli_server_cmd_add("token_update", com_token_update, NULL,
@@ -1783,3 +1810,189 @@ void dap_chain_token_cli_deinit(void)
 {
     log_it(L_INFO, "Chain/Token CLI commands unregistered");
 }
+
+
+/**
+* @brief s_print_for_token_list
+* Post-processing callback for token list command. Formats JSON input into
+* human-readable table output.
+*
+* @param a_json_input Input JSON from command handler
+* @param a_json_output Output JSON array to write formatted result
+* @param a_cmd_param Command parameters array
+* @param a_cmd_cnt Count of command parameters
+* @return 0 on success (result written to a_json_output), non-zero to use original input
+*/
+static int s_print_for_token_list(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt)
+{
+    dap_return_val_if_pass(!a_json_input || !a_json_output, -1);
+    bool l_table_mode = dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-h") != -1;
+    bool l_full = dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-full") != -1;
+    if (!l_table_mode)
+        return -1;
+    if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "list") == -1)
+        return -1;
+     
+    if (dap_json_get_type(a_json_input) != DAP_JSON_TYPE_ARRAY)
+        return -1;
+
+    int result_count = dap_json_array_length(a_json_input);
+    if (result_count <= 0)
+        return -1;
+            
+    dap_json_t *json_obj_main = dap_json_array_get_idx(a_json_input, 0);
+    dap_json_t *j_object_tokens = NULL;
+    if (!dap_json_object_get_ex(json_obj_main, "TOKENS", &j_object_tokens) &&
+        !dap_json_object_get_ex(json_obj_main, "tokens", &j_object_tokens)) {
+        return -1;
+    }
+    int chains_count = dap_json_array_length(j_object_tokens);
+    if (chains_count <= 0)
+        return -1;
+    dap_string_t *l_str = dap_string_new("\n");
+    
+    // Print table header
+    if (l_full) {
+        dap_string_append(l_str, "__________________________________________________________________________________________________________________________________________________________________________________"
+            "_________________________________________________________________________\n");
+        dap_string_append_printf(l_str, "  %-15s|  %-7s| %-6s | %-13s | %-13s | %-8s | %-11s| %-68s| %-41s| %-41s|\n",
+            "Token Ticker", "Type", "Decimals", "Current Signs", "Declarations", "Updates", "Decl Status", "Decl Hash (full)", "Total Supply", "Current Supply");
+    } else {
+
+        dap_string_append(l_str, "__________________________________________________________________________________________________________________________________________________________________________________"
+            "________________\n");
+        dap_string_append_printf(l_str, "  %-15s|  %-7s| %-6s | %-13s | %-13s | %-8s | %-11s| %-12s| %-41s| %-41s|\n",
+            "Token Ticker", "Type", "Decimals", "Current Signs", "Declarations", "Updates", "Decl Status", "Decl Hash", "Total Supply", "Current Supply");
+    }
+        
+    int total_tokens = 0;
+    
+    // Structure to pass data to foreach callback
+    typedef struct {
+        dap_string_t *str;
+        int *token_count;
+        bool full;
+    } token_foreach_ctx_t;
+    
+    // Callback for iterating over tokens in a chain
+    void token_iter_callback(const char *a_ticker, dap_json_t *a_token_data, void *a_user_data) {
+        token_foreach_ctx_t *l_ctx = (token_foreach_ctx_t *)a_user_data;
+        if (!a_ticker || !a_token_data || !l_ctx)
+            return;
+            
+        (*l_ctx->token_count)++;
+        
+        // Get current_state
+        dap_json_t *l_current_state = NULL;
+        if (!dap_json_object_get_ex(a_token_data, "current_state", &l_current_state) &&
+            !dap_json_object_get_ex(a_token_data, "current state", &l_current_state)) {
+            return;
+        }
+        
+        // Extract token info
+        const char *l_type = "N/A";
+        int l_decimals = 0;
+        int l_signs_valid = 0;
+        int l_signs_total = 0;
+        const char *l_total_supply = "0";
+        const char *l_current_supply = "0";
+        
+        dap_json_t *l_tmp = NULL;
+        if (dap_json_object_get_ex(l_current_state, "type", &l_tmp))
+            l_type = dap_json_get_string(l_tmp);
+        if (dap_json_object_get_ex(l_current_state, "Decimals", &l_tmp))
+            l_decimals = dap_json_get_int(l_tmp);
+        if (dap_json_object_get_ex(l_current_state, "Auth signs valid", &l_tmp))
+            l_signs_valid = dap_json_get_int(l_tmp);
+        if (dap_json_object_get_ex(l_current_state, "Auth signs total", &l_tmp))
+            l_signs_total = dap_json_get_int(l_tmp);
+        if (dap_json_object_get_ex(l_current_state, "Supply total", &l_tmp))
+            l_total_supply = dap_json_get_string(l_tmp);
+        if (dap_json_object_get_ex(l_current_state, "Supply current", &l_tmp))
+            l_current_supply = dap_json_get_string(l_tmp);
+        
+        // Get declarations info
+        dap_json_t *l_declarations = NULL;
+        const char *l_decl_status = "N/A";
+        const char *l_decl_hash = "N/A";
+        int l_decl_count = 0;
+        
+        if (dap_json_object_get_ex(a_token_data, "declarations", &l_declarations)) {
+            l_decl_count = dap_json_array_length(l_declarations);
+            if (l_decl_count > 0) {
+                dap_json_t *l_first_decl = dap_json_array_get_idx(l_declarations, 0);
+                if (l_first_decl) {
+                    if (dap_json_object_get_ex(l_first_decl, "status", &l_tmp))
+                        l_decl_status = dap_json_get_string(l_tmp);
+                    dap_json_t *l_datum = NULL;
+                    if (dap_json_object_get_ex(l_first_decl, "Datum", &l_datum)) {
+                        if (dap_json_object_get_ex(l_datum, "hash", &l_tmp))
+                            l_decl_hash = dap_json_get_string(l_tmp);
+                    }
+                }
+            }
+        }
+        
+        // Get updates count
+        dap_json_t *l_updates = NULL;
+        int l_update_count = 0;
+        if (dap_json_object_get_ex(a_token_data, "updates", &l_updates))
+            l_update_count = dap_json_array_length(l_updates);
+        
+        // Format signs string
+        char l_signs_str[32];
+        snprintf(l_signs_str, sizeof(l_signs_str), "%d/%d", l_signs_valid, l_signs_total);
+        
+        // Format hash (truncate if not full mode)
+        char l_hash_display[80];
+        if (l_ctx->full || strlen(l_decl_hash) <= 12) {
+            snprintf(l_hash_display, sizeof(l_hash_display), "%s", l_decl_hash);
+        } else {
+            snprintf(l_hash_display, sizeof(l_hash_display), "%.12s...", l_decl_hash);
+        }
+        
+        // Print row
+        if (l_ctx->full) {
+            dap_string_append_printf(l_ctx->str, "  %-15s|  %-7s| %-8d | %-13s | %-13d | %-8d | %-11s| %-68s| %-41s| %-41s|\n",
+                a_ticker, l_type ? l_type : "N/A", l_decimals, l_signs_str, l_decl_count, l_update_count, 
+                l_decl_status ? l_decl_status : "N/A", l_decl_hash ? l_decl_hash : "N/A",
+                l_total_supply ? l_total_supply : "0", l_current_supply ? l_current_supply : "0");
+        } else {
+            dap_string_append_printf(l_ctx->str, "  %-15s|  %-7s| %-8d | %-13s | %-13d | %-8d | %-11s| %-12s| %-41s| %-41s|\n",
+                a_ticker, l_type ? l_type : "N/A", l_decimals, l_signs_str, l_decl_count, l_update_count, 
+                l_decl_status ? l_decl_status : "N/A", l_hash_display,
+                l_total_supply ? l_total_supply : "0", l_current_supply ? l_current_supply : "0");
+        }
+    }
+    
+    token_foreach_ctx_t l_ctx = {
+        .str = l_str,
+        .token_count = &total_tokens,
+        .full = l_full
+    };
+    
+    // Iterate through chains
+    for (int chain_idx = 0; chain_idx < chains_count; chain_idx++) {
+        dap_json_t *chain_tokens = dap_json_array_get_idx(j_object_tokens, chain_idx);
+        if (!chain_tokens)
+            continue;
+            
+        // Iterate through all tokens in this chain using foreach
+        dap_json_object_foreach(chain_tokens, token_iter_callback, &l_ctx);
+    }
+    
+    dap_string_append_printf(l_str, "\nTotal tokens: %d\n", total_tokens);
+    
+    dap_json_t *tokens_count_obj = NULL;
+    if (dap_json_object_get_ex(json_obj_main, "tokens_count", &tokens_count_obj)) {
+        dap_string_append_printf(l_str, "Tokens count: %s\n", dap_json_get_string(tokens_count_obj));
+    }
+
+    // Create output JSON with formatted string
+    dap_json_t *l_json_result = dap_json_object_new();
+    dap_json_object_add_string(l_json_result, "output", l_str->str);
+    dap_json_array_add(a_json_output, l_json_result);
+    dap_string_free(l_str, true);
+    return 0;
+}
+    

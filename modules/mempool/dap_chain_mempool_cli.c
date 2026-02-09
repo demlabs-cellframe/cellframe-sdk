@@ -69,6 +69,10 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
     return NULL;
 }
 
+/*commands for parsing json response - post-processing callbacks for func_rpc*/
+static int s_print_for_mempool_list(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt);
+
+
 // Mempool list print function
 /**
  * @brief s_com_mempool_list_print_for_chain
@@ -1744,7 +1748,7 @@ int dap_chain_mempool_cli_init(void)
                         "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
                         "proc_all -net <net_name> -chain <chain_name>\n"
                         "\tProc mempool all entries for selected chain network";
-    dap_cli_server_cmd_add("mempool", com_mempool, NULL, "Command for working with mempool", 0, l_doc);
+    dap_cli_server_cmd_add("mempool", com_mempool, s_print_for_mempool_list, "Command for working with mempool", 0, l_doc);
     
     // Register mempool_add as separate command for backwards compatibility
     const char *l_doc_add = "mempool_add  -net <net_name> [-chain <chain_name>] -json <json_file_path> | -tx_obj <tx_json_object>\n";
@@ -1761,3 +1765,109 @@ void dap_chain_mempool_cli_deinit(void)
 {
     log_it(L_INFO, "Mempool CLI commands unregistered");
 }
+
+
+/**
+ * @brief s_print_for_mempool_list
+ * Post-processing callback for mempool list command. Formats JSON input into
+ * human-readable table output.
+ *
+ * @param a_json_input Input JSON from command handler
+ * @param a_json_output Output JSON array to write formatted result
+ * @param a_cmd_param Command parameters array
+ * @param a_cmd_cnt Count of command parameters
+ * @return 0 on success (result written to a_json_output), non-zero to use original input
+ */
+static int s_print_for_mempool_list(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt)
+{
+    dap_return_val_if_pass(!a_json_input || !a_json_output, -1);
+
+    // If no -h flag, return raw JSON
+    bool l_table_mode = dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-h") != -1;
+    if (!l_table_mode)
+        return -1;
+    if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "list") == -1)
+        return -1;
+
+    dap_json_t *json_obj_response = dap_json_array_get_idx(a_json_input, 0);
+    if (!json_obj_response)
+        return -1;
+
+    dap_json_t *j_obj_net_name = NULL, *j_arr_chains = NULL;
+    dap_json_object_get_ex(json_obj_response, "net", &j_obj_net_name);
+    dap_json_object_get_ex(json_obj_response, "chains", &j_arr_chains);
+    if (!j_arr_chains || dap_json_get_type(j_arr_chains) != DAP_JSON_TYPE_ARRAY)
+        return -1;
+
+    dap_string_t *l_str = dap_string_new("");
+
+    int chains_count = dap_json_array_length(j_arr_chains);
+    for (int i = 0; i < chains_count; i++) {
+        dap_json_t *json_obj_chain = dap_json_array_get_idx(j_arr_chains, i);
+        if (!json_obj_chain)
+            continue;
+
+        dap_json_t *j_obj_chain_name = NULL, *j_obj_removed = NULL, *j_arr_datums = NULL, *j_obj_total = NULL;
+        dap_json_object_get_ex(json_obj_chain, "name", &j_obj_chain_name);
+        dap_json_object_get_ex(json_obj_chain, "removed", &j_obj_removed);
+        dap_json_object_get_ex(json_obj_chain, "datums", &j_arr_datums);
+        dap_json_object_get_ex(json_obj_chain, "total", &j_obj_total);
+
+        if (j_obj_removed && j_obj_chain_name && j_obj_net_name) {
+            dap_string_append_printf(l_str, "Removed %d records from the %s chain mempool in %s network.\n",
+                    (int)dap_json_get_int64(j_obj_removed),
+                    dap_json_get_string(j_obj_chain_name),
+                    dap_json_get_string(j_obj_net_name));
+        }
+        dap_string_append(l_str, "________________________________________________________________________________________________________________"
+            "________________\n");
+        dap_string_append_printf(l_str, "  Hash \t\t\t\t\t\t\t\t     | %-22s | %-31s |\n", "Datum type", "Time create");
+        if (j_arr_datums && dap_json_get_type(j_arr_datums) == DAP_JSON_TYPE_ARRAY) {
+            int datums_count = dap_json_array_length(j_arr_datums);
+            for (int j = 0; j < datums_count; j++) {
+                dap_json_t *j_obj_datum = dap_json_array_get_idx(j_arr_datums, j);
+                if (!j_obj_datum)
+                    continue;
+
+                dap_json_t *j_hash = NULL, *j_type = NULL, *j_created = NULL;
+                /* hash (v1: "hash", v2: "datum_hash") */
+                if (!dap_json_object_get_ex(j_obj_datum, "hash", &j_hash))
+                    dap_json_object_get_ex(j_obj_datum, "datum_hash", &j_hash);
+                /* type (v1: "type", v2: "datum_type") */
+                if (!dap_json_object_get_ex(j_obj_datum, "type", &j_type))
+                    dap_json_object_get_ex(j_obj_datum, "datum_type", &j_type);
+                /* created object { str, time_stamp } */
+                dap_json_object_get_ex(j_obj_datum, "created", &j_created);
+
+                const char *hash_str = j_hash ? dap_json_get_string(j_hash) : "N/A";
+                const char *type_str = j_type ? dap_json_get_string(j_type) : "N/A";
+                const char *created_str = "N/A";
+                char ts_buf[64];
+                if (j_created && dap_json_get_type(j_created) == DAP_JSON_TYPE_OBJECT) {
+                    dap_json_t *j_created_str = NULL, *j_created_ts = NULL;
+                    if (dap_json_object_get_ex(j_created, "str", &j_created_str) && j_created_str) {
+                        created_str = dap_json_get_string(j_created_str);
+                    } else if (dap_json_object_get_ex(j_created, "time_stamp", &j_created_ts) && j_created_ts) {
+                        snprintf(ts_buf, sizeof(ts_buf), "%"DAP_INT64_FORMAT, dap_json_get_int64(j_created_ts));
+                        created_str = ts_buf;
+                    }
+                }
+                dap_string_append_printf(l_str, "  %s | %-22s | %-31s |\n", hash_str, type_str, created_str);
+            }
+        } else {
+            dap_string_append(l_str, "  No datums\n");
+        }
+        dap_string_append(l_str, "_____________________________________________________________________"
+            "|________________________|_________________________________|\n\n");
+        if (j_obj_total)
+            dap_string_append_printf(l_str, "  total: %s\n", dap_json_get_string(j_obj_total));
+    }
+    // Create output JSON with formatted string
+    dap_json_t *l_json_result = dap_json_object_new();
+    dap_json_object_add_string(l_json_result, "output", l_str->str);
+    dap_json_array_add(a_json_output, l_json_result);
+    dap_string_free(l_str, true);
+    return 0;
+}
+
+          
