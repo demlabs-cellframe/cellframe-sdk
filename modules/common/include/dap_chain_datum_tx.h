@@ -57,6 +57,17 @@ typedef struct dap_chain_datum_tx {
         !!( item = dap_chain_datum_tx_item_get(tx, &item_index, (byte_t*)item + item_size, item_type, &item_size) );\
         item_index = 0 )
 
+#define TX_ITEM_ITER_SCOPED(_item, _item_size, _data, _total_size) \
+    for (size_t _item_size = 0, _l__g_ = 1; _l__g_; _l__g_ = 0) \
+    for (byte_t *l_pos = (byte_t*)(_data), \
+                *l_end = l_pos + (_total_size) > l_pos ? l_pos + (_total_size) : l_pos, \
+                *_item = NULL;    \
+         !!( _item = l_pos < l_end && (_item_size = dap_chain_datum_item_tx_get_size(l_pos, l_end - l_pos)) ? l_pos : NULL ); \
+         l_pos += _item_size)
+
+#define TX_ITEM_ITER_TX_SCOPED(_item, _item_size, _tx) \
+    TX_ITEM_ITER_SCOPED(_item, _item_size, (_tx)->tx_items, (_tx)->header.tx_items_size)
+
 #ifdef __cplusplus
 extern "C" {
 #endif

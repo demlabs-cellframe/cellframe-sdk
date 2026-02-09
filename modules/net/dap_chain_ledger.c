@@ -4343,8 +4343,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 if (l_err_num)
                     break;
                 if (!l_tx_out) {
-                    debug_if(s_debug_more, L_WARNING, l_girdled_ems ? "No OUT_EXT for girdled IN_EMS [%s]"
-                                                                      : "Can't find OUT nor OUT_EXT item for base TX with IN_EMS [%s]", l_tx_in_ems->header.ticker);
+                    const char *l_err_str = l_girdled_ems ? "No OUT_EXT for girdled IN_EMS"
+                                                          : "Can't find OUT nor OUT_EXT item for base TX with IN_EMS";
+                    debug_if(s_debug_more, L_WARNING, "%s [%s]", l_err_str, l_tx_in_ems->header.ticker);
                     l_err_num = l_girdled_ems ? DAP_LEDGER_TX_CHECK_NO_OUT_EXT_FOR_GIRDLED_IN_EMS : DAP_LEDGER_TX_CHECK_NO_OUT_ITEMS_FOR_BASE_TX;
                     break;
                 }

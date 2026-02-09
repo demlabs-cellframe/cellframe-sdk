@@ -807,7 +807,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
         return DAP_DELETE(l_ret), log_it(L_ERROR, "Invalid net name, check [general] \"name\" in netconfig"), NULL;
     dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
     if (!( l_ret->pub.native_ticker = a_native_ticker )) {
-        DAP_DEL_MULTY(l_ret->pub.name, l_ret);
+        DAP_DELETE(l_ret);
         log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg",
                         l_net_name_str);
         return NULL;
