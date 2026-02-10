@@ -3610,7 +3610,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         if (l_store_obj && l_store_obj->value) {
             l_hole = DAP_FLAG_CHECK(l_store_obj->flags, DAP_GLOBAL_DB_RECORD_DEL);
             if (l_hole) {
-                l_ret_code = strtol(l_store_obj->value, NULL, 10);
+                l_ret_code = strtol((const char*)l_store_obj->value, NULL, 10);
             } else {
                 l_datum = DAP_DUP_SIZE(l_store_obj->value, l_store_obj->value_len);
             }

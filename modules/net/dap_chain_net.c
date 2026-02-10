@@ -816,7 +816,7 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     
     if ( dap_chain_policy_net_add(l_ret->pub.id, a_cfg) ) {
         log_it(L_ERROR, "Can't add net %s to policy module", l_ret->pub.name);
-        DAP_DEL_MULTY(l_ret->pub.name, l_ret);
+        DAP_DELETE(l_ret);
         return NULL;
     }
     
