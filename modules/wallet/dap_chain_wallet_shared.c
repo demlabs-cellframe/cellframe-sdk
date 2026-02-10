@@ -486,7 +486,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(json_object *a
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction is already used out");
 
     // add 'in_cond' item
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, -1) != 1) {
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, DAP_CHAIN_TX_IN_COND_NO_RECEIPT) != 1) {
         log_it(L_ERROR, "Can't compose the transaction conditional input");
         m_tx_fail(ERROR_COMPOSE, "Cant add conditionsl input");
     }
@@ -632,7 +632,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_create(json_object *a_js
         m_tx_fail(ERROR_FUNDS, "Conditional output of requested TX have not enough funs");
 
     // add 'in_cond' item
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, -1) != 1) {
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, DAP_CHAIN_TX_IN_COND_NO_RECEIPT) != 1) {
         log_it(L_ERROR, "Can't compose the transaction conditional input");
         m_tx_fail(ERROR_COMPOSE, "Cant add conditionsl input");
     }
