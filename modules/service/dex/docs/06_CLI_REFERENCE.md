@@ -113,7 +113,7 @@ srv_dex purchase \
   -net <network_name> \
   -order <order_hash> \
   (-w <wallet_path> [-addr <addr>] | -unsigned -addr <addr>) \
-  -value <amount> \
+  [-value <amount>] \
   [-unit sell|buy] \
   -fee <validator_fee> \
   [-create_leftover_order] \
@@ -130,7 +130,7 @@ srv_dex purchase \
 | `-w` | Conditional | Wallet file path (payer) |
 | `-addr` | Conditional | Beneficiary address; if used with `-w`, payout goes to this address |
 | `-unsigned` | No | Compose unsigned JSON; requires `-addr`, forbids `-w` |
-| `-value` | Yes | Budget amount (`0` = unlimited) |
+| `-value` | No | Budget amount (`0` = unlimited/full fill; default if omitted) |
 | `-fee` | Yes | Validator fee in native token |
 | `-unit` | No | Budget denomination: `sell` (default) or `buy` |
 | `-create_leftover_order` | No | Create order from unspent budget |

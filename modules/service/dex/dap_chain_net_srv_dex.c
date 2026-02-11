@@ -6098,7 +6098,7 @@ int dap_chain_net_srv_dex_init()
         "    Timestamp <ts>: unix | RFC822 | now | -30m | -1h | -2d\n"
         "    -fill without -bucket uses history_bucket_sec\n"
         // === Trading ===
-        "srv_dex purchase -net <net_name> -order <hash> (-w <wallet> [-addr <addr>] | -unsigned -addr <addr>) -value <amount> -fee <fee>\n"
+        "srv_dex purchase -net <net_name> -order <hash> (-w <wallet> [-addr <addr>] | -unsigned -addr <addr>) [-value <amount>] -fee <fee>\n"
         "    [-unit sell|buy] [-create_leftover_order [-leftover_rate <rate>] [-leftover_fill_policy AON|min|min_from_origin]\n"
         "    [-leftover_min_fill_pct <0-100>]]\n"
         "srv_dex purchase_multi -net <net_name> -orders <hash1,hash2,...> (-w <wallet> [-addr <addr>] | -unsigned -addr <addr>) -value <amount> -fee <fee>\n"
@@ -10214,8 +10214,6 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
     } break; // CANCEL_ALL_BY_SELLER
 
     case CMD_PURCHASE: {
-        if (!l_value_str)
-            return dap_json_rpc_error_add(*json_arr_reply, -2, "missing -value"), -2;
         const char *l_order_str = NULL, *l_rate_str = NULL, *l_unit_str = NULL;
         const char *l_leftover_min_fill_pct_str = NULL, *l_leftover_fill_policy_str = NULL;
         int l_leftover_min_fill_pct = 0;
