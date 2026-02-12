@@ -325,6 +325,7 @@ srv_dex cancel_all_by_seller \
 **Notes:**
 - `-dry-run` and `-unsigned` are mutually exclusive
 - If there are no orders on the selected side, the command returns an error
+- Dry-run output uses `side` values `ask` or `bid`.
 
 **Example:**
 ```bash
@@ -395,6 +396,7 @@ srv_dex orderbook -net TestNet -pair KEL/USDT -depth 10 -cumulative
 ```
 
 Output: Top N ASK and BID levels with price, volume_base/volume_quote, and order count (plus cumulative fields if requested).
+Optional field `spread_state` is `crossed` when best bid exceeds best ask.
 
 ---
 
@@ -408,6 +410,7 @@ srv_dex status \
 ```
 
 Returns: Order counts and best prices (best_ask, best_bid, mid, spread).
+Optional field `spread_state` is `crossed` when best bid exceeds best ask.
 
 ---
 
@@ -418,6 +421,7 @@ srv_dex pairs -net <network_name>
 ```
 
 Lists all whitelisted trading pairs with fee configurations.
+JSON `fee.type` values: `input_pct`, `native`, `disabled`.
 
 ---
 
@@ -444,6 +448,7 @@ srv_dex spread \
 ```
 
 Returns: Best ASK, best BID, and absolute spread (price delta in QUOTE/BASE). With `-verbose`, includes best ask/bid root and tail hashes.
+Optional field `spread_state` is `crossed` when best bid exceeds best ask.
 
 ---
 
@@ -490,6 +495,10 @@ srv_dex slippage \
 srv_dex slippage -net TestNet -pair KEL/USDT -value 1000 -side buy -unit quote -max_slippage_pct 5
 ```
 
+**Notes:**
+- `side` values: `buy`, `sell`.
+- `warning` value: `max_slippage_exceeded` (when `-max_slippage_pct` is violated).
+
 ---
 
 ### Find Matches
@@ -523,7 +532,7 @@ Matches owned by the provided address are excluded.
 | `budget_token` | Token of `budget` (always analyzed order sell token) |
 | `fill_pct` | Executable percentage of `budget` (string, 2 decimals) |
 | `addr_matches_owner` | `true` if `-addr` matches order owner |
-| `warning` | Optional warning string (e.g., `addr_not_owner`) |
+| `warning` | Optional warning string: `addr_not_owner` |
 | `matches_count` | Number of matching orders |
 | `spend_total` | Total amount and token the analyzed order would spend |
 | `receive_total` | Total amount and token the analyzed order would receive |
@@ -691,7 +700,7 @@ srv_dex history -net TestNet -pair KEL/USDT -view summary -limit 10
       "ts_last": 1700000600,
       "time_last": "Tue, 14 Nov 2023 10:23:20 GMT",
       "seller": "mJUaYn...",
-      "last_event": "market",
+      "last_event": "market trade",
       "locked_initial": "100.000000000000000000",
       "amount": "88.000000000000000000",
       "total_receive": "96.180000000000000000",
@@ -708,6 +717,8 @@ srv_dex history -net TestNet -pair KEL/USDT -view summary -limit 10
 
 Notes:
 
+- `last_event` values: `new order`, `update`, `cancellation`, `market trade`, `targeted trade`, `market trade | new order`, `targeted trade | new order`, `undefined`.
+- `state` values: `open`, `cancelled`, `updated`, `fully filled`, `partially filled`.
 - `spent` and `received` include the token ticker in the same string (for example, `100.0 KEL`).
 - `remained` is included for partially filled orders and shows remaining locked amount with its ticker.
 - `locked_initial` is the locked amount at last CREATE/UPDATE (sell token).
@@ -845,7 +856,7 @@ srv_dex history -net TestNet -pair KEL/USDT -view events -type trade -limit 10
       "filled_pct": "12.00",
       "seller": "mJUaYn...",
       "buyer": "mZkPqR...",
-      "type": "market"
+      "type": "market trade"
     }
   ],
   "count": 10
@@ -853,15 +864,19 @@ srv_dex history -net TestNet -pair KEL/USDT -view events -type trade -limit 10
 ```
 
 **Trade types:**
-- `market` — executed at or better than best price
-- `targeted` — executed at worse than best price (limit order match)
+- `market trade` — executed at or better than best price
+- `targeted trade` — executed at worse than best price (limit order match)
+
+**Notes:**
+- `type` uses the same values as `last_event` in summary.
+- `base_kind` values: `order`, `trade`.
 
 ---
 
 #### Events: Orders (order creations only)
 
 Returns only order creation records (new orders and buyer leftovers).
-Buyer leftovers may be marked as `order+market` or `order+targeted` depending on the last trade classification.
+Buyer leftovers may be marked as `market trade | new order` or `targeted trade | new order` depending on the last trade classification.
 
 ```bash
 srv_dex history -net TestNet -pair KEL/USDT -view events -type order -limit 10
@@ -882,7 +897,7 @@ srv_dex history -net TestNet -pair KEL/USDT -view events -type order -limit 10
       "order_root": "0xabcd...1234",
       "filled_pct": 0,
       "seller": "mJUaYn...",
-      "type": "order"
+      "type": "new order"
     }
   ],
   "count": 10

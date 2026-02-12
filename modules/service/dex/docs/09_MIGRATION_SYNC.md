@@ -35,7 +35,7 @@ Rules:
 ### List open legacy orders
 
 ```bash
-srv_xchange orders -net <net_name> [-addr <seller_addr>]
+srv_xchange orders -net <net_name> [-addr <seller_addr> | -seller <seller_addr>]
 ```
 
 Output fields:
