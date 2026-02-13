@@ -30,23 +30,6 @@
 
 #define LOG_TAG "test_voting_comprehensive"
 
-// =============================================================================
-// macOS: __real_* functions for dyld interpose compatibility
-// On macOS, linker doesn't support --wrap, so we need to provide __real_* manually
-// =============================================================================
-#ifdef DAP_OS_DARWIN
-uint256_t __real_dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
-                                         const char *a_token_ticker) {
-    extern uint256_t dap_ledger_calc_balance(dap_ledger_t*, const dap_chain_addr_t*, const char*);
-    return dap_ledger_calc_balance(a_ledger, a_addr, a_token_ticker);
-}
-
-dap_chain_datum_tx_t* __real_dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash) {
-    extern dap_chain_datum_tx_t* dap_ledger_tx_find_by_hash(dap_ledger_t*, const dap_hash_sha3_256_t*);
-    return dap_ledger_tx_find_by_hash(a_ledger, (const dap_hash_sha3_256_t*)a_tx_hash);
-}
-#endif // DAP_OS_DARWIN
-
 // Ledger balance mock - needed because the real ledger instance is not fully initialized in unit tests.
 //
 // NOTE: DAP_MOCK_WRAPPER_CUSTOM assumes scalar return types (casts via intptr_t) and does not work
@@ -68,7 +51,7 @@ DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_find_by_hash, DAP_MOCK_CONFIG_DEFAULT);
 
 DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t *, dap_ledger_tx_find_by_hash,
     PARAM(dap_ledger_t*, a_ledger),
-    PARAM(dap_hash_sha3_256_t*, a_tx_hash)
+    PARAM(const dap_hash_sha3_256_t*, a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_find_by_hash;
     UNUSED(a_ledger);
@@ -77,20 +60,6 @@ DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t *, dap_ledger_tx_find_by_hash,
     // Mock implementation: poll not found (NULL)
     return NULL;
 }
-
-// =============================================================================
-// macOS: Redirect function calls to wrappers since dyld interpose doesn't work
-// for calls within the same executable
-// =============================================================================
-#ifdef DAP_OS_DARWIN
-#undef dap_ledger_calc_balance
-#undef dap_ledger_tx_find_by_hash
-
-#define dap_ledger_calc_balance(ledger, addr, ticker) \
-    __wrap_dap_ledger_calc_balance((ledger), (addr), (ticker))
-#define dap_ledger_tx_find_by_hash(ledger, hash) \
-    __wrap_dap_ledger_tx_find_by_hash((ledger), (hash))
-#endif // DAP_OS_DARWIN
 
 // =============================================================================
 // TEST DATA
@@ -433,12 +402,6 @@ static void test_2_9_poll_insufficient_balance(void)
 {
     log_it(L_INFO, "TEST 2.9: FAIL-FAST - Poll with insufficient balance");
 
-#ifdef DAP_OS_DARWIN
-    // On macOS, dyld interpose cannot mock calls within the same library
-    // Skip tests that require deep mocking of ledger internals
-    log_it(L_INFO, "⏭️  TEST 2.9 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#else
     // NOTE: Balance check is now mocked via DAP_MOCK_CUSTOM
     // This test validates that compose layer handles fee properly
 
@@ -461,7 +424,6 @@ static void test_2_9_poll_insufficient_balance(void)
     dap_assert_PIF(true, "Function processes balance internally");
 
     log_it(L_INFO, "✅ TEST 2.9 PASSED (balance check validated internally)");
-#endif
 }
 
 // =============================================================================
@@ -544,11 +506,6 @@ static void test_3_5_vote_poll_not_found(void)
 {
     log_it(L_INFO, "TEST 3.5: FAIL-FAST - Vote when poll not found");
 
-#ifdef DAP_OS_DARWIN
-    log_it(L_INFO, "⏭️  TEST 3.5 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#endif
-
     uint256_t fee = uint256_1;
     dap_chain_datum_tx_t *tx = dap_voting_tx_create_vote(
         &g_mock_ledger,
@@ -574,10 +531,6 @@ static void test_4_1_poll_creation_basic(void)
 {
     log_it(L_INFO, "TEST 4.1: Poll creation - basic success path");
 
-#ifdef DAP_OS_DARWIN
-    log_it(L_INFO, "⏭️  TEST 4.1 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#else
     uint256_t fee = uint256_1;
     dap_chain_datum_tx_t *tx = dap_voting_tx_create_poll(
         &g_mock_ledger,
@@ -597,17 +550,12 @@ static void test_4_1_poll_creation_basic(void)
     dap_assert_PIF(true, "Function executes without crashing");
 
     log_it(L_INFO, "✅ TEST 4.1 PASSED");
-#endif
 }
 
 static void test_4_2_poll_with_delegated_key(void)
 {
     log_it(L_INFO, "TEST 4.2: Poll creation with delegated key requirement");
 
-#ifdef DAP_OS_DARWIN
-    log_it(L_INFO, "⏭️  TEST 4.2 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#else
     uint256_t fee = uint256_1;
     dap_chain_datum_tx_t *tx = dap_voting_tx_create_poll(
         &g_mock_ledger,
@@ -626,7 +574,6 @@ static void test_4_2_poll_with_delegated_key(void)
     dap_assert_PIF(true, "Should handle delegated key flag");
 
     log_it(L_INFO, "✅ TEST 4.2 PASSED");
-#endif
 }
 
 // =============================================================================
@@ -637,10 +584,6 @@ static void test_5_1_vote_creation_basic(void)
 {
     log_it(L_INFO, "TEST 5.1: Vote creation - basic success path");
 
-#ifdef DAP_OS_DARWIN
-    log_it(L_INFO, "⏭️  TEST 5.1 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#else
     uint256_t fee = uint256_1;
     dap_chain_datum_tx_t *tx = dap_voting_tx_create_vote(
         &g_mock_ledger,
@@ -656,17 +599,12 @@ static void test_5_1_vote_creation_basic(void)
     dap_assert_PIF(true, "Function executes without crashing");
 
     log_it(L_INFO, "✅ TEST 5.1 PASSED");
-#endif
 }
 
 static void test_5_2_vote_with_certificate(void)
 {
     log_it(L_INFO, "TEST 5.2: Vote with certificate");
 
-#ifdef DAP_OS_DARWIN
-    log_it(L_INFO, "⏭️  TEST 5.2 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#else
     // Create mock certificate
     dap_cert_t mock_cert = {0};
 
@@ -684,7 +622,6 @@ static void test_5_2_vote_with_certificate(void)
     dap_assert_PIF(true, "Function handles certificate parameter");
 
     log_it(L_INFO, "✅ TEST 5.2 PASSED");
-#endif
 }
 
 // =============================================================================
@@ -694,11 +631,6 @@ static void test_5_2_vote_with_certificate(void)
 static void test_6_1_poll_max_options(void)
 {
     log_it(L_INFO, "TEST 6.1: Poll with maximum options");
-
-#ifdef DAP_OS_DARWIN
-    log_it(L_INFO, "⏭️  TEST 6.1 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#endif
 
     // Create list with many options
     dap_list_t *many_options = NULL;
@@ -733,11 +665,6 @@ static void test_6_2_vote_max_option_index(void)
 {
     log_it(L_INFO, "TEST 6.2: Vote with maximum option index");
 
-#ifdef DAP_OS_DARWIN
-    log_it(L_INFO, "⏭️  TEST 6.2 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#endif
-
     uint256_t fee = uint256_1;
     dap_chain_datum_tx_t *tx = dap_voting_tx_create_vote(
         &g_mock_ledger,
@@ -757,11 +684,6 @@ static void test_6_2_vote_max_option_index(void)
 static void test_6_3_poll_long_question(void)
 {
     log_it(L_INFO, "TEST 6.3: Poll with very long question");
-
-#ifdef DAP_OS_DARWIN
-    log_it(L_INFO, "⏭️  TEST 6.3 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#endif
 
     // Create long question (4KB)
     char long_question[4096];
@@ -793,11 +715,6 @@ static void test_6_3_poll_long_question(void)
 static void test_6_4_poll_zero_max_votes(void)
 {
     log_it(L_INFO, "TEST 6.4: Poll with zero max votes (unlimited)");
-
-#ifdef DAP_OS_DARWIN
-    log_it(L_INFO, "⏭️  TEST 6.4 SKIPPED (macOS: dyld interpose limitation)");
-    return;
-#endif
 
     uint256_t fee = uint256_1;
     dap_chain_datum_tx_t *tx = dap_voting_tx_create_poll(

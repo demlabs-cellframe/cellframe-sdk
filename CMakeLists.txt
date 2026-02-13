@@ -481,6 +481,31 @@ else()
 endif()
 
 # =========================================
+# STATIC LIBRARIES FOR TESTING
+# =========================================
+# Create static libraries from OBJECT modules for test mocking
+# This is required for --wrap (Linux) and compile-time redirection (macOS) to work
+if(BUILD_CELLFRAME_SDK_TESTS)
+    message(STATUS "[Cellframe-SDK] Creating static libraries for testing...")
+    foreach(MODULE ${CELLFRAME_INTERNAL_MODULES})
+        if(TARGET ${MODULE} AND NOT TARGET ${MODULE}_static)
+            add_library(${MODULE}_static STATIC $<TARGET_OBJECTS:${MODULE}>)
+            # Inherit include directories from OBJECT library
+            get_target_property(MODULE_INCLUDES ${MODULE} INTERFACE_INCLUDE_DIRECTORIES)
+            if(MODULE_INCLUDES)
+                target_include_directories(${MODULE}_static PUBLIC ${MODULE_INCLUDES})
+            endif()
+            # Inherit link libraries from OBJECT library
+            get_target_property(MODULE_LINK_LIBS ${MODULE} INTERFACE_LINK_LIBRARIES)
+            if(MODULE_LINK_LIBS)
+                target_link_libraries(${MODULE}_static PUBLIC ${MODULE_LINK_LIBS})
+            endif()
+            message(STATUS "[Cellframe-SDK]   ${MODULE}_static")
+        endif()
+    endforeach()
+endif()
+
+# =========================================
 # TESTS
 # =========================================
 if(BUILD_CELLFRAME_SDK_TESTS OR BUILD_DAP_SDK_TESTS)

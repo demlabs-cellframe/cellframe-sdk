@@ -23,35 +23,6 @@
 #define LOG_TAG "test_ledger_tx"
 
 // =============================================================================
-// macOS: __real_* functions for dyld interpose compatibility
-// On macOS, linker doesn't support --wrap, so we need to provide __real_* manually
-// =============================================================================
-#ifdef DAP_OS_DARWIN
-// __real_* functions that call the original library functions
-// These are used when mock is disabled to call through to the real implementation
-
-dap_chain_datum_tx_t* __real_dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash) {
-    extern dap_chain_datum_tx_t* dap_ledger_tx_find_by_hash(dap_ledger_t*, const dap_hash_sha3_256_t*);
-    return dap_ledger_tx_find_by_hash(a_ledger, (const dap_hash_sha3_256_t*)a_tx_hash);
-}
-
-int __real_dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data) {
-    extern int dap_ledger_tx_add(dap_ledger_t*, dap_chain_datum_tx_t*, dap_hash_sha3_256_t*, bool, dap_ledger_datum_iter_data_t*);
-    return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, a_from_threshold, a_datum_index_data);
-}
-
-const char* __real_dap_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash) {
-    extern const char* dap_ledger_tx_get_token_ticker_by_hash(dap_ledger_t*, dap_hash_sha3_256_t*);
-    return dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
-}
-
-int __real_dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash) {
-    extern int dap_ledger_tx_remove(dap_ledger_t*, dap_chain_datum_tx_t*, dap_hash_sha3_256_t*);
-    return dap_ledger_tx_remove(a_ledger, a_tx, a_tx_hash);
-}
-#endif // DAP_OS_DARWIN
-
-// =============================================================================
 // MOCKS: PART 1 - Simple mock with DAP_MOCK_WRAPPER_DEFAULT
 // =============================================================================
 
@@ -72,7 +43,7 @@ DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_get_token_ticker_by_hash, DAP_MOCK_CONFIG_
 
 DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
     PARAM(dap_ledger_t*, a_ledger),
-    PARAM(dap_hash_sha3_256_t*, a_tx_hash)
+    PARAM(const dap_hash_sha3_256_t*, a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_find_by_hash;
     dap_chain_datum_tx_t* l_result = NULL;
@@ -129,28 +100,6 @@ DAP_MOCK_WRAPPER_CUSTOM(const char*, dap_ledger_tx_get_token_ticker_by_hash,
     }
     return (const char*)G_MOCK->return_value.ptr;
 }
-
-// =============================================================================
-// macOS: Redirect function calls to wrappers since dyld interpose doesn't work
-// for calls within the same executable
-// =============================================================================
-#ifdef DAP_OS_DARWIN
-// Undefine any previous macros (from headers)
-#undef dap_ledger_tx_find_by_hash
-#undef dap_ledger_tx_add
-#undef dap_ledger_tx_get_token_ticker_by_hash
-#undef dap_ledger_tx_remove
-
-// Redirect to wrapper functions
-#define dap_ledger_tx_find_by_hash(ledger, hash) \
-    __wrap_dap_ledger_tx_find_by_hash((ledger), (hash))
-#define dap_ledger_tx_add(ledger, tx, hash, thresh, data) \
-    __wrap_dap_ledger_tx_add((ledger), (tx), (hash), (thresh), (data))
-#define dap_ledger_tx_get_token_ticker_by_hash(ledger, hash) \
-    __wrap_dap_ledger_tx_get_token_ticker_by_hash((ledger), (hash))
-#define dap_ledger_tx_remove(ledger, tx, hash) \
-    __wrap_dap_ledger_tx_remove((ledger), (tx), (hash))
-#endif // DAP_OS_DARWIN
 
 // =============================================================================
 // TEST DATA
