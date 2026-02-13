@@ -497,7 +497,8 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
 }
 
 int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
-                                                    dap_list_t **a_outs_list, uint256_t *a_value_transfer, bool a_mempool_check)
+                                                    dap_list_t **a_outs_list, uint256_t *a_value_transfer, bool a_mempool_check,
+                                                    bool a_skip_blocklist)
 {
 
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
@@ -588,7 +589,9 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
             // CRITICAL: Check if UTXO is blocked in token-specific blocklist
             // This check MUST be in wallet cache to prevent bypassing ledger blocking check
             // Applies to all output types (OUT, OUT_EXT, OUT_STD, OUT_COND)
-            if (dap_ledger_utxo_is_blocked_by_ticker(a_net->pub.ledger, a_token_ticker,
+            // Skip this check for arbitrage transactions (a_skip_blocklist = true)
+            if (!a_skip_blocklist &&
+                dap_ledger_utxo_is_blocked_by_ticker(a_net->pub.ledger, a_token_ticker,
                                                       &l_item_cur->key.tx_hash, l_item_cur->key.out_idx)) {
                 debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] UTXO %s:%u is blocked for token %s - skipping",
                         dap_hash_fast_to_str_static(&l_item_cur->key.tx_hash), l_item_cur->key.out_idx, a_token_ticker);
@@ -621,7 +624,8 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
 }
 
 int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
-                                                    dap_list_t **a_outs_list, uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check)
+                                                    dap_list_t **a_outs_list, uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check,
+                                                    bool a_skip_blocklist)
 {
 
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
@@ -722,7 +726,9 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
             // CRITICAL: Check if UTXO is blocked in token-specific blocklist
             // This check MUST be in wallet cache to prevent bypassing ledger blocking check
             // Applies to all output types (OUT, OUT_EXT, OUT_STD, OUT_COND)
-            if (dap_ledger_utxo_is_blocked_by_ticker(a_net->pub.ledger, a_token_ticker,
+            // Skip this check for arbitrage transactions (a_skip_blocklist = true)
+            if (!a_skip_blocklist &&
+                dap_ledger_utxo_is_blocked_by_ticker(a_net->pub.ledger, a_token_ticker,
                                                       &l_item_cur->key.tx_hash, l_item_cur->key.out_idx)) {
                 debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] UTXO %s:%u is blocked for token %s - skipping",
                         dap_hash_fast_to_str_static(&l_item_cur->key.tx_hash), l_item_cur->key.out_idx, a_token_ticker);

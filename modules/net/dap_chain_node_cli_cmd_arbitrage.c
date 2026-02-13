@@ -103,7 +103,7 @@ char *dap_chain_arbitrage_tx_create_with_signatures(
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else if (!IS_ZERO_256(l_total_fee)) {
-        // Try wallet cache first
+        // Try wallet cache first (fee channel uses regular blocklist check - fee tokens are not blocked)
         int l_cache_result = dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_native_ticker, a_addr_from, &l_list_fee_out, l_total_fee, &l_fee_transfer);
         // Fallback to ledger if cache not available (-101) OR if cache returned empty result (0 but no outputs)
         if (l_cache_result == -101 || (l_cache_result == 0 && !l_list_fee_out)) {
@@ -117,11 +117,12 @@ char *dap_chain_arbitrage_tx_create_with_signatures(
     }
     
     dap_list_t *l_list_used_out = NULL;
-    // Try wallet cache first
-    int l_cache_result_main = dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer);
+    // CRITICAL: Arbitrage transactions MUST bypass UTXO blocklist
+    // Use _skip_blocklist variants to allow spending blocked UTXOs
+    int l_cache_result_main = dap_chain_wallet_cache_tx_find_outs_with_val_skip_blocklist(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer);
     // Fallback to ledger if cache not available (-101) OR if cache returned empty result (0 but no outputs)
     if (l_cache_result_main == -101 || (l_cache_result_main == 0 && !l_list_used_out)) {
-        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val_skip_blocklist(l_ledger, a_token_ticker,
                                             a_addr_from, l_value_need, &l_value_transfer);
     }
     if (!l_list_used_out) {

@@ -558,7 +558,7 @@ static void test_arbitrage_with_token_update(void)
     uint256_t l_out_value = uint256_0;
     dap_list_t *l_list_outs = dap_ledger_get_list_tx_outs_unspent_by_addr(
         s_net_fixture->ledger, TEST_TOKEN_TICKER_SCENARIO2, &l_wallet_addr,
-        NULL, &l_out_value, false, DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED, false);
+        NULL, &l_out_value, false, DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED, false, false);
     
     if (!l_list_outs) {
         log_it(L_ERROR, "❌ No UTXOs found for token %s - cannot perform token_update", TEST_TOKEN_TICKER_SCENARIO2);

@@ -415,22 +415,9 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
     if (!a_chain || !a_datum) {
         return false;
     }
-    // Log for debugging
-    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
-        dap_chain_datum_token_t *l_token_datum = (dap_chain_datum_token_t *)a_datum->data;
-        debug_if(s_debug_more, L_DEBUG, "Checking if token datum '%s' needs processing in chain '%s' (autoproc_count=%u)", 
-               l_token_datum->ticker, a_chain->name, a_chain->autoproc_datum_types_count);
-    }
     for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
-        if (a_datum->header.type_id == a_chain->autoproc_datum_types[j]) {
-            if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
-                debug_if(s_debug_more, L_DEBUG, "Token datum matches autoproc type %u", a_chain->autoproc_datum_types[j]);
-            }
+        if (a_datum->header.type_id == a_chain->autoproc_datum_types[j])
             return true;
-        }
-    }
-    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
-        debug_if(s_debug_more,L_DEBUG, "Token datum does NOT match any autoproc type");
     }
     return false;
 }
@@ -438,13 +425,6 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
 /* Return true if processed datum should be deleted from mempool */
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str, int * a_ret)
 {
-    // Log emission processing (type_id=61696=0xf100)
-    if (a_datum && a_datum->header.type_id == 0xf100) {
-        debug_if(s_debug_more,L_INFO, "Processing EMISSION datum, hash=%s", a_datum_hash_str);
-    }
-    debug_if(s_debug_more, L_DEBUG, "dap_chain_node_mempool_process: datum type_id=%u, hash=%s", 
-           a_datum ? a_datum->header.type_id : 0, a_datum_hash_str ? a_datum_hash_str : "NULL");
-    
     if (!a_chain->callback_add_datums) {
         log_it(L_ERROR, "Not found chain callback for datums processing");
         return false;
@@ -456,96 +436,17 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
     }
     dap_chain_datum_calc_hash(a_datum, &l_real_hash);
     if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
-        // For TX datums, hash mismatch is normal during multi-sig collection
-        // TX hash changes when new signatures are added via tx_sign
-        if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
-            debug_if(s_debug_more, L_DEBUG, "TX datum hash changed (multi-sig update): key=%s, calculated=%s", 
-                   a_datum_hash_str, dap_hash_fast_to_str_static(&l_real_hash));
-            // Update hash to current value for verification
-            l_datum_hash = l_real_hash;
-        } else {
-            log_it(L_WARNING, "Datum hash from mempool key and real datum hash are different: key=%s, calculated=%s, type_id=%u", 
-                   a_datum_hash_str, dap_hash_fast_to_str_static(&l_real_hash), a_datum->header.type_id);
-            return false;
-        }
+        log_it(L_WARNING, "Datum hash from mempool key and real datum hash are different");
+        return false;
     }
     int l_verify_datum = dap_chain_net_verify_datum_for_add(a_chain, a_datum, &l_datum_hash);
-    // Log ALL verification results
-    log_it(L_INFO, "VERIFY DATUM: type_id=%u, hash=%s, result=%d", 
-           a_datum->header.type_id, a_datum_hash_str, l_verify_datum);
-    if (a_datum && a_datum->header.type_id == 0xf100) {
-        log_it(L_INFO, "EMISSION verify result: %d, hash=%s", l_verify_datum, a_datum_hash_str);
-    }
-    debug_if(s_debug_more, L_DEBUG, "dap_chain_net_verify_datum_for_add returned: %d for datum type_id=%u, hash=%s", 
-           l_verify_datum, a_datum->header.type_id, a_datum_hash_str);
-    
-    // For token datums, apply changes directly to ledger if verification passes
-    // This is needed because token datums update ledger state directly, not through consensus
-    // We call dap_ledger_token_add directly instead of dap_chain_datum_add to ensure updates are applied
-    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN && !l_verify_datum) {
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        if (l_net && l_net->pub.ledger) {
-            dap_chain_datum_token_t *l_token_datum = (dap_chain_datum_token_t *)a_datum->data;
-            log_it(L_INFO, "Processing token datum for ticker '%s' (type: %s) in chain '%s'", 
-                   l_token_datum->ticker,
-                   l_token_datum->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE ? "UPDATE" : "DECL",
-                   a_chain->name);
-            int l_token_add_res = dap_ledger_token_add(l_net->pub.ledger, a_datum->data, 
-                                                         a_datum->header.data_size, a_datum->header.ts_create);
-            if (l_token_add_res != DAP_LEDGER_CHECK_OK && 
-                l_token_add_res != DAP_LEDGER_CHECK_WHITELISTED &&
-                l_token_add_res != DAP_LEDGER_CHECK_ALREADY_CACHED) {
-                log_it(L_WARNING, "Failed to add token datum to ledger: %d (%s)", 
-                       l_token_add_res, dap_ledger_check_error_str(l_token_add_res));
-            } else {
-                debug_if(s_debug_more, L_INFO, "Token datum added to ledger successfully (result: %d)", l_token_add_res);
-            }
-        }
-    }
-    
-    // For token emission datums, apply changes directly to ledger if verification passes
-    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_EMISSION && !l_verify_datum) {
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        if (l_net && l_net->pub.ledger) {
-            log_it(L_INFO, "Processing token emission datum in chain '%s', hash=%s", a_chain->name, a_datum_hash_str);
-            int l_emission_add_res = dap_ledger_token_emission_load(l_net->pub.ledger, a_datum->data,
-                                                                      a_datum->header.data_size, &l_datum_hash);
-            if (l_emission_add_res != DAP_LEDGER_CHECK_OK &&
-                l_emission_add_res != DAP_LEDGER_CHECK_WHITELISTED &&
-                l_emission_add_res != DAP_LEDGER_CHECK_ALREADY_CACHED) {
-                log_it(L_WARNING, "Failed to add emission datum to ledger: %d (%s)",
-                       l_emission_add_res, dap_ledger_check_error_str(l_emission_add_res));
-            } else {
-                log_it(L_INFO, "Token emission added to ledger successfully (result: %d)", l_emission_add_res);
-            }
-        }
-    }
-    
-    // For TX datums, apply changes directly to ledger if verification passes
-    // This is CRITICAL for "none" consensus where callback_add_datums only saves to GDB
-    // but does NOT create UTXOs
-    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX && !l_verify_datum) {
-        log_it(L_INFO, "Processing TX datum in chain '%s', hash=%s", a_chain->name, a_datum_hash_str);
-        // dap_chain_datum_add is already called by callback, so we skip double processing
-        // But we log it for debugging
-        log_it(L_INFO, "TX datum will be processed by callback_add_datums");
-    }
-    
     if (!l_verify_datum
 #ifdef DAP_TPS_TEST
             || l_verify_datum == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS
 #endif
             )
     {
-        // Log callback invocation
-        log_it(L_INFO, "CALLING callback_add_datums: type_id=%u, hash=%s, verify_result=%d", 
-               a_datum->header.type_id, a_datum_hash_str, l_verify_datum);
         a_chain->callback_add_datums(a_chain, &a_datum, 1);
-        log_it(L_INFO, "callback_add_datums COMPLETED: type_id=%u, hash=%s", 
-               a_datum->header.type_id, a_datum_hash_str);
-    } else {
-        log_it(L_INFO, "SKIP callback (verify failed): type_id=%u, hash=%s, verify_result=%d",
-               a_datum->header.type_id, a_datum_hash_str, l_verify_datum);
     }
     if (l_verify_datum != 0 &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&

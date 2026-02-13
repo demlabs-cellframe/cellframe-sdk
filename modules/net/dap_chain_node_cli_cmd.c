@@ -2007,7 +2007,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             if (l_cond_outs)
                 l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, l_cond_type, l_token_tiker, l_addr);
             else if (l_value_str) {
-                if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool)) {
+                if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool, false)) {
                     debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s (value needed)",
                              dap_chain_addr_to_str_static(l_addr));
                     l_outs_list = dap_ledger_get_list_tx_outs_with_val_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum, l_check_mempool); 
@@ -2017,7 +2017,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                 } 
             } else {
-                if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool)) {
+                if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool, false)) {
                     debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s",
                              dap_chain_addr_to_str_static(l_addr));
                     l_outs_list = dap_ledger_get_list_tx_outs_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum, l_check_mempool);
@@ -7944,6 +7944,11 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
                                                   l_addr_to[0], l_token_ticker, l_value[0], l_value_fee, l_tx_num);
         l_jobj_transfer_status = json_object_new_string((l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
         json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
+        if (l_ret != 0) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                   "Can't create massive transaction: %s",
+                                   (l_ret == -2) ? "not enough funds for transfer" : "creation failed");
+        }
     } else {
         char *l_tx_hash_str = NULL;
         
@@ -7980,6 +7985,9 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         } else {
             l_jobj_transfer_status = json_object_new_string("False");
             json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                   "Can't create transaction. Possible reasons: insufficient funds, blocked UTXOs, "
+                                   "or insufficient fee. Check node logs for details.");
             l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
         }
     }

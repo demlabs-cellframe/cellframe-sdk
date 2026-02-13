@@ -2909,11 +2909,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 dap_chain_addr_fill_from_sign(&l_addr, l_sig, a_chain->net_id);
                 log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_chain_hash_fast_to_str_static(a_datum_hash));
             }
-            log_it(L_CRITICAL, "### dap_chain_datum_add: BEFORE dap_ledger_tx_load for TX %s", 
-                   dap_chain_hash_fast_to_str_static(a_datum_hash));
             int l_result = dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
-            log_it(L_CRITICAL, "### dap_chain_datum_add: TX %s dap_ledger_tx_load result=%d", 
-                   dap_chain_hash_fast_to_str_static(a_datum_hash), l_result);
             
             if (l_result == 0 && a_chain && a_chain->callback_count_tx_increase) {
                 a_chain->callback_count_tx_increase(a_chain);

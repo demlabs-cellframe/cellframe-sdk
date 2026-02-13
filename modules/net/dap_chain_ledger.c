@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
@@ -6047,7 +6047,8 @@ dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_ch
 
 dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, const char *a_token,
         const dap_chain_addr_t *a_addr, const uint256_t *a_limit, uint256_t *a_out_value,
-        bool a_cond_only, dap_chain_tx_out_cond_subtype_t a_cond_subtype, bool a_mempool_check)
+        bool a_cond_only, dap_chain_tx_out_cond_subtype_t a_cond_subtype, bool a_mempool_check,
+        bool a_skip_blocklist)
 {
     if ( !a_ledger || ( a_limit && IS_ZERO_256(*a_limit) ) ) return NULL;
     if ( a_cond_only && ( a_cond_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED || !a_addr) ) return NULL;
@@ -6148,7 +6149,8 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
             // This prevents blocked UTXOs from being selected for transactions
             // Check applies to ALL output types (regular OUT, OUT_EXT, OUT_STD, and OUT_COND)
             // Blocked UTXO cannot be used in any transaction type
-            if (l_token) {
+            // Skip this check for arbitrage transactions (a_skip_blocklist = true)
+            if (!a_skip_blocklist && l_token) {
                 dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token);
                 if (l_token_item && 
                     !(l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
@@ -6395,7 +6397,7 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
 dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_subtype,
                                              const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from)
 {
-    return dap_ledger_get_list_tx_outs_unspent_by_addr(a_ledger, a_token_ticker, a_addr_from, NULL, NULL, true, a_subtype, false);
+    return dap_ledger_get_list_tx_outs_unspent_by_addr(a_ledger, a_token_ticker, a_addr_from, NULL, NULL, true, a_subtype, false, false);
 }
 
 bool dap_ledger_check_condition_owner(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap_chain_tx_out_cond_subtype_t a_cond_subtype,
