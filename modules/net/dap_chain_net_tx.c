@@ -859,7 +859,12 @@ static uint8_t *s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
             if (!a_net) {
                 uint64_t l_receipt_idx = 0;
                 dap_json_rpc_get_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx);
-                return (uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
+                if (l_receipt_idx > UINT32_MAX) {
+                    log_it(L_WARNING, "receipt_idx overflow: %" DAP_UINT64_FORMAT_U " > UINT32_MAX", l_receipt_idx);
+                    dap_json_rpc_error_add(a_jobj_arr_errors, -1, "receipt_idx value too large");
+                    return NULL;
+                }
+                return (uint8_t *)dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, (uint32_t)l_receipt_idx);
             }
             //check out token
             dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_prev_hash);
@@ -889,10 +894,16 @@ static uint8_t *s_dap_chain_net_tx_create_in_cond_item (json_object *a_json_item
                         }
                         if (l_tx_out_cond && (l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE ||
                             l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE ||
-                            l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED)) {
+                            l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED ||
+                            l_tx_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY)) {
                             uint64_t l_receipt_idx = 0;
                             dap_json_rpc_get_uint64(a_json_item_obj, "receipt_idx", &l_receipt_idx);
-                            dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, l_receipt_idx);
+                            if (l_receipt_idx > UINT32_MAX) {
+                                log_it(L_WARNING, "receipt_idx overflow: %" DAP_UINT64_FORMAT_U " > UINT32_MAX", l_receipt_idx);
+                                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "receipt_idx value too large");
+                                return NULL;
+                            }
+                            dap_chain_tx_in_cond_t * l_in_cond = dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, l_out_prev_idx, (uint32_t)l_receipt_idx);
                             return (uint8_t *)l_in_cond;
                         }  
                     }
@@ -2877,7 +2888,7 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_out_json
         case TX_ITEM_TYPE_IN_COND:
             l_hash_tmp = ((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
             l_hash_str = dap_hash_fast_to_str_static(&l_hash_tmp);
-            json_object_object_add(json_obj_item,"receipt_idx", json_object_new_uint64(((dap_chain_tx_in_cond_t*)item)->header.receipt_idx));
+            json_object_object_add(json_obj_item,"receipt_idx", json_object_new_uint64((uint32_t)((dap_chain_tx_in_cond_t*)item)->header.receipt_idx));
             json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(l_hash_str));
             json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_uint64(((dap_chain_tx_in_cond_t*)item)->header.tx_out_prev_idx));
             break;

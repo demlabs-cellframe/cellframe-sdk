@@ -248,6 +248,7 @@ dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(d
         
         if (!l_tx_prev) return NULL;
         byte_t* l_item_res = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
+        if (!l_item_res) return NULL;
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_item_res;
         
         if (l_type != TX_ITEM_TYPE_OUT_COND) return NULL;
