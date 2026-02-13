@@ -16,63 +16,81 @@ stages:
    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
      when: always
    - when: always
-
   timeout: 3 hours 30 minutes
   dependencies: []
-  before_script:
-    - set -e  # Exit immediately on any command failure
   
   
 tests:amd64.gcc:
     extends: .tests
     image: demlabs/debian/amd64:qt6
     script:
+      - set -eo pipefail
       - apt-get update
       - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 libc6-dev
       - mkdir build
-      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
+      - cd build
+      - cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON
+      - make -j$(nproc)
+      - ctest --verbose
 
 
 tests:amd64.clang:
     extends: .tests
     image: demlabs/debian/amd64:qt6
     script:
+      - set -eo pipefail
       - apt-get update
       - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 libc6-dev
       - mkdir build
-      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc) && ctest --verbose
+      - cd build
+      - cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON
+      - make -j$(nproc)
+      - ctest --verbose
 
 
 tests:arm64.cross:
     extends: .tests
     image: demlabs/debian/amd64:cross
     script:
+      - set -eo pipefail
       - apt-get update
       - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3
       - mkdir build
-      - cd build && cmake-arm64 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc) && ctest --verbose
+      - cd build
+      - cmake-arm64 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON
+      - make -j$(nproc)
+      - ctest --verbose
 
 
 tests:arm32.cross:
     extends: .tests
     image: demlabs/debian/amd64:cross
     script:
+      - set -eo pipefail
       - apt-get update
       - DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3
       - mkdir build
-      - cd build && cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
+      - cd build
+      - cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON
+      - make -j$(nproc)
+      - ctest --verbose
 
 tests:macos.arm64:
     extends: .tests
     tags:
       - macos-native
     script:
+      - set -eo pipefail
       - mkdir build
-      - cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && make -j$(sysctl -n hw.ncpu) && ctest --verbose
+      - cd build
+      - cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
+      - make -j$(sysctl -n hw.ncpu)
+      - ctest --verbose
 
 
 build:android:
     extends: .tests
     image: demlabs/android/any:qt6
     script:
+      - set -eo pipefail
       - ./prod_build/build.sh release --target android -DDUMMY_INSTALL=1 -DANDROID_PLATFORM=29
