@@ -297,6 +297,8 @@ static void s_add_units(json_object *a_obj, const char *a_base, const char *a_qu
 
 static void s_ledger_tx_add_notify_dex(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
                                        dap_chan_ledger_notify_opcodes_t a_opcode, dap_hash_fast_t *a_atom_hash);
+static dap_chain_tx_out_cond_t *s_dex_get_prev_out_from_in_cond(dap_ledger_t *a_ledger, const dap_chain_tx_in_cond_t *a_in_cond,
+                                                                dap_chain_datum_tx_t **a_prev_tx, int *a_out_idx);
 static dex_tx_type_t s_dex_tx_classify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_in_cond_t **a_in_cond,
                                        dap_chain_tx_out_cond_t **a_out_cond, int *a_out_idx);
 static char *s_dex_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net);
@@ -673,11 +675,20 @@ _Static_assert(offsetof(dex_seller_index_t, seller_addr) == 0, "dex_seller_index
 #define DEX_OP_UPDATE 0x10 // order parameters update
 #define DEX_OP_ANY 0xff
 
-static char const *s_order_str  = "new order",
-                  *s_trade_str  = "trade",
-                  *s_update_str = "update",
-                  *s_cancel_str = "cancellation",
-                  *s_undef_str  = "undefined";
+#define DEX_STR_UNDEF   "undefined"
+#define DEX_STR_ORDER   "new order"
+#define DEX_STR_TRADE   "trade"
+#define DEX_STR_UPDATE  "update"
+#define DEX_STR_CANCEL  "cancellation"
+#define DEX_STR_PEND    "pending"
+
+static char const *s_tx_type_to_str[] = {
+    [DEX_TX_TYPE_UNDEFINED]  = DEX_STR_UNDEF,
+    [DEX_TX_TYPE_ORDER]      = DEX_STR_ORDER,
+    [DEX_TX_TYPE_EXCHANGE]   = DEX_STR_TRADE,
+    [DEX_TX_TYPE_UPDATE]     = DEX_STR_UPDATE,
+    [DEX_TX_TYPE_INVALIDATE] = DEX_STR_CANCEL };
+                  
 
 /*
  * Compute executed percent from base and remaining values.
@@ -699,19 +710,19 @@ static inline uint64_t s_calc_fill_pct(const uint256_t a_base, const uint256_t a
 static const char *s_dex_op_flags_to_str(uint8_t a_flags)
 {
     if (a_flags & DEX_OP_CANCEL)
-        return s_cancel_str;
+        return DEX_STR_CANCEL;
     else if (a_flags & DEX_OP_UPDATE)
-        return s_update_str;
+        return DEX_STR_UPDATE;
     else if (a_flags & DEX_OP_CREATE) {
-        return (a_flags & DEX_OP_MARKET)   ? "market trade | new order"
-               : (a_flags & DEX_OP_TARGET) ? "targeted trade | new order"
-                                           : s_order_str;
+        return (a_flags & DEX_OP_MARKET)   ? "market " DEX_STR_TRADE " | " DEX_STR_ORDER
+               : (a_flags & DEX_OP_TARGET) ? "targeted " DEX_STR_TRADE " | " DEX_STR_ORDER
+                                           : DEX_STR_ORDER;
     } else if (a_flags & DEX_OP_MARKET)
-        return "market trade";
+        return "market " DEX_STR_TRADE;
     else if (a_flags & DEX_OP_TARGET)
-        return "targeted trade";
+        return "targeted " DEX_STR_TRADE;
     else
-        return "undefined";
+        return DEX_STR_UNDEF;
 }
 
 /**
@@ -870,7 +881,7 @@ static void s_dex_indexes_remove(dex_order_cache_entry_t *a_entry)
         else
             HASH_DELETE(hh_pair_bucket, pb->bids, a_entry);
         // Empty asks/bids buckets are OK - pair remains whitelisted until decree removal.
-        a_entry->pair_key_ptr = NULL;
+        //a_entry->pair_key_ptr = NULL;
     }
     // seller index
     if (a_entry->seller_addr_ptr) {
@@ -921,7 +932,6 @@ static int s_dex_pair_index_remove(const dex_pair_key_t *a_key)
 static void s_dex_indexes_upsert(dex_pair_index_t *a_pair_idx, unsigned a_entry_root_hashv, const dap_chain_addr_t *a_seller_addr,
                                  dex_order_cache_entry_t *a_entry)
 {
-    a_entry->pair_key_ptr = &a_pair_idx->key;
     dex_seller_index_t *l_sb = s_dex_seller_index_get_or_create(a_seller_addr);
     /* Check for tail collision and remove old entry if exists */
     dex_order_cache_entry_t *l_replaced = NULL;
@@ -4262,6 +4272,7 @@ static void s_dex_cache_upsert(dap_ledger_t *a_ledger, const char *a_sell_token,
         e = DAP_NEW_Z(dex_order_cache_entry_t);
         e->level.match.root = *a_root;
         e->ts_created = a_ts_created;
+        e->pair_key_ptr = &l_pair_idx->key;
     } else
         /*
          * Existing entry: detach from indices first (back-pointer removal, O(1))
@@ -4425,36 +4436,14 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             RET_ERR(DEXV_INVALID_TX_ITEM);
         }
     }
-    // Diagnostics: INs and SRV_DEX OUT presence
-    if (s_debug_more) {
-        const char *l_tx_type_str = s_undef_str;
-        if (l_out_cond) {
-            switch (l_out_cond->subtype.srv_dex.tx_type) {
-            case DEX_TX_TYPE_UPDATE:
-                l_tx_type_str = s_update_str;
-                break;
-            case DEX_TX_TYPE_EXCHANGE:
-                l_tx_type_str = s_trade_str;
-                break;
-            case DEX_TX_TYPE_ORDER:
-                l_tx_type_str = s_order_str;
-                break;
-            case DEX_TX_TYPE_INVALIDATE:
-                l_tx_type_str = s_cancel_str;
-                break;
-            default:
-                break;
-            }
-        }
 
-        log_it_f(L_DEBUG, "{ phase 0 } %d IN_COND%s; %d OUT_STD/EXT%s; %sPreliminary type: %s; Root tx: %s; Locked value: %s",
-                 l_in_cond_cnt, l_in_cond_cnt > 1 ? "s" : "", l_out_cnt, l_out_cnt > 1 ? "s" : "",
-                 l_out_cond ? "1 DEX OUT_COND; " : "", l_tx_type_str,
-                 l_out_cond ? dap_hash_fast_is_blank(&l_out_cond->subtype.srv_dex.order_root_hash) ? "0x0"
-                                : dap_chain_hash_fast_to_str_static(&l_out_cond->subtype.srv_dex.order_root_hash)
-                            : "n/a",
-                 l_out_cond ? dap_uint256_to_char_ex(l_out_cond->header.value).frac : "undefined");
-    }
+    debug_if_f(s_debug_more, L_DEBUG, "{ phase 0 } %d IN_COND%s; %d OUT_STD/EXT%s; %sPreliminary type: %s; Root tx: %s; Locked value: %s",
+                l_in_cond_cnt, l_in_cond_cnt > 1 ? "s" : "", l_out_cnt, l_out_cnt > 1 ? "s" : "",
+                l_out_cond ? "1 DEX OUT_COND; " : "", l_out_cond ? s_tx_type_to_str[l_out_cond->subtype.srv_dex.tx_type] : DEX_STR_UNDEF,
+                l_out_cond ? dap_hash_fast_is_blank(&l_out_cond->subtype.srv_dex.order_root_hash) ? "0x0"
+                            : dap_chain_hash_fast_to_str_static(&l_out_cond->subtype.srv_dex.order_root_hash)
+                        : "n/a",
+                l_out_cond ? dap_uint256_to_char_ex(l_out_cond->header.value).frac : "n/a");
 
     // Phase 1: Fast-paths based on IN count
     //   - ORDER (create): 0 IN_COND + SRV_DEX OUT with tx_type=ORDER is allowed
@@ -6220,11 +6209,8 @@ static dex_tx_type_t s_dex_tx_classify(dap_ledger_t *a_ledger, dap_chain_datum_t
     TX_ITEM_ITER_TX_SCOPED(it, sz, a_tx) if (*it == TX_ITEM_TYPE_IN_COND)
     {
         dap_chain_tx_in_cond_t *l_in = (dap_chain_tx_in_cond_t *)it;
-        dap_chain_datum_tx_t *l_prev = dap_ledger_tx_find_by_hash(a_ledger, &l_in->header.tx_prev_hash);
-        int l_prev_dex_idx = 0;
-        dap_chain_tx_out_cond_t *l_cond =
-            l_prev ? dap_chain_datum_tx_out_cond_get(l_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_dex_idx) : NULL;
-        if (l_cond && (int)l_in->header.tx_out_prev_idx == l_prev_dex_idx) {
+        dap_chain_tx_out_cond_t *l_cond = s_dex_get_prev_out_from_in_cond(a_ledger, l_in, NULL, NULL);
+        if (l_cond) {
             l_in0 = l_in;
             l_prev_cond = l_cond;
             break;
@@ -6990,9 +6976,9 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                         dex_hist_bucket_t *l_bucket = NULL;
                         HASH_FIND(hh, l_pair->buckets, &l_bts, sizeof(l_bts), l_bucket);
                         if (l_bucket) {
-                            const char *l_event_type = (l_tx_type == DEX_TX_TYPE_INVALIDATE) ? s_cancel_str
-                                                       : (l_tx_type == DEX_TX_TYPE_UPDATE)   ? s_update_str
-                                                                                             : s_trade_str;
+                            const char *l_event_type = (l_tx_type == DEX_TX_TYPE_INVALIDATE) ? DEX_STR_CANCEL
+                                                       : (l_tx_type == DEX_TX_TYPE_UPDATE)   ? DEX_STR_UPDATE
+                                                                                             : DEX_STR_TRADE;
                             debug_if_f(s_debug_more, L_DEBUG, "Rollback %s %s/%s tx %s", l_event_type, l_key.token_base,
                                      l_key.token_quote, dap_chain_hash_fast_to_str_static(a_tx_hash));
                             s_hist_indexes_remove(l_pair, l_bucket, a_tx_hash, &l_prev_hash);
@@ -8253,6 +8239,35 @@ static int s_parse_fee_config_cli(int a_argc, char **a_argv, int a_arg_idx, uint
         return 1;
     }
     return 0;
+}
+
+static uint8_t s_dex_event_flags_by_type[] = {
+    [DEX_TX_TYPE_UNDEFINED] = DEX_OP_ANY,
+    [DEX_TX_TYPE_ORDER]     = DEX_OP_CREATE,
+    [DEX_TX_TYPE_EXCHANGE]  = DEX_OP_MARKET | DEX_OP_TARGET,
+    [DEX_TX_TYPE_UPDATE]    = DEX_OP_UPDATE,
+    [DEX_TX_TYPE_INVALIDATE]= DEX_OP_CANCEL 
+};
+
+static dap_chain_tx_out_cond_t *s_dex_get_prev_out_from_in_cond(dap_ledger_t *a_ledger, const dap_chain_tx_in_cond_t *a_in_cond,
+                                                                dap_chain_datum_tx_t **a_prev_tx, int *a_out_idx)
+{
+    dap_ret_val_if_any(NULL, !a_ledger, !a_in_cond);
+    if (a_out_idx)
+        *a_out_idx = -1;
+    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, (dap_hash_fast_t *)&a_in_cond->header.tx_prev_hash);
+    if (l_prev_tx) {
+        int l_prev_idx = 0;
+        dap_chain_tx_out_cond_t *l_prev_out = dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_idx);
+        if (l_prev_out && (int)a_in_cond->header.tx_out_prev_idx == l_prev_idx) {
+            if (a_prev_tx)
+                *a_prev_tx = l_prev_tx;
+            if (a_out_idx)
+                *a_out_idx = l_prev_idx;
+            return l_prev_out;
+        }
+    }
+    return NULL;
 }
 
 static json_object *s_dex_datum_to_json(dap_chain_datum_tx_t *a_tx, json_object *a_json_reply, const dap_chain_addr_t *a_addr)
@@ -9968,14 +9983,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     TX_ITEM_ITER_TX_SCOPED(l_it_in, l_sz_in, l_tx) if (*l_it_in == TX_ITEM_TYPE_IN_COND)
                     {
                         dap_chain_tx_in_cond_t *l_in = (dap_chain_tx_in_cond_t *)l_it_in;
-                        dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in->header.tx_prev_hash);
-                        if (!l_prev_tx)
-                            continue;
-                        int l_prev_dex_idx = 0;
-                        dap_chain_tx_out_cond_t *l_prev =
-                            dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_prev_dex_idx);
-                        // Skip if IN_COND doesn't spend DEX OUT
-                        if (!l_prev || (int)l_in->header.tx_out_prev_idx != l_prev_dex_idx)
+                        dap_chain_datum_tx_t *l_prev_tx = NULL;
+                        dap_chain_tx_out_cond_t *l_prev = s_dex_get_prev_out_from_in_cond(l_net->pub.ledger, l_in, &l_prev_tx, NULL);
+                        if (!l_prev)
                             continue;
                         if (l_seller_str && !dap_chain_addr_compare(&l_prev->subtype.srv_dex.seller_addr, &l_seller_addr)) {
                             l_dex_in_i++;
@@ -11049,7 +11059,13 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
 
             json_object_array_add(l_pairs_arr, l_pair_obj);
         }
+        dap_chain_addr_t l_srv_addr = s_dex_service_fee_addr;
+        uint256_t l_srv_fee = s_dex_native_fee_amount;
         pthread_rwlock_unlock(&s_dex_cache_rwlock);
+        if (!dap_chain_addr_is_blank(&l_srv_addr))
+            json_object_object_add(l_json_reply, "fee_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_srv_addr)));
+        json_object_object_add(l_json_reply, "fee_default",
+            json_object_new_string(dap_uint256_to_char_ex(l_srv_fee).frac));
         json_object_object_add(l_json_reply, "pairs", l_pairs_arr);
         json_object_object_add(l_json_reply, "count", json_object_new_int(json_object_array_length(l_pairs_arr)));
     } break; // PAIRS
