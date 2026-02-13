@@ -131,6 +131,86 @@ void dap_chain_net_cli_error_codes_init(void)
     dap_cli_error_code_register("STATS_WRONG_FORMAT", -1400, "Wrong stats command format");
     dap_cli_error_code_register("STATS_NOT_SUPPORTED", -1401, "Stats not supported on this platform");
     
-    log_it(L_NOTICE, "Net CLI error codes registered (77+ codes)");
+    // Tx_cond_create command errors (stub)
+    dap_cli_error_code_register("TX_COND_NOT_IMPLEMENTED", -1500, "Command not implemented");
+    
+    // Gdb_export command errors
+    dap_cli_error_code_register("GDB_EXPORT_FILENAME_REQUIRED", -1600, "Filename parameter required");
+    dap_cli_error_code_register("GDB_EXPORT_PATH_NOT_FOUND", -1601, "GDB path not found in config");
+    dap_cli_error_code_register("GDB_EXPORT_DIR_NOT_FOUND", -1602, "GDB directory not found");
+    dap_cli_error_code_register("GDB_EXPORT_MEMORY", -1603, "Memory allocation error");
+    dap_cli_error_code_register("GDB_EXPORT_FILE_WRITE", -1604, "Failed to write file");
+    
+    // Gdb_import command errors
+    dap_cli_error_code_register("GDB_IMPORT_FILENAME_REQUIRED", -1700, "Filename parameter required");
+    dap_cli_error_code_register("GDB_IMPORT_PATH_NOT_FOUND", -1701, "GDB path not found in config");
+    dap_cli_error_code_register("GDB_IMPORT_FILE_NOT_FOUND", -1702, "Import file not found");
+    dap_cli_error_code_register("GDB_IMPORT_MEMORY", -1703, "Memory allocation error");
+    dap_cli_error_code_register("GDB_IMPORT_PARSE", -1704, "Failed to parse JSON");
+    
+    // Tx_cond_remove command errors
+    dap_cli_error_code_register("TX_COND_REMOVE_INVALID_H", -1800, "Invalid -H parameter");
+    dap_cli_error_code_register("TX_COND_REMOVE_W_REQUIRED", -1801, "Wallet parameter required");
+    dap_cli_error_code_register("TX_COND_REMOVE_FEE_REQUIRED", -1802, "Fee parameter required");
+    dap_cli_error_code_register("TX_COND_REMOVE_NET_REQUIRED", -1803, "Network parameter required");
+    dap_cli_error_code_register("TX_COND_REMOVE_HASHES_REQUIRED", -1804, "Hashes parameter required");
+    dap_cli_error_code_register("TX_COND_REMOVE_SRV_UID_REQUIRED", -1805, "Service UID parameter required");
+    dap_cli_error_code_register("TX_COND_REMOVE_SRV_UID_INVALID", -1806, "Invalid service UID");
+    dap_cli_error_code_register("TX_COND_REMOVE_NET_NOT_FOUND", -1807, "Network not found");
+    dap_cli_error_code_register("TX_COND_REMOVE_WALLET_NOT_FOUND", -1808, "Wallet not found");
+    dap_cli_error_code_register("TX_COND_REMOVE_FEE_INVALID", -1809, "Invalid fee value");
+    dap_cli_error_code_register("TX_COND_REMOVE_NO_NATIVE_TICKER", -1810, "No native ticker");
+    dap_cli_error_code_register("TX_COND_REMOVE_NO_LEDGER", -1811, "Ledger not found");
+    dap_cli_error_code_register("TX_COND_REMOVE_TX_CREATE_FAILED", -1812, "TX creation failed");
+    dap_cli_error_code_register("TX_COND_REMOVE_NO_HASHES", -1813, "No valid hashes found");
+    dap_cli_error_code_register("TX_COND_REMOVE_NO_UNSPENT", -1814, "No unspent conditional TX");
+    dap_cli_error_code_register("TX_COND_REMOVE_FEE_TOO_BIG", -1815, "Fee exceeds output value");
+    dap_cli_error_code_register("TX_COND_REMOVE_ADD_OUT_FAILED", -1816, "Failed to add output");
+    dap_cli_error_code_register("TX_COND_REMOVE_ADD_NET_FEE_FAILED", -1817, "Failed to add network fee");
+    dap_cli_error_code_register("TX_COND_REMOVE_ADD_FEE_FAILED", -1818, "Failed to add validator fee");
+    dap_cli_error_code_register("TX_COND_REMOVE_ADD_SIGN_FAILED", -1819, "Failed to add signature");
+    dap_cli_error_code_register("TX_COND_REMOVE_NO_CHAIN", -1820, "Default chain not found");
+    dap_cli_error_code_register("TX_COND_REMOVE_FAILED", -1821, "TX cond remove failed");
+    
+    // Tx_cond_unspent_find command errors
+    dap_cli_error_code_register("TX_COND_FIND_INVALID_H", -1900, "Invalid -H parameter");
+    dap_cli_error_code_register("TX_COND_FIND_W_REQUIRED", -1901, "Wallet parameter required");
+    dap_cli_error_code_register("TX_COND_FIND_NET_REQUIRED", -1902, "Network parameter required");
+    dap_cli_error_code_register("TX_COND_FIND_SRV_UID_REQUIRED", -1903, "Service UID parameter required");
+    dap_cli_error_code_register("TX_COND_FIND_SRV_UID_INVALID", -1904, "Invalid service UID");
+    dap_cli_error_code_register("TX_COND_FIND_NET_NOT_FOUND", -1905, "Network not found");
+    dap_cli_error_code_register("TX_COND_FIND_WALLET_NOT_FOUND", -1906, "Wallet not found");
+    dap_cli_error_code_register("TX_COND_FIND_NO_NATIVE_TICKER", -1907, "No native ticker");
+    dap_cli_error_code_register("TX_COND_FIND_NO_LEDGER", -1908, "Ledger not found");
+    
+    // Find command errors
+    dap_cli_error_code_register("FIND_UNKNOWN_SUBCMD", -2000, "Unknown subcommand");
+    dap_cli_error_code_register("FIND_SUBCMD_REQUIRED", -2001, "Subcommand required");
+    dap_cli_error_code_register("FIND_NET_PARSE", -2002, "Network/chain parsing error");
+    dap_cli_error_code_register("FIND_HASH_REQUIRED", -2003, "Hash parameter required");
+    dap_cli_error_code_register("FIND_HASH_INVALID", -2004, "Invalid hash string");
+    dap_cli_error_code_register("FIND_TYPE_REQUIRED", -2005, "Decree type required");
+    dap_cli_error_code_register("FIND_TYPE_INVALID", -2006, "Invalid decree type");
+    dap_cli_error_code_register("FIND_WHERE_INVALID", -2007, "Invalid where parameter");
+    
+    // Policy command errors
+    dap_cli_error_code_register("POLICY_UNKNOWN_SUBCMD", -2100, "Unknown subcommand");
+    dap_cli_error_code_register("POLICY_NET_REQUIRED", -2101, "Network parameter required");
+    dap_cli_error_code_register("POLICY_NET_NOT_FOUND", -2102, "Network not found");
+    dap_cli_error_code_register("POLICY_NUM_REQUIRED", -2103, "Policy num required");
+    dap_cli_error_code_register("POLICY_NUM_ZERO", -2104, "Policy num cannot be 0");
+    dap_cli_error_code_register("POLICY_CREATE_DEACTIVATE", -2105, "Deactivate policy creation failed");
+    dap_cli_error_code_register("POLICY_CERTS_REQUIRED", -2106, "Certificates required for execute");
+    dap_cli_error_code_register("POLICY_CERTS_NOT_FOUND", -2107, "Certificates not found");
+    dap_cli_error_code_register("POLICY_ALREADY_EXIST", -2108, "Policy already exists");
+    dap_cli_error_code_register("POLICY_TS_START_INVALID", -2109, "Invalid ts_start format");
+    dap_cli_error_code_register("POLICY_CHAIN_REQUIRED", -2110, "Chain required with block_start");
+    dap_cli_error_code_register("POLICY_CHAIN_NOT_FOUND", -2111, "Chain not found");
+    dap_cli_error_code_register("POLICY_CREATE_ACTIVATE", -2112, "Activate policy creation failed");
+    dap_cli_error_code_register("POLICY_COLLECT_FAILED", -2113, "Policy info collection failed");
+    dap_cli_error_code_register("POLICY_SIGN_FAILED", -2114, "Policy decree signing failed");
+    dap_cli_error_code_register("POLICY_PUT_FAILED", -2115, "Policy decree put failed");
+    
+    log_it(L_NOTICE, "Net CLI error codes registered (143+ codes)");
 }
 

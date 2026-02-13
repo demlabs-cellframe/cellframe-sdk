@@ -42,6 +42,15 @@
 #include "dap_enc_base58.h"             // For base58 encoding functions
 #include "dap_tsd.h"                    // For dap_tsd_t, dap_tsd_create
 #include "dap_cpu_monitor.h"            // For dap_cpu_get_stats, dap_cpu_monitor_init
+#include "dap_global_db_pkt.h"          // For dap_store_obj_sign
+#include "dap_enc_base64.h"             // For base64 encode/decode
+#include "dap_chain_net_tx.h"           // For dap_chain_net_get_tx_all
+// dap_chain_srv_uid_t is in dap_chain_common.h
+#include "dap_chain_wallet.h"           // For dap_chain_wallet_t
+#include "dap_chain_cell.h"             // For dap_chain_cell_t
+#include "dap_chain_policy.h"           // For policy functions
+#include "dap_pkey.h"                   // For dap_pkey_compare_with_sign
+#include <dirent.h>                     // For opendir
 #include "utlist.h"
 
 #define LOG_TAG "dap_chain_net_cli"
@@ -62,6 +71,13 @@ static int s_cli_remove(int argc, char **argv, dap_json_t *a_json_arr_reply, int
 static int s_cli_decree(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 static int s_cli_exec_cmd(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 static int s_cli_stats(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_tx_cond_create(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_gdb_export(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_gdb_import(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_tx_cond_remove(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_tx_cond_unspent_find(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_find(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_policy(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 static int s_print_for_help(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt);
 static int s_print_for_print_log(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt);
 static dap_chain_datum_anchor_t *s_sign_anchor_in_cycle(dap_cert_t **a_certs, dap_chain_datum_anchor_t *a_datum_anchor,
@@ -2427,6 +2443,1546 @@ static int s_cli_stats(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, 
 }
 
 /**
+ * @brief CLI command handler for conditional transaction creation (STUB)
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return Error code (not implemented)
+ * 
+ * @note This is a stub. Function dap_chain_mempool_tx_create_cond() is not
+ *       implemented in this branch yet.
+ */
+static int s_cli_tx_cond_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    UNUSED(a_argc);
+    UNUSED(a_argv);
+    UNUSED(a_version);
+    
+    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_NOT_IMPLEMENTED,
+        "Command tx_cond_create is not implemented yet (dap_chain_mempool_tx_create_cond missing)");
+    return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_NOT_IMPLEMENTED;
+}
+
+/**
+ * @brief CLI command handler for exporting GDB to JSON
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, negative error code on failure
+ * 
+ * Usage: gdb_export filename <filename> [-groups <group1,group2,...>]
+ */
+static int s_cli_gdb_export(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    UNUSED(a_version);
+    int arg_index = 1;
+    const char *l_filename = NULL;
+    
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "filename", &l_filename);
+    if (!l_filename) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_FILENAME_REQUIRED,
+            "gdb_export requires parameter 'filename'");
+        return -DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_FILENAME_REQUIRED;
+    }
+    
+    const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
+    if (!l_gdb_path) {
+        log_it(L_ERROR, "Can't find gdb path in config file");
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_PATH_NOT_FOUND,
+            "Can't find gdb path in the config file");
+        return -DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_PATH_NOT_FOUND;
+    }
+    
+    if (!opendir(l_gdb_path)) {
+        log_it(L_ERROR, "Can't open db directory");
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_DIR_NOT_FOUND,
+            "Can't open db directory");
+        return -DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_DIR_NOT_FOUND;
+    }
+    
+    char l_path[MAX_PATH + 1];
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
+    
+    // Parse groups filter
+    const char *l_groups_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-groups", &l_groups_str);
+    char *l_group_str = NULL, *l_ctx = NULL;
+    dap_list_t *l_parsed_groups_list = NULL;
+    if (l_groups_str) {
+        char *l_tmp_str = dap_strdup(l_groups_str);
+        l_group_str = strtok_r(l_tmp_str, ",", &l_ctx);
+        for (; l_group_str; l_group_str = strtok_r(NULL, ",", &l_ctx)) {
+            l_parsed_groups_list = dap_list_prepend(l_parsed_groups_list, dap_strdup(l_group_str));
+        }
+        DAP_DEL_Z(l_tmp_str);
+    }
+    
+    dap_json_t *l_json = dap_json_array_new();
+    dap_list_t *l_groups_list = l_parsed_groups_list 
+            ? l_parsed_groups_list 
+            : dap_global_db_driver_get_groups_by_mask("*");
+    
+    for (dap_list_t *l_list = l_groups_list; l_list; l_list = dap_list_next(l_list)) {
+        size_t l_store_obj_count = 0;
+        char *l_group_name = (char *)l_list->data;
+        
+        dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_group_name, &l_store_obj_count);
+        
+        if (!l_store_obj_count) {
+            log_it(L_INFO, "Group %s is empty or not found", l_group_name);
+            continue;
+        } else {
+            log_it(L_INFO, "Exporting group %s, number of records: %zu", l_group_name, l_store_obj_count);
+        }
+        
+        dap_json_t *l_json_group = dap_json_array_new();
+        dap_json_t *l_json_group_inner = dap_json_object_new();
+        dap_json_object_add_string(l_json_group_inner, "group", l_group_name);
+        
+        for (size_t i = 0; i < l_store_obj_count; ++i) {
+            size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_store_obj[i].value_len) + 1;
+            dap_sign_t *l_sign = l_store_obj[i].sign;
+            size_t l_sign_size = DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign)) + 1;
+            char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
+            char *l_sign_str = DAP_NEW_Z_SIZE(char, l_sign_size);
+            if (!l_value_enc_str || !l_sign_str) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                DAP_DEL_Z(l_sign_str);
+                DAP_DEL_Z(l_value_enc_str);
+                dap_store_obj_free(l_store_obj, l_store_obj_count);
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_MEMORY,
+                    "Memory allocation error");
+                return -DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_MEMORY;
+            }
+            dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
+            dap_enc_base64_encode(l_sign, dap_sign_get_size(l_sign), l_sign_str, DAP_ENC_DATA_TYPE_B64);
+            
+            dap_json_t *l_jobj = dap_json_object_new();
+            dap_json_object_add_string(l_jobj, "key", l_store_obj[i].key);
+            dap_json_object_add_string(l_jobj, "value", l_value_enc_str);
+            dap_json_object_add_int64(l_jobj, "value_len", (int64_t)l_store_obj[i].value_len);
+            dap_json_object_add_uint64(l_jobj, "flags", (uint64_t)l_store_obj[i].flags);
+            dap_json_object_add_string(l_jobj, "sign", l_sign_str);
+            dap_json_object_add_int64(l_jobj, "timestamp", (int64_t)l_store_obj[i].timestamp);
+            dap_json_object_add_uint64(l_jobj, "crc", l_store_obj[i].crc);
+            dap_json_array_add(l_json_group, l_jobj);
+            
+            DAP_DELETE(l_value_enc_str);
+            DAP_DELETE(l_sign_str);
+        }
+        dap_json_object_add_object(l_json_group_inner, "records", l_json_group);
+        dap_json_array_add(l_json, l_json_group_inner);
+        dap_store_obj_free(l_store_obj, l_store_obj_count);
+    }
+    
+    if (l_parsed_groups_list)
+        dap_list_free_full(l_groups_list, NULL);
+    
+    // Write JSON to file
+    const char *l_json_str = dap_json_to_string(l_json);
+    FILE *l_file = fopen(l_path, "w");
+    if (!l_file) {
+        log_it(L_CRITICAL, "Couldn't export JSON to file %s, error code %d", l_path, errno);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_FILE_WRITE,
+            "Couldn't export JSON to file, error code %d", errno);
+        dap_json_object_free(l_json);
+        return -DAP_CHAIN_NET_CLI_ERROR_GDB_EXPORT_FILE_WRITE;
+    }
+    fprintf(l_file, "%s", l_json_str);
+    fclose(l_file);
+    dap_json_object_free(l_json);
+    
+    // Return success
+    dap_json_t *l_jobj_ret = dap_json_object_new();
+    dap_json_object_add_string(l_jobj_ret, "status", "success");
+    dap_json_object_add_string(l_jobj_ret, "file", l_path);
+    dap_json_array_add(a_json_arr_reply, l_jobj_ret);
+    
+    return 0;
+}
+
+/**
+ * @brief CLI command handler for importing GDB from JSON
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, negative error code on failure
+ * 
+ * Usage: gdb_import filename <filename>
+ */
+static int s_cli_gdb_import(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    UNUSED(a_version);
+    int arg_index = 1;
+    const char *l_filename = NULL;
+    
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "filename", &l_filename);
+    if (!l_filename) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_FILENAME_REQUIRED,
+            "gdb_import requires parameter 'filename'");
+        return -DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_FILENAME_REQUIRED;
+    }
+    
+    const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
+    if (!l_gdb_path) {
+        log_it(L_ERROR, "Can't find gdb path in config file");
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_PATH_NOT_FOUND,
+            "Can't find gdb path in the config file");
+        return -DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_PATH_NOT_FOUND;
+    }
+    
+    char l_path[MAX_PATH + 1];
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
+    
+    // Read and parse JSON file
+    FILE *l_file = fopen(l_path, "r");
+    if (!l_file) {
+        log_it(L_ERROR, "Can't open file %s for import", l_path);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_FILE_NOT_FOUND,
+            "Can't open file %s", l_path);
+        return -DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_FILE_NOT_FOUND;
+    }
+    
+    // Get file size
+    fseek(l_file, 0, SEEK_END);
+    long l_file_size = ftell(l_file);
+    fseek(l_file, 0, SEEK_SET);
+    
+    char *l_json_str = DAP_NEW_Z_SIZE(char, l_file_size + 1);
+    if (!l_json_str) {
+        fclose(l_file);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_MEMORY,
+            "Memory allocation error");
+        return -DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_MEMORY;
+    }
+    fread(l_json_str, 1, l_file_size, l_file);
+    fclose(l_file);
+    
+    dap_json_t *l_json = dap_json_parse_buffer(l_json_str, l_file_size);
+    DAP_DELETE(l_json_str);
+    
+    if (!l_json) {
+        log_it(L_CRITICAL, "Import error: can't parse JSON from file %s", l_path);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_PARSE,
+            "Can't parse JSON from file");
+        return -DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_PARSE;
+    }
+    
+    size_t l_groups_count = dap_json_array_length(l_json);
+    size_t l_total_records = 0;
+    
+    for (size_t i = 0; i < l_groups_count; ++i) {
+        dap_json_t *l_group_obj = dap_json_array_get_idx(l_json, i);
+        if (!l_group_obj)
+            continue;
+        
+        const char *l_group_name = dap_json_object_get_string(l_group_obj, "group");
+        log_it(L_INFO, "Group %zu: %s", i, l_group_name ? l_group_name : "(null)");
+        
+        dap_json_t *l_json_records = dap_json_object_get_array(l_group_obj, "records");
+        size_t l_records_count = dap_json_array_length(l_json_records);
+        
+        dap_store_obj_t *l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
+        if (!l_group_store) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            dap_json_object_free(l_json);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_MEMORY,
+                "Memory allocation error");
+            return -DAP_CHAIN_NET_CLI_ERROR_GDB_IMPORT_MEMORY;
+        }
+        
+        for (size_t j = 0; j < l_records_count; ++j) {
+            dap_json_t *l_record = dap_json_array_get_idx(l_json_records, j);
+            
+            const char *l_key = dap_json_object_get_string(l_record, "key");
+            const char *l_value_str = dap_json_object_get_string(l_record, "value");
+            int64_t l_value_len = dap_json_object_get_int64(l_record, "value_len");
+            int64_t l_ts = dap_json_object_get_int64(l_record, "timestamp");
+            
+            l_group_store[j].key = dap_strdup(l_key);
+            l_group_store[j].group = dap_strdup(l_group_name);
+            
+            // Handle legacy timestamps
+            dap_nanotime_t l_temp = l_ts;
+            l_group_store[j].timestamp = l_temp >> 32 ? l_temp : dap_nanotime_from_sec(l_temp);
+            l_group_store[j].value_len = (uint64_t)l_value_len;
+            
+            // Decode value
+            char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
+            if (l_val && l_value_str) {
+                dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
+                l_group_store[j].value = (uint8_t *)l_val;
+            }
+            
+            // Check for extended fields (crc, sign, flags)
+            uint64_t l_crc = dap_json_object_get_uint64(l_record, "crc");
+            const char *l_sign_str = dap_json_object_get_string(l_record, "sign");
+            uint64_t l_flags = dap_json_object_get_uint64(l_record, "flags");
+            
+            if (l_sign_str && strlen(l_sign_str) > 0) {
+                int l_len = dap_strlen(l_sign_str);
+                dap_sign_t *l_sign = DAP_NEW_Z_SIZE(dap_sign_t, DAP_ENC_BASE64_DECODE_SIZE(l_len) + 1);
+                if (l_sign) {
+                    size_t l_sign_decode_size = dap_enc_base64_decode(l_sign_str, l_len, l_sign, DAP_ENC_DATA_TYPE_B64);
+                    if (dap_sign_get_size(l_sign) != l_sign_decode_size) {
+                        log_it(L_ERROR, "Can't read signature from record with key %s", l_group_store[j].key);
+                    }
+                    l_group_store[j].sign = l_sign;
+                }
+                l_group_store[j].flags = (uint8_t)l_flags;
+                l_group_store[j].crc = l_crc;
+            } else {
+                // Loading old record - sign with node cert
+                dap_cert_t *l_cert_record = dap_cert_find_by_name(DAP_STREAM_NODE_ADDR_CERT_NAME);
+                if (l_cert_record) {
+                    l_group_store[j].sign = dap_store_obj_sign(&l_group_store[j], l_cert_record->enc_key, &l_group_store[j].crc);
+                }
+            }
+        }
+        
+        if (dap_global_db_driver_apply(l_group_store, l_records_count)) {
+            log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
+        } else {
+            log_it(L_INFO, "Imported %zu records of group %s", l_records_count, l_group_name);
+            l_total_records += l_records_count;
+        }
+        dap_store_obj_free(l_group_store, l_records_count);
+    }
+    
+    dap_json_object_free(l_json);
+    
+    // Return success
+    dap_json_t *l_jobj_ret = dap_json_object_new();
+    dap_json_object_add_string(l_jobj_ret, "status", "success");
+    dap_json_object_add_string(l_jobj_ret, "file", l_path);
+    dap_json_object_add_uint64(l_jobj_ret, "groups_imported", l_groups_count);
+    dap_json_object_add_uint64(l_jobj_ret, "records_imported", l_total_records);
+    dap_json_array_add(a_json_arr_reply, l_jobj_ret);
+    
+    return 0;
+}
+
+/**
+ * @brief Parse comma-separated hash string list into dap_list_t of hashes
+ * @param a_hashes_str Comma-separated hash strings
+ * @return List of dap_hash_fast_t pointers, or NULL on error
+ */
+static dap_list_t *s_hashes_parse_str_list(const char *a_hashes_str)
+{
+    dap_list_t *l_ret_list = NULL;
+    char *l_hashes_tmp_ptrs = NULL;
+    char *l_hash_str_dup = strdup(a_hashes_str);
+    if (!l_hash_str_dup) {
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return NULL;
+    }
+    char *l_hash_str = strtok_r(l_hash_str_dup, ",", &l_hashes_tmp_ptrs);
+    while (l_hash_str) {
+        l_hash_str = dap_strstrip(l_hash_str);
+        dap_hash_fast_t *l_hash = DAP_NEW_Z(dap_hash_fast_t);
+        if (dap_chain_hash_fast_from_str(l_hash_str, l_hash)) {
+            log_it(L_ERROR, "Can't get hash from string. Continue.");
+            DAP_DELETE(l_hash);
+        } else {
+            l_ret_list = dap_list_append(l_ret_list, l_hash);
+        }
+        l_hash_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
+    }
+    DAP_DELETE(l_hash_str_dup);
+    return l_ret_list;
+}
+
+/**
+ * @brief Callback struct for tx_cond_unspent_find
+ */
+typedef struct tx_check_args {
+    dap_chain_datum_tx_t *tx;
+    dap_hash_fast_t tx_hash;
+} tx_check_args_t;
+
+/**
+ * @brief Callback to check if transaction has SRV_PAY conditional output
+ */
+static void s_tx_is_srv_pay_check(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
+{
+    UNUSED(a_net);
+    dap_list_t **l_tx_list_ptr = a_arg;
+    if (dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL)) {
+        tx_check_args_t *l_arg = DAP_NEW_Z(tx_check_args_t);
+        if (l_arg) {
+            l_arg->tx = a_tx;
+            l_arg->tx_hash = *a_tx_hash;
+            *l_tx_list_ptr = dap_list_append(*l_tx_list_ptr, l_arg);
+        }
+    }
+}
+
+/**
+ * @brief CLI command handler for removing conditional transactions
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, negative error code on failure
+ * 
+ * Usage: tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name> -fee <value> -srv_uid <uid>
+ */
+static int s_cli_tx_cond_remove(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    UNUSED(a_version);
+    int arg_index = 1;
+    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+    const char *l_wallet_str = NULL;
+    const char *l_value_fee_str = NULL;
+    const char *l_net_name = NULL;
+    const char *l_hashes_str = NULL;
+    const char *l_srv_uid_str = NULL;
+    uint256_t l_value_fee = {};
+    
+    const char *l_hash_out_type = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if (!l_hash_out_type)
+        l_hash_out_type = "hex";
+    if (dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_INVALID_H,
+            "Invalid parameter -H, valid values: -H <hex | base58>");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_INVALID_H;
+    }
+
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_value_fee_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hashes", &l_hashes_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
+
+    if (!l_wallet_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_W_REQUIRED,
+            "tx_cond_remove requires parameter '-w'");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_W_REQUIRED;
+    }
+    if (!l_value_fee_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_FEE_REQUIRED,
+            "tx_cond_remove requires parameter '-fee'");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_FEE_REQUIRED;
+    }
+    if (!l_net_name) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NET_REQUIRED,
+            "tx_cond_remove requires parameter '-net'");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NET_REQUIRED;
+    }
+    if (!l_hashes_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_HASHES_REQUIRED,
+            "tx_cond_remove requires parameter '-hashes'");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_HASHES_REQUIRED;
+    }
+    if (!l_srv_uid_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_SRV_UID_REQUIRED,
+            "tx_cond_remove requires parameter '-srv_uid'");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_SRV_UID_REQUIRED;
+    }
+
+    dap_chain_srv_uid_t l_srv_uid = {};
+    l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
+    if (!l_srv_uid.uint64) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_SRV_UID_INVALID,
+            "Can't find service UID %s", l_srv_uid_str);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_SRV_UID_INVALID;
+    }
+
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if (!l_net) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NET_NOT_FOUND,
+            "Can't find net '%s'", l_net_name);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NET_NOT_FOUND;
+    }
+
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
+    if (!l_wallet) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_WALLET_NOT_FOUND,
+            "Can't open wallet '%s'", l_wallet_str);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_WALLET_NOT_FOUND;
+    }
+
+    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
+    dap_pkey_t *l_wallet_pkey = dap_pkey_from_enc_key(l_key_from);
+
+    l_value_fee = dap_chain_balance_scan(l_value_fee_str);
+    if (IS_ZERO_256(l_value_fee)) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_FEE_INVALID,
+            "Can't recognize value '%s' as a number", l_value_fee_str);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_FEE_INVALID;
+    }
+
+    const char *l_native_ticker = l_net->pub.native_ticker;
+    if (!l_native_ticker) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_NATIVE_TICKER,
+            "Can't find native ticker for net %s", l_net->pub.name);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_NATIVE_TICKER;
+    }
+
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
+    if (!l_ledger) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_LEDGER,
+            "Can't find ledger for net %s", l_net->pub.name);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_LEDGER;
+    }
+
+    // Create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_TX_CREATE_FAILED,
+            "Can't create new tx");
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_TX_CREATE_FAILED;
+    }
+
+    dap_list_t *l_hashes_list = s_hashes_parse_str_list(l_hashes_str);
+    if (!l_hashes_list) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_HASHES,
+            "Requested conditional transaction with hash not found");
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_HASHES;
+    }
+
+    uint256_t l_cond_value_sum = {};
+    size_t l_num_of_hashes = dap_list_length(l_hashes_list);
+    log_it(L_INFO, "Found %zu hashes. Start returning funds from transactions.", l_num_of_hashes);
+
+    for (dap_list_t *l_tmp = l_hashes_list; l_tmp; l_tmp = l_tmp->next) {
+        dap_hash_fast_t *l_hash = (dap_hash_fast_t *)l_tmp->data;
+        dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, l_hash);
+        if (!l_cond_tx) {
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_WARNING, "Requested conditional transaction with hash %s not found. Continue.", l_hash_str);
+            continue;
+        }
+
+        const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, l_hash);
+        if (!l_tx_ticker || strcmp(l_native_ticker, l_tx_ticker)) {
+            log_it(L_WARNING, "Tx must be in native ticker");
+            continue;
+        }
+
+        int l_prev_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, 
+            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_prev_cond_idx);
+        if (!l_tx_out_cond || l_tx_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64)
+            continue;
+
+        if (dap_ledger_tx_hash_is_used_out_item(l_ledger, l_hash, l_prev_cond_idx, NULL)) {
+            log_it(L_WARNING, "Requested conditional transaction is already used out");
+            continue;
+        }
+
+        // Get owner tx - adapted for for_update signature
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, 
+            l_tx_out_cond->header.subtype, l_hash);
+        dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash) 
+            ? l_cond_tx 
+            : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
+        if (!l_owner_tx)
+            continue;
+
+        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(
+            l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sig_get_sign(l_owner_tx_sig);
+        if (!l_owner_sign || !dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign)) {
+            log_it(L_WARNING, "Only owner can return funds from tx cond");
+            continue;
+        }
+
+        // Get final tx
+        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, 
+            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash, true);
+        dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_final_hash);
+        if (!l_final_tx)
+            continue;
+
+        int l_final_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_final_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_final_tx,
+            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_final_cond_idx);
+        if (!l_final_tx_out_cond || IS_ZERO_256(l_final_tx_out_cond->header.value))
+            continue;
+
+        dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_hash, l_final_cond_idx, 0);
+        SUM_256_256(l_cond_value_sum, l_final_tx_out_cond->header.value, &l_cond_value_sum);
+    }
+    dap_list_free_full(l_hashes_list, NULL);
+
+    if (IS_ZERO_256(l_cond_value_sum)) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_UNSPENT,
+            "No unspent conditional transactions in hashes list for wallet %s", l_wallet_str);
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_UNSPENT;
+    }
+
+    uint256_t l_net_fee = {};
+    dap_chain_addr_t l_addr_fee = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_net->pub.id, &l_net_fee, &l_addr_fee);
+    uint256_t l_total_fee = l_value_fee;
+    if (l_net_fee_used)
+        SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
+
+    if (compare256(l_total_fee, l_cond_value_sum) >= 0) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_FEE_TOO_BIG,
+            "Sum of conditional outputs must be greater than fees sum");
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_FEE_TOO_BIG;
+    }
+
+    uint256_t l_coin_back = {};
+    SUBTRACT_256_256(l_cond_value_sum, l_total_fee, &l_coin_back);
+    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+
+    // Return coins to owner
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_wallet_addr, l_coin_back, l_native_ticker) == -1) {
+        log_it(L_ERROR, "Can't add returning coins output");
+        dap_chain_datum_tx_delete(l_tx);
+        DAP_DELETE(l_wallet_addr);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_ADD_OUT_FAILED,
+            "Can't add returning coins output");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_ADD_OUT_FAILED;
+    }
+    DAP_DELETE(l_wallet_addr);
+
+    // Network fee
+    if (l_net_fee_used && 
+        dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker) != 1) {
+        log_it(L_ERROR, "Can't add network fee output");
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_ADD_NET_FEE_FAILED,
+            "Can't add network fee output");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_ADD_NET_FEE_FAILED;
+    }
+
+    // Validator's fee
+    if (dap_chain_datum_tx_add_fee_item(&l_tx, l_value_fee) == -1) {
+        log_it(L_ERROR, "Can't add validator's fee output");
+        dap_chain_datum_tx_delete(l_tx);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_ADD_FEE_FAILED,
+            "Can't add validator's fee output");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_ADD_FEE_FAILED;
+    }
+
+    // Add sign
+    dap_enc_key_t *l_owner_key = dap_chain_wallet_get_key(l_wallet, 0);
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
+        log_it(L_ERROR, "Can't add sign output");
+        dap_chain_datum_tx_delete(l_tx);
+        dap_enc_key_delete(l_owner_key);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_ADD_SIGN_FAILED,
+            "Can't add sign output");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_ADD_SIGN_FAILED;
+    }
+
+    dap_chain_wallet_close(l_wallet);
+    DAP_DEL_Z(l_wallet_pkey);
+
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    dap_chain_datum_tx_delete(l_tx);
+
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+    if (!l_chain) {
+        DAP_DELETE(l_datum);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_CHAIN,
+            "Can't find default chain for TX");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_NO_CHAIN;
+    }
+
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+    DAP_DELETE(l_datum);
+
+    if (l_hash_str) {
+        dap_json_t *l_jobj_ret = dap_json_object_new();
+        dap_json_object_add_bool(l_jobj_ret, "tx_create", true);
+        dap_json_object_add_string(l_jobj_ret, "hash", l_hash_str);
+        DAP_DELETE(l_hash_str);
+        dap_json_array_add(a_json_arr_reply, l_jobj_ret);
+        return 0;
+    }
+
+    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_FAILED,
+        "Can't create new TX. Something went wrong.");
+    return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_REMOVE_FAILED;
+}
+
+/**
+ * @brief CLI command handler for finding unspent conditional transactions
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, negative error code on failure
+ * 
+ * Usage: tx_cond_unspent_find -net <net_name> -srv_uid <uid> -w <wallet_name>
+ */
+static int s_cli_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    UNUSED(a_version);
+    int arg_index = 1;
+    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+    const char *l_wallet_str = NULL;
+    const char *l_net_name = NULL;
+    const char *l_srv_uid_str = NULL;
+
+    const char *l_hash_out_type = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if (!l_hash_out_type)
+        l_hash_out_type = "hex";
+    if (dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_INVALID_H,
+            "Invalid parameter -H, valid values: -H <hex | base58>");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_INVALID_H;
+    }
+
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
+
+    if (!l_wallet_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_W_REQUIRED,
+            "tx_cond_unspent_find requires parameter '-w'");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_W_REQUIRED;
+    }
+    if (!l_net_name) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_NET_REQUIRED,
+            "tx_cond_unspent_find requires parameter '-net'");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_NET_REQUIRED;
+    }
+    if (!l_srv_uid_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_SRV_UID_REQUIRED,
+            "tx_cond_unspent_find requires parameter '-srv_uid'");
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_SRV_UID_REQUIRED;
+    }
+
+    dap_chain_srv_uid_t l_srv_uid = {};
+    l_srv_uid.uint64 = strtoll(l_srv_uid_str, NULL, 10);
+    if (!l_srv_uid.uint64) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_SRV_UID_INVALID,
+            "Can't find service UID %s", l_srv_uid_str);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_SRV_UID_INVALID;
+    }
+
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if (!l_net) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_NET_NOT_FOUND,
+            "Can't find net '%s'", l_net_name);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_NET_NOT_FOUND;
+    }
+
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path, NULL);
+    if (!l_wallet) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_WALLET_NOT_FOUND,
+            "Can't open wallet '%s'", l_wallet_str);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_WALLET_NOT_FOUND;
+    }
+
+    dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
+    dap_pkey_t *l_wallet_pkey = dap_pkey_from_enc_key(l_key_from);
+
+    const char *l_native_ticker = l_net->pub.native_ticker;
+    if (!l_native_ticker) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_NO_NATIVE_TICKER,
+            "Can't find native ticker for net %s", l_net->pub.name);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_NO_NATIVE_TICKER;
+    }
+
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net->pub.name);
+    if (!l_ledger) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_NO_LEDGER,
+            "Can't find ledger for net %s", l_net->pub.name);
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_wallet_pkey);
+        return -DAP_CHAIN_NET_CLI_ERROR_TX_COND_FIND_NO_LEDGER;
+    }
+
+    dap_json_t *l_jobj_tx_list = dap_json_array_new();
+    dap_list_t *l_tx_list = NULL;
+
+    dap_chain_net_get_tx_all(l_net, TX_SEARCH_TYPE_NET, s_tx_is_srv_pay_check, &l_tx_list);
+    size_t l_tx_count = 0;
+    uint256_t l_total_value = {};
+
+    for (dap_list_t *it = l_tx_list; it; it = it->next) {
+        tx_check_args_t *l_data_tx = (tx_check_args_t *)it->data;
+        dap_chain_datum_tx_t *l_tx = l_data_tx->tx;
+
+        int l_prev_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx,
+            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_prev_cond_idx);
+        if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64 || 
+            IS_ZERO_256(l_out_cond->header.value))
+            continue;
+
+        if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_data_tx->tx_hash, l_prev_cond_idx, NULL))
+            continue;
+
+        const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_data_tx->tx_hash);
+        if (!l_tx_ticker || strcmp(l_native_ticker, l_tx_ticker))
+            continue;
+
+        // Check sign - adapted for for_update signature
+        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger,
+            l_out_cond->header.subtype, &l_data_tx->tx_hash);
+        dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
+            ? l_tx
+            : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
+        if (!l_owner_tx)
+            continue;
+
+        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(
+            l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sig_get_sign(l_owner_tx_sig);
+        if (!l_owner_sign || !dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign))
+            continue;
+
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_data_tx->tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        char *l_remain_coins_str = dap_chain_balance_to_coins(l_out_cond->header.value);
+        char *l_remain_datoshi_str = dap_chain_balance_print(l_out_cond->header.value);
+
+        dap_json_t *l_jobj_tx = dap_json_object_new();
+        dap_json_object_add_string(l_jobj_tx, "hash", l_hash_str);
+        
+        dap_json_t *l_jobj_remain = dap_json_object_new();
+        dap_json_object_add_string(l_jobj_remain, "coins", l_remain_coins_str);
+        dap_json_object_add_string(l_jobj_remain, "datoshi", l_remain_datoshi_str);
+        dap_json_object_add_object(l_jobj_tx, "remain", l_jobj_remain);
+        dap_json_object_add_string(l_jobj_tx, "ticker", l_native_ticker);
+        
+        dap_json_array_add(l_jobj_tx_list, l_jobj_tx);
+        l_tx_count++;
+        SUM_256_256(l_total_value, l_out_cond->header.value, &l_total_value);
+        
+        DAP_DELETE(l_remain_coins_str);
+        DAP_DELETE(l_remain_datoshi_str);
+    }
+
+    char *l_total_coins_str = dap_chain_balance_to_coins(l_total_value);
+    char *l_total_datoshi_str = dap_chain_balance_print(l_total_value);
+
+    dap_json_t *l_jobj_total = dap_json_object_new();
+    dap_json_object_add_string(l_jobj_total, "coins", l_total_coins_str);
+    dap_json_object_add_string(l_jobj_total, "datoshi", l_total_datoshi_str);
+    dap_json_object_add_string(l_jobj_total, "ticker", l_native_ticker);
+    dap_json_object_add_uint64(l_jobj_total, "tx_count", l_tx_count);
+
+    dap_json_t *l_jobj_ret = dap_json_object_new();
+    dap_json_object_add_object(l_jobj_ret, "transactions_out_cond", l_jobj_tx_list);
+    dap_json_object_add_object(l_jobj_ret, "total", l_jobj_total);
+
+    dap_list_free_full(l_tx_list, NULL);
+    dap_json_array_add(a_json_arr_reply, l_jobj_ret);
+
+    DAP_DELETE(l_total_coins_str);
+    DAP_DELETE(l_total_datoshi_str);
+    DAP_DEL_Z(l_wallet_pkey);
+    dap_chain_wallet_close(l_wallet);
+
+    return 0;
+}
+
+/**
+ * @brief Where to search enum for find command
+ */
+typedef enum s_where_search {
+    FIND_WHERE_ALL,
+    FIND_WHERE_CHAINS,
+    FIND_WHERE_MEMPOOL
+} s_where_search_t;
+
+/**
+ * @brief Check datum in chain mempool
+ * @param a_chain Chain to check
+ * @param a_datum_hash_str Datum hash string
+ * @return Store object if found, NULL otherwise
+ */
+static dap_store_obj_t *s_find_datum_in_mempool(dap_chain_t *a_chain, const char *a_datum_hash_str)
+{
+    if (!a_chain || !a_datum_hash_str)
+        return NULL;
+    char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
+    if (!l_gdb_group_mempool)
+        return NULL;
+    char *l_datum_hash_key = dap_strdup_printf("%s", a_datum_hash_str);
+    dap_store_obj_t *l_store_obj = dap_global_db_get_raw_sync(l_gdb_group_mempool, l_datum_hash_key);
+    DAP_DELETE(l_gdb_group_mempool);
+    DAP_DELETE(l_datum_hash_key);
+    return l_store_obj;
+}
+
+/**
+ * @brief Find decree of specific type in chain and mempool
+ * @param a_out JSON output object
+ * @param a_chain Chain to search
+ * @param a_decree_type Decree subtype to find
+ * @param a_where Where to search (chains/mempool/all)
+ * @param a_hash_out_type Hash output format
+ * @param a_version API version
+ */
+static void s_find_decree_in_chain(dap_json_t *a_out, dap_chain_t *a_chain, uint16_t a_decree_type,
+                                   s_where_search_t a_where, const char *a_hash_out_type, int a_version)
+{
+    dap_json_t *l_common_decree_arr = dap_json_array_new();
+    dap_json_t *l_service_decree_arr = dap_json_array_new();
+    
+    // Search in chains
+    if (a_where == FIND_WHERE_ALL || a_where == FIND_WHERE_CHAINS) {
+        dap_chain_cell_t *l_cell, *l_iter_tmp;
+        HASH_ITER(hh, a_chain->cells, l_cell, l_iter_tmp) {
+            dap_chain_atom_iter_t *l_atom_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id, NULL);
+            dap_chain_atom_ptr_t l_atom;
+            size_t l_atom_size = 0;
+            for (l_atom = l_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
+                 l_atom && l_atom_size;
+                 l_atom = l_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size)) {
+                size_t l_datum_count = 0;
+                dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datum_count);
+                char l_buff_ts[50] = {'\0'};
+                dap_time_to_str_rfc822(l_buff_ts, 50, l_atom_iter->cur_ts);
+                for (size_t i = 0; i < l_datum_count; i++) {
+                    dap_chain_datum_t *l_datum = l_datums[i];
+                    if (l_datum->header.type_id != DAP_CHAIN_DATUM_DECREE)
+                        continue;
+                    dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)l_datum->data;
+                    if (l_decree->header.sub_type == a_decree_type) {
+                        dap_json_t *l_jobj_atom = dap_json_object_new();
+                        dap_json_object_add_string(l_jobj_atom, a_version == 1 ? "hash" : "atom_hash",
+                            !dap_strcmp(a_hash_out_type, "base58") ?
+                            dap_enc_base58_encode_hash_to_str_static(l_atom_iter->cur_hash) :
+                            dap_hash_fast_to_str_static(l_atom_iter->cur_hash));
+                        dap_json_object_add_string(l_jobj_atom, "created", l_buff_ts);
+                        
+                        dap_json_t *l_jobj_decree = dap_json_object_new();
+                        size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
+                        dap_chain_datum_decree_dump_json(l_jobj_decree, l_decree, l_decree_size, a_hash_out_type, a_version);
+                        
+                        dap_json_t *l_obj_source = dap_json_object_new();
+                        dap_json_object_add_object(l_obj_source, "atom", l_jobj_atom);
+                        dap_json_object_add_object(l_jobj_decree, "source", l_obj_source);
+                        
+                        if (l_decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON)
+                            dap_json_array_add(l_common_decree_arr, l_jobj_decree);
+                        else
+                            dap_json_array_add(l_service_decree_arr, l_jobj_decree);
+                    }
+                }
+                DAP_DEL_Z(l_datums);
+            }
+            l_cell->chain->callback_atom_iter_delete(l_atom_iter);
+        }
+    }
+    
+    // Search in mempool
+    if (a_where == FIND_WHERE_ALL || a_where == FIND_WHERE_MEMPOOL) {
+        char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
+        size_t l_mempool_count = 0;
+        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_mempool_count);
+        DAP_DELETE(l_gdb_group_mempool);
+        for (size_t i = 0; i < l_mempool_count; i++) {
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)(l_objs[i].value);
+            if (l_datum->header.type_id != DAP_CHAIN_DATUM_DECREE)
+                continue;
+            dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)l_datum->data;
+            if (l_decree->header.sub_type == a_decree_type) {
+                dap_json_t *l_jobj_decree = dap_json_object_new();
+                size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
+                dap_chain_datum_decree_dump_json(l_jobj_decree, l_decree, l_decree_size, a_hash_out_type, a_version);
+                dap_json_object_add_string(l_jobj_decree, "source", "mempool");
+                
+                if (l_decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON)
+                    dap_json_array_add(l_common_decree_arr, l_jobj_decree);
+                else
+                    dap_json_array_add(l_service_decree_arr, l_jobj_decree);
+            }
+        }
+        dap_global_db_objs_delete(l_objs, l_mempool_count);
+    }
+    
+    dap_json_object_add_object(a_out, "common", l_common_decree_arr);
+    dap_json_object_add_object(a_out, "service", l_service_decree_arr);
+}
+
+/**
+ * @brief CLI command handler for find (datum/atom/decree)
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, negative error code on failure
+ * 
+ * Usage: 
+ *   find datum -net <net> [-chain <chain>] -hash <datum_hash>
+ *   find atom -net <net> [-chain <chain>] -hash <atom_hash>
+ *   find decree -net <net> [-chain <chain>] -type <decree_type> [-where <chains|mempool>]
+ */
+static int s_cli_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    int arg_index = 1;
+    dap_chain_net_t *l_net = NULL;
+    dap_chain_t *l_chain = NULL;
+    
+    enum { SUBCMD_NONE = 0, SUBCMD_DATUM, SUBCMD_ATOM, SUBCMD_DECREE } l_cmd = SUBCMD_NONE;
+    
+    if (a_argv[1]) {
+        if (!dap_strcmp(a_argv[1], "datum")) {
+            l_cmd = SUBCMD_DATUM;
+        } else if (!dap_strcmp(a_argv[1], "atom")) {
+            l_cmd = SUBCMD_ATOM;
+        } else if (!dap_strcmp(a_argv[1], "decree")) {
+            l_cmd = SUBCMD_DECREE;
+        } else {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_UNKNOWN_SUBCMD,
+                "Invalid subcommand '%s'. Use: datum, atom, decree", a_argv[1]);
+            return -DAP_CHAIN_NET_CLI_ERROR_FIND_UNKNOWN_SUBCMD;
+        }
+    } else {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_SUBCMD_REQUIRED,
+            "Subcommand required. Use: datum, atom, decree");
+        return -DAP_CHAIN_NET_CLI_ERROR_FIND_SUBCMD_REQUIRED;
+    }
+    
+    // Parse net and chain
+    int cmd_parse_status = dap_chain_net_parse_net_chain(a_json_arr_reply, &arg_index, a_argc, a_argv, 
+                                                          &l_chain, &l_net, CHAIN_TYPE_INVALID);
+    if (cmd_parse_status != 0) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_NET_PARSE,
+            "Network/chain parsing error (code: %d)", cmd_parse_status);
+        return -DAP_CHAIN_NET_CLI_ERROR_FIND_NET_PARSE;
+    }
+    
+    const char *l_hash_out_type = "hex";
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    
+    switch (l_cmd) {
+    case SUBCMD_DATUM: {
+        const char *l_datum_hash = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_datum_hash);
+        if (!l_datum_hash)
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash);
+        if (!l_datum_hash) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_HASH_REQUIRED,
+                "The hash of the datum is not specified");
+            return -DAP_CHAIN_NET_CLI_ERROR_FIND_HASH_REQUIRED;
+        }
+        
+        dap_hash_fast_t l_datum_hash_fast;
+        if (dap_chain_hash_fast_from_hex_str(l_datum_hash, &l_datum_hash_fast)) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_HASH_INVALID,
+                "Incorrect hash string %s", l_datum_hash);
+            return -DAP_CHAIN_NET_CLI_ERROR_FIND_HASH_INVALID;
+        }
+        
+        dap_chain_datum_t *l_datum = NULL;
+        dap_hash_fast_t l_atom_hash = {};
+        int l_ret_code = 0;
+        char *l_chain_name = l_chain ? l_chain->name : NULL;
+        bool l_found_in_chains = false;
+        
+        // Search in chains
+        if (l_chain) {
+            l_datum = l_chain->callback_datum_find_by_hash(l_chain, &l_datum_hash_fast, &l_atom_hash, &l_ret_code);
+        } else {
+            dap_chain_t *it = NULL;
+            DL_FOREACH(l_net->pub.chains, it) {
+                l_datum = it->callback_datum_find_by_hash(it, &l_datum_hash_fast, &l_atom_hash, &l_ret_code);
+                if (l_datum) {
+                    l_chain_name = it->name;
+                    l_chain = it;
+                    break;
+                }
+            }
+        }
+        if (l_datum)
+            l_found_in_chains = true;
+        
+        // Search in mempool if not found
+        bool l_hole = false;
+        if (!l_found_in_chains) {
+            dap_store_obj_t *l_store_obj = NULL;
+            if (l_chain) {
+                l_store_obj = s_find_datum_in_mempool(l_chain, l_datum_hash);
+            } else {
+                dap_chain_t *it = NULL;
+                DL_FOREACH(l_net->pub.chains, it) {
+                    l_store_obj = s_find_datum_in_mempool(it, l_datum_hash);
+                    if (l_store_obj) {
+                        l_chain_name = it->name;
+                        l_chain = it;
+                        break;
+                    }
+                }
+            }
+            if (l_store_obj && l_store_obj->value) {
+                l_hole = DAP_FLAG_CHECK(l_store_obj->flags, DAP_GLOBAL_DB_RECORD_DEL);
+                if (l_hole) {
+                    l_ret_code = strtol((char *)l_store_obj->value, NULL, 10);
+                } else {
+                    l_datum = DAP_DUP_SIZE(l_store_obj->value, l_store_obj->value_len);
+                }
+                dap_store_obj_free_one(l_store_obj);
+            }
+        }
+        
+        dap_json_t *l_jobj_datum = dap_json_object_new();
+        dap_json_object_add_string(l_jobj_datum, a_version == 1 ? "hash" : "datum_hash", l_datum_hash);
+        dap_json_object_add_string(l_jobj_datum, "net", l_net->pub.name);
+        dap_json_object_add_string(l_jobj_datum, "chain", l_chain_name ? l_chain_name : "");
+        
+        if (l_datum || l_hole) {
+            dap_json_object_add_bool(l_jobj_datum, "find", true);
+            dap_json_object_add_string(l_jobj_datum, "source", l_found_in_chains ? "chain" : "mempool");
+            
+            if (l_found_in_chains) {
+                char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                
+                dap_json_t *l_obj_atom = dap_json_object_new();
+                dap_json_object_add_string(l_obj_atom, "hash", l_atom_hash_str);
+                dap_json_object_add_string(l_obj_atom, "status", dap_ledger_check_error_str(l_ret_code));
+                dap_json_object_add_object(l_jobj_datum, "atom", l_obj_atom);
+            } else if (l_hole) {
+                dap_json_object_add_string(l_jobj_datum, "status", "deleted");
+                dap_json_object_add_int64(l_jobj_datum, "error_code", l_ret_code);
+            }
+            
+            if (l_datum && !l_found_in_chains) {
+                DAP_DELETE(l_datum);
+            }
+        } else {
+            dap_json_object_add_bool(l_jobj_datum, "find", false);
+        }
+        
+        dap_json_array_add(a_json_arr_reply, l_jobj_datum);
+    } break;
+    
+    case SUBCMD_ATOM: {
+        const char *l_atom_hash_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_atom_hash_str);
+        if (!l_atom_hash_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_HASH_REQUIRED,
+                "The hash of the atom is not specified");
+            return -DAP_CHAIN_NET_CLI_ERROR_FIND_HASH_REQUIRED;
+        }
+        
+        dap_hash_fast_t l_atom_hash = {};
+        if (dap_chain_hash_fast_from_str(l_atom_hash_str, &l_atom_hash)) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_HASH_INVALID,
+                "Failed to convert '%s' to hash", l_atom_hash_str);
+            return -DAP_CHAIN_NET_CLI_ERROR_FIND_HASH_INVALID;
+        }
+        
+        dap_json_t *l_obj_atom = dap_json_object_new();
+        dap_json_object_add_string(l_obj_atom, a_version == 1 ? "hash" : "atom_hash", l_atom_hash_str);
+        
+        dap_chain_atom_ptr_t l_atom_ptr = NULL;
+        size_t l_atom_size = 0;
+        
+        if (l_chain) {
+            l_atom_ptr = dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size);
+        } else {
+            for (l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+                l_atom_ptr = dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size);
+                if (l_atom_ptr)
+                    break;
+            }
+        }
+        
+        if (l_atom_ptr) {
+            dap_json_t *l_obj_source = dap_json_object_new();
+            dap_json_object_add_string(l_obj_source, "net", l_net->pub.name);
+            dap_json_object_add_string(l_obj_source, "chain", l_chain->name);
+            dap_json_object_add_object(l_obj_atom, "source", l_obj_source);
+            dap_json_object_add_bool(l_obj_atom, "find", true);
+            
+            // Add atom dump if callback exists
+            if (l_chain->callback_atom_dump_json) {
+                dap_json_t *l_dump = l_chain->callback_atom_dump_json(a_json_arr_reply, l_chain, 
+                    l_atom_ptr, l_atom_size, l_hash_out_type, a_version);
+                if (l_dump)
+                    dap_json_object_add_object(l_obj_atom, "dump", l_dump);
+            }
+        } else {
+            dap_json_object_add_bool(l_obj_atom, "find", false);
+        }
+        
+        dap_json_array_add(a_json_arr_reply, l_obj_atom);
+    } break;
+    
+    case SUBCMD_DECREE: {
+        const char *l_type_decree_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-type", &l_type_decree_str);
+        if (!l_type_decree_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_TYPE_REQUIRED,
+                "The type of decree is not specified");
+            return -DAP_CHAIN_NET_CLI_ERROR_FIND_TYPE_REQUIRED;
+        }
+        
+        uint16_t l_subtype_decree = dap_chain_datum_decree_type_from_str(l_type_decree_str);
+        if (!l_subtype_decree) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_TYPE_INVALID,
+                "Unknown decree type '%s'", l_type_decree_str);
+            return -DAP_CHAIN_NET_CLI_ERROR_FIND_TYPE_INVALID;
+        }
+        
+        const char *l_where_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-where", &l_where_str);
+        s_where_search_t l_where = FIND_WHERE_ALL;
+        if (l_where_str) {
+            if (!dap_strcmp(l_where_str, "chains")) {
+                l_where = FIND_WHERE_CHAINS;
+            } else if (!dap_strcmp(l_where_str, "mempool")) {
+                l_where = FIND_WHERE_MEMPOOL;
+            } else {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_FIND_WHERE_INVALID,
+                    "'%s' is not valid. Use: chains, mempool", l_where_str);
+                return -DAP_CHAIN_NET_CLI_ERROR_FIND_WHERE_INVALID;
+            }
+        }
+        
+        dap_json_t *l_obj = dap_json_object_new();
+        dap_json_object_add_string(l_obj, a_version == 1 ? "type" : "decree_type", l_type_decree_str);
+        
+        dap_json_t *l_jobj_chains = dap_json_object_new();
+        if (l_chain) {
+            dap_json_t *l_jobj_data = dap_json_object_new();
+            s_find_decree_in_chain(l_jobj_data, l_chain, l_subtype_decree, l_where, l_hash_out_type, a_version);
+            dap_json_object_add_object(l_jobj_chains, l_chain->name, l_jobj_data);
+        } else {
+            for (l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+                dap_json_t *l_jobj_data = dap_json_object_new();
+                s_find_decree_in_chain(l_jobj_data, l_chain, l_subtype_decree, l_where, l_hash_out_type, a_version);
+                dap_json_object_add_object(l_jobj_chains, l_chain->name, l_jobj_data);
+            }
+        }
+        dap_json_object_add_object(l_obj, "chains", l_jobj_chains);
+        dap_json_array_add(a_json_arr_reply, l_obj);
+    } break;
+    
+    default:
+        break;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Create policy decree from policy object
+ * @param a_net Network
+ * @param a_policy Policy object
+ * @return Decree or NULL on error
+ */
+static dap_chain_datum_decree_t *s_policy_decree_execute(dap_chain_net_t *a_net, dap_chain_policy_t *a_policy)
+{
+    dap_return_val_if_pass(!a_net || !a_policy, NULL);
+    
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) + dap_chain_policy_get_size(a_policy);
+    
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain) {
+        log_it(L_ERROR, "No chain supported decree datum type");
+        return NULL;
+    }
+    
+    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, l_chain->id, 
+        *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+    if (!l_decree) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return NULL;
+    }
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY;
+    dap_tsd_write((byte_t *)l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE, 
+        a_policy, dap_chain_policy_get_size(a_policy));
+    
+    return l_decree;
+}
+
+/**
+ * @brief Put policy decree to mempool
+ * @param a_decree Decree to put
+ * @param a_net Network
+ * @return Hash string or NULL on error
+ */
+static char *s_policy_decree_put(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net)
+{
+    size_t l_decree_size = dap_chain_datum_decree_get_size(a_decree);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, a_decree, l_decree_size);
+    
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain)
+        l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain) {
+        log_it(L_ERROR, "No chain supported decree datum type");
+        DAP_DELETE(l_datum);
+        return NULL;
+    }
+    
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+    DAP_DELETE(l_datum);
+    return l_ret;
+}
+
+/**
+ * @brief CLI command handler for policy management
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, negative error code on failure
+ * 
+ * Usage:
+ *   policy list -net <net_name>
+ *   policy find -net <net_name> -num <policy_num>
+ *   policy activate -net <net_name> -num <policy_num> [-ts_start <date>] [-block_start <num> -chain <chain>]
+ *   policy activate -net <net_name> -num <policy_num> execute -certs <cert_names>
+ *   policy deactivate -net <net_name> -num <num1,num2,...>
+ *   policy deactivate -net <net_name> -num <num1,num2,...> execute -certs <cert_names>
+ */
+static int s_cli_policy(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    const char *l_net_str = NULL;
+    const char *l_num_str = NULL;
+    const char *l_chain_str = NULL;
+    const char *l_ts_start_str = NULL;
+    const char *l_block_start_str = NULL;
+    const char *l_certs_str = NULL;
+    size_t l_certs_count = 0;
+    dap_cert_t **l_certs = NULL;
+    bool l_execute = false;
+    
+    enum { CMD_NONE = 0, CMD_ACTIVATE, CMD_DEACTIVATE, CMD_FIND, CMD_LIST };
+    int l_arg_index = 1;
+    int l_cmd = CMD_NONE;
+    
+    if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "activate", NULL))
+        l_cmd = CMD_ACTIVATE;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "deactivate", NULL))
+        l_cmd = CMD_DEACTIVATE;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "find", NULL))
+        l_cmd = CMD_FIND;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "list", NULL))
+        l_cmd = CMD_LIST;
+    
+    if (l_cmd == CMD_NONE) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_UNKNOWN_SUBCMD,
+            "Unknown subcommand. Use: activate, deactivate, find, list");
+        return -DAP_CHAIN_NET_CLI_ERROR_POLICY_UNKNOWN_SUBCMD;
+    }
+    
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+    if (!l_net_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_NET_REQUIRED,
+            "Command policy requires -net parameter");
+        return -DAP_CHAIN_NET_CLI_ERROR_POLICY_NET_REQUIRED;
+    }
+    
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+    if (!l_net) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_NET_NOT_FOUND,
+            "Can't find net '%s'", l_net_str);
+        return -DAP_CHAIN_NET_CLI_ERROR_POLICY_NET_NOT_FOUND;
+    }
+    
+    // LIST command
+    if (l_cmd == CMD_LIST) {
+        dap_json_t *l_answer = dap_chain_policy_list(l_net->pub.id, a_version);
+        dap_json_array_add(a_json_arr_reply, l_answer);
+        return 0;
+    }
+    
+    // All other commands require -num
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-num", &l_num_str);
+    if (!l_num_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_NUM_REQUIRED,
+            "Command policy requires -num parameter");
+        return -DAP_CHAIN_NET_CLI_ERROR_POLICY_NUM_REQUIRED;
+    }
+    
+    dap_chain_policy_t *l_policy = NULL;
+    uint64_t l_policy_num = 0;
+    
+    // DEACTIVATE creates policy from comma-separated nums
+    if (l_cmd == CMD_DEACTIVATE) {
+        char **l_deactivate_array = dap_strsplit(l_num_str, ",", 0);
+        l_policy = dap_chain_policy_create_deactivate(l_deactivate_array, dap_str_countv(l_deactivate_array));
+        dap_strfreev(l_deactivate_array);
+        if (!l_policy) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_CREATE_DEACTIVATE,
+                "Can't create deactivate policy object");
+            return -DAP_CHAIN_NET_CLI_ERROR_POLICY_CREATE_DEACTIVATE;
+        }
+    } else {
+        l_policy_num = strtoull(l_num_str, NULL, 10);
+        if (!l_policy_num) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_NUM_ZERO,
+                "Policy num should not be 0");
+            return -DAP_CHAIN_NET_CLI_ERROR_POLICY_NUM_ZERO;
+        }
+    }
+    
+    // FIND command
+    if (l_cmd == CMD_FIND) {
+        dap_json_t *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, l_policy_num);
+        if (l_answer) {
+            dap_json_object_add_string(l_answer, "active", 
+                dap_chain_policy_is_activated(l_net->pub.id, l_policy_num) ? "true" : "false");
+            dap_json_array_add(a_json_arr_reply, l_answer);
+        } else {
+            dap_json_t *l_msg = dap_json_object_new();
+            dap_json_object_add_string(l_msg, "message", "Detailed information not exist");
+            dap_json_array_add(a_json_arr_reply, l_msg);
+        }
+        return 0;
+    }
+    
+    // ACTIVATE/DEACTIVATE with optional execute
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ts_start", &l_ts_start_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-block_start", &l_block_start_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-certs", &l_certs_str);
+    l_execute = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "execute", NULL);
+    
+    if (l_execute) {
+        if (!l_certs_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_CERTS_REQUIRED,
+                "Command 'execute' requires -certs parameter");
+            return -DAP_CHAIN_NET_CLI_ERROR_POLICY_CERTS_REQUIRED;
+        }
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        if (!l_certs || !l_certs_count) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_CERTS_NOT_FOUND,
+                "Specified certificates not found");
+            return -DAP_CHAIN_NET_CLI_ERROR_POLICY_CERTS_NOT_FOUND;
+        }
+    }
+    
+    // ACTIVATE command - create policy
+    if (l_cmd == CMD_ACTIVATE) {
+        if (dap_chain_policy_is_exist(l_net->pub.id, l_policy_num)) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_ALREADY_EXIST,
+                "Specified policy num already exists");
+            return -DAP_CHAIN_NET_CLI_ERROR_POLICY_ALREADY_EXIST;
+        }
+        
+        int64_t l_ts_start = 0;
+        uint64_t l_block_start = 0;
+        dap_chain_id_t l_chain_id = {};
+        
+        if (l_ts_start_str) {
+            l_ts_start = dap_time_from_str_custom(l_ts_start_str, "%d/%m/%y-%H:%M:%S");
+            if (!l_ts_start) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_TS_START_INVALID,
+                    "Can't parse ts_start '%s'", l_ts_start_str);
+                return -DAP_CHAIN_NET_CLI_ERROR_POLICY_TS_START_INVALID;
+            }
+        }
+        
+        if (l_block_start_str) {
+            l_block_start = strtoull(l_block_start_str, NULL, 10);
+            if (l_block_start) {
+                if (!l_chain_str) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_CHAIN_REQUIRED,
+                        "Command policy with -block_start requires -chain parameter");
+                    return -DAP_CHAIN_NET_CLI_ERROR_POLICY_CHAIN_REQUIRED;
+                }
+                dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+                if (!l_chain) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_CHAIN_NOT_FOUND,
+                        "Chain '%s' not found", l_chain_str);
+                    return -DAP_CHAIN_NET_CLI_ERROR_POLICY_CHAIN_NOT_FOUND;
+                }
+                l_chain_id.uint64 = l_chain->id.uint64;
+            }
+        }
+        
+        l_policy = dap_chain_policy_create_activate(l_policy_num, l_ts_start, l_block_start, l_chain_id, 0);
+        if (!l_policy) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_CREATE_ACTIVATE,
+                "Can't create activate policy object");
+            return -DAP_CHAIN_NET_CLI_ERROR_POLICY_CREATE_ACTIVATE;
+        }
+    }
+    
+    // If no execute - just show draft
+    if (!l_execute) {
+        dap_json_t *l_answer = dap_chain_policy_json_collect(l_policy);
+        if (!l_answer) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_COLLECT_FAILED,
+                "Can't collect policy info");
+            DAP_DELETE(l_policy);
+            return -DAP_CHAIN_NET_CLI_ERROR_POLICY_COLLECT_FAILED;
+        }
+        char l_time[DAP_TIME_STR_SIZE] = {};
+        dap_time_to_str_rfc822(l_time, DAP_TIME_STR_SIZE - 1, dap_time_now());
+        dap_json_object_add_string(l_answer, a_version == 1 ? "Current time" : "current_time", l_time);
+        dap_json_object_add_string(l_answer, a_version == 1 ? "Notification" : "notification", 
+            "It's policy draft, check and use 'execute' command to apply");
+        dap_json_array_add(a_json_arr_reply, l_answer);
+        DAP_DELETE(l_policy);
+        return 0;
+    }
+    
+    // Execute - create and sign decree
+    dap_chain_datum_decree_t *l_decree = s_policy_decree_execute(l_net, l_policy);
+    DAP_DELETE(l_policy);
+    
+    size_t l_total_signs_success = 0;
+    l_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
+    
+    if (!l_decree || l_total_signs_success == 0) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_SIGN_FAILED,
+            "Decree creation failed. Successful count of certificate signing is 0");
+        return -DAP_CHAIN_NET_CLI_ERROR_POLICY_SIGN_FAILED;
+    }
+    
+    char *l_decree_hash_str = s_policy_decree_put(l_decree, l_net);
+    DAP_DELETE(l_decree);
+    
+    if (!l_decree_hash_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_POLICY_PUT_FAILED,
+            "Policy decree error");
+        return -DAP_CHAIN_NET_CLI_ERROR_POLICY_PUT_FAILED;
+    }
+    
+    dap_json_t *l_jobj_ret = dap_json_object_new();
+    dap_json_object_add_string(l_jobj_ret, "status", "success");
+    dap_json_object_add_string(l_jobj_ret, "decree_hash", l_decree_hash_str);
+    dap_json_object_add_string(l_jobj_ret, "message", "Policy decree successfully created");
+    dap_json_array_add(a_json_arr_reply, l_jobj_ret);
+    DAP_DELETE(l_decree_hash_str);
+    
+    return 0;
+}
+
+/**
  * @brief Initialize net CLI commands
  * @return 0 on success, already initialized returns 0 silently
  */
@@ -2573,6 +4129,73 @@ int dap_chain_net_cli_init(void)
                            -1, // auto ID
                            "stats cpu\n"
                            "\tShow CPU usage statistics for all cores\n");
+
+    // Register tx_cond_create command (stub)
+    dap_cli_server_cmd_add("tx_cond_create", s_cli_tx_cond_create, NULL,
+                           "Make cond transaction (not implemented)",
+                           -1, // auto ID
+                           "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>\n"
+                           " { -cert <pub_cert_name> | -pkey <pkey_hash> } -value <value_datoshi>\n"
+                           " -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n"
+                           "\t[NOT IMPLEMENTED] Create conditional transaction\n");
+
+    // Register gdb_export command
+    dap_cli_server_cmd_add("gdb_export", s_cli_gdb_export, NULL,
+                           "Export gdb to JSON",
+                           -1, // auto ID
+                           "gdb_export filename <filename_without_extension> [-groups <group1,group2,...>]\n"
+                           "\tExport global database to JSON file\n");
+
+    // Register gdb_import command
+    dap_cli_server_cmd_add("gdb_import", s_cli_gdb_import, NULL,
+                           "Import gdb from JSON",
+                           -1, // auto ID
+                           "gdb_import filename <filename_without_extension>\n"
+                           "\tImport global database from JSON file\n");
+
+    // Register tx_cond_remove command
+    dap_cli_server_cmd_add("tx_cond_remove", s_cli_tx_cond_remove, NULL,
+                           "Remove cond transactions and return funds",
+                           -1, // auto ID
+                           "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>\n"
+                           " -fee <value> -srv_uid <numeric_uid>\n"
+                           "\tRemove conditional transactions and return funds to wallet\n");
+
+    // Register tx_cond_unspent_find command
+    dap_cli_server_cmd_add("tx_cond_unspent_find", s_cli_tx_cond_unspent_find, NULL,
+                           "Find cond transactions by wallet",
+                           -1, // auto ID
+                           "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name>\n"
+                           "\tFind unspent conditional transactions for wallet\n");
+
+    // Register find command
+    dap_cli_server_cmd_add("find", s_cli_find, NULL,
+                           "Find datum/atom/decree in chain or mempool",
+                           -1, // auto ID
+                           "find datum -net <net_name> [-chain <chain_name>] -hash <datum_hash>\n"
+                           "\tFind datum by hash in chains and mempool\n\n"
+                           "find atom -net <net_name> [-chain <chain_name>] -hash <atom_hash>\n"
+                           "\tFind atom by hash in chains\n\n"
+                           "find decree -net <net_name> [-chain <chain_name>] -type <decree_type> [-where <chains|mempool>]\n"
+                           "\tFind decrees by type. Available types: fee, owners, min_signs, etc.\n");
+
+    // Register policy command
+    dap_cli_server_cmd_add("policy", s_cli_policy, NULL,
+                           "Manage network policies",
+                           -1, // auto ID
+                           "policy list -net <net_name>\n"
+                           "\tList all policies for network\n\n"
+                           "policy find -net <net_name> -num <policy_num>\n"
+                           "\tFind policy by number and show details\n\n"
+                           "policy activate -net <net_name> -num <policy_num> [-ts_start <DD/MM/YY-HH:MM:SS>]\n"
+                           "               [-block_start <block_num> -chain <chain_name>]\n"
+                           "\tPrepare policy activation draft\n\n"
+                           "policy activate -net <net_name> -num <policy_num> execute -certs <cert_names>\n"
+                           "\tActivate policy with signing\n\n"
+                           "policy deactivate -net <net_name> -num <num1,num2,...>\n"
+                           "\tPrepare policy deactivation draft\n\n"
+                           "policy deactivate -net <net_name> -num <num1,num2,...> execute -certs <cert_names>\n"
+                           "\tDeactivate policies with signing\n");
 
     s_initialized = true;
     log_it(L_NOTICE, "Net CLI commands registered (with error codes)");
