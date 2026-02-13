@@ -9,6 +9,7 @@
 #include "dap_chain_ledger_cli_tx.h"
 #include "dap_chain_ledger_cli_internal.h"
 #include "dap_chain_ledger_cli_cmd_registry.h"  // For command registration
+#include "dap_chain_ledger_cli_tx_history.h"    // For com_tx_history
 #include "dap_cli_error_codes.h"
 #include "dap_chain_ledger_cli_error_codes.h"
 #include "dap_json_rpc_errors.h"
@@ -610,7 +611,8 @@ int ledger_cli_tx_verify(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
 /**
  * @brief tx history - Show transaction history
  * 
- * TODO: Implement transaction history display
+ * @details Wrapper for com_tx_history function. Delegates to the fully
+ *          implemented transaction history module.
  * 
  * @param a_argc Argument count
  * @param a_argv Argument values
@@ -620,11 +622,8 @@ int ledger_cli_tx_verify(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
  */
 int ledger_cli_tx_history(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
-    UNUSED(a_argc);
-    UNUSED(a_argv);
-    UNUSED(a_version);
-    dap_json_rpc_error_add(a_json_arr_reply, -1, "tx history: not yet implemented");
-    return -1;
+    // Delegate to full implementation in tx_history module
+    return com_tx_history(a_argc, a_argv, a_json_arr_reply, a_version);
 }
 
 /**

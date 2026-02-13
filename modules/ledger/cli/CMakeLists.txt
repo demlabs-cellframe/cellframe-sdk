@@ -24,9 +24,13 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/.
 # Include datum headers for dap_chain_datum_dump_json
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../datum/include/)
 
+# Include cert headers for decree signing
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../dap-sdk/module/crypto/include/)
+
 # Dependencies - ONLY low-level modules, NO wallet/net/mempool link deps!
 target_link_libraries(${PROJECT_NAME}
     dap_core
+    dap_crypto            # For dap_cert_t
     dap_chain
     dap_chain_datum       # For dap_chain_datum_dump_json
     dap_chain_tx_compose  # NEW TX Compose API

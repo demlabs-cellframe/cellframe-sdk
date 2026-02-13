@@ -31,6 +31,17 @@
 #include "dap_link_manager.h"                // For dap_link_manager_* functions
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
+#include "dap_json_rpc_request.h"       // For dap_json_rpc_request_t, dap_json_rpc_request_send
+#include "dap_json_rpc_params.h"        // For dap_json_rpc_params_t
+#include "dap_json_rpc_response.h"      // For dap_json_rpc_response_get_new_id
+#include "dap_global_db.h"
+#include "dap_global_db_driver.h"
+#include "dap_chain_datum_anchor.h"     // For dap_chain_datum_anchor_t
+#include "dap_chain_datum_decree.h"     // For dap_chain_datum_decree_t
+#include "dap_cert.h"                   // For dap_cert_t, dap_cert_parse_str_list
+#include "dap_enc_base58.h"             // For base58 encoding functions
+#include "dap_tsd.h"                    // For dap_tsd_t, dap_tsd_create
+#include "dap_cpu_monitor.h"            // For dap_cpu_get_stats, dap_cpu_monitor_init
 #include "utlist.h"
 
 #define LOG_TAG "dap_chain_net_cli"
@@ -45,6 +56,16 @@ static int com_node(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int
 static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 static int s_cli_help(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 static int s_cli_version(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_print_log(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_exit(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_remove(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_decree(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_exec_cmd(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_cli_stats(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_print_for_help(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt);
+static int s_print_for_print_log(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt);
+static dap_chain_datum_anchor_t *s_sign_anchor_in_cycle(dap_cert_t **a_certs, dap_chain_datum_anchor_t *a_datum_anchor,
+                                                         size_t a_certs_count, size_t *a_total_sign_count);
 
 /**
  * @brief s_net_sync_status - Creates JSON object with network sync status information
@@ -1047,6 +1068,134 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
 }
 
 /**
+ * @brief s_print_for_help - Format help output as a table
+ * @param a_json_input JSON input from command handler
+ * @param a_json_output JSON output for CLI
+ * @param a_cmd_param Command parameters
+ * @param a_cmd_cnt Parameter count
+ * @return 0 on success, -1 to use raw JSON
+ */
+static int s_print_for_help(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt)
+{
+    (void)a_cmd_param;
+    (void)a_cmd_cnt;
+    dap_return_val_if_pass(!a_json_input || !a_json_output, -1);
+    
+    // Always use table mode for help output
+    if (dap_json_get_type(a_json_input) != DAP_JSON_TYPE_ARRAY)
+        return -1;
+    
+    int l_arr_len = dap_json_array_length(a_json_input);
+    if (l_arr_len <= 0)
+        return -1;
+    
+    dap_json_t *l_json_obj = dap_json_array_get_idx(a_json_input, 0);
+    if (!l_json_obj)
+        return -1;
+    
+    dap_string_t *l_str = dap_string_new("\n");
+    
+    // Check if this is a single command help or list of all commands
+    dap_json_t *l_commands = NULL;
+    dap_json_t *l_usage = NULL;
+    
+    if (dap_json_object_get_ex(l_json_obj, "commands", &l_commands)) {
+        // List of all commands - display as table (sorted alphabetically)
+        int l_cmd_count = dap_json_array_length(l_commands);
+        
+        // Build array of command names and descriptions for sorting
+        typedef struct {
+            const char *name;
+            const char *desc;
+        } cmd_entry_t;
+        
+        cmd_entry_t *l_entries = DAP_NEW_Z_COUNT(cmd_entry_t, l_cmd_count);
+        if (!l_entries) {
+            dap_string_free(l_str, true);
+            return -1;
+        }
+        
+        int l_valid_count = 0;
+        for (int i = 0; i < l_cmd_count; i++) {
+            dap_json_t *l_cmd_obj = dap_json_array_get_idx(l_commands, i);
+            if (!l_cmd_obj)
+                continue;
+            
+            dap_json_t *l_name = NULL, *l_desc = NULL;
+            dap_json_object_get_ex(l_cmd_obj, "name", &l_name);
+            dap_json_object_get_ex(l_cmd_obj, "description", &l_desc);
+            
+            l_entries[l_valid_count].name = l_name ? dap_json_get_string(l_name) : "(unknown)";
+            l_entries[l_valid_count].desc = l_desc ? dap_json_get_string(l_desc) : "(no description)";
+            l_valid_count++;
+        }
+        
+        // Sort entries alphabetically by name (simple bubble sort for small lists)
+        for (int i = 0; i < l_valid_count - 1; i++) {
+            for (int j = 0; j < l_valid_count - i - 1; j++) {
+                if (strcmp(l_entries[j].name, l_entries[j + 1].name) > 0) {
+                    cmd_entry_t l_tmp = l_entries[j];
+                    l_entries[j] = l_entries[j + 1];
+                    l_entries[j + 1] = l_tmp;
+                }
+            }
+        }
+        
+        // Output sorted table
+        dap_string_append(l_str, "________________________________________________________________________________\n");
+        dap_string_append_printf(l_str, " %-20s | %-55s |\n", "Command", "Description");
+        dap_string_append(l_str, "______________________|_________________________________________________________|\n");
+        
+        for (int i = 0; i < l_valid_count; i++) {
+            const char *l_desc_str = l_entries[i].desc;
+            
+            // Truncate description if too long
+            char l_desc_buf[56];
+            if (strlen(l_desc_str) > 55) {
+                strncpy(l_desc_buf, l_desc_str, 52);
+                l_desc_buf[52] = '.';
+                l_desc_buf[53] = '.';
+                l_desc_buf[54] = '.';
+                l_desc_buf[55] = '\0';
+                l_desc_str = l_desc_buf;
+            }
+            
+            dap_string_append_printf(l_str, " %-20s | %-55s |\n", l_entries[i].name, l_desc_str);
+        }
+        
+        DAP_DELETE(l_entries);
+        
+        dap_string_append(l_str, "______________________|_________________________________________________________|\n");
+        dap_string_append_printf(l_str, "\n\tTotal commands: %d\n", l_valid_count);
+        dap_string_append(l_str, "\tUse 'help <command>' for detailed usage information.\n");
+    } else if (dap_json_object_get_ex(l_json_obj, "usage", &l_usage)) {
+        // Single command help
+        dap_json_t *l_cmd_name = NULL, *l_desc = NULL;
+        dap_json_object_get_ex(l_json_obj, "command", &l_cmd_name);
+        dap_json_object_get_ex(l_json_obj, "description", &l_desc);
+        
+        dap_string_append(l_str, "________________________________________________________________________________\n");
+        if (l_cmd_name)
+            dap_string_append_printf(l_str, "Command: %s\n", dap_json_get_string(l_cmd_name));
+        if (l_desc)
+            dap_string_append_printf(l_str, "Description: %s\n", dap_json_get_string(l_desc));
+        dap_string_append(l_str, "________________________________________________________________________________\n");
+        dap_string_append(l_str, "Usage:\n");
+        dap_string_append_printf(l_str, "%s\n", dap_json_get_string(l_usage));
+    } else {
+        // Unknown format, return raw JSON
+        dap_string_free(l_str, true);
+        return -1;
+    }
+    
+    dap_json_t *l_json_result = dap_json_object_new();
+    dap_json_object_add_string(l_json_result, "output", l_str->str);
+    dap_json_array_add(a_json_output, l_json_result);
+    dap_string_free(l_str, true);
+    return 0;
+}
+
+/**
  * @brief s_cli_help - Display help for commands
  * @param argc argument count
  * @param argv arguments
@@ -1063,9 +1212,18 @@ static int s_cli_help(int argc, char **argv, dap_json_t *a_json_arr_reply, int a
         return -1;
     }
 
-    if (argc > 1) {
+    // Find the first non-flag argument (command name to get help for)
+    const char *l_cmd_name = NULL;
+    for (int i = 1; i < argc; i++) {
+        if (argv[i] && argv[i][0] != '-') {
+            l_cmd_name = argv[i];
+            break;
+        }
+    }
+
+    if (l_cmd_name) {
         // Help for specific command
-        dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find(argv[1]);
+        dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find(l_cmd_name);
         if (l_cmd) {
             dap_json_object_add_string(l_jobj_return, "command", l_cmd->name);
             dap_json_object_add_string(l_jobj_return, "description", l_cmd->doc ? l_cmd->doc : "(undocumented)");
@@ -1074,7 +1232,7 @@ static int s_cli_help(int argc, char **argv, dap_json_t *a_json_arr_reply, int a
             return 0;
         } else {
             dap_json_object_free(l_jobj_return);
-            dap_json_rpc_error_add(a_json_arr_reply, -1, "Command '%s' not recognized", argv[1]);
+            dap_json_rpc_error_add(a_json_arr_reply, -1, "Command '%s' not recognized", l_cmd_name);
             return -1;
         }
     } else {
@@ -1146,10 +1304,1141 @@ static int s_cli_version(int argc, char **argv, dap_json_t *a_json_arr_reply, in
 }
 
 /**
+ * @brief s_cli_print_log - Print log entries from the log file
+ * @param argc argument count
+ * @param argv arguments
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success
+ */
+static int s_cli_print_log(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    (void)a_version;
+    int l_arg_index = 1;
+    const char *l_str_ts_after = NULL;
+    const char *l_str_limit = NULL;
+    int64_t l_ts_after = 0;
+    long l_limit = 0;
+    
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "ts_after", &l_str_ts_after);
+    dap_cli_server_cmd_find_option_val(argv, l_arg_index, argc, "limit", &l_str_limit);
+
+    l_ts_after = l_str_ts_after ? strtoll(l_str_ts_after, NULL, 10) : -1;
+    l_limit = l_str_limit ? strtol(l_str_limit, NULL, 10) : -1;
+
+    if (l_ts_after < 0 || !l_str_ts_after) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_PRINT_LOG_TS_AFTER,
+                               "requires valid parameter 'ts_after'");
+        return -DAP_CHAIN_NET_CLI_ERROR_PRINT_LOG_TS_AFTER;
+    }
+    if (l_limit <= 0) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_PRINT_LOG_LIMIT,
+                               "requires valid parameter 'limit'");
+        return -DAP_CHAIN_NET_CLI_ERROR_PRINT_LOG_LIMIT;
+    }
+
+    // Get log file path from config
+    const char *l_log_file = dap_config_get_item_str(g_config, "general", "log_file");
+    if (!l_log_file) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_PRINT_LOG_NO_FILE,
+                               "Log file path not configured");
+        return -DAP_CHAIN_NET_CLI_ERROR_PRINT_LOG_NO_FILE;
+    }
+
+    // Get logs from file
+    char *l_str_ret = dap_log_get_item(l_log_file, (time_t)l_ts_after, (int)l_limit);
+    if (!l_str_ret) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_PRINT_LOG_NO_LOGS,
+                               "No logs found for the specified time range");
+        return -DAP_CHAIN_NET_CLI_ERROR_PRINT_LOG_NO_LOGS;
+    }
+
+    dap_json_t *l_jobj_return = dap_json_object_new();
+    if (!l_jobj_return) {
+        DAP_DELETE(l_str_ret);
+        dap_json_rpc_allocation_error(a_json_arr_reply);
+        return -1;
+    }
+
+    dap_json_object_add_int64(l_jobj_return, "ts_after", l_ts_after);
+    dap_json_object_add_int64(l_jobj_return, "limit", l_limit);
+    dap_json_object_add_string(l_jobj_return, "log_file", l_log_file);
+    dap_json_object_add_string(l_jobj_return, "logs", l_str_ret);
+    dap_json_array_add(a_json_arr_reply, l_jobj_return);
+    
+    DAP_DELETE(l_str_ret);
+    return 0;
+}
+
+/**
+ * @brief s_print_for_print_log - Format print_log output
+ * @param a_json_input JSON input from command handler
+ * @param a_json_output JSON output for CLI
+ * @param a_cmd_param Command parameters
+ * @param a_cmd_cnt Parameter count
+ * @return 0 on success, -1 to use raw JSON
+ */
+static int s_print_for_print_log(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt)
+{
+    (void)a_cmd_param;
+    (void)a_cmd_cnt;
+    dap_return_val_if_pass(!a_json_input || !a_json_output, -1);
+    
+    if (dap_json_get_type(a_json_input) != DAP_JSON_TYPE_ARRAY)
+        return -1;
+    
+    int l_arr_len = dap_json_array_length(a_json_input);
+    if (l_arr_len <= 0)
+        return -1;
+    
+    dap_json_t *l_json_obj = dap_json_array_get_idx(a_json_input, 0);
+    if (!l_json_obj)
+        return -1;
+    
+    dap_json_t *l_logs = NULL;
+    if (!dap_json_object_get_ex(l_json_obj, "logs", &l_logs))
+        return -1;
+    
+    const char *l_logs_str = dap_json_get_string(l_logs);
+    if (!l_logs_str)
+        return -1;
+    
+    dap_string_t *l_str = dap_string_new("\n");
+    
+    // Get metadata
+    dap_json_t *l_ts_after = NULL, *l_limit = NULL, *l_log_file = NULL;
+    dap_json_object_get_ex(l_json_obj, "ts_after", &l_ts_after);
+    dap_json_object_get_ex(l_json_obj, "limit", &l_limit);
+    dap_json_object_get_ex(l_json_obj, "log_file", &l_log_file);
+    
+    dap_string_append(l_str, "================================================================================\n");
+    if (l_log_file)
+        dap_string_append_printf(l_str, "Log file: %s\n", dap_json_get_string(l_log_file));
+    if (l_ts_after)
+        dap_string_append_printf(l_str, "From timestamp: %" DAP_INT64_FORMAT "\n", dap_json_get_int64(l_ts_after));
+    if (l_limit)
+        dap_string_append_printf(l_str, "Limit: %" DAP_INT64_FORMAT " lines\n", dap_json_get_int64(l_limit));
+    dap_string_append(l_str, "================================================================================\n");
+    dap_string_append(l_str, l_logs_str);
+    dap_string_append(l_str, "\n================================================================================\n");
+    
+    dap_json_t *l_json_result = dap_json_object_new();
+    dap_json_object_add_string(l_json_result, "output", l_str->str);
+    dap_json_array_add(a_json_output, l_json_result);
+    dap_string_free(l_str, true);
+    return 0;
+}
+
+/**
+ * @brief s_cli_exit - Stop application and exit
+ * @param argc argument count
+ * @param argv arguments
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success (never returns)
+ */
+static int s_cli_exit(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    (void)argc;
+    (void)argv;
+    (void)a_json_arr_reply;
+    (void)a_version;
+    
+    log_it(L_NOTICE, "Exit command received, stopping node...");
+    exit(0);
+    return 0;
+}
+
+/**
+ * @brief Helper function to stop all networks
+ * @return List of networks that were stopped (need to be restarted later)
+ */
+static dap_list_t *s_go_all_nets_offline(void)
+{
+    dap_list_t *l_net_returns = NULL;
+    for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
+        if (dap_chain_net_stop(it))
+            l_net_returns = dap_list_append(l_net_returns, it);
+    }
+    return l_net_returns;
+}
+
+/**
+ * @brief Private structure for storing network nodes list
+ */
+typedef struct s_pvt_net_nodes_list {
+    dap_chain_net_t *net;
+    dap_global_db_obj_t *group_nodes;
+    size_t count_nodes;
+} s_pvt_net_nodes_list_t;
+
+/**
+ * @brief s_cli_remove - Delete chain files or global database
+ * @param argc argument count
+ * @param argv arguments
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, error code otherwise
+ */
+static int s_cli_remove(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    (void)a_version;
+    
+    const char *l_gdb_path = NULL;
+    const char *l_net_str = NULL;
+    dap_chain_net_t *l_net = NULL;
+    int l_all = 0;
+    
+    // Error and success flags
+    uint8_t l_error = 0;
+    uint8_t l_successful = 0;
+    
+    // Error codes
+    enum {
+        GDB_FAIL_PATH       = 0x01,
+        CHAINS_FAIL_PATH    = 0x02,
+        COMMAND_NOT_CORRECT = 0x04,
+        NET_NOT_VALID       = 0x08
+    };
+    
+    // Success codes
+    enum {
+        REMOVED_GDB    = 0x01,
+        REMOVED_CHAINS = 0x02
+    };
+    
+    // Check paths from config file
+    if (dap_cli_server_cmd_check_option(argv, 1, argc, "-gdb") >= 0
+        && (NULL == (l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path")))) {
+        l_error |= GDB_FAIL_PATH;
+    }
+    
+    dap_list_t *l_net_returns = NULL;
+    
+    // Perform GDB deletion
+    if (l_gdb_path) {
+        l_net_returns = s_go_all_nets_offline();
+        dap_list_t *l_gdb_nodes_list = NULL;
+        
+        // Save nodes list for each network
+        for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
+            s_pvt_net_nodes_list_t *l_gdb_groups = DAP_NEW_Z(s_pvt_net_nodes_list_t);
+            if (!l_gdb_groups) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                dap_list_free(l_net_returns);
+                dap_json_rpc_allocation_error(a_json_arr_reply);
+                return -1;
+            }
+            l_gdb_groups->net = it;
+            l_gdb_groups->group_nodes = dap_global_db_get_all_sync(l_gdb_groups->net->pub.gdb_nodes, &l_gdb_groups->count_nodes);
+            l_gdb_nodes_list = dap_list_append(l_gdb_nodes_list, l_gdb_groups);
+        }
+        
+        // Erase all GDB groups
+        dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
+        for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list)) {
+            dap_global_db_erase_table_sync((const char *)(l_list->data));
+        }
+        dap_list_free_full(l_group_list, NULL);
+        
+        // Restore GDB version
+        uint32_t l_version = DAP_GLOBAL_DB_VERSION;
+        if (dap_global_db_set_sync(DAP_GLOBAL_DB_LOCAL_GENERAL, "gdb_version", &l_version, sizeof(l_version), false))
+            log_it(L_ERROR, "Can't add information about gdb_version");
+        
+        // Restore nodes list for each network
+        for (dap_list_t *ptr = l_gdb_nodes_list; ptr; ptr = dap_list_next(ptr)) {
+            s_pvt_net_nodes_list_t *l_tmp = (s_pvt_net_nodes_list_t *)ptr->data;
+            for (size_t i = 0; i < l_tmp->count_nodes; i++) {
+                dap_global_db_obj_t l_obj = l_tmp->group_nodes[i];
+                dap_global_db_set_sync(l_tmp->net->pub.gdb_nodes, l_obj.key, l_obj.value, l_obj.value_len, false);
+            }
+            dap_global_db_objs_delete(l_tmp->group_nodes, l_tmp->count_nodes);
+        }
+        dap_list_free_full(l_gdb_nodes_list, NULL);
+        
+        if (!l_error)
+            l_successful |= REMOVED_GDB;
+    }
+    
+    // Perform chains deletion
+    if (dap_cli_server_cmd_check_option(argv, 1, argc, "-chains") >= 0) {
+        dap_cli_server_cmd_find_option_val(argv, 1, argc, "-net", &l_net_str);
+        l_all = dap_cli_server_cmd_check_option(argv, 1, argc, "-all");
+        
+        if (NULL == l_net_str && l_all >= 0) {
+            // Remove all chains
+            if (NULL == l_gdb_path)
+                l_net_returns = s_go_all_nets_offline();
+            for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
+                dap_chain_net_purge(it);
+            }
+            if (!l_error)
+                l_successful |= REMOVED_CHAINS;
+        } else if (NULL != l_net_str && l_all < 0) {
+            // Remove specific network chains
+            if (NULL != (l_net = dap_chain_net_by_name(l_net_str))) {
+                if (NULL == l_gdb_path && dap_chain_net_stop(l_net))
+                    l_net_returns = dap_list_append(l_net_returns, l_net);
+                dap_chain_net_purge(l_net);
+                if (!l_error)
+                    l_successful |= REMOVED_CHAINS;
+            } else {
+                l_error |= NET_NOT_VALID;
+            }
+        } else {
+            l_error |= COMMAND_NOT_CORRECT;
+        }
+    }
+    
+    // Handle errors and generate response
+    if (l_error & GDB_FAIL_PATH || l_error & CHAINS_FAIL_PATH) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_REMOVE_PATH,
+            "The node configuration file does not specify the path to the database and/or chains.\n"
+            "Please check the cellframe-node.cfg file in the [resources] item for subitems:\n"
+            "dap_global_db_path=<PATH>\n"
+            "dap_chains_path=<PATH>");
+    } else if (l_error & COMMAND_NOT_CORRECT) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_REMOVE_CMD,
+            "You need to make a decision whether to remove all chains or a chain from a specific network.\n"
+            "You cannot use two keys '-net' and '-all' at the same time.\n"
+            "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
+    } else if (l_error & NET_NOT_VALID) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_REMOVE_NET,
+            "The specified network was not found.\n"
+            "The list of available networks can be viewed using the command: 'net list'");
+    } else if (l_successful) {
+        dap_json_t *l_jobj_return = dap_json_object_new();
+        const char *l_status_str = (l_successful & REMOVED_GDB && l_successful & REMOVED_CHAINS) ? "gdb, chains" :
+                                   (l_successful & REMOVED_GDB) ? "gdb" :
+                                   (l_successful & REMOVED_CHAINS) ? "chains" : "";
+        dap_json_object_add_string(l_jobj_return, "status", "success");
+        dap_json_object_add_string(l_jobj_return, "removed", l_status_str);
+        dap_json_array_add(a_json_arr_reply, l_jobj_return);
+    } else {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_REMOVE_NOTHING,
+            "Nothing to delete. Check if the command is correct.\n"
+            "Use flags: -gdb or/and -chains [-net <net_name> | -all]\n"
+            "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
+    }
+    
+    // Restart networks that were stopped
+    for (dap_list_t *it = l_net_returns; it; it = it->next)
+        dap_chain_net_start((dap_chain_net_t *)it->data);
+    dap_list_free(l_net_returns);
+    
+    return l_error;
+}
+
+/**
+ * @brief Sign anchor datum in cycle with multiple certificates
+ * @param a_certs Array of certificates to sign with
+ * @param a_datum_anchor Anchor datum to sign
+ * @param a_certs_count Number of certificates
+ * @param a_total_sign_count Output: number of successful signatures
+ * @return dap_chain_datum_anchor_t* Signed anchor or NULL on failure
+ */
+static dap_chain_datum_anchor_t *s_sign_anchor_in_cycle(dap_cert_t **a_certs, dap_chain_datum_anchor_t *a_datum_anchor,
+                                                         size_t a_certs_count, size_t *a_total_sign_count)
+{
+    size_t l_cur_sign_offset = a_datum_anchor->header.data_size + a_datum_anchor->header.signs_size;
+    size_t l_total_signs_size = a_datum_anchor->header.signs_size, l_total_sign_count = 0;
+
+    for (size_t i = 0; i < a_certs_count; i++) {
+        dap_sign_t *l_sign = dap_cert_sign(a_certs[i], a_datum_anchor, 
+                                           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size);
+
+        if (l_sign) {
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            dap_chain_datum_anchor_t *l_new_anchor = DAP_REALLOC(a_datum_anchor, 
+                sizeof(dap_chain_datum_anchor_t) + l_cur_sign_offset + l_sign_size);
+            if (!l_new_anchor) {
+                DAP_DELETE(l_sign);
+                log_it(L_ERROR, "Memory allocation failed for anchor realloc");
+                return a_datum_anchor;
+            }
+            a_datum_anchor = l_new_anchor;
+            memcpy((byte_t*)a_datum_anchor->data_n_sign + l_cur_sign_offset, l_sign, l_sign_size);
+            l_total_signs_size += l_sign_size;
+            l_cur_sign_offset += l_sign_size;
+            a_datum_anchor->header.signs_size = l_total_signs_size;
+            DAP_DELETE(l_sign);
+            log_it(L_DEBUG, "<-- Anchor signed with '%s'", a_certs[i]->name);
+            l_total_sign_count++;
+        }
+    }
+
+    if (a_total_sign_count)
+        *a_total_sign_count = l_total_sign_count;
+    return a_datum_anchor;
+}
+
+// Decree command enums
+enum {
+    DECREE_CMD_NONE = 0,
+    DECREE_CMD_CREATE,
+    DECREE_CMD_SIGN,
+    DECREE_CMD_ANCHOR
+    // Note: DECREE_CMD_FIND and DECREE_CMD_INFO require dap_chain_net_decree_get_by_hash 
+    // and dap_chain_net_get_net_decree which are not implemented yet
+};
+
+enum {
+    DECREE_TYPE_NONE = 0,
+    DECREE_TYPE_COMMON,
+    DECREE_TYPE_SERVICE
+};
+
+enum {
+    DECREE_SUBTYPE_NONE = 0,
+    DECREE_SUBTYPE_FEE,
+    DECREE_SUBTYPE_OWNERS,
+    DECREE_SUBTYPE_MIN_OWNERS
+};
+
+/**
+ * @brief CLI command handler for decree operations
+ * @param argc Argument count
+ * @param argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, negative error code on failure
+ * 
+ * Supported subcommands:
+ *   create common - Create common decree (fee, owners, min_owners)
+ *   sign          - Sign existing decree in mempool
+ *   anchor        - Create anchor for decree
+ * 
+ * Note: 'find' and 'info' subcommands are not implemented yet as they require
+ * dap_chain_net_decree_get_by_hash and dap_chain_net_get_net_decree functions.
+ */
+static int s_cli_decree(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    (void)a_version;
+    
+    int arg_index = 1;
+    const char *l_net_str = NULL;
+    const char *l_chain_str = NULL;
+    const char *l_certs_str = NULL;
+    const char *l_decree_chain_str = NULL;
+    const char *l_hash_out_type = NULL;
+    
+    dap_chain_net_t *l_net = NULL;
+    dap_chain_t *l_chain = NULL;
+    dap_chain_t *l_decree_chain = NULL;
+    dap_cert_t **l_certs = NULL;
+    size_t l_certs_count = 0;
+    
+    // Get hash output type
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if (!l_hash_out_type)
+        l_hash_out_type = "hex";
+    if (dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_INVALID_HASH_TYPE,
+            "Invalid parameter -H, valid values: -H <hex | base58>");
+        return -DAP_CHAIN_NET_CLI_ERROR_DECREE_INVALID_HASH_TYPE;
+    }
+    
+    // Get network
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
+    if (!l_net_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_NET_REQUIRED,
+            "Command requires parameter '-net'");
+        return -DAP_CHAIN_NET_CLI_ERROR_DECREE_NET_REQUIRED;
+    }
+    l_net = dap_chain_net_by_name(l_net_str);
+    if (!l_net) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_NET_NOT_FOUND,
+            "Network '%s' not found", l_net_str);
+        return -DAP_CHAIN_NET_CLI_ERROR_DECREE_NET_NOT_FOUND;
+    }
+    
+    // Determine subcommand
+    int l_cmd = DECREE_CMD_NONE;
+    if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "create", NULL))
+        l_cmd = DECREE_CMD_CREATE;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "sign", NULL))
+        l_cmd = DECREE_CMD_SIGN;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "anchor", NULL))
+        l_cmd = DECREE_CMD_ANCHOR;
+    
+    // Parse certificates for commands that need them
+    if (l_cmd != DECREE_CMD_NONE) {
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+        if (!l_certs_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_CERTS_REQUIRED,
+                "Decree command requires parameter '-certs'");
+            return -DAP_CHAIN_NET_CLI_ERROR_DECREE_CERTS_REQUIRED;
+        }
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        if (!l_certs_count) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_CERTS_INVALID,
+                "At least one valid certificate is required to sign the decree");
+            return -DAP_CHAIN_NET_CLI_ERROR_DECREE_CERTS_INVALID;
+        }
+    }
+    
+    switch (l_cmd) {
+    case DECREE_CMD_CREATE: {
+        int l_type = DECREE_TYPE_NONE;
+        if (dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "common", NULL))
+            l_type = DECREE_TYPE_COMMON;
+        else if (dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "service", NULL))
+            l_type = DECREE_TYPE_SERVICE;
+        
+        dap_chain_datum_decree_t *l_datum_decree = NULL;
+        
+        if (l_type == DECREE_TYPE_COMMON) {
+            // Get chain for decree storage
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
+            if (l_chain_str) {
+                l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+                if (!l_chain) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NOT_FOUND,
+                        "Invalid '-chain' parameter '%s', not found in net %s", l_chain_str, l_net_str);
+                    return -DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NOT_FOUND;
+                }
+                if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NO_SUPPORT,
+                        "Chain '%s' doesn't support decree", l_chain->name);
+                    return -DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NO_SUPPORT;
+                }
+            } else {
+                l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+                if (!l_chain) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_NO_DECREE_CHAIN,
+                        "Can't find chain with decree support in network '%s'", l_net_str);
+                    return -DAP_CHAIN_NET_CLI_ERROR_DECREE_NO_DECREE_CHAIN;
+                }
+            }
+            
+            // Get decree_chain (chain the decree applies to)
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-decree_chain", &l_decree_chain_str);
+            if (l_decree_chain_str) {
+                l_decree_chain = dap_chain_net_get_chain_by_name(l_net, l_decree_chain_str);
+                if (!l_decree_chain) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_DECREE_CHAIN_NOT_FOUND,
+                        "Invalid '-decree_chain' parameter '%s', not found in net %s", l_decree_chain_str, l_net_str);
+                    return -DAP_CHAIN_NET_CLI_ERROR_DECREE_DECREE_CHAIN_NOT_FOUND;
+                }
+            } else {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_DECREE_CHAIN_REQUIRED,
+                    "Decree requires parameter '-decree_chain'");
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_DECREE_CHAIN_REQUIRED;
+            }
+            
+            // Parse decree subtype and TSD data
+            dap_tsd_t *l_tsd = NULL;
+            size_t l_total_tsd_size = 0;
+            dap_list_t *l_tsd_list = NULL;
+            
+            int l_subtype = DECREE_SUBTYPE_NONE;
+            const char *l_param_value_str = NULL;
+            const char *l_param_addr_str = NULL;
+            
+            // FEE subtype
+            if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_param_value_str)) {
+                l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE;
+                
+                // Check for fee address
+                if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &l_param_addr_str)) {
+                    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t));
+                    if (!l_tsd) {
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                        dap_list_free_full(l_tsd_list, NULL);
+                        return -1;
+                    }
+                    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET;
+                    l_tsd->size = sizeof(dap_chain_addr_t);
+                    dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_param_addr_str);
+                    if (l_addr) {
+                        memcpy(l_tsd->data, l_addr, sizeof(dap_chain_addr_t));
+                        DAP_DELETE(l_addr);
+                    }
+                    l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                    l_total_tsd_size += dap_tsd_size(l_tsd);
+                } else if (dap_chain_addr_is_blank(&l_net->pub.fee_addr)) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_FEE_ADDR_REQUIRED,
+                        "Use -to_addr parameter to set net fee address");
+                    return -DAP_CHAIN_NET_CLI_ERROR_DECREE_FEE_ADDR_REQUIRED;
+                }
+                
+                // Fee value TSD
+                l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, sizeof(dap_tsd_t) + sizeof(uint256_t));
+                if (!l_tsd) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    dap_list_free_full(l_tsd_list, NULL);
+                    return -1;
+                }
+                l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE;
+                l_tsd->size = sizeof(uint256_t);
+                *(uint256_t*)(l_tsd->data) = dap_uint256_scan_uninteger(l_param_value_str);
+                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                l_total_tsd_size += dap_tsd_size(l_tsd);
+                
+            // OWNERS subtype (new certificates for network ownership)
+            } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)) {
+                l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS;
+                
+                dap_cert_t **l_new_certs = NULL;
+                size_t l_new_certs_count = 0;
+                dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
+                
+                // Note: In master, they check dap_chain_net_get_net_decree(l_net)->min_num_of_owners
+                // This is not available in for_update yet, so we skip that check
+                
+                size_t l_failed_certs = 0;
+                for (size_t i = 0; i < l_new_certs_count; i++) {
+                    dap_pkey_t *l_pkey = dap_cert_to_pkey(l_new_certs[i]);
+                    if (!l_pkey) {
+                        log_it(L_WARNING, "New cert [%zu] has no public key.", i);
+                        l_failed_certs++;
+                        continue;
+                    }
+                    l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER, l_pkey, 
+                                           sizeof(dap_pkey_t) + (size_t)l_pkey->header.size);
+                    DAP_DELETE(l_pkey);
+                    l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                    l_total_tsd_size += dap_tsd_size(l_tsd);
+                }
+                DAP_DELETE(l_new_certs);
+                
+                if (l_failed_certs) {
+                    dap_list_free_full(l_tsd_list, NULL);
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_CERTS_INVALID,
+                        "Some certificates have no public key");
+                    return -DAP_CHAIN_NET_CLI_ERROR_DECREE_CERTS_INVALID;
+                }
+                
+            // MIN_OWNERS subtype
+            } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-signs_verify", &l_param_value_str)) {
+                l_subtype = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN;
+                
+                uint256_t l_new_num_of_owners = dap_uint256_scan_uninteger(l_param_value_str);
+                if (IS_ZERO_256(l_new_num_of_owners)) {
+                    log_it(L_WARNING, "The minimum number of owners can't be zero");
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_MIN_OWNERS_ZERO,
+                        "The minimum number of owners can't be zero");
+                    return -DAP_CHAIN_NET_CLI_ERROR_DECREE_MIN_OWNERS_ZERO;
+                }
+                
+                // Note: In master, they check against dap_chain_net_get_net_decree(l_net)->num_of_owners
+                // This is not available in for_update yet, so we skip that check
+                
+                l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, sizeof(dap_tsd_t) + sizeof(uint256_t));
+                if (!l_tsd) {
+                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                    return -1;
+                }
+                l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER;
+                l_tsd->size = sizeof(uint256_t);
+                *(uint256_t*)(l_tsd->data) = l_new_num_of_owners;
+                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                l_total_tsd_size += dap_tsd_size(l_tsd);
+                
+            } else {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_SUBTYPE_REQUIRED,
+                    "Decree subtype required. Use -fee, -new_certs, or -signs_verify");
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_SUBTYPE_REQUIRED;
+            }
+            
+            // Check chain compatibility with subtype
+            if (l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS ||
+                l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN) {
+                if (l_decree_chain->id.uint64 != l_chain->id.uint64) {
+                    dap_list_free_full(l_tsd_list, NULL);
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_SUBTYPE_NOT_SUPPORTED,
+                        "Decree subtype '%s' not supported by chain '%s'",
+                        dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
+                    return -DAP_CHAIN_NET_CLI_ERROR_DECREE_SUBTYPE_NOT_SUPPORTED;
+                }
+            } else if (l_decree_chain->id.uint64 == l_chain->id.uint64) {
+                dap_list_free_full(l_tsd_list, NULL);
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_SUBTYPE_NOT_SUPPORTED,
+                    "Decree subtype '%s' not supported by chain '%s'",
+                    dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_SUBTYPE_NOT_SUPPORTED;
+            }
+            
+            // Create decree datum
+            l_datum_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, 
+                                            sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
+            if (!l_datum_decree) {
+                dap_list_free_full(l_tsd_list, NULL);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                return -1;
+            }
+            
+            l_datum_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
+            l_datum_decree->header.ts_created = dap_time_now();
+            l_datum_decree->header.type = l_type;
+            l_datum_decree->header.common_decree_params.net_id = l_net->pub.id;
+            l_datum_decree->header.common_decree_params.chain_id = l_decree_chain->id;
+            l_datum_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_net);
+            l_datum_decree->header.sub_type = l_subtype;
+            l_datum_decree->header.data_size = l_total_tsd_size;
+            l_datum_decree->header.signs_size = 0;
+            
+            // Copy TSD data
+            size_t l_data_tsd_offset = 0;
+            for (dap_list_t *l_iter = dap_list_first(l_tsd_list); l_iter; l_iter = l_iter->next) {
+                dap_tsd_t *l_b_tsd = (dap_tsd_t *)l_iter->data;
+                size_t l_tsd_size = dap_tsd_size(l_b_tsd);
+                memcpy((byte_t*)l_datum_decree->data_n_signs + l_data_tsd_offset, l_b_tsd, l_tsd_size);
+                l_data_tsd_offset += l_tsd_size;
+            }
+            dap_list_free_full(l_tsd_list, NULL);
+            
+        } else if (l_type == DECREE_TYPE_SERVICE) {
+            // Service decree type - not fully implemented in master either
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_SERVICE_NOT_IMPL,
+                "Service decree type is not implemented yet");
+            return -DAP_CHAIN_NET_CLI_ERROR_DECREE_SERVICE_NOT_IMPL;
+            
+        } else {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_TYPE_REQUIRED,
+                "Decree type required. Use 'create common' or 'create service'");
+            return -DAP_CHAIN_NET_CLI_ERROR_DECREE_TYPE_REQUIRED;
+        }
+        
+        // Sign decree
+        size_t l_total_signs_success = 0;
+        if (l_certs_count)
+            l_datum_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_datum_decree, 
+                                                                   l_certs_count, &l_total_signs_success);
+        
+        if (!l_datum_decree || l_total_signs_success == 0) {
+            DAP_DEL_Z(l_datum_decree);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_SIGN_FAILED,
+                "Decree creation failed. Successful count of certificate signing is 0");
+            return -DAP_CHAIN_NET_CLI_ERROR_DECREE_SIGN_FAILED;
+        }
+        
+        // Create datum and add to mempool
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE,
+            l_datum_decree,
+            sizeof(*l_datum_decree) + l_datum_decree->header.data_size + l_datum_decree->header.signs_size);
+        DAP_DELETE(l_datum_decree);
+        
+        char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+        DAP_DELETE(l_datum);
+        
+        dap_json_t *l_jobj_result = dap_json_object_new();
+        dap_json_object_add_string(l_jobj_result, "status", l_key_str_out ? "placed" : "not placed");
+        if (l_key_str_out) {
+            dap_json_object_add_string(l_jobj_result, "hash", l_key_str_out);
+            DAP_DELETE(l_key_str_out);
+        }
+        dap_json_array_add(a_json_arr_reply, l_jobj_result);
+        break;
+    }
+    
+    case DECREE_CMD_SIGN: {
+        const char *l_datum_hash_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
+        
+        if (!l_datum_hash_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_DATUM_REQUIRED,
+                "Decree sign requires '-datum <datum_hash>' argument");
+            return -DAP_CHAIN_NET_CLI_ERROR_DECREE_DATUM_REQUIRED;
+        }
+        
+        // Get chain
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
+        if (l_chain_str) {
+            l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+            if (!l_chain) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NOT_FOUND,
+                    "Invalid '-chain' parameter '%s', not found in net %s", l_chain_str, l_net_str);
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NOT_FOUND;
+            }
+            if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NO_SUPPORT,
+                    "Chain '%s' doesn't support decree", l_chain->name);
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NO_SUPPORT;
+            }
+        } else {
+            l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+            if (!l_chain) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_NO_DECREE_CHAIN,
+                    "Can't find chain with decree support");
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_NO_DECREE_CHAIN;
+            }
+        }
+        
+        // Get mempool group
+        char *l_gdb_group_mempool = dap_chain_mempool_group_new(l_chain);
+        if (!l_gdb_group_mempool) {
+            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+        }
+        
+        // Convert hash format
+        char *l_datum_hash_hex_str = NULL;
+        char *l_datum_hash_base58_str = NULL;
+        if (!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
+            l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
+            l_datum_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_datum_hash_str);
+        } else {
+            l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
+            l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
+        }
+        
+        const char *l_datum_hash_out_str = !dap_strcmp(l_hash_out_type, "hex") 
+            ? l_datum_hash_hex_str : l_datum_hash_base58_str;
+        
+        log_it(L_DEBUG, "Requested to sign decree %s in gdb://%s with certs %s",
+               l_datum_hash_hex_str, l_gdb_group_mempool, l_certs_str);
+        
+        // Get datum from mempool
+        size_t l_datum_size = 0;
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(
+            l_gdb_group_mempool, l_datum_hash_hex_str, &l_datum_size, NULL, NULL);
+        
+        if (l_datum) {
+            if (l_datum->header.type_id == DAP_CHAIN_DATUM_DECREE) {
+                dap_chain_datum_decree_t *l_datum_decree = DAP_DUP_SIZE(
+                    (dap_chain_datum_decree_t*)l_datum->data, l_datum->header.data_size);
+                DAP_DELETE(l_datum);
+                
+                // Sign decree
+                size_t l_total_signs_success = 0;
+                if (l_certs_count)
+                    l_datum_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_datum_decree, 
+                                                                           l_certs_count, &l_total_signs_success);
+                
+                if (!l_datum_decree || l_total_signs_success == 0) {
+                    DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str, l_gdb_group_mempool);
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_SIGN_FAILED,
+                        "Decree signing failed. Successful count of certificate signing is 0");
+                    return -DAP_CHAIN_NET_CLI_ERROR_DECREE_SIGN_FAILED;
+                }
+                
+                size_t l_decree_size = dap_chain_datum_decree_get_size(l_datum_decree);
+                l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, l_datum_decree, l_decree_size);
+                DAP_DELETE(l_datum_decree);
+                
+                char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+                DAP_DELETE(l_datum);
+                
+                dap_json_t *l_jobj_result = dap_json_object_new();
+                dap_json_object_add_string(l_jobj_result, "status", l_key_str_out ? "placed" : "not placed");
+                if (l_key_str_out) {
+                    dap_json_object_add_string(l_jobj_result, "hash", l_key_str_out);
+                    DAP_DELETE(l_key_str_out);
+                }
+                dap_json_array_add(a_json_arr_reply, l_jobj_result);
+                
+            } else {
+                DAP_DELETE(l_datum);
+                DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str, l_gdb_group_mempool);
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_WRONG_DATUM_TYPE,
+                    "Wrong datum type. Decree sign only works with decree datums");
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_WRONG_DATUM_TYPE;
+            }
+        } else {
+            DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str, l_gdb_group_mempool);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_DATUM_NOT_FOUND,
+                "Can't find datum with hash '%s' in mempool of %s:%s",
+                l_datum_hash_out_str, l_net->pub.name, l_chain->name);
+            return -DAP_CHAIN_NET_CLI_ERROR_DECREE_DATUM_NOT_FOUND;
+        }
+        
+        DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str, l_gdb_group_mempool);
+        break;
+    }
+    
+    case DECREE_CMD_ANCHOR: {
+        // Get chain for anchor
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
+        if (l_chain_str) {
+            l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+            if (!l_chain) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NOT_FOUND,
+                    "Invalid '-chain' parameter '%s', not found in net %s", l_chain_str, l_net_str);
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NOT_FOUND;
+            }
+            if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR)) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NO_ANCHOR,
+                    "Chain '%s' doesn't support anchors", l_chain->name);
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_CHAIN_NO_ANCHOR;
+            }
+        } else {
+            l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR);
+            if (!l_chain) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_NO_ANCHOR_CHAIN,
+                    "Can't find chain with default anchor support");
+                return -DAP_CHAIN_NET_CLI_ERROR_DECREE_NO_ANCHOR_CHAIN;
+            }
+        }
+        
+        // Get decree hash
+        const char *l_datum_hash_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
+        if (!l_datum_hash_str) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_DATUM_REQUIRED,
+                "Anchor creation requires '-datum <decree_hash>' parameter");
+            return -DAP_CHAIN_NET_CLI_ERROR_DECREE_DATUM_REQUIRED;
+        }
+        
+        dap_hash_fast_t l_hash = {};
+        dap_chain_hash_fast_from_str(l_datum_hash_str, &l_hash);
+        
+        // Create TSD with decree hash
+        dap_tsd_t *l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH, 
+                                           &l_hash, sizeof(dap_hash_fast_t));
+        if (!l_tsd) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED,
+                "Anchor creation failed. Memory allocation fail");
+            return -DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+        }
+        
+        // Create anchor datum
+        dap_chain_datum_anchor_t *l_datum_anchor = DAP_NEW_Z_SIZE(dap_chain_datum_anchor_t,
+            sizeof(dap_chain_datum_anchor_t) + dap_tsd_size(l_tsd));
+        if (!l_datum_anchor) {
+            DAP_DELETE(l_tsd);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED,
+                "Anchor creation failed. Memory allocation fail");
+            return -DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+        }
+        
+        l_datum_anchor->header.data_size = dap_tsd_size(l_tsd);
+        l_datum_anchor->header.ts_created = dap_time_now();
+        memcpy(l_datum_anchor->data_n_sign, l_tsd, dap_tsd_size(l_tsd));
+        DAP_DELETE(l_tsd);
+        
+        // Sign anchor
+        size_t l_total_signs_success = 0;
+        if (l_certs_count)
+            l_datum_anchor = s_sign_anchor_in_cycle(l_certs, l_datum_anchor, 
+                                                     l_certs_count, &l_total_signs_success);
+        
+        if (!l_datum_anchor || l_total_signs_success == 0) {
+            DAP_DEL_Z(l_datum_anchor);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_SIGN_FAILED,
+                "Anchor creation failed. Successful count of certificate signing is 0");
+            return -DAP_CHAIN_NET_CLI_ERROR_DECREE_SIGN_FAILED;
+        }
+        
+        // Create datum and add to mempool
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_ANCHOR,
+            l_datum_anchor,
+            sizeof(*l_datum_anchor) + l_datum_anchor->header.data_size + l_datum_anchor->header.signs_size);
+        DAP_DELETE(l_datum_anchor);
+        
+        char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+        DAP_DELETE(l_datum);
+        
+        dap_json_t *l_jobj_result = dap_json_object_new();
+        dap_json_object_add_string(l_jobj_result, "status", l_key_str_out ? "placed" : "not placed");
+        if (l_key_str_out) {
+            dap_json_object_add_string(l_jobj_result, "hash", l_key_str_out);
+            DAP_DELETE(l_key_str_out);
+        }
+        dap_json_array_add(a_json_arr_reply, l_jobj_result);
+        break;
+    }
+    
+    default:
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_DECREE_ACTION_REQUIRED,
+            "Decree action required. Use: create, sign, or anchor");
+        return -DAP_CHAIN_NET_CLI_ERROR_DECREE_ACTION_REQUIRED;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief CLI command handler for executing commands on remote nodes
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, negative error code on failure
+ * 
+ * Usage: exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,args,separated,by,commas>
+ */
+static int s_cli_exec_cmd(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    // Check if JSON-RPC module is initialized
+    if (!dap_json_rpc_exec_cmd_inited()) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_NOT_INITED,
+            "JSON-RPC module not initialized, check configs");
+        return -DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_NOT_INITED;
+    }
+    
+    const char *l_cmd_arg_str = NULL;
+    const char *l_addr_str = NULL;
+    const char *l_net_str = NULL;
+    int arg_index = 1;
+    
+    // Parse arguments
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cmd", &l_cmd_arg_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
+    
+    if (!l_cmd_arg_str || !l_addr_str || !l_net_str) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_MISSING_ARGS,
+            "Command exec_cmd requires args: -cmd, -addr, -net");
+        return -DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_MISSING_ARGS;
+    }
+    
+    // Find network
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+    if (!l_net) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_NET_NOT_FOUND,
+            "Can't find network '%s'", l_net_str);
+        return -DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_NET_NOT_FOUND;
+    }
+    
+    // Parse node address
+    dap_chain_node_addr_t l_node_addr;
+    if (dap_chain_node_addr_from_str(&l_node_addr, l_addr_str) != 0) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_INVALID_ADDR,
+            "Invalid node address format: '%s'", l_addr_str);
+        return -DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_INVALID_ADDR;
+    }
+    
+    // Read node info
+    dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_node_addr);
+    if (!l_node_info) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_NODE_NOT_FOUND,
+            "Can't find node with address: %s", l_addr_str);
+        return -DAP_CHAIN_NET_CLI_ERROR_EXEC_CMD_NODE_NOT_FOUND;
+    }
+    
+    // Prepare command string (replace commas with semicolons)
+    char *l_cmd_str = dap_strdup(l_cmd_arg_str);
+    for (int i = 0; l_cmd_str[i] != '\0'; i++) {
+        if (l_cmd_str[i] == ',')
+            l_cmd_str[i] = ';';
+    }
+    
+    // Create JSON-RPC params
+    dap_json_rpc_params_t *l_params = dap_json_rpc_params_create();
+    dap_json_rpc_params_add_data(l_params, l_cmd_str, TYPE_PARAM_STRING);
+    
+    // Get command name (first part before ';')
+    char **l_cmd_arr_str = dap_strsplit(l_cmd_str, ";", -1);
+    const char *l_method = l_cmd_arr_str[0];
+    
+    // Create request
+    int64_t l_id_response = dap_json_rpc_response_get_new_id();
+    dap_json_rpc_request_t *l_request = dap_json_rpc_request_creation(l_method, l_params, l_id_response, a_version);
+    
+    // Send request to remote node
+    dap_json_t *l_response = NULL;
+    int l_ret = dap_json_rpc_request_send(l_node_info->ext_host, l_node_info->ext_port,
+                                          NULL, NULL, l_request, &l_response, NULL);
+    
+    if (l_ret == 0 && l_response) {
+        dap_json_array_add(a_json_arr_reply, l_response);
+    } else {
+        dap_json_t *l_jobj_result = dap_json_object_new();
+        if (l_ret != 0) {
+            dap_json_object_add_string(l_jobj_result, "status", "error");
+            dap_json_object_add_string(l_jobj_result, "message", "No response from remote node");
+        } else {
+            dap_json_object_add_string(l_jobj_result, "status", "success");
+            dap_json_object_add_string(l_jobj_result, "message", "Empty reply");
+        }
+        dap_json_array_add(a_json_arr_reply, l_jobj_result);
+    }
+    
+    // Cleanup
+    DAP_DELETE(l_cmd_str);
+    dap_strfreev(l_cmd_arr_str);
+    DAP_DELETE(l_node_info);
+    dap_json_rpc_request_free(l_request);
+    
+    return l_ret;
+}
+
+/**
+ * @brief CLI command handler for CPU statistics
+ * @param a_argc Argument count
+ * @param a_argv Argument values
+ * @param a_json_arr_reply JSON array for reply
+ * @param a_version API version
+ * @return 0 on success, negative error code on failure
+ * 
+ * Usage: stats cpu
+ */
+static int s_cli_stats(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    enum {
+        STATS_CMD_NONE = 0,
+        STATS_CMD_CPU
+    };
+    
+    int arg_index = 1;
+    int l_cmd = STATS_CMD_NONE;
+    
+    // Parse subcommand
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "cpu", NULL)) {
+        l_cmd = STATS_CMD_CPU;
+    }
+    
+    switch (l_cmd) {
+    case STATS_CMD_CPU:
+#if (defined DAP_OS_UNIX) || (defined _WIN32)
+    {
+        dap_cpu_monitor_init();
+        dap_usleep(500000);
+        
+        dap_json_t *l_json_arr_cpu = dap_json_array_new();
+        dap_cpu_stats_t l_cpu_stats = dap_cpu_get_stats();
+        
+        // Output per-core stats
+        for (uint32_t i = 0; i < l_cpu_stats.cpu_cores_count; i++) {
+            dap_json_t *l_json_cpu = dap_json_object_new();
+            char *l_cpu_name = dap_strdup_printf("CPU-%d", i);
+            char *l_cpu_load = dap_strdup_printf("%f%%", l_cpu_stats.cpus[i].load);
+            dap_json_object_add_string(l_json_cpu, l_cpu_name, l_cpu_load);
+            dap_json_array_add(l_json_arr_cpu, l_json_cpu);
+            DAP_DELETE(l_cpu_name);
+            DAP_DELETE(l_cpu_load);
+        }
+        
+        // Output total stats
+        dap_json_t *l_json_total = dap_json_object_new();
+        char *l_total_load = dap_strdup_printf("%f%%", l_cpu_stats.cpu_summary.load);
+        dap_json_object_add_string(l_json_total, a_version == 1 ? "Total" : "total", l_total_load);
+        dap_json_array_add(l_json_arr_cpu, l_json_total);
+        DAP_DELETE(l_total_load);
+        
+        dap_json_array_add(a_json_arr_reply, l_json_arr_cpu);
+        return 0;
+    }
+#else
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_STATS_NOT_SUPPORTED,
+            "CPU stats only supported on Linux or Windows");
+        return -DAP_CHAIN_NET_CLI_ERROR_STATS_NOT_SUPPORTED;
+#endif // DAP_OS_UNIX
+        
+    case STATS_CMD_NONE:
+    default:
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NET_CLI_ERROR_STATS_WRONG_FORMAT,
+            "Format of command: stats cpu");
+        return -DAP_CHAIN_NET_CLI_ERROR_STATS_WRONG_FORMAT;
+    }
+    
+    return 0;
+}
+
+/**
  * @brief Initialize net CLI commands
+ * @return 0 on success, already initialized returns 0 silently
  */
 int dap_chain_net_cli_init(void)
 {
+    // Guard against multiple initialization
+    static bool s_initialized = false;
+    if (s_initialized) {
+        log_it(L_DEBUG, "Net CLI commands already initialized, skipping");
+        return 0;
+    }
+
     // Register error codes FIRST
     dap_chain_net_cli_error_codes_init();
     
@@ -1204,14 +2493,14 @@ int dap_chain_net_cli_init(void)
             "\tList all networks or list all chains in selected network\n");
 
     // Register help command
-    dap_cli_server_cmd_add("help", s_cli_help, NULL,
+    dap_cli_server_cmd_add("help", s_cli_help, s_print_for_help,
                            "Display help for commands",
                            -1, // auto ID
                            "help [<command>]\n"
                            "\tObtain help for <command> or get the list of all commands\n");
 
     // Register ? as alias for help
-    dap_cli_server_cmd_add("?", s_cli_help, NULL,
+    dap_cli_server_cmd_add("?", s_cli_help, s_print_for_help,
                            "Synonym for help",
                            -1, // auto ID
                            "? [<command>]\n"
@@ -1224,6 +2513,68 @@ int dap_chain_net_cli_init(void)
                            "version\n"
                            "\tReturn version number\n");
 
+    // Register print_log command
+    dap_cli_server_cmd_add("print_log", s_cli_print_log, s_print_for_print_log,
+                           "Print log entries",
+                           -1, // auto ID
+                           "print_log ts_after <timestamp> limit <line_numbers>\n"
+                           "\tPrint log entries from the node log file\n"
+                           "\t\tts_after - Unix timestamp to start reading logs from\n"
+                           "\t\tlimit - Maximum number of lines to return\n");
+
+    // Register exit command
+    dap_cli_server_cmd_add("exit", s_cli_exit, NULL,
+                           "Stop application and exit",
+                           -1, // auto ID
+                           "exit\n"
+                           "\tStop the node application and exit\n");
+
+    // Register remove command
+    dap_cli_server_cmd_add("remove", s_cli_remove, NULL,
+                           "Delete chain files or global database",
+                           -1, // auto ID
+                           "remove -gdb\n"
+                           "\tDelete global database (preserves node list)\n\n"
+                           "remove -chains {-net <net_name> | -all}\n"
+                           "\tDelete chain files for specific network or all networks\n"
+                           "\t-net <net_name> - delete chains for specific network\n"
+                           "\t-all - delete chains for ALL networks (use with caution!)\n\n"
+                           "remove -gdb -chains -all\n"
+                           "\tDelete both GDB and all chain files\n");
+
+    // Register decree command
+    dap_cli_server_cmd_add("decree", s_cli_decree, NULL,
+                           "Decree operations",
+                           -1, // auto ID
+                           "decree create common -net <net_name> -certs <certs_name> -decree_chain <chain_name> [-chain <chain_name>] [-H {hex|base58}]\n"
+                           "\t{-fee <value> [-to_addr <addr>] | -new_certs <certs_name> | -signs_verify <count>}\n"
+                           "\tCreate common decree:\n"
+                           "\t\t-fee <value> - set network fee (use -to_addr to set fee wallet)\n"
+                           "\t\t-new_certs <certs_name> - set new network owners\n"
+                           "\t\t-signs_verify <count> - set minimum signatures required\n\n"
+                           "decree sign -net <net_name> -certs <certs_name> -datum <datum_hash> [-chain <chain_name>] [-H {hex|base58}]\n"
+                           "\tSign existing decree in mempool\n\n"
+                           "decree anchor -net <net_name> -certs <certs_name> -datum <decree_hash> [-chain <chain_name>] [-H {hex|base58}]\n"
+                           "\tCreate anchor for decree to apply it to the network\n");
+
+    // Register exec_cmd command
+    dap_cli_server_cmd_add("exec_cmd", s_cli_exec_cmd, NULL,
+                           "Execute command on remote node",
+                           -1, // auto ID
+                           "exec_cmd -net <net_name> -addr <node_addr> -cmd <command,and,all,args,separated,by,commas>\n"
+                           "\tExecute command on a remote node via JSON-RPC\n"
+                           "\t-net <net_name> - network name\n"
+                           "\t-addr <node_addr> - target node address\n"
+                           "\t-cmd <cmd> - command with arguments separated by commas\n");
+
+    // Register stats command
+    dap_cli_server_cmd_add("stats", s_cli_stats, NULL,
+                           "Print statistics",
+                           -1, // auto ID
+                           "stats cpu\n"
+                           "\tShow CPU usage statistics for all cores\n");
+
+    s_initialized = true;
     log_it(L_NOTICE, "Net CLI commands registered (with error codes)");
     return 0;
 }

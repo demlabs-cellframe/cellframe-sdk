@@ -45,6 +45,7 @@
 #include "dap_chain_net_types.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_net_utils.h"
+#include "dap_chain_ledger_cli.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -259,16 +260,22 @@ int dap_ledger_init()
     dap_chain_srv_uid_t l_uid_event = { .uint64 = DAP_CHAIN_NET_SRV_EVENT_ID };
     dap_ledger_service_add(l_uid_event, "event", s_tag_check_event);
 
+    // Initialize ledger CLI commands (tx, token, ledger)
+    if (dap_chain_ledger_cli_init() != 0) {
+        log_it(L_ERROR, "Failed to initialize ledger CLI");
+        return -1;
+    }
 
     return 0;
 }
 
 /**
  * @brief dap_ledger_deinit
- * nothing do
+ * Cleanup ledger resources
  */
 void dap_ledger_deinit()
 {
+    dap_chain_ledger_cli_deinit();
     dap_ledger_tx_builders_unregister();
     pthread_rwlock_destroy(&s_services_rwlock);
 }

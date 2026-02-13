@@ -83,6 +83,54 @@ void dap_chain_net_cli_error_codes_init(void)
     dap_cli_error_code_register("NODE_UNBAN_NETWORK_DOES_NOT_SUPPORT", -1093, "Network does not support unbanning");
     dap_cli_error_code_register("NODE_UNBAN_REQUIRES_PARAMETER_CERT", -1094, "Unban requires certificate parameter");
     
-    log_it(L_NOTICE, "Net CLI error codes registered (40+ codes)");
+    // Print log errors
+    dap_cli_error_code_register("PRINT_LOG_TS_AFTER", -1100, "Invalid ts_after parameter");
+    dap_cli_error_code_register("PRINT_LOG_LIMIT", -1101, "Invalid limit parameter");
+    dap_cli_error_code_register("PRINT_LOG_NO_FILE", -1102, "Log file not configured");
+    dap_cli_error_code_register("PRINT_LOG_NO_LOGS", -1103, "No logs found");
+    
+    // Remove command errors
+    dap_cli_error_code_register("REMOVE_PATH", -1110, "Path not configured");
+    dap_cli_error_code_register("REMOVE_CMD", -1111, "Invalid command");
+    dap_cli_error_code_register("REMOVE_NET", -1112, "Network not found");
+    dap_cli_error_code_register("REMOVE_NOTHING", -1113, "Nothing to remove");
+    
+    // Decree command errors
+    dap_cli_error_code_register("DECREE_INVALID_HASH_TYPE", -1200, "Invalid hash type, use hex or base58");
+    dap_cli_error_code_register("DECREE_NET_REQUIRED", -1201, "Parameter -net is required");
+    dap_cli_error_code_register("DECREE_NET_NOT_FOUND", -1202, "Network not found");
+    dap_cli_error_code_register("DECREE_CERTS_REQUIRED", -1203, "Parameter -certs is required");
+    dap_cli_error_code_register("DECREE_CERTS_INVALID", -1204, "Invalid certificates");
+    dap_cli_error_code_register("DECREE_CHAIN_NOT_FOUND", -1205, "Chain not found");
+    dap_cli_error_code_register("DECREE_CHAIN_NO_SUPPORT", -1206, "Chain doesn't support decree");
+    dap_cli_error_code_register("DECREE_NO_DECREE_CHAIN", -1207, "No chain with decree support found");
+    dap_cli_error_code_register("DECREE_DECREE_CHAIN_NOT_FOUND", -1208, "Decree chain not found");
+    dap_cli_error_code_register("DECREE_DECREE_CHAIN_REQUIRED", -1209, "Parameter -decree_chain is required");
+    dap_cli_error_code_register("DECREE_FEE_ADDR_REQUIRED", -1210, "Parameter -to_addr is required for fee");
+    dap_cli_error_code_register("DECREE_MIN_OWNERS_ZERO", -1211, "Minimum number of owners can't be zero");
+    dap_cli_error_code_register("DECREE_SUBTYPE_REQUIRED", -1212, "Decree subtype is required");
+    dap_cli_error_code_register("DECREE_SUBTYPE_NOT_SUPPORTED", -1213, "Decree subtype not supported by chain");
+    dap_cli_error_code_register("DECREE_SERVICE_NOT_IMPL", -1214, "Service decree not implemented");
+    dap_cli_error_code_register("DECREE_TYPE_REQUIRED", -1215, "Decree type is required (common or service)");
+    dap_cli_error_code_register("DECREE_SIGN_FAILED", -1216, "Decree signing failed");
+    dap_cli_error_code_register("DECREE_DATUM_REQUIRED", -1217, "Parameter -datum is required");
+    dap_cli_error_code_register("DECREE_WRONG_DATUM_TYPE", -1218, "Wrong datum type");
+    dap_cli_error_code_register("DECREE_DATUM_NOT_FOUND", -1219, "Datum not found in mempool");
+    dap_cli_error_code_register("DECREE_CHAIN_NO_ANCHOR", -1220, "Chain doesn't support anchors");
+    dap_cli_error_code_register("DECREE_NO_ANCHOR_CHAIN", -1221, "No chain with anchor support found");
+    dap_cli_error_code_register("DECREE_ACTION_REQUIRED", -1222, "Decree action required (create/sign/anchor)");
+    
+    // Exec_cmd command errors
+    dap_cli_error_code_register("EXEC_CMD_NOT_INITED", -1300, "JSON-RPC module not initialized");
+    dap_cli_error_code_register("EXEC_CMD_MISSING_ARGS", -1301, "Missing required arguments");
+    dap_cli_error_code_register("EXEC_CMD_NET_NOT_FOUND", -1302, "Network not found");
+    dap_cli_error_code_register("EXEC_CMD_INVALID_ADDR", -1303, "Invalid node address format");
+    dap_cli_error_code_register("EXEC_CMD_NODE_NOT_FOUND", -1304, "Node not found");
+    
+    // Stats command errors
+    dap_cli_error_code_register("STATS_WRONG_FORMAT", -1400, "Wrong stats command format");
+    dap_cli_error_code_register("STATS_NOT_SUPPORTED", -1401, "Stats not supported on this platform");
+    
+    log_it(L_NOTICE, "Net CLI error codes registered (77+ codes)");
 }
 
