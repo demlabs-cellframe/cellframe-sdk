@@ -231,8 +231,11 @@ else()
     #    add_definitions(-DDAP_DISABLE_INT128=FALSE)
 endif(NOT DAP_INT128_SUPPORT)
 
-if (BUILD_CELLFRAME_SDK_TESTS)
+if (BUILD_CELLFRAME_SDK_TESTS OR BUILD_DAP_SDK_TESTS)
     enable_testing()
+endif()
+
+if (BUILD_CELLFRAME_SDK_TESTS)
     add_definitions("-DDAP_LEDGER_TEST")
     add_definitions("-DDAP_CHAIN_BLOCKS_TEST")
     add_definitions("-DDAP_CHAIN_TX_COMPOSE_TEST")
