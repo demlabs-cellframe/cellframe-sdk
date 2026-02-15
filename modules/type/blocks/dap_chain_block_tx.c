@@ -380,7 +380,7 @@ char *dap_chain_block_tx_coll_fee_stack_create(dap_chain_type_blocks_t *a_blocks
     dap_return_val_if_fail(a_blocks && a_key_from && a_addr_to && a_ledger && a_native_ticker, NULL);
 
     dap_hash_fast_t l_sign_pkey_hash;
-    dap_enc_key_get_pkey_hash(a_key_from, &l_sign_pkey_hash);
+    dap_enc_key_get_pkey_hash(a_key_from, DAP_HASH_TYPE_SHA3_256, (byte_t*)&l_sign_pkey_hash, sizeof(dap_hash_fast_t));
     dap_chain_addr_t l_addr_to = { };
     dap_chain_addr_fill(&l_addr_to, dap_sign_type_from_key_type(a_key_from->type), &l_sign_pkey_hash, a_net_id);
     dap_chain_t *l_chain = a_blocks->chain;

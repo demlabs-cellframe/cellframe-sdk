@@ -26,6 +26,8 @@
 #pragma once
 #include <stdbool.h>
 #include <pthread.h>
+#include "uthash.h"
+#include "utlist.h"
 #include "dap_config.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"

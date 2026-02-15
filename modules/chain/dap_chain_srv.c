@@ -25,6 +25,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include "dap_guuid.h"
 #include "dap_json.h"
+#include "utlist.h"
 #include "dap_chain_srv.h"
 
 #define LOG_TAG "chain_srv"

@@ -550,7 +550,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_read(dap_chain_t *a_cha
 
     dap_chain_type_dag_event_item_t *l_event_item = NULL;
     unsigned hashval = 0;
-    static dap_time_t l_last_ts = 0;
     HASH_VALUE(a_atom_hash, sizeof(*a_atom_hash), hashval);
     HASH_FIND_BYHASHVALUE(hh, PVT(l_dag)->events_prefetched, a_atom_hash, sizeof(*a_atom_hash), hashval, l_event_item);
     if (!l_event_item) {
@@ -562,19 +561,16 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_read(dap_chain_t *a_cha
             .ts_created = l_event->header.ts_created
         };
         HASH_ADD_BYHASHVALUE(hh, PVT(l_dag)->events_prefetched, hash, sizeof(*a_atom_hash), hashval, l_event_item);
-        if ( l_last_ts > l_event_item->ts_created )
-            PVT(l_dag)->need_reorder = true;
-        l_last_ts = l_event_item->ts_created;
     }
     return ATOM_ACCEPT;
 }
 
 static unsigned s_chain_callback_prefetched_atoms_add(dap_chain_t *a_chain) {
     dap_chain_type_dag_t *l_dag = DAP_CHAIN_TYPE_DAG(a_chain);
-    if ( PVT(l_dag)->need_reorder ) {
-        HASH_SORT( PVT(l_dag)->events_prefetched, s_sort_event_item );
-        PVT(l_dag)->need_reorder = false;
-    }
+    // Always sort prefetched events by timestamp to ensure token declarations
+    // are processed before emissions that depend on them
+    HASH_SORT( PVT(l_dag)->events_prefetched, s_sort_event_item );
+    PVT(l_dag)->need_reorder = false;
     unsigned i = 0, q = HASH_COUNT(PVT(l_dag)->events_prefetched);
     dap_chain_type_dag_event_item_t *l_event_item, *l_tmp;
     HASH_ITER(hh, PVT(l_dag)->events_prefetched, l_event_item, l_tmp) {

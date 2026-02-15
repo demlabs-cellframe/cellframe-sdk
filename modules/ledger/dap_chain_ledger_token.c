@@ -1000,7 +1000,11 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         l_token->signs_total = 0;
     }
     for (size_t i = 0; i < l_signs_unique; i++) {
-        if (!dap_sign_verify(l_signs[i], l_legacy_type ? a_token : (void *)l_token, l_verify_size)) {
+        int l_verify_result = dap_sign_verify(l_signs[i], l_legacy_type ? a_token : (void *)l_token, l_verify_size);
+        log_it(L_DEBUG, "Token '%s' signature %zu/%zu: verify_result=%d, legacy=%d, verify_size=%zu, hash_type=0x%02x, sign_type=0x%08x",
+               l_token->ticker, i + 1, l_signs_unique, l_verify_result, l_legacy_type, l_verify_size,
+               l_signs[i]->header.hash_type, l_signs[i]->header.type.raw);
+        if (!l_verify_result) {
             if (l_update_token) {
                 for (size_t j = 0; j < l_token_item->auth_signs_total; j++) {
                     if (dap_pkey_compare_with_sign(l_token_item->auth_pkeys[j], l_signs[i])) {

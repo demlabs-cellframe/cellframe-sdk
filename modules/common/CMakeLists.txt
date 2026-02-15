@@ -13,6 +13,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_COMMON_SRCS})
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC .)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../dap-sdk/3rdparty/uthash/src)
 
 # Only depends on DAP SDK for basic types
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_global_db dap_link_manager)

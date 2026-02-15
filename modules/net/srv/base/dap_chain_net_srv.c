@@ -853,7 +853,7 @@ dap_chain_net_srv_price_t *dap_chain_net_srv_get_price_from_order(dap_chain_net_
     dap_hash_fast_t l_order_pkey_hash = {};
     dap_sign_get_pkey_hash((dap_sign_t*)(a_order->ext_n_sign + a_order->ext_size), &l_order_pkey_hash);
     dap_hash_fast_t l_price_pkey_hash = {};
-    dap_cert_get_pkey_hash(a_service->receipt_sign_cert, &l_price_pkey_hash);
+    dap_cert_get_pkey_hash(a_service->receipt_sign_cert, DAP_HASH_TYPE_SHA3_256, (byte_t*)&l_price_pkey_hash, sizeof(dap_hash_fast_t));
     if (!dap_hash_fast_compare(&l_order_pkey_hash, &l_price_pkey_hash)) {
         log_it(L_ERROR, "pkey in order not equal to pkey in config.");
         DAP_DELETE(l_price);

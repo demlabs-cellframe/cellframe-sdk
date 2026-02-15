@@ -26,7 +26,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_math_ops.h"

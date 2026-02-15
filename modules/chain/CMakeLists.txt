@@ -14,6 +14,7 @@ endif()
 target_link_libraries(${PROJECT_NAME} dap_common dap_global_db dap_notify_srv dap_stream dap_chain_cs dap_chain_datum)
 target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../dap-sdk/3rdparty/uthash/src)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_HEADERS}")

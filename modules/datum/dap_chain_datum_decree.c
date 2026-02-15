@@ -22,6 +22,7 @@
 
 #include <memory.h>
 #include <assert.h>
+#include "utlist.h"
 #include "dap_tsd.h"
 #include "dap_sign.h"
 #include "dap_common.h"

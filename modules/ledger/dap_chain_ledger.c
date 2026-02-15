@@ -958,6 +958,12 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
     // Add to global registry for find_by_name lookup
     HASH_ADD_STR(s_ledger_registry, name, l_ledger);
     
+    // Load ledger cache from GDB if caching is enabled
+    // This pre-loads tokens before chain loading begins, ensuring token declarations
+    // are available when processing emissions (fixes ordering issues in DAG chains)
+    if (is_ledger_cached(l_ledger_pvt))
+        dap_ledger_load_cache(l_ledger);
+    
     log_it(L_INFO, "Created ledger '%s' with net_id=%016" DAP_UINT64_FORMAT_X " and %zu chain(s)", 
            l_ledger->name, l_ledger->net_id.uint64, l_ledger->chain_ids_count);
     

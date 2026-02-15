@@ -220,6 +220,9 @@ endif()
 
 # monero_crypto removed - not needed
 
+# Add uthash include path for all modules
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/3rdparty/uthash/src)
+
 add_subdirectory(modules/)
 
 
