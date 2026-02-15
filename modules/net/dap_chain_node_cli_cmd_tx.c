@@ -517,6 +517,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             dap_json_rpc_allocation_error(a_json_arr_reply);
             json_object_put(j_obj_tx);
             json_object_put(j_arr_data);
+            dap_list_free(l_list_out_items);
             return NULL;
         }
         if (!l_src_addr) {
@@ -650,6 +651,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     json_object_put(j_obj_tx);
                     json_object_put(j_arr_data);
+                    dap_list_free(l_list_out_items);
                     return NULL;
                 }                
                 json_object_object_add(j_obj_data, "tx_type", json_object_new_string("recv"));
@@ -703,6 +705,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     dap_json_rpc_allocation_error(a_json_arr_reply);
                     json_object_put(j_obj_tx);
                     json_object_put(j_arr_data);
+                    dap_list_free(l_list_out_items);
                     return NULL;
                 }                
                 json_object_object_add(j_obj_data, "tx_type", json_object_new_string("send"));
@@ -721,6 +724,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         if (l_continue) {
             json_object_put(j_obj_tx);
             json_object_put(j_arr_data);
+            dap_list_free(l_list_out_items);
             goto next_step;
         }            
 
@@ -792,7 +796,7 @@ next_step:
     json_object_object_add(json_obj_summary, "chain", json_object_new_string(a_chain->name));
     json_object_object_add(json_obj_summary, a_version == 1 ? "accepted_tx" : "tx_accept_count", json_object_new_int(l_tx_ledger_accepted));
     json_object_object_add(json_obj_summary, a_version == 1 ? "rejected_tx" : "tx_reject_count", json_object_new_int(l_tx_ledger_rejected));
-    json_object_object_add(json_obj_summary, a_version == 1 ? "tx_sum" : "tx_count", json_object_new_int(l_count));   
+    json_object_object_add(json_obj_summary, a_version == 1 ? "tx_sum" : "tx_count", json_object_new_int(l_count));
     json_object_object_add(json_obj_summary, "total_tx_count", json_object_new_int(i_tmp));
     return json_obj_datum;
 }
