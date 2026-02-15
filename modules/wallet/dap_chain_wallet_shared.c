@@ -1405,7 +1405,8 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
     if (!l_groups_list) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't get groups from GDB bymask %s", s_wallet_shared_gdb_group);
+        dap_store_obj_free(l_values, l_values_count);
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't get groups from GDB by mask %s", s_wallet_shared_gdb_group);
         return ERROR_VALUE;
     }
 
@@ -1430,13 +1431,14 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                         json_object_array_add(l_jobj_owned_tx, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
                 }
                 json_object_object_add(l_jobj_nets_hashes, (char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_jobj_owned_tx);
+                DAP_DELETE(l_hold_hashes_by_name);
             }
         }
         json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_nets_hashes);
         json_object_array_add(*a_json_arr_reply, l_jobj_item);
     }
     dap_store_obj_free(l_values, l_values_count);
-    DAP_DELETE(l_groups_list);
+    dap_list_free_full(l_groups_list, NULL);
     return DAP_NO_ERROR;
 }
 
@@ -1733,7 +1735,6 @@ int dap_chain_wallet_shared_init()
     for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
         dap_global_db_erase_table_sync(l_item->data);
     }
-    
     dap_list_free_full(l_groups_list, NULL);
     s_collect_wallet_pkey_hashes();
     s_collect_cert_pkey_hashes();

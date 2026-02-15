@@ -2044,6 +2044,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             }           
         } break;
         case CMD_WALLET_SHARED:
+            json_object_put(json_arr_out);
             return dap_chain_wallet_shared_cli(a_argc, a_argv, a_str_reply, a_version);
         default: {
             if( !l_wallet_name ) {
