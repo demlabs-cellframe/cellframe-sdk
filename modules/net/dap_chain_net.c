@@ -806,16 +806,17 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     if (!( l_net_name_str ))
         return DAP_DELETE(l_ret), log_it(L_ERROR, "Invalid net name, check [general] \"name\" in netconfig"), NULL;
     dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
-    if (!( l_ret->pub.native_ticker = a_native_ticker ))
-        return DAP_DEL_MULTY(l_ret->pub.name, l_ret),
-               log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg",
-                                l_net_name_str),
-                NULL;
+    if (!( l_ret->pub.native_ticker = a_native_ticker )) {
+        DAP_DELETE(l_ret);
+        log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg",
+                        l_net_name_str);
+        return NULL;
+    }
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
     
     if ( dap_chain_policy_net_add(l_ret->pub.id, a_cfg) ) {
         log_it(L_ERROR, "Can't add net %s to policy module", l_ret->pub.name);
-        DAP_DEL_MULTY(l_ret->pub.name, l_ret);
+        DAP_DELETE(l_ret);
         return NULL;
     }
     
@@ -1856,6 +1857,7 @@ int dap_chain_net_test_init()
     l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
     l_net->pub.native_ticker = "TestCoin";
     PVT(l_net)->node_role.enums = NODE_ROLE_ROOT;
+    PVT(l_net)->state = NET_STATE_OFFLINE;
     HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_net);
     HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
     return 0;
