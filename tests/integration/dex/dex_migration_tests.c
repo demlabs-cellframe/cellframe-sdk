@@ -59,7 +59,7 @@ static int s_xchange_create_order(dex_test_fixture_t *a_f, dap_chain_wallet_t *a
 static int s_apply_xchange_cutoffs(dex_test_fixture_t *a_f, dap_time_t a_legacy_ts, dap_time_t a_migrate_ts)
 {
     dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net);
-    char *l_nums[] = { "16", "17" };
+    char *l_nums[] = { "4", "5" };
     dap_chain_policy_t *l_deactivate = dap_chain_policy_create_deactivate(l_nums, 2);
     dap_chain_policy_t *l_legacy = dap_chain_policy_create_activate(DAP_CHAIN_POLICY_XCHANGE_LEGACY_TX_CUTOFF, a_legacy_ts, 0, (dap_chain_id_t){0}, 0);
     dap_chain_policy_t *l_migrate = dap_chain_policy_create_activate(DAP_CHAIN_POLICY_XCHANGE_MIGRATE_CUTOFF, a_migrate_ts, 0, (dap_chain_id_t){0}, 0);
