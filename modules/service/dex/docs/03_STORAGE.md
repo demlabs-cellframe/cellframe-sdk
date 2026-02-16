@@ -90,16 +90,17 @@ typedef struct dex_seller_index {
 
 ```c
 typedef struct dex_order_cache_entry {
-    dex_order_level_t level;
-    
-    // Pointer-only references (no duplication)
-    const dex_pair_key_t *pair_key_ptr;
-    const dap_chain_addr_t *seller_addr_ptr;
-    
+    dex_order_level_t level;     // unified order state
+    uint256_t value_base;        // last update value for fill_pct calculation
+
+    // Pointer-only references (no duplication in entries)
+    const dex_pair_key_t *pair_key_ptr;      // points to dex_pair_index_t.key
+    const dap_chain_addr_t *seller_addr_ptr; // points to dex_seller_index_t.seller_addr
+
     // Bucket handles
     UT_hash_handle hh_pair_bucket;
     UT_hash_handle hh_seller_bucket;
-    
+
     // Metadata
     dap_time_t ts_created, ts_expires;
     uint32_t flags;
@@ -198,7 +199,8 @@ static void s_dex_cache_upsert(
     dap_chain_hash_fast_t *a_tail,
     dap_chain_tx_out_cond_t *a_cond,
     int a_prev_idx,
-    dap_time_t a_ts_created
+    dap_time_t a_ts_created,
+    const char *a_type_str       // tx type label for debug logging
 );
 ```
 
@@ -258,10 +260,11 @@ The history cache uses a "lite bucket" architecture where buckets store only tim
 
 ```c
 typedef struct dex_hist_pair {
-    dex_pair_key_t key;
-    dex_hist_bucket_t *buckets;          // uthash: ts -> bucket
-    dex_hist_trader_idx_t *seller_idx;   // uthash by hh_seller -> seller trades
-    dex_hist_trader_idx_t *buyer_idx;    // uthash by hh_buyer  -> buyer trades
+    dex_pair_key_t key;                // canonical BASE/QUOTE
+    dex_hist_bucket_t *buckets;        // uthash: ts -> bucket
+    dex_hist_trader_idx_t *seller_idx; // uthash by hh_seller -> seller trades
+    dex_hist_trader_idx_t *buyer_idx;  // uthash by hh_buyer  -> buyer trades
+    dex_hist_order_idx_t *order_idx;   // uthash by order_root -> order trades
     UT_hash_handle hh;
 } dex_hist_pair_t;
 
@@ -284,20 +287,27 @@ Default bucket size: 86400 seconds (1 day) — aligns to calendar day boundaries
 
 ```c
 typedef struct dex_event_rec {
-    dex_event_key_t key;                          // (tx_hash, prev_tail)
-    const dap_hash_fast_t *order_root_ptr;        // pointer to order root hash (in order_idx)
-    const dap_chain_addr_t *seller_addr_ptr;      // pointer to seller addr (in seller_idx)
-    const dap_chain_addr_t *buyer_addr_ptr;       // pointer to buyer addr (in buyer_idx)
-    uint64_t ts;                                  // event timestamp
-    uint256_t price, add_base;                    // canonical QUOTE/BASE price, base delta (quote = price × base)
-    uint8_t flags;                                // DEX_OP_* flags
-    uint8_t side;                                 // DEX_SIDE_ASK or DEX_SIDE_BID
-    struct dex_event_rec *next, *prev;            // utlist DL for seller index
-    struct dex_event_rec *buyer_next, *buyer_prev; // utlist DL for buyer index
-    struct dex_event_rec *order_next, *order_prev; // utlist DL for order index
-    UT_hash_handle hh;                            // uthash in bucket
+    dex_event_key_t key;                     // unique key: (tx_hash, prev_tail)
+    dex_hist_order_idx_t *order_idx;         // pointer to order index (price, root)
+    const dap_chain_addr_t *seller_addr_ptr; // pointer to seller addr (in seller_idx)
+    const dap_chain_addr_t *buyer_addr_ptr;  // pointer to buyer addr (in buyer_idx)
+    union {
+        uint256_t val_b_trade;  // executed base for trade events
+        uint256_t val_b_remain; // order value/remaining for create/update/cancel
+    };
+    struct dex_event_rec *next;        // utlist LL for seller index
+    struct dex_event_rec *buyer_next;  // utlist LL for buyer index
+    struct dex_event_rec *order_next;  // utlist LL for order index
+    uint64_t ts:42;         // event timestamp (seconds, ~139 years range)
+    uint64_t flags:8;       // DEX_OP_* flags
+    uint64_t filled_pct:14; // fill percent x100 at event time (0-10000)
+    UT_hash_handle hh;      // uthash in bucket
 } dex_event_rec_t;
 ```
+
+Side is not stored in the event; it is derived from `order_idx->side`.
+Price is not stored in the event; it is derived from `order_idx->price`.
+All list pointers are singly-linked (LL, no prev).
 
 ### Event Flags
 
@@ -308,51 +318,56 @@ typedef struct dex_event_rec {
 | `DEX_OP_MARKET` | 0x04 | Trade at market (best) price |
 | `DEX_OP_CANCEL` | 0x08 | Order cancellation event |
 | `DEX_OP_UPDATE` | 0x10 | Order parameters update |
+| `DEX_OP_ANY`    | 0xff | Match any event type (filter) |
 
 ### Trader Index (Seller + Buyer)
 
 ```c
 typedef struct dex_hist_trader_idx {
-    dap_chain_addr_t addr;            // shared key for both roles
-    dex_event_rec_t *seller_events;   // utlist DL head (seller role)
-    dex_event_rec_t *buyer_events;    // utlist DL head (buyer role)
-    UT_hash_handle hh_seller;
-    UT_hash_handle hh_buyer;
+    dap_chain_addr_t addr;          // trader address (shared key)
+    dex_event_rec_t *seller_events; // LL head for seller role (via next)
+    dex_event_rec_t *buyer_events;  // LL head for buyer role (via buyer_next)
+    UT_hash_handle hh_seller;       // hash handle for seller_idx
+    UT_hash_handle hh_buyer;        // hash handle for buyer_idx
 } dex_hist_trader_idx_t;
 ```
 
-Maintains per-address event lists for both roles.
+Maintains per-address event lists for both roles. One entry per unique address.
 
 ### Order Index (by order_root)
 
 ```c
 typedef struct dex_hist_order_idx {
-    dap_hash_fast_t order_root;     // order root hash (key)
-    dex_event_rec_t *events;        // DL head for events (via order_next/prev)
+    uint256_t price;            // canonical QUOTE/BASE price (immutable for order)
+    uint256_t val_sell_origin;  // sell value at CREATE (sell token units)
+    uint8_t side;               // DEX_SIDE_ASK or DEX_SIDE_BID
+    dex_event_rec_t *events;      // LL head for trades (oldest); root = events->key.tx_hash
+    dex_event_rec_t *events_tail; // LL tail for trades (newest)
+    dex_event_rec_t *event_last_upd; // pointer to last CREATE/UPDATE event
     UT_hash_handle hh;
 } dex_hist_order_idx_t;
 ```
 
-Enables O(1) lookup of all events for a specific order by its root hash.
+Enables O(1) lookup of all events for a specific order. The order root hash serves as the uthash key within `dex_hist_pair_t.order_idx`.
 
 **Usage:** `srv_dex history -order <hash>` and `srv_dex history -view summary` use this index when `history_cache=true`.
 
 **Structure in `dex_hist_pair_t`:**
 ```c
 typedef struct dex_hist_pair {
-    dex_pair_key_t key;
-    dex_hist_bucket_t *buckets;
-    dex_hist_trader_idx_t *seller_idx;
-    dex_hist_trader_idx_t *buyer_idx;
-    dex_hist_order_idx_t *order_idx;   // uthash by order_root
-    UT_hash_handle hh;
+    dex_pair_key_t key;                // canonical BASE/QUOTE
+    dex_hist_bucket_t *buckets;        // uthash ts -> bucket
+    dex_hist_trader_idx_t *seller_idx; // uthash by hh_seller -> seller trades
+    dex_hist_trader_idx_t *buyer_idx;  // uthash by hh_buyer -> buyer trades
+    dex_hist_order_idx_t *order_idx;   // uthash by order_root -> order trades
+    UT_hash_handle hh;                 // top-level hash by pair
 } dex_hist_pair_t;
 ```
 
 **Index Operations:**
 - Entry is created on demand during history append by order_root
-- Events linked via `order_next`/`order_prev` pointers in `dex_event_rec_t`
-- Entry removed when last event deleted (empty DL head)
+- Events linked via `order_next` pointers in `dex_event_rec_t` (singly-linked)
+- `event_last_upd` tracks last CREATE/UPDATE for fill percentage base
 
 ### OHLCV Computation
 

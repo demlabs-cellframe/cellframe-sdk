@@ -317,6 +317,9 @@ typedef struct dap_chain_net dap_chain_net_t;
 typedef int (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
 typedef bool (*dap_chain_ledger_voting_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx);
 typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action);
+typedef struct json_object *(*dap_ledger_srv_tx_to_json_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                                     dap_hash_fast_t *a_tx_hash, const dap_chain_addr_t *a_addr,
+                                                                     const char *a_hash_out_type);
 
 
 
@@ -426,6 +429,9 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
 
 
 int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback);
+int dap_ledger_service_tx_to_json_set(dap_chain_net_srv_uid_t a_uid, dap_ledger_srv_tx_to_json_callback_t a_callback);
+struct json_object *dap_ledger_service_tx_to_json(dap_chain_net_srv_uid_t a_uid, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                   dap_hash_fast_t *a_tx_hash, const dap_chain_addr_t *a_addr, const char *a_hash_out_type);
 
 dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
 #define dap_ledger_tx_calculate_main_ticker(l, tx, rc) dap_ledger_tx_calculate_main_ticker_(l, tx, rc).s

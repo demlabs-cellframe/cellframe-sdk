@@ -92,6 +92,7 @@ typedef struct dap_ledger_service_info {
     dap_chain_net_srv_uid_t service_uid;    // hash key
     char tag_str[32];   // tag string name
     dap_ledger_tag_check_callback_t callback; //callback for check if a tx for particular service
+    dap_ledger_srv_tx_to_json_callback_t tx_to_json; // service-specific TX-to-JSON formatter
     UT_hash_handle hh;
 } dap_ledger_service_info_t;
 
@@ -631,7 +632,7 @@ int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_led
         return 1;
     }
 
-    l_new_sinfo = DAP_NEW(dap_ledger_service_info_t);
+    l_new_sinfo = DAP_NEW_Z(dap_ledger_service_info_t);
     if (!l_new_sinfo) {
         log_it(L_CRITICAL, "Memory allocation error");
         return -1;
@@ -647,6 +648,31 @@ int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_led
     log_it(L_NOTICE, "Successfully registered service tag %s with uid %02" DAP_UINT64_FORMAT_X, tag_str, a_uid.raw_ui64);
 
     return 0;
+}
+
+int dap_ledger_service_tx_to_json_set(dap_chain_net_srv_uid_t a_uid, dap_ledger_srv_tx_to_json_callback_t a_callback)
+{
+    int l_tmp = a_uid.raw_ui64;
+    dap_ledger_service_info_t *l_sinfo = NULL;
+    pthread_rwlock_rdlock(&s_services_rwlock);
+    HASH_FIND_INT(s_services, &l_tmp, l_sinfo);
+    pthread_rwlock_unlock(&s_services_rwlock);
+    if (!l_sinfo)
+        return -1;
+    l_sinfo->tx_to_json = a_callback;
+    return 0;
+}
+
+struct json_object *dap_ledger_service_tx_to_json(dap_chain_net_srv_uid_t a_uid, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                   dap_hash_fast_t *a_tx_hash, const dap_chain_addr_t *a_addr, const char *a_hash_out_type)
+{
+    int l_tmp = a_uid.raw_ui64;
+    dap_ledger_service_info_t *l_sinfo = NULL;
+    pthread_rwlock_rdlock(&s_services_rwlock);
+    HASH_FIND_INT(s_services, &l_tmp, l_sinfo);
+    dap_ledger_srv_tx_to_json_callback_t l_cb = l_sinfo ? l_sinfo->tx_to_json : NULL;
+    pthread_rwlock_unlock(&s_services_rwlock);
+    return l_cb ? l_cb(a_ledger, a_tx, a_tx_hash, a_addr, a_hash_out_type) : NULL;
 }
 
 /**
@@ -6337,6 +6363,7 @@ dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_ch
     dap_list_t * l_ret = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_iter_current = NULL, *l_item_tmp = NULL;
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     HASH_ITER(hh, l_ledger_pvt->ledger_items, l_iter_current, l_item_tmp) {
         dap_chain_datum_tx_t *l_tx = l_iter_current->tx;
         byte_t *item; size_t l_size;
@@ -6345,6 +6372,7 @@ dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_ch
                 l_ret = dap_list_append(l_ret, l_tx);
         }
     }
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     return l_ret;
 }
 

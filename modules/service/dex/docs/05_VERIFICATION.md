@@ -113,6 +113,7 @@ typedef enum {
     DEXV_PREV_OUT_NOT_FOUND,
     DEXV_EXPIRED,
     DEXV_BASELINE_BUY_TOKEN,
+    DEXV_BASELINE_SELL_TOKEN,
     DEXV_BASELINE_TUPLE,
     DEXV_PAIR_NOT_ALLOWED,
     DEXV_INVALID_FEE_CONFIG,
@@ -174,6 +175,7 @@ typedef enum {
 | Code | Cause |
 |------|-------|
 | `DEXV_BASELINE_BUY_TOKEN` | Missing buy token |
+| `DEXV_BASELINE_SELL_TOKEN` | Missing sell token |
 | `DEXV_BASELINE_TUPLE` | Token/net mismatch across INs |
 | `DEXV_PAIR_NOT_ALLOWED` | Pair not whitelisted |
 

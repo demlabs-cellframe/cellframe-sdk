@@ -84,16 +84,16 @@ Notes:
 typedef struct dex_match_table_entry {
     dex_order_match_t match;      // Order snapshot
     dex_pair_key_t *pair_key;     // Canonical pair
-    dap_chain_addr_t seller_addr;
-    uint8_t side_version;
-    uint32_t flags;
+    dap_chain_addr_t seller_addr; // Inline seller address
     dap_time_t ts_created, ts_expires;
-    
-    uint256_t exec_sell;  // Executed BASE amount
-    uint256_t exec_min;   // Minimum fill amount
-    uint256_t exec_quote; // Exact QUOTE for partial fills
-    
-    UT_hash_handle hh;    // Keyed by match.tail
+
+    uint256_t exec_b_sell; // Executed BASE amount
+    uint256_t exec_b_min;  // Minimum fill amount (BASE)
+    uint256_t exec_q;      // Exact QUOTE amount for partial fills
+
+    UT_hash_handle hh;     // Keyed by match.tail
+    uint32_t flags;        // From cache payload
+    uint8_t side_version;  // From cache payload
 } dex_match_table_entry_t;
 ```
 
@@ -136,7 +136,7 @@ HASH_SORT(l_entries, s_cmp_match_entries_bid);
 
 ### Step 3: Allocate Budget
 
-Iterate sorted entries, compute `exec_sell` for each:
+Iterate sorted entries, compute `exec_b_sell` for each:
 
 ```c
 HASH_ITER(hh, l_entries, l_cur, l_tmp) {
@@ -188,7 +188,7 @@ When budget exceeds order size:
 
 ```c
 if (compare256(a_budget, l_available_base) >= 0) {
-    l_cur->exec_sell = l_available_base;
+    l_cur->exec_b_sell = l_available_base;
     SUBTRACT_256_256(a_budget, l_available_base, &a_budget);
 }
 ```
@@ -199,13 +199,13 @@ When budget is exhausted mid-order:
 
 ```c
 if (l_pct != 100 && !l_order_exhausted) {
-    l_cur->exec_sell = a_budget;
-    
-    // Canonical rounding: exec_quote = exec_sell * rate
-    MULT_256_COIN(l_cur->exec_sell, l_cur->match.rate, &l_cur->exec_quote);
-    DIV_256_COIN(l_cur->exec_quote, l_cur->match.rate, &l_cur->exec_sell);
-    
-    if (l_pct == 0 || compare256(l_cur->exec_sell, l_cur->exec_min) >= 0) {
+    l_cur->exec_b_sell = a_budget;
+
+    // Canonical rounding: exec_q = exec_b_sell * rate
+    MULT_256_COIN(l_cur->exec_b_sell, l_cur->match.rate, &l_cur->exec_q);
+    DIV_256_COIN(l_cur->exec_q, l_cur->match.rate, &l_cur->exec_b_sell);
+
+    if (l_pct == 0 || compare256(l_cur->exec_b_sell, l_cur->exec_b_min) >= 0) {
         a_budget = uint256_0;  // Drained
     }
 }
@@ -222,14 +222,14 @@ uint8_t l_pct = l_cur->match.min_fill & 0x7F;
 
 // Compute min_fill threshold
 if (l_from_origin) {
-    s_dex_fetch_min_abs(a_ledger, &l_root, &l_cur->exec_min);  // % of original
+    s_dex_fetch_min_abs(a_ledger, &l_root, &l_cur->exec_b_min);  // % of original
 } else {
-    l_cur->exec_min = s_calc_pct(l_cur->match.value, l_pct);   // % of current
+    l_cur->exec_b_min = s_calc_pct(l_cur->match.value, l_pct, 18);  // % of current
 }
 
 // For BID, convert to BASE units
 if ((l_cur->side_version & 0x1) == DEX_SIDE_BID)
-    DIV_256_COIN(l_cur->exec_min, l_cur->match.rate, &l_cur->exec_min);
+    DIV_256_COIN(l_cur->exec_b_min, l_cur->match.rate, &l_cur->exec_b_min);
 ```
 
 ### AON (100%) Handling
@@ -298,7 +298,7 @@ Verified at both:
 
 ## Partial Match Detection
 
-After sorting, the last match with `exec_sell < full_value` is the partial:
+After sorting, the last match with `exec_b_sell < full_value` is the partial:
 
 ```c
 HASH_ITER(hh, a_matches, l_cur_match, l_tmp) {
@@ -308,7 +308,7 @@ HASH_ITER(hh, a_matches, l_cur_match, l_tmp) {
     else  // ASK
         l_full_base = l_cur_match->match.value;
 
-    if (compare256(l_full_base, l_cur_match->exec_sell) > 0) {
+    if (compare256(l_full_base, l_cur_match->exec_b_sell) > 0) {
         l_partial_match = l_cur_match;
     }
 }

@@ -638,6 +638,7 @@ srv_dex history \
 - `-fill` uses `history_bucket_sec` when `-bucket` is omitted (fills empty buckets with previous close price)
 - `-order` resolves the provided hash to `order_root` and matches trades by their order chain root
 - If `-pair` is omitted, the pair is resolved from the order hash (cache or ledger)
+- If `-order` points to a DEX order TX still in mempool (not yet committed), `events`/`summary` include a synthetic record with `state/status: "pending"`
 - `-buyer` can be combined with `-order` to filter events by counterparty
 - For `ohlc`/`volume`, aggregation uses trade events only (`MARKET|TARGETED`); OHLC prices use `MARKET` only
 - When `history_cache=false`, results are computed from ledger scan: `market_only=false`, and bucket entries include `first_ts`/`last_ts`

@@ -358,3 +358,4 @@ void dap_chain_net_srv_dex_dump_history_cache();
  */
 int dap_chain_net_srv_dex_cache_adjust_minfill(dap_chain_net_t *a_net, const dap_hash_fast_t *a_order_tail, uint8_t a_new_minfill,
                                                uint8_t *a_out_old_minfill);
+                                               

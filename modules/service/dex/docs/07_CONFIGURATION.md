@@ -130,11 +130,12 @@ All runtime DEX configuration is managed through on-chain decrees. This ensures:
 
 ```c
 typedef enum {
-    DEX_DECREE_FEE_SET = 1,
-    DEX_DECREE_PAIR_ADD = 2,
-    DEX_DECREE_PAIR_REMOVE = 3,
-    DEX_DECREE_PAIR_FEE_SET = 4,
-    DEX_DECREE_PAIR_FEE_SET_ALL = 5
+    DEX_DECREE_UNKNOWN,          // 0 (invalid/unset)
+    DEX_DECREE_FEE_SET,          // 1
+    DEX_DECREE_PAIR_ADD,         // 2
+    DEX_DECREE_PAIR_REMOVE,      // 3
+    DEX_DECREE_PAIR_FEE_SET,     // 4
+    DEX_DECREE_PAIR_FEE_SET_ALL  // 5
 } dex_decree_method_t;
 ```
 
