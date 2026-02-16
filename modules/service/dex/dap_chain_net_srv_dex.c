@@ -551,6 +551,7 @@ static const char *const s_cancel_all_error_str[] = {
 // Per-pair service fee configuration (uses s_dex_cache_rwlock for synchronization)
 static uint256_t s_dex_native_fee_amount;
 static dap_chain_addr_t s_dex_service_fee_addr;
+static _Atomic(uint16_t) s_dex_pct_divisor = 1000; // percent fee divisor: fee = input * value / divisor (default 0.1% step)
 
 /* History cache (OHLCV) switches */
 static bool s_dex_history_enabled = false;                  // enabled via config
@@ -568,6 +569,9 @@ static inline uint256_t s_calc_pct(const uint256_t a, const uint64_t b, const ui
     DIV_256(l_ret, GET_256_FROM_64(l_scale), &l_ret);
     return l_ret;
 }
+
+/** @brief Percent-mode divisor for fee calculation: fee = input * value / divisor */
+static inline uint16_t s_dex_pct_div(void) { return s_dex_pct_divisor; }
 
 /** @brief Calculate native service fee from fee_config (must hold s_dex_cache_rwlock) */
 static inline uint256_t s_dex_get_srv_fee(uint8_t a_fee_config)
@@ -653,8 +657,9 @@ static uint256_t s_dex_calc_dust_threshold(const char *a_sell_ticker, const char
         if (!l_pct)
             return l_fixed_sell;
         uint256_t l_num = uint256_0;
-        MULT_256_256(l_fixed_sell, GET_256_FROM_64(1000), &l_num);
-        DIV_256(l_num, GET_256_FROM_64(1000 - l_pct), &l_fixed_sell);
+        uint16_t l_div = s_dex_pct_div();
+        MULT_256_256(l_fixed_sell, GET_256_FROM_64(l_div), &l_num);
+        DIV_256(l_num, GET_256_FROM_64(l_div - l_pct), &l_fixed_sell);
     }
     return l_fixed_sell;
 }
@@ -773,14 +778,18 @@ static const char *s_dex_op_flags_to_str(uint8_t a_flags)
         return DEX_STR_UNDEF;
 }
 
-/** @brief Extract fee value from fee_config byte as uint256_t. */
+/** @brief Extract fee value from fee_config byte as uint256_t (display/logging). */
 static inline uint256_t s_dex_fee_config_to_val(uint8_t a_fee_config)
 {
     uint8_t l_val = a_fee_config & 0x7F;
-    return (a_fee_config & 0x80)
-               ? GET_256_FROM_64((uint64_t)l_val * 100000000000000000ULL) // Percent: value × 0.1 (in 256-bit: value × 10^17)
-           : l_val ? GET_256_FROM_64((uint64_t)l_val * DAP_DEX_FEE_UNIT_NATIVE)
-                   : s_dex_native_fee_amount; // Native: value × 0.01 or global fallback
+    if (a_fee_config & 0x80) {
+        uint256_t l_result = uint256_0;
+        MULT_256_256(GET_256_FROM_64(l_val), GET_256_FROM_64(DAP_DEX_POW18), &l_result);
+        DIV_256(l_result, GET_256_FROM_64(s_dex_pct_div() / 100), &l_result);
+        return l_result;
+    }
+    return l_val ? GET_256_FROM_64((uint64_t)l_val * DAP_DEX_FEE_UNIT_NATIVE)
+                 : s_dex_native_fee_amount;
 }
 
 // Classify trade: market (at best price or better) or targeted (off-market)
@@ -2247,7 +2256,6 @@ static int s_dex_requirements_build(dap_chain_net_t *a_net, dex_match_table_entr
     a_out_reqs->service_addr = l_service_addr;
 
     if (a_out_reqs->fee_pct_mode) {
-        // % fee from INPUT: ASK→QUOTE, BID→BASE (0.1% step)
         uint8_t l_pct = l_fee_cfg & 0x7F;
         // Check for blank service address (would burn tokens!)
         if (l_pct > 0 && dap_chain_addr_is_blank(&a_out_reqs->service_addr))
@@ -2260,7 +2268,7 @@ static int s_dex_requirements_build(dap_chain_net_t *a_net, dex_match_table_entr
                                                          : a_out_reqs->exec_sell_base;           // BID: buyer spends BASE
             uint256_t l_pct_256 = GET_256_FROM_64(l_pct);
             MULT_256_256(l_pct_256, l_input, &a_out_reqs->fee_srv);
-            DIV_256(a_out_reqs->fee_srv, GET_256_FROM_64(1000), &a_out_reqs->fee_srv); // 0.1% step
+            DIV_256(a_out_reqs->fee_srv, GET_256_FROM_64(s_dex_pct_div()), &a_out_reqs->fee_srv);
         }
     } else {
         // NATIVE fee: per-pair or global fallback (0.01 token step)
@@ -4956,7 +4964,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 SUM_256_256(l_input_amount, l_sellers[j].expected_buy, &l_input_amount);
             uint256_t l_pct_256 = GET_256_FROM_64(l_pct);
             MULT_256_256(l_pct_256, l_input_amount, &l_srv_fee_req);
-            DIV_256(l_srv_fee_req, GET_256_FROM_64(1000), &l_srv_fee_req); // 0.1% step
+            DIV_256(l_srv_fee_req, GET_256_FROM_64(s_dex_pct_div()), &l_srv_fee_req);
             l_srv_used = true;
         }
     }
@@ -5405,7 +5413,6 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             uint256_t l_srv_fee_req_canon = uint256_0;
             bool l_fee_pct_mode_canon = (l_fee_cfg & 0x80) != 0;
             if (l_fee_pct_mode_canon) {
-                // % fee from INPUT: ASK→QUOTE, BID→BASE (0.1% step)
                 uint8_t l_pct = l_fee_cfg & 0x7F;
                 if (l_pct > 0 && l_pct <= 127) {
                     // INPUT = sum of canonical expected_buy (what buyer spends)
@@ -5417,7 +5424,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
 
                     uint256_t l_pct_256 = GET_256_FROM_64(l_pct);
                     MULT_256_256(l_pct_256, l_input_amount_canon, &l_srv_fee_req_canon);
-                    DIV_256(l_srv_fee_req_canon, GET_256_FROM_64(1000), &l_srv_fee_req_canon); // 0.1% step
+                    DIV_256(l_srv_fee_req_canon, GET_256_FROM_64(s_dex_pct_div()), &l_srv_fee_req_canon);
                 }
             } else {
                 // Native absolute fee: per-pair multiplier or global fallback
@@ -5750,6 +5757,7 @@ dex_verif_ret_err:
 #define DEX_DECREE_TSD_NET_BASE 0x0003
 #define DEX_DECREE_TSD_NET_QUOTE 0x0004
 #define DEX_DECREE_TSD_FEE_CONFIG 0x0005
+#define DEX_DECREE_TSD_PCT_DIVISOR 0x0006 // uint16_t: percent fee divisor (default 1000)
 #define DEX_DECREE_TSD_FEE_AMOUNT 0x0020
 #define DEX_DECREE_TSD_FEE_ADDR 0x0021
 
@@ -5760,7 +5768,8 @@ typedef enum {
     DEX_DECREE_PAIR_ADD,
     DEX_DECREE_PAIR_REMOVE,
     DEX_DECREE_PAIR_FEE_SET,
-    DEX_DECREE_PAIR_FEE_SET_ALL
+    DEX_DECREE_PAIR_FEE_SET_ALL,
+    DEX_DECREE_PCT_DIVISOR_SET
 } dex_decree_method_t;
 
 int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size)
@@ -5769,7 +5778,7 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
 
     // Collect all TSD sections in one pass (including method)
     dap_tsd_t *l_tsd_method = NULL, *l_tsd_token_base = NULL, *l_tsd_token_quote = NULL, *l_tsd_net_base = NULL, *l_tsd_net_quote = NULL,
-              *l_tsd_fee_config = NULL, *l_tsd_fee_amount = NULL, *l_tsd_fee_addr = NULL, *l_tsd = NULL;
+              *l_tsd_fee_config = NULL, *l_tsd_fee_amount = NULL, *l_tsd_fee_addr = NULL, *l_tsd_pct_divisor = NULL, *l_tsd = NULL;
     size_t l_tsd_size = 0;
     dap_tsd_iter(l_tsd, l_tsd_size, a_params, a_params_size)
     {
@@ -5797,6 +5806,9 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
             break;
         case DEX_DECREE_TSD_FEE_ADDR:
             l_tsd_fee_addr = l_tsd;
+            break;
+        case DEX_DECREE_TSD_PCT_DIVISOR:
+            l_tsd_pct_divisor = l_tsd;
             break;
         }
     }
@@ -5841,6 +5853,19 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
         }
         return l_ret;
     } break;
+
+    case DEX_DECREE_PCT_DIVISOR_SET: {
+        dap_ret_val_if_any(-1, !l_tsd_pct_divisor, l_tsd_fee_config, l_tsd_fee_amount, l_tsd_fee_addr,
+                           l_tsd_token_base, l_tsd_token_quote, l_tsd_net_base, l_tsd_net_quote);
+        uint16_t l_new_div = dap_tsd_get_scalar(l_tsd_pct_divisor, uint16_t);
+        if (l_new_div < 200 || l_new_div % 100 != 0)
+            return log_it_f(L_ERROR, "Invalid pct_divisor %u (must be >= 200, multiple of 100)", l_new_div), -2;
+        if (a_apply) {
+            s_dex_pct_divisor = l_new_div;
+            log_it_f(L_NOTICE, "Percent fee divisor set to %u (step %.4f%%)", l_new_div, 100.0 / l_new_div);
+        }
+        return 0;
+    }
 
     case DEX_DECREE_PAIR_ADD:
     case DEX_DECREE_PAIR_REMOVE:
@@ -8098,19 +8123,23 @@ static int s_parse_fee_config_cli(int a_argc, char **a_argv, int a_arg_idx, uint
         return -1;
     }
     if (l_pct_str) {
-        // Parse percent (0 .. 12.7%, step 0.1%): "2.0" → 2×10^18 → /10^17 → 20
         uint256_t l_pct = dap_chain_balance_scan(l_pct_str);
         if (IS_ZERO_256(l_pct)) {
             *a_err_msg = "invalid -fee_pct value; expected decimal like '2.0' for 2%";
             return -1;
         }
+        uint64_t l_step = DAP_DEX_POW18 / (s_dex_pct_div() / 100);
         uint256_t l_mult = uint256_0;
-        DIV_256(l_pct, GET_256_FROM_64(100000000000000000ULL), &l_mult); // /10^17 → "2.0" → 20
-        if (compare256(l_mult, GET_256_FROM_64(127ULL)) > 0) {
-            *a_err_msg = "-fee_pct must be [0 .. 12.7] (step 0.1)";
+        DIV_256(l_pct, GET_256_FROM_64(l_step), &l_mult);
+        if (IS_ZERO_256(l_mult)) {
+            *a_err_msg = "-fee_pct is below minimum step for current divisor";
             return -1;
         }
-        *a_out_cfg = 0x80 | (uint8_t)dap_chain_uint256_to(l_mult); // bit7=1 → QUOTE mode
+        if (compare256(l_mult, GET_256_FROM_64(127ULL)) > 0) {
+            *a_err_msg = "-fee_pct out of range for current divisor (max 127 steps)";
+            return -1;
+        }
+        *a_out_cfg = 0x80 | (uint8_t)dap_chain_uint256_to(l_mult);
         return 1;
     }
     if (l_native_str) {
@@ -10941,8 +10970,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             json_object_object_add(l_fee_obj, "config", json_object_new_int((int)l_fc));
             json_object_object_add(l_fee_obj, "value", json_object_new_string(dap_uint256_to_char_ex(l_fee_val).frac));
             if (l_fc & 0x80) {
-                // Percent mode: value × 0.1% of INPUT
                 json_object_object_add(l_fee_obj, "type", json_object_new_string(l_val ? "input_pct" : "disabled"));
+                json_object_object_add(l_fee_obj, "pct_divisor", json_object_new_int(s_dex_pct_div()));
             } else {
                 // Native mode: value × 0.01 native or global fallback
                 json_object_object_add(l_fee_obj, "type", json_object_new_string("native"));
@@ -10996,6 +11025,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             l_method = DEX_DECREE_PAIR_FEE_SET;
         else if (!dap_strcmp(l_method_str, "pair_fee_set_all"))
             l_method = DEX_DECREE_PAIR_FEE_SET_ALL;
+        else if (!dap_strcmp(l_method_str, "pct_divisor_set"))
+            l_method = DEX_DECREE_PCT_DIVISOR_SET;
         if (l_method == DEX_DECREE_UNKNOWN)
             return dap_json_rpc_error_add(*json_arr_reply, -2, "unknown method '%s'", l_method_str), -2;
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
@@ -11114,6 +11145,17 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             }
             if (l_parsed > 0)
                 l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_FEE_CONFIG, &l_fee_config, sizeof(uint8_t));
+        } break;
+
+        case DEX_DECREE_PCT_DIVISOR_SET: {
+            const char *l_div_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-pct_divisor", &l_div_str);
+            if (!l_div_str)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "pct_divisor_set requires -pct_divisor"), -2;
+            uint16_t l_new_div = (uint16_t)strtoul(l_div_str, NULL, 10);
+            if (l_new_div < 200 || l_new_div % 100 != 0)
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "-pct_divisor must be >= 200 and a multiple of 100"), -2;
+            l_ptr = dap_tsd_write(l_ptr, DEX_DECREE_TSD_PCT_DIVISOR, &l_new_div, sizeof(uint16_t));
         } break;
 
         default:
