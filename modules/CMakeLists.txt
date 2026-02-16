@@ -89,6 +89,11 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
     add_subdirectory(service/xchange)
 endif()
 
+# Service DEX v2
+if (CELLFRAME_MODULES MATCHES "srv-dex")
+    add_subdirectory(service/dex)
+endif()
+
 # Service for token staking and PoS delegation
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     add_subdirectory(service/stake)

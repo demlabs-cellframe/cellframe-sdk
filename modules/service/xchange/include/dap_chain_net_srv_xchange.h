@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include "dap_chain_datum_tx.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_datum_tx_out_cond.h"
@@ -151,7 +152,7 @@ typedef enum dap_chain_net_srv_xchange_create_error_list{
 dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
                                      const char *a_token_sell, uint256_t a_datoshi_sell,
                                      uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-                                     char **a_out_tx_hash);
+                                     char **a_out_tx_hash, dap_chain_datum_tx_t **a_out_datum);
 
 typedef enum dap_chain_net_srv_xchange_remove_error_list{
     XCHANGE_REMOVE_ERROR_OK = 0,

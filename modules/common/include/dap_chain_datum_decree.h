@@ -188,6 +188,10 @@ DAP_STATIC_INLINE uint16_t dap_chain_datum_decree_type_from_str(const char *a_de
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE;
     } else if (!dap_strcmp(a_decree_type, "blockgen")) {
         return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN;
+    } else if (!dap_strcmp(a_decree_type, "event_pkey_add")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD;
+    } else if (!dap_strcmp(a_decree_type, "event_pkey_remove")) {
+        return DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE;
     } else {
         return 0;
     }
