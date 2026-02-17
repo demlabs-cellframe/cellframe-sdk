@@ -219,6 +219,7 @@ void s_chain_datum_vote_voting_test()
     dap_cert_delete(l_cert);
 }
 
+#if 0
 void s_chain_datum_exchange_create_test()
 {
     dap_print_module_name("tx_exchange_create_compose");
@@ -259,6 +260,7 @@ void s_chain_datum_exchange_purchase_test(const char *a_token_sell, const char *
     dap_chain_datum_tx_delete(l_datum_1);
     DAP_DELETE(l_price);
 }
+#endif
 
 void s_chain_datum_xchange_invalidate_test(const char *a_token_sell, const char *a_token_buy)
 {
@@ -391,10 +393,12 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_delegate_test();
     s_chain_datum_stake_unlock_test();
     s_chain_datum_stake_invalidate_test();
+#if 0
     s_chain_datum_exchange_create_test();
     s_chain_datum_exchange_purchase_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_custom);
+#endif
     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);

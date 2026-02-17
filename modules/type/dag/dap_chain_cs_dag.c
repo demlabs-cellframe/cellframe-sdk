@@ -751,10 +751,10 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
     l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_hex_str, l_event, l_event_size, &l_round_item);
     DAP_DELETE(l_event);
-    log_it(l_res ? L_INFO : L_ERROR,
-           l_res ? "Event %s placed into new forming round"
-                 : "Can't add new event %s to new events round",
-           l_event_hash_hex_str);
+    if (l_res)
+        log_it(L_INFO, "Event %s placed into new forming round", l_event_hash_hex_str);
+    else
+        log_it(L_ERROR, "Can't add new event %s to new events round", l_event_hash_hex_str);
     return l_res;
 }
 

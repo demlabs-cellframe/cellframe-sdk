@@ -205,8 +205,8 @@ test_emission_fixture_t *test_emission_fixture_create_with_cert(
         return NULL;
     }
     
-    // Store certificate reference (not owned, don't free)
-    l_fixture->cert = a_cert;
+    // Store certificate reference (not owned by fixture, don't free in destroy)
+    l_fixture->cert = NULL;  // Do NOT store external cert reference to avoid double-free
     
     // Calculate size and hash
     l_fixture->emission_size = dap_chain_datum_emission_get_size((byte_t*)l_fixture->emission);

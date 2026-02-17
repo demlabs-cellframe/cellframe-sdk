@@ -2081,6 +2081,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             }           
         } break;
         case CMD_WALLET_SHARED:
+            json_object_put(json_arr_out);
             return dap_chain_wallet_shared_cli(a_argc, a_argv, a_str_reply, a_version);
         default: {
             if( !l_wallet_name ) {
@@ -3846,7 +3847,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         if (l_store_obj && l_store_obj->value) {
             l_hole = DAP_FLAG_CHECK(l_store_obj->flags, DAP_GLOBAL_DB_RECORD_DEL);
             if (l_hole) {
-                l_ret_code = strtol((const char *)l_store_obj->value, NULL, 10);
+                l_ret_code = strtol((const char*)l_store_obj->value, NULL, 10);
             } else {
                 l_datum = DAP_DUP_SIZE(l_store_obj->value, l_store_obj->value_len);
             }
@@ -6379,7 +6380,8 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int
     json_object* json_obj_out = json_object_new_object();
     json_object_object_add(json_obj_out, "result", json_object_new_string(l_str_reply_tmp));
     json_object_array_add(*a_json_arr_reply, json_obj_out);
-    return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
+    DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr);
+    return 0;
 }
 
 
@@ -8561,6 +8563,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_
             dap_json_rpc_error_add(*a_json_arr_reply, l_ret,
                                    "Can't create transaction from json file");
         json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+        json_object_put(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS;
     }
     json_object_put(l_jobj_arr_errors);
@@ -8580,6 +8583,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_
     if(!l_placed) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL,
                                "Can't add transaction to mempool");
+        json_object_put(l_json);
         return DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL;
     }
     // Completed successfully
@@ -8590,6 +8594,7 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_
     json_object_object_add(l_jobj_ret, "hash", l_jobj_hash);
     json_object_object_add(l_jobj_ret, "total_items", l_jobj_total_items);
     json_object_array_add(*a_json_arr_reply, l_jobj_ret);
+    json_object_put(l_json);
     return DAP_CHAIN_NET_TX_CREATE_JSON_OK;
 }
 
@@ -9079,12 +9084,14 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int 
         l_hex_str_from58 = dap_enc_base58_to_hex_str_from_str(l_tx_hash_str);
         if (dap_chain_hash_fast_from_hex_str(l_hex_str_from58, &l_tx_hash)) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_INVALID_TX_HASH, "Invalid tx hash format, need hex or base58");
+            DAP_DEL_Z(l_hex_str_from58);
             return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_INVALID_TX_HASH;
         }
     }
     size_t l_datum_size = 0;
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(l_gdb_group, l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_datum_size, NULL, NULL);
+    DAP_DELETE(l_gdb_group);
     DAP_DEL_Z(l_hex_str_from58);
     if (!l_datum) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_SPECIFIED_TX_NOT_FOUND, "Specified tx not found");
@@ -9095,6 +9102,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int 
                                             dap_chain_datum_type_id_to_str(l_datum->header.type_id));
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH, l_str_err);
         DAP_DELETE(l_str_err);
+        DAP_DELETE(l_datum);
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH;
     }
     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
@@ -9114,6 +9122,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int 
         json_object_object_add(l_obj_ret, "verify", l_jobj_verfiy);
         json_object_object_add(l_obj_ret, "error", l_jobj_error);
         json_object_array_add(*a_json_arr_reply, l_obj_ret);
+        DAP_DELETE(l_datum);
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_TX_NOT_VERIFY;
     } else {
         l_jobj_verfiy = json_object_new_boolean(true);
@@ -9121,6 +9130,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int 
         json_object_object_add(l_obj_ret, "verify", l_jobj_verfiy);
         json_object_object_add(l_obj_ret, "error", l_jobj_error);
         json_object_array_add(*a_json_arr_reply, l_obj_ret);
+        DAP_DELETE(l_datum);
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_OK;
     }
 }

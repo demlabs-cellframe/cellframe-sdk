@@ -135,6 +135,7 @@ typedef struct dap_ledger_datum_iter_data {
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint32_t action;
     dap_chain_net_srv_uid_t uid;
+    dap_hash_fast_t atom_hash;
 } dap_ledger_datum_iter_data_t;
 
 //Change this UUID to automatically reload ledger cache on next node startup
@@ -257,6 +258,9 @@ typedef struct dap_chain_net dap_chain_net_t;
 typedef int (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_apply);
 typedef bool (*dap_chain_ledger_voting_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx);
 typedef bool (*dap_ledger_tag_check_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action);
+typedef struct json_object *(*dap_ledger_srv_tx_to_json_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                                     dap_hash_fast_t *a_tx_hash, const dap_chain_addr_t *a_addr,
+                                                                     const char *a_hash_out_type);
 
 
 
@@ -366,6 +370,9 @@ bool dap_ledger_tx_service_info(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_ha
 
 
 int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_ledger_tag_check_callback_t a_callback);
+int dap_ledger_service_tx_to_json_set(dap_chain_net_srv_uid_t a_uid, dap_ledger_srv_tx_to_json_callback_t a_callback);
+struct json_object *dap_ledger_service_tx_to_json(dap_chain_net_srv_uid_t a_uid, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                   dap_hash_fast_t *a_tx_hash, const dap_chain_addr_t *a_addr, const char *a_hash_out_type);
 
 dap_chain_token_ticker_str_t dap_ledger_tx_calculate_main_ticker_(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc);
 #define dap_ledger_tx_calculate_main_ticker(l, tx, rc) dap_ledger_tx_calculate_main_ticker_(l, tx, rc).s
@@ -386,6 +393,7 @@ uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_nanotime_t a_ts_f
  */
 bool dap_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out, dap_hash_fast_t *a_out_spender);
 
+bool dap_ledger_tx_is_used_out_item(dap_ledger_t *a_ledger, dap_ledger_datum_iter_t *a_iter, int a_idx_out, dap_hash_fast_t *a_out_spender);
 /**
  * Retun true if reward was collected before
  */
@@ -417,6 +425,9 @@ dap_chain_datum_tx_t *dap_ledger_tx_find_datum_by_hash( dap_ledger_t *a_ledger, 
     
 dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash, bool a_unspent_only);
 dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_subtype_t a_cond_type);
+dap_hash_fast_t dap_ledger_get_first_chain_tx_hash_ex(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                      dap_chain_tx_out_cond_subtype_t a_cond_type,
+                                                      dap_chain_tx_out_cond_t **a_out_cond);
 
  // Get the transaction in the cache by the addr in out item
 dap_chain_datum_tx_t* dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const char *a_token,

@@ -686,7 +686,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 break;
             int l_ret = dap_ledger_event_pkey_add(a_net->pub.ledger, &l_pkey_hash);
             if (l_ret != 0) {
-                log_it(l_ret == -2 ? L_INFO : L_ERROR, "Error adding event pkey to ledger: %d", l_ret);
+                log_it(L_INFO, "Error adding event pkey to ledger: %d", l_ret);
                 return -118;
             }
         } break;
@@ -711,7 +711,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 break;
             int l_ret = dap_ledger_event_pkey_rm(a_net->pub.ledger, &l_pkey_hash);
             if (l_ret != 0) {
-                log_it(l_ret == -2 ? L_INFO : L_ERROR, "Error removing event pkey from ledger: %d", l_ret);
+                log_it(L_ERROR, "Error removing event pkey from ledger: %d", l_ret);
                 return -118;
             }
         } break;

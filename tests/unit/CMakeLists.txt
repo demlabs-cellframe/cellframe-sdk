@@ -25,4 +25,4 @@ set_tests_properties(utxo_blocking_unit PROPERTIES
     LABELS "unit;utxo;blocking"
 )
 
-message(STATUS "Unit tests configured: utxo_blocking_unit_test")
+message(STATUS "Unit tests configured: utxo_blocking_unit_test, dex_basic_unit_test")
