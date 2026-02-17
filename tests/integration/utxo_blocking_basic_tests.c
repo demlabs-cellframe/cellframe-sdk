@@ -535,7 +535,7 @@ void utxo_blocking_test_utxo_clear_operation(void)
     
     size_t l_sign_size = dap_sign_get_size(l_sign);
     dap_chain_datum_token_t *l_clear_datum = DAP_REALLOC(l_clear_datum_unsigned, l_clear_datum_size + l_sign_size);
-    memcpy(((byte_t*)l_clear_datum) + l_clear_datum_size, l_sign, l_sign_size);
+    memmove(((byte_t*)l_clear_datum) + l_clear_datum_size, l_sign, l_sign_size);
     l_clear_datum->signs_total = 1;
     l_clear_datum_size += l_sign_size;
     DAP_DELETE(l_sign);
@@ -632,7 +632,7 @@ void utxo_blocking_test_irreversible_flags(void)
     
     size_t l_sign2_size = dap_sign_get_size(l_sign2);
     dap_chain_datum_token_t *l_update2 = DAP_REALLOC(l_update2_unsigned, l_update2_size + l_sign2_size);
-    memcpy(((byte_t*)l_update2) + l_update2_size, l_sign2, l_sign2_size);
+    memmove(((byte_t*)l_update2) + l_update2_size, l_sign2, l_sign2_size);
     l_update2->signs_total = 1;
     l_update2_size += l_sign2_size;
     DAP_DELETE(l_sign2);
@@ -688,7 +688,7 @@ void utxo_blocking_test_irreversible_flags(void)
     
     size_t l_sign3a_size = dap_sign_get_size(l_sign3a);
     dap_chain_datum_token_t *l_update3a = DAP_REALLOC(l_update3a_unsigned, l_update3a_size + l_sign3a_size);
-    memcpy(((byte_t*)l_update3a) + l_update3a_size, l_sign3a, l_sign3a_size);
+    memmove(((byte_t*)l_update3a) + l_update3a_size, l_sign3a, l_sign3a_size);
     l_update3a->signs_total = 1;
     l_update3a_size += l_sign3a_size;
     DAP_DELETE(l_sign3a);
@@ -748,7 +748,7 @@ void utxo_blocking_test_irreversible_flags(void)
     
     size_t l_sign3b_size = dap_sign_get_size(l_sign3b);
     dap_chain_datum_token_t *l_update3b = DAP_REALLOC(l_update3b_unsigned, l_update3b_size + l_sign3b_size);
-    memcpy(((byte_t*)l_update3b) + l_update3b_size, l_sign3b, l_sign3b_size);
+    memmove(((byte_t*)l_update3b) + l_update3b_size, l_sign3b, l_sign3b_size);
     l_update3b->signs_total = 1;
     l_update3b_size += l_sign3b_size;
     DAP_DELETE(l_sign3b);
@@ -758,9 +758,11 @@ void utxo_blocking_test_irreversible_flags(void)
                "Update 3b: CRITICAL - Unsetting BIT 2 while keeping BIT 4 should FAIL (bitwise check)");
     log_it(L_INFO, "✓ Update 3b: CRITICAL test passed - bitwise check correctly rejected unsetting BIT 2");
     
-    // Step 4: Set BIT 4 while keeping BIT 2 (should SUCCEED)
+    // Step 4: Add BIT 3 while keeping existing BIT 2 and BIT 4 (should SUCCEED)
+    // Verifies that after rejected Update 3b, the system still accepts valid updates adding new flags
     uint32_t l_flags4 = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED | 
-                        DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING; // BIT 4 | BIT 2
+                        DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING |
+                        DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING; // BIT 4 | BIT 2 | BIT 3
     dap_tsd_t *l_tsd4 = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS, &l_flags4, sizeof(uint32_t));
     
     dap_chain_datum_token_t *l_update4_base = DAP_NEW_Z(dap_chain_datum_token_t);
@@ -785,14 +787,14 @@ void utxo_blocking_test_irreversible_flags(void)
     
     size_t l_sign4_size = dap_sign_get_size(l_sign4);
     dap_chain_datum_token_t *l_update4 = DAP_REALLOC(l_update4_unsigned, l_update4_size + l_sign4_size);
-    memcpy(((byte_t*)l_update4) + l_update4_size, l_sign4, l_sign4_size);
+    memmove(((byte_t*)l_update4) + l_update4_size, l_sign4, l_sign4_size);
     l_update4->signs_total = 1;
     l_update4_size += l_sign4_size;
     DAP_DELETE(l_sign4);
     
     int l_res4 = dap_ledger_token_add(l_ledger, (byte_t*)l_update4, l_update4_size, dap_time_now());
-    dap_assert(l_res4 == 0, "Update 4: Setting BIT 4 while keeping BIT 2 succeeded");
-    log_it(L_INFO, "✓ Update 4: Setting BIT 4 while keeping BIT 2 correctly allowed");
+    dap_assert(l_res4 == 0, "Update 4: Adding BIT 3 while keeping BIT 2 and BIT 4 succeeded");
+    log_it(L_INFO, "✓ Update 4: Adding BIT 3 while keeping existing irreversible flags correctly allowed");
     
     // Cleanup
     // l_update1 was created by helper function, just delete it

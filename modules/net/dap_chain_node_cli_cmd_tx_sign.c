@@ -481,10 +481,10 @@ int com_tx_sign(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_
         return -15;
     }
 
-    // Calculate new hash
+    // Calculate new hash (must match dap_chain_datum_calc_hash for mempool processing)
     size_t l_new_datum_size = dap_chain_datum_size(l_new_datum);
     dap_chain_hash_fast_t l_new_hash;
-    dap_hash_fast(l_new_datum->data, l_new_datum_size, &l_new_hash);
+    dap_chain_datum_calc_hash(l_new_datum, &l_new_hash);
     char *l_new_hash_str = dap_chain_hash_fast_to_str_new(&l_new_hash);
     const char *l_new_hash_base58 = dap_enc_base58_encode_hash_to_str_static(&l_new_hash);
     const char *l_new_hash_out_str = dap_strcmp(l_hash_out_type, "hex") ? l_new_hash_base58 : l_new_hash_str;

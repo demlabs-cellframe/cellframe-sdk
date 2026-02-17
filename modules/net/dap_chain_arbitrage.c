@@ -164,7 +164,7 @@ const char *dap_chain_arbitrage_tx_get_token_ticker(dap_ledger_t *a_ledger, dap_
                 l_token = l_out->token;
                 l_out_addr = l_out->addr;
                 // Skip if this is fee output (fee outputs use native ticker and go to fee_addr)
-                if (dap_chain_addr_compare(&l_out_addr, l_fee_addr) == 0) {
+                if (dap_chain_addr_compare(&l_out_addr, l_fee_addr)) {
                     // This might be fee output - skip if native ticker
                     const char *l_native_ticker = a_ledger->net->pub.native_ticker;
                     if (l_native_ticker && l_token && strcmp(l_token, l_native_ticker) == 0) {

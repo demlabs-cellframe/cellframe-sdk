@@ -3604,11 +3604,9 @@ dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_ch
     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
     char* l_ret = NULL;
     if(!(l_ret = s_xchange_tx_put(l_tx, a_net))) {
-        dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_price);
         return XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL;
     }
-    dap_chain_datum_tx_delete(l_tx);
     DAP_DELETE(l_price);
     // To avoid confusion, the term "order" will apply to the original conditional exchange offer transactions.
     *a_out_tx_hash = l_ret;

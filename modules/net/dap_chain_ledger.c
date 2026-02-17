@@ -5248,6 +5248,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     }
     if (!s_check_hal(a_ledger, a_tx_hash))
         assert(!l_err_num);
+    (void)l_err_num;
 
     // add transaction to the cache list
     dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t, sizeof(dap_ledger_tx_item_t) + l_outs_count * sizeof(dap_chain_hash_fast_t));

@@ -87,7 +87,6 @@ static size_t s_node_list_record_ttl = 3600 * 3;
 static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 {
 #ifndef DAP_VERSION
-#pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
 #define DAP_VERSION "0.9-15"
 #endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
@@ -415,6 +414,12 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
     if (!a_chain || !a_datum) {
         return false;
     }
+    // Log for debugging
+    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
+        dap_chain_datum_token_t *l_token_datum = (dap_chain_datum_token_t *)a_datum->data;
+        debug_if(s_debug_more, L_DEBUG, "Checking if token datum '%s' needs processing in chain '%s' (autoproc_count=%u)", 
+               l_token_datum->ticker, a_chain->name, a_chain->autoproc_datum_types_count);
+    }
     for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
         if (a_datum->header.type_id == a_chain->autoproc_datum_types[j])
             return true;
@@ -425,6 +430,13 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
 /* Return true if processed datum should be deleted from mempool */
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str, int * a_ret)
 {
+    // Log emission processing (type_id=61696=0xf100)
+    if (a_datum && a_datum->header.type_id == 0xf100) {
+        debug_if(s_debug_more,L_INFO, "Processing EMISSION datum, hash=%s", a_datum_hash_str);
+    }
+    debug_if(s_debug_more, L_DEBUG, "dap_chain_node_mempool_process: datum type_id=%u, hash=%s", 
+           a_datum ? a_datum->header.type_id : 0, a_datum_hash_str ? a_datum_hash_str : "NULL");
+    
     if (!a_chain->callback_add_datums) {
         log_it(L_ERROR, "Not found chain callback for datums processing");
         return false;

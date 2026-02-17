@@ -31,9 +31,7 @@
 #include "dap_chain_net_srv_voting.h"
 #include "dap_chain_net_tx.h"
 #include "dap_net.h"
-#include "dap_app_cli.h"
 #include "dap_json_rpc.h"
-#include "dap_app_cli_net.h"
 #include "dap_cli_server.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_order.h"
@@ -5899,8 +5897,10 @@ json_object *dap_chain_tx_compose_wallet_shared_take(dap_chain_net_id_t a_net_id
     if (IS_ZERO_256(l_fee)) {
         s_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_INVALID_FEE, "Format -fee <256 bit integer> and not equal zero");
         log_it(L_ERROR, "Format -fee <256 bit integer> and not equal zero");
+        json_object *l_response = l_config->response_handler;
+        l_config->response_handler = NULL;
         s_compose_config_deinit(l_config);
-        return l_config->response_handler;
+        return l_response;
     }
 
     l_addr_el_count = dap_chain_addr_from_str_array(a_to_addr_str, &l_to_addr);

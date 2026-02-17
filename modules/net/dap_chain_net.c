@@ -2409,7 +2409,7 @@ int dap_chain_net_add_auth_nodes_to_cluster(dap_chain_net_t *a_net, dap_global_d
         // Re-register all members to ensure they are in links_cluster
         // This is safe because callback was already set when g_node_addr was added
         dap_cluster_members_register(a_cluster->role_cluster);
-        log_it(L_DEBUG, "Re-registered %u members to cluster %s for proper links_cluster sync",
+        log_it(L_DEBUG, "Re-registered %zu members to cluster %s for proper links_cluster sync",
                dap_cluster_members_count(a_cluster->role_cluster),
                a_cluster->groups_mask ? a_cluster->groups_mask : "unnamed");
     }

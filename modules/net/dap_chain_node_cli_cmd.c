@@ -1532,7 +1532,6 @@ int com_version(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_ver
     (void) argc;
     (void) argv;
 #ifndef DAP_VERSION
-#pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
 #define DAP_VERSION "0.9-15"
 #endif
     json_object* json_obj_out = json_object_new_object();
@@ -5380,7 +5379,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                         }
                         
                         for (size_t i = 0; i < l_certs_count; i++) {
-                            if (!l_certs[i] || !l_certs[i]->name) continue;
+                            if (!l_certs[i]) continue;
                             
                             const char *l_signing_base_name = l_certs[i]->name;
                             if (dap_strncmp(l_certs[i]->name, "pvt.", 4) == 0) {
