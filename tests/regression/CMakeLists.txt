@@ -3,13 +3,13 @@
 # Arbitrage Bugs Regression Test
 add_executable(test_bug_arbitrage
     test_bug_arbitrage.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking_test_helpers.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
 )
 
 target_include_directories(test_bug_arbitrage PRIVATE 
     ${CELLFRAME_TEST_INCLUDES}
     ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
-    ${CMAKE_CURRENT_SOURCE_DIR}/../integration
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
 )
 
 target_link_libraries(test_bug_arbitrage
@@ -38,13 +38,13 @@ set_tests_properties(regression_19886 PROPERTIES
 # Bug #20138 Regression Test
 add_executable(test_bug_20138
     test_bug_20138.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking_test_helpers.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
 )
 
 target_include_directories(test_bug_20138 PRIVATE 
     ${CELLFRAME_TEST_INCLUDES}
     ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
-    ${CMAKE_CURRENT_SOURCE_DIR}/../integration
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
 )
 
 target_link_libraries(test_bug_20138
@@ -71,13 +71,13 @@ set_tests_properties(regression_bug_20138 PROPERTIES
 # Bug #20273 Regression Test
 add_executable(test_bug_20273
     test_bug_20273.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking_test_helpers.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
 )
 
 target_include_directories(test_bug_20273 PRIVATE 
     ${CELLFRAME_TEST_INCLUDES}
     ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
-    ${CMAKE_CURRENT_SOURCE_DIR}/../integration
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
 )
 
 target_link_libraries(test_bug_20273
