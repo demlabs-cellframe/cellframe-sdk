@@ -408,7 +408,7 @@ static int s_collect_cert_pkey_hashes()
             continue;
         }
         dap_hash_fast_t l_pkey_hash;
-        if (dap_cert_get_pkey_hash(l_cert, DAP_HASH_TYPE_SHA3_256, (byte_t*)&l_pkey_hash, sizeof(dap_hash_fast_t))) {
+        if (dap_cert_get_pkey_hash(l_cert, DAP_HASH_TYPE_SHA3_256, (byte_t *)&l_pkey_hash, sizeof(dap_hash_fast_t))) {
             log_it(L_WARNING, "Failed to get public key hash from certificate '%s'", l_cert->name);
             continue;
         }
@@ -558,7 +558,7 @@ static bool s_is_key_present(dap_chain_tx_out_cond_t *a_cond, dap_enc_key_t *a_e
     if (!a_cond->tsd_size || !a_enc_key->pub_key_data_size)
         return false;
     dap_hash_fast_t l_pub_key_hash;
-    if (dap_enc_key_get_pkey_hash(a_enc_key, DAP_HASH_TYPE_SHA3_256, (byte_t*)&l_pub_key_hash, sizeof(dap_hash_fast_t)))
+    if (dap_enc_key_get_pkey_hash(a_enc_key, DAP_HASH_TYPE_SHA3_256, (byte_t *)&l_pub_key_hash, sizeof(dap_hash_fast_t)))
         return false;
     dap_tsd_t *l_tsd; size_t l_tsd_size;
     dap_tsd_iter(l_tsd, l_tsd_size, a_cond->tsd, a_cond->tsd_size)
@@ -1416,7 +1416,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, dap_json_t *a_
             return ERROR_VALUE;
         }
         
-        if (dap_enc_key_get_pkey_hash(l_cert->enc_key, DAP_HASH_TYPE_SHA3_256, (byte_t*)&l_pkey_hash, sizeof(dap_hash_fast_t)) != 0) {
+        if (dap_enc_key_get_pkey_hash(l_cert->enc_key, DAP_HASH_TYPE_SHA3_256, (byte_t *)&l_pkey_hash, sizeof(dap_hash_fast_t)) != 0) {
             dap_json_rpc_error_add(a_json_arr_reply, ERROR_VALUE, 
                 "Can't get public key hash from certificate %s", l_cert_name);
             return ERROR_VALUE;

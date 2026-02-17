@@ -1416,7 +1416,7 @@ int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain
     if (l_voting->params->delegate_key_required) {
         if (!a_cert)
             return DAP_CHAIN_NET_VOTE_VOTING_CERT_REQUIRED;
-        if (dap_cert_get_pkey_hash(a_cert, DAP_HASH_TYPE_SHA3_256, (byte_t*)&l_pkey_hash, sizeof(dap_hash_fast_t)))
+        if (dap_cert_get_pkey_hash(a_cert, DAP_HASH_TYPE_SHA3_256, (byte_t *)&l_pkey_hash, sizeof(dap_hash_fast_t)))
             return DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT;
         if (!dap_chain_net_srv_stake_check_pkey_hash(a_net->pub.id, &l_pkey_hash))
             return DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED;

@@ -1527,7 +1527,7 @@ int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_fast_t
     dap_return_val_if_fail(a_wallet && a_out_hash , -1);
     dap_enc_key_t *l_key = dap_chain_wallet_get_key(a_wallet, 0);
     dap_return_val_if_fail_err(l_key, -2, "Can't get wallet key!");
-    int ret = dap_enc_key_get_pkey_hash(l_key, DAP_HASH_TYPE_SHA3_256, (byte_t*)a_out_hash, sizeof(dap_hash_fast_t));
+    int ret = dap_enc_key_get_pkey_hash(l_key, DAP_HASH_TYPE_SHA3_256, (byte_t *)a_out_hash, sizeof(dap_hash_fast_t));
     dap_enc_key_delete(l_key);
     return ret;
 }

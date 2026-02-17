@@ -3452,7 +3452,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT, "Can't find cert '%s'", l_cert_str);
             return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT;
         }
-        dap_cert_get_pkey_hash(l_cert_cond, &l_pkey_cond_hash);
+        dap_cert_get_pkey_hash(l_cert_cond, DAP_HASH_TYPE_SHA3_256, (byte_t *)&l_pkey_cond_hash, sizeof(dap_hash_fast_t));
     } else {
         dap_chain_hash_fast_from_str(l_pkey_str, &l_pkey_cond_hash);
     }
