@@ -30,6 +30,7 @@
 extern int dap_chain_cs_dag_init(void);
 extern int dap_chain_cs_dag_poa_init(void);
 extern int dap_chain_cs_esbocs_init(void);
+extern int dap_nonconsensus_init(void);
 
 // ============================================================================
 // SETUP / TEARDOWN
@@ -53,8 +54,14 @@ static void s_setup(bool a_cache) {
     TEST_MKDIR(l_config_dir);
     
     const char *l_config_content = a_cache ?
-        "[general]\ndebug_mode=true\n[srv_dex]\ncache_enabled=true\nhistory_cache=true\n" :
-        "[general]\ndebug_mode=true\n[srv_dex]\ncache_enabled=false\n";
+        "[general]\ndebug_mode=true\n"
+        "[srv_dex]\ncache_enabled=true\nhistory_cache=true\n"
+        "[global_db]\ndriver=mdbx\npath=/tmp/dex_intg_test_gdb\n"
+        "[resources]\nca_folders=/tmp/dex_intg_test_certs\n" :
+        "[general]\ndebug_mode=true\n"
+        "[srv_dex]\ncache_enabled=false\n"
+        "[global_db]\ndriver=mdbx\npath=/tmp/dex_intg_test_gdb\n"
+        "[resources]\nca_folders=/tmp/dex_intg_test_certs\n";
     
     char l_config_path[256], l_log_path[100];
     snprintf(l_config_path, sizeof(l_config_path), "%s/test.cfg", l_config_dir);
@@ -64,17 +71,24 @@ static void s_setup(bool a_cache) {
         fclose(l_config_file);
     }
     
+    TEST_MKDIR("/tmp/dex_intg_test_certs");
+    
     dap_config_init(l_config_dir);
     g_config = dap_config_open("test");
     dap_assert(g_config != NULL, "Config initialization");
     snprintf(l_log_path, sizeof(l_log_path), "%s/%s", l_config_dir, "log.txt");
     dap_common_init(NULL, l_log_path);
     
+    int l_env_res = test_env_init(l_config_dir, "/tmp/dex_intg_test_gdb");
+    dap_assert(l_env_res == 0, "Test environment initialization");
+    
+    dap_ledger_init();
+    
     dap_chain_cs_dag_init();
     dap_chain_cs_dag_poa_init();
     dap_chain_cs_esbocs_init();
+    dap_nonconsensus_init();
     
-    // Initialize CLI server (without network listener) for CLI tests
     dap_cli_server_init(false, "cli-server");
     dap_chain_node_cli_init(g_config);
     
@@ -84,8 +98,8 @@ static void s_setup(bool a_cache) {
 static void s_teardown(void) {
     log_it(L_NOTICE, "Cleaning up test environment...");
     
-    // Clean up CLI server first
     dap_chain_node_cli_delete();
+    test_env_deinit();
     
     if (g_config) {
         dap_config_close(g_config);

@@ -178,9 +178,10 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
     unlink(l_temp_cfg_path);
     if (l_none_create_res != 0) {
         log_it(L_ERROR, "Failed to create 'none' consensus for master chain (result: %d)", l_none_create_res);
-        // Clear datum_types pointer (it points to static storage, shouldn't be freed)
         l_fixture->chain_main->datum_types = NULL;
         l_fixture->chain_main->datum_types_count = 0;
+        l_fixture->chain_main->autoproc_datum_types = NULL;
+        l_fixture->chain_main->autoproc_datum_types_count = 0;
         dap_chain_delete(l_fixture->chain_main);
         DL_DELETE(l_fixture->net->pub.chains, l_fixture->chain_zero);
         dap_chain_delete(l_fixture->chain_zero);
