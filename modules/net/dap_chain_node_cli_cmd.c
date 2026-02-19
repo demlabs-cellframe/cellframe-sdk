@@ -2019,7 +2019,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                              dap_chain_addr_to_str_static(l_addr));
                     l_outs_list = dap_ledger_get_list_tx_outs_with_val_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum, l_check_mempool); 
                     if (l_outs_list) {
-                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %zu UTXO",
+                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
                                  dap_list_length(l_outs_list));
                     }
                 } 
@@ -2029,7 +2029,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                              dap_chain_addr_to_str_static(l_addr));
                     l_outs_list = dap_ledger_get_list_tx_outs_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum, l_check_mempool);
                     if (l_outs_list) {
-                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %zu UTXO",
+                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
                                  dap_list_length(l_outs_list));
                     }
                 }
