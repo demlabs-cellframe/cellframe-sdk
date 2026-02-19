@@ -1228,7 +1228,7 @@ static bool s_session_round_new(void *a_arg)
         } else if (!l_round_already_started) {
             long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.prev_round_start_ts;
             if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay && a_session->esbocs->last_accepted_block_timestamp) {
-                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - *(uint16_t*)l_time_delta;
+                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - (uint16_t)l_time_delta;
             } else {
                 l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay;
             }
