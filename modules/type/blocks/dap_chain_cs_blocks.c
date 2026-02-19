@@ -1536,7 +1536,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 }
                 json_object_array_add(*a_json_arr_reply, json_arr_bl_out);
                 json_object* json_obj_out = json_object_new_object();
-                char *l_val = dap_strdup_printf("%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks\n",
+                char *l_val = dap_strdup_printf("%s.%s: Have %zu blocks\n",
                                      l_net->pub.name, l_chain->name, l_block_count);
                 json_object_object_add(json_obj_out, "status", json_object_new_string(l_val));
                 DAP_DELETE(l_val);
