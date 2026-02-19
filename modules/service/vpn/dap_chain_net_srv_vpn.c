@@ -1037,7 +1037,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                 } else {
                     l_initial_limit_sec = l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
                 }
-                log_it(L_INFO,"%ld seconds more for VPN usage for user %s", l_initial_limit_sec, dap_chain_hash_fast_to_str_static(&l_usage_active->client_pkey_hash));
+                log_it(L_INFO,"%" DAP_UINT64_FORMAT_U " seconds more for VPN usage for user %s", l_initial_limit_sec, dap_chain_hash_fast_to_str_static(&l_usage_active->client_pkey_hash));
             } break;
             case SERV_UNIT_B:{
                 intmax_t l_initial_limits_b = 0;
@@ -1227,8 +1227,8 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
     if (l_receipt_sign && l_srv_session->limits_units_type.enm == SERV_UNIT_B)
         l_remain_service.limits_bytes += l_srv_session->usage_active->receipt_next->receipt_info.units;
 
-    log_it(L_INFO, "Save limits for user %s: sec: %"DAP_UINT64_FORMAT_U" bytes: %"DAP_UINT64_FORMAT_U, 
-                                                                    l_user_key, l_remain_service.limits_ts, l_remain_service.limits_bytes );
+    log_it(L_INFO, "Save limits for user %s: sec: %lld bytes: %jd",
+                                                                    l_user_key, (long long)l_remain_service.limits_ts, (intmax_t)l_remain_service.limits_bytes );
 
     int l_ret = dap_global_db_set_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service, sizeof(l_remain_service), false);
     if(l_ret)

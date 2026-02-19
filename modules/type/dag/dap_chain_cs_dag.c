@@ -726,7 +726,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
      * or we have successfully chosen the hash(es) to link with.
      * No additional conditions required.
     */
-    uint64_t l_event_size = 0;
+    size_t l_event_size = 0;
     dap_chain_cs_dag_event_t * l_event = l_dag->callback_cs_event_create
             ? l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size)
             : NULL;
