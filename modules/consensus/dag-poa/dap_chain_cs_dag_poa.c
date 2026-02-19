@@ -886,9 +886,9 @@ static int s_callback_event_verify(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_e
         if (l_signs_verified_count >= l_certs_count_verify)
             return 0;
     }
-    debug_if(s_debug_more, L_ERROR, "Event %s, not enough signs %hu from %hu",
+    debug_if(s_debug_more, L_ERROR, "Event %s, not enough signs %zu from %hu",
                                                     dap_hash_fast_to_str_static(a_event_hash),
-                                                    l_signs_count >= l_certs_count_verify ? l_signs_verified_count : (uint16_t)l_signs_count,
+                                                    l_signs_count >= (size_t)l_certs_count_verify ? (size_t)l_signs_verified_count : l_signs_count,
                                                     l_certs_count_verify);
     return -4;
 }

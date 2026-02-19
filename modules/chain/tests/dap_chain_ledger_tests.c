@@ -1009,7 +1009,9 @@ void dap_ledger_test_run(void){
     l_flags |= DAP_LEDGER_CHECK_TOKEN_EMISSION;
     dap_chain_net_test_init();
     dap_chain_net_id_t l_iddn = {.uint64 = 0};
-    sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
+    uint64_t l_iddn_val = 0;
+    sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn_val);
+    l_iddn.uint64 = l_iddn_val;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_iddn);
     dap_ledger_t *l_ledger = dap_ledger_create(l_net, l_flags);
     l_net->pub.ledger = l_ledger;
