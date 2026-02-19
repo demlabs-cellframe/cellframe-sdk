@@ -53,7 +53,7 @@ static dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_orde
 
 static compose_config_t* s_compose_config_init(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                  uint16_t a_port, const char *a_enc_cert_path) {
-    dap_return_val_if_pass(!a_net_id.raw || !a_net_name || !a_native_ticker || !a_url_str || !a_port, NULL);
+    dap_return_val_if_pass(!a_net_id.uint64 || !a_net_name || !a_native_ticker || !a_url_str || !a_port, NULL);
     compose_config_t *l_config = DAP_NEW_Z_RET_VAL_IF_FAIL(compose_config_t, NULL);
     l_config->net_id.uint64 = a_net_id.uint64;
     l_config->net_name = a_net_name;
