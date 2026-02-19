@@ -80,14 +80,18 @@ typedef struct dap_chain_wallet_file_hdr{
     char        wallet_name[];
 } DAP_ALIGN_PACKED dap_chain_wallet_file_hdr_t;
 
+#ifdef __clang__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wgnu-variable-sized-type-not-at-end"
+#endif
 typedef struct dap_chain_wallet_file                                        /* On-disk structure */
 {
     dap_chain_wallet_file_hdr_t header;
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_chain_wallet_file_t;
+#ifdef __clang__
 #pragma GCC diagnostic pop
+#endif
 
 typedef struct dap_chain_wallet_internal
 {
