@@ -93,4 +93,42 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 // Get the list of 'out_cond' items from previous transactions with summary out value. Put this summary value to a_value_out
 dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, dap_chain_block_cache_t * a_block_cache, uint256_t *a_value_out);
 
+// ============================================================================
+// Wrapper functions for testability (can be mocked via --wrap)
+// These allow unit tests to intercept block cache lookups
+// ============================================================================
+
+/**
+ * @brief Wrapper for dap_chain_block_cache_get_by_hash
+ * @param a_blocks Blocks structure
+ * @param a_block_hash Block hash to find
+ * @return Block cache or NULL
+ */
+dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash_w(
+    dap_chain_type_blocks_t *a_blocks, 
+    dap_chain_hash_fast_t *a_block_hash);
+
+/**
+ * @brief Wrapper for dap_chain_block_cache_get_by_number
+ * @param a_blocks Blocks structure
+ * @param a_block_number Block number to find
+ * @return Block cache or NULL
+ */
+dap_chain_block_cache_t *dap_chain_block_cache_get_by_number_w(
+    dap_chain_type_blocks_t *a_blocks, 
+    uint64_t a_block_number);
+
+/**
+ * @brief Wrapper for dap_chain_type_blocks_get_count
+ * @param a_blocks Blocks structure
+ * @return Number of blocks
+ */
+uint64_t dap_chain_type_blocks_get_count_w(dap_chain_type_blocks_t *a_blocks);
+
+/**
+ * @brief Wrapper for dap_chain_type_blocks_get_last
+ * @param a_blocks Blocks structure
+ * @return Last block cache or NULL
+ */
+dap_chain_block_cache_t *dap_chain_type_blocks_get_last_w(dap_chain_type_blocks_t *a_blocks);
 

@@ -352,6 +352,33 @@ void dap_chain_type_blocks_deinit()
     dap_chain_block_cache_deinit();
 }
 
+/**
+ * @brief Initialize block CLI commands only (for testing purposes)
+ */
+void dap_chain_type_blocks_cli_init(void)
+{
+    dap_cli_server_cmd_add("block", s_cli_blocks, s_print_for_block_list, "Create and explore blockchains", 0,
+
+        "Blockchain explorer:\n"
+            "block -net <net_name> [-chain <chain_name>] [-brief] dump {-hash <block_hash> | -num <block_number>}\n"
+                "\t\tDump block info\n\n"
+
+            "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
+            " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
+            " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>}] [-unspent]\n"
+                "\t\t List blocks\n\n"
+
+            "block -net <net_name> [-chain <chain_name>] count\n"
+                "\t\t Show count block\n\n"
+
+            "block -net <net_name> -chain <chain_name> last\n\n"
+                "\t\tShow last block in chain\n\n"
+
+            "block -net <net_name> -chain <chain_name> find -datum <datum_hash>\n\n"
+                "\t\tSearches and shows blocks that contains specify datum\n\n"
+                                        );
+}
+
 static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_config)
 {
     dap_chain_type_blocks_t * l_cs_blocks = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_type_blocks_t, -1);
@@ -791,7 +818,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
             dap_chain_hash_fast_from_str(l_hash_str, &l_block_hash);
             dap_chain_block_cache_t *l_block_cache = NULL;
             if (l_hash_str)
-                l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_block_hash);
+                l_block_cache = dap_chain_block_cache_get_by_hash_w(l_blocks, &l_block_hash);
             else {
                 uint64_t num = 0;
                 dap_digit_from_string(l_num_str, &num, sizeof(uint64_t));
@@ -799,7 +826,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, "Invalid block number %s", l_num_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
                 }
-                l_block_cache = dap_chain_block_cache_get_by_number(l_blocks, num);
+                l_block_cache = dap_chain_block_cache_get_by_number_w(l_blocks, num);
             }
             if (!l_block_cache) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR, "Can't find block %s ", l_hash_str);
@@ -1192,7 +1219,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
         } break;
         case SUBCMD_LAST: {
             dap_json_t *json_obj_out = dap_json_object_new();
-            dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
+            dap_chain_block_cache_t *l_last_block = dap_chain_type_blocks_get_last_w(l_blocks);
             char l_buf[DAP_TIME_STR_SIZE];
             if (l_last_block)
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_block->ts_created);
@@ -1201,7 +1228,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
             dap_json_object_add_string(json_obj_out, "ts_created", l_last_block ? l_buf : "never");
 
             char *l_key = dap_strdup_printf("%s.%s has blocks", l_net->pub.name, l_chain->name);
-            dap_json_object_add_object(json_obj_out, l_key, dap_json_object_new_uint64(PVT(l_blocks)->blocks_count));
+            dap_json_object_add_object(json_obj_out, l_key, dap_json_object_new_uint64(dap_chain_type_blocks_get_count_w(l_blocks)));
             DAP_DELETE(l_key);
             dap_json_array_add(a_json_arr_reply, json_obj_out);
         } break;
@@ -1237,7 +1264,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
         case SUBCMD_COUNT: {
             dap_json_t *json_obj_out = dap_json_object_new();
             char *l_key = dap_strdup_printf("%s.%s has blocks - ", l_net->pub.name,l_chain->name);
-            dap_json_object_add_object(json_obj_out, l_key, dap_json_object_new_uint64(PVT(l_blocks)->blocks_count));
+            dap_json_object_add_object(json_obj_out, l_key, dap_json_object_new_uint64(dap_chain_type_blocks_get_count_w(l_blocks)));
             DAP_DELETE(l_key);
             dap_json_array_add(a_json_arr_reply, json_obj_out);
 
@@ -3149,4 +3176,28 @@ dap_list_t *dap_chain_type_blocks_get_block_signers_rewards(dap_chain_t *a_chain
     }
 
     return l_ret;
+}
+
+/**
+ * @brief Get total blocks count
+ * @param a_blocks Blocks structure
+ * @return Number of blocks
+ */
+uint64_t dap_chain_type_blocks_get_count(dap_chain_type_blocks_t *a_blocks)
+{
+    if (!a_blocks)
+        return 0;
+    return PVT(a_blocks)->blocks_count;
+}
+
+/**
+ * @brief Get last block in chain
+ * @param a_blocks Blocks structure
+ * @return Last block cache or NULL if empty
+ */
+dap_chain_block_cache_t *dap_chain_type_blocks_get_last(dap_chain_type_blocks_t *a_blocks)
+{
+    if (!a_blocks)
+        return NULL;
+    return HASH_LAST(PVT(a_blocks)->blocks);
 }

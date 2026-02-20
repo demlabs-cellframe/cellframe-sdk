@@ -213,20 +213,13 @@ static int s_print_for_dag_list(dap_json_t *a_json_input, dap_json_t *a_json_out
 }
 
 /**
- * @brief dap_chain_type_dag_init
- * @return always 0
+ * @brief Register CLI command for DAG operations
+ * 
+ * Separated from dap_chain_type_dag_init() to allow unit tests
+ * to register CLI commands without full DAG initialization.
  */
-int dap_chain_type_dag_init()
+void dap_chain_type_dag_cli_init(void)
 {
-    srand((unsigned int) time(NULL));
-    dap_chain_type_callbacks_t l_callbacks = { .callback_init = s_chain_cs_dag_new,
-                                                   .callback_delete = s_chain_cs_dag_delete,
-                                                   .callback_purge = s_chain_cs_dag_purge };
-    dap_chain_type_add("dag", l_callbacks);
-    s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
-    s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
-    s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
-    debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
     dap_cli_server_cmd_add("dag", s_cli_dag, s_print_for_dag_list, "DAG commands", 0,
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
@@ -247,6 +240,24 @@ int dap_chain_type_dag_init()
         "dag event find -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
             "\tSearches for events that contain the specified datum.\n\n"
                                         );
+}
+
+/**
+ * @brief dap_chain_type_dag_init
+ * @return always 0
+ */
+int dap_chain_type_dag_init()
+{
+    srand((unsigned int) time(NULL));
+    dap_chain_type_callbacks_t l_callbacks = { .callback_init = s_chain_cs_dag_new,
+                                                   .callback_delete = s_chain_cs_dag_delete,
+                                                   .callback_purge = s_chain_cs_dag_purge };
+    dap_chain_type_add("dag", l_callbacks);
+    s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
+    s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
+    s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
+    debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
+    dap_chain_type_dag_cli_init();
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
     return 0;
 }
@@ -2033,6 +2044,8 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 if (!l_datum_hash_str) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR, "Command 'event find' requires parameter '-datum'");
                     ret = DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
+                    dap_json_object_free(json_obj_out);
+                    break;
                 }
                 dap_hash_fast_t l_datum_hash = {};
                 int ret_code = 0;

@@ -95,6 +95,7 @@ typedef enum s_com_dag_err{
 
 int dap_chain_type_dag_init();
 void dap_chain_type_dag_deinit(void);
+void dap_chain_type_dag_cli_init(void);
 void dap_chain_type_dag_start(dap_chain_type_dag_t *a_dag);
 
 void dap_chain_type_dag_proc_event_round_new(dap_chain_type_dag_t *a_dag);

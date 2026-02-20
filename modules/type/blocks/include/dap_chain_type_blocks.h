@@ -89,8 +89,25 @@ typedef struct dap_chain_type_blocks_reward
 
 int dap_chain_type_blocks_init();
 void dap_chain_type_blocks_deinit();
+
+// CLI initialization (for testing purposes)
+void dap_chain_type_blocks_cli_init(void);
 dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_type_blocks_t *a_blocks, dap_chain_hash_fast_t *a_block_hash);
 dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_type_blocks_t * a_blocks,  uint64_t a_block_number);
+
+/**
+ * @brief Get total blocks count
+ * @param a_blocks Blocks structure
+ * @return Number of blocks
+ */
+uint64_t dap_chain_type_blocks_get_count(dap_chain_type_blocks_t *a_blocks);
+
+/**
+ * @brief Get last block in chain
+ * @param a_blocks Blocks structure
+ * @return Last block cache or NULL if empty
+ */
+dap_chain_block_cache_t *dap_chain_type_blocks_get_last(dap_chain_type_blocks_t *a_blocks);
 
 dap_ledger_hardfork_fees_t *dap_chain_type_blocks_fees_aggregate(dap_chain_t *a_chain);
 int dap_chain_block_add_fork_notificator(dap_chain_type_blocks_callback_fork_resolved_t a_callback, void *a_arg);

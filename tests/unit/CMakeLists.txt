@@ -10,3 +10,6 @@ add_subdirectory(ledger)
 
 # Service unit tests (voting, stake-ext, etc.)
 add_subdirectory(service)
+
+# CLI output unit tests (command output formatting)
+add_subdirectory(cli)
