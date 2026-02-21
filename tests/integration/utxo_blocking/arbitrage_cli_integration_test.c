@@ -603,9 +603,11 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     // Get hash from "hash" field (for -from_wallet)
     json_object *l_hash_obj = NULL;
     dap_assert_PIF(json_object_object_get_ex(l_first_result, "hash", &l_hash_obj), "Result has 'hash' field");
-    const char *l_arb_tx_hash_str = json_object_get_string(l_hash_obj);
-    dap_assert_PIF(l_arb_tx_hash_str != NULL && strlen(l_arb_tx_hash_str) > 0, "Arbitrage TX hash extracted from CLI response");
-    
+    char l_arb_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {0};
+    const char *l_arb_tx_hash_str_tmp = json_object_get_string(l_hash_obj);
+    dap_assert_PIF(l_arb_tx_hash_str_tmp && *l_arb_tx_hash_str_tmp, "Arbitrage TX hash extracted from CLI response");
+    strncpy(l_arb_tx_hash_str, l_arb_tx_hash_str_tmp, sizeof(l_arb_tx_hash_str) - 1);
+
     log_it(L_INFO, "✓ Arbitrage TX created via CLI: %s", l_arb_tx_hash_str);
     
     // Check transfer status (for -from_wallet, status is in "transfer" field)
@@ -1545,9 +1547,11 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     }
     dap_assert_PIF(l_hash_obj != NULL, "Transaction hash found");
     
-    const char *l_arb_tx_hash_str = json_object_get_string(l_hash_obj);
-    dap_assert_PIF(l_arb_tx_hash_str != NULL, "Transaction hash string extracted");
-    
+    char l_arb_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {0};
+    const char *l_arb_tx_hash_str_tmp = json_object_get_string(l_hash_obj);
+    dap_assert_PIF(l_arb_tx_hash_str_tmp, "Transaction hash string extracted");
+    strncpy(l_arb_tx_hash_str, l_arb_tx_hash_str_tmp, sizeof(l_arb_tx_hash_str) - 1);
+
     log_it(L_INFO, "✓ Arbitrage TX created with hash: %s (insufficient signatures - should stay in mempool)", l_arb_tx_hash_str);
     
     // Verify transaction is in mempool (should stay there due to insufficient signatures)

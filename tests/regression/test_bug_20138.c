@@ -539,31 +539,34 @@ static void test_arbitrage_with_cert_stuck(void)
     dap_chain_addr_t l_wallet_addr = {0};
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
-    
-    // 4. IMPORTANT: Clear network fee BEFORE creating token (base TX requires no fee)
-    uint256_t l_zero_fee = uint256_0;
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_cert_addr);
-    
-    // 5. Create token and emission
-    bool l_token_created = s_create_token_and_emission(TEST_TOKEN_TICKER_SCENARIO2, &l_wallet_addr, l_cert);
-    dap_assert_PIF(l_token_created, "Token created with balance on wallet");
-    
-    // 6. Set fee for network AFTER token creation (fee address = cert address)
-    uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
-    
-    // 6. Open wallet and load cache for arbitrage TX
+
+    // 4. Open wallet immediately after creation so its address is added to s_wallet_addr_cache
+    // before s_create_token_and_emission() calls dap_chain_wallet_cache_load_for_net().
+    // Opening is deferred to after creation on macOS may hit a transient ENOENT otherwise.
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_20138_2", "/tmp/reg_test_wallets_20138", NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-    
+
     dap_enc_key_t *l_wallet_key_opened = dap_chain_wallet_get_key(l_wallet_opened, 0);
     dap_chain_addr_t l_wallet_addr_opened = {0};
     dap_chain_addr_fill_from_key(&l_wallet_addr_opened, l_wallet_key_opened, s_net_fixture->net->pub.id);
+
+    // 5. IMPORTANT: Clear network fee BEFORE creating token (base TX requires no fee)
+    uint256_t l_zero_fee = uint256_0;
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_cert_addr);
     
+    // 6. Create token and emission (wallet address already in s_wallet_addr_cache)
+    bool l_token_created = s_create_token_and_emission(TEST_TOKEN_TICKER_SCENARIO2, &l_wallet_addr, l_cert);
+    dap_assert_PIF(l_token_created, "Token created with balance on wallet");
+    
+    // 7. Set fee for network AFTER token creation (fee address = cert address)
+    uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
+
+    // Load wallet cache for the already-opened wallet
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
     test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_opened, 50, 100);
     
-    // 7. Create arbitrage transaction WITH -cert parameter (SAME cert as token_decl)
+    // 8. Create arbitrage transaction WITH -cert parameter (SAME cert as token_decl)
     char l_cmd[2048];
     snprintf(l_cmd, sizeof(l_cmd), 
              "tx_create -net %s -chain %s -from_wallet reg_wallet_20138_2 -token %s -value %s -arbitrage -fee %s -certs %s",

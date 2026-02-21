@@ -44,6 +44,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain.h"
 #include "dap_common.h"
+#include "dap_time.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_ledger_utxo.h"
@@ -114,6 +115,7 @@ static dap_s_wallets_cache_type_t s_wallets_cache_type = DAP_WALLET_CACHE_TYPE_L
 static dap_wallet_cache_t *s_wallets_cache = NULL;
 static pthread_rwlock_t s_wallet_cache_rwlock;
 static bool s_debug_more = false;
+static _Atomic int s_loading_threads_count = 0;
 
 static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx,
                                     dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_atom_hash, int a_ret_code, char* a_main_token_ticker,
@@ -216,7 +218,21 @@ int dap_chain_wallet_cache_init()
 
 int dap_chain_wallet_cache_deinit()
 {
-
+    /* Wait for all background wallet-loading threads to finish before
+     * the caller proceeds to deinit GlobalDB / MDBX. Without this wait,
+     * a detached thread that is still writing to GlobalDB will crash
+     * (SEGFAULT / SIGABRT) when the MDBX environment is destroyed. */
+    const int l_timeout_ms = 5000;
+    const int l_poll_us   = 5000;
+    int l_waited_us = 0;
+    while (atomic_load(&s_loading_threads_count) > 0 &&
+           l_waited_us < l_timeout_ms * 1000) {
+        dap_usleep(l_poll_us);
+        l_waited_us += l_poll_us;
+    }
+    if (atomic_load(&s_loading_threads_count) > 0)
+        log_it(L_WARNING, "dap_chain_wallet_cache_deinit: %d loading thread(s) still running after %d ms timeout",
+               atomic_load(&s_loading_threads_count), l_timeout_ms);
     return 0;
 }
 
@@ -294,6 +310,7 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
                 pthread_attr_t attr;
                 pthread_attr_init(&attr);
                 pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+                atomic_fetch_add(&s_loading_threads_count, 1);
                 pthread_create(&l_tid, &attr, s_wallet_load, l_args);
                 l_loaded_count++;
             }
@@ -829,6 +846,7 @@ static void *s_wallet_load(void *a_arg)
     l_args->wallet_item->is_loading = false;
     DAP_DEL_Z(a_arg);
 
+    atomic_fetch_sub(&s_loading_threads_count, 1);
     return NULL;
 }
 
@@ -865,6 +883,7 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
         pthread_attr_t attr;
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        atomic_fetch_add(&s_loading_threads_count, 1);
         pthread_create(&l_tid, &attr, s_wallet_load, l_args);
         DAP_DELETE(l_addr);
         // s_save_cache_for_addr_in_net(l_net, l_addr); 
