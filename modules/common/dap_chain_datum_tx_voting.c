@@ -50,10 +50,10 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_t
             l_voting_parms->answers_count++;
             break;
         case VOTING_TSD_TYPE_EXPIRE:
-            l_voting_parms->voting_expire = *(dap_time_t*)l_tsd->data;
+            memcpy(&l_voting_parms->voting_expire, l_tsd->data, sizeof(l_voting_parms->voting_expire));
             break;
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
-            l_voting_parms->votes_max_count = *(uint64_t*)l_tsd->data;
+            memcpy(&l_voting_parms->votes_max_count, l_tsd->data, sizeof(l_voting_parms->votes_max_count));
             break;
         case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
             l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;

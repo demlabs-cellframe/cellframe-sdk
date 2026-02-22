@@ -266,14 +266,14 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
                 log_it(L_WARNING, "Incorrect size %u of TSD section EXPIRE for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
-            l_item->voting_params.voting_expire = *(dap_time_t *)l_tsd->data;
+            memcpy(&l_item->voting_params.voting_expire, l_tsd->data, sizeof(l_item->voting_params.voting_expire));
             break;
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
             if (l_tsd->size != sizeof(uint64_t)) {
                 log_it(L_WARNING, "Incorrect size %u of TSD section MAX_VOTES_COUNT for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
-            l_item->voting_params.votes_max_count = *(uint64_t *)l_tsd->data;
+            memcpy(&l_item->voting_params.votes_max_count, l_tsd->data, sizeof(l_item->voting_params.votes_max_count));
             break;
         case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
             if (l_tsd->size != sizeof(byte_t)) {

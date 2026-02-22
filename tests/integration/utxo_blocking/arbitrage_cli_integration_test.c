@@ -1698,8 +1698,11 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     json_object_object_get_ex(l_result_obj_sign, "new_hash", &l_new_hash_obj);
     dap_assert_PIF(l_new_hash_obj != NULL, "New transaction hash found");
     
-    const char *l_new_tx_hash_str = json_object_get_string(l_new_hash_obj);
-    dap_assert_PIF(l_new_tx_hash_str != NULL, "New transaction hash string extracted");
+    const char *l_new_tx_hash_tmp = json_object_get_string(l_new_hash_obj);
+    dap_assert_PIF(l_new_tx_hash_tmp != NULL, "New transaction hash string extracted");
+    char l_new_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    strncpy(l_new_tx_hash_str, l_new_tx_hash_tmp, sizeof(l_new_tx_hash_str) - 1);
+    l_new_tx_hash_str[sizeof(l_new_tx_hash_str) - 1] = '\0';
     
     json_object_object_get_ex(l_result_obj_sign, "signatures_added", &l_signatures_added_obj);
     dap_assert_PIF(l_signatures_added_obj != NULL, "Signatures added count found");

@@ -2174,7 +2174,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     // create wallet backup 
                     dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
-                    snprintf(l_file_name->file_name, sizeof(l_file_name->file_name), "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
+                    snprintf(l_file_name->file_name, sizeof(l_file_name->file_name), "%s/%s_%012lld%s", c_wallets_path, l_wallet_name, (long long)time(NULL),".backup");
                     if ( dap_chain_wallet_save(l_wallet, NULL) ) {
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR,
                                                "Can't create backup wallet file because of internal error");

@@ -270,7 +270,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
     }
 #undef CLEANUP_AND_RET
     memcpy(l_cell->file_storage_path, file_storage_path, sizeof(file_storage_path));
-    debug_if (s_debug_more && a_chain->is_mapped, L_DEBUG, "Mapped volume size is %lu", (size_t)(l_cell->map_end - l_cell->map));
+    debug_if (s_debug_more && a_chain->is_mapped, L_DEBUG, "Mapped volume size is %zu", (size_t)(l_cell->map_end - l_cell->map));
     HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
     return l_cell;
@@ -296,7 +296,7 @@ void dap_chain_cell_close(dap_chain_cell_t *a_cell)
 #endif
         for (; l_iter; l_iter = l_iter->next) {
             if (l_iter->next) {
-                debug_if(s_debug_more, L_DEBUG, "Unmap volume %p (%lu bytes)", l_iter->data, (size_t)(l_iter->next->data - l_iter->data));
+                debug_if(s_debug_more, L_DEBUG, "Unmap volume %p (%zu bytes)", l_iter->data, (size_t)(l_iter->next->data - l_iter->data));
 #ifdef DAP_OS_WINDOWS
                 pfnNtUnmapViewOfSection(GetCurrentProcess(), l_iter->data);
 #else

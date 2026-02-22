@@ -1112,7 +1112,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             dap_time_t l_becomes_effective;
             if (l_tsd->size == l_expected_size_extended) {
                 // Extended format with explicit timestamp
-                l_becomes_effective = *(dap_time_t *)(l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t));
+                memcpy(&l_becomes_effective, l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t), sizeof(l_becomes_effective));
                 log_it(L_DEBUG, "UTXO blocking with delayed activation at %"DAP_UINT64_FORMAT_U, l_becomes_effective);
             } else {
                 // Basic format - immediate activation (use blockchain time, not wall clock!)
@@ -1196,7 +1196,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             // Parse optional timestamp for delayed unblocking
             dap_time_t l_becomes_unblocked = 0;  // 0 = immediate removal
             if (l_tsd->size == l_extended_size) {
-                uint64_t l_timestamp = *(uint64_t *)(l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t));
+                uint64_t l_timestamp; memcpy(&l_timestamp, l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t), sizeof(l_timestamp));
                 l_becomes_unblocked = (dap_time_t)l_timestamp;
             }
 
@@ -2302,7 +2302,7 @@ dap_list_t *dap_ledger_token_get_auth_pkeys_hashes(dap_ledger_t *a_ledger, const
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token_ticker);
     if (!l_token_item)
         return l_ret;
-    debug_if(s_debug_more, L_INFO, " ! Token %s : total %lu auth signs", a_token_ticker, l_token_item->auth_signs_total);
+    debug_if(s_debug_more, L_INFO, " ! Token %s : total %zu auth signs", a_token_ticker, l_token_item->auth_signs_total);
     for (size_t i = 0; i < l_token_item->auth_signs_total; i++)
         l_ret = dap_list_append(l_ret, l_token_item->auth_pkey_hashes + i);
     return l_ret;

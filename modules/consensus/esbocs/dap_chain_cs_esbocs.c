@@ -2194,7 +2194,7 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
         log_it(L_ERROR, "Can't get block metadata for SYNC_ATTEMPT");
         return false;
     }
-    uint64_t l_sync_attempt = *(uint64_t *)l_sync_attempt_ptr;
+    uint64_t l_sync_attempt; memcpy(&l_sync_attempt, l_sync_attempt_ptr, sizeof(l_sync_attempt));
     uint8_t l_round_attempt = 0;
     if (a_first_sign) {
         uint8_t *l_round_attempt_ptr = dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT);

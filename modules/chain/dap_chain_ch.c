@@ -914,7 +914,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     DAP_CHAIN_CH_ERROR_CHAIN_PKT_DATA_SIZE);
             return false;
         }
-        uint64_t l_ack_num = *(uint64_t *)l_chain_pkt->data;
+        uint64_t l_ack_num; memcpy(&l_ack_num, l_chain_pkt->data, sizeof(l_ack_num));
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         debug_if(s_debug_more, L_DEBUG, "In: CHAIN_ACK %s for net %s from source " NODE_ADDR_FP_STR " with num %" DAP_UINT64_FORMAT_U,
                                 l_chain ? l_chain->name : "(null)",

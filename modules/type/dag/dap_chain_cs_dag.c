@@ -716,7 +716,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         HASH_CLEAR(hh_select, l_tmp);
         pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         if (l_hashes_linked < l_hashes_size) {
-            log_it(L_ERROR, "No enough unlinked events present (only %lu of %lu), a dummy round?", l_hashes_linked, l_hashes_size);
+            log_it(L_ERROR, "No enough unlinked events present (only %zu of %zu), a dummy round?", l_hashes_linked, l_hashes_size);
             return false;
         }
     }

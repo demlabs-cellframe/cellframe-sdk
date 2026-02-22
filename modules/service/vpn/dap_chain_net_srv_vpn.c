@@ -1046,7 +1046,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                 } else {
                     l_initial_limits_b = l_srv_session->limits_bytes += (intmax_t)l_usage_active->receipt->receipt_info.units;
                 }
-                log_it(L_INFO,"%ld bytes more for VPN usage for user %s", l_initial_limits_b, dap_chain_hash_fast_to_str_static(&l_usage_active->client_pkey_hash));
+                log_it(L_INFO,"%lld bytes more for VPN usage for user %s", (long long)l_initial_limits_b, dap_chain_hash_fast_to_str_static(&l_usage_active->client_pkey_hash));
             } break;
             default: {
                 log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X", l_usage_active->receipt->receipt_info.units_type.uint32 );
@@ -1979,11 +1979,11 @@ static bool s_es_tun_write(dap_events_socket_t *a_es, void *arg)
     assert(l_tun);
     assert(l_tun->es == a_es);
     size_t l_shift = 0;
-    debug_if(s_debug_more, L_DEBUG, "Write %lu bytes to tun", l_tun->es->buf_out_size);
+    debug_if(s_debug_more, L_DEBUG, "Write %zu bytes to tun", l_tun->es->buf_out_size);
     for (ssize_t l_pkt_size = 0, l_bytes_written = 0; l_tun->es->buf_out_size; ) {
         dap_stream_ch_vpn_pkt_t *l_vpn_pkt = (dap_stream_ch_vpn_pkt_t *)(l_tun->es->buf_out + l_shift);
         l_pkt_size = l_vpn_pkt->header.op_data.data_size;
-        debug_if(s_debug_more, L_DEBUG, "Packet: op_code 0x%02x, data size %ld",
+        debug_if(s_debug_more, L_DEBUG, "Packet: op_code 0x%02x, data size %zd",
                  l_vpn_pkt->header.op_code, l_pkt_size);
         l_bytes_written = write(l_tun->es->fd, l_vpn_pkt->data, l_pkt_size);
         if (l_bytes_written == l_pkt_size) {
@@ -2014,7 +2014,7 @@ static bool s_es_tun_write(dap_events_socket_t *a_es, void *arg)
         }
     }
     if (l_tun->es->buf_out_size) {
-        debug_if(s_debug_more, L_DEBUG, "Left %lu bytes unwritten", l_tun->es->buf_out_size);
+        debug_if(s_debug_more, L_DEBUG, "Left %zu bytes unwritten", l_tun->es->buf_out_size);
         if (l_shift)
             memmove(l_tun->es->buf_out, &l_tun->es->buf_out[l_shift], l_tun->es->buf_out_size);
     }
