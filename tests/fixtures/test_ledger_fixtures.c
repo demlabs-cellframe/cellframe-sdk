@@ -238,6 +238,32 @@ void test_net_fixture_destroy(test_net_fixture_t *a_fixture)
     if (!a_fixture)
         return;
 
+    /* Stop all proc_thread workers BEFORE destroying chains.
+     *
+     * dap_chain_datum_notify() dispatches s_notify_datum_on_thread callbacks
+     * to proc_thread queues ASYNCHRONOUSLY (DAP_QUEUE_MSG_PRIORITY_LOW).
+     * Each pending callback holds a raw pointer to the chain object:
+     *   l_arg->chain = a_chain_cell->chain
+     *
+     * If dap_chain_delete() frees the chain while such a callback is still
+     * queued, the callback later dereferences a freed pointer
+     * (l_arg->chain->is_mapped) → SEGFAULT.
+     *
+     * Stopping the proc_threads here (pthread_join on each) guarantees that:
+     *   1. Any callback currently executing is allowed to complete.
+     *   2. Remaining pending items are discarded without executing them
+     *      (see s_context_callback_stopped in dap_proc_thread.c).
+     * Only then is it safe to free the chain objects below.
+     */
+    if (s_common_initialized) {
+        dap_proc_thread_deinit();
+        /* Mark as stopped so test_env_deinit() does not attempt a
+         * second dap_proc_thread_deinit() call (which would be a
+         * double-free of the s_threads array). */
+        s_common_initialized = false;
+        log_it(L_DEBUG, "Proc threads stopped before chain destruction");
+    }
+
     // Remove chains from network and delete them
     if (a_fixture->chain_main) {
         DL_DELETE(a_fixture->net->pub.chains, a_fixture->chain_main);
@@ -584,20 +610,29 @@ void test_env_deinit(void)
     
     log_it(L_DEBUG, "Deinitializing test environment...");
     
-    // Clean up GlobalDB only
-    // NOTE: We intentionally DO NOT deinit events/proc_threads/common here
-    // because their cleanup can cause race conditions in short-lived test processes
-    // The OS will clean up all resources when the test process terminates
-    // NOTE: dap_global_db_deinit() already calls dap_global_db_driver_deinit() internally
+    /* NOTE: proc_threads must be stopped BEFORE GlobalDB is deinitialized
+     * to prevent pending datum-notify callbacks from accessing freed memory.
+     * This is handled in test_net_fixture_destroy() which calls
+     * dap_proc_thread_deinit() and sets s_common_initialized = false.
+     * If for some reason fixture destroy was skipped we still guard here. */
+    if (s_common_initialized) {
+        dap_proc_thread_deinit();
+        s_common_initialized = false;
+        log_it(L_DEBUG, "Proc threads stopped in test_env_deinit");
+    }
+
+    /* NOTE: dap_global_db_deinit() already calls dap_global_db_driver_deinit()
+     * internally. */
     if (s_global_db_initialized) {
         dap_global_db_deinit();
         s_global_db_initialized = false;
         log_it(L_DEBUG, "GlobalDB deinitialized");
     }
     
-    // DO NOT deinit events/common - let OS handle cleanup on process exit
-    // Attempting to join threads or deinit events in test teardown causes
-    // race conditions that manifest as "Subprocess aborted" in CI environments
+    /* DO NOT call dap_events_deinit() / dap_common_deinit() here.
+     * Joining worker threads (epoll loops) in test teardown triggers
+     * "Subprocess aborted" in CI environments; the OS reclaims those
+     * resources when the process exits anyway. */
     
     // Note: Cert system cleanup is handled by global infrastructure
     // We don't need to explicitly clean it up here
