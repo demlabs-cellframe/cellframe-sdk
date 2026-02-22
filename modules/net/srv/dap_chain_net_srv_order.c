@@ -192,17 +192,17 @@ bool dap_chain_net_srv_order_get_continent_region(const dap_chain_net_srv_order_
            a_continent_num = 0;
     }
     if(a_region) {
-        size_t l_size = a_order_static->ext_size - sizeof(uint8_t) - 1;
-        if(l_size > 0) {
+        if (a_order_static->ext_size > 1 + sizeof(uint8_t)) {
+            size_t l_size = a_order_static->ext_size - sizeof(uint8_t) - 1;
             *a_region = DAP_NEW_SIZE(char, l_size);
-            if (!a_region) {
-        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            if (!*a_region) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 return false;
             }
             memcpy(*a_region, a_order_static->ext_n_sign + 1 + sizeof(uint8_t), l_size);
-        }
-        else
+        } else {
             *a_region = NULL;
+        }
     }
     return true;
 }
