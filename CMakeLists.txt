@@ -6,6 +6,13 @@ set(CELLFRAME_SDK_NATIVE_VERSION "3.4-0")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
+# Centralized dap_tpl template engine for mock framework
+# Used by DAPMockAutoWrap.cmake during test builds
+if(NOT DEFINED DAP_TPL_DIR AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/dap_tpl/dap_tpl.sh")
+    set(DAP_TPL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dap_tpl" CACHE PATH "Path to dap_tpl template engine")
+    message(STATUS "[+] dap_tpl: ${DAP_TPL_DIR}")
+endif()
+
 if (INSTALL_SDK)
     set(INSTALL_DAP_SDK ON)
 else()
@@ -32,6 +39,7 @@ if(NOT DEFINED CELLFRAME_MODULES)
 
     if(BUILD_CELLFRAME_SDK_TESTS)
         set(DAPSDK_MODULES "test-framework")
+        set(BUILD_DAP_SDK_TESTS ON)
     endif()
 
     add_subdirectory(dap-sdk)
