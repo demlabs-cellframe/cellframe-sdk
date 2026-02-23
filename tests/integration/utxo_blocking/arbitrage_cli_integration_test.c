@@ -1760,7 +1760,13 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     const char *l_final_tx_hash_str = json_object_get_string(l_new_hash_obj);
     dap_assert_PIF(l_final_tx_hash_str != NULL, "Final transaction hash string extracted");
     
-    log_it(L_DEBUG, "Extracted final_tx_hash_str: %s", l_final_tx_hash_str);
+    // Copy hash to local buffer before freeing JSON (json_object_put invalidates the pointer)
+    char l_final_tx_hash_buf[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    size_t l_hash_len = strlen(l_final_tx_hash_str);
+    dap_assert_PIF(l_hash_len < sizeof(l_final_tx_hash_buf), "Final transaction hash length valid");
+    memcpy(l_final_tx_hash_buf, l_final_tx_hash_str, l_hash_len + 1);
+    
+    log_it(L_DEBUG, "Extracted final_tx_hash_str: %s", l_final_tx_hash_buf);
     
     json_object_object_get_ex(l_result_obj_sign, "total_signatures", &l_signatures_added_obj);
     dap_assert_PIF(l_signatures_added_obj != NULL, "Total signatures count found");
@@ -1769,7 +1775,7 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     dap_assert_PIF(l_total_signatures >= 3, "Total signatures >= 3");
     
     log_it(L_INFO, "✓ Third signature added via tx_sign, final hash: %s (total signatures: %lld)", 
-           l_final_tx_hash_str, (long long)l_total_signatures);
+           l_final_tx_hash_buf, (long long)l_total_signatures);
     
     json_object_put(l_json_sign);
     l_json_sign = NULL;
@@ -1780,10 +1786,10 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     log_it(L_INFO, "PHASE 7: Verifying transaction can be processed with sufficient signatures");
     
     dap_chain_hash_fast_t l_final_tx_hash = {0};
-    int l_hash_parse_res = dap_chain_hash_fast_from_str(l_final_tx_hash_str, &l_final_tx_hash);
+    int l_hash_parse_res = dap_chain_hash_fast_from_str(l_final_tx_hash_buf, &l_final_tx_hash);
     if (l_hash_parse_res != 0) {
         // Try hex parsing if from_str failed
-        l_hash_parse_res = dap_chain_hash_fast_from_hex_str(l_final_tx_hash_str, &l_final_tx_hash);
+        l_hash_parse_res = dap_chain_hash_fast_from_hex_str(l_final_tx_hash_buf, &l_final_tx_hash);
     }
     dap_assert_PIF(l_hash_parse_res == 0, "Final transaction hash parsed");
     

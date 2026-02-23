@@ -8349,10 +8349,12 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             l_ticker_quote = l_pair_storage;
         }
     }
-    // Canonical pair string for output (BASE/QUOTE)
-    char l_pair_canon_str[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 4] = "";
+    // Canonical pair string for output (BASE/QUOTE); size allows two full tickers + '/' + null
+    char l_pair_canon_str[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 8] = "";
     if (l_ticker_base && l_ticker_quote)
-        snprintf(l_pair_canon_str, sizeof(l_pair_canon_str), "%s/%s", l_ticker_base, l_ticker_quote);
+        (void)snprintf(l_pair_canon_str, sizeof(l_pair_canon_str), "%.*s/%.*s",
+                       (int)(DAP_CHAIN_TICKER_SIZE_MAX - 1), l_ticker_base,
+                       (int)(DAP_CHAIN_TICKER_SIZE_MAX - 1), l_ticker_quote);
 
     // Optional fee parsing (if -fee is provided)
     const char *l_fee_str = NULL;
@@ -9615,7 +9617,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     } else {
                         l_ticker_base = l_entry->pair_key_ptr->token_base;
                         l_ticker_quote = l_entry->pair_key_ptr->token_quote;
-                        snprintf(l_pair_canon_str, sizeof(l_pair_canon_str), "%s/%s", l_ticker_base, l_ticker_quote);
+                        (void)snprintf(l_pair_canon_str, sizeof(l_pair_canon_str), "%.*s/%.*s",
+                                       (int)(DAP_CHAIN_TICKER_SIZE_MAX - 1), l_ticker_base,
+                                       (int)(DAP_CHAIN_TICKER_SIZE_MAX - 1), l_ticker_quote);
                     }
                     l_pair_found = true;
                 }
@@ -9637,7 +9641,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         } else {
                             l_ticker_base = l_pair->key.token_base;
                             l_ticker_quote = l_pair->key.token_quote;
-                            snprintf(l_pair_canon_str, sizeof(l_pair_canon_str), "%s/%s", l_ticker_base, l_ticker_quote);
+                            (void)snprintf(l_pair_canon_str, sizeof(l_pair_canon_str), "%.*s/%.*s",
+                                           (int)(DAP_CHAIN_TICKER_SIZE_MAX - 1), l_ticker_base,
+                                           (int)(DAP_CHAIN_TICKER_SIZE_MAX - 1), l_ticker_quote);
                         }
                         l_pair_found = true;
                         break;
@@ -9672,7 +9678,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                                 l_ticker_base = l_pair_storage;
                                 l_ticker_quote = l_pair_storage + l_base_len + 1;
                                 dap_strncpy((char *)l_ticker_quote, l_key.token_quote, sizeof(l_pair_storage) - l_base_len - 1);
-                                snprintf(l_pair_canon_str, sizeof(l_pair_canon_str), "%s/%s", l_ticker_base, l_ticker_quote);
+                                (void)snprintf(l_pair_canon_str, sizeof(l_pair_canon_str), "%.*s/%.*s",
+                                               (int)l_base_len, l_ticker_base, (int)l_quote_len, l_ticker_quote);
                             }
                             l_pair_found = true;
                         }
