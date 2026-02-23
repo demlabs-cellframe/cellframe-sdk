@@ -35,7 +35,7 @@ typedef struct dap_chain_datum_anchor dap_chain_datum_anchor_t;
 
 // Policy callback types
 typedef int (*dap_chain_policy_decree_callback_t)(dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_apply, void *a_arg);
-typedef int (*dap_chain_policy_anchor_callback_t)(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash, void *a_arg);
+typedef int (*dap_chain_policy_anchor_callback_t)(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_sha3_256_t *a_anchor_hash, void *a_arg);
 
 #define DAP_CHAIN_POLICY_FLAG_ACTIVATE                      BIT(0)
 

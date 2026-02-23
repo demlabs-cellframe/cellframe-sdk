@@ -24,7 +24,7 @@
 #pragma once
 
 #include "dap_chain_tx_compose_api.h"
-#include "uthash.h"
+#include "dap_ht.h"
 
 /**
  * @file dap_chain_tx_compose_registry.h
@@ -47,7 +47,7 @@ typedef struct dap_chain_tx_compose_registry_entry {
     char *tx_type;                              // Key for hash table
     dap_chain_tx_compose_callback_t callback;   // Builder function
     void *user_data;                             // Optional user data
-    UT_hash_handle hh;                           // uthash handle
+    dap_ht_handle_t hh;
 } dap_chain_tx_compose_registry_entry_t;
 
 /**

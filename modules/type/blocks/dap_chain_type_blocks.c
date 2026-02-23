@@ -50,7 +50,7 @@
 
 
 typedef struct dap_chain_block_datum_index {
-    dap_chain_hash_fast_t datum_hash;
+    dap_hash_sha3_256_t datum_hash;
     int ret_code;
     time_t ts_added;
     dap_chain_block_cache_t *block_cache;
@@ -58,12 +58,12 @@ typedef struct dap_chain_block_datum_index {
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_srv_uid_t service_uid;
     dap_chain_tx_tag_action_type_t action;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_block_datum_index_t;
 
 struct cs_blocks_hal_item {
-    dap_chain_hash_fast_t hash;
-    UT_hash_handle hh;
+    dap_hash_sha3_256_t hash;
+    dap_ht_handle_t hh;
 };
 
 typedef struct dap_chain_type_blocks_pvt {
@@ -85,8 +85,8 @@ typedef struct dap_chain_type_blocks_pvt {
     pthread_rwlock_t datums_rwlock;
      _Atomic uint64_t tx_count;
 
-    dap_chain_hash_fast_t genesis_block_hash;
-    dap_chain_hash_fast_t static_genesis_block_hash;
+    dap_hash_sha3_256_t genesis_block_hash;
+    dap_hash_sha3_256_t static_genesis_block_hash;
 
     bool is_celled;
 
@@ -115,40 +115,40 @@ typedef struct dap_chain_block_fork_resolved_notificator{
         pthread_rwlock_unlock(& PVT(blocks)->rwlock);\
         log_it(L_DEBUG, "Unlocked rwqlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());
 
-static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, dap_json_t *a_json_arr_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
+static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, dap_json_t *a_json_arr_reply,const char * a_param, dap_hash_sha3_256_t * a_datum_hash);
 static void s_cli_meta_hash_print(  dap_json_t * a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta, const char *a_hash_out_type);
 static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_version);
 
 // Setup BFT consensus and select the longest chunk
 static void s_bft_consensus_setup(dap_chain_type_blocks_t * a_blocks);
 
-static bool s_chain_find_atom(dap_chain_block_cache_t* a_blocks, dap_chain_hash_fast_t* a_atom_hash);
+static bool s_chain_find_atom(dap_chain_block_cache_t* a_blocks, dap_hash_sha3_256_t* a_atom_hash);
 
 // Callbacks
 static int s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
-static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
+static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_sha3_256_t * a_atom_hash, bool a_atom_new);
 //    Verify new block
-static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
+static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_sha3_256_t * a_atom_hash);
 
 //    Get block header size
 static size_t s_callback_atom_get_static_hdr_size(void);
 
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_sha3_256_t *a_hash_from);
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
-                                                                       dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
+                                                                       dap_hash_sha3_256_t * a_atom_hash, size_t * a_atom_size);
 static dap_json_t *s_callback_atom_dump_json(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version);
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
-static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
-                                                        dap_chain_hash_fast_t *a_block_hash, int *a_ret_code);
+static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_datum_hash,
+                                                        dap_hash_sha3_256_t *a_block_hash, int *a_ret_code);
 
-static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash, size_t *a_block_size);
+static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_hash_sha3_256_t * a_tx_hash, size_t *a_block_size);
 
 static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count);
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
-static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
-static int s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
-static int s_fee_stack_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
+static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
+static int s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_sha3_256_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
+static int s_fee_stack_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_sha3_256_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner);
 //    Get blocks
 static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_atom_iter, dap_chain_iter_op_t a_operation, size_t *a_atom_size);
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
@@ -421,7 +421,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     const char * l_genesis_blocks_hash_str = dap_config_get_item_str_default(a_chain_config,"blocks","genesis_block",NULL);
     if ( l_genesis_blocks_hash_str ){
         int lhr;
-        if ( (lhr= dap_chain_hash_fast_from_str(l_genesis_blocks_hash_str,&l_cs_blocks_pvt->genesis_block_hash) )!= 0 ){
+        if ( (lhr= dap_hash_sha3_256_from_str(l_genesis_blocks_hash_str,&l_cs_blocks_pvt->genesis_block_hash) )!= 0 ){
             log_it( L_ERROR, "Can't read hash from genesis_block \"%s\", ret code %d ", l_genesis_blocks_hash_str, lhr);
         }
     }
@@ -429,7 +429,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     const char * l_static_genesis_blocks_hash_str = dap_config_get_item_str_default(a_chain_config,"blocks","static_genesis_block",NULL);
     if ( l_static_genesis_blocks_hash_str ){
         int lhr;
-        if ( (lhr= dap_chain_hash_fast_from_str(l_static_genesis_blocks_hash_str,&l_cs_blocks_pvt->static_genesis_block_hash) )!= 0 ){
+        if ( (lhr= dap_hash_sha3_256_from_str(l_static_genesis_blocks_hash_str,&l_cs_blocks_pvt->static_genesis_block_hash) )!= 0 ){
             log_it( L_ERROR, "Can't read hash from static_genesis_block \"%s\", ret code %d ", l_static_genesis_blocks_hash_str, lhr);
         }
     }
@@ -445,8 +445,8 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
             DAP_DELETE(l_cs_blocks);
             return -10;
         }
-        dap_chain_hash_fast_from_str(l_hard_accept_list[i], &l_hal_item->hash);
-        HASH_ADD(hh, l_cs_blocks_pvt->hal, hash, sizeof(l_hal_item->hash), l_hal_item);
+        dap_hash_sha3_256_from_str(l_hard_accept_list[i], &l_hal_item->hash);
+        dap_ht_add(l_cs_blocks_pvt->hal, hash, l_hal_item);
     }
 
     return 0;
@@ -458,12 +458,12 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
  * @param a_block_hash
  * @return
  */
-dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_type_blocks_t * a_blocks,  dap_chain_hash_fast_t *a_block_hash)
+dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_type_blocks_t * a_blocks,  dap_hash_sha3_256_t *a_block_hash)
 {
     dap_chain_block_cache_t * l_ret = NULL;
     int err = pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
     assert(!err);
-    HASH_FIND(hh, PVT(a_blocks)->blocks,a_block_hash, sizeof (*a_block_hash), l_ret );
+    dap_ht_find(PVT(a_blocks)->blocks, a_block_hash, sizeof (*a_block_hash), l_ret );
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
     return l_ret;
 }
@@ -479,7 +479,7 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_type_blo
     dap_chain_block_cache_t * l_ret = NULL;
     int err = pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
     assert(!err);
-    HASH_FIND_BYHASHVALUE(hh2, PVT(a_blocks)->blocks_num, &a_block_number, sizeof (a_block_number), a_block_number, l_ret);
+    dap_ht_find_by_hashvalue_hh(hh2, PVT(a_blocks)->blocks_num, &a_block_number, sizeof (a_block_number), a_block_number, l_ret);
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
     return l_ret;
 }
@@ -570,14 +570,14 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
  * @return
  */
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, dap_json_t *a_json_arr_reply,const char * a_param,
-                                dap_chain_hash_fast_t * a_datum_hash)
+                                dap_hash_sha3_256_t * a_datum_hash)
 {
     assert(a_datum_hash);
 
     const char *l_datum_hash_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, a_param, &l_datum_hash_str);
 
-    return dap_chain_hash_fast_from_str(l_datum_hash_str, a_datum_hash);
+    return dap_hash_sha3_256_from_str(l_datum_hash_str, a_datum_hash);
 }
 
 /**
@@ -589,17 +589,17 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, dap
  */
 static void s_cli_meta_hash_print(dap_json_t *a_json_obj_out, const char *a_meta_title, dap_chain_block_meta_t *a_meta, const char *a_hash_out_type)
 {
-    if (a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t)) {
+    if (a_meta->hdr.data_size == sizeof (dap_hash_sha3_256_t)) {
         const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
-                dap_enc_base58_encode_hash_to_str_static((dap_chain_hash_fast_t*)a_meta->data) :
-                dap_chain_hash_fast_to_str_static((dap_chain_hash_fast_t*)a_meta->data);
+                dap_enc_base58_encode_hash_to_str_static((dap_hash_sha3_256_t*)a_meta->data) :
+                dap_hash_sha3_256_to_str_static((dap_hash_sha3_256_t*)a_meta->data);
         dap_json_object_add_string(a_json_obj_out, a_meta_title, l_hash_str);
 //        if (dap_strcmp(a_hash_out_type, "base58")) {
 //            const char *l_hash_str = dap_enc_base58_encode_hash_to_str_static(a_meta->data);
             //
 //        } else {
-//            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-//            dap_chain_hash_fast_to_str((dap_chain_hash_fast_t *) a_meta->data, l_hash_str, sizeof(l_hash_str));
+//            char l_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+//            dap_hash_sha3_256_to_str((dap_hash_sha3_256_t *) a_meta->data, l_hash_str, sizeof(l_hash_str));
 //        }
     } else
         dap_json_object_add_string(a_json_obj_out, a_meta_title, "Error, hash size is incorrect");
@@ -650,8 +650,8 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_json_t *a_json
         if (compare256(l_total_value, l_collect_fee) == 1) {
             SUBTRACT_256_256(l_total_value, l_collect_fee, &l_collect_value);
             dap_pkey_t *l_my_sign_pkey = l_chain ? dap_chain_cs_get_sign_pkey(l_chain) : NULL;
-            dap_hash_t l_my_sign_pkey_hash;
-            dap_hash_fast(l_my_sign_pkey->pkey, l_my_sign_pkey->header.size, &l_my_sign_pkey_hash);
+            dap_hash_sha3_256_t l_my_sign_pkey_hash;
+            dap_hash_sha3_256(l_my_sign_pkey->pkey, l_my_sign_pkey->header.size, &l_my_sign_pkey_hash);
             dap_chain_cs_callbacks_t *l_stake_cbs = dap_chain_cs_get_callbacks(l_chain);
             uint256_t l_sovereign_tax = uint256_0;
             dap_chain_addr_t l_sovereign_addr = {};
@@ -778,7 +778,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
             const char *l_hash_out_type = NULL;
             const char *l_hash_str = NULL;
             const char *l_num_str = NULL;
-            dap_chain_hash_fast_t l_block_hash={0};
+            dap_hash_sha3_256_t l_block_hash={0};
             bool l_brief = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
             if(!l_hash_out_type)
@@ -794,7 +794,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
             }
 
-            dap_chain_hash_fast_from_str(l_hash_str, &l_block_hash);
+            dap_hash_sha3_256_from_str(l_hash_str, &l_block_hash);
             dap_chain_block_cache_t *l_block_cache = NULL;
             if (l_hash_str)
                 l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_block_hash);
@@ -894,7 +894,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 if (l_brief){
                     const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str_static(&l_block_cache->datum_hash[i])
-                            : dap_chain_hash_fast_to_str_static(&l_block_cache->datum_hash[i]);
+                            : dap_hash_sha3_256_to_str_static(&l_block_cache->datum_hash[i]);
                     dap_json_object_add_object(json_obj_tx, "num",dap_json_object_new_uint64(i));
                     dap_json_object_add_object(json_obj_tx, a_version == 1 ? "hash" : "datum_hash",dap_json_object_new_string(l_hash_str));
                 } else {
@@ -935,11 +935,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 dap_json_t *json_obj_sign = dap_json_object_new();
                 dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
                 size_t l_sign_size = dap_sign_get_size(l_sign);
-                dap_chain_hash_fast_t l_pkey_hash;
+                dap_hash_sha3_256_t l_pkey_hash;
                 dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
                 const char *l_hash_str = !dap_strcmp(l_hash_out_type, "base58") ?
                         dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
-                        dap_chain_hash_fast_to_str_static(&l_pkey_hash);
+                        dap_hash_sha3_256_to_str_static(&l_pkey_hash);
                 dap_json_object_add_object(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
                 dap_json_object_add_object(json_obj_sign, a_version == 1 ? "size" : "sig_size",dap_json_object_new_uint64(l_sign_size));
                 dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",dap_json_object_new_string(l_hash_str));
@@ -965,7 +965,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                         *l_from_date_str = NULL, *l_to_date_str = NULL, *l_pkey_hash_str = NULL, *l_limit_str = NULL, *l_offset_str = NULL;
             bool l_unspent_flag = false, l_first_signed_flag = false, l_signed_flag = false, l_hash_flag = false;
             dap_pkey_t * l_pub_key = NULL;
-            dap_hash_fast_t l_from_hash = {}, l_to_hash = {}, l_pkey_hash = {};
+            dap_hash_sha3_256_t l_from_hash = {}, l_to_hash = {}, l_pkey_hash = {};
             dap_time_t l_from_time = 0, l_to_time = 0;
             l_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "signed") > 0;
             l_first_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "first_signed") > 0;
@@ -1003,24 +1003,24 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_PUB_KEY_ERR;
                 }
             } else if (l_pkey_hash_str) {
-                if (dap_chain_hash_fast_from_str(l_pkey_hash_str, &l_pkey_hash)) {
+                if (dap_hash_sha3_256_from_str(l_pkey_hash_str, &l_pkey_hash)) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR, "Can't convert \"%s\" to hash", l_pkey_hash_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR;
                 }
             }
             if (l_unspent_flag && l_signed_flag && !l_pkey_hash_str)
-                dap_hash_fast(l_pub_key->pkey, l_pub_key->header.size, &l_pkey_hash);
+                dap_hash_sha3_256(l_pub_key->pkey, l_pub_key->header.size, &l_pkey_hash);
             if ((l_cert_name || l_pkey_hash_str) && !l_signed_flag && !l_first_signed_flag)
                 l_first_signed_flag = true;
 
             if (l_from_hash_str) {
-                if (dap_chain_hash_fast_from_str(l_from_hash_str, &l_from_hash)) {
+                if (dap_hash_sha3_256_from_str(l_from_hash_str, &l_from_hash)) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR, "Can't convert \"%s\" to hash", l_from_hash_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR;
                 }
             }
             if (l_to_hash_str) {
-                if (dap_chain_hash_fast_from_str(l_to_hash_str, &l_to_hash)) {
+                if (dap_hash_sha3_256_from_str(l_to_hash_str, &l_to_hash)) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR, "Can't convert \"%s\" to hash", l_to_hash_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR;
                 }
@@ -1080,7 +1080,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
             size_t i_tmp = 0;
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
             if (!l_head) {                
-                l_block_cache = HASH_LAST(l_block_cache);
+                l_block_cache = dap_ht_last(l_block_cache);
             }             
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 if (i_tmp >= l_arr_end)
@@ -1099,7 +1099,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 }
                 if (!l_hash_flag) {                    
                     if (l_from_hash_str) {
-                        if (!dap_hash_fast_compare(&l_from_hash, &l_block_cache->block_hash))
+                        if (!dap_hash_sha3_256_compare(&l_from_hash, &l_block_cache->block_hash))
                             continue;
                         l_hash_flag = true;
                     }                    
@@ -1107,9 +1107,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 if (l_first_signed_flag) {
                     dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                     if (!l_pub_key) {
-                        dap_hash_fast_t l_sign_pkey_hash;
+                        dap_hash_sha3_256_t l_sign_pkey_hash;
                         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
-                        if (!dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash))
+                        if (!dap_hash_sha3_256_compare(&l_pkey_hash, &l_sign_pkey_hash))
                             continue;
                     } else if (!dap_pkey_compare_with_sign(l_pub_key, l_sign))
                         continue;
@@ -1138,9 +1138,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                         // TODO optimize performance by precalculated sign hashes in block cache
                         for (size_t i = 0; i < l_block_cache->sign_count ; i++) {
                             dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
-                            dap_hash_fast_t l_sign_pkey_hash;
+                            dap_hash_sha3_256_t l_sign_pkey_hash;
                             dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
-                            if (dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
+                            if (dap_hash_sha3_256_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
                                 l_found = true;
                                 break;
                             }
@@ -1167,7 +1167,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 dap_json_object_add_uint64(json_obj_bl_cache, "timestamp", l_ts);
                 dap_json_object_add_object(json_obj_bl_cache, "ts_create",dap_json_object_new_string(l_buf));
                 dap_json_array_add(json_arr_bl_cache_out, json_obj_bl_cache);
-                if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
+                if (l_to_hash_str && dap_hash_sha3_256_compare(&l_to_hash, &l_block_cache->block_hash))
                     break;
             }
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
@@ -1198,7 +1198,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
         } break;
         case SUBCMD_LAST: {
             dap_json_t *json_obj_out = dap_json_object_new();
-            dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
+            dap_chain_block_cache_t *l_last_block = dap_ht_last(PVT(l_blocks)->blocks);
             char l_buf[DAP_TIME_STR_SIZE];
             if (l_last_block)
                 dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_block->ts_created);
@@ -1219,17 +1219,17 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "Command 'event find' requires parameter '-datum'");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
-            dap_hash_fast_t l_datum_hash = {};
+            dap_hash_sha3_256_t l_datum_hash = {};
             int ret_code = 0;
             int l_atoms_cnt = 0;
-            dap_chain_hash_fast_from_str(l_datum_hash_str, &l_datum_hash);
+            dap_hash_sha3_256_from_str(l_datum_hash_str, &l_datum_hash);
             pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
             dap_chain_block_cache_t *l_curr_block = PVT(l_blocks)->blocks;
             dap_json_t *json_arr_bl_cache_out = dap_json_array_new();
             for (;l_curr_block;l_curr_block = l_curr_block->hh.next){
                 for (size_t i = 0; i < l_curr_block->datum_count; i++){
-                    if (dap_hash_fast_compare(&l_datum_hash, &l_curr_block->datum_hash[i])){
-                        dap_json_array_add(json_arr_bl_cache_out, dap_json_object_new_string(dap_hash_fast_to_str_static(&l_curr_block->block_hash)));
+                    if (dap_hash_sha3_256_compare(&l_datum_hash, &l_curr_block->datum_hash[i])){
+                        dap_json_array_add(json_arr_bl_cache_out, dap_json_object_new_string(dap_hash_sha3_256_to_str_static(&l_curr_block->block_hash)));
                         l_atoms_cnt++;
                         continue;
                     }
@@ -1412,7 +1412,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
 
         case SUBCMD_AUTOCOLLECT: {
             const char *l_cert_name = NULL, *l_addr_str = NULL;
-            dap_hash_fast_t l_pkey_hash = {};
+            dap_hash_sha3_256_t l_pkey_hash = {};
             size_t l_block_count = 0;
             if (dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, "renew") > 0) {
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
@@ -1472,9 +1472,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                     dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                     if (!l_pub_key) {
-                        dap_hash_fast_t l_sign_pkey_hash;
+                        dap_hash_sha3_256_t l_sign_pkey_hash;
                         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
-                        if (!dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash))
+                        if (!dap_hash_sha3_256_compare(&l_pkey_hash, &l_sign_pkey_hash))
                             continue;
                     } else if (!dap_pkey_compare_with_sign(l_pub_key, l_sign))
                         continue;
@@ -1505,9 +1505,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                         bool l_found = false;
                         for (size_t i = 0; i < l_block_cache->sign_count ; i++) {
                             dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
-                            dap_hash_fast_t l_sign_pkey_hash;
+                            dap_hash_sha3_256_t l_sign_pkey_hash;
                             dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
-                            if (dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
+                            if (dap_hash_sha3_256_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
                                 l_found = true;
                                 break;
                             }
@@ -1572,13 +1572,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
 static dap_list_t *s_block_parse_str_list(char *a_hash_str, size_t *a_hash_size, dap_chain_t *a_chain)
 {
     dap_list_t *l_block_list = NULL;
-    dap_chain_hash_fast_t l_hash_block;
+    dap_hash_sha3_256_t l_hash_block;
     char *l_hashes_tmp_ptrs = NULL;
     char *l_hashes_str = strtok_r(a_hash_str, ",", &l_hashes_tmp_ptrs);
     size_t l_hashes_pos = 0;
     while (l_hashes_str) {
         l_hashes_str = dap_strstrip(l_hashes_str);
-        if (!l_hashes_str || dap_chain_hash_fast_from_str(l_hashes_str, &l_hash_block)) {
+        if (!l_hashes_str || dap_hash_sha3_256_from_str(l_hashes_str, &l_hash_block)) {
             log_it(L_WARNING, "Can't convert string %s to hash", l_hashes_str ? l_hashes_str : "(null)");
             l_hashes_pos = 0;
             break;
@@ -1589,7 +1589,7 @@ static dap_list_t *s_block_parse_str_list(char *a_hash_str, size_t *a_hash_size,
             l_hashes_pos = 0;
             break;
         }
-        dap_hash_fast_t *l_block_hash_new = DAP_DUP(&l_hash_block);
+        dap_hash_sha3_256_t *l_block_hash_new = DAP_DUP(&l_hash_block);
         if (!l_block_hash_new) {
             log_it(L_CRITICAL, "Memory allocaton error");
             l_hashes_pos = 0;
@@ -1638,8 +1638,8 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     pthread_rwlock_wrlock(&PVT(l_blocks)->forked_branches_rwlock);
     for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){
         dap_chain_block_forked_branch_atoms_table_t *l_atom_tmp, *l_atom;
-        HASH_ITER(hh, PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom, l_atom_tmp) {
-            HASH_DEL(PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom);
+        dap_ht_foreach(PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom, l_atom_tmp) {
+            dap_ht_del(PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom);
             l_atom = NULL;
         }
         DAP_DEL_Z(PVT(l_blocks)->forked_branches[i]);
@@ -1651,9 +1651,9 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     assert(!err);
     PVT(l_blocks)->blocks_count = 0;
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
-    HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
-        HASH_DELETE(hh, PVT(l_blocks)->blocks, l_block);
-        HASH_DELETE(hh2, PVT(l_blocks)->blocks_num, l_block);
+    dap_ht_foreach(PVT(l_blocks)->blocks, l_block, l_block_tmp) {
+        dap_ht_del(PVT(l_blocks)->blocks, l_block);
+        dap_ht_del_hh(hh2, PVT(l_blocks)->blocks_num, l_block);
         if (!a_chain->is_mapped)
             DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
@@ -1662,8 +1662,8 @@ static int s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     
     dap_chain_block_datum_index_t *l_datum_index = NULL, *l_datum_index_tmp = NULL;
     pthread_rwlock_wrlock(&PVT(l_blocks)->datums_rwlock);
-    HASH_ITER(hh, PVT(l_blocks)->datum_index, l_datum_index, l_datum_index_tmp) {
-        HASH_DEL(PVT(l_blocks)->datum_index, l_datum_index);
+    dap_ht_foreach(PVT(l_blocks)->datum_index, l_datum_index, l_datum_index_tmp) {
+        dap_ht_del(PVT(l_blocks)->datum_index, l_datum_index);
         DAP_DELETE(l_datum_index);
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
@@ -1697,11 +1697,11 @@ static int s_add_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_block_
                    a_block_cache->block_hash_str, l_block_offset,l_datum_size );
             break;
         }
-        dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
+        dap_hash_sha3_256_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_ledger_datum_iter_data_t l_datum_index_data = { .token_ticker = "UNKNOWN", .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN , .uid.uint64 = 0 };
         bool is_hardfork_related_block = a_block_cache->generation && a_block_cache->generation == a_blocks->chain->generation;
-        dap_hash_fast_t l_zero_hash = {0};
-        if (!memcmp(l_datum_hash, &l_zero_hash, sizeof(dap_hash_fast_t)))
+        dap_hash_sha3_256_t l_zero_hash = {0};
+        if (!memcmp(l_datum_hash, &l_zero_hash, sizeof(dap_hash_sha3_256_t)))
             continue;
         
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, l_datum_hash, &l_datum_index_data);
@@ -1724,7 +1724,7 @@ static int s_add_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_block_
             l_datum_index->service_uid = l_datum_index_data.uid;
             dap_strncpy(l_datum_index->token_ticker, l_datum_index_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
             pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
-            HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
+            dap_ht_add(PVT(a_blocks)->datum_index, datum_hash, l_datum_index);
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
             dap_chain_datum_notify(a_blocks->chain, a_block_cache->block->hdr.cell_id, l_datum_hash, &l_datum_index->block_cache->block_hash,
                                    (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
@@ -1748,17 +1748,17 @@ static int s_delete_atom_datums(dap_chain_type_blocks_t *a_blocks, dap_chain_blo
     size_t l_datum_size = 0;
     for(size_t i=0; i<a_block_cache->datum_count && l_block_offset +sizeof(a_block_cache->block->hdr) < a_block_cache->block_size;
             i++, l_block_offset += l_datum_size){
-        dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
+        dap_hash_sha3_256_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
         dap_chain_block_datum_index_t *l_datum_index = NULL;
         size_t l_datum_data_size = l_datum->header.data_size;
         l_datum_size = l_datum_data_size + sizeof(l_datum->header);
-        HASH_FIND(hh, PVT(a_blocks)->datum_index, l_datum_hash, sizeof(dap_hash_fast_t), l_datum_index);
+        dap_ht_find(PVT(a_blocks)->datum_index, l_datum_hash, sizeof(dap_hash_sha3_256_t), l_datum_index);
         if (l_datum_index){
             if (l_datum_index->ret_code >= 0)
                 dap_chain_datum_remove(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
             l_ret++;
-            HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
+            dap_ht_del(PVT(a_blocks)->datum_index, l_datum_index);
             // notify datum removed
             dap_chain_datum_removed_notify(a_blocks->chain, a_block_cache->block->hdr.cell_id, l_datum_hash, l_datum);
         }
@@ -1815,20 +1815,20 @@ static bool s_select_longest_branch(dap_chain_type_blocks_t * a_blocks, dap_chai
                 dap_chain_block_forked_branch_atoms_table_t *l_new_item = DAP_NEW_Z(dap_chain_block_forked_branch_atoms_table_t);
                 l_new_item->block_cache = l_atom;
                 l_new_item->block_hash = l_atom->block_hash;
-                HASH_ADD(hh, l_new_forked_branch, block_hash, sizeof(dap_hash_fast_t), l_new_item);
+                dap_ht_add(l_new_forked_branch, block_hash, l_new_item);
                 l_reverted_blocks_cnt++;
-                dap_hash_fast_t *l_reverted_block_hash = DAP_DUP_SIZE(&l_atom->block_hash, sizeof(l_atom->block_hash));
+                dap_hash_sha3_256_t *l_reverted_block_hash = DAP_DUP_SIZE(&l_atom->block_hash, sizeof(l_atom->block_hash));
                 l_reverted_blocks_list = dap_list_prepend(l_reverted_blocks_list, l_reverted_block_hash);
                 l_atom = l_atom->hh.next;
         }
         // Next we must to remove all blocks from main branch and delete all datums in this atoms from storages
-        unsigned l_new_forked_branch_len = HASH_COUNT(l_new_forked_branch);
+        unsigned l_new_forked_branch_len = dap_ht_count(l_new_forked_branch);
         for (l_curr_index = 0; l_curr_index < l_new_forked_branch_len; ++l_curr_index) {
-            dap_chain_block_cache_t *l_curr_atom = HASH_LAST(PVT(l_blocks)->blocks);
+            dap_chain_block_cache_t *l_curr_atom = dap_ht_last(PVT(l_blocks)->blocks);
             s_delete_atom_datums(l_blocks, l_curr_atom);
             --PVT(l_blocks)->blocks_count;
-            HASH_DEL(PVT(l_blocks)->blocks, l_curr_atom);
-            HASH_DELETE(hh2, PVT(l_blocks)->blocks_num, l_curr_atom);
+            dap_ht_del(PVT(l_blocks)->blocks, l_curr_atom);
+            dap_ht_del_hh(hh2, PVT(l_blocks)->blocks_num, l_curr_atom);
             dap_time_t l_prev_block_timestamp = l_curr_atom->hh.prev ? ((dap_chain_block_cache_t *)l_curr_atom->hh.prev)->block->hdr.ts_created : 0;
             dap_chain_atom_remove_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, l_prev_block_timestamp);
         }
@@ -1838,15 +1838,15 @@ static bool s_select_longest_branch(dap_chain_type_blocks_t * a_blocks, dap_chai
         dap_chain_block_forked_branch_atoms_table_t *new_main_branch = l_longest_branch_cache_ptr->forked_branch_atoms,
                                                     *l_temp = NULL, *l_item = NULL;
 
-        HASH_ITER(hh, new_main_branch, l_item, l_temp) {
+        dap_ht_foreach(new_main_branch, l_item, l_temp) {
             dap_chain_block_cache_t *l_curr_atom = l_item->block_cache;
             ++PVT(l_blocks)->blocks_count;
-            HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_curr_atom->block_hash), l_curr_atom);
-            HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_curr_atom->block_number), l_curr_atom->block_number, l_curr_atom);
+            dap_ht_add(PVT(l_blocks)->blocks, block_hash, l_curr_atom);
+            dap_ht_add_by_hashvalue_hh(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_curr_atom->block_number), l_curr_atom->block_number, l_curr_atom);
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", l_curr_atom);
             s_add_atom_datums(l_blocks, l_curr_atom);
             dap_chain_atom_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size, l_curr_atom->block->hdr.ts_created);
-            HASH_DEL(new_main_branch, l_item);
+            dap_ht_del(new_main_branch, l_item);
             DAP_DELETE(l_item);
             l_main_blocks_cnt++;
         }
@@ -1872,18 +1872,18 @@ static bool s_select_longest_branch(dap_chain_type_blocks_t * a_blocks, dap_chai
  * @param a_atom_size
  * @return
  */
-static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom , size_t a_atom_size, dap_hash_fast_t *a_atom_hash, bool a_atom_new)
+static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom , size_t a_atom_size, dap_hash_sha3_256_t *a_atom_hash, bool a_atom_new)
 {
     dap_chain_type_blocks_t * l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_chain_block_t * l_block = (dap_chain_block_t *) a_atom;
 
-    dap_chain_hash_fast_t l_block_hash = *a_atom_hash;
+    dap_hash_sha3_256_t l_block_hash = *a_atom_hash;
 
     dap_chain_block_cache_t * l_block_cache = NULL;
 
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify(a_chain, a_atom, a_atom_size, &l_block_hash);
-    dap_hash_t *l_prev_hash_meta_data = (dap_hash_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
-    dap_hash_t l_block_prev_hash = l_prev_hash_meta_data ? *l_prev_hash_meta_data : (dap_hash_t){};
+    dap_hash_sha3_256_t *l_prev_hash_meta_data = (dap_hash_sha3_256_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
+    dap_hash_sha3_256_t l_block_prev_hash = l_prev_hash_meta_data ? *l_prev_hash_meta_data : (dap_hash_sha3_256_t){};
 
     switch (ret) {
     case ATOM_ACCEPT:{
@@ -1905,22 +1905,22 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
         assert(!err);
         if (!l_block_cache->is_genesis) {
-            dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
-            if (l_last_block && dap_hash_fast_compare(&l_last_block->block_hash, &l_block_prev_hash)){
+            dap_chain_block_cache_t *l_last_block = dap_ht_last(PVT(l_blocks)->blocks);
+            if (l_last_block && dap_hash_sha3_256_compare(&l_last_block->block_hash, &l_block_prev_hash)){
                 ++PVT(l_blocks)->blocks_count;
-                HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
-                HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
+                dap_ht_add(PVT(l_blocks)->blocks, block_hash, l_block_cache);
+                dap_ht_add_by_hashvalue_hh(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
                 debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
                 s_add_atom_datums(l_blocks, l_block_cache);
                 dap_chain_atom_notify(a_chain, l_block->hdr.cell_id, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
                 dap_chain_atom_add_from_threshold(a_chain);
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
 
-                dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
+                dap_chain_block_cache_t *l_bcache_last = dap_ht_last(PVT(l_blocks)->blocks);
                 // Send it to notificator listeners
 
                 dap_list_t *l_iter;
-                DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
+                dap_dl_foreach(a_chain->atom_confirmed_notifiers, l_iter) {
                     dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
                     dap_chain_block_cache_t *l_tmp = l_bcache_last;
                     int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
@@ -1938,24 +1938,24 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             }
             for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){
                 dap_chain_block_forked_branch_t *l_cur_branch = PVT(l_blocks)->forked_branches[i];
-                dap_chain_block_forked_branch_atoms_table_t *l_last = HASH_LAST(l_cur_branch->forked_branch_atoms);
+                dap_chain_block_forked_branch_atoms_table_t *l_last = dap_ht_last(l_cur_branch->forked_branch_atoms);
                 if(!l_last){
                     continue;
                 }
 
-                if (dap_hash_fast_compare(&l_last->block_hash, &l_block_prev_hash)){
+                if (dap_hash_sha3_256_compare(&l_last->block_hash, &l_block_prev_hash)){
                     dap_chain_block_forked_branch_atoms_table_t *l_new_item = DAP_NEW_Z(dap_chain_block_forked_branch_atoms_table_t);
                     l_new_item->block_cache = l_block_cache;
                     l_new_item->block_hash = l_block_cache->block_hash;
                     l_block_cache->block_number = l_last->block_cache->block_number + 1;
-                    HASH_ADD(hh, l_cur_branch->forked_branch_atoms, block_hash, sizeof(dap_hash_fast_t), l_new_item);
+                    dap_ht_add(l_cur_branch->forked_branch_atoms, block_hash, l_new_item);
                     uint64_t l_main_branch_length = PVT(l_blocks)->blocks_count - l_cur_branch->connected_block->block_number;
                     if ( s_select_longest_branch(l_blocks, l_cur_branch->connected_block, l_main_branch_length) ) {
-                        dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
+                        dap_chain_block_cache_t *l_bcache_last = dap_ht_last(PVT(l_blocks)->blocks);
                         // Send it to notificator listeners
                         if (!dap_chain_net_api_get_load_mode( dap_chain_net_api_by_id(a_chain->net_id))){
                             dap_list_t *l_iter;
-                            DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
+                            dap_dl_foreach(a_chain->atom_confirmed_notifiers, l_iter) {
                                 dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
                                 dap_chain_block_cache_t *l_tmp = l_bcache_last;
                                 int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
@@ -1977,19 +1977,19 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             uint16_t l_generation = l_generation_meta ? *(uint16_t *)l_generation_meta : 0;
             if (l_generation && a_chain->generation < l_generation) {
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-                dap_hash_fast_t *l_hardfork_decree_hash_ptr = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
+                dap_hash_sha3_256_t *l_hardfork_decree_hash_ptr = (dap_hash_sha3_256_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
                 if (!l_hardfork_decree_hash_ptr) {
                     log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                     return ATOM_REJECT;
                 }
-                dap_hash_fast_t l_hardfork_decree_hash = *l_hardfork_decree_hash_ptr;
+                dap_hash_sha3_256_t l_hardfork_decree_hash = *l_hardfork_decree_hash_ptr;
                 if (!dap_chain_net_get_load_mode(l_net)) {
                     // Make a block copy to avoid unmapping block pointer destruction
                     dap_chain_block_t *l_block_copy = DAP_DUP_SIZE_RET_VAL_IF_FAIL(l_block, a_atom_size, ATOM_REJECT);
                     l_block = l_block_copy;
                     dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
                     if (l_net && l_net->pub.ledger && dap_ledger_chain_purge(l_net->pub.ledger, a_chain->id, a_atom_size)) {
-                        log_it(L_ERROR, "Can't accept hardfork genesis block %s: removing cell error", dap_hash_fast_to_str_static(a_atom_hash));
+                        log_it(L_ERROR, "Can't accept hardfork genesis block %s: removing cell error", dap_hash_sha3_256_to_str_static(a_atom_hash));
                         DAP_DELETE(l_block_copy);
                         return ATOM_REJECT;
                     }
@@ -2009,13 +2009,13 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 a_chain->generation = a_chain->hardfork_generation = l_generation;
                 dap_chain_cs_set_hardfork_state(a_chain, true);
                 if (dap_chain_cs_stake_hardfork_data_import(a_chain, &l_hardfork_decree_hash)) { // True import
-                    log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
+                    log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_sha3_256_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
                 }
                 pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
             }
-            HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
-            HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
+            dap_ht_add(PVT(l_blocks)->blocks, block_hash, l_block_cache);
+            dap_ht_add_by_hashvalue_hh(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
             ++PVT(l_blocks)->blocks_count;
             debug_if(s_debug_more, L_DEBUG, "Verified genesis atom %p: ACCEPTED", a_atom);
             s_add_atom_datums(l_blocks, l_block_cache);
@@ -2039,7 +2039,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 */
         ret = ATOM_REJECT;
     case ATOM_REJECT:
-        debug_if(s_debug_more, L_DEBUG, "Verified atom %p with hash %s: REJECTED", a_atom, dap_chain_hash_fast_to_str_static(&l_block_hash));
+        debug_if(s_debug_more, L_DEBUG, "Verified atom %p with hash %s: REJECTED", a_atom, dap_hash_sha3_256_to_str_static(&l_block_hash));
         break;
     case ATOM_FORK:{
         if ( !dap_chain_net_api_get_load_mode( dap_chain_net_api_by_id(a_chain->net_id)) ) {
@@ -2056,9 +2056,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_block_cache_t *l_prev_bcache = NULL, *l_tmp = NULL;
         int err = pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
         assert(!err);
-        log_it(L_INFO, "New fork. Previous block hash %s, current block hash %s", dap_chain_hash_fast_to_str_static(&l_block_prev_hash),
+        log_it(L_INFO, "New fork. Previous block hash %s, current block hash %s", dap_hash_sha3_256_to_str_static(&l_block_prev_hash),
                                                                                     l_block_cache->block_hash_str);
-        HASH_FIND(hh, PVT(l_blocks)->blocks, &l_block_prev_hash, sizeof(dap_hash_fast_t), l_prev_bcache);
+        dap_ht_find(PVT(l_blocks)->blocks, &l_block_prev_hash, sizeof(dap_hash_sha3_256_t), l_prev_bcache);
         if (l_prev_bcache){
             dap_chain_block_forked_branch_atoms_table_t *l_new_item = DAP_NEW_Z(dap_chain_block_forked_branch_atoms_table_t);
             l_new_item->block_cache = l_block_cache;
@@ -2067,7 +2067,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
             dap_chain_block_forked_branch_t *forked_branch = DAP_NEW_Z(dap_chain_block_forked_branch_t);
             forked_branch->connected_block = l_prev_bcache;
-            HASH_ADD(hh, forked_branch->forked_branch_atoms, block_hash, sizeof(dap_hash_fast_t), l_new_item);
+            dap_ht_add(forked_branch->forked_branch_atoms, block_hash, l_new_item);
             
             PVT(l_blocks)->forked_br_cnt++;
             PVT(l_blocks)->forked_branches = DAP_REALLOC_COUNT(PVT(l_blocks)->forked_branches, PVT(l_blocks)->forked_br_cnt);
@@ -2090,7 +2090,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         return ATOM_REJECT;
     }
     case ATOM_PASS:
-        debug_if(s_debug_more, L_DEBUG, "... %s is already present", dap_chain_hash_fast_to_str_static(&l_block_hash));
+        debug_if(s_debug_more, L_DEBUG, "... %s is already present", dap_hash_sha3_256_to_str_static(&l_block_hash));
         break;
     case ATOM_CORRUPTED:
         debug_if(s_debug_more, L_DEBUG, "... atom is corrupted.%s", dap_chain_net_api_get_load_mode(dap_chain_net_api_by_id(a_chain->net_id))
@@ -2109,7 +2109,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
  * @param a_atom_size
  * @return
  */
-static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_chain_hash_fast_t *a_atom_hash)
+static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_sha3_256_t *a_atom_hash)
 {
     dap_return_val_if_fail(a_chain && a_atom && a_atom_size && a_atom_hash, ATOM_REJECT);
     dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
@@ -2119,26 +2119,26 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     dap_chain_type_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
     assert(l_blocks_pvt);
     dap_chain_block_t * l_block = (dap_chain_block_t *)a_atom;
-    dap_chain_hash_fast_t l_block_hash = *a_atom_hash;
+    dap_hash_sha3_256_t l_block_hash = *a_atom_hash;
 
     if (sizeof(l_block->hdr) >= a_atom_size) {
         log_it(L_WARNING, "Block %s size %zd <= block header size %zd",
-                                dap_hash_fast_to_str_static(a_atom_hash), a_atom_size, sizeof(l_block->hdr));
+                                dap_hash_sha3_256_to_str_static(a_atom_hash), a_atom_size, sizeof(l_block->hdr));
         return l_load_mode ? ATOM_CORRUPTED : ATOM_REJECT;
     }
     size_t l_offset = dap_chain_block_get_sign_offset(l_block, a_atom_size);
     if (!l_offset) {
-        log_it(L_WARNING, "Block %s with size %zu parsing error", dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
+        log_it(L_WARNING, "Block %s with size %zu parsing error", dap_hash_sha3_256_to_str_static(a_atom_hash), a_atom_size);
         return l_load_mode ? ATOM_CORRUPTED : ATOM_REJECT;
     }
     if ((l_block->hdr.version >= 2 || /* Old bug, crutch for it */ l_block->hdr.meta_n_datum_n_signs_size != l_offset) &&
             l_block->hdr.meta_n_datum_n_signs_size + sizeof(l_block->hdr) != a_atom_size) {
         // Hard accept list
         struct cs_blocks_hal_item *l_hash_found = NULL;
-        HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
+        dap_ht_find(l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
         if (!l_hash_found) {
             log_it(L_WARNING, "Incorrect size %zu of block %s, expected %zu", l_block->hdr.meta_n_datum_n_signs_size + sizeof(l_block->hdr),
-                                                                    dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
+                                                                    dap_hash_sha3_256_to_str_static(a_atom_hash), a_atom_size);
             return l_load_mode ? ATOM_CORRUPTED : ATOM_REJECT;
         }
     }
@@ -2152,16 +2152,16 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     if (l_offset + sizeof(l_block->hdr) != a_atom_size) {
         // Hard accept list
         struct cs_blocks_hal_item *l_hash_found = NULL;
-        HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
+        dap_ht_find(l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
         if (!l_hash_found) {
             log_it(L_WARNING, "Incorrect size %zu of block %s, expected %zu", l_offset + sizeof(l_block->hdr),
-                                                                    dap_hash_fast_to_str_static(a_atom_hash), a_atom_size);
+                                                                    dap_hash_sha3_256_to_str_static(a_atom_hash), a_atom_size);
             return l_load_mode ? ATOM_CORRUPTED : ATOM_REJECT;
         }
     }
 
     if (!l_block->hdr.ts_created || l_block->hdr.ts_created > dap_time_now() + 600) {
-        log_it(L_WARNING, "Incorrect block %s timestamp", dap_hash_fast_to_str_static(a_atom_hash));
+        log_it(L_WARNING, "Incorrect block %s timestamp", dap_hash_sha3_256_to_str_static(a_atom_hash));
         return ATOM_REJECT;
     }
 
@@ -2174,61 +2174,61 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     if (l_is_genesis) {
         if (!a_chain->generation && !l_generation) {
             if (s_seed_mode)
-                log_it(L_NOTICE, "Accepting new genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
-            else if (dap_hash_fast_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
-                    && !dap_hash_fast_is_blank(&l_block_hash)) {
+                log_it(L_NOTICE, "Accepting new genesis block %s", dap_hash_sha3_256_to_str_static(a_atom_hash));
+            else if (dap_hash_sha3_256_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
+                    && !dap_hash_sha3_256_is_blank(&l_block_hash)) {
                 if (PVT(l_blocks)->blocks_count) {
-                    log_it(L_WARNING, "Can't accept static genesis block %s: blocks count is not zero", dap_hash_fast_to_str_static(a_atom_hash));
+                    log_it(L_WARNING, "Can't accept static genesis block %s: blocks count is not zero", dap_hash_sha3_256_to_str_static(a_atom_hash));
                     return ATOM_REJECT;
                 }
-                log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_fast_to_str_static(a_atom_hash));
+                log_it(L_NOTICE, "Accepting static genesis block %s", dap_hash_sha3_256_to_str_static(a_atom_hash));
             } else {
-                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                dap_hash_fast_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
+                char l_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+                dap_hash_sha3_256_to_str(&PVT(l_blocks)->static_genesis_block_hash, l_hash_str, sizeof(l_hash_str));
                 log_it(L_WARNING, "Can't accept genesis block %s: seed mode not enabled or hash mismatch with static genesis block %s in configuration",
-                                    dap_hash_fast_to_str_static(a_atom_hash), l_hash_str);
+                                    dap_hash_sha3_256_to_str_static(a_atom_hash), l_hash_str);
                 return ATOM_REJECT;
             }
         } else {
             if (a_chain->generation >= l_generation) {
                 log_it(L_ERROR, "Can't accept %s genesis block %s: generation #%hu is too old", l_generation ? "hardfork" : "static",
-                                                dap_hash_fast_to_str_static(a_atom_hash), l_generation);
+                                                dap_hash_sha3_256_to_str_static(a_atom_hash), l_generation);
                 return ATOM_REJECT;
             }
             if (dap_chain_generation_banned(a_chain, l_generation)) {
-                log_it(L_ERROR, "Can't accept hardfork genesis block %s: generation #%hu is banned", dap_hash_fast_to_str_static(a_atom_hash), l_generation);
+                log_it(L_ERROR, "Can't accept hardfork genesis block %s: generation #%hu is banned", dap_hash_sha3_256_to_str_static(a_atom_hash), l_generation);
                 return ATOM_REJECT;
             }
-            log_it(L_NOTICE, "Accepting hardfork genesis block %s and restore data", dap_hash_fast_to_str_static(a_atom_hash));
-            dap_hash_fast_t *l_hardfork_decree_hash = (dap_hash_fast_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
+            log_it(L_NOTICE, "Accepting hardfork genesis block %s and restore data", dap_hash_sha3_256_to_str_static(a_atom_hash));
+            dap_hash_sha3_256_t *l_hardfork_decree_hash = (dap_hash_sha3_256_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_LINK);
             if (!l_hardfork_decree_hash) {
                 log_it(L_ERROR, "Can't find hardfork decree hash in candidate block meta");
                 return ATOM_REJECT;
             }
             if (dap_chain_cs_stake_switch_table(a_chain, true)) { // to Sandbox
-                log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in switching to sandbox table", dap_hash_fast_to_str_static(a_atom_hash));
+                log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in switching to sandbox table", dap_hash_sha3_256_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
             if (dap_chain_cs_stake_hardfork_data_import(a_chain, l_hardfork_decree_hash)) { // Sandbox
-                log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_fast_to_str_static(a_atom_hash));
+                log_it(L_ERROR, "Can't accept hardfork genesis block %s: error in hardfork data restoring", dap_hash_sha3_256_to_str_static(a_atom_hash));
                 return ATOM_REJECT;
             }
         }
         ret = ATOM_ACCEPT;
     } else {
-        dap_hash_t *l_prev_hash_meta_data = (dap_hash_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
+        dap_hash_sha3_256_t *l_prev_hash_meta_data = (dap_hash_sha3_256_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
         if (!l_prev_hash_meta_data) {
-            log_it(L_WARNING, "Block %s isn't a genesis one but not contains previous block hash in metadata", dap_hash_fast_to_str_static(a_atom_hash));
+            log_it(L_WARNING, "Block %s isn't a genesis one but not contains previous block hash in metadata", dap_hash_sha3_256_to_str_static(a_atom_hash));
             return ATOM_REJECT;
         }
-        dap_hash_t l_block_prev_hash = *l_prev_hash_meta_data;
+        dap_hash_sha3_256_t l_block_prev_hash = *l_prev_hash_meta_data;
         if (s_debug_more) {
-            char l_prev_block_hash_str[DAP_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(&l_block_prev_hash, l_prev_block_hash_str, DAP_HASH_FAST_STR_SIZE);
-            log_it(L_DEBUG, "Verify new block with hash %s. Previous block hash is %s", dap_hash_fast_to_str_static(a_atom_hash), l_prev_block_hash_str);
+            char l_prev_block_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(&l_block_prev_hash, l_prev_block_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
+            log_it(L_DEBUG, "Verify new block with hash %s. Previous block hash is %s", dap_hash_sha3_256_to_str_static(a_atom_hash), l_prev_block_hash_str);
         }
-        dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
-        if (l_bcache_last && dap_hash_fast_compare(&l_bcache_last->block_hash, &l_block_prev_hash))
+        dap_chain_block_cache_t *l_bcache_last = dap_ht_last(PVT(l_blocks)->blocks);
+        if (l_bcache_last && dap_hash_sha3_256_compare(&l_bcache_last->block_hash, &l_block_prev_hash))
             ret = ATOM_ACCEPT;
         else { // search block and previous block in forked branch
             int err = pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
@@ -2237,7 +2237,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 dap_chain_block_forked_branch_t *l_cur_branch = PVT(l_blocks)->forked_branches[i];
                 dap_chain_block_forked_branch_atoms_table_t *l_item = NULL;
                 // Check block already present in forked branch
-                HASH_FIND(hh, l_cur_branch->forked_branch_atoms, &l_block_hash, sizeof(dap_hash_fast_t), l_item);
+                dap_ht_find(l_cur_branch->forked_branch_atoms, &l_block_hash, sizeof(dap_hash_sha3_256_t), l_item);
                 if (l_item) {
                     debug_if(s_debug_more,L_DEBUG,"%s","Block already exist in forked branch.");
                     ret = ATOM_PASS;
@@ -2245,7 +2245,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 }
                 l_item = NULL;
                 // Find previous block is last block in current branch
-                HASH_FIND(hh, l_cur_branch->forked_branch_atoms, &l_block_prev_hash, sizeof(dap_hash_fast_t), l_item);
+                dap_ht_find(l_cur_branch->forked_branch_atoms, &l_block_prev_hash, sizeof(dap_hash_sha3_256_t), l_item);
                 if (!l_item)
                     continue;
                 if (l_item->hh.next) {
@@ -2262,13 +2262,13 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                 // search block and previous block in main branch
                 unsigned l_checked_atoms_cnt = PVT(l_blocks)->block_confirm_cnt;
                 for (dap_chain_block_cache_t *l_tmp = l_bcache_last; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--){
-                    if(dap_hash_fast_compare(&l_tmp->block_hash, &l_block_hash)){
+                    if(dap_hash_sha3_256_compare(&l_tmp->block_hash, &l_block_hash)){
                         debug_if(s_debug_more,L_DEBUG,"%s","Block is already exist in main branch.");
                         ret = ATOM_PASS;
                         break;
                     }
 
-                    if (dap_hash_fast_compare(&l_tmp->block_hash, &l_block_prev_hash)) {
+                    if (dap_hash_sha3_256_compare(&l_tmp->block_hash, &l_block_prev_hash)) {
                         if (l_tmp->hh.next) {
                             debug_if(s_debug_more,L_DEBUG,"%s","New fork!");
                             ret = ATOM_FORK;
@@ -2289,9 +2289,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         if (l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
             // Hard accept list
             struct cs_blocks_hal_item *l_hash_found = NULL;
-            HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
+            dap_ht_find(l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
             if (!l_hash_found) {
-                log_it(L_WARNING, "Block %s rejected by block verificator", dap_hash_fast_to_str_static(a_atom_hash));
+                log_it(L_WARNING, "Block %s rejected by block verificator", dap_hash_sha3_256_to_str_static(a_atom_hash));
                 ret = ATOM_REJECT;
             }
         }
@@ -2301,7 +2301,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     }
     if (l_is_genesis && l_generation && a_chain->generation < l_generation) {
         if (dap_chain_cs_stake_switch_table(a_chain, false)) {  // return to main
-            log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_fast_to_str_static(a_atom_hash));
+            log_it(L_CRITICAL, "Can't accept hardfork genesis block %s: error in switching to main table", dap_hash_sha3_256_to_str_static(a_atom_hash));
             ret = ATOM_REJECT;
         }
     }
@@ -2324,7 +2324,7 @@ static size_t s_callback_atom_get_static_hdr_size(void)
  * @param a_atom_size
  * @return
  */
-static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter, dap_chain_hash_fast_t *a_atom_hash,
+static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter, dap_hash_sha3_256_t *a_atom_hash,
                                                               size_t * a_atom_size)
 {
     assert(a_atom_iter);
@@ -2373,13 +2373,13 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_
  * @param a_atom_hash
  * @return
  */
-static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
-                                                        dap_chain_hash_fast_t *a_block_hash, int *a_ret_code)
+static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_datum_hash,
+                                                        dap_hash_sha3_256_t *a_block_hash, int *a_ret_code)
 {
     dap_chain_type_blocks_t * l_cs_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_chain_block_datum_index_t *l_datum_index = NULL;
     pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
-    HASH_FIND(hh, PVT(l_cs_blocks)->datum_index, a_datum_hash, sizeof (*a_datum_hash), l_datum_index);
+    dap_ht_find(PVT(l_cs_blocks)->datum_index, a_datum_hash, sizeof (*a_datum_hash), l_datum_index);
     pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     if (!l_datum_index || !l_datum_index->block_cache)
         return NULL;
@@ -2396,12 +2396,12 @@ static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, da
  * @param a_tx_hash
  * @return atom_ptr
  */
-static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash, size_t *a_block_size)
+static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_hash_sha3_256_t * a_tx_hash, size_t *a_block_size)
 {
     dap_chain_type_blocks_t * l_cs_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_chain_block_datum_index_t *l_datum_index = NULL;
     pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
-    HASH_FIND(hh, PVT(l_cs_blocks)->datum_index, a_tx_hash, sizeof (*a_tx_hash), l_datum_index);
+    dap_ht_find(PVT(l_cs_blocks)->datum_index, a_tx_hash, sizeof (*a_tx_hash), l_datum_index);
     pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     if (!l_datum_index)
         return NULL;
@@ -2497,11 +2497,11 @@ static dap_json_t *s_callback_atom_dump_json(dap_json_t **a_arr_out, dap_chain_t
         dap_json_t *json_obj_sign = dap_json_object_new();
         dap_sign_t * l_sign = dap_chain_block_sign_get(l_block, dap_chain_block_get_size(l_block), i);
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        dap_chain_hash_fast_t l_pkey_hash;
+        dap_hash_sha3_256_t l_pkey_hash;
         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
         const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
                 dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
-                dap_chain_hash_fast_to_str_static(&l_pkey_hash);
+                dap_hash_sha3_256_to_str_static(&l_pkey_hash);
         dap_json_object_add_object(json_obj_sign, a_version == 1 ? "type" : "sig_type",dap_json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
         dap_json_object_add_object(json_obj_sign, a_version == 1 ? "size" : "sig_size",dap_json_object_new_uint64(l_sign_size));
         dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",dap_json_object_new_string(l_hash_str));
@@ -2529,7 +2529,7 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
  * @param a_chain
  * @return
  */
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from)
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_sha3_256_t *a_hash_from)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     if (!l_atom_iter) {
@@ -2567,7 +2567,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
         a_atom_iter->cur_item = l_blocks_pvt->blocks;
         break;
     case DAP_CHAIN_ITER_OP_LAST:
-        a_atom_iter->cur_item = HASH_LAST(l_blocks_pvt->blocks);
+        a_atom_iter->cur_item = dap_ht_last(l_blocks_pvt->blocks);
         break;
     case DAP_CHAIN_ITER_OP_NEXT:
         if (a_atom_iter->cur_item)
@@ -2697,7 +2697,7 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_last(dap_chain_datum_i
     dap_chain_type_blocks_t * l_cs_blocks = DAP_CHAIN_TYPE_BLOCKS(a_datum_iter->chain);
     pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
     //dap_chain_block_datum_index_t *l_datum_index = PVT(l_cs_blocks)->datum_index;
-    dap_chain_block_datum_index_t *l_datum_index = HASH_LAST(PVT(l_cs_blocks)->datum_index);    
+    dap_chain_block_datum_index_t *l_datum_index = dap_ht_last(PVT(l_cs_blocks)->datum_index);    
     s_datum_iter_fill(a_datum_iter, l_datum_index);
     pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     return a_datum_iter->cur;
@@ -2754,8 +2754,9 @@ static dap_chain_block_t *s_block_create(dap_chain_type_blocks_t *a_blocks, size
     dap_chain_block_t *l_ret = NULL;
     dap_chain_type_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
     pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
-        dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks->hh.tbl->tail->prev;
-        l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
+        dap_chain_block_cache_t *l_tail = (dap_chain_block_cache_t *)l_blocks_pvt->blocks->hh.tbl->tail;
+        dap_chain_block_cache_t *l_bcache_last = l_tail ? (dap_chain_block_cache_t *)l_tail->hh.prev : NULL;
+        l_bcache_last = l_bcache_last ? (dap_chain_block_cache_t *)l_bcache_last->hh.next : l_blocks_pvt->blocks;
         l_ret = dap_chain_block_new(&l_bcache_last->block_hash, &l_ret_size);
         l_ret->hdr.cell_id.uint64 = a_blocks->chain->cells->id.uint64;
         l_ret->hdr.chain_id.uint64 = a_blocks->chain->id.uint64;
@@ -2794,7 +2795,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             break;
         }
         if (!l_blocks->block_new) {
-            dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
+            dap_chain_block_cache_t *l_bcache_last = dap_ht_last(l_blocks_pvt->blocks);
             if (a_chain->hardfork_data && a_chain->hardfork_generation != a_chain->generation)
                 l_bcache_last = NULL;
             l_blocks->block_new = dap_chain_block_new(l_bcache_last ? &l_bcache_last->block_hash : NULL, &l_blocks->block_new_size);
@@ -2853,11 +2854,12 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     size_t l_end = l_offset + a_count;
 
     if (a_reverse) {
-        dap_chain_block_cache_t *l_ptr = l_blocks_pvt->blocks->hh.tbl->tail->prev;
+        dap_chain_block_cache_t *l_ht_tail = (dap_chain_block_cache_t *)l_blocks_pvt->blocks->hh.tbl->tail;
+        dap_chain_block_cache_t *l_ptr = l_ht_tail ? (dap_chain_block_cache_t *)l_ht_tail->hh.prev : NULL;
         if (!l_ptr)
             l_ptr = l_blocks_pvt->blocks;
         else
-            l_ptr = l_ptr->hh.next;
+            l_ptr = (dap_chain_block_cache_t *)l_ptr->hh.next;
         for (dap_chain_block_cache_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev) {
             if (l_counter >= l_offset) {
                 dap_chain_block_t *l_block = ptr->block;
@@ -2887,12 +2889,12 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 
 static const dap_time_t s_block_timediff_unit_size = 60;
 
-static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey)
+static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_block_hash, dap_pkey_t *a_block_sign_pkey)
 {
     uint256_t l_ret = uint256_0;
     dap_chain_type_blocks_t *l_blocks = DAP_CHAIN_TYPE_BLOCKS(a_chain);
     dap_chain_block_cache_t *l_block_cache = NULL;
-    HASH_FIND(hh, PVT(l_blocks)->blocks, a_block_hash, sizeof(*a_block_hash), l_block_cache);
+    dap_ht_find(PVT(l_blocks)->blocks, a_block_hash, sizeof(*a_block_hash), l_block_cache);
     if (!l_block_cache)
         return l_ret;
     const dap_chain_block_t *l_block = l_block_cache->block;
@@ -2915,9 +2917,9 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
         DIV_256(l_ret, GET_256_FROM_64(l_signs_count), &l_ret);
         return l_ret;
     }
-    dap_hash_fast_t l_prev_block_hash = l_block_cache->prev_hash;
+    dap_hash_sha3_256_t l_prev_block_hash = l_block_cache->prev_hash;
     l_block_cache = NULL;
-    HASH_FIND(hh, PVT(l_blocks)->blocks, &l_prev_block_hash, sizeof(l_prev_block_hash), l_block_cache);
+    dap_ht_find(PVT(l_blocks)->blocks, &l_prev_block_hash, sizeof(l_prev_block_hash), l_block_cache);
     if (!l_block_cache) {
         log_it(L_ERROR, "l_block_cache is NULL");
         return l_ret;
@@ -2947,19 +2949,19 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
  * @param a_owner
  * @return
  */
-static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t UNUSED_ARG *a_tx_in_hash,
+static int s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_sha3_256_t UNUSED_ARG *a_tx_in_hash,
                                       dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, bool a_owner, bool UNUSED_ARG a_from_mempool)
 {
     dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_ledger->net_id);
     assert(l_net);
     dap_chain_t *l_chain;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
+    dap_dl_foreach(l_net->pub.chains, l_chain) {
         if (!l_chain->callback_block_find_by_tx_hash)
             continue;
         dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
         if (!l_tx_in_cond)
             return -1;
-        if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+        if (dap_hash_sha3_256_is_blank(&l_tx_in_cond->header.tx_prev_hash))
             return -2;
         size_t l_block_size = 0;
         dap_chain_block_t *l_block = (dap_chain_block_t *)l_chain->callback_block_find_by_tx_hash(
@@ -3018,14 +3020,14 @@ static int s_aggregate_fees(dap_ledger_hardfork_fees_t **a_out_list, dap_chain_a
     assert(a_addr && a_out_list);
     dap_ledger_hardfork_fees_t l_new_fee = { .owner_addr = *a_addr };
     dap_ledger_hardfork_fees_t *l_exist = NULL;
-    DL_SEARCH(*a_out_list, l_exist, &l_new_fee, s_compare_fees);
+    dap_dl_search_cmp(*a_out_list, l_exist, &l_new_fee, s_compare_fees);
     if (!l_exist) {
         l_exist = DAP_DUP(&l_new_fee);
         if (!l_exist) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -1;
         }
-        DL_APPEND(*a_out_list, l_exist);
+        dap_dl_append(*a_out_list, l_exist);
     }
     if (SUM_256_256(l_exist->fees_n_rewards_sum, a_value, &l_exist->fees_n_rewards_sum)) {
         log_it(L_ERROR, "Integer overflow of hardfork aggregated data for not withdrowed fees or rewards");
@@ -3056,7 +3058,7 @@ dap_ledger_hardfork_fees_t *dap_chain_type_blocks_fees_aggregate(dap_chain_t *a_
                         continue;
                     // Check and apply sovereign tax for this key
                     uint256_t l_value_tax = {}, l_value_out = l_cond->header.value;
-                    dap_hash_fast_t l_sign_pkey_hash = {};
+                    dap_hash_sha3_256_t l_sign_pkey_hash = {};
                     dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
                     uint256_t l_sovereign_tax = uint256_0;
                     dap_chain_addr_t l_sovereign_addr = {};
@@ -3078,7 +3080,7 @@ dap_ledger_hardfork_fees_t *dap_chain_type_blocks_fees_aggregate(dap_chain_t *a_
             }
             if (l_ts < DAP_REWARD_INIT_TIMESTAMP)
                 break;
-            dap_hash_fast_t l_pkey_hash;
+            dap_hash_sha3_256_t l_pkey_hash;
             dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
             if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
                 continue;
@@ -3099,7 +3101,7 @@ dap_ledger_hardfork_fees_t *dap_chain_type_blocks_fees_aggregate(dap_chain_t *a_
  * @param a_pkey_hash - pkey hash
  * @return pointer to dap_pkey_t if finded, other - NULL
  */
-dap_pkey_t *dap_chain_type_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash)
+dap_pkey_t *dap_chain_type_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_pkey_hash)
 {
     dap_return_val_if_pass(!a_pkey_hash, NULL);
     dap_chain_t *l_chain = dap_chain_net_api_get_chain_by_type(a_net, CHAIN_TYPE_TX);
@@ -3112,9 +3114,9 @@ dap_pkey_t *dap_chain_type_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_h
             dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
             if (dap_sign_is_use_pkey_hash(l_sign))
                 continue;
-            dap_chain_hash_fast_t l_sign_hash = {};
+            dap_hash_sha3_256_t l_sign_hash = {};
             dap_sign_get_pkey_hash(l_sign, &l_sign_hash);
-            if(!memcmp(&l_sign_hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {
+            if(!memcmp(&l_sign_hash, a_pkey_hash, sizeof(dap_hash_sha3_256_t))) {
                 l_ret = dap_pkey_get_from_sign(l_sign);
                 break;
             }
@@ -3124,13 +3126,13 @@ dap_pkey_t *dap_chain_type_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_h
     return l_ret;
 }
 
-dap_list_t *dap_chain_type_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash)
+dap_list_t *dap_chain_type_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_block_hash)
 {
     dap_list_t *l_ret = NULL;
 
     dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_TYPE_BLOCKS(a_chain), a_block_hash);
     if (!l_block_cache) {
-        log_it(L_ERROR, "Can't find block %s in cache.", dap_hash_fast_to_str_static(a_block_hash));
+        log_it(L_ERROR, "Can't find block %s in cache.", dap_hash_sha3_256_to_str_static(a_block_hash));
         return NULL;
     }
 
@@ -3142,7 +3144,7 @@ dap_list_t *dap_chain_type_blocks_get_block_signers_rewards(dap_chain_t *a_chain
             log_it(L_ERROR, "Can't get pkey from sign");
             continue;
         }
-        dap_hash_fast_t l_pkey_hash = {};
+        dap_hash_sha3_256_t l_pkey_hash = {};
         if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
             log_it(L_ERROR, "Can't get pkey hash from sign");
             continue;

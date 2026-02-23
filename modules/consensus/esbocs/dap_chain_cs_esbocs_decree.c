@@ -51,11 +51,11 @@ static int s_decree_hardfork_handler(
     // Hardfork data available if needed for future processing
     UNUSED(l_tsd);  // Mark as intentionally unused for now
     
-    dap_hash_fast_t l_decree_hash = {};
-    dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+    dap_hash_sha3_256_t l_decree_hash = {};
+    dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
     l_chain->hardfork_decree_hash = l_decree_hash;
     
-    // TODO: Fix signature - last parameter should be dap_json_t*, not dap_hash_fast_t*
+    // TODO: Fix signature - last parameter should be dap_json_t*, not dap_hash_sha3_256_t*
     // return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_block_num, l_hardfork_data_size,
     //                                               l_hardfork_data, &l_decree_hash);
     log_it(L_WARNING, "HARDFORK_PREPARE decree handler temporarily disabled - requires refactoring");
@@ -85,8 +85,8 @@ static int s_decree_hardfork_retry_handler(
     }
     if (!a_apply)
         return 0;
-    dap_hash_fast_t l_decree_hash = {};
-    dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+    dap_hash_sha3_256_t l_decree_hash = {};
+    dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
     l_chain->hardfork_decree_hash = l_decree_hash;
     return dap_chain_esbocs_set_hardfork_prepare(l_chain, 0, 0, NULL, NULL);
 }

@@ -66,7 +66,7 @@ dap_chain_datum_tx_t *dap_voting_tx_create_poll(
  */
 dap_chain_datum_tx_t *dap_voting_tx_create_vote(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_poll_hash,
+    dap_hash_sha3_256_t *a_poll_hash,
     uint64_t a_option_idx,
     uint256_t a_fee,
     dap_chain_addr_t *a_wallet_addr,

@@ -30,7 +30,7 @@
 #include "dap_chain_common.h"
 #include "dap_list.h"
 #include "dap_math_ops.h"
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_chain_types.h"
 
 typedef struct dap_chain dap_chain_t;
@@ -71,7 +71,7 @@ typedef struct dap_chain_net {
         dap_chain_node_role_t node_role;
         bool mempool_autoproc;
     } pub;
-    UT_hash_handle hh, hh2;
+    dap_ht_handle_t hh, hh2;
     uint8_t pvt[];
 } dap_chain_net_t;
 

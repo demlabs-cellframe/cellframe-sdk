@@ -34,7 +34,7 @@
  * This is a ledger-level concept - datum layer doesn't know about UTXO.
  */
 typedef struct dap_chain_tx_used_out {
-    dap_chain_hash_fast_t tx_prev_hash;  // Previous TX hash
+    dap_hash_sha3_256_t tx_prev_hash;  // Previous TX hash
     uint32_t tx_out_prev_idx;             // Output index in prev TX
     uint256_t value;                      // Output value
     dap_chain_addr_t addr;                // Address (for validation)
