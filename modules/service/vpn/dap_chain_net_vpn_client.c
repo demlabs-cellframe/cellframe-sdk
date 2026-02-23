@@ -410,17 +410,11 @@ int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wa
 
 static int get_order_state_so(dap_chain_node_addr_t a_node_addr)
 {
-    if (s_order_state_callback)
-        return s_order_state_callback(a_node_addr);
-    log_it(L_WARNING, "CDB order state callback not registered, is CDB plugin loaded?");
-    return -1;
+    return s_order_state_callback ? s_order_state_callback(a_node_addr) : -1;
 }
 
 char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* a_hash_out_type)
 {
-
-
-    // dap_chain_net_srv_order_t 
     dap_list_t* l_orders = NULL;
     size_t l_orders_num = 0;
     dap_chain_net_srv_uid_t l_srv_uid = { { 0 } };
@@ -429,12 +423,11 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
     dap_chain_net_srv_price_unit_uid_t l_price_unit = { { 0 } };
     dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
     dap_string_t *l_string_ret = dap_string_new("");
+    bool l_have_cdb = s_order_state_callback != NULL;
 
     if(dap_chain_net_srv_order_find_all_by(a_net, l_direction, l_srv_uid, l_price_unit, NULL, l_price_min, l_price_max, &l_orders, &l_orders_num) == 0){
-        size_t l_orders_size = 0;
-        for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
+        for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_temp->next) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *) l_temp->data;
-            //dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type);
             dap_chain_hash_fast_t l_hash={0};
             char *l_hash_str;
             dap_hash_fast(l_order, dap_chain_net_srv_order_get_size(l_order), &l_hash);
@@ -442,26 +435,28 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
                 l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
             else
                 l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hash);
-            int l_state = get_order_state_so(l_order->node_addr);
-            const char *l_state_str;
-            switch (l_state)
-            {
-            case 0:
-                l_state_str = "Not available";
-                break;
-            case 1:
-                l_state_str = "Available";
-                break;
-            default:
-                l_state_str = "Unknown";
+            if (l_have_cdb) {
+                int l_state = get_order_state_so(l_order->node_addr);
+                const char *l_state_str;
+                switch (l_state)
+                {
+                case 0:
+                    l_state_str = "Not available";
+                    break;
+                case 1:
+                    l_state_str = "Available";
+                    break;
+                default:
+                    l_state_str = "Unknown";
+                }
+                dap_string_append_printf(l_string_ret, "Order %s: State %s\n", l_hash_str, l_state_str);
+            } else {
+                dap_string_append_printf(l_string_ret, "Order %s\n", l_hash_str);
             }
-            dap_string_append_printf(l_string_ret, "Order %s: State %s\n", l_hash_str, l_state_str);
             DAP_DELETE(l_hash_str);
-            //dap_string_append(l_string_ret, "\n");
         }
         dap_list_free_full(l_orders, NULL);
     }
-    // return str from dap_string_t
     return dap_string_free(l_string_ret, false);
 }
 
