@@ -1,7 +1,6 @@
 [submodule "dap-sdk"]
 	path = dap-sdk
 	url = ../../dap/dap-sdk.git
-	branch = develop
-[submodule "dap_tpl"]
-	path = dap_tpl
+[submodule "tools/dap_tpl"]
+	path = tools/dap_tpl
 	url = ../../dap/dap_tpl

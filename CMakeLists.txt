@@ -2,14 +2,13 @@ cmake_minimum_required(VERSION 3.10)
 project(cellframe-sdk C)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "3.4-0")
+set(CELLFRAME_SDK_NATIVE_VERSION "3.5-0")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
-# Centralized dap_tpl template engine for mock framework
-# Used by DAPMockAutoWrap.cmake during test builds
-if(NOT DEFINED DAP_TPL_DIR AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/dap_tpl/dap_tpl.sh")
-    set(DAP_TPL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dap_tpl" CACHE PATH "Path to dap_tpl template engine")
+# dap_tpl for mock framework: use dap-sdk's full version (has build_engine.sh + mocking support)
+if(NOT DEFINED DAP_TPL_DIR AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/dap_tpl/dap_tpl.sh")
+    set(DAP_TPL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/dap_tpl" CACHE PATH "Path to dap_tpl template engine")
     message(STATUS "[+] dap_tpl: ${DAP_TPL_DIR}")
 endif()
 
