@@ -6,10 +6,18 @@ set(CELLFRAME_SDK_NATIVE_VERSION "4.0.0")
 
 
 # =========================================
+# RESOLVE DAP SDK PATH
+# =========================================
+if(TARGET dap_sdk)
+    get_target_property(DAP_SDK_SOURCE_DIR dap_sdk SOURCE_DIR)
+else()
+    set(DAP_SDK_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk")
+endif()
+
+# =========================================
 # INCLUDE CELLFRAME LIBRARY HELPERS (use DAP SDK system)
 # =========================================
-# Universal library creation helpers (shared with DAP SDK)
-include(dap-sdk/cmake/LibraryHelpers.cmake)
+include(${DAP_SDK_SOURCE_DIR}/cmake/LibraryHelpers.cmake)
 
 # CMake 3.12+ supports OBJECT libraries natively - no need for ObjectLibraryHelpers override
 
@@ -52,13 +60,7 @@ if(BUILD_CELLFRAME_SDK_TESTS)
     endif()
 endif()
 
-# =========================================
-# UNIVERSAL LIBRARY HELPERS
-# =========================================
-# Include universal library helpers (shared with DAP SDK)
-# Note: ObjectLibraryHelpers.cmake is already included by DAP SDK
-# and will automatically propagate INTERFACE_INCLUDE_DIRECTORIES for OBJECT libraries
-include(${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/cmake/LibraryHelpers.cmake)
+# NOTE: LibraryHelpers.cmake already included above (line 12)
 
 # =========================================
 # INTERNAL MODULE CREATION MACRO
@@ -167,8 +169,8 @@ if(NOT TARGET dap_sdk)
     endif()
 
 
-    include (dap-sdk/cmake/OS_Detection.cmake)
-    add_subdirectory(dap-sdk)
+    include (${DAP_SDK_SOURCE_DIR}/cmake/OS_Detection.cmake)
+    add_subdirectory(${DAP_SDK_SOURCE_DIR} dap-sdk)
     set(CELLFRAME_USING_EXTERNAL_DAP_SDK OFF)
 else()
     # DAP SDK already available from parent - use it
@@ -443,11 +445,11 @@ if(INSTALL_CELLFRAME_SDK)
 
     # Install DAP SDK headers (only if using embedded DAP SDK)
     if(NOT CELLFRAME_USING_EXTERNAL_DAP_SDK)
-        install(DIRECTORY dap-sdk/module/core/include/
+        install(DIRECTORY ${DAP_SDK_SOURCE_DIR}/module/core/include/
                 DESTINATION include/dap-sdk/core
                 FILES_MATCHING PATTERN "*.h")
 
-        install(DIRECTORY dap-sdk/module/crypto/include/
+        install(DIRECTORY ${DAP_SDK_SOURCE_DIR}/module/crypto/include/
                 DESTINATION include/dap-sdk/crypto
                 FILES_MATCHING PATTERN "*.h")
     endif()
