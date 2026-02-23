@@ -38,8 +38,8 @@ target_include_directories(dex_test PRIVATE
     ${CMAKE_SOURCE_DIR}/tests/include
 )
 
-# Link libraries
-target_link_libraries(dex_test
+# Link libraries (PRIVATE to avoid duplicate libs on macOS when linking static deps)
+target_link_libraries(dex_test PRIVATE
     cellframe_test_fixtures
     dap_chain_net_srv_dex
     dap_chain_net_srv_xchange
