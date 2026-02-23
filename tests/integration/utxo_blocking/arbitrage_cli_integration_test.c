@@ -43,6 +43,7 @@
 #include <errno.h>
 
 #include "dap_common.h"
+#include "dap_file_utils.h"
 #include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_config.h"
@@ -103,11 +104,11 @@ static void s_setup(void)
     
     // Step 1: Create minimal config for CLI server
     const char *l_config_dir = "/tmp/cli_test_config";
-    mkdir(l_config_dir, 0755);
+    dap_mkdir_with_parents(l_config_dir);
     // Create certificate folder
-    mkdir("/tmp/cli_test_certs", 0755);
+    dap_mkdir_with_parents("/tmp/cli_test_certs");
     // Create wallets folder
-    mkdir("/tmp/cli_test_wallets", 0755);
+    dap_mkdir_with_parents("/tmp/cli_test_wallets");
     
     const char *l_config_content = 
         "[general]\n"
@@ -240,8 +241,8 @@ static dap_chain_wallet_t *s_create_wallet_with_key_seed(
     
     // Create wallets directory if it doesn't exist
     if (access(a_wallets_path, F_OK) != 0) {
-        int l_mkdir_res = mkdir(a_wallets_path, 0755);
-        if (l_mkdir_res != 0 && errno != EEXIST) {
+        int l_mkdir_res = dap_mkdir_with_parents(a_wallets_path);
+        if (l_mkdir_res != 0) {
             log_it(L_ERROR, "Failed to create wallets directory %s: errno=%d", a_wallets_path, errno);
             return NULL;
         }

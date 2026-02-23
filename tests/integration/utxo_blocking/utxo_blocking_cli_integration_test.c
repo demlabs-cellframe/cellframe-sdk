@@ -112,13 +112,10 @@ static void s_setup(void)
     const char *l_config_dir = "C:\\Temp\\cli_test_config";
 #else
     const char *l_config_dir = "/tmp/cli_test_config";
-    mkdir(l_config_dir, 0755);
-    // Create certificate folder
-    mkdir("/tmp/cli_test_certs", 0755);
-    // Create wallets folder
-    mkdir("/tmp/cli_test_wallets", 0755);
 #endif
     dap_mkdir_with_parents(l_config_dir);
+    dap_mkdir_with_parents("/tmp/cli_test_certs");
+    dap_mkdir_with_parents("/tmp/cli_test_wallets");
     
     // CLI server config (server init may fail without full event loop, but test continues)
     const char *l_config_content = 
@@ -1572,8 +1569,8 @@ static dap_chain_wallet_t *s_create_wallet_with_key_seed(
     
     // Create wallets directory if it doesn't exist
     if (access(a_wallets_path, F_OK) != 0) {
-        int l_mkdir_res = mkdir(a_wallets_path, 0755);
-        if (l_mkdir_res != 0 && errno != EEXIST) {
+        int l_mkdir_res = dap_mkdir_with_parents(a_wallets_path);
+        if (l_mkdir_res != 0) {
             log_it(L_ERROR, "Failed to create wallets directory %s: errno=%d", a_wallets_path, errno);
             return NULL;
         }

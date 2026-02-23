@@ -11,6 +11,7 @@
 
 #include <sys/stat.h>
 #include "dap_common.h"
+#include "dap_file_utils.h"
 #include "dap_config.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
@@ -45,7 +46,7 @@ static void s_setup(void)
     // Step 1: Create minimal config for ledger debug
     log_it(L_NOTICE, "Step 1: Creating config...");
     const char *l_config_dir = "/tmp/intg_test_config";
-    mkdir(l_config_dir, 0755);
+    dap_mkdir_with_parents(l_config_dir);
     
     const char *l_config_content = 
         "[general]\n"
@@ -68,7 +69,7 @@ static void s_setup(void)
     }
     
     // Create certificate folder
-    mkdir("/tmp/intg_test_certs", 0755);
+    dap_mkdir_with_parents("/tmp/intg_test_certs");
     log_it(L_NOTICE, "Step 1: Complete");
     
     // Step 2: Initialize test environment (config, certs, global DB, events, proc threads)
