@@ -359,14 +359,18 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool",
                 "mempool_add  -net <net_name> [-chain <chain_name>] -json <json_file_path> | -tx_obj <tx_json_object>\n" );
-    dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, NULL, "Make cond transaction",
-                                        "tx_cond_create -net <net_name> -token <token_ticker> -w <wallet_name>"
-                                        " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {B | SEC} -srv_uid <numeric_uid>\n" );
-        dap_cli_server_cmd_add ("tx_cond_remove", com_tx_cond_remove, NULL, "Remove cond transactions and return funds from condition outputs to wallet",
-                                        "tx_cond_remove -net <net_name> -hashes <hash1,hash2...> -w <wallet_name>"
-                                        " -fee <value> -srv_uid <numeric_uid>\n" );
-        dap_cli_server_cmd_add ("tx_cond_unspent_find", com_tx_cond_unspent_find, NULL, "Find cond transactions by wallet",
-                                        "tx_cond_unspent_find -net <net_name> -srv_uid <numeric_uid> -w <wallet_name> \n" );
+    dap_cli_cmd_t *l_cmd_tx_cond = dap_cli_server_cmd_add ("tx_cond", com_tx_cond, NULL, "Conditional transaction commands",
+            "tx_cond create -net <net_name> -token <token_ticker> -w <wallet_name> {-cert <pub_cert_name> | -pkey <pkey_hash>} "
+                "-value <value> -fee <value> -unit {B | SEC} -srv_uid <srv_uid>\n"
+            "tx_cond refill -net <net_name> -w <wallet_name> -tx <tx_cond_hash> -value <value> -fee <value> [-H {hex|base58}]\n"
+            "tx_cond remove -net <net_name> -w <wallet_name> -hashes <hash1,hash2...> -fee <value> -srv_uid <srv_uid>\n"
+            "tx_cond unspent_find -net <net_name> -w <wallet_name> -srv_uid <srv_uid>\n"
+            "tx_cond info -net <net_name> -tx <tx_hash> [-H {hex|base58}]\n"
+            "tx_cond list -net <net_name> {-w <wallet> | -addr <address> | -pkey <pkey_hash>} [-pkey_cert <pkey_hash>] [-status {all|spent|unspent}] [-H {hex|base58}]\n"
+            "tx_cond history -net <net_name> -tx <tx_hash> [-action {all|refill|spend}] [-H {hex|base58}]\n");
+    dap_cli_server_alias_add(l_cmd_tx_cond, "create", "tx_cond_create");
+    dap_cli_server_alias_add(l_cmd_tx_cond, "remove", "tx_cond_remove");
+    dap_cli_server_alias_add(l_cmd_tx_cond, "unspent_find", "tx_cond_unspent_find");
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, NULL, "Verifing transaction in mempool",
             "tx_verify -net <net_name> [-chain <chain_name>] -tx <tx_hash>\n" );
@@ -383,7 +387,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list coins -net <net_name> [-limit] [-offset] [-h]\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name> [-limit] [-offset] [-head]\n"
             "ledger list balance -net <net_name> [-limit] [-offset] [-head]\n"
-            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n");
+            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
+            "ledger event list -net <net_name> [-group <group_name>]\n"
+            "ledger event dump -net <net_name> -hash <tx_hash>\n"
+            "ledger event create -net <net_name> [-chain <chain_name>] -w <wallet_name> -service_key <cert_name> -srv_uid <service_uid> "
+            "-group <group_name> -event_type <event_type> [-event_data <event_data>] [-fee <fee_value>] [-H <hex|base58>]\n"
+            "ledger event key add -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key remove -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
+            "ledger event key list -net <net_name> [-H <hex|base58>]\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, NULL, "Token info",
@@ -484,6 +495,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "\t-num <policy_num>\n"
                 "policy list - show all policies from table in net\n"
                 "\t-net <net_name>\n");
+
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );

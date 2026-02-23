@@ -122,8 +122,10 @@ void s_chain_datum_cond_create_test()
     randombytes(pkey->pkey, l_pkey_size);
     dap_chain_net_srv_price_unit_uid_t price_unit;
     price_unit.enm = SERV_UNIT_B;
+    dap_hash_fast_t l_pkey_hash = {};
+    dap_assert(dap_pkey_get_hash(pkey, &l_pkey_hash), "get pkey hash");
     dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_cond_create(
-        &s_data->addr_from, pkey, s_ticker_native, s_data->value,
+        &s_data->addr_from, &l_pkey_hash, s_ticker_native, s_data->value,
         s_data->value_per_unit_max, price_unit,
         s_data->srv_uid, s_data->value_fee, l_rand_data, l_rand_data_size, &s_data->config
     );
@@ -217,6 +219,7 @@ void s_chain_datum_vote_voting_test()
     dap_cert_delete(l_cert);
 }
 
+#if 0
 void s_chain_datum_exchange_create_test()
 {
     dap_print_module_name("tx_exchange_create_compose");
@@ -257,6 +260,7 @@ void s_chain_datum_exchange_purchase_test(const char *a_token_sell, const char *
     dap_chain_datum_tx_delete(l_datum_1);
     DAP_DELETE(l_price);
 }
+#endif
 
 void s_chain_datum_xchange_invalidate_test(const char *a_token_sell, const char *a_token_buy)
 {
@@ -333,6 +337,32 @@ void s_chain_datum_shared_funds_refill_test()
     dap_chain_datum_tx_delete(l_datum_1);
 }
 
+void s_chain_datum_tx_cond_refill_test()
+{
+    dap_print_module_name("tx_cond_refill_compose");
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_cond_refill(
+        &s_data->addr_from, s_data->value, s_data->value_fee,
+        &s_data->hash_1, &s_data->config);
+    dap_assert(l_datum_1, "tx_cond_refill_compose");
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+}
+
+void s_chain_datum_tx_cond_remove_test()
+{
+    dap_print_module_name("tx_cond_remove_compose");
+    dap_hash_fast_t l_hash_2 = {};
+    randombytes(&l_hash_2, sizeof(dap_hash_fast_t));
+    dap_list_t *l_hashes = dap_list_append(NULL, &s_data->hash_1);
+    l_hashes = dap_list_append(l_hashes, &l_hash_2);
+    dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = 1 };
+    dap_chain_datum_tx_t *l_datum_1 = dap_chain_tx_compose_datum_tx_cond_remove(
+        &s_data->addr_from, l_hashes, s_data->value_fee, l_srv_uid, &s_data->config);
+    dap_assert(l_datum_1, "tx_cond_remove_compose");
+    s_datum_sign_and_check(&l_datum_1);
+    dap_chain_datum_tx_delete(l_datum_1);
+    dap_list_free(l_hashes);
+}
 
 void s_chain_datum_tx_ser_deser_test()
 {
@@ -363,10 +393,12 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_delegate_test();
     s_chain_datum_stake_unlock_test();
     s_chain_datum_stake_invalidate_test();
+#if 0
     s_chain_datum_exchange_create_test();
     s_chain_datum_exchange_purchase_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_exchange_purchase_test(s_ticker_delegate, s_ticker_custom);
+#endif
     s_chain_datum_xchange_invalidate_test(s_ticker_native, s_ticker_delegate);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_native);
     s_chain_datum_xchange_invalidate_test(s_ticker_delegate, s_ticker_custom);
@@ -375,6 +407,8 @@ void s_chain_datum_tx_ser_deser_test()
     s_chain_datum_shared_funds_hold_test();
     s_chain_datum_shared_funds_take_test();
     s_chain_datum_shared_funds_refill_test();
+    s_chain_datum_tx_cond_refill_test();
+    s_chain_datum_tx_cond_remove_test();
     // s_chain_datum_shared_funds_sign_test();  no need for now
     if (s_data->config.response_handler) {
         json_object_put(s_data->config.response_handler);

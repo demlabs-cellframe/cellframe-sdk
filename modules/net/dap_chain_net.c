@@ -136,7 +136,6 @@ struct block_reward {
 
 
 struct chain_sync_context {
-    dap_chain_sync_state_t  state;
     dap_time_t              stage_last_activity,
                             sync_idle_time;
     dap_stream_node_addr_t  current_link;
@@ -144,7 +143,11 @@ struct chain_sync_context {
     dap_chain_cell_t        *cur_cell;
     dap_hash_fast_t         requested_atom_hash;
     uint64_t                requested_atom_num;
+    uint32_t                miss_count;             // Counter for consecutive MISS packets
+    bool                    sync_from_zero;         // Flag to start sync from zero (blank hash, num 0)
 };
+
+#define DAP_CHAIN_NET_SYNC_MISS_COUNT_MAX 200        // Max MISS packets before sync from zero
 
 /**
   * @struct dap_chain_net_pvt
@@ -171,6 +174,7 @@ typedef struct dap_chain_net_pvt{
     struct chain_sync_context sync_context;
 
     _Atomic(dap_chain_net_state_t) state, state_target;
+    bool was_online;                                        // Flag: network has reached ONLINE state at least once
     uint16_t acl_idx;
 
     //Global DB clusters for different access groups. Notification with cluster contents changing
@@ -205,6 +209,32 @@ static const char *c_net_states[] = {
 
 static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state) {
     return a_state < NET_STATE_LOADING || a_state > NET_STATE_ONLINE ? "NET_STATE_INVALID" : c_net_states[a_state];
+}
+
+/**
+ * @brief Get user-visible state string.
+ *        Before reaching ONLINE for the first time - show actual states as is.
+ *        After reaching ONLINE - show simplified: ONLINE, OFFLINE, or RESYNC_CHAINS for all other states.
+ *        When target is OFFLINE - show actual states as is (reset to normal behavior).
+ * @param a_net Network object
+ * @return State string for user display
+ */
+static inline const char *dap_chain_net_state_to_str_user(dap_chain_net_t *a_net)
+{
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    dap_chain_net_state_t l_state = l_net_pvt->state;
+    // Before first ONLINE or when target is OFFLINE, show actual states as is
+    if (!l_net_pvt->was_online || l_net_pvt->state_target == NET_STATE_OFFLINE)
+        return c_net_states[l_state];
+    // After reaching ONLINE, show simplified states
+    switch (l_state) {
+    case NET_STATE_ONLINE:
+        return c_net_states[NET_STATE_ONLINE];
+    case NET_STATE_OFFLINE:
+        return c_net_states[NET_STATE_OFFLINE];
+    default:
+        return "NET_STATE_RESYNC_CHAINS";
+    }
 }
 
 // Node link callbacks
@@ -605,7 +635,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
             char *l_percent_str = dap_strdup_printf("%d %c", l_chain->load_progress, '%');
             l_jobj_percent = json_object_new_string(l_percent_str);
             DAP_DELETE(l_percent_str);
-        } else if (l_chain->state == CHAIN_SYNC_STATE_IDLE) {
+        } else if (!l_chain->atom_num_last) {
             l_jobj_percent = json_object_new_string(" - %");
         } else {
             double l_percent = dap_min((double)l_chain->callback_count_atom(l_chain) * 100 / l_chain->atom_num_last, 100.0);
@@ -628,7 +658,7 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
 void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out, int a_version) {
     json_object_object_add(a_json_out, "name", json_object_new_string((const char *) a_net->pub.name));
     json_object_object_add(a_json_out, a_version == 1 ? "networkState" : "network_state",
-                           json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
+                           json_object_new_string(dap_chain_net_state_to_str_user(a_net)));
     json_object_object_add(a_json_out, a_version == 1 ? "targetState" : "target_state",
                            json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
     json_object_object_add(a_json_out, a_version == 1 ? "linksCount" : "links_count", json_object_new_int(0));
@@ -776,16 +806,17 @@ static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
     if (!( l_net_name_str ))
         return DAP_DELETE(l_ret), log_it(L_ERROR, "Invalid net name, check [general] \"name\" in netconfig"), NULL;
     dap_strncpy(l_ret->pub.name, l_net_name_str, sizeof(l_ret->pub.name));
-    if (!( l_ret->pub.native_ticker = a_native_ticker ))
-        return DAP_DEL_MULTY(l_ret->pub.name, l_ret),
-               log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg",
-                                l_net_name_str),
-                NULL;
+    if (!( l_ret->pub.native_ticker = a_native_ticker )) {
+        DAP_DELETE(l_ret);
+        log_it(L_ERROR, "Invalid native ticker, check [general] \"native_ticker\" in %s.cfg",
+                        l_net_name_str);
+        return NULL;
+    }
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, l_net_name_str);
     
     if ( dap_chain_policy_net_add(l_ret->pub.id, a_cfg) ) {
         log_it(L_ERROR, "Can't add net %s to policy module", l_ret->pub.name);
-        DAP_DEL_MULTY(l_ret->pub.name, l_ret);
+        DAP_DELETE(l_ret);
         return NULL;
     }
     
@@ -905,7 +936,7 @@ static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_objec
     json_object_object_add(a_json_out, "processed", l_json_sync_status);
 
     json_object *l_jobj_states = json_object_new_object();
-    json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
+    json_object *l_jobj_current_states = json_object_new_string(dap_chain_net_state_to_str_user(a_net));
     json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
     json_object_object_add(l_jobj_states, "current", l_jobj_current_states);
     json_object_object_add(l_jobj_states, "target", l_jobj_target_states);
@@ -1826,6 +1857,7 @@ int dap_chain_net_test_init()
     l_net->pub.gdb_groups_prefix = (const char*)l_net->pub.name;
     l_net->pub.native_ticker = "TestCoin";
     PVT(l_net)->node_role.enums = NODE_ROLE_ROOT;
+    PVT(l_net)->state = NET_STATE_OFFLINE;
     HASH_ADD(hh2, s_nets_by_id, pub.id, sizeof(dap_chain_net_id_t), l_net);
     HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
     return 0;
@@ -2254,6 +2286,10 @@ dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
         return NULL;
     }
     dap_global_db_cluster_t *l_mempool = PVT(l_net)->mempool_clusters;
+    if (!l_mempool) {
+        log_it(L_ERROR, "No mempool cluster found for network %s", l_net->pub.name);
+        return NULL;
+    }
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain == a_chain)
@@ -2998,11 +3034,26 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         l_net_pvt->state = NET_STATE_SYNC_CHAINS;
 
     switch (a_type) {
+    case DAP_CHAIN_CH_PKT_TYPE_ERROR:
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY:
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS:
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN:
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
-        // TODO sync state & address checking
+        // Ignore packets from non-current link (stale responses from previous sync sessions)
+        if (a_ch->stream->node.uint64 != l_net_pvt->sync_context.current_link.uint64) {
+            debug_if(s_debug_more, L_DEBUG, "Ignoring sync packet type %hhu from non-current link " NODE_ADDR_FP_STR
+                                            ", current link is " NODE_ADDR_FP_STR ". Net %s",
+                                            a_type,
+                                            NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
+                                            NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
+                                            l_net->pub.name);
+            return;
+        }
+        // Track consecutive MISS packets count
+        if (a_type == DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS)
+            l_net_pvt->sync_context.miss_count++;
+        else
+            l_net_pvt->sync_context.miss_count = 0;
         break;
     default:
         break;
@@ -3012,40 +3063,37 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
     case DAP_CHAIN_CH_PKT_TYPE_ERROR:
         if (!l_net_pvt->sync_context.cur_chain) {
             log_it(L_DEBUG, "Got ERROR paket with NO chain net %s", l_net->pub.name);
-            return;
+            break;
         }
         log_it(L_DEBUG, "Got ERROR paket to %s chain in net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_ERROR;
-        return;
+        break;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
         if (!l_net_pvt->sync_context.cur_chain) {
             log_it(L_DEBUG, "Got SYNCED_CHAIN paket with NO chain net %s", l_net->pub.name);
-            return;
+            break;
         }
         log_it(L_DEBUG, "Got SYNCED_CHAIN paket to %s chain net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
         l_net_pvt->sync_context.cur_chain->atom_num_last = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
-        return;
+        l_net_pvt->sync_context.stage_last_activity = dap_time_now();
+        break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS: {
         if (!l_net_pvt->sync_context.cur_chain)
-            return;
+            break;
         dap_chain_ch_miss_info_t *l_miss_info = (dap_chain_ch_miss_info_t *)(((dap_chain_ch_pkt_t *)(a_data))->data);
         if (!dap_hash_fast_compare(&l_miss_info->missed_hash, &l_net_pvt->sync_context.requested_atom_hash)) {
             char l_missed_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_miss_info->missed_hash, l_missed_hash_str, DAP_HASH_FAST_STR_SIZE);
-            log_it(L_WARNING, "Get irrelevant chain sync MISSED packet with missed hash %s, but requested hash is %s. Net %s chain %s",
-                                                                        l_missed_hash_str,
-                                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash),
-                                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
-            dap_stream_ch_write_error_unsafe(a_ch, l_net->pub.id,
-                                             l_net_pvt->sync_context.cur_chain->id,
-                                             l_net_pvt->sync_context.cur_cell
-                                             ? l_net_pvt->sync_context.cur_cell->id
-                                             : c_dap_chain_cell_id_null,
-                                             DAP_CHAIN_CH_ERROR_INCORRECT_SYNC_SEQUENCE);
-            return;
+            log_it(L_WARNING, "Get irrelevant chain sync MISSED packet from " NODE_ADDR_FP_STR
+                                                        " with missed hash %s, but requested hash is %s. Net %s chain %s",
+                                                        NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
+                                                        l_missed_hash_str,
+                                                        dap_hash_fast_to_str_static(&l_net_pvt->sync_context.requested_atom_hash),
+                                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
+            break;
         }
         dap_chain_atom_iter_t *l_iter = l_net_pvt->sync_context.cur_chain->callback_atom_iter_create(
                                                                             l_net_pvt->sync_context.cur_chain,
@@ -3061,13 +3109,13 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                              ? l_net_pvt->sync_context.cur_cell->id
                                              : c_dap_chain_cell_id_null,
                                              DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
-            return;
+            break;
         }
         dap_chain_atom_ptr_t l_atom = l_net_pvt->sync_context.cur_chain->callback_atom_find_by_hash(l_iter, &l_miss_info->last_hash, NULL);
         if (l_atom && l_iter->cur_num == l_miss_info->last_num) {       // We already have this subchain in our chain
             l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
             l_net_pvt->sync_context.cur_chain->atom_num_last = l_miss_info->last_num;
-            return;
+            break;
         }
         dap_chain_ch_sync_request_t l_request = {};
         l_request.num_from = l_net_pvt->sync_context.requested_atom_num > s_fork_sync_step
@@ -3096,11 +3144,13 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                                       DAP_CHAIN_CH_PKT_VERSION_CURRENT);
         l_net_pvt->sync_context.requested_atom_hash = l_request.hash_from;
         l_net_pvt->sync_context.requested_atom_num = l_request.num_from;
+        break;
     }
+    case DAP_CHAIN_CH_PKT_TYPE_CHAIN:
+        l_net_pvt->sync_context.stage_last_activity = dap_time_now();
     default:
         break;
     }
-    l_net_pvt->sync_context.stage_last_activity = dap_time_now();
 }
 
 static void s_ch_out_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const void *a_data, size_t a_data_size, void *a_arg)
@@ -3151,7 +3201,8 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net)
                                 DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback, a_net);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain) {
-        l_chain->state = CHAIN_SYNC_STATE_IDLE;
+        if (l_chain->state != CHAIN_SYNC_STATE_ERROR)
+            l_chain->state = CHAIN_SYNC_STATE_IDLE;
     }
     l_net_pvt->sync_context.stage_last_activity = dap_time_now();
     return 0;
@@ -3163,11 +3214,9 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     dap_return_val_if_pass(!a_net || !PVT(a_net), NULL);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
 // func work
-    dap_chain_t *l_curr_chain = NULL;
-    for (l_curr_chain = a_net->pub.chains; l_curr_chain && l_curr_chain->state == CHAIN_SYNC_STATE_SYNCED; l_curr_chain = l_curr_chain->next) {
-        // find last not synced chain
-    }
-    l_net_pvt->sync_context.cur_chain = l_curr_chain;
+    dap_chain_t *l_curr_chain = l_net_pvt->sync_context.cur_chain;
+    assert(l_curr_chain);
+    l_curr_chain = l_curr_chain->next;
     if (l_curr_chain) {
         debug_if(s_debug_more, L_DEBUG, "Go to chain \"%s\" for net %s", l_curr_chain->name, l_curr_chain->net_name);
         return l_curr_chain;
@@ -3179,20 +3228,11 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     }
     dap_chain_net_state_t l_prev_state = l_net_pvt->state;
     l_net_pvt->state = NET_STATE_ONLINE;
+    l_net_pvt->was_online = true;  // Mark that network has reached ONLINE state
     s_net_states_proc(a_net);
     if(l_prev_state == NET_STATE_SYNC_CHAINS)
         dap_ledger_load_end(a_net->pub.ledger);
     return NULL;
-}
-
-static dap_chain_sync_state_t s_sync_context_state_forming(dap_chain_t *a_chains)
-{
-    dap_chain_sync_state_t l_ret = CHAIN_SYNC_STATE_SYNCED;
-    dap_chain_t *l_chain = NULL;
-    DL_FOREACH(a_chains, l_chain) {
-        l_ret = dap_max(l_ret, l_chain->state);
-    }
-    return l_ret;
 }
 
 static void s_sync_timer_callback(void *a_arg)
@@ -3201,53 +3241,86 @@ static void s_sync_timer_callback(void *a_arg)
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) // if offline no need sync
         return;
-    l_net_pvt->sync_context.state = s_sync_context_state_forming(l_net->pub.chains);
-    if ( // check if need restart sync chains
-        l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_ERROR ||
-        dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time
-    ) {
+    dap_chain_sync_state_t l_state_forming = CHAIN_SYNC_STATE_IDLE;
+    dap_chain_t *l_chain = l_net_pvt->sync_context.cur_chain;
+    if (!l_chain) {
+        // if sync more than 3 mins after online state, change state to SYNC
+        if (l_net_pvt->state == NET_STATE_ONLINE) {
+            if (dap_time_now() - l_net_pvt->sync_context.stage_last_activity <= l_net_pvt->sync_context.sync_idle_time)
+                return;
+            l_net_pvt->state = NET_STATE_SYNC_CHAINS;
+            s_net_states_proc(l_net);
+        }
         if (s_restart_sync_chains(l_net)) {
-            log_it(L_INFO, "Can't start sync chains in net %s, wait seccond attempt", l_net->pub.name);
+            log_it(L_WARNING, "Can't start sync chains in net %s, wait next attempt", l_net->pub.name);
             return;
         }
-    } else if (l_net_pvt->state == NET_STATE_ONLINE && l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_SYNCED) {
-        return;
+        l_chain = l_net_pvt->sync_context.cur_chain;
+    } else {
+        l_state_forming = l_chain->state;
+        if (dap_time_now() - l_net_pvt->sync_context.stage_last_activity > DAP_CHAIN_NET_SYNC_ACTIVITY_TIMEOUT) {
+            // check if need restart sync chains (emergency mode)
+            log_it(L_WARNING, "Chain %s of net %s sync activity timeout", l_chain->name, l_net->pub.name);
+            l_state_forming = CHAIN_SYNC_STATE_ERROR;
+        }
+        // Check if too many MISS packets - need to sync from zero
+        if (l_net_pvt->sync_context.miss_count >= DAP_CHAIN_NET_SYNC_MISS_COUNT_MAX) {
+            log_it(L_WARNING, "Chain %s of net %s reached MISS count limit (%u), will sync from zero",
+                              l_chain->name, l_net->pub.name, l_net_pvt->sync_context.miss_count);
+            l_net_pvt->sync_context.miss_count = 0;
+            l_net_pvt->sync_context.sync_from_zero = true;
+            l_state_forming = CHAIN_SYNC_STATE_IDLE;  // Force new sync request
+        }
     }
-    if (!s_switch_sync_chain(l_net)) {  // return if all chans synced
-        log_it(L_DEBUG, "All chains in net %s synced, no need new sync request", l_net->pub.name);
+
+    switch (l_state_forming) {
+    case CHAIN_SYNC_STATE_ERROR:
+        if (s_restart_sync_chains(l_net)) {
+            log_it(L_WARNING, "Can't start sync chains in net %s, wait next attempt", l_net->pub.name);
+            return;
+        }
+        break;
+    case CHAIN_SYNC_STATE_SYNCED:
+        l_net_pvt->sync_context.cur_chain = s_switch_sync_chain(l_net);
+        if (!l_net_pvt->sync_context.cur_chain)
+            return;
+        break;
+    case CHAIN_SYNC_STATE_WAITING:
         return;
+    default:
+        break;
     }
-    if (l_net_pvt->sync_context.cur_chain->state == CHAIN_SYNC_STATE_WAITING) {
-        return;
-    }
+
     if (l_net_pvt->sync_context.cur_chain->callback_load_from_gdb) {
         // This type of chain is GDB based and not synced by chains protocol
         log_it(L_DEBUG, "Chain %s in net %s will sync from gdb", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
         return;
     }
-    // if sync more than 3 mins after online state, change state to SYNC
-    if (l_net_pvt->state == NET_STATE_ONLINE && l_net_pvt->sync_context.state == CHAIN_SYNC_STATE_WAITING &&
-        dap_time_now() - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_idle_time ) {
-        l_net_pvt->state = NET_STATE_SYNC_CHAINS;
-        s_net_states_proc(l_net);
-    }
 
     l_net_pvt->sync_context.cur_cell = l_net_pvt->sync_context.cur_chain->cells;
     l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_WAITING;
     dap_chain_ch_sync_request_t l_request = {};
     uint64_t l_last_num = 0;
-    if (!dap_chain_get_atom_last_hash_num(l_net_pvt->sync_context.cur_chain,
-                                            l_net_pvt->sync_context.cur_cell
-                                            ? l_net_pvt->sync_context.cur_cell->id
-                                            : c_dap_chain_cell_id_null,
-                                            &l_request.hash_from,
-                                            &l_last_num)) {
-        log_it(L_ERROR, "Can't get last atom hash and number for chain %s with net %s", l_net_pvt->sync_context.cur_chain->name,
-                                                                                        l_net->pub.name);
-        return;
+    // Check if we need to sync from zero (after too many MISS packets)
+    if (l_net_pvt->sync_context.sync_from_zero) {
+        l_net_pvt->sync_context.sync_from_zero = false;
+        log_it(L_INFO, "Sync from zero requested for chain %s net %s", 
+                       l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
+        // l_request is already zeroed, hash_from is blank, num_from is 0
+    } else {
+        if (!dap_chain_get_atom_last_hash_num(l_net_pvt->sync_context.cur_chain,
+                                                l_net_pvt->sync_context.cur_cell
+                                                ? l_net_pvt->sync_context.cur_cell->id
+                                                : c_dap_chain_cell_id_null,
+                                                &l_request.hash_from,
+                                                &l_last_num)) {
+            log_it(L_ERROR, "Can't get last atom hash and number for chain %s with net %s", l_net_pvt->sync_context.cur_chain->name,
+                                                                                            l_net->pub.name);
+            return;
+        }
+        l_request.num_from = l_last_num;
     }
-    l_request.num_from = l_last_num;
 
     dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_net->pub.id, l_net_pvt->sync_context.cur_chain->id,
                                                             l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id : c_dap_chain_cell_id_null,
@@ -3284,6 +3357,7 @@ static bool s_net_states_proc(void *a_arg)
         if(l_net_pvt->state == NET_STATE_SYNC_CHAINS)
             dap_ledger_load_end(l_net->pub.ledger);
         l_net_pvt->state = NET_STATE_OFFLINE;
+        l_net_pvt->was_online = false;  // Reset flag when going offline
     }
 
     switch ((dap_chain_net_state_t)l_net_pvt->state) {

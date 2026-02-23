@@ -33,12 +33,11 @@
 #define DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT            -106
 #define DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_SIGN              -107
 
-
-
 // action
 enum {
     DAP_DATUM_MEMPOOL_NONE = 0, DAP_DATUM_MEMPOOL_ADD, DAP_DATUM_MEMPOOL_CHECK, DAP_DATUM_MEMPOOL_DEL
 };
+
 
 // datum mempool structure
 typedef struct dap_datum_mempool {
@@ -48,6 +47,7 @@ typedef struct dap_datum_mempool {
 }DAP_ALIGN_PACKED dap_datum_mempool_t;
 
 int dap_datum_mempool_init(void);
+int dap_chain_mempool_delete_callback_init(void);
 
 extern const char* c_dap_datum_mempool_gdb_group;
 
@@ -77,15 +77,20 @@ char *dap_chain_mempool_tx_create_extended(dap_chain_t *a_chain, dap_enc_key_t *
         size_t a_tx_num, dap_time_t *a_time_unlock, dap_list_t *a_tsd_list);
 
 // Make transfer transaction & insert to cache
-char* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
-        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
+char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
+        dap_enc_key_t *a_key_from, dap_hash_fast_t *a_pkey_cond_hash,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
-        dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond,
+        uint256_t a_value, uint256_t a_value_per_unit_max,
+        dap_chain_net_srv_price_unit_uid_t a_unit, dap_chain_net_srv_uid_t a_srv_uid,
+        uint256_t a_value_fee, const void *a_cond,
         size_t a_cond_size, const char *a_hash_out_type);
 
 char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
         const dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_tx_sign, dap_chain_datum_tx_receipt_t *a_receipt, const char *a_hash_out_type, int *a_ret_status);
+
+// Refill conditional SRV_PAY transaction
+char *dap_chain_mempool_tx_cond_refill(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
+        dap_hash_fast_t *a_tx_cond_hash, uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type);
 
 int dap_chain_mempool_tx_create_massive(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
@@ -117,5 +122,36 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
                                            uint256_t a_value_fee, const char *a_hash_out_type);
 char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_sign_key, dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                          uint256_t a_value_fee, const char *a_hash_out_type);
-
 bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);
+/**
+ * @brief Compose event transaction following cellframe mempool style
+ * @param[in] a_chain Chain to create transaction for
+ * @param[in] a_key_from Private key for signing transaction
+ * @param[in] a_service_key Service key for signing transaction
+ * @param[in] a_group_name Event group name
+ * @param[in] a_event_type Event type
+ * @param[in] a_event_data Event data
+ * @param[in] a_event_data_size Size of event data
+ * @param[in] a_fee_value Fee value
+ * @param[in] a_hash_out_type Hash output format
+ * @return Transaction hash string on success, NULL on error
+ */
+char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
+                                      dap_enc_key_t *a_key_from,
+                                      dap_enc_key_t *a_service_key,
+                                      dap_chain_net_srv_uid_t a_srv_uid,
+                                      const char *a_group_name,
+                                      uint16_t a_event_type,
+                                      const void *a_event_data,
+                                      size_t a_event_data_size,
+                                      uint256_t a_fee_value,
+                                      const char *a_hash_out_type);
+
+char *dap_chain_mempool_tx_create_service_decree(dap_chain_t *a_chain,
+                                                 dap_enc_key_t *a_key_from,
+                                                 dap_enc_key_t *a_service_key,
+                                                 dap_chain_net_srv_uid_t a_srv_uid,
+                                                 const void *a_service_decree_data,
+                                                 size_t a_service_decree_data_size,
+                                                 uint256_t a_fee_value,
+                                                 const char *a_hash_out_type);

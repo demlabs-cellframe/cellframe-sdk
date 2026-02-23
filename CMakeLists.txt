@@ -24,7 +24,7 @@ endif()
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
-    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange compose")
+    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-dex compose")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -229,6 +229,12 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange)
 endif()
 
+# Enable service DEX v2
+if (CELLFRAME_MODULES MATCHES "srv-dex")
+    message("[+] Module 'srv-dex'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_dex)
+endif()
+
 # Enable service of stake token
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     message("[+] Module 'srv-stake'")
@@ -246,6 +252,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-voting")
     message("[+] Module 'srv-voting'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_voting)
+endif()
+
+# Enable service stake-ext
+if (CELLFRAME_MODULES MATCHES "srv-stake-ext")
+    message("[+] Module 'srv-stake-ext'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_ext)
 endif()
 
 # Enable service TX multisign with consensus

@@ -37,6 +37,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
 #include "dap_stream_ch_chain_net_srv_pkt.h"
+#include "dap_chain_datum_tx_items.h"
 #include "dap_stream_ch_proc.h"
 
 
@@ -410,7 +411,8 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt(void *a_arg)
 
 
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED_ARG dap_ledger_t *a_ledger,
-                                                    dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode)
+                                                    dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                                    dap_chan_ledger_notify_opcodes_t a_opcode, UNUSED_ARG dap_hash_fast_t *a_atom_hash)
 {
 // sanity check
     dap_return_if_pass(!a_tx);
@@ -615,6 +617,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         // Start service for free
         log_it( L_INFO, "Can't find a valid pricelist. Service provide for free");
         l_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_FREE;
+        // In free mode usage is considered fully ready to serve
+        l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL;
         size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
@@ -1210,7 +1214,8 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
                 if (l_in_cond){
                     dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &l_in_cond->header.tx_prev_hash);
                     if (l_prev_tx){
-                        l_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get_nth(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_in_cond->header.tx_out_prev_idx);
+                        byte_t *l_prev_out = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_in_cond->header.tx_out_prev_idx);
+                        l_out_cond = (l_prev_out && *l_prev_out == TX_ITEM_TYPE_OUT_COND) ? (dap_chain_tx_out_cond_t *)l_prev_out : NULL;
                         if (l_out_cond && l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY)
                             l_out_cond = NULL;
                     }

@@ -33,10 +33,12 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED = 0x0,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY = 0x01,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE = 0x02,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX = 0x05,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE = 0x03,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED = 0x07,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK = 0x08,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL = 0xFF
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;
@@ -105,6 +107,28 @@ typedef struct dap_chain_tx_out_cond {
             dap_chain_addr_t seller_addr;
         } DAP_ALIGN_PACKED srv_xchange;
         struct {
+            dap_chain_net_id_t buy_net_id, sell_net_id;
+            // Token ticker to change to (buy token)
+            char buy_token[DAP_CHAIN_TICKER_SIZE_MAX];
+            // Seller address (order owner)
+            dap_chain_addr_t seller_addr;
+            // Root hash of order chain (head tx hash); zero for the head itself
+            dap_chain_hash_fast_t order_root_hash;
+            // Exchange rate sell->buy (uint256 fixed precision)
+            uint256_t rate;
+            // min_fill combined byte: low 7 bits are percent (0..100), high bit=1 means "from origin", 0 means "from remaining"
+            // 0 => PARTIAL_OK, 100 => AON, 1..99 => MIN percent
+            uint8_t min_fill;
+            // Version of SRV_DEX payload
+            uint8_t version;
+            // Flags for future use
+            uint32_t flags;
+            // Declared DEX tx type (set by composer)
+            // See dex_tx_type_t; only ORDER/EXCHANGE/UPDATE are written into payload
+            uint8_t tx_type;
+            uint8_t _padding[7];
+        } DAP_ALIGN_PACKED srv_dex;
+        struct {
             // Public key hash of signing certificate combined with net id
             dap_chain_addr_t signing_addr;
             // Node address of signer with this stake
@@ -121,8 +145,16 @@ typedef struct dap_chain_tx_out_cond {
         struct {
             uint32_t signers_minimum;
         } DAP_ALIGN_PACKED wallet_shared;
+        struct {
+            dap_hash_fast_t stake_ext_hash;    ///< Hash of the stake-ext this lock belongs to
+            uint8_t range_end;                 ///< Ending range for CellSlot (1-8, range_start always = 1)
+            dap_time_t lock_time;              ///< Token lock time duration
+            uint32_t position_id;               ///< Position ID
+            byte_t padding[3];                 ///< Padding for alignment (increased by 1)
+        } DAP_ALIGN_PACKED srv_stake_ext_lock;
         byte_t free_space[272]; // TODO increase it to 512 with version update
     } DAP_ALIGN_PACKED subtype;
+    
     uint32_t tsd_size; // Condition parameters size
     uint8_t tsd[]; // condition parameters, pkey, hash or smth like this
 } DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;
@@ -137,8 +169,10 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE";
+    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED";
+    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK";
     default: {}
     }
     return "UNDEFINED";
@@ -153,9 +187,11 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str_short(dap_cha
     switch(a_subtype){
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: return "srv_pay";
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: return "srv_xchange";
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX: return "srv_dex";
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: return "srv_stake_pos_delegate";
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: return "srv_stake_lock";
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: return "fee";
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK: return "srv_stake_ext_lock";
         default: return "UNDEFINED";
     }
 }

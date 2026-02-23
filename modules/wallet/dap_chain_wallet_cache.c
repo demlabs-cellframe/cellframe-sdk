@@ -35,7 +35,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <dirent.h>
-#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -743,6 +742,9 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
 {
     int l_ret_val = 0, l_items_cnt = 0, l_out_idx = -1;
     bool l_multichannel = false;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ret_val_if_any(-EINVAL, !l_net || !l_net->pub.ledger);
+    dap_ledger_t *l_ledger = l_net->pub.ledger;
 #define m_check_addr(addr) (                                                                                    \
     !dap_chain_addr_is_blank(&addr) && (                                                                        \
         a_addr ? dap_chain_addr_compare(&addr, a_addr) :                                                        \
@@ -789,6 +791,20 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                 l_value = ((dap_chain_tx_out_std_t *)l_prev_item)->value;
                 l_addr = ((dap_chain_tx_out_std_t *)l_prev_item)->addr;
                 break;
+            case TX_ITEM_TYPE_OUT_COND: {
+                dap_chain_tx_out_cond_t *l_prev_cond = (dap_chain_tx_out_cond_t*)l_prev_item;
+                l_value = l_prev_cond->header.value;
+                switch (l_prev_cond->header.subtype) {
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX:
+                    l_addr = l_prev_cond->subtype.srv_dex.seller_addr;
+                    break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
+                    l_addr = l_prev_cond->subtype.srv_xchange.seller_addr;
+                    break;
+                default:
+                    continue;
+                }
+            } break;
             default:
                 continue;
             }
@@ -808,8 +824,17 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             l_multichannel = true;
             break;
         case TX_ITEM_TYPE_OUT_COND:
-        /* Make it explicit for possible future STAKE_LOCK adoption */
-        // TODO
+            l_value = ((dap_chain_tx_out_cond_t*)l_tx_item)->header.value;
+            switch (((dap_chain_tx_out_cond_t*)l_tx_item)->header.subtype) {
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX:
+                l_addr = ((dap_chain_tx_out_cond_t*)l_tx_item)->subtype.srv_dex.seller_addr;
+                break;
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
+                l_addr = ((dap_chain_tx_out_cond_t*)l_tx_item)->subtype.srv_xchange.seller_addr;
+                break;
+            default:
+                break;
+            }
             ++l_out_idx;
         default:
             continue;
@@ -886,9 +911,22 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                         if ( !l_item ) {
                             l_item = DAP_NEW(dap_wallet_cache_unspent_outs_t);
                             *l_item = (dap_wallet_cache_unspent_outs_t) { .key = l_key, .output = l_out_item->data };
-                            dap_strncpy(l_item->token_ticker, *l_prev_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t*)l_prev_item)->token
-                                        : *l_tx_item == TX_ITEM_TYPE_OUT_STD ? ((dap_chain_tx_out_std_t*)l_tx_item)->token
-                                        : l_wallet_prev_tx_item->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                            const char *l_prev_ticker = NULL;
+                            switch (*l_prev_item) {
+                            case TX_ITEM_TYPE_OUT_EXT:
+                                l_prev_ticker = ((dap_chain_tx_out_ext_t*)l_prev_item)->token;
+                                break;
+                            case TX_ITEM_TYPE_OUT_STD:
+                                l_prev_ticker = ((dap_chain_tx_out_std_t*)l_prev_item)->token;
+                                break;
+                            case TX_ITEM_TYPE_OUT_COND:
+                                l_prev_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_prev_tx_hash);
+                                break;
+                            default:
+                                l_prev_ticker = l_wallet_prev_tx_item->token_ticker;
+                                break;
+                            }
+                            dap_strncpy(l_item->token_ticker, l_prev_ticker ? l_prev_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);
                             HASH_ADD(hh, l_wallet_item->unspent_outputs, key, sizeof(unspent_cache_hh_key), l_item);
                         }
                     }
@@ -918,9 +956,22 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                     if ( !l_item ) {
                         l_item = DAP_NEW(dap_wallet_cache_unspent_outs_t);
                         *l_item = (dap_wallet_cache_unspent_outs_t) { .key = l_key, .output = l_out };
-                        dap_strncpy(l_item->token_ticker, *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t*)l_tx_item)->token
-                                : *l_tx_item == TX_ITEM_TYPE_OUT_STD ? ((dap_chain_tx_out_std_t*)l_tx_item)->token
-                                : a_main_token_ticker ? a_main_token_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);                   
+                        const char *l_out_ticker = NULL;
+                        switch (*l_tx_item) {
+                        case TX_ITEM_TYPE_OUT_EXT:
+                            l_out_ticker = ((dap_chain_tx_out_ext_t*)l_tx_item)->token;
+                            break;
+                        case TX_ITEM_TYPE_OUT_STD:
+                            l_out_ticker = ((dap_chain_tx_out_std_t*)l_tx_item)->token;
+                            break;
+                        case TX_ITEM_TYPE_OUT_COND:
+                            l_out_ticker = a_main_token_ticker;
+                            break;
+                        default:
+                            l_out_ticker = a_main_token_ticker;
+                            break;
+                        }
+                        dap_strncpy(l_item->token_ticker, l_out_ticker ? l_out_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);
                         HASH_ADD(hh, l_wallet_item->unspent_outputs, key, sizeof(unspent_cache_hh_key), l_item);
                     }
                 }
