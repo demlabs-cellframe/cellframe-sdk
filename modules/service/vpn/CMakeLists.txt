@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project (dap_chain_net_srv_vpn)
 
+# Include LibraryHelpers for object library creation
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/LibraryHelpers.cmake)
+
 # Add TUN submodule
 add_subdirectory(tun)
 
@@ -60,10 +63,14 @@ endif()
 list(APPEND DAP_CHAIN_NET_SRV_VPN_SRCS ${DAP_CHAIN_NET_VPN_CLIENT_SRCS})
 list(APPEND DAP_CHAIN_NET_SRV_VPN_HEADERS ${DAP_CHAIN_NET_VPN_CLIENT_HEADERS})
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_VPN_SRCS} ${DAP_CHAIN_NET_SRV_VPN_HEADERS})
+# Create OBJECT library instead of STATIC
+create_object_library(${PROJECT_NAME} CELLFRAME_INTERNAL_MODULES ${DAP_CHAIN_NET_SRV_VPN_SRCS} HEADERS ${DAP_CHAIN_NET_SRV_VPN_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_net_tun dap_core dap_crypto dap_stream dap_stream_ch_chain_net_srv dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)
-add_definitions("-DDAP_TUN_IN_WORKER")
+# Link dependencies as INTERFACE for OBJECT library
+# Use dap_link_libraries for automatic include propagation with cycle detection
+dap_link_libraries(${PROJECT_NAME} INTERFACE dap_net_tun dap_core dap_crypto dap_stream dap_stream_ch_chain_net_srv dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE DAP_TUN_IN_WORKER)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)

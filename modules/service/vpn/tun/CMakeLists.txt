@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(dap_net_tun C)
 
+# Include LibraryHelpers for object library creation
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../../cmake/LibraryHelpers.cmake)
+
 # Platform-specific source selection
 if(UNIX)
     if(APPLE)
@@ -20,8 +23,9 @@ endif()
 
 message(STATUS "DAP Net TUN: Building for ${TUN_PLATFORM}")
 
-# Create library
-add_library(dap_net_tun STATIC
+# Create OBJECT library instead of STATIC
+# Note: dap_net_tun is used by DAP SDK, so we register it in DAP_INTERNAL_MODULES
+create_object_library(dap_net_tun DAP_INTERNAL_MODULES
     ${TUN_PLATFORM_SOURCES}
 )
 
@@ -30,14 +34,17 @@ target_include_directories(dap_net_tun PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../../..
 )
 
-target_link_libraries(dap_net_tun
+# Link dependencies as INTERFACE for OBJECT library
+# Use dap_link_libraries for automatic include propagation with cycle detection
+dap_link_libraries(dap_net_tun INTERFACE
     dap_core
     dap_io
 )
 
 # Platform-specific linking
 if(WIN32)
-    target_link_libraries(dap_net_tun
+    # System libraries will be linked at final stage
+    target_link_libraries(dap_net_tun INTERFACE
         ws2_32
         iphlpapi
         wintun  # WinTun library
