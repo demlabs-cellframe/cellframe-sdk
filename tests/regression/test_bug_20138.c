@@ -64,22 +64,33 @@
 // Global test context
 test_net_fixture_t *s_net_fixture = NULL;
 
+static char s_config_dir[512];
+static char s_gdb_dir[512];
+static char s_certs_dir[512];
+static char s_wallets_dir[512];
+
 static void s_setup(void)
 {
     dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
     log_it(L_NOTICE, "=== Regression Test: Bug #20138 Setup ===");
     
-    // Clean up
-    system("rm -rf /tmp/reg_test_gdb_20138");
-    system("rm -rf /tmp/reg_test_certs_20138");
-    system("rm -rf /tmp/reg_test_config_20138");
-    system("rm -rf /tmp/reg_test_wallets_20138");
+    const char *l_tmp = test_get_temp_dir();
+    snprintf(s_config_dir, sizeof(s_config_dir), "%s/reg_test_config_20138", l_tmp);
+    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/reg_test_gdb_20138", l_tmp);
+    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/reg_test_certs_20138", l_tmp);
+    snprintf(s_wallets_dir, sizeof(s_wallets_dir), "%s/reg_test_wallets_20138", l_tmp);
+
+    dap_rm_rf(s_gdb_dir);
+    dap_rm_rf(s_certs_dir);
+    dap_rm_rf(s_config_dir);
+    dap_rm_rf(s_wallets_dir);
     
-    // Create config with ca_folders for certificate loading
-    dap_mkdir_with_parents("/tmp/reg_test_config_20138");
-    dap_mkdir_with_parents("/tmp/reg_test_wallets_20138");
-    dap_mkdir_with_parents("/tmp/reg_test_certs_20138");
-    FILE *l_cfg = fopen("/tmp/reg_test_config_20138/test.cfg", "w");
+    dap_mkdir_with_parents(s_config_dir);
+    dap_mkdir_with_parents(s_wallets_dir);
+    dap_mkdir_with_parents(s_certs_dir);
+    char l_cfg_path[1024];
+    snprintf(l_cfg_path, sizeof(l_cfg_path), "%s/test.cfg", s_config_dir);
+    FILE *l_cfg = fopen(l_cfg_path, "w");
     if (l_cfg) {
         fprintf(l_cfg, 
                 "[general]\n"
@@ -94,32 +105,29 @@ static void s_setup(void)
                 "wallets_cache=all\n\n"
                 "[global_db]\n"
                 "driver=mdbx\n"
-                "path=/tmp/reg_test_gdb_20138\n\n"
+                "path=%s\n\n"
                 "[cli-server]\n"
                 "enabled=true\n\n"
                 "[resources]\n"
-                "wallets_path=/tmp/reg_test_wallets_20138\n"
-                "ca_folders=/tmp/reg_test_certs_20138\n");
+                "wallets_path=%s\n"
+                "ca_folders=%s\n",
+                s_gdb_dir, s_wallets_dir, s_certs_dir);
         fclose(l_cfg);
     }
     
-    // Initialize consensus modules
     dap_chain_cs_init();
     dap_chain_cs_dag_init();
     dap_chain_cs_dag_poa_init();
     dap_chain_cs_esbocs_init();
     dap_nonconsensus_init();
     
-    // Create test environment
-    test_env_init("/tmp/reg_test_config_20138", "/tmp/reg_test_gdb_20138");
+    test_env_init(s_config_dir, s_gdb_dir);
     
-    // Init wallet cache AFTER config is loaded but BEFORE creating wallets
     dap_chain_wallet_cache_init();
     
     s_net_fixture = test_net_fixture_create("RegNet20138");
     dap_assert_PIF(s_net_fixture != NULL, "Network fixture created");
     
-    // Init CLI
     dap_chain_node_cli_init(g_config);
 }
 
@@ -127,7 +135,6 @@ static void s_cleanup(void)
 {
     log_it(L_NOTICE, "=== Regression Test: Bug #20138 Cleanup ===");
     
-    // CRITICAL: Cleanup order to avoid MDBX errors
     dap_chain_wallet_cache_deinit();
     dap_chain_node_cli_delete();
     
@@ -138,11 +145,10 @@ static void s_cleanup(void)
     
     test_env_deinit();
     
-    // Cleanup test directories
-    system("rm -rf /tmp/reg_test_gdb_20138");
-    system("rm -rf /tmp/reg_test_certs_20138");
-    system("rm -rf /tmp/reg_test_config_20138");
-    system("rm -rf /tmp/reg_test_wallets_20138");
+    dap_rm_rf(s_gdb_dir);
+    dap_rm_rf(s_certs_dir);
+    dap_rm_rf(s_config_dir);
+    dap_rm_rf(s_wallets_dir);
 }
 
 // Helper: Create and save certificate with seed for reproducibility
@@ -163,10 +169,9 @@ static dap_cert_t* s_create_cert_with_seed(const char *a_cert_name, const char *
         log_it(L_WARNING, "Certificate %s already in memory or add failed: %d", a_cert_name, l_add_result);
     }
     
-    // Save to file for CLI
-    dap_mkdir_with_parents("/tmp/reg_test_certs_20138");
-    char l_cert_path[512];
-    snprintf(l_cert_path, sizeof(l_cert_path), "/tmp/reg_test_certs_20138/%s.dcert", a_cert_name);
+    dap_mkdir_with_parents(s_certs_dir);
+    char l_cert_path[1024];
+    snprintf(l_cert_path, sizeof(l_cert_path), "%s/%s.dcert", s_certs_dir, a_cert_name);
     
     int l_save_result = dap_cert_file_save(l_cert, l_cert_path);
     if (l_save_result != 0) {
@@ -427,8 +432,8 @@ static void test_arbitrage_without_cert(void)
     log_it(L_INFO, "Token owner cert address: %s", dap_chain_addr_to_str(&l_cert_addr));
     
     // 3. Create wallet
-    dap_mkdir_with_parents("/tmp/reg_test_wallets_20138");
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_20138_1", "/tmp/reg_test_wallets_20138",
+    dap_mkdir_with_parents(s_wallets_dir);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_20138_1", s_wallets_dir,
                                                                       (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM}, 
                                                                       NULL, 0, NULL);
     dap_assert_PIF(l_wallet != NULL, "Wallet created");
@@ -451,7 +456,7 @@ static void test_arbitrage_without_cert(void)
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     
     // 6. Open wallet and load cache for arbitrage TX
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_20138_1", "/tmp/reg_test_wallets_20138", NULL);
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_20138_1", s_wallets_dir, NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
     
     dap_enc_key_t *l_wallet_key_opened = dap_chain_wallet_get_key(l_wallet_opened, 0);
@@ -529,8 +534,8 @@ static void test_arbitrage_with_cert_stuck(void)
     log_it(L_INFO, "Token owner cert address: %s", dap_chain_addr_to_str(&l_cert_addr));
     
     // 3. Create wallet
-    dap_mkdir_with_parents("/tmp/reg_test_wallets_20138");
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_20138_2", "/tmp/reg_test_wallets_20138",
+    dap_mkdir_with_parents(s_wallets_dir);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_20138_2", s_wallets_dir,
                                                                       (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM}, 
                                                                       NULL, 0, NULL);
     dap_assert_PIF(l_wallet != NULL, "Wallet created");
@@ -543,7 +548,7 @@ static void test_arbitrage_with_cert_stuck(void)
     // 4. Open wallet immediately after creation so its address is added to s_wallet_addr_cache
     // before s_create_token_and_emission() calls dap_chain_wallet_cache_load_for_net().
     // Opening is deferred to after creation on macOS may hit a transient ENOENT otherwise.
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_20138_2", "/tmp/reg_test_wallets_20138", NULL);
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_20138_2", s_wallets_dir, NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
 
     dap_enc_key_t *l_wallet_key_opened = dap_chain_wallet_get_key(l_wallet_opened, 0);

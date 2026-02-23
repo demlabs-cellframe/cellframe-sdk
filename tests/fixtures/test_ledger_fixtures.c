@@ -162,7 +162,7 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
     // Create temporary config with consensus="none"
     // This will override DAP_LEDGER_TEST logic that defaults to "esbocs"
     char l_temp_cfg_path[256];
-    snprintf(l_temp_cfg_path, sizeof(l_temp_cfg_path), "/tmp/test_none_consensus_%s.cfg", a_net_name);
+    snprintf(l_temp_cfg_path, sizeof(l_temp_cfg_path), "%s/test_none_consensus_%s.cfg", test_get_temp_dir(), a_net_name);
     FILE *l_temp_cfg_file = fopen(l_temp_cfg_path, "w");
     if (l_temp_cfg_file) {
         fprintf(l_temp_cfg_file, "[chain]\nconsensus=none\n");
@@ -446,7 +446,9 @@ int test_env_init(const char *a_config_dir, const char *a_global_db_path)
         }
     } else if (!g_config) {
         // Try to initialize with default path
-        dap_config_init("/tmp/test_config");
+        char l_fallback_config[512];
+        snprintf(l_fallback_config, sizeof(l_fallback_config), "%s/test_config", test_get_temp_dir());
+        dap_config_init(l_fallback_config);
         g_config = dap_config_open("test");
         if (!g_config) {
             log_it(L_WARNING, "No config available - some features may not work");
@@ -482,7 +484,9 @@ int test_env_init(const char *a_config_dir, const char *a_global_db_path)
                 }
                 // If still no folder, use default test path
                 if (!l_cert_folder) {
-                    const char *l_default_cert_folder = "/tmp/test_certs";
+                    char l_default_cert_buf[512];
+                    snprintf(l_default_cert_buf, sizeof(l_default_cert_buf), "%s/test_certs", test_get_temp_dir());
+                    const char *l_default_cert_folder = l_default_cert_buf;
                     dap_mkdir_with_parents(l_default_cert_folder);
                     dap_cert_add_folder(l_default_cert_folder);
                     l_cert_folder = dap_cert_get_folder(DAP_CERT_FOLDER_PATH_DEFAULT);
@@ -911,4 +915,26 @@ bool test_wait_for_wallet_cache_loaded(dap_chain_net_t *a_net, const dap_chain_a
     log_it(L_WARNING, "⚠ Wallet cache loading timeout for %s after %d attempts (%d ms total)",
            dap_chain_addr_to_str_static(a_addr), l_max_attempts, l_max_attempts * l_delay_ms);
     return false;
+}
+
+/**
+ * @brief Return a portable temp directory for tests (works under Wine/Windows and Unix)
+ * @return Static string: getenv("TEMP") or getenv("TMP") on Windows, else "/tmp"
+ */
+const char *test_get_temp_dir(void)
+{
+#ifdef DAP_OS_WINDOWS
+    static char s_temp_dir[1024];
+    const char *e = getenv("TEMP");
+    if (!e || !*e)
+        e = getenv("TMP");
+    if (e && *e) {
+        snprintf(s_temp_dir, sizeof(s_temp_dir), "%s", e);
+        return s_temp_dir;
+    }
+    snprintf(s_temp_dir, sizeof(s_temp_dir), "C:\\Temp");
+    return s_temp_dir;
+#else
+    return "/tmp";
+#endif
 }

@@ -101,24 +101,28 @@ static void s_setup(void)
     
     log_it(L_NOTICE, "=== UTXO Blocking CLI Integration Tests Setup ===");
     
+    const char *l_tmp = test_get_temp_dir();
+    char l_config_dir_buf[512], l_gdb_buf[512], l_certs_buf[512], l_wallets_buf[512], l_sock_buf[512];
+    snprintf(l_config_dir_buf, sizeof(l_config_dir_buf), "%s%ccli_test_config", l_tmp, DAP_DIR_SEPARATOR);
+    snprintf(l_gdb_buf, sizeof(l_gdb_buf), "%s%ccli_test_gdb", l_tmp, DAP_DIR_SEPARATOR);
+    snprintf(l_certs_buf, sizeof(l_certs_buf), "%s%ccli_test_certs", l_tmp, DAP_DIR_SEPARATOR);
+    snprintf(l_wallets_buf, sizeof(l_wallets_buf), "%s%ccli_test_wallets", l_tmp, DAP_DIR_SEPARATOR);
+    snprintf(l_sock_buf, sizeof(l_sock_buf), "%s%ccli_test.sock", l_tmp, DAP_DIR_SEPARATOR);
+    
     // Step 0: Clean up from previous runs
-    system("rm -rf /tmp/cli_test_gdb");
-    system("rm -rf /tmp/cli_test_certs");
-    system("rm -rf /tmp/cli_test_wallets");
-    system("rm -f /tmp/cli_test.sock");
+    dap_rm_rf(l_gdb_buf);
+    dap_rm_rf(l_certs_buf);
+    dap_rm_rf(l_wallets_buf);
+    dap_rm_rf(l_config_dir_buf);
+    remove(l_sock_buf);
     
     // Step 1: Create minimal config for CLI server
-#ifdef DAP_OS_WINDOWS
-    const char *l_config_dir = "C:\\Temp\\cli_test_config";
-#else
-    const char *l_config_dir = "/tmp/cli_test_config";
-#endif
-    dap_mkdir_with_parents(l_config_dir);
-    dap_mkdir_with_parents("/tmp/cli_test_certs");
-    dap_mkdir_with_parents("/tmp/cli_test_wallets");
+    dap_mkdir_with_parents(l_config_dir_buf);
+    dap_mkdir_with_parents(l_certs_buf);
+    dap_mkdir_with_parents(l_wallets_buf);
     
-    // CLI server config (server init may fail without full event loop, but test continues)
-    const char *l_config_content = 
+    char l_config_content[4096];
+    snprintf(l_config_content, sizeof(l_config_content),
         "[general]\n"
         "debug=true\n"
         "[cli-server]\n"
@@ -126,6 +130,7 @@ static void s_setup(void)
         "debug=false\n"
         "debug_more=true\n"
         "version=1\n"
+        "listen_unix_socket_path=%s\n"
         "[ledger]\n"
         "debug_more=true\n"
         "[chain_net]\n"
@@ -136,14 +141,15 @@ static void s_setup(void)
         "debug_more=true\n"
         "[global_db]\n"
         "driver=mdbx\n"
-        "path=/tmp/cli_test_gdb\n"
+        "path=%s\n"
         "debug_more=true\n"
         "[resources]\n"
-        "ca_folders=/tmp/cli_test_certs\n"
-        "wallets_path=/tmp/cli_test_wallets\n";
+        "ca_folders=%s\n"
+        "wallets_path=%s\n",
+        l_sock_buf, l_gdb_buf, l_certs_buf, l_wallets_buf);
     
-    char l_config_path[256];
-    snprintf(l_config_path, sizeof(l_config_path), "%s%ctest.cfg", l_config_dir, DAP_DIR_SEPARATOR);
+    char l_config_path[1024];
+    snprintf(l_config_path, sizeof(l_config_path), "%s%ctest.cfg", l_config_dir_buf, DAP_DIR_SEPARATOR);
     FILE *l_config_file = fopen(l_config_path, "w");
     if (l_config_file) {
         fwrite(l_config_content, 1, strlen(l_config_content), l_config_file);
@@ -151,7 +157,7 @@ static void s_setup(void)
     }
     
     // Step 2: Initialize test environment (config, certs, global DB)
-    int l_env_init_res = test_env_init(l_config_dir, "/tmp/cli_test_gdb");
+    int l_env_init_res = test_env_init(l_config_dir_buf, l_gdb_buf);
     dap_assert(l_env_init_res == 0, "Test environment initialization");
     
     // Step 3: Initialize ledger (reads debug_more from config)
@@ -221,20 +227,20 @@ static void s_teardown(void)
     dap_config_deinit();
     log_it(L_DEBUG, "Config cleaned up");
     
-    // 5. Remove test config files and DB
+    // 5. Remove test config files and DB (portable paths)
     log_it(L_DEBUG, "Removing test files...");
-    unlink("/tmp/cli_test_config/test.cfg");
-    rmdir("/tmp/cli_test_config");
-    unlink("/tmp/cli_test.sock");
-    // Remove global DB directory
-    system("rm -rf /tmp/cli_test_gdb");
-
-#ifdef DAP_OS_WINDOWS
-    dap_rm_rf("C:\\Temp\\cli_test_config");
-#else
-    dap_rm_rf("/tmp/cli_test_config");
-    remove("/tmp/cli_test.sock");
-#endif
+    {
+        const char *l_tmp = test_get_temp_dir();
+        char l_cfg_path[1024], l_config_dir_buf[512], l_gdb_buf[512], l_sock_buf[512];
+        snprintf(l_config_dir_buf, sizeof(l_config_dir_buf), "%s%ccli_test_config", l_tmp, DAP_DIR_SEPARATOR);
+        snprintf(l_cfg_path, sizeof(l_cfg_path), "%s%ctest.cfg", l_config_dir_buf, DAP_DIR_SEPARATOR);
+        snprintf(l_gdb_buf, sizeof(l_gdb_buf), "%s%ccli_test_gdb", l_tmp, DAP_DIR_SEPARATOR);
+        snprintf(l_sock_buf, sizeof(l_sock_buf), "%s%ccli_test.sock", l_tmp, DAP_DIR_SEPARATOR);
+        remove(l_cfg_path);
+        remove(l_sock_buf);
+        dap_rm_rf(l_config_dir_buf);
+        dap_rm_rf(l_gdb_buf);
+    }
     
     log_it(L_NOTICE, "✓ Test environment cleaned up");
 }

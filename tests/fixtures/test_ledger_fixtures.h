@@ -57,6 +57,12 @@ bool test_ledger_get_token_emission_hash(dap_ledger_t *a_ledger,
                                           dap_chain_hash_fast_t *a_emission_hash);
 
 /**
+ * @brief Return a portable temp directory for tests (Windows/Wine: TEMP/TMP, Unix: /tmp)
+ * @return Static string - do not free
+ */
+const char *test_get_temp_dir(void);
+
+/**
  * @brief Initialize test environment (config, certs, global DB)
  * @param a_config_dir Directory for test config files (can be NULL for default)
  * @param a_global_db_path Path for global DB storage (can be NULL for default)

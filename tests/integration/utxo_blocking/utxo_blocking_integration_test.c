@@ -29,52 +29,58 @@
 // Global test context (shared across all test modules)
 test_net_fixture_t *s_net_fixture = NULL;
 
+static char s_config_dir[512];
+static char s_gdb_dir[512];
+static char s_certs_dir[512];
+
 /**
  * @brief Setup: Initialize test environment
  */
 static void s_setup(void)
 {
     log_it(L_NOTICE, "=== UTXO Blocking Integration Tests Setup ===");
+
+    const char *l_tmp = test_get_temp_dir();
+    snprintf(s_config_dir, sizeof(s_config_dir), "%s/intg_test_config", l_tmp);
+    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/intg_test_gdb", l_tmp);
+    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/intg_test_certs", l_tmp);
+
     log_it(L_NOTICE, "Step 0: Cleaning up from previous runs...");
-    
-    // Step 0: Clean up from previous runs (critical for CI where tests may not cleanup properly)
-    system("rm -rf /tmp/intg_test_gdb");
-    system("rm -rf /tmp/intg_test_certs");
-    system("rm -rf /tmp/intg_test_config");
+    dap_rm_rf(s_gdb_dir);
+    dap_rm_rf(s_certs_dir);
+    dap_rm_rf(s_config_dir);
     log_it(L_NOTICE, "Step 0: Complete");
     
-    // Step 1: Create minimal config for ledger debug
     log_it(L_NOTICE, "Step 1: Creating config...");
-    const char *l_config_dir = "/tmp/intg_test_config";
-    dap_mkdir_with_parents(l_config_dir);
+    dap_mkdir_with_parents(s_config_dir);
     
-    const char *l_config_content = 
+    char l_config_content[2048];
+    snprintf(l_config_content, sizeof(l_config_content),
         "[general]\n"
         "debug=true\n"
         "[ledger]\n"
         "debug_more=true\n"
         "[global_db]\n"
         "driver=mdbx\n"
-        "path=/tmp/intg_test_gdb\n"
+        "path=%s\n"
         "debug_more=false\n"
         "[resources]\n"
-        "ca_folders=/tmp/intg_test_certs\n";
+        "ca_folders=%s\n",
+        s_gdb_dir, s_certs_dir);
     
-    char l_config_path[256];
-    snprintf(l_config_path, sizeof(l_config_path), "%s/test.cfg", l_config_dir);
+    char l_config_path[1024];
+    snprintf(l_config_path, sizeof(l_config_path), "%s/test.cfg", s_config_dir);
     FILE *l_config_file = fopen(l_config_path, "w");
     if (l_config_file) {
         fwrite(l_config_content, 1, strlen(l_config_content), l_config_file);
         fclose(l_config_file);
     }
     
-    // Create certificate folder
-    dap_mkdir_with_parents("/tmp/intg_test_certs");
+    dap_mkdir_with_parents(s_certs_dir);
     log_it(L_NOTICE, "Step 1: Complete");
     
-    // Step 2: Initialize test environment (config, certs, global DB, events, proc threads)
     log_it(L_NOTICE, "Step 2: Initializing test environment...");
-    int l_env_res = test_env_init(l_config_dir, "/tmp/intg_test_gdb");
+    int l_env_res = test_env_init(s_config_dir, s_gdb_dir);
     if (l_env_res != 0) {
         log_it(L_CRITICAL, "test_env_init failed with code %d - aborting", l_env_res);
     }
@@ -116,11 +122,12 @@ static void s_teardown(void)
     // Clean up test environment (global DB, certs, events, proc threads)
     test_env_deinit();
     
-    // Remove test files
-    unlink("/tmp/intg_test_config/test.cfg");
-    rmdir("/tmp/intg_test_config");
-    system("rm -rf /tmp/intg_test_gdb");
-    system("rm -rf /tmp/intg_test_certs");
+    char l_cfg_path[1024];
+    snprintf(l_cfg_path, sizeof(l_cfg_path), "%s/test.cfg", s_config_dir);
+    remove(l_cfg_path);
+    dap_rm_rf(s_config_dir);
+    dap_rm_rf(s_gdb_dir);
+    dap_rm_rf(s_certs_dir);
     
     log_it(L_NOTICE, "✓ Test environment cleaned up");
 }

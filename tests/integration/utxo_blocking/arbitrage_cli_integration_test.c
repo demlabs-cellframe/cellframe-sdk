@@ -88,6 +88,13 @@
 // Global test context
 test_net_fixture_t *s_net_fixture = NULL;
 
+// Portable paths for CLI tests (set in setup, used in tests and teardown)
+static char s_cli_test_config_dir[512];
+static char s_cli_test_gdb_dir[512];
+static char s_cli_test_certs_dir[512];
+static char s_cli_test_wallets_dir[512];
+static char s_cli_test_sock_path[512];
+
 static void s_setup(void)
 {
     // Initialize logging output BEFORE any log_it calls (if not already set)
@@ -96,26 +103,32 @@ static void s_setup(void)
     
     log_it(L_NOTICE, "=== UTXO Blocking CLI Integration Tests Setup ===");
     
-    // Step 0: Clean up from previous runs
-    system("rm -rf /tmp/cli_test_gdb");
-    system("rm -rf /tmp/cli_test_certs");
-    system("rm -rf /tmp/cli_test_wallets");
-    system("rm -f /tmp/cli_test.sock");
+    const char *l_tmp = test_get_temp_dir();
+    snprintf(s_cli_test_config_dir, sizeof(s_cli_test_config_dir), "%s%ccli_test_config", l_tmp, DAP_DIR_SEPARATOR);
+    snprintf(s_cli_test_gdb_dir, sizeof(s_cli_test_gdb_dir), "%s%ccli_test_gdb", l_tmp, DAP_DIR_SEPARATOR);
+    snprintf(s_cli_test_certs_dir, sizeof(s_cli_test_certs_dir), "%s%ccli_test_certs", l_tmp, DAP_DIR_SEPARATOR);
+    snprintf(s_cli_test_wallets_dir, sizeof(s_cli_test_wallets_dir), "%s%ccli_test_wallets", l_tmp, DAP_DIR_SEPARATOR);
+    snprintf(s_cli_test_sock_path, sizeof(s_cli_test_sock_path), "%s%ccli_test.sock", l_tmp, DAP_DIR_SEPARATOR);
+    
+    // Step 0: Clean up from previous runs (portable)
+    dap_rm_rf(s_cli_test_gdb_dir);
+    dap_rm_rf(s_cli_test_certs_dir);
+    dap_rm_rf(s_cli_test_wallets_dir);
+    remove(s_cli_test_sock_path);
+    dap_rm_rf(s_cli_test_config_dir);
     
     // Step 1: Create minimal config for CLI server
-    const char *l_config_dir = "/tmp/cli_test_config";
-    dap_mkdir_with_parents(l_config_dir);
-    // Create certificate folder
-    dap_mkdir_with_parents("/tmp/cli_test_certs");
-    // Create wallets folder
-    dap_mkdir_with_parents("/tmp/cli_test_wallets");
+    dap_mkdir_with_parents(s_cli_test_config_dir);
+    dap_mkdir_with_parents(s_cli_test_certs_dir);
+    dap_mkdir_with_parents(s_cli_test_wallets_dir);
     
-    const char *l_config_content = 
+    char l_config_content[4096];
+    snprintf(l_config_content, sizeof(l_config_content),
         "[general]\n"
         "debug=true\n"
         "[cli-server]\n"
         "enabled=true\n"
-        "listen_unix_socket_path=/tmp/cli_test.sock\n"
+        "listen_unix_socket_path=%s\n"
         "debug=false\n"
         "debug_more=true\n"
         "version=1\n"
@@ -129,14 +142,15 @@ static void s_setup(void)
         "debug_more=true\n"
         "[global_db]\n"
         "driver=mdbx\n"
-        "path=/tmp/cli_test_gdb\n"
+        "path=%s\n"
         "debug_more=true\n"
         "[resources]\n"
-        "ca_folders=/tmp/cli_test_certs\n"
-        "wallets_path=/tmp/cli_test_wallets\n";
+        "ca_folders=%s\n"
+        "wallets_path=%s\n",
+        s_cli_test_sock_path, s_cli_test_gdb_dir, s_cli_test_certs_dir, s_cli_test_wallets_dir);
     
-    char l_config_path[256];
-    snprintf(l_config_path, sizeof(l_config_path), "%s/test.cfg", l_config_dir);
+    char l_config_path[600];
+    snprintf(l_config_path, sizeof(l_config_path), "%s%ctest.cfg", s_cli_test_config_dir, DAP_DIR_SEPARATOR);
     FILE *l_config_file = fopen(l_config_path, "w");
     if (l_config_file) {
         fwrite(l_config_content, 1, strlen(l_config_content), l_config_file);
@@ -144,7 +158,7 @@ static void s_setup(void)
     }
     
     // Step 2: Initialize test environment (config, certs, global DB)
-    int l_env_init_res = test_env_init(l_config_dir, "/tmp/cli_test_gdb");
+    int l_env_init_res = test_env_init(s_cli_test_config_dir, s_cli_test_gdb_dir);
     dap_assert(l_env_init_res == 0, "Test environment initialization");
     
     // Step 3: Initialize ledger (reads debug_more from config)
@@ -214,13 +228,18 @@ static void s_teardown(void)
     dap_config_deinit();
     log_it(L_DEBUG, "Config cleaned up");
     
-    // 5. Remove test config files and DB
+    // 5. Remove test config files and DB (portable paths)
     log_it(L_DEBUG, "Removing test files...");
-    unlink("/tmp/cli_test_config/test.cfg");
-    rmdir("/tmp/cli_test_config");
-    unlink("/tmp/cli_test.sock");
-    // Remove global DB directory
-    system("rm -rf /tmp/cli_test_gdb");
+    {
+        char l_cfg_path[600];
+        snprintf(l_cfg_path, sizeof(l_cfg_path), "%s%ctest.cfg", s_cli_test_config_dir, DAP_DIR_SEPARATOR);
+        remove(l_cfg_path);
+        remove(s_cli_test_sock_path);
+        dap_rm_rf(s_cli_test_config_dir);
+        dap_rm_rf(s_cli_test_gdb_dir);
+        dap_rm_rf(s_cli_test_certs_dir);
+        dap_rm_rf(s_cli_test_wallets_dir);
+    }
     
     log_it(L_NOTICE, "✓ Test environment cleaned up");
 }
@@ -827,12 +846,12 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     dap_assert_PIF(dap_cert_add(l_owner_cert3) == 0, "Owner cert3 added");
     
     // Save certificates to files (needed for CLI commands that don't search memory)
-    char l_cert_path[512];
-    snprintf(l_cert_path, sizeof(l_cert_path), "/tmp/cli_test_certs/%s.dcert", l_owner_cert1->name);
+    char l_cert_path[1024];
+    snprintf(l_cert_path, sizeof(l_cert_path), "%s%c%s.dcert", s_cli_test_certs_dir, DAP_DIR_SEPARATOR, l_owner_cert1->name);
     dap_cert_file_save(l_owner_cert1, l_cert_path);
-    snprintf(l_cert_path, sizeof(l_cert_path), "/tmp/cli_test_certs/%s.dcert", l_owner_cert2->name);
+    snprintf(l_cert_path, sizeof(l_cert_path), "%s%c%s.dcert", s_cli_test_certs_dir, DAP_DIR_SEPARATOR, l_owner_cert2->name);
     dap_cert_file_save(l_owner_cert2, l_cert_path);
-    snprintf(l_cert_path, sizeof(l_cert_path), "/tmp/cli_test_certs/%s.dcert", l_owner_cert3->name);
+    snprintf(l_cert_path, sizeof(l_cert_path), "%s%c%s.dcert", s_cli_test_certs_dir, DAP_DIR_SEPARATOR, l_owner_cert3->name);
     dap_cert_file_save(l_owner_cert3, l_cert_path);
     
     // Create token with auth_signs_valid=3 (requires 3 signatures) via CLI
