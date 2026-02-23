@@ -38,6 +38,8 @@ typedef enum dap_chain_net_vpn_client_status_enum{
     VPN_CLIENT_STATUS_CONN_LOST,
 } dap_chain_net_vpn_client_status_t;
 
+typedef int (*dap_chain_net_vpn_client_order_state_callback_t)(dap_chain_node_addr_t a_node_addr);
+void dap_chain_net_vpn_client_set_order_state_callback(dap_chain_net_vpn_client_order_state_callback_t a_callback);
 
 dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void);
 dap_stream_worker_t* dap_chain_net_vpn_client_get_stream_worker(void);

@@ -45,7 +45,6 @@
 #include "rand/dap_rand.h"
 
 #ifdef DAP_OS_LINUX
-#include <dlfcn.h>
 #include <sys/epoll.h>
 #endif
 
@@ -67,7 +66,6 @@
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
-//#include "dap_modules_dynamic_cdb.h"
 
 /*
  #if !defined( dap_http_client_state_t )
@@ -91,6 +89,12 @@ static pthread_mutex_t sf_socks_mutex;
 
 static dap_chain_node_info_t *s_node_info = NULL;
 static dap_chain_node_client_t *s_vpn_client = NULL;
+static dap_chain_net_vpn_client_order_state_callback_t s_order_state_callback = NULL;
+
+void dap_chain_net_vpn_client_set_order_state_callback(dap_chain_net_vpn_client_order_state_callback_t a_callback)
+{
+    s_order_state_callback = a_callback;
+}
 
 dap_stream_worker_t* dap_chain_net_vpn_client_get_stream_worker(void)
 {
@@ -404,37 +408,12 @@ int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wa
 }
 
 
-static const char * s_default_path_modules = "var/modules";
-// get_order_state() from dynamic library
 static int get_order_state_so(dap_chain_node_addr_t a_node_addr)
 {
-    char l_lib_path[MAX_PATH] = {'\0'};
-#if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
-    const char * l_cdb_so_name = "libcellframe-node-cdb.so";
-    sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
-
-    void* l_cdb_handle = NULL;
-    l_cdb_handle = dlopen(l_lib_path, RTLD_NOW);
-    if(!l_cdb_handle){
-        log_it(L_ERROR,"Can't load %s module: %s", l_cdb_so_name, dlerror());
-        return -1;
-    }
-
-    int (*get_order_state_so)(dap_chain_node_addr_t);
-    const char * l_init_func_name = "get_order_state";
-    *(void **) (&get_order_state_so) = dlsym(l_cdb_handle, l_init_func_name);
-    char* error;
-    if (( error = dlerror()) != NULL) {
-        log_it(L_ERROR,"%s module: %s error loading (%s)", l_cdb_so_name, l_init_func_name, error);
-        return -2;
-     }
-
-    return (*get_order_state_so)(a_node_addr);
-#else
-    log_it(L_CRITICAL, "Module is not supported on current platfrom");
+    if (s_order_state_callback)
+        return s_order_state_callback(a_node_addr);
+    log_it(L_WARNING, "CDB order state callback not registered, is CDB plugin loaded?");
     return -1;
-#endif
-
 }
 
 char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* a_hash_out_type)
@@ -777,4 +756,5 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
 
 void dap_chain_net_vpn_client_deinit()
 {
+    s_order_state_callback = NULL;
 }
