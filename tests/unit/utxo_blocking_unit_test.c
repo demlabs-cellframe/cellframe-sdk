@@ -321,12 +321,11 @@ static void s_test_utxo_block_actions(void)
 
 int main(void)
 {
-    // Initialize logging
     dap_log_level_set(L_DEBUG);
     
+    printf("UTXO Blocking Unit Tests starting...\n"); fflush(stdout);
     dap_print_module_name("UTXO Blocking Unit Tests");
     
-    // Run all unit tests
     s_test_flag_string_conversion();
     s_test_irreversible_flags_mask();
     s_test_irreversibility_logic();
@@ -336,7 +335,7 @@ int main(void)
     s_test_error_codes();
     s_test_utxo_block_actions();
     
-    log_it(L_NOTICE, "✅ All UTXO blocking unit tests passed (8 tests)!");
+    printf("All UTXO blocking unit tests passed (8 tests)!\n"); fflush(stdout);
     
     return 0;
 }

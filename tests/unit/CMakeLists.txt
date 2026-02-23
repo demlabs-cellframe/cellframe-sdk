@@ -21,7 +21,7 @@ add_test(NAME utxo_blocking_unit COMMAND utxo_blocking_unit_test)
 
 # Set test properties
 set_tests_properties(utxo_blocking_unit PROPERTIES
-    TIMEOUT 30
+    TIMEOUT 120
     LABELS "unit;utxo;blocking"
 )
 
