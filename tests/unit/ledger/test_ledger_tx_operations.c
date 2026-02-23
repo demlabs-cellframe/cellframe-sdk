@@ -15,6 +15,7 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_common.h"
 #include "dap_hash.h"
+#include "dap_hash_compat.h"
 #include "dap_enc_key.h"
 #include "dap_time.h"
 #include "dap_chain_tx_compose_api.h"

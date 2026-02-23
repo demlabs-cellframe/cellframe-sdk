@@ -33,6 +33,8 @@
 #include "test_fixtures.h"  // Use common test fixtures
 #include "dap_chain_net_srv_stake_ext.h"
 #include "dap_chain_datum_tx_event.h"
+#include "dap_hash.h"
+#include "dap_hash_compat.h"
 #include "dap_math_ops.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake_ext_tests"

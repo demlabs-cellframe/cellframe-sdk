@@ -1,5 +1,6 @@
 #include "dap_test.h"
 #include "dap_config.h"
+#include "dap_hash_compat.h"
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_block.h"

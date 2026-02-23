@@ -24,6 +24,7 @@
 #include "dap_chain_net.h"
 #include "dap_time.h"
 #include "dap_hash.h"
+#include "dap_hash_compat.h"
 #include "dap_list.h"
 #include "dap_cert.h"
 

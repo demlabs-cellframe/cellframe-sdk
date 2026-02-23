@@ -20,6 +20,7 @@
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_hash.h"
+#include "dap_hash_compat.h"
 #include <pthread.h>
 #include <string.h>
 #include <stdint.h>
