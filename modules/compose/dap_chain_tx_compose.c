@@ -24,6 +24,7 @@
  */
 
 
+#include <inttypes.h>
 #include "dap_common.h"
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx_voting.h"
@@ -7077,7 +7078,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
             uint64_t l_found_srv_uid = json_object_get_uint64(l_srv_uid_obj);
             if (l_found_srv_uid != a_srv_uid.uint64)
             {
-                log_it(L_WARNING, "TX %s srv_uid mismatch (got %lu, expected %lu)",
+                log_it(L_WARNING, "TX %s srv_uid mismatch (got %" DAP_UINT64_FORMAT_U ", expected %" DAP_UINT64_FORMAT_U ")",
                        l_input_hash_str, l_found_srv_uid, a_srv_uid.uint64);
                 continue;
             }
