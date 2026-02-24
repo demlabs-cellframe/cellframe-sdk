@@ -1008,8 +1008,9 @@ void dap_ledger_test_run(void){
     int l_net_create_result = s_ledger_test_net_create();
     (void)l_net_create_result;  // Test network created through fixture
     
-    dap_chain_net_id_t l_iddn = {.uint64 = 0};
-    sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
+    uint64_t l_net_id_val = 0;
+    sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_net_id_val);
+    dap_chain_net_id_t l_iddn = {.uint64 = l_net_id_val};
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_iddn);
     if (!l_net) {
         // Test fixture created network, but lookup failed - this is OK for unit tests
