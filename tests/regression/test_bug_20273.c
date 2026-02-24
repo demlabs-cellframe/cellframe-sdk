@@ -437,18 +437,11 @@ static void test_arbitrage_without_token_update(void)
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     log_it(L_DEBUG, "Network fee set to %s after token creation", ARBITRAGE_FEE);
     
-    // 8. Open wallet and load cache for arbitrage TX
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_20273_1", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-    
-    dap_enc_key_t *l_wallet_key_opened = dap_chain_wallet_get_key(l_wallet_opened, 0);
-    dap_chain_addr_t l_wallet_addr_opened = {0};
-    dap_chain_addr_fill_from_key(&l_wallet_addr_opened, l_wallet_key_opened, s_net_fixture->net->pub.id);
-    
+    // 8. Reload wallet cache
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_opened, 50, 100);
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr, 50, 100);
     
-    // 8. Create arbitrage transaction WITHOUT token_update (baseline)
+    // 9. Create arbitrage transaction WITHOUT token_update (baseline)
     char l_cmd[2048];
     snprintf(l_cmd, sizeof(l_cmd), 
              "tx_create -net %s -chain %s -from_wallet reg_wallet_20273_1 -to_addr %s -token %s -value %s -arbitrage -fee %s -certs %s",
@@ -507,7 +500,6 @@ static void test_arbitrage_without_token_update(void)
         json_object_put(l_json);
     }
     
-    dap_chain_wallet_close(l_wallet_opened);
     dap_chain_wallet_close(l_wallet);
 }
 
@@ -572,38 +564,40 @@ static void test_arbitrage_with_token_update(void)
     }
     
     // Get first UTXO (emission base TX output)
-    dap_ledger_tx_item_t *l_first_utxo = (dap_ledger_tx_item_t *)l_list_outs->data;
+    dap_chain_tx_used_out_item_t *l_first_utxo = (dap_chain_tx_used_out_item_t *)l_list_outs->data;
     char *l_emission_utxo_hash_str = dap_chain_hash_fast_to_str_new(&l_first_utxo->tx_hash_fast);
-    uint32_t l_emission_out_idx = 0; // First output of base TX
+    uint32_t l_emission_out_idx = l_first_utxo->num_idx_out;
     
     log_it(L_INFO, "✓ Found emission UTXO: %s:%d", l_emission_utxo_hash_str, l_emission_out_idx);
     
-    // Create token_update command with REAL UTXO hash
+    // Create and execute token_update command to block the emission UTXO
     char l_cmd_token_update[2048];
     snprintf(l_cmd_token_update, sizeof(l_cmd_token_update),
              "token_update -net %s -token %s -utxo_blocked_add %s:%d -certs %s",
              s_net_fixture->net->pub.name, TEST_TOKEN_TICKER_SCENARIO2, 
              l_emission_utxo_hash_str, l_emission_out_idx, l_cert->name);
     
-    log_it(L_INFO, "Executing token_update to block emission UTXO");
+    log_it(L_INFO, "Executing token_update to block emission UTXO: %s", l_cmd_token_update);
     DAP_DELETE(l_emission_utxo_hash_str);
-    dap_list_free(l_list_outs);
+    dap_list_free_full(l_list_outs, NULL);
+    
+    char l_json_req_update[4096];
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_token_update, "token_update",
+                                            l_json_req_update, sizeof(l_json_req_update), 1);
+    char *l_reply_update = dap_cli_cmd_exec(l_json_req_update);
+    log_it(L_INFO, "token_update reply: %s", l_reply_update ? l_reply_update : "NULL");
+    DAP_DELETE(l_reply_update);
+    
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
     
     // 7. Set fee for network AFTER token creation (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     log_it(L_DEBUG, "Network fee set to %s after token creation", ARBITRAGE_FEE);
     
-    // 8. Open wallet and load cache for arbitrage TX
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_20273_2", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-    
-    dap_enc_key_t *l_wallet_key_opened = dap_chain_wallet_get_key(l_wallet_opened, 0);
-    dap_chain_addr_t l_wallet_addr_opened = {0};
-    dap_chain_addr_fill_from_key(&l_wallet_addr_opened, l_wallet_key_opened, s_net_fixture->net->pub.id);
-    
+    // 8. Reload wallet cache after token_update
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_opened, 50, 100);
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr, 50, 100);
     
     // 9. Check balance BEFORE arbitrage (after token_update)
     uint256_t l_balance_before_arbitrage = dap_ledger_calc_balance(s_net_fixture->ledger, &l_wallet_addr, TEST_TOKEN_TICKER_SCENARIO2);
@@ -673,7 +667,6 @@ static void test_arbitrage_with_token_update(void)
         json_object_put(l_json);
     }
     
-    dap_chain_wallet_close(l_wallet_opened);
     dap_chain_wallet_close(l_wallet);
 }
 
