@@ -551,7 +551,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         if (l_namelen >= sizeof(l_suffix)) {
              /* Check filename */
             char l_fmt[32] = "", l_ext[ sizeof(DAP_CHAIN_CELL_FILE_EXT) ] = "", l_ext2 = '\0';
-            snprintf(l_fmt, sizeof(l_fmt), "%s%lu%s", "%"DAP_UINT64_FORMAT_x".%", sizeof(DAP_CHAIN_CELL_FILE_EXT) - 1, "[^.].%c");
+            snprintf(l_fmt, sizeof(l_fmt), "%s%zu%s", "%"DAP_UINT64_FORMAT_x".%", sizeof(DAP_CHAIN_CELL_FILE_EXT) - 1, "[^.].%c");
             switch ( sscanf(l_filename, l_fmt, &l_cell_ids[l_cell_idx].uint64, l_ext, &l_ext2) ) {
             case 3:
                 // TODO: X.dchaincell.*, just ignore for now
