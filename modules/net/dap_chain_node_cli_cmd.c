@@ -104,7 +104,8 @@
 #include "dap_chain_wallet_cache.h"
 #include "dap_json_rpc.h"
 #include "dap_json_rpc_request.h"
-#include "dap_client_pvt.h"
+#include "dap_client_fsm.h"
+#include "dap_client_esocket.h"
 #include "dap_enc.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_wallet_cache.h"
@@ -10016,7 +10017,6 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
     l_node_client->client = dap_client_new(s_stage_connected_error_callback, l_node_client);
     l_node_client->client->_inheritor = l_node_client;
     dap_client_set_uplink_unsafe(l_node_client->client, &l_node_client->info->address, node_info->ext_host, node_info->ext_port);
-    dap_client_esocket_t * l_client_internal = DAP_CLIENT_ESOCKET(l_node_client->client);
     dap_client_go_stage(l_node_client->client, STAGE_ENC_INIT, s_stage_connected_callback);
     //wait handshake
     int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
@@ -10030,7 +10030,8 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
 
     //send request
     json_object * l_response = NULL;
-    dap_json_rpc_request_send(l_client_internal, l_request, &l_response, NULL);
+    dap_client_fsm_t *l_client_fsm = DAP_CLIENT_FSM(l_node_client->client);
+    dap_json_rpc_request_send(l_client_fsm ? l_client_fsm->esocket : NULL, l_request, &l_response, NULL);
 
     if (l_response) {
         json_object_array_add(*a_json_arr_reply, l_response);

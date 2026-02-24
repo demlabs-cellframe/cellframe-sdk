@@ -32,10 +32,6 @@ if(NOT DEFINED CELLFRAME_MODULES)
 
     set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-dex compose")
 
-    if(LINUX OR DARWIN)
-        set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
-    endif()
-
     if(BUILD_CELLFRAME_SDK_TESTS)
         set(DAPSDK_MODULES "test-framework")
         set(BUILD_DAP_SDK_TESTS ON)
@@ -220,12 +216,6 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-datum")
     message("[+] Module 'srv-datum'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_datum)
-endif()
-
-# Enable service VPN
-if (CELLFRAME_MODULES MATCHES "srv-vpn")
-    message("[+] Module 'srv-vpn'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn)
 endif()
 
 # Enable service eXchange

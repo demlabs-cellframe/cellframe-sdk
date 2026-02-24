@@ -30,6 +30,7 @@
 
 #include "dap_common.h"
 #include "dap_proc_thread.h"
+#include "dap_context_queue.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_cs.h"
@@ -160,6 +161,6 @@ size_t dap_chain_ch_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uu
                                  dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
                                  const void *a_data, size_t a_data_size, uint8_t a_version);
 
-size_t dap_chain_ch_pkt_write_inter(dap_context_queue_t *a_queue_input, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,
+size_t dap_chain_ch_pkt_write_inter(dap_context_queue_t *a_es_input, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,
                                     dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
                                     const void *a_data, size_t a_data_size, uint8_t a_version);

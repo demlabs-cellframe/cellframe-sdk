@@ -2273,7 +2273,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     }
     if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
         log_it(L_MSG, "Reject packet because net %s is offline", l_net->pub.name);
-        a_ch->stream->trans_ctx->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        if (a_ch->stream->trans_ctx && a_ch->stream->trans_ctx->esocket)
+            a_ch->stream->trans_ctx->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         return false;
     }
     if (l_message->hdr.recv_addr.uint64 != g_node_addr.uint64) {
@@ -2286,7 +2287,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             break;
     if (!l_session) {
         log_it(L_WARNING, "Session for net %s not found", l_net->pub.name);
-        a_ch->stream->trans_ctx->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        if (a_ch->stream->trans_ctx && a_ch->stream->trans_ctx->esocket)
+            a_ch->stream->trans_ctx->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         return false;
     }
     if (l_message->hdr.version != DAP_CHAIN_ESBOCS_PROTOCOL_VERSION) {

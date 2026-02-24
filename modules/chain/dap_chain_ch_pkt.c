@@ -125,13 +125,13 @@ size_t dap_chain_ch_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uu
  * @param a_data_size
  * @return
  */
-size_t dap_chain_ch_pkt_write_inter(dap_context_queue_t *a_queue_input, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,
+size_t dap_chain_ch_pkt_write_inter(dap_context_queue_t *a_es_input, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,
                                     dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,
                                     const void * a_data, size_t a_data_size, uint8_t a_version)
 {
     dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(a_net_id, a_chain_id, a_cell_id, a_data, a_data_size, a_version);
 
-    size_t l_ret = dap_stream_ch_pkt_write_inter(a_queue_input, a_ch_uuid, a_type, l_chain_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
+    size_t l_ret = dap_stream_ch_pkt_write_inter(a_es_input, a_ch_uuid, a_type, l_chain_pkt, dap_chain_ch_pkt_get_size(l_chain_pkt));
     DAP_DELETE(l_chain_pkt);
     return l_ret;
 }

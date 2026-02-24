@@ -79,19 +79,14 @@ if (CELLFRAME_MODULES MATCHES "srv-datum")
     add_subdirectory(service/datum)
 endif()
 
-# Service VPN
-if (CELLFRAME_MODULES MATCHES "srv-vpn")
-    add_subdirectory(service/vpn)
-endif()
-
-# Service DEX v2 (must be before xchange which depends on it)
-if (CELLFRAME_MODULES MATCHES "srv-dex")
-    add_subdirectory(service/dex)
-endif()
-
 # Service eXchange
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
     add_subdirectory(service/xchange)
+endif()
+
+# Service DEX v2
+if (CELLFRAME_MODULES MATCHES "srv-dex")
+    add_subdirectory(service/dex)
 endif()
 
 # Service for token staking and PoS delegation
