@@ -15,6 +15,7 @@
 #include "dap_test.h"
 #include "dap_mock.h"
 #include "dap_common.h"
+#include "dap_ht.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
 #include "dap_chain_ledger_pvt.h"
@@ -113,15 +114,15 @@ static void destroy_test_ledger(dap_ledger_t *a_ledger)
     if (l_priv) {
         // Clean up events
         dap_ledger_event_t *l_event, *l_tmp;
-        HASH_ITER(hh, l_priv->events, l_event, l_tmp) {
-            HASH_DEL(l_priv->events, l_event);
+        dap_ht_foreach(l_priv->events, l_event, l_tmp) {
+            dap_ht_del(l_priv->events, l_event);
             DAP_DEL_MULTY(l_event->event_data, l_event->group_name, l_event);
         }
         
         // Clean up event pkeys
         dap_ledger_event_pkey_item_t *l_pkey, *l_pkey_tmp;
-        HASH_ITER(hh, l_priv->event_pkeys_allowed, l_pkey, l_pkey_tmp) {
-            HASH_DEL(l_priv->event_pkeys_allowed, l_pkey);
+        dap_ht_foreach(l_priv->event_pkeys_allowed, l_pkey, l_pkey_tmp) {
+            dap_ht_del(l_priv->event_pkeys_allowed, l_pkey);
             DAP_DELETE(l_pkey);
         }
         
@@ -251,7 +252,7 @@ static void test_ledger_event_notify_trigger(void)
     l_event->srv_uid.uint64 = 100;
     l_event->timestamp = dap_time_now();
     
-    HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+    dap_ht_add(l_priv->events, tx_hash, l_event);
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
     // Trigger notification by removing event
@@ -289,7 +290,7 @@ static void test_ledger_event_find(void)
     l_event->timestamp = dap_time_now();
     l_event->pkey_hash = g_fixture.test_pkey_hash;
     
-    HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+    dap_ht_add(l_priv->events, tx_hash, l_event);
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
     // Test: Find existing event
@@ -337,7 +338,7 @@ static void test_ledger_event_get_list_all(void)
         l_hash.raw[0] = (uint8_t)i;
         l_event->tx_hash = l_hash;
         
-        HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+        dap_ht_add(l_priv->events, tx_hash, l_event);
     }
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
@@ -383,7 +384,7 @@ static void test_ledger_event_get_list_by_group(void)
         l_hash.raw[0] = (uint8_t)i;
         l_event->tx_hash = l_hash;
         
-        HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+        dap_ht_add(l_priv->events, tx_hash, l_event);
     }
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
@@ -568,7 +569,7 @@ static void test_ledger_event_remove_existing(void)
     l_event->srv_uid.uint64 = 100;
     l_event->timestamp = dap_time_now();
     
-    HASH_ADD(hh, l_priv->events, tx_hash, sizeof(dap_hash_fast_t), l_event);
+    dap_ht_add(l_priv->events, tx_hash, l_event);
     pthread_rwlock_unlock(&l_priv->events_rwlock);
     
     // Add notification callback
