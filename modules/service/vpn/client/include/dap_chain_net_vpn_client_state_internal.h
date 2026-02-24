@@ -108,7 +108,7 @@ struct dap_chain_net_vpn_client_sm {
     // Multi-hop & Payment
     dap_chain_wallet_t *wallet;                        // Wallet for auto TX creation
     dap_vpn_client_receipt_collector_t *receipt_collector; // Receipt collector for multi-hop
-    dap_stream_transport_type_t selected_protocol;    // Best protocol selected
+    dap_net_trans_type_t selected_protocol;    // Best protocol selected
     
     // Network Configuration Backup
     dap_chain_net_vpn_client_backup_t *network_backup;  // Network config backup

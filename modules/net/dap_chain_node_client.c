@@ -146,7 +146,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
                     l_node_client->info->ext_host,
                     l_node_client->info->ext_port);
-        l_node_client->esocket_uuid = DAP_CLIENT_PVT(a_client)->stream_es->uuid;
+        l_node_client->esocket_uuid = DAP_CLIENT_ESOCKET(a_client)->stream_es->uuid;
         // set callbacks for R and N channels
         if (a_client->active_channels) {
             size_t l_channels_count = dap_strlen(a_client->active_channels);
@@ -361,7 +361,7 @@ void s_close_on_worker_callback(void *a_arg)
 void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client)
 {
     if (a_node_client->client)
-        dap_worker_exec_callback_on(DAP_CLIENT_PVT(a_node_client->client)->worker, s_close_on_worker_callback, a_node_client);
+        dap_worker_exec_callback_on(DAP_CLIENT_ESOCKET(a_node_client->client)->worker, s_close_on_worker_callback, a_node_client);
     else
         dap_chain_node_client_close_unsafe(a_node_client);
 }

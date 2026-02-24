@@ -127,7 +127,7 @@ void dap_chain_net_deinit(void);
 int dap_chain_net_test_init();
 #endif
 
-DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
+DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { UNUSED(a_net); return g_node_addr.uint64; }
 
 void dap_chain_net_load_all();
 void dap_chain_net_try_online_all();

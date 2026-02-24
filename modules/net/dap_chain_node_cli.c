@@ -1487,7 +1487,7 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
                     decl_count,
                     upd_count,
                     decl_status,
-                    strlen(decl_hash_short)+1,
+                    (int)(strlen(decl_hash_short)+1),
                     decl_hash_short,
                     total_supply,
                     current_supply

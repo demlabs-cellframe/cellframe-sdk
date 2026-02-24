@@ -41,20 +41,8 @@ target_include_directories(dex_test PRIVATE
 # Link libraries
 target_link_libraries(dex_test
     cellframe_test_fixtures
-    dap_chain_net_srv_dex
-    dap_chain_net_srv_xchange
-    dap_chain_net
-    dap_chain
-    dap_chain_common
-    dap_chain_wallet
-    dap_chain_cs_dag
-    dap_chain_cs_dag_poa
-    dap_chain_cs_esbocs
-    dap_cli_server
-    dap_json_rpc
     dap_test
-    dap_core
-    dap_crypto
+    cellframe-sdk
     pthread
     m
 )

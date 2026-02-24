@@ -10016,7 +10016,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
     l_node_client->client = dap_client_new(s_stage_connected_error_callback, l_node_client);
     l_node_client->client->_inheritor = l_node_client;
     dap_client_set_uplink_unsafe(l_node_client->client, &l_node_client->info->address, node_info->ext_host, node_info->ext_port);
-    dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(l_node_client->client);
+    dap_client_esocket_t * l_client_internal = DAP_CLIENT_ESOCKET(l_node_client->client);
     dap_client_go_stage(l_node_client->client, STAGE_ENC_INIT, s_stage_connected_callback);
     //wait handshake
     int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);

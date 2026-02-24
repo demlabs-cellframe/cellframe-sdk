@@ -266,8 +266,8 @@ struct legacy_sync_context *s_legacy_sync_context_create(dap_stream_ch_t *a_ch)
         return NULL;
     }
     l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_uuid);
-    a_ch->stream->esocket->callbacks.write_finished_callback = s_stream_ch_io_complete;
-    a_ch->stream->esocket->callbacks.arg = l_context;
+    a_ch->stream->trans_ctx->esocket->callbacks.write_finished_callback = s_stream_ch_io_complete;
+    a_ch->stream->trans_ctx->esocket->callbacks.arg = l_context;
     if (l_context->worker->worker->_inheritor != a_ch->stream_worker)
         log_it(L_CRITICAL, "Corrupted stream worker %p", a_ch->stream_worker);
     return l_context;
@@ -309,8 +309,8 @@ static void s_legacy_sync_context_delete(void *a_arg)
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_context->worker, l_context->ch_uuid);
     if (l_ch) {
         DAP_CHAIN_CH(l_ch)->legacy_sync_context = NULL;
-        l_ch->stream->esocket->callbacks.write_finished_callback = NULL;
-        l_ch->stream->esocket->callbacks.arg = NULL;
+        l_ch->stream->trans_ctx->esocket->callbacks.write_finished_callback = NULL;
+        l_ch->stream->trans_ctx->esocket->callbacks.arg = NULL;
     }
 
     DAP_DELETE(l_context);
@@ -717,7 +717,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             return false;
         }
         log_it(L_WARNING, "In: from remote addr %s chain id 0x%016" DAP_UINT64_FORMAT_x " got error on his side: '%s'",
-               DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str,
+               DAP_STREAM_CH(l_ch_chain)->stream->trans_ctx->remote_addr_str,
                l_chain_pkt->hdr.chain_id.uint64, (char *)l_chain_pkt->data);
         s_ch_chain_go_idle(l_ch_chain);
     } break;

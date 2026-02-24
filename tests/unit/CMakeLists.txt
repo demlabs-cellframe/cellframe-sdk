@@ -11,9 +11,7 @@ target_include_directories(utxo_blocking_unit_test PRIVATE
 
 target_link_libraries(utxo_blocking_unit_test
     dap_test
-    dap_core
-    dap_crypto
-    dap_chain_common
+    cellframe-sdk
 )
 
 # Register with CTest

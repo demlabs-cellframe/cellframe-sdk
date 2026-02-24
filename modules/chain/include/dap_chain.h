@@ -321,6 +321,7 @@ DAP_STATIC_INLINE bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_ch
 }
 DAP_STATIC_INLINE dap_time_t dap_chain_get_blockhain_time(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id)
 {
+    UNUSED(a_cell_id);
     return a_chain->blockchain_time;
 }
 ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash);

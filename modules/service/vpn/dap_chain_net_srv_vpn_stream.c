@@ -68,8 +68,8 @@ void vpn_srv_ch_new(dap_stream_ch_t *a_ch, void *a_arg)
     UNUSED(a_arg);
     
     // Enable worker reassignment for FlowControl
-    a_ch->stream->esocket->flags |= DAP_SOCK_REASSIGN_ONCE;
-    a_ch->stream->esocket->callbacks.worker_assign_callback = vpn_srv_ch_esocket_assigned;
+    a_ch->stream->trans_ctx->esocket->flags |= DAP_SOCK_REASSIGN_ONCE;
+    a_ch->stream->trans_ctx->esocket->callbacks.worker_assign_callback = vpn_srv_ch_esocket_assigned;
 
     a_ch->internal = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_t);
     if (!a_ch->internal) {
@@ -393,14 +393,14 @@ bool vpn_srv_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     if (l_vpn_pkt->header.op_code >= 0xb0) { // Raw packets
         switch (l_vpn_pkt->header.op_code) {
             case VPN_PACKET_OP_CODE_PING:
-                a_ch->stream->esocket->last_ping_request = time(NULL);
+                a_ch->stream->trans_ctx->esocket->last_ping_request = time(NULL);
                 l_srv_session->stats.bytes_recv += l_vpn_pkt_data_size;
                 l_srv_session->stats.packets_recv++;
                 send_pong_pkt(a_ch);
                 break;
             
             case VPN_PACKET_OP_CODE_PONG:
-                a_ch->stream->esocket->last_ping_request = time(NULL);
+                a_ch->stream->trans_ctx->esocket->last_ping_request = time(NULL);
                 l_srv_session->stats.bytes_recv += l_vpn_pkt_data_size;
                 l_srv_session->stats.packets_recv++;
                 break;
@@ -438,7 +438,7 @@ bool vpn_srv_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                            l_vpn_pkt_data_size, l_vpn_pkt->header.op_data.data_size);
                     return false;
                 }
-                a_ch->stream->esocket->last_ping_request = time(NULL);
+                a_ch->stream->trans_ctx->esocket->last_ping_request = time(NULL);
                 
                 dap_events_socket_t *l_es = dap_chain_net_vpn_client_tun_get_esock();
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun = l_es ? l_es->_inheritor : NULL;

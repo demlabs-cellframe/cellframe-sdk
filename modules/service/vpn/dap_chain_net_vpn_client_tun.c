@@ -619,7 +619,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     l_pkt_out = DAP_NEW_SIZE(dap_stream_ch_vpn_pkt_t, l_pkt_out_size);
     memset(&l_pkt_out->header,0,sizeof(l_pkt_out->header));
     l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
-    l_pkt_out->header.sock_id = a_ch->stream->esocket->socket;
+    l_pkt_out->header.sock_id = a_ch->stream->trans_ctx->esocket->socket;
     l_pkt_out->header.op_data.data_size = a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
     dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out, l_pkt_out_size);

@@ -16,7 +16,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 # Link dependencies as INTERFACE for OBJECT library
 # Use dap_link_libraries for automatic include propagation with cycle detection
-dap_link_libraries(${PROJECT_NAME} INTERFACE dap_core dap_crypto dap_chain dap_chain_net dap_chain_net_srv)
+dap_link_libraries(${PROJECT_NAME} INTERFACE dap_core dap_crypto dap_chain dap_chain_net dap_chain_net_srv dap_chain_net_srv_dex)
 
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_SRV_XCHANGE_HEADERS}")

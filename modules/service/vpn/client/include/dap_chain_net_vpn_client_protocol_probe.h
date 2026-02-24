@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "dap_stream.h"
-#include "dap_stream_transport.h"
+#include "dap_net_trans.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +36,7 @@ typedef enum {
  */
 typedef struct {
     char *protocol_name;                 ///< Protocol name (e.g., "UDP", "TCP")
-    dap_stream_transport_t *transport;   ///< Transport instance
+    dap_net_trans_t *transport;           ///< Transport instance
     dap_stream_t *stream;                ///< Established stream (if successful)
     dap_vpn_protocol_probe_status_t status; ///< Probe status
     
@@ -111,7 +111,7 @@ typedef struct {
     uint16_t server_port;                ///< Server port
     
     // Protocols to probe
-    dap_stream_transport_t **protocols;  ///< Array of transport protocols to try
+    dap_net_trans_t **protocols;          ///< Array of transport protocols to try
     uint32_t protocol_count;             ///< Number of protocols in array
     
     // Timing

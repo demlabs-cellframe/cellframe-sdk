@@ -2,7 +2,7 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_time.h"
-#include "dap_stream_transport.h"
+#include "dap_net_trans.h"
 #include "dap_stream_obfuscation.h"
 #include "json.h"
 #include <string.h>
@@ -12,26 +12,6 @@
 
 // --- Helper Functions ---
 
-static const char* dap_stream_transport_type_to_string(dap_stream_transport_type_t a_type) {
-    switch (a_type) {
-        case DAP_STREAM_TRANSPORT_HTTP: return "http";
-        case DAP_STREAM_TRANSPORT_UDP_BASIC: return "udp";
-        case DAP_STREAM_TRANSPORT_UDP_RELIABLE: return "udp_reliable";
-        case DAP_STREAM_TRANSPORT_WEBSOCKET: return "websocket";
-        case DAP_STREAM_TRANSPORT_TLS_DIRECT: return "tls";
-        default: return "unknown";
-    }
-}
-
-static dap_stream_transport_type_t dap_stream_transport_type_from_string(const char *a_str) {
-    if (!a_str) return DAP_STREAM_TRANSPORT_HTTP;
-    if (dap_strcmp(a_str, "http")) return DAP_STREAM_TRANSPORT_HTTP;
-    if (dap_strcmp(a_str, "udp")) return DAP_STREAM_TRANSPORT_UDP_BASIC;
-    if (dap_strcmp(a_str, "udp_reliable")) return DAP_STREAM_TRANSPORT_UDP_RELIABLE;
-    if (dap_strcmp(a_str, "websocket")) return DAP_STREAM_TRANSPORT_WEBSOCKET;
-    if (dap_strcmp(a_str, "tls")) return DAP_STREAM_TRANSPORT_TLS_DIRECT;
-    return DAP_STREAM_TRANSPORT_HTTP;
-}
 
 static const char* dap_stream_obfuscation_level_to_string(dap_stream_obfuscation_level_t a_level) {
     switch (a_level) {
@@ -190,7 +170,7 @@ static json_object* s_serialize_connect_params(const dap_chain_net_vpn_client_ip
 
     json_object_object_add(j_params, "host", json_object_new_string(a_params->host));
     json_object_object_add(j_params, "port", json_object_new_int(a_params->port));
-    json_object_object_add(j_params, "transport", json_object_new_string(dap_stream_transport_type_to_string(a_params->transport)));
+    json_object_object_add(j_params, "transport", json_object_new_string(dap_net_trans_type_to_str(a_params->transport)));
     json_object_object_add(j_params, "obfuscation", json_object_new_string(dap_stream_obfuscation_level_to_string(a_params->obfuscation)));
     json_object_object_add(j_params, "manage_routing", json_object_new_boolean(a_params->manage_routing));
     json_object_object_add(j_params, "manage_dns", json_object_new_boolean(a_params->manage_dns));
@@ -242,7 +222,7 @@ static dap_chain_net_vpn_client_ipc_connect_params_t* s_deserialize_connect_para
 
     l_params->host = dap_strdup(json_object_get_string(j_host));
     l_params->port = (uint16_t)json_object_get_int(j_port);
-    l_params->transport = dap_stream_transport_type_from_string(json_object_get_string(j_transport));
+    l_params->transport = dap_net_trans_type_from_str(json_object_get_string(j_transport));
     l_params->obfuscation = dap_stream_obfuscation_level_from_string(json_object_get_string(j_obfuscation));
     l_params->manage_routing = json_object_get_boolean(j_manage_routing);
     l_params->manage_dns = json_object_get_boolean(j_manage_dns);
@@ -291,7 +271,7 @@ static json_object* s_serialize_status_result(const dap_chain_net_vpn_client_ipc
     if (a_result->server_host) {
         json_object_object_add(j_result, "server_host", json_object_new_string(a_result->server_host));
         json_object_object_add(j_result, "server_port", json_object_new_int(a_result->server_port));
-        json_object_object_add(j_result, "transport", json_object_new_string(dap_stream_transport_type_to_string(a_result->transport)));
+        json_object_object_add(j_result, "transport", json_object_new_string(dap_net_trans_type_to_str(a_result->transport)));
         json_object_object_add(j_result, "obfuscation", json_object_new_string(dap_stream_obfuscation_level_to_string(a_result->obfuscation)));
         json_object_object_add(j_result, "uptime_sec", json_object_new_uint64(a_result->uptime_sec));
         json_object_object_add(j_result, "bytes_sent", json_object_new_uint64(a_result->bytes_sent));
@@ -345,7 +325,7 @@ static dap_chain_net_vpn_client_ipc_status_result_t* s_deserialize_status_result
             l_result->server_port = (uint16_t)json_object_get_int(j_server_port);
             
         if (json_object_object_get_ex(j_result, "transport", &j_transport) && json_object_is_type(j_transport, json_type_string))
-            l_result->transport = dap_stream_transport_type_from_string(json_object_get_string(j_transport));
+            l_result->transport = dap_net_trans_type_from_str(json_object_get_string(j_transport));
             
         if (json_object_object_get_ex(j_result, "obfuscation", &j_obfuscation) && json_object_is_type(j_obfuscation, json_type_string))
             l_result->obfuscation = dap_stream_obfuscation_level_from_string(json_object_get_string(j_obfuscation));

@@ -233,6 +233,9 @@ dap_chain_hash_fast_t* dap_chain_net_vpn_client_multihop_tx_set_create(
         DAP_DELETE(l_tx_hashes);
         return NULL;
     }
+    dap_hash_fast_t l_pkey_hash = {};
+    dap_pkey_get_hash(l_pkey, &l_pkey_hash);
+    DAP_DELETE(l_pkey);
     
     dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     uint256_t l_zero_fee = {};
@@ -270,7 +273,7 @@ dap_chain_hash_fast_t* dap_chain_net_vpn_client_multihop_tx_set_create(
         char *l_tx_hash_str = dap_chain_mempool_tx_create_cond(
             a_net,
             l_key,
-            l_pkey,
+            &l_pkey_hash,
             a_token_ticker,
             l_hop_price,            // value for this hop
             l_zero_fee,             // value_per_unit_max (not used for flat-rate)
@@ -301,13 +304,10 @@ dap_chain_hash_fast_t* dap_chain_net_vpn_client_multihop_tx_set_create(
         DAP_DELETE(l_tx_hash_str);
     }
     
-    DAP_DELETE(l_pkey);
-    
     log_it(L_NOTICE, "Successfully created %u conditional transactions for multi-hop route", a_hop_count);
     return l_tx_hashes;
     
 error_cleanup:
-    DAP_DELETE(l_pkey);
     DAP_DELETE(l_tx_hashes);
     return NULL;
 }

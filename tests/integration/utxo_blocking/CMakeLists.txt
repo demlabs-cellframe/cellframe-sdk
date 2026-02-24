@@ -17,15 +17,7 @@ target_include_directories(utxo_blocking_integration_test PRIVATE
 target_link_libraries(utxo_blocking_integration_test
     dap_test
     cellframe_test_fixtures
-    dap_core
-    dap_crypto
-    dap_chain
-    dap_chain_net
-    dap_chain_common
-    dap_chain_wallet
-    dap_chain_cs_dag
-    dap_chain_cs_dag_poa
-    dap_chain_cs_esbocs
+    cellframe-sdk
 )
 
 add_test(NAME utxo_blocking_integration COMMAND utxo_blocking_integration_test)
@@ -48,15 +40,7 @@ target_include_directories(utxo_blocking_cli_integration_test PRIVATE
 target_link_libraries(utxo_blocking_cli_integration_test
     dap_test
     cellframe_test_fixtures
-    dap_core
-    dap_crypto
-    dap_chain
-    dap_chain_net
-    dap_chain_common
-    dap_chain_wallet
-    dap_chain_cs_dag
-    dap_chain_cs_dag_poa
-    dap_chain_cs_esbocs
+    cellframe-sdk
 )
 
 add_test(NAME utxo_blocking_cli_integration COMMAND utxo_blocking_cli_integration_test)

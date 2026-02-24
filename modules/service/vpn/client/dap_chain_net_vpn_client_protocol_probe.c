@@ -46,7 +46,7 @@ struct dap_vpn_protocol_probe {
  */
 struct probe_task {
     dap_vpn_protocol_probe_t *probe;
-    dap_stream_transport_t *transport;
+    dap_net_trans_t *transport;
     dap_vpn_protocol_result_t *result;
     uint32_t task_index;
 };

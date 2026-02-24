@@ -894,23 +894,23 @@ static void state_connecting_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
     }
     
     // Determine transport to use
-    dap_stream_transport_type_t l_transport_type = DAP_STREAM_TRANSPORT_HTTP; // default
+    dap_net_trans_type_t l_transport_type = DAP_NET_TRANS_HTTP; // default
     
     if (a_sm->connect_params->transport_type) {
         // User explicitly specified transport type - use it
         if (dap_strcmp(a_sm->connect_params->transport_type, "udp")) {
-            l_transport_type = DAP_STREAM_TRANSPORT_UDP_BASIC;
+            l_transport_type = DAP_NET_TRANS_UDP_BASIC;
         } else if (dap_strcmp(a_sm->connect_params->transport_type, "websocket") || 
                    dap_strcmp(a_sm->connect_params->transport_type, "ws")) {
-            l_transport_type = DAP_STREAM_TRANSPORT_WEBSOCKET;
+            l_transport_type = DAP_NET_TRANS_WEBSOCKET;
         } else if (dap_strcmp(a_sm->connect_params->transport_type, "http")) {
-            l_transport_type = DAP_STREAM_TRANSPORT_HTTP;
+            l_transport_type = DAP_NET_TRANS_HTTP;
         } else if (dap_strcmp(a_sm->connect_params->transport_type, "tls")) {
-            l_transport_type = DAP_STREAM_TRANSPORT_TLS_DIRECT;
+            l_transport_type = DAP_NET_TRANS_TLS_DIRECT;
         } else {
             log_it(L_WARNING, "Unknown transport type '%s', falling back to HTTP",
                    a_sm->connect_params->transport_type);
-            l_transport_type = DAP_STREAM_TRANSPORT_HTTP;
+            l_transport_type = DAP_NET_TRANS_HTTP;
         }
         
         log_it(L_INFO, "Using explicitly specified transport: %s", 
@@ -1044,7 +1044,7 @@ static void state_connecting_entry(dap_chain_net_vpn_client_sm_t *a_sm) {
     }
     
     // Set transport type on the underlying dap_client
-    dap_client_set_transport_type(l_node_client->client, l_transport_type);
+    dap_client_set_trans_type(l_node_client->client, l_transport_type);
     log_it(L_INFO, "Transport type %d set on client connection", l_transport_type);
     
     // Store node client in state machine
@@ -1086,11 +1086,11 @@ static void state_verifying_connectivity_entry(dap_chain_net_vpn_client_sm_t *a_
     }
     
     // Get available transports
-    dap_stream_transport_t *l_transports[] = {
-        dap_stream_transport_find(DAP_STREAM_TRANSPORT_UDP_BASIC),
-        dap_stream_transport_find(DAP_STREAM_TRANSPORT_HTTP),
-        dap_stream_transport_find(DAP_STREAM_TRANSPORT_WEBSOCKET),
-        dap_stream_transport_find(DAP_STREAM_TRANSPORT_UDP_QUIC_LIKE)
+    dap_net_trans_t *l_transports[] = {
+        dap_net_trans_find(DAP_NET_TRANS_UDP_BASIC),
+        dap_net_trans_find(DAP_NET_TRANS_HTTP),
+        dap_net_trans_find(DAP_NET_TRANS_WEBSOCKET),
+        dap_net_trans_find(DAP_NET_TRANS_UDP_QUIC_LIKE)
     };
     
     // Create protocol probe parameters
@@ -1146,7 +1146,7 @@ static void protocol_probe_complete_callback(dap_vpn_protocol_probe_t *a_probe,
            l_best->protocol_name, l_best->score);
     
     // Store selected transport from best protocol
-    l_sm->selected_protocol = l_best->transport ? l_best->transport->type : DAP_STREAM_TRANSPORT_HTTP;
+    l_sm->selected_protocol = l_best->transport ? l_best->transport->type : DAP_NET_TRANS_HTTP;
     
     // Now start connectivity test for the selected protocol
     dap_vpn_connectivity_test_params_t l_test_params = {

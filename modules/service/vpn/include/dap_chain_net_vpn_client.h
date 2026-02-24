@@ -30,7 +30,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_vpn.h"
-#include "dap_stream_transport.h"
+#include "dap_net_trans.h"
 #include "dap_stream_obfuscation.h"
 #include "dap_chain_net_vpn_client_payment.h"
 
@@ -74,7 +74,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_host, u
 int dap_chain_net_vpn_client_start_ext(dap_chain_net_t *a_net, 
                                          const char *a_host, 
                                          uint16_t a_port,
-                                         dap_stream_transport_type_t a_transport_type,
+                                         dap_net_trans_type_t a_transport_type,
                                          dap_stream_obfuscation_level_t a_obfuscation_level,
                                          const dap_chain_net_vpn_client_payment_config_t *a_payment_config);
 

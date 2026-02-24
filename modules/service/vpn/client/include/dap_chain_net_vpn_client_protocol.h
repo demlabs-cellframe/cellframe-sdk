@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "dap_common.h"
-#include "dap_stream_transport.h"
+#include "dap_net_trans.h"
 #include "dap_stream_obfuscation.h"
 #include "dap_chain_net_vpn_client_payment.h"
 
@@ -100,7 +100,7 @@ typedef enum dap_chain_net_vpn_client_ipc_error_code {
 typedef struct dap_chain_net_vpn_client_ipc_connect_params {
     char *host;                                         ///< VPN server host
     uint16_t port;                                      ///< VPN server port
-    dap_stream_transport_type_t transport;              ///< Transport type
+    dap_net_trans_type_t transport;                      ///< Transport type
     dap_stream_obfuscation_level_t obfuscation;     ///< Obfuscation intensity
     dap_chain_net_vpn_client_payment_config_t payment;  ///< Payment configuration
     bool manage_routing;                                ///< Manage system routing table
@@ -157,7 +157,7 @@ typedef struct dap_chain_net_vpn_client_ipc_status_result {
     char *status_str;                                   ///< String representation of status
     char *server_host;                                  ///< Connected server host
     uint16_t server_port;                               ///< Connected server port
-    dap_stream_transport_type_t transport;              ///< Active transport type
+    dap_net_trans_type_t transport;                      ///< Active transport type
     dap_stream_obfuscation_level_t obfuscation;     ///< Active obfuscation intensity
     uint64_t uptime_sec;                                ///< Uptime in seconds
     uint64_t bytes_sent;                                ///< Total bytes sent

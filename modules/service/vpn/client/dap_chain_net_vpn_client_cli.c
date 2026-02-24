@@ -638,6 +638,9 @@ int dap_chain_net_vpn_client_cli_create_payment(dap_chain_wallet_t *wallet,
         log_it(L_ERROR, "Failed to create pkey from wallet key");
         return -3;
     }
+    dap_hash_fast_t l_pkey_hash = {};
+    dap_pkey_get_hash(l_pkey, &l_pkey_hash);
+    DAP_DELETE(l_pkey);
     
     dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     dap_chain_net_srv_price_unit_uid_t l_unit = { .enm = SERV_UNIT_B };
@@ -647,7 +650,7 @@ int dap_chain_net_vpn_client_cli_create_payment(dap_chain_wallet_t *wallet,
     char *l_tx_hash_str = dap_chain_mempool_tx_create_cond(
         net,
         l_key,
-        l_pkey,
+        &l_pkey_hash,
         token,
         amount,                                    // value
         l_zero,                                    // value_per_unit_max
@@ -658,8 +661,6 @@ int dap_chain_net_vpn_client_cli_create_payment(dap_chain_wallet_t *wallet,
         0,                                         // TSD size
         "hex"                                      // output format
     );
-    
-    DAP_DELETE(l_pkey);
     
     if (!l_tx_hash_str) {
         log_it(L_ERROR, "Failed to create conditional transaction");

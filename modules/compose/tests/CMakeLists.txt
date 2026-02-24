@@ -16,9 +16,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME} 
     PRIVATE
         dap_test
-        dap_core
-        dap_crypto
-        dap_compose
+        cellframe-sdk
 )
 
 if(DARWIN)
