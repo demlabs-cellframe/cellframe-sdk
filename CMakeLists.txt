@@ -154,6 +154,9 @@ if(NOT TARGET dap_sdk)
     # DAP SDK not found - include our own copy
     message("[+] Cellframe SDK: Using embedded DAP SDK")
 
+    # Ensure uthash include is available before processing dap-sdk subdirectory
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/3rdparty/uthash/src)
+
     # =========================================
     # DAP_TPL CENTRALIZED PATH
     # =========================================
