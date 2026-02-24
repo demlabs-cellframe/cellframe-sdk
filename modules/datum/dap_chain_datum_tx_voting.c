@@ -60,9 +60,11 @@ dap_chain_datum_tx_voting_params_t *dap_chain_datum_tx_voting_parse_tsd(dap_chai
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
             l_voting_params->vote_changing_allowed = *l_tsd->data;
             break;
-        case VOTING_TSD_TYPE_TOKEN:
-            strncpy(l_voting_params->token_ticker, (char*)l_tsd->data, DAP_CHAIN_TICKER_SIZE_MAX - 1);
-            l_voting_params->token_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+        case VOTING_TSD_TYPE_TOKEN: {
+            size_t l_copy_sz = dap_min((size_t)l_tsd->size, (size_t)(DAP_CHAIN_TICKER_SIZE_MAX - 1));
+            memcpy(l_voting_params->token_ticker, l_tsd->data, l_copy_sz);
+            l_voting_params->token_ticker[l_copy_sz] = '\0';
+        }
             break;
         default:
             break;
