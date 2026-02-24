@@ -337,7 +337,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                                         "Can't read chain header \"%s\"", a_cell->file_storage_path );
         }
         dap_return_val_if_fail_err( l_hdr->cell_id.uint64 == a_cell->id.uint64, 5,
-                                    "Wrong cell id, %lu != %lu", l_hdr->cell_id.uint64, a_cell->id.uint64);
+                                    "Wrong cell id, %"DAP_UINT64_FORMAT_U" != %"DAP_UINT64_FORMAT_U, l_hdr->cell_id.uint64, a_cell->id.uint64);
         dap_return_val_if_fail_err( l_hdr->signature == DAP_CHAIN_CELL_FILE_SIGNATURE, 5,
                                     "Wrong signature in chain \"%s\", possible file corrupt", a_cell->file_storage_path );
         dap_return_val_if_fail_err( l_hdr->version >= DAP_CHAIN_CELL_FILE_VERSION, -6,
@@ -379,8 +379,8 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
                 : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
             if ( l_verif == ATOM_CORRUPTED ) {
-                log_it(L_ERROR, "Atom #%ld is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
-                                q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
+                log_it(L_ERROR, "Atom #%"DAP_INT64_FORMAT" is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
+                                (int64_t)q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
                 l_ret = 8;
                 break;
             }
@@ -401,7 +401,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
         size_t l_read = 0;
         while (!s_load_skip && ( l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage) ) && !feof(a_cell->file_storage) ) {
             if ( !l_el_size || l_read != sizeof(l_el_size) ) {
-                log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, a_cell->file_storage_path);
+                log_it(L_ERROR, "Corrupted element size %"DAP_INT64_FORMAT", chain %s is damaged", (int64_t)l_el_size, a_cell->file_storage_path);
                 l_ret = 8;
                 break;
             }
@@ -413,7 +413,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             }
             l_read = fread((void*)l_atom, 1, l_el_size, a_cell->file_storage);
             if (l_read != (size_t)l_el_size) {
-                log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
+                log_it(L_ERROR, "Read only %zu of %"DAP_INT64_FORMAT" bytes, stop cell loading", l_read, (int64_t)l_el_size);
                 DAP_DELETE(l_atom);
                 l_ret = 10;
                 break;
@@ -424,8 +424,8 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
             DAP_DELETE(l_atom);
             if ( l_verif == ATOM_CORRUPTED ) {
-                log_it(L_ERROR, "Atom #%ld is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
-                                q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
+                log_it(L_ERROR, "Atom #%"DAP_INT64_FORMAT" is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
+                                (int64_t)q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
                 l_ret = 11;
                 break;
             }
@@ -441,8 +441,8 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
         }
     }
     if ( !s_load_skip && l_pos < l_full_size && l_ret > 0 ) {
-        log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %zu bytes",
-                        a_cell->file_storage_path, l_full_size - l_pos );
+        log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %"DAP_INT64_FORMAT" bytes",
+                        a_cell->file_storage_path, (int64_t)(l_full_size - l_pos) );
 #ifdef DAP_OS_WINDOWS
         if (a_cell->chain->is_mapped) {
             LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_pos };
@@ -456,8 +456,8 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     if ( a_cell->chain->callback_atoms_prefetched_add )
         a_cell->chain->callback_atoms_prefetched_add(a_cell->chain);
-    log_it(L_INFO, "Loaded %lu atoms in chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
-                    q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
+    log_it(L_INFO, "Loaded %"DAP_INT64_FORMAT" atoms in chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
+                    (int64_t)q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
     return l_ret;
 }
 
@@ -560,7 +560,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
     dap_return_val_if_fail_err(
         fwrite(&a_atom_size, sizeof(a_atom_size), 1, a_cell->file_storage) == 1 &&
         fwrite(a_atom,       a_atom_size,         1, a_cell->file_storage) == 1,
-        -3, "Can't write atom [%zu b] to \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X", error %d: \"%s\"",
+        -3, "Can't write atom [%"DAP_UINT64_FORMAT_U" b] to \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X", error %d: \"%s\"",
             a_atom_size, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64, errno, dap_strerror(errno)
     );
     fflush(a_cell->file_storage);
