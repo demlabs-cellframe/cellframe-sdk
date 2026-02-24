@@ -202,7 +202,7 @@ DAP_STATIC_INLINE int s_cell_close(dap_chain_cell_t *a_cell) {
         int i = 0;
         dap_chain_cell_mmap_volume_t *l_vol, *l_tmp;
         dap_dl_foreach_safe(a_cell->mapping->volume, l_vol, l_tmp) {
-            debug_if(s_debug_more, L_DEBUG, "Unmap volume #%d, %lu bytes", i++, l_vol->size);
+            debug_if(s_debug_more, L_DEBUG, "Unmap volume #%d, %"DAP_INT64_FORMAT" bytes", i++, (int64_t)l_vol->size);
 #ifdef DAP_OS_WINDOWS
             pfnNtUnmapViewOfSection(GetCurrentProcess(), l_vol->base);
 #else
@@ -280,7 +280,7 @@ int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
     }
     off_t l_pos = !fseeko(l_cell->file_storage, 0, SEEK_END) ? ftello(l_cell->file_storage) : -1;
     if (l_pos < (off_t)a_delta)
-        dap_return_val_if_fail_err(l_cell, -3, "Can't truncate more than file size %" DAP_UINT64_FORMAT_U, l_pos);
+        dap_return_val_if_fail_err(l_cell, -3, "Can't truncate more than file size %"DAP_INT64_FORMAT, (int64_t)l_pos);
     l_pos -= a_delta;
 #ifdef DAP_OS_WINDOWS
     if (l_cell->chain->is_mapped) {

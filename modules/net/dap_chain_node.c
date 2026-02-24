@@ -1074,7 +1074,7 @@ static int s_compare_events(dap_ledger_hardfork_events_t *a_list1, dap_ledger_ha
 int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, bool a_remove)
 {
     if (a_datum_size <= sizeof(dap_chain_datum_t) || dap_chain_datum_size(a_datum) != a_datum_size) {
-        log_it(L_WARNING, "Incorrect harfork datum size %"DAP_UINT64_FORMAT_U, a_datum_size <= sizeof(dap_chain_datum_t) ? a_datum_size : dap_chain_datum_size(a_datum));
+        log_it(L_WARNING, "Incorrect harfork datum size %"DAP_UINT64_FORMAT_U, (uint64_t)(a_datum_size <= sizeof(dap_chain_datum_t) ? a_datum_size : dap_chain_datum_size(a_datum)));
         return -1;
     }
     switch (a_datum->header.type_id) {
