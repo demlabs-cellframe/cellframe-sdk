@@ -58,7 +58,7 @@ typedef struct dap_chain_wallet_n_pass {
     struct timespec exptm;                                                  /* A time of expiration of the record
                                                                               need RE-Activation steps */
 
-    UT_hash_handle hh;                                                      /* Context for hash-table */
+    dap_ht_handle_t hh;
 } dap_chain_wallet_n_pass_t;
 
 typedef struct dap_chain_wallet_cert_hdr{
@@ -80,11 +80,13 @@ typedef struct dap_chain_wallet_file_hdr{
     char        wallet_name[];
 } DAP_ALIGN_PACKED dap_chain_wallet_file_hdr_t;
 
-typedef struct dap_chain_wallet_file                                        /* On-disk structure */
-{
-    dap_chain_wallet_file_hdr_t header;
-    uint8_t data[];
-} DAP_ALIGN_PACKED dap_chain_wallet_file_t;
+/*
+ * On-disk wallet file layout (variable-length, not representable as a C struct):
+ *   [dap_chain_wallet_file_hdr_t header]  (includes wallet_name[] FAM)
+ *   [uint8_t data[...]]                   (cert records follow the header)
+ *
+ * Access data via: (uint8_t*)hdr + sizeof(*hdr) + hdr->wallet_len
+ */
 
 typedef struct dap_chain_wallet_internal
 {

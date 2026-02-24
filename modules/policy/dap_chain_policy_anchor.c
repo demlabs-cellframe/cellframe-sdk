@@ -32,7 +32,7 @@
  * @brief Apply reward anchor
  * Extracted from dap_chain_ledger_anchor.c lines ~214, 447
  */
-int dap_chain_policy_anchor_reward_apply(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash, void *a_arg)
+int dap_chain_policy_anchor_reward_apply(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_sha3_256_t *a_anchor_hash, void *a_arg)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if (!l_net) {
@@ -51,7 +51,7 @@ int dap_chain_policy_anchor_reward_apply(dap_chain_datum_anchor_t *a_anchor, dap
  * @brief Apply stake anchor
  * Extracted from dap_chain_ledger_anchor.c lines ~383, 421
  */
-int dap_chain_policy_anchor_stake_apply(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash, void *a_arg)
+int dap_chain_policy_anchor_stake_apply(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_sha3_256_t *a_anchor_hash, void *a_arg)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if (!l_net) {

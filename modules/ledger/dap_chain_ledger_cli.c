@@ -26,7 +26,7 @@
 #include <stddef.h>
 #include <pthread.h>
 #include "dap_chain_datum_tx.h"
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_cli_server.h"
 #include "dap_cli_error_codes.h"
 #include "dap_chain_ledger_cli_error_codes.h"
@@ -69,7 +69,7 @@ extern char* dap_chain_mempool_datum_add(dap_chain_datum_t *a_datum, dap_chain_t
 // TODO: Remove after full CLI refactoring  
 typedef struct tx_check_args {
     dap_chain_datum_tx_t *tx;
-    dap_chain_hash_fast_t tx_hash;
+    dap_hash_sha3_256_t tx_hash;
 } tx_check_args_t;
 
 typedef enum {
@@ -108,8 +108,8 @@ extern const char* json_util_get_last_err(void);
 
 // Local helper structure for CLI output - tracks already printed transactions to avoid duplicates in single command output
 typedef struct dap_chain_tx_hash_processed_ht {
-    dap_chain_hash_fast_t hash;
-    UT_hash_handle hh;
+    dap_hash_sha3_256_t hash;
+    dap_ht_handle_t hh;
 } dap_chain_tx_hash_processed_ht_t;
 
 static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
@@ -117,12 +117,12 @@ static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
                                    dap_ledger_t *a_ledger,
                                    dap_json_t *json_obj_out,
                                    const char *a_hash_out_type,
-                                   dap_chain_hash_fast_t *a_tx_hash,
+                                   dap_hash_sha3_256_t *a_tx_hash,
                                    int a_version);
 
 static dap_json_t *s_tx_history_to_json(dap_json_t *a_json_arr_reply,
-                                  dap_chain_hash_fast_t* a_tx_hash,
-                                  dap_hash_fast_t * l_atom_hash,
+                                  dap_hash_sha3_256_t* a_tx_hash,
+                                  dap_hash_sha3_256_t * l_atom_hash,
                                   dap_chain_datum_tx_t * l_tx,
                                   dap_chain_t * a_chain,
                                   dap_ledger_t *a_ledger, 
@@ -139,8 +139,8 @@ static void s_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **a_has
     if (!a_hash_processed || !*a_hash_processed)
         return;
     dap_chain_tx_hash_processed_ht_t *l_tmp, *l_current;
-    HASH_ITER(hh, *a_hash_processed, l_current, l_tmp) {
-        HASH_DEL(*a_hash_processed, l_current);
+    dap_ht_foreach(*a_hash_processed, l_current, l_tmp) {
+        dap_ht_del(*a_hash_processed, l_current);
         DAP_DELETE(l_current);
     }
 }
@@ -150,7 +150,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
                                           dap_ledger_t *a_ledger,
                                           dap_json_t *json_obj_out,
                                           const char *a_hash_out_type,
-                                          dap_chain_hash_fast_t *a_tx_hash,
+                                          dap_hash_sha3_256_t *a_tx_hash,
                                           int a_version)
 {
     char l_tx_hash_str[70]={0};
@@ -162,7 +162,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
         return false;
     const char *l_description = dap_ledger_get_description_by_ticker(a_ledger, l_ticker);
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
-    dap_chain_hash_fast_to_str(a_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
+    dap_hash_sha3_256_to_str(a_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
     dap_json_object_add_string(json_obj_out, a_version == 1 ? "Datum_tx_hash" : "datum_tx_hash", l_tx_hash_str);
     dap_json_object_add_string(json_obj_out, a_version == 1 ? "TS_Created" : "ts_created", l_tmp_buf);
     dap_json_object_add_string(json_obj_out, a_version == 1 ? "Token_ticker" : "token_ticker", l_ticker);
@@ -175,11 +175,11 @@ static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
     byte_t *l_item; size_t l_size; int i, l_out_idx = -1;
     TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_datum) {
         ++l_out_idx;
-        dap_hash_fast_t l_spender = { };
+        dap_hash_sha3_256_t l_spender = { };
         dap_json_t *l_json_obj_out = NULL, *l_json_arr_colours = NULL;
         if ( dap_ledger_tx_hash_is_used_out_item(a_ledger, a_tx_hash, l_out_idx, &l_spender) ) {
-            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
-            dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
+            char l_hash_str[DAP_HASH_SHA3_256_STR_SIZE] = { '\0' };
+            dap_hash_sha3_256_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
             l_json_obj_out = dap_json_object_new();
             dap_json_object_add_int(l_json_obj_out, a_version == 1 ? "OUT - " : "out", l_out_idx);
             dap_json_object_add_string(l_json_obj_out, a_version == 1 ? "is spent by tx" : "spent_by_tx", l_hash_str);
@@ -198,14 +198,14 @@ static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
             dap_ledger_tracker_t *l_tracker = it->data;
             dap_json_t *l_json_obj_tracker = dap_json_object_new();
             dap_json_array_add(l_json_arr_colours, l_json_obj_tracker);
-            const char *l_voling_hash_str = dap_hash_fast_to_str_static(&l_tracker->voting_hash);
+            const char *l_voling_hash_str = dap_hash_sha3_256_to_str_static(&l_tracker->voting_hash);
             dap_json_object_add_string(l_json_obj_tracker, "voting_hash", l_voling_hash_str);
             dap_json_t *l_json_arr_tracker_items = dap_json_array_new();
             dap_json_object_add_object(l_json_obj_tracker, "items", l_json_arr_tracker_items);
             for (dap_ledger_tracker_item_t *l_item = l_tracker->items; l_item; l_item = l_item->next) {
                 dap_json_t *l_json_obj_tracker_item = dap_json_object_new();
                 dap_json_array_add(l_json_arr_tracker_items, l_json_obj_tracker_item);
-                const char *l_pkey_hash_str = dap_hash_fast_to_str_static(&l_item->pkey_hash);
+                const char *l_pkey_hash_str = dap_hash_sha3_256_to_str_static(&l_item->pkey_hash);
                 dap_json_object_add_string(l_json_obj_tracker_item, "pkey_hash", l_pkey_hash_str);
                 const char *l_coloured_coins, *l_coloured_value = dap_uint256_to_char(l_item->coloured_value, &l_coloured_coins);
                 dap_json_object_add_string(l_json_obj_tracker_item, "coloured_coins", l_coloured_coins);
@@ -221,8 +221,8 @@ static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
 }
 
 static dap_json_t *s_tx_history_to_json(dap_json_t *a_json_arr_reply,
-                                         dap_chain_hash_fast_t* a_tx_hash,
-                                         dap_hash_fast_t * l_atom_hash,
+                                         dap_hash_sha3_256_t* a_tx_hash,
+                                         dap_hash_sha3_256_t * l_atom_hash,
                                          dap_chain_datum_tx_t * l_tx,
                                          dap_chain_t * a_chain,
                                          dap_ledger_t *a_ledger, 
@@ -251,7 +251,7 @@ static dap_json_t *s_tx_history_to_json(dap_json_t *a_json_arr_reply,
     if (l_atom_hash) {
         const char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str_static(l_atom_hash)
-                            : dap_chain_hash_fast_to_str_static(l_atom_hash);
+                            : dap_hash_sha3_256_to_str_static(l_atom_hash);
         dap_json_object_add_string(json_obj_datum, "atom_hash", l_atom_hash_str);
         dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, c_dap_chain_cell_id_null, l_atom_hash);
         size_t l_size = 0;
@@ -265,7 +265,7 @@ static dap_json_t *s_tx_history_to_json(dap_json_t *a_json_arr_reply,
 
     const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                         ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
-                        : dap_chain_hash_fast_to_str_static(a_tx_hash);
+                        : dap_hash_sha3_256_to_str_static(a_tx_hash);
     dap_json_object_add_string(json_obj_datum, "hash", l_hash_str);
     
     dap_json_object_add_string(json_obj_datum, "token_ticker", l_tx_token_ticker ? l_tx_token_ticker : "UNKNOWN");
@@ -303,7 +303,7 @@ static dap_json_t *s_tx_history_to_json(dap_json_t *a_json_arr_reply,
 }
 
 dap_json_t *dap_db_history_tx(dap_json_t *a_json_arr_reply,
-                      dap_chain_hash_fast_t* a_tx_hash, 
+                      dap_hash_sha3_256_t* a_tx_hash, 
                       dap_chain_t * a_chain, 
                       const char *a_hash_out_type,
                       dap_ledger_t *a_ledger,
@@ -316,7 +316,7 @@ dap_json_t *dap_db_history_tx(dap_json_t *a_json_arr_reply,
     }
 
     int l_ret_code = 0;
-    dap_hash_fast_t l_atom_hash = {0};
+    dap_hash_sha3_256_t l_atom_hash = {0};
     //search tx
     dap_chain_datum_t *l_datum = a_chain->callback_datum_find_by_hash(a_chain, a_tx_hash, &l_atom_hash, &l_ret_code);
     dap_chain_datum_tx_t *l_tx = l_datum  && l_datum->header.type_id == DAP_CHAIN_DATUM_TX ?
@@ -327,7 +327,7 @@ dap_json_t *dap_db_history_tx(dap_json_t *a_json_arr_reply,
     } else {
         const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
-                : dap_chain_hash_fast_to_str_static(a_tx_hash);
+                : dap_hash_sha3_256_to_str_static(a_tx_hash);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "TX hash %s not founds in chains", l_tx_hash_str);
         return NULL;
     }
@@ -335,7 +335,7 @@ dap_json_t *dap_db_history_tx(dap_json_t *a_json_arr_reply,
 
 static void s_tx_header_print(dap_json_t *json_obj_datum, dap_chain_tx_hash_processed_ht_t **a_tx_data_ht,
                               dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain, const char *a_hash_out_type, 
-                              dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, dap_chain_hash_fast_t *a_atom_hash, const char* a_token_ticker, 
+                              dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_tx_hash, dap_hash_sha3_256_t *a_atom_hash, const char* a_token_ticker, 
                               int a_ret_code, dap_chain_tx_tag_action_type_t a_action, dap_chain_srv_uid_t a_uid)
 {
     bool l_declined = false;
@@ -344,7 +344,7 @@ static void s_tx_header_print(dap_json_t *json_obj_datum, dap_chain_tx_hash_proc
     if (a_tx->header.ts_created)
         dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014" */
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
-    HASH_FIND(hh, *a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
+    dap_ht_find(*a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
     if (l_tx_data)  // this tx already present in ledger (double)
         l_declined = true;
     else {
@@ -354,7 +354,7 @@ static void s_tx_header_print(dap_json_t *json_obj_datum, dap_chain_tx_hash_proc
             return;
         }
         l_tx_data->hash = *a_tx_hash;
-        HASH_ADD(hh, *a_tx_data_ht, hash, sizeof(*a_tx_hash), l_tx_data);
+        dap_ht_add(*a_tx_data_ht, hash, l_tx_data);
         
                
         if (a_ret_code)
@@ -363,8 +363,8 @@ static void s_tx_header_print(dap_json_t *json_obj_datum, dap_chain_tx_hash_proc
 
     char *l_tx_hash_str, *l_atom_hash_str;
     if (!dap_strcmp(a_hash_out_type, "hex")) {
-        l_tx_hash_str = dap_chain_hash_fast_to_str_new(a_tx_hash);
-        l_atom_hash_str = dap_chain_hash_fast_to_str_new(a_atom_hash);
+        l_tx_hash_str = dap_hash_sha3_256_to_str_new(a_tx_hash);
+        l_atom_hash_str = dap_hash_sha3_256_to_str_new(a_atom_hash);
     } else {
         l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
         l_atom_hash_str = dap_enc_base58_encode_hash_to_str(a_atom_hash);
@@ -458,7 +458,7 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
             l_tx_ledger_accepted = 0,
             l_tx_ledger_rejected = 0;
    
-    dap_hash_fast_t l_curr_tx_hash = {};
+    dap_hash_sha3_256_t l_curr_tx_hash = {};
     // Use wallet cache callback if registered, otherwise fallback to chain iteration
     bool l_from_cache = false;
     if (a_ledger->wallet_cache_tx_find_in_history_callback) {
@@ -470,7 +470,7 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
         dap_json_object_free(json_obj_datum);
         return NULL;
     }
-    memset(&l_curr_tx_hash, 0, sizeof(dap_hash_fast_t));
+    memset(&l_curr_tx_hash, 0, sizeof(dap_hash_sha3_256_t));
     dap_chain_datum_tx_t *l_tx = NULL;
     
 
@@ -535,11 +535,11 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
         const char *l_noaddr_token = NULL;
 
         // Always get data from datum iterator (wallet cache is just for filtering)
-        dap_hash_fast_t l_tx_hash = *l_datum_iter->cur_hash;
+        dap_hash_sha3_256_t l_tx_hash = *l_datum_iter->cur_hash;
         const char *l_src_token = l_datum_iter->token_ticker;
         int l_ret_code = l_datum_iter->ret_code;
         uint32_t l_action = l_datum_iter->action;
-        dap_hash_fast_t l_atom_hash = *l_datum_iter->cur_atom_hash;
+        dap_hash_sha3_256_t l_atom_hash = *l_datum_iter->cur_atom_hash;
         dap_chain_srv_uid_t l_uid = l_datum_iter->uid;
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
@@ -547,7 +547,7 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
         size_t l_size; int i, q = 0;
         // Check all INs
         TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_IN_ALL, l_size, i, l_tx) {
-            dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
+            dap_hash_sha3_256_t *l_tx_prev_hash = NULL;
             int l_tx_prev_out_idx;
             dap_chain_datum_tx_t *l_tx_prev = NULL;
             switch (*l_tx_item) {
@@ -903,7 +903,7 @@ static int s_json_tx_history_pack(dap_json_t *a_json_arr_reply, dap_json_t** a_j
                                   size_t* a_rejected, bool a_look_for_unknown_service, const char *a_srv, int a_version)
 {
     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
-    dap_hash_fast_t l_ttx_hash = a_datum_iter->cur_hash ? *a_datum_iter->cur_hash : (dap_hash_fast_t){0};
+    dap_hash_sha3_256_t l_ttx_hash = a_datum_iter->cur_hash ? *a_datum_iter->cur_hash : (dap_hash_sha3_256_t){0};
 
     const char *service_name = NULL;
     dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
@@ -1110,7 +1110,7 @@ static size_t dap_db_net_history_token_list(dap_json_t *a_json_arr_reply, dap_le
     
     // Iterate through registered chains in ledger
     dap_chain_info_t *l_chain_info, *l_tmp;
-    HASH_ITER(hh, a_ledger->chains_registry, l_chain_info, l_tmp) {
+    dap_ht_foreach(a_ledger->chains_registry, l_chain_info, l_tmp) {
         dap_chain_t *l_chain_cur = (dap_chain_t *)l_chain_info->chain_ptr;
         if (!l_chain_cur) continue;
         
@@ -1139,8 +1139,8 @@ static size_t dap_db_net_history_token_list(dap_json_t *a_json_arr_reply, dap_le
  * @return true if target found in this branch
  */
 static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger, 
-                                    dap_chain_hash_fast_t *a_current_hash,
-                                    dap_chain_hash_fast_t *a_target_hash,
+                                    dap_hash_sha3_256_t *a_current_hash,
+                                    dap_hash_sha3_256_t *a_target_hash,
                                     size_t a_path_depth,
                                     size_t a_max_depth,
                                     dap_json_t *a_json_chain,
@@ -1153,7 +1153,7 @@ static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger,
     }
 
     // Check if we found the target
-    if (dap_hash_fast_compare(a_current_hash, a_target_hash)) {
+    if (dap_hash_sha3_256_compare(a_current_hash, a_target_hash)) {
         // Found target! Add it to chain
         dap_json_t *l_json_tx = dap_json_object_new();
         
@@ -1161,7 +1161,7 @@ static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger,
             const char *l_hash_base58 = dap_enc_base58_encode_hash_to_str_static(a_current_hash);
             dap_json_object_add_string(l_json_tx, "hash", l_hash_base58 ? l_hash_base58 : "");
         } else {
-            const char *l_hash_hex = dap_chain_hash_fast_to_str_static(a_current_hash);
+            const char *l_hash_hex = dap_hash_sha3_256_to_str_static(a_current_hash);
             dap_json_object_add_string(l_json_tx, "hash", l_hash_hex);
         }
         // Add previous output index information
@@ -1187,7 +1187,7 @@ static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger,
     int l_item_index = 0;
     TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_IN_ALL, l_item_size, l_item_index, l_current_tx) {
 
-        dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
+        dap_hash_sha3_256_t *l_tx_prev_hash = NULL;
         int l_tx_out_prev_idx = -1;
         
         switch (*l_item) {
@@ -1216,7 +1216,7 @@ static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger,
                 const char *l_hash_base58 = dap_enc_base58_encode_hash_to_str_static(a_current_hash);
                 dap_json_object_add_string(l_json_tx, "hash", l_hash_base58 ? l_hash_base58 : "");
             } else {
-                const char *l_hash_hex = dap_chain_hash_fast_to_str_static(a_current_hash);
+                const char *l_hash_hex = dap_hash_sha3_256_to_str_static(a_current_hash);
                 dap_json_object_add_string(l_json_tx, "hash", l_hash_hex);
             }
             // Add previous output index information
@@ -1245,7 +1245,7 @@ static bool s_ledger_trace_recursive(dap_ledger_t *a_ledger,
  * @param a_json_arr_reply JSON array for reply
  * @return 0 on success, error code on failure
  */
-static int s_ledger_trace_chain(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_hash_from, dap_chain_hash_fast_t *a_hash_to, 
+static int s_ledger_trace_chain(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_hash_from, dap_hash_sha3_256_t *a_hash_to, 
                                const char *a_hash_out_type, size_t a_max_depth, dap_json_t *a_json_arr_reply)
 {
     // Validate input parameters
@@ -1258,7 +1258,7 @@ static int s_ledger_trace_chain(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a
     dap_chain_datum_tx_t *l_start_tx = dap_ledger_tx_find_by_hash(a_ledger, a_hash_to);
     if (!l_start_tx) {
         dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_TX_HASH_ERR"), 
-                              "Starting transaction %s not found in ledger", dap_hash_fast_to_str_static(a_hash_to));
+                              "Starting transaction %s not found in ledger", dap_hash_sha3_256_to_str_static(a_hash_to));
         return dap_cli_error_code_get("LEDGER_TX_HASH_ERR");
     }
 
@@ -1266,7 +1266,7 @@ static int s_ledger_trace_chain(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a
     dap_chain_datum_tx_t *l_target_tx = dap_ledger_tx_find_by_hash(a_ledger, a_hash_from);
     if (!l_target_tx) {
         dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_TX_HASH_ERR"), 
-                              "Target transaction %s not found in ledger", dap_hash_fast_to_str_static(a_hash_from));
+                              "Target transaction %s not found in ledger", dap_hash_sha3_256_to_str_static(a_hash_from));
         return dap_cli_error_code_get("LEDGER_TX_HASH_ERR");
     }
 
@@ -1276,8 +1276,8 @@ static int s_ledger_trace_chain(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a
     dap_json_t *l_json_chain = dap_json_array_new();
 
     // Add info about the trace
-    dap_json_object_add_string(l_json_info, "start_hash", dap_hash_fast_to_str_static(a_hash_from));
-    dap_json_object_add_string(l_json_info, "target_hash", dap_hash_fast_to_str_static(a_hash_to));
+    dap_json_object_add_string(l_json_info, "start_hash", dap_hash_sha3_256_to_str_static(a_hash_from));
+    dap_json_object_add_string(l_json_info, "target_hash", dap_hash_sha3_256_to_str_static(a_hash_to));
     dap_json_object_add_string(l_json_info, "direction", "backward");
     dap_json_object_add_int(l_json_info, "max_depth", a_max_depth);
     dap_json_object_add_object(l_json_result, "trace_info", l_json_info);
@@ -1452,7 +1452,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             } else {
                 // Find default TX chain
                 dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
-                HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+                dap_ht_foreach(l_ledger->chains_registry, l_chain_info, l_tmp) {
                     if (l_chain_info->chain_type == CHAIN_TYPE_TX) {
                         l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
                         break;
@@ -1529,10 +1529,10 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 dap_list_t *l_list = dap_ledger_event_pkey_list(l_ledger);
                 if (l_list) {
                     for (dap_list_t *l_item = l_list; l_item; l_item = l_item->next) {
-                        dap_hash_fast_t *l_hash = (dap_hash_fast_t *)l_item->data;
+                        dap_hash_sha3_256_t *l_hash = (dap_hash_sha3_256_t *)l_item->data;
                         const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex") 
                                            ? dap_enc_base58_encode_hash_to_str_static(l_hash)
-                                           : dap_chain_hash_fast_to_str_static(l_hash);
+                                           : dap_hash_sha3_256_to_str_static(l_hash);
                         dap_json_array_add(l_json_array_keys, dap_json_object_new_string(l_hash_str));
                     }
                     
@@ -1552,8 +1552,8 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                     return dap_cli_error_code_get("LEDGER_PARAM_ERR");
                 }
                 
-                dap_hash_fast_t l_pkey_hash = {};
-                if (dap_chain_hash_fast_from_str(l_pkey_hash_str, &l_pkey_hash)) {
+                dap_hash_sha3_256_t l_pkey_hash = {};
+                if (dap_hash_sha3_256_from_str(l_pkey_hash_str, &l_pkey_hash)) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_ERR, 
                                           "Invalid hash string format");
                     return DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_ERR;
@@ -1603,7 +1603,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 // Get decree chain from ledger's chain registry
                 dap_chain_t *l_chain = NULL;
                 dap_chain_info_t *l_chain_info, *l_tmp;
-                HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+                dap_ht_foreach(l_ledger->chains_registry, l_chain_info, l_tmp) {
                     if (l_chain_info->chain_type == CHAIN_TYPE_DECREE) {
                         l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
                         break;
@@ -1627,7 +1627,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 } else {
                     // Find default TX chain
                     dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
-                    HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+                    dap_ht_foreach(l_ledger->chains_registry, l_chain_info, l_tmp) {
                         if (l_chain_info->chain_type == CHAIN_TYPE_TX) {
                             l_target_chain = (dap_chain_t *)l_chain_info->chain_ptr;
                             break;
@@ -1639,7 +1639,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                                             "Network %s doesn't have a chain %s", l_net_str, l_target_chain_str ? l_target_chain_str : "type tx");
                     return DAP_CHAIN_NODE_CLI_COM_LEDGER_NO_ANCHOR_CHAIN;
                 }
-                size_t l_tsd_size = sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t); 
+                size_t l_tsd_size = sizeof(dap_tsd_t) + sizeof(dap_hash_sha3_256_t); 
                 // Create a decree
                 size_t l_decree_size = sizeof(dap_chain_datum_decree_t) + l_tsd_size;
                 dap_chain_datum_decree_t *l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_decree_size);
@@ -1755,8 +1755,8 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
                 return dap_cli_error_code_get("LEDGER_LACK_ERR");
             }
             
-            dap_hash_fast_t l_tx_hash = {};
-            if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
+            dap_hash_sha3_256_t l_tx_hash = {};
+            if (dap_hash_sha3_256_from_str(l_tx_hash_str, &l_tx_hash)) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_ERR, 
                                       "Invalid hash string format");
                 return DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_ERR;
@@ -1812,16 +1812,16 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
         }
         
         // Parse target hash (hash1)
-        dap_chain_hash_fast_t l_hash_from = {};
-        if (dap_chain_hash_fast_from_str(l_hash_from_str, &l_hash_from)) {
+        dap_hash_sha3_256_t l_hash_from = {};
+        if (dap_hash_sha3_256_from_str(l_hash_from_str, &l_hash_from)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR, 
                                 "Can't parse target hash %s", l_hash_from_str);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR;
         }
 
         // Parse starting hash (hash2)
-        dap_chain_hash_fast_t l_hash_to = {};
-        if (dap_chain_hash_fast_from_str(l_hash_to_str, &l_hash_to)) {
+        dap_hash_sha3_256_t l_hash_to = {};
+        if (dap_hash_sha3_256_from_str(l_hash_to_str, &l_hash_to)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR, 
                                 "Can't parse starting hash %s", l_hash_to_str);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR;
@@ -1845,7 +1845,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
     } else if(l_cmd == CMD_LIST){
         enum {SUBCMD_NONE, SUBCMD_LIST_COIN, SUB_CMD_LIST_LEDGER_THRESHOLD, SUB_CMD_LIST_LEDGER_BALANCE, SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH};
         int l_sub_cmd = SUBCMD_NONE;
-        dap_chain_hash_fast_t l_tx_threshold_hash = {};
+        dap_hash_sha3_256_t l_tx_threshold_hash = {};
         const char *l_limit_str = NULL;
         const char *l_offset_str = NULL;
         const char *l_head_str = NULL;
@@ -1859,7 +1859,7 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             dap_cli_server_cmd_find_option_val(a_argv, 3, a_argc, "-hash", &l_tx_threshold_hash_str);
             if (l_tx_threshold_hash_str){
                 l_sub_cmd = SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH;
-                if (dap_chain_hash_fast_from_str(l_tx_threshold_hash_str, &l_tx_threshold_hash)){
+                if (dap_hash_sha3_256_from_str(l_tx_threshold_hash_str, &l_tx_threshold_hash)){
                     l_tx_hash_str = NULL;
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_TRESHOLD_ERR, "tx threshold hash not recognized");
                     return DAP_CHAIN_NODE_CLI_COM_LEDGER_TRESHOLD_ERR;
@@ -1935,8 +1935,8 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_code_get("LEDGER_NET_FIND_ERR"), "Can't find net %s", l_net_str);
             return dap_cli_error_code_get("LEDGER_NET_FIND_ERR");
         }
-        dap_chain_hash_fast_t *l_tx_hash = DAP_NEW(dap_chain_hash_fast_t);
-        if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash)) {
+        dap_hash_sha3_256_t *l_tx_hash = DAP_NEW(dap_hash_sha3_256_t);
+        if (dap_hash_sha3_256_from_str(l_tx_hash_str, l_tx_hash)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR, "Can't get hash_fast from %s, check that the hash is correct", l_tx_hash_str);
             DAP_DEL_Z(l_tx_hash);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR;
@@ -1956,12 +1956,12 @@ int com_ledger(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_v
             byte_t *l_item; size_t l_size; int index, l_out_idx = -1;
             dap_json_t *json_arr_items = dap_json_array_new();
             TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, index, l_datum_tx) {
-                dap_hash_fast_t l_spender = { };
+                dap_hash_sha3_256_t l_spender = { };
                 ++l_out_idx;
                 if ( dap_ledger_tx_hash_is_used_out_item(l_ledger, l_tx_hash, l_out_idx, NULL) ) {
                     l_all_outs_unspent = false;
-                    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
-                    dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
+                    char l_hash_str[DAP_HASH_SHA3_256_STR_SIZE] = { '\0' };
+                    dap_hash_sha3_256_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
                     dap_json_t *l_json_obj_datum = dap_json_object_new();
                     dap_json_object_add_int(l_json_obj_datum, "out_idx", l_out_idx);
                     dap_json_object_add_string(l_json_obj_datum, "spent_by_tx", l_hash_str);
@@ -2330,7 +2330,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
     if(!l_chain) {
         // Find default TX chain
         dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
-        HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+                    dap_ht_foreach(l_ledger->chains_registry, l_chain_info, l_tmp) {
             if (l_chain_info->chain_type == CHAIN_TYPE_TX) {
                 l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
                 break;
@@ -2379,9 +2379,9 @@ int com_tx_create_json(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
     DAP_DELETE(l_tx);
 
     // Add transaction to mempool
-    char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
-    dap_chain_hash_fast_t l_hf_tx = {0};
-    dap_chain_hash_fast_from_str(l_tx_hash_str, &l_hf_tx);
+    char *l_tx_hash_str = dap_hash_sha3_256_data_to_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    dap_hash_sha3_256_t l_hf_tx = {0};
+    dap_hash_sha3_256_from_str(l_tx_hash_str, &l_hf_tx);
     int rc = -1;
     if ((rc = dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t*)l_datum_tx->data, l_tx_size, &l_hf_tx))) {
         dap_json_t *l_jobj_tx_create = dap_json_object_new_bool(false);
@@ -2455,7 +2455,7 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
     const char *l_time_str = NULL;
     dap_cert_t *l_cert = NULL;
     dap_enc_key_t *l_priv_key = NULL;
-    dap_chain_hash_fast_t l_emission_hash = {};
+    dap_hash_sha3_256_t l_emission_hash = {};
     size_t l_tx_num = 0;
     dap_chain_wallet_t * l_wallet_fee = NULL;
 
@@ -2528,7 +2528,7 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
 
     dap_chain_t *l_emission_chain = NULL;
     if (l_emission_hash_str) {
-        if (dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash)) {
+        if (dap_hash_sha3_256_from_str(l_emission_hash_str, &l_emission_hash)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_EMISSION,
                                    "tx_create requires parameter '-from_emission' "
                                    "to be valid string containing hash in hex or base58 format");
@@ -2991,7 +2991,7 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
 
     // Add transaction to mempool
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_nochain_new(l_chain);// get group name for mempool
-    char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    char *l_tx_hash_str = dap_hash_sha3_256_data_to_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DEL_Z(l_datum_tx);
@@ -3041,11 +3041,11 @@ int com_tx_verify(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
     if (!l_net || !l_chain) {
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_NET_CHAIN_UNDEFINED;
     }
-    dap_hash_fast_t l_tx_hash;
+    dap_hash_sha3_256_t l_tx_hash;
     char *l_hex_str_from58 = NULL;
-    if (dap_chain_hash_fast_from_hex_str(l_tx_hash_str, &l_tx_hash)) {
+    if (dap_hash_sha3_256_from_hex_str(l_tx_hash_str, &l_tx_hash)) {
         l_hex_str_from58 = dap_enc_base58_to_hex_str_from_str(l_tx_hash_str);
-        if (dap_chain_hash_fast_from_hex_str(l_hex_str_from58, &l_tx_hash)) {
+        if (dap_hash_sha3_256_from_hex_str(l_hex_str_from58, &l_tx_hash)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_INVALID_TX_HASH, "Invalid tx hash format, need hex or base58");
             return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_INVALID_TX_HASH;
         }
@@ -3166,8 +3166,8 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_PARAM_ERR;
     }
 
-    dap_chain_hash_fast_t l_tx_hash;
-    if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) != 0) {
+    dap_hash_sha3_256_t l_tx_hash;
+    if (l_tx_hash_str && dap_hash_sha3_256_from_str(l_tx_hash_str, &l_tx_hash) != 0) {
 
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_HASH_REC_ERR, "tx hash not recognized");
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_HASH_REC_ERR;
@@ -3445,18 +3445,18 @@ int com_tx_cond_create(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_NOT_FIND_NET;
     }
 
-    dap_hash_fast_t l_pkey_cond_hash = {};
+    dap_hash_sha3_256_t l_pkey_cond_hash = {};
     if (l_cert_str) {
         dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
         if(!l_cert_cond) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT, "Can't find cert '%s'", l_cert_str);
             return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT;
         }
-        dap_cert_get_pkey_hash(l_cert_cond, &l_pkey_cond_hash);
+        dap_cert_get_pkey_hash(l_cert_cond, DAP_HASH_TYPE_SHA3_256, l_pkey_cond_hash.raw, sizeof(dap_hash_sha3_256_t));
     } else {
-        dap_chain_hash_fast_from_str(l_pkey_str, &l_pkey_cond_hash);
+        dap_hash_sha3_256_from_str(l_pkey_str, &l_pkey_cond_hash);
     }
-    if (dap_hash_fast_is_blank(&l_pkey_cond_hash)) {
+    if (dap_hash_sha3_256_is_blank(&l_pkey_cond_hash)) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT, "Can't calc pkey hash");
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_CREATE_CAN_FIND_CERT;
     }
@@ -3503,10 +3503,10 @@ static dap_list_t* s_hashes_parse_str_list(const char *a_hashes_str)
     char *l_hash_str_dup = strdup(a_hashes_str), *l_hash_str, *l_hashes_tmp_ptrs = NULL;
     if (!l_hash_str_dup)
         return log_it(L_CRITICAL, "%s", c_error_memory_alloc), NULL;
-    dap_hash_fast_t l_hash = { };
+    dap_hash_sha3_256_t l_hash = { };
     while (( l_hash_str = strtok_r(l_hash_str_dup, ",", &l_hashes_tmp_ptrs) )) {
         l_hash_str = dap_strstrip(l_hash_str);
-        if (dap_chain_hash_fast_from_str(l_hash_str, &l_hash)){
+        if (dap_hash_sha3_256_from_str(l_hash_str, &l_hash)){
             log_it(L_ERROR, "Can't get hash of string \"%s\". Continue.", l_hash_str);
             continue;
         }
@@ -3632,12 +3632,12 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
     size_t l_num_of_hashes = dap_list_length(l_hashes_list);
     log_it(L_INFO, "Found %zu hashes. Start returning funds from transactions.", l_num_of_hashes);
     for (dap_list_t * l_tmp = l_hashes_list; l_tmp; l_tmp=l_tmp->next){
-        dap_hash_fast_t *l_hash = (dap_hash_fast_t*)l_tmp->data;
+        dap_hash_sha3_256_t *l_hash = (dap_hash_sha3_256_t*)l_tmp->data;
         // get tx by hash
         dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, l_hash);
         if (!l_cond_tx) {
-            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-            dap_chain_hash_fast_to_str(l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            char l_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(l_hash, l_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
             log_it(L_WARNING, "Requested conditional transaction with hash %s not found. Continue.", l_hash_str);
             continue;
         }
@@ -3668,8 +3668,8 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
             continue;
         }
         // Get owner tx
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash);
-        dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
+        dap_hash_sha3_256_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash);
+        dap_chain_datum_tx_t *l_owner_tx = dap_hash_sha3_256_is_blank(&l_owner_tx_hash)
             ? l_cond_tx:
             dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
         if (!l_owner_tx)
@@ -3688,7 +3688,7 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
         }
 
         // get final tx
-        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash, true);
+        dap_hash_sha3_256_t l_final_hash = dap_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, l_hash, true);
         dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_final_hash);
         if (!l_final_tx) {
             log_it(L_WARNING, "Only get final tx hash or tx is already used out.");
@@ -3813,10 +3813,10 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
 
 typedef struct tx_check_args {
     dap_chain_datum_tx_t *tx;
-    dap_hash_fast_t tx_hash;
+    dap_hash_sha3_256_t tx_hash;
 } tx_check_args_t;
 
-void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
+void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, void *a_arg)
 {
     UNUSED(a_net);
     dap_list_t **l_tx_list_ptr = a_arg;
@@ -3941,8 +3941,8 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_r
         }
 
         // Check sign
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_data_tx->tx_hash);
-        dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
+        dap_hash_sha3_256_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_data_tx->tx_hash);
+        dap_chain_datum_tx_t *l_owner_tx = dap_hash_sha3_256_is_blank(&l_owner_tx_hash)
             ? l_tx
             : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
 
@@ -3958,8 +3958,8 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_r
 
         char *l_remain_datoshi_str = NULL;
         char *l_remain_coins_str = NULL;
-        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(&l_data_tx->tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        char l_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+        dap_hash_sha3_256_to_str(&l_data_tx->tx_hash, l_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
         l_remain_coins_str = dap_chain_balance_coins_print(l_out_cond->header.value);
         l_remain_datoshi_str = dap_chain_balance_datoshi_print(l_out_cond->header.value);
         dap_json_t *l_jobj_hash = dap_json_object_new_string(l_hash_str);

@@ -26,8 +26,8 @@
 #include <time.h>
 #include "dap_common.h"
 #include "dap_time.h"
-#include "uthash.h"
-#include "utlist.h"
+#include "dap_ht.h"
+#include "dap_dl.h"
 #include "dap_string.h"
 #include "dap_hash.h"
 #include "dap_chain_common.h"
@@ -48,7 +48,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_tx_voting.h"
-#include "dap_global_db_driver.h"  // For dap_store_obj_t
+#include "dap_global_db.h"  // For dap_global_db_store_obj_t
 #include "dap_chain_net_tx.h"      // For dap_chain_tx_datum_from_json
 
 #define LOG_TAG "dap_chain_mempool_cli"
@@ -59,9 +59,11 @@ int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_v
 // Helper function
 dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_hash) {
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(a_net->pub.chains, l_chain) {
+    dap_dl_foreach(a_net->pub.chains, l_chain) {
         char *l_gdb_mempool = dap_chain_mempool_group_new(l_chain);
-        bool is_hash = dap_global_db_driver_is(l_gdb_mempool, a_datum_hash);
+        dap_global_db_store_obj_t *l_obj = dap_global_db_get_raw_sync(l_gdb_mempool, a_datum_hash);
+        bool is_hash = l_obj != NULL;
+        dap_global_db_store_obj_free_one(l_obj);
         DAP_DELETE(l_gdb_mempool);
         if (is_hash)
             return l_chain;
@@ -203,10 +205,10 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
         dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
         const char *l_datum_type = dap_chain_datum_type_id_to_str(l_datum->header.type_id);
         
-        dap_hash_fast_t l_datum_real_hash = {0};
-        dap_hash_fast_t l_datum_hash_from_key = {0};
+        dap_hash_sha3_256_t l_datum_real_hash = {0};
+        dap_hash_sha3_256_t l_datum_hash_from_key = {0};
         dap_chain_datum_calc_hash(l_datum, &l_datum_real_hash);
-        dap_chain_hash_fast_from_str(l_objs[i].key, &l_datum_hash_from_key);
+        dap_hash_sha3_256_from_str(l_objs[i].key, &l_datum_hash_from_key);
         
         char buff_time[DAP_TIME_STR_SIZE];
         dap_time_to_str_rfc822(buff_time, DAP_TIME_STR_SIZE, l_datum->header.ts_create);
@@ -257,8 +259,8 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
         dap_json_object_add_object(l_jobj_ts_created, "str", l_jobj_ts_created_str);
         
         // Проверяем соответствие хеша и ключа
-        if (!dap_hash_fast_compare(&l_datum_real_hash, &l_datum_hash_from_key)) {
-            char *l_drh_str = dap_hash_fast_to_str_new(&l_datum_real_hash);
+        if (!dap_hash_sha3_256_compare(&l_datum_real_hash, &l_datum_hash_from_key)) {
+            char *l_drh_str = dap_hash_sha3_256_to_str_new(&l_datum_real_hash);
             char *l_wgn = dap_strdup_printf("Key field in DB %s does not match datum's hash %s\n",
                                             l_objs[i].key, l_drh_str);
             DAP_DELETE(l_drh_str);
@@ -474,7 +476,7 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
                     }
                     for (dap_list_t *it = l_list_in_reward; it; it = it->next) {
                         dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;
-                        char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
+                        char *l_block_hash = dap_hash_sha3_256_to_str_new(&l_in_reward->block_hash);
                         dap_json_t *l_jobj_block_hash = dap_json_object_new_string(l_block_hash);
                         if (!l_jobj_block_hash) {
                             DAP_DELETE(l_block_hash);
@@ -608,10 +610,10 @@ dap_chain_t *s_get_chain_with_datum(dap_chain_net_t *a_net, const char *a_datum_
                                 dap_chain_tx_in_ems_t *l_in_ems = (dap_chain_tx_in_ems_t *) it_ems->data;
                                 if (!dap_strcmp(l_in_ems->header.ticker, l_dist_token)) {
                                     l_in_from_emi = true;
-                                    dap_hash_fast_t l_ems_hash = l_in_ems->header.token_emission_hash;
-                                    char l_ems_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                                    dap_hash_fast_to_str(&l_ems_hash, l_ems_hash_str,
-                                                            DAP_CHAIN_HASH_FAST_STR_SIZE);
+                                    dap_hash_sha3_256_t l_ems_hash = l_in_ems->header.token_emission_hash;
+                                    char l_ems_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+                                    dap_hash_sha3_256_to_str(&l_ems_hash, l_ems_hash_str,
+                                                            DAP_HASH_SHA3_256_STR_SIZE);
                                     dap_json_t *l_obj_ems_hash = dap_json_object_new_string(l_ems_hash_str);
                                     if (!l_obj_ems_hash) {
                                         dap_json_object_free(l_obj_chain);
@@ -877,7 +879,7 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
  * @param a_datum_hash_str
  * @return finded store object or NULL
  */
-static dap_store_obj_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
+static dap_global_db_store_obj_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
 {
     dap_return_val_if_fail(a_datum_hash_str, NULL);
     char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
@@ -913,12 +915,12 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
     char *l_chain_name = a_chain ? a_chain->name : NULL;
     bool l_found_in_chains = false;
     int l_ret_code = 0;
-    dap_hash_fast_t l_atom_hash = {};
+    dap_hash_sha3_256_t l_atom_hash = {};
     // FIND in chain
     {
         //
-        dap_hash_fast_t l_datum_hash;
-        if (dap_chain_hash_fast_from_hex_str(a_datum_hash, &l_datum_hash)) {
+        dap_hash_sha3_256_t l_datum_hash;
+        if (dap_hash_sha3_256_from_hex_str(a_datum_hash, &l_datum_hash)) {
             dap_json_rpc_error_add(a_json_arr_reply, COM_MEMPOOL_CHECK_ERR_INCORRECT_HASH_STR,
                                     "Incorrect hash string %s", a_datum_hash);
             return COM_MEMPOOL_CHECK_ERR_INCORRECT_HASH_STR;
@@ -927,7 +929,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             l_datum = a_chain->callback_datum_find_by_hash(a_chain, &l_datum_hash, &l_atom_hash, &l_ret_code);
         else {
             dap_chain_t *it = NULL;
-            DL_FOREACH(a_net->pub.chains, it) {
+            dap_dl_foreach(a_net->pub.chains, it) {
                 l_datum = it->callback_datum_find_by_hash(it, &l_datum_hash, &l_atom_hash, &l_ret_code);
                 if (l_datum) {
                     l_chain_name = it->name;
@@ -941,12 +943,12 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
     //  FIND in mempool
     bool l_hole = false;
     if (!l_found_in_chains) {
-        dap_store_obj_t *l_store_obj = NULL;
+        dap_global_db_store_obj_t *l_store_obj = NULL;
         if (a_chain) {
             l_store_obj = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
         } else {
             dap_chain_t *it = NULL;
-            DL_FOREACH(a_net->pub.chains, it) {
+            dap_dl_foreach(a_net->pub.chains, it) {
                 l_store_obj = s_com_mempool_check_datum_in_chain(it, a_datum_hash);
                 if (l_store_obj) {
                     l_chain_name = it->name;
@@ -961,7 +963,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             } else {
                 l_datum = DAP_DUP_SIZE(l_store_obj->value, l_store_obj->value_len);
             }
-            dap_store_obj_free_one(l_store_obj);
+            dap_global_db_store_obj_free_one(l_store_obj);
         }
     }
     dap_json_t *l_jobj_datum = dap_json_object_new();
@@ -1003,8 +1005,8 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         dap_json_object_add_object(l_jobj_datum, "find", l_find_bool);
         dap_json_object_add_object(l_jobj_datum, "source", l_find_chain_or_mempool);
         if (l_found_in_chains) {
-            char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-            dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            char l_atom_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(&l_atom_hash, l_atom_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
             dap_json_t *l_obj_atom = dap_json_object_new();
             dap_json_t *l_jobj_atom_hash = dap_json_object_new_string(l_atom_hash_str);
             dap_json_t *l_jobj_atom_err = dap_json_object_new_string(dap_ledger_check_error_str(l_ret_code));
@@ -1075,7 +1077,7 @@ typedef enum cmd_mempool_proc_list_error{
  * @param a_datum_hash
  * @param a_json_arr_reply
  * @return
-
+ */
 int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, dap_json_t *a_json_arr_reply, int a_version)
 {
     // If full or light it doesnt work
@@ -1110,8 +1112,8 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         DAP_DELETE(l_gdb_group_mempool);
         return DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_FIND_DATUM;
     }
-    dap_hash_fast_t l_datum_hash, l_real_hash;
-    if (dap_chain_hash_fast_from_hex_str(a_datum_hash, &l_datum_hash)) {
+    dap_hash_sha3_256_t l_datum_hash, l_real_hash;
+    if (dap_hash_sha3_256_from_hex_str(a_datum_hash, &l_datum_hash)) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_CONVERT_DATUM_HASH_TO_DIGITAL_FORM,
                                "Error! Can't convert datum hash string %s to digital form",
                                a_datum_hash);
@@ -1119,7 +1121,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         return DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_CONVERT_DATUM_HASH_TO_DIGITAL_FORM;
     }
     dap_chain_datum_calc_hash(l_datum, &l_real_hash);
-    if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
+    if (!dap_hash_sha3_256_compare(&l_datum_hash, &l_real_hash)) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_COM_MEMPOOL_PROC_LIST_ERROR_REAL_HASH_DATUM_DOES_NOT_MATCH_HASH_DATA_STRING,
                                "Error! Datum's real hash doesn't match datum's hash string %s",
                                a_datum_hash);
@@ -1243,9 +1245,8 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     return ret;
 }
 
-// Function: _cmd_mempool_proc_all
 /**
- * @breif _cmd_mempool_proc_all
+ * @brief _cmd_mempool_proc_all
  * @param a_net
  * @param a_chain
  * @param a_json_arr_reply
@@ -1349,7 +1350,7 @@ int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         DAP_DELETE(l_group_mempool);
     } else {
         dap_chain_t *l_chain = NULL;
-        DL_FOREACH(a_net->pub.chains, l_chain){
+        dap_dl_foreach(a_net->pub.chains, l_chain){
             char *l_group_mempool = dap_chain_mempool_group_new(l_chain);
             if (!_cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, a_json_arr_reply, a_version, a_tx_to_json)){
                 DAP_DELETE(l_group_mempool);
@@ -1466,7 +1467,7 @@ int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_v
             if(l_chain) {
                 s_com_mempool_list_print_for_chain(a_json_arr_reply, l_net, l_chain, l_wallet_addr, l_jobj_chains, l_hash_out_type, l_fast, l_limit, l_offset, a_version);
             } else {
-                DL_FOREACH(l_net->pub.chains, l_chain) {
+                dap_dl_foreach(l_net->pub.chains, l_chain) {
                     s_com_mempool_list_print_for_chain(a_json_arr_reply, l_net, l_chain, l_wallet_addr, l_jobj_chains, l_hash_out_type, l_fast, l_limit, l_offset, a_version);
                 }
             }
@@ -1544,7 +1545,7 @@ int com_mempool(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_v
                 dap_json_object_add_object(l_jobj_chain, "count", l_jobj_count);
                 dap_json_array_add(l_jobj_chains, l_jobj_chain);
             } else {
-                DL_FOREACH(l_net->pub.chains, l_chain) {
+                dap_dl_foreach(l_net->pub.chains, l_chain) {
                     l_mempool_group = dap_chain_mempool_group_new(l_chain);
                     size_t l_objs_count = 0;
                     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
@@ -1701,7 +1702,7 @@ int com_mempool_add(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, in
 
     // Add transaction to mempool
     char *l_gdb_group_mempool = dap_chain_mempool_group_new(l_chain);
-    char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    char *l_tx_hash_str = dap_hash_sha3_256_data_to_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DEL_Z(l_datum_tx);

@@ -31,11 +31,11 @@
 
 #define LOG_TAG "dap_chain_datum_anchor"
 
-int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor, dap_hash_fast_t *a_out_hash)
+int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor, dap_hash_sha3_256_t *a_out_hash)
 {
     dap_return_val_if_fail(a_anchor && a_out_hash, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_anchor->data_n_sign, a_anchor->header.data_size, DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH);
-    return l_tsd && l_tsd->size == sizeof(dap_hash_fast_t) ? ( _dap_tsd_get_scalar(l_tsd, a_out_hash), 0 ) : 1;
+    return l_tsd && l_tsd->size == sizeof(dap_hash_sha3_256_t) ? ( _dap_tsd_get_scalar(l_tsd, a_out_hash), 0 ) : 1;
 }
 
 void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type)
@@ -57,14 +57,14 @@ void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
             continue;
         }
 
-        dap_chain_hash_fast_t l_pkey_hash = {0};
+        dap_hash_sha3_256_t l_pkey_hash = {0};
         if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
             dap_string_append_printf(a_str_out, "<CORRUPTED - can't calc hash>\n");
             continue;
         }
         const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
+                : dap_hash_sha3_256_to_str_static(&l_pkey_hash);
         dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
     }
@@ -90,7 +90,7 @@ void dap_chain_datum_anchor_certs_dump_json(dap_json_t *a_json_out, byte_t *a_si
             continue;
         }
 
-        dap_chain_hash_fast_t l_pkey_hash = {0};
+        dap_hash_sha3_256_t l_pkey_hash = {0};
         if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
             dap_json_object_add_string(json_obj_sign, a_version == 1 ? "sign status" : "sig_status", "CORRUPTED - can't calc hash");
             dap_json_array_add(json_arr_certs_out, json_obj_sign);
@@ -98,7 +98,7 @@ void dap_chain_datum_anchor_certs_dump_json(dap_json_t *a_json_out, byte_t *a_si
         }
         const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
+                : dap_hash_sha3_256_to_str_static(&l_pkey_hash);
         dap_json_object_add_uint64(json_obj_sign, a_version == 1 ? "sign #" : "sig_num", i);
         dap_json_object_add_string(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", l_hash_str);
         dap_json_object_add_string(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_sign_type_to_str(l_sign->header.type));

@@ -68,10 +68,10 @@ static int s_decree_clear(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id)
     dap_ledger_decree_item_t *l_cur_decree, *l_tmp;
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
     dap_chain_policy_net_purge(a_ledger->net->pub.id);
-    HASH_ITER(hh, l_ledger_pvt->decrees, l_cur_decree, l_tmp) {
+    dap_ht_foreach(l_ledger_pvt->decrees, l_cur_decree, l_tmp) {
         if (l_cur_decree->storage_chain_id.uint64 != a_chain_id.uint64)
             continue;
-        HASH_DEL(l_ledger_pvt->decrees, l_cur_decree);
+        dap_ht_del(l_ledger_pvt->decrees, l_cur_decree);
         if ( l_cur_decree->decree &&
              !dap_chain_find_by_id(l_cur_decree->decree->header.common_decree_params.net_id,
                                    l_cur_decree->storage_chain_id)->is_mapped )
@@ -96,7 +96,7 @@ int dap_ledger_decree_purge(dap_ledger_t *a_ledger)
     return ret;
 }
 
-static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash, bool a_anchored)
+static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_hash_sha3_256_t *a_decree_hash, bool a_anchored)
 {
     if (a_data_size < sizeof(dap_chain_datum_decree_t)) {
         log_it(L_WARNING, "Decree size is too small");
@@ -114,10 +114,10 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
     dap_ledger_decree_item_t *l_sought_decree = NULL;
     pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_FIND(hh, l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    dap_ht_find(l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_sha3_256_t), l_sought_decree);
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     if (l_sought_decree && l_sought_decree->decree) {
-        debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
+        debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s is already present", dap_hash_sha3_256_to_str_static(a_decree_hash));
         return -123;
     }
 
@@ -155,10 +155,10 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
             if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
                 l_signs_verify_counter++;
         } else {
-            dap_hash_fast_t l_sign_pkey_hash = {0};
+            dap_hash_sha3_256_t l_sign_pkey_hash = {0};
             size_t l_pkey_size = 0;
             uint8_t *l_pkey = dap_sign_get_pkey(l_unique_signs[i], &l_pkey_size);
-            log_it(L_WARNING, "Signature [%zu] %s failed public key verification.", i, dap_get_data_hash_str(l_pkey, l_pkey_size).s);
+            log_it(L_WARNING, "Signature [%zu] %s failed public key verification.", i, dap_hash_sha3_256_data_to_str(l_pkey, l_pkey_size).s);
         }
         // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
         l_signs_size_for_current_sign += l_sign_max_size;
@@ -197,12 +197,12 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     return 0;
 }
 
-int dap_ledger_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash)
+int dap_ledger_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_hash_sha3_256_t *a_decree_hash)
 {
     return s_decree_verify(a_net, a_decree, a_data_size, a_decree_hash, false);
 }
 
-int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash)
+int dap_ledger_decree_apply(dap_hash_sha3_256_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, dap_hash_sha3_256_t *a_anchor_hash)
 {
     dap_return_val_if_fail(a_decree_hash && a_chain, -107);
     int ret_val = 0;
@@ -215,9 +215,9 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
     dap_ledger_private_t *l_ledger_pvt = PVT(l_net->pub.ledger);
     dap_ledger_decree_item_t *l_new_decree = NULL;
     unsigned l_hash_value;
-    HASH_VALUE(a_decree_hash, sizeof(dap_hash_fast_t), l_hash_value);
+    l_hash_value = dap_ht_hash_value(a_decree_hash, sizeof(dap_hash_sha3_256_t));
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_hash_value, l_new_decree);
+    dap_ht_find_by_hashvalue(l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_sha3_256_t), l_hash_value, l_new_decree);
     if (!l_new_decree) {
         l_new_decree = DAP_NEW_Z(dap_ledger_decree_item_t);
         if (!l_new_decree) {
@@ -227,23 +227,23 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
         }
         l_new_decree->decree_hash = *a_decree_hash;
         l_new_decree->storage_chain_id = a_chain->id;
-        HASH_ADD_BYHASHVALUE(hh, l_ledger_pvt->decrees, decree_hash, sizeof(dap_hash_fast_t), l_hash_value, l_new_decree);
+        dap_ht_add_by_hashvalue(l_ledger_pvt->decrees, decree_hash, sizeof(dap_hash_sha3_256_t), l_hash_value, l_new_decree);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
 
     if (a_anchor_hash) {    // Processing anchor for decree
         if (!l_new_decree->decree) {
-            log_it(L_WARNING, "Decree with hash %s is not found", dap_hash_fast_to_str_static(a_decree_hash));
+            log_it(L_WARNING, "Decree with hash %s is not found", dap_hash_sha3_256_to_str_static(a_decree_hash));
             l_new_decree->wait_for_apply = true;
             return -110;
         }
         if (l_new_decree->is_applied) {
-            debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s already applied", dap_hash_fast_to_str_static(a_decree_hash));
+            debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s already applied", dap_hash_sha3_256_to_str_static(a_decree_hash));
             return -111;
         }
     } else {            // Process decree itself
         if (l_new_decree->decree) {
-            debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
+            debug_if(g_debug_ledger, L_WARNING, "Decree with hash %s is already present", dap_hash_sha3_256_to_str_static(a_decree_hash));
             return -123;
         }
         l_new_decree->decree = a_chain->is_mapped ? a_decree : DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
@@ -276,7 +276,7 @@ int dap_ledger_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decr
     return ret_val;
 }
 
-int dap_ledger_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash)
+int dap_ledger_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, dap_hash_sha3_256_t *a_decree_hash)
 {
     int ret_val = 0;
     if (!a_chain || !a_decree) {
@@ -296,13 +296,13 @@ int dap_ledger_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_c
     return dap_ledger_decree_apply(a_decree_hash, a_decree, a_chain, NULL);
 }
 
-int dap_ledger_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_decree_hash)
+int dap_ledger_decree_reset_applied(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_decree_hash)
 {
     dap_return_val_if_fail(a_net && a_decree_hash, -1);
     dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
     dap_ledger_decree_item_t *l_sought_decree = NULL;
     pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_FIND(hh, l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    dap_ht_find(l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_sha3_256_t), l_sought_decree);
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     if (!l_sought_decree)
         return -2;
@@ -310,13 +310,13 @@ int dap_ledger_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_
     return 0;
 }
 
-dap_chain_datum_decree_t *dap_ledger_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_decree_hash, bool *is_applied)
+dap_chain_datum_decree_t *dap_ledger_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_decree_hash, bool *is_applied)
 {
     dap_return_val_if_fail(a_net && a_decree_hash, NULL);
     dap_ledger_decree_item_t *l_sought_decree = NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_net->pub.ledger);
     pthread_rwlock_rdlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_FIND(hh, l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_fast_t), l_sought_decree);
+    dap_ht_find(l_ledger_pvt->decrees, a_decree_hash, sizeof(dap_hash_sha3_256_t), l_sought_decree);
     pthread_rwlock_unlock(&l_ledger_pvt->decrees_rwlock);
     return ( !l_sought_decree || !l_sought_decree->decree )
         ? NULL
@@ -341,7 +341,7 @@ uint32_t l_sign_type;
 uint16_t l_owners_num;
 uint8_t l_action;
 dap_chain_addr_t l_addr = {};
-dap_hash_fast_t l_hash = {};
+dap_hash_sha3_256_t l_hash = {};
 dap_chain_node_addr_t l_node_addr = {};
 dap_list_t *l_owners_list = NULL;
 const char *l_ban_addr;
@@ -424,8 +424,8 @@ const char *l_ban_addr;
             }
             if (!a_apply)
                 break;
-            dap_hash_fast_t l_decree_hash = {};
-            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+            dap_hash_sha3_256_t l_decree_hash = {};
+            dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
             dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_decree_hash, &l_hash, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(a_decree));
             if (!dap_chain_net_get_load_mode(a_net))
                 dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);
@@ -507,8 +507,8 @@ const char *l_ban_addr;
             }
             if (!a_apply)
                 break;
-            dap_hash_fast_t l_decree_hash = {0};
-            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+            dap_hash_sha3_256_t l_decree_hash = {0};
+            dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
             dap_http_ban_list_client_add(l_ban_addr, l_decree_hash, a_decree->header.ts_created);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN: {
@@ -643,9 +643,9 @@ const char *l_ban_addr;
             for (dap_list_t *it = l_addrs_tsd; it; it = it->next) {
                 dap_tsd_t *l_tsd = (dap_tsd_t *)it->data;
                 if (l_tsd->size != sizeof(dap_stream_node_addr_t)) {
-                    dap_hash_fast_t l_decree_hash = {0};
-                    dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
-                    log_it(L_WARNING, "Invalid size of node addr tsd for decree %s", dap_hash_fast_to_str_static(&l_decree_hash));
+                    dap_hash_sha3_256_t l_decree_hash = {0};
+                    dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+                    log_it(L_WARNING, "Invalid size of node addr tsd for decree %s", dap_hash_sha3_256_to_str_static(&l_decree_hash));
                     continue;
                 }
                 dap_stream_node_addr_t *l_addr = (dap_stream_node_addr_t *)l_tsd->data;
@@ -654,7 +654,7 @@ const char *l_ban_addr;
             dap_list_free_full(l_addrs_tsd, NULL);
 
             dap_tsd_t *l_changed_addrs = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
-            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
+            dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
             dap_json_tokener_error_t l_error;
             dap_json_t *l_changed_addrs_json = l_changed_addrs ? dap_json_tokener_parse_verbose((char *)l_changed_addrs->data, &l_error) : NULL;
             return dap_chain_esbocs_set_hardfork_prepare(l_chain, l_hardfork_generation, l_block_num, l_addrs, l_changed_addrs_json);
@@ -675,7 +675,7 @@ const char *l_ban_addr;
             }
             if (!a_apply)
                 break;
-            dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
+            dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_chain->hardfork_decree_hash);
             return dap_chain_esbocs_set_hardfork_prepare(l_chain, 0, 0, NULL, NULL);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE: {
@@ -732,7 +732,7 @@ const char *l_ban_addr;
             return dap_chain_policy_apply(l_policy, a_net->pub.id);
         }
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD: {
-            dap_hash_fast_t l_pkey_hash;
+            dap_hash_sha3_256_t l_pkey_hash;
             if (dap_chain_datum_decree_get_hash(a_decree, &l_pkey_hash)) {
                 log_it(L_WARNING, "Can't get event pkey hash from decree.");
                 return -114;
@@ -757,7 +757,7 @@ const char *l_ban_addr;
             }
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE: {
-            dap_hash_fast_t l_pkey_hash;
+            dap_hash_sha3_256_t l_pkey_hash;
             if (dap_chain_datum_decree_get_hash(a_decree, &l_pkey_hash)) {
                 log_it(L_WARNING, "Can't get event pkey hash from decree.");
                 return -114;
@@ -862,7 +862,7 @@ static bool s_compare_anchors(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchor
     default:
         return a_exist->decree_subtype == a_comp->decree_subtype;
     }
-    dap_hash_fast_t l_exist_hash = {}, l_comp_hash = {};
+    dap_hash_sha3_256_t l_exist_hash = {}, l_comp_hash = {};
     dap_chain_datum_anchor_get_hash_from_data(a_comp->anchor, &l_comp_hash);
     dap_chain_datum_anchor_get_hash_from_data(a_exist->anchor, &l_exist_hash);
     dap_chain_datum_decree_t *l_comp_decree = dap_ledger_decree_get_by_hash(a_ledger->net, &l_comp_hash, NULL);
@@ -894,7 +894,7 @@ int s_aggregate_anchor(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t **a
             .decree_subtype = a_subtype
     };
     dap_ledger_hardfork_anchors_t *l_exist = NULL, *l_tmp;
-    DL_FOREACH_SAFE(*a_out_list, l_exist, l_tmp)
+    dap_dl_foreach_safe(*a_out_list, l_exist, l_tmp)
         if (s_compare_anchors(a_ledger, l_exist, &l_new_anchor))
             break;
     if (!l_exist) {
@@ -906,11 +906,11 @@ int s_aggregate_anchor(dap_ledger_t *a_ledger, dap_ledger_hardfork_anchors_t **a
         if (a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE &&      // Do not aagregate stake anchors, it will be transferred with
                 a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE &&     // hardfork decree data linked to genesis block
                 a_subtype != DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN)
-            DL_APPEND(*a_out_list, l_exist);
+            dap_dl_append(*a_out_list, l_exist);
     } else {
         if (l_exist->decree_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN) {
             assert(a_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN);
-            DL_DELETE(*a_out_list, l_exist);
+            dap_dl_delete(*a_out_list, l_exist);
         } else {
             DAP_DEL_Z(l_exist->anchor);
             l_exist->anchor = DAP_DUP_SIZE(a_anchor, dap_chain_datum_anchor_get_size(a_anchor));
@@ -929,7 +929,7 @@ dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledg
             continue;
         if (it->decree->header.common_decree_params.chain_id.uint64 != a_chain_id.uint64)
             continue;
-        if (dap_hash_fast_is_blank(&it->anchor_hash))
+        if (dap_hash_sha3_256_is_blank(&it->anchor_hash))
             continue;
         if (it->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK ||
                 it->decree->header.sub_type == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_HARDFORK_COMPLETE ||
@@ -937,15 +937,15 @@ dap_ledger_hardfork_anchors_t *dap_ledger_anchors_aggregate(dap_ledger_t *a_ledg
             continue;
         dap_chain_datum_anchor_t *l_anchor = dap_ledger_anchor_find(a_ledger, &it->anchor_hash);
         if (!l_anchor) {
-            char l_anchor_hash_str[DAP_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(&it->anchor_hash, l_anchor_hash_str, DAP_HASH_FAST_STR_SIZE);
+            char l_anchor_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(&it->anchor_hash, l_anchor_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
             log_it(L_ERROR, "Can't find anchor %s for decree %s, skip it",
-                                        l_anchor_hash_str, dap_hash_fast_to_str_static(&it->decree_hash));
+                                        l_anchor_hash_str, dap_hash_sha3_256_to_str_static(&it->decree_hash));
             continue;
         }
-        dap_hash_fast_t l_decree_hash;
+        dap_hash_sha3_256_t l_decree_hash;
         if (dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash)) {
-            log_it(L_ERROR, "Corrupted datum anchor %s, can't get decree hash from it", dap_hash_fast_to_str_static(&it->anchor_hash));
+            log_it(L_ERROR, "Corrupted datum anchor %s, can't get decree hash from it", dap_hash_sha3_256_to_str_static(&it->anchor_hash));
             continue;
         }
         s_aggregate_anchor(a_ledger, &ret, it->decree->header.sub_type, l_anchor);
@@ -967,7 +967,7 @@ dap_list_t *dap_ledger_decrees_get_by_type(dap_ledger_t *a_ledger, int a_type)
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_decree_item_t *l_cur_decree, *l_tmp;
     pthread_rwlock_wrlock(&l_ledger_pvt->decrees_rwlock);
-    HASH_ITER(hh, l_ledger_pvt->decrees, l_cur_decree, l_tmp) {
+    dap_ht_foreach(l_ledger_pvt->decrees, l_cur_decree, l_tmp) {
         if (!a_type || (l_cur_decree->decree && l_cur_decree->decree->header.type == a_type)) {
             dap_tsd_t *l_tsd_cur = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH, &l_cur_decree->decree_hash, sizeof(l_cur_decree->decree_hash));
             l_ret = dap_list_append(l_ret, l_tsd_cur);
