@@ -193,7 +193,7 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
     // Get default TX chain from ledger registry
     dap_chain_t *l_chain = NULL;
     dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+    dap_ht_foreach(l_ledger->chains_registry, l_chain_info, l_tmp) {
         if (l_chain_info->chain_type == CHAIN_TYPE_TX) {
             l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
             break;

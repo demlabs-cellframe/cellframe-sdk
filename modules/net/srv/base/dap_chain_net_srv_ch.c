@@ -54,7 +54,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 // client statistic key struct
 typedef struct client_statistic_key{
-    char  key[18 + DAP_CHAIN_HASH_FAST_STR_SIZE];
+    char  key[18 + DAP_HASH_SHA3_256_STR_SIZE];
 } client_statistic_key_t;
 
 typedef enum {
@@ -200,7 +200,7 @@ static char *s_get_ban_group(dap_chain_net_srv_usage_t *a_usage)
 {
     dap_chain_net_srv_price_t *l_price = a_usage->price;
 
-    dap_hash_fast_t price_pkey_hash = {};
+    dap_hash_sha3_256_t price_pkey_hash = {};
     size_t l_key_size = 0;
     uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_usage->service->receipt_sign_cert->enc_key, &l_key_size);
     if (!l_pub_key || !l_key_size)
@@ -209,9 +209,9 @@ static char *s_get_ban_group(dap_chain_net_srv_usage_t *a_usage)
         return NULL;
     }
 
-    dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
+    dap_hash_sha3_256(l_pub_key, l_key_size, &price_pkey_hash);
     DAP_DELETE(l_pub_key);
-    char* l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&price_pkey_hash);
+    char* l_pkey_hash_str = dap_hash_sha3_256_to_str_new(&price_pkey_hash);
 
     char *l_ban_list_group =  dap_strdup_printf("local.%s.0x%016"DAP_UINT64_FORMAT_x".ban_list.%s", a_usage->net->pub.gdb_groups_prefix, a_usage->service->uid.uint64, l_pkey_hash_str);
     DAP_DEL_Z(l_pkey_hash_str);
@@ -223,7 +223,7 @@ static dap_time_t s_check_client_is_banned(dap_chain_net_srv_usage_t *a_usage)
 {
     char *l_ban_group = s_get_ban_group(a_usage);
     size_t l_data_size = 0;
-    byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
+    byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
     if(!l_ret)
     {
         DAP_DELETE(l_ban_group);
@@ -245,10 +245,10 @@ static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
     dap_time_t l_end_of_ban_timestamp = dap_time_now() + (a_usage->service->grace_period * 50); // ban client for 10x grace periods
     char l_tmp_buf[DAP_TIME_STR_SIZE];
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban_timestamp);
-    log_it(L_DEBUG, "Add client %s to ban list till %s.", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_tmp_buf);
+    log_it(L_DEBUG, "Add client %s to ban list till %s.", dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash), l_tmp_buf);
     char *l_ban_group = s_get_ban_group(a_usage);
 
-    int l_ret = dap_global_db_set_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_end_of_ban_timestamp, sizeof(l_end_of_ban_timestamp), false);
+    int l_ret = dap_global_db_set_sync(l_ban_group, dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash), &l_end_of_ban_timestamp, sizeof(l_end_of_ban_timestamp), false);
     if(l_ret)
     {
         log_it(L_DEBUG, "Can't add client to ban list group in GDB. Error code: %d", l_ret);
@@ -260,13 +260,13 @@ static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
 
 static void s_unban_client(dap_chain_net_srv_usage_t *a_usage)
 {
-    log_it(L_DEBUG, "Remove client %s from ban list", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
+    log_it(L_DEBUG, "Remove client %s from ban list", dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash));
     char *l_ban_group = s_get_ban_group(a_usage);
     size_t l_data_size = 0;
-    byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
+    byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
     if(l_ret && l_data_size == sizeof(dap_time_t))
     {
-        int l_ret = dap_global_db_del_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
+        int l_ret = dap_global_db_del_sync(l_ban_group, dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash));
         if(l_ret)
         {
             log_it(L_DEBUG, "Can't remove client from ban list group in GDB. Error code: %d", l_ret);
@@ -373,7 +373,7 @@ void dap_chain_net_srv_ch_grace_control_mt(void *a_arg)
     struct dap_grace_exit_args *l_args = (struct dap_grace_exit_args*)a_arg;
     pthread_mutex_lock(&l_args->net_srv->grace_mutex);
     // finish grace
-    HASH_DEL(l_args->net_srv->grace_hash_tab, l_args->grace_item);
+    dap_ht_del(l_args->net_srv->grace_hash_tab, l_args->grace_item);
     pthread_mutex_unlock(&l_args->net_srv->grace_mutex);
 
     log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
@@ -398,7 +398,7 @@ void dap_chain_net_srv_ch_grace_control_mt(void *a_arg)
 
         //start timeout timer
         l_args->grace_item->grace->usage->receipt_timeout_timer_start_callback(l_args->grace_item->grace->usage);
-        log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_chain_hash_fast_to_str_static(&l_args->grace_item->grace->usage->tx_cond_hash));
+        log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_hash_sha3_256_to_str_static(&l_args->grace_item->grace->usage->tx_cond_hash));
         dap_stream_ch_pkt_write_unsafe(l_args->grace_item->grace->usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST, l_new_receipt, l_new_receipt->size);
     } else {
         s_service_substate_pay_service(l_args->grace_item->grace->usage);
@@ -410,7 +410,7 @@ void dap_chain_net_srv_ch_grace_control_mt(void *a_arg)
 }
 
 
-int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_fast_t *a_tx_hash)
+int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_sha3_256_t *a_tx_hash)
 {
     dap_chain_net_srv_grace_usage_t *l_item = NULL;
     dap_chain_net_srv_t *l_net_srv = a_net_srv;
@@ -434,7 +434,7 @@ int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_
         return -103;
     }
     pthread_mutex_lock(&l_net_srv->grace_mutex);
-    HASH_FIND(hh, l_net_srv->grace_hash_tab, a_tx_hash, sizeof(dap_hash_fast_t), l_item);
+    dap_ht_find(l_net_srv->grace_hash_tab, a_tx_hash, sizeof(dap_hash_sha3_256_t), l_item);
     pthread_mutex_unlock(&l_net_srv->grace_mutex);
     if (l_item){
         // send routine to right worker
@@ -450,7 +450,7 @@ int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_
     dap_timerfd_delete(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
     // finish grace
     if(!l_item->grace->usage->service)
-        HASH_DEL(l_net_srv->grace_hash_tab, l_item);
+        dap_ht_del(l_net_srv->grace_hash_tab, l_item);
     s_grace_period_finish(l_item);
     return 0;
 }
@@ -490,9 +490,9 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
     l_err.net_id.uint64 = a_request->hdr.net_id.uint64;
     l_err.srv_uid.uint64 = a_request->hdr.srv_uid.uint64;
 
-    log_it(L_DEBUG, "Got service request from user %s", dap_chain_hash_fast_to_str_static(&a_request->hdr.client_pkey_hash));
+    log_it(L_DEBUG, "Got service request from user %s", dap_hash_sha3_256_to_str_static(&a_request->hdr.client_pkey_hash));
 
-    if (dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
+    if (dap_hash_sha3_256_is_blank(&a_request->hdr.order_hash)){
         log_it( L_ERROR, "No order hash in request.");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
         if(a_ch)
@@ -502,7 +502,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
         return false;
     }
 
-    if (dap_hash_fast_is_blank(&a_request->hdr.tx_cond)){
+    if (dap_hash_sha3_256_is_blank(&a_request->hdr.tx_cond)){
         log_it( L_ERROR, "No transaction hash in request.");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_TX_HASH;
         if(a_ch)
@@ -512,8 +512,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
         return false;
     }
 
-    char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
-    dap_chain_hash_fast_to_str(&a_request->hdr.order_hash, l_order_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    char l_order_hash_str[DAP_HASH_SHA3_256_STR_SIZE] = {};
+    dap_hash_sha3_256_to_str(&a_request->hdr.order_hash, l_order_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
     log_it(L_MSG, "Got order with hash %s", l_order_hash_str);
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash(l_net, &a_request->hdr.order_hash);
     if (!l_order) {
@@ -604,7 +604,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_chain_net_srv_ch_pkt_req
             if (l_end_of_ban != 0) {   // client banned
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban);
-                log_it(L_DEBUG, "Client %s is banned till %s!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash), l_tmp_buf);
+                log_it(L_DEBUG, "Client %s is banned till %s!", dap_hash_sha3_256_to_str_static(&l_usage->client_pkey_hash), l_tmp_buf);
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH;
                 if(a_ch)
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -690,7 +690,7 @@ void s_set_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     size_t l_value_size = 0;
     // forming key
     snprintf(l_bin_key.key, sizeof(l_bin_key.key), "0x%016"DAP_UINT64_FORMAT_X"", a_usage->service->uid.uint64);
-    dap_chain_hash_fast_to_str_do(&a_usage->client_pkey_hash, l_bin_key.key + 18);
+    dap_hash_sha3_256_to_str_do(&a_usage->client_pkey_hash, l_bin_key.key + 18);
     // check writed value
     client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_bin_key.key, &l_value_size, NULL, NULL);
     if (l_bin_value && l_value_size != sizeof(client_statistic_value_t)) {
@@ -730,7 +730,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 
     dap_chain_net_srv_t *l_srv = dap_chain_srv_get_internal(a_grace_item->grace->usage->net->pub.id, a_grace_item->grace->usage->service->uid);
     pthread_mutex_lock(&l_srv->grace_mutex);
-    HASH_DEL(l_srv->grace_hash_tab, a_grace_item);
+    dap_ht_del(l_srv->grace_hash_tab, a_grace_item);
     pthread_mutex_unlock(&l_srv->grace_mutex);
 
     if (!dap_ledger_tx_find_by_hash(a_grace_item->grace->usage->net->pub.ledger, &a_grace_item->grace->usage->tx_cond_hash)){
@@ -798,9 +798,9 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             return false;
         }
-        dap_chain_hash_fast_t l_data_hash;
-        dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash); // TODO change it to less CPU consuming algorithm
-        if (l_request->data_size > 0 && !dap_hash_fast_compare(&l_data_hash, &l_request->data_hash)) {
+        dap_hash_sha3_256_t l_data_hash;
+        dap_hash_sha3_256(l_request->data, l_request->data_size, &l_data_hash); // TODO change it to less CPU consuming algorithm
+        if (l_request->data_size > 0 && !dap_hash_sha3_256_compare(&l_data_hash, &l_request->data_hash)) {
             log_it(L_WARNING, "Wrong hash [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
@@ -815,8 +815,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             }
 
             randombytes(l_request->data, l_request->data_size);
-            dap_hash_fast_t l_data_hash;
-            dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash);
+            dap_hash_sha3_256_t l_data_hash;
+            dap_hash_sha3_256(l_request->data, l_request->data_size, &l_data_hash);
             l_request->data_hash = l_data_hash;
 
         }
@@ -972,7 +972,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
 
         s_service_substate_pay_service(l_usage);
         size_t l_success_size;
-        l_success_size = sizeof(dap_chain_net_srv_ch_pkt_success_hdr_t) + DAP_CHAIN_HASH_FAST_STR_SIZE;
+        l_success_size = sizeof(dap_chain_net_srv_ch_pkt_success_hdr_t) + DAP_HASH_SHA3_256_STR_SIZE;
         dap_chain_net_srv_ch_pkt_success_t *l_success = DAP_NEW_STACK_SIZE(dap_chain_net_srv_ch_pkt_success_t, l_success_size);
         l_success->hdr = (dap_chain_net_srv_ch_pkt_success_hdr_t) {
                 .usage_id   = l_usage->id,
@@ -986,23 +986,23 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         char *l_user_key = NULL;
         switch (l_usage->service_substate){
             case DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT:
-                l_hash_str = dap_chain_hash_fast_to_str_new(&l_usage->tx_cond_hash);
-                l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
+                l_hash_str = dap_hash_sha3_256_to_str_new(&l_usage->tx_cond_hash);
+                l_user_key = dap_hash_sha3_256_to_str_new(&l_usage->client_pkey_hash);
                 log_it(L_NOTICE, "Receipt is OK, but tx %s have no enough funds. New tx cond requested. Start the grace period for %d seconds for user %s", l_hash_str,
                                                                                     l_usage->service->grace_period, l_user_key);
                 DAP_DELETE(l_hash_str);
                 DAP_DELETE(l_user_key);
             break;
             case DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING:
-                l_hash_str = dap_chain_hash_fast_to_str_new(&l_usage->tx_cond_hash);
-                l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
+                l_hash_str = dap_hash_sha3_256_to_str_new(&l_usage->tx_cond_hash);
+                l_user_key = dap_hash_sha3_256_to_str_new(&l_usage->client_pkey_hash);
                 log_it(L_NOTICE, "Receipt is OK, but tx %s can't be found. Start the grace period for %d seconds for user %s", l_hash_str,
                                                                                     l_usage->service->grace_period, l_user_key);
                 DAP_DELETE(l_hash_str);
                 DAP_DELETE(l_user_key);
             break;
             case DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL:
-                l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
+                l_user_key = dap_hash_sha3_256_to_str_new(&l_usage->client_pkey_hash);
                 log_it(L_NOTICE, "Receipt with client %s sign is accepted, start service providing", l_user_key);
                 DAP_DELETE(l_user_key);
             break;
@@ -1080,19 +1080,19 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         dap_chain_net_srv_usage_t * l_usage = NULL;
         l_usage = l_srv_session->usage_active;
         dap_chain_net_srv_ch_pkt_request_t* l_responce = (dap_chain_net_srv_ch_pkt_request_t*)l_ch_pkt->data;
-        log_it(L_NOTICE, "Received new tx cond %s", dap_chain_hash_fast_to_str_static(&l_responce->hdr.tx_cond));
+        log_it(L_NOTICE, "Received new tx cond %s", dap_hash_sha3_256_to_str_static(&l_responce->hdr.tx_cond));
 
         if (l_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT){
             dap_chain_net_srv_ch_pkt_error_t l_err = { };
             dap_chain_net_srv_t *l_srv = dap_chain_srv_get_internal(l_usage->net->pub.id, l_responce->hdr.srv_uid);
             dap_chain_net_srv_grace_usage_t *l_curr_grace_item = NULL;
             pthread_mutex_lock(&l_srv->grace_mutex);
-            HASH_FIND(hh, l_srv->grace_hash_tab, &l_usage->tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
+            dap_ht_find(l_srv->grace_hash_tab, &l_usage->tx_cond_hash, sizeof(dap_hash_sha3_256_t), l_curr_grace_item);
             pthread_mutex_unlock(&l_srv->grace_mutex);
 
             if (l_curr_grace_item){
-                if (dap_hash_fast_is_blank(&l_responce->hdr.tx_cond)){ //if new tx cond creation failed tx_cond in responce will be blank
-                        HASH_DEL(l_srv->grace_hash_tab, l_curr_grace_item);
+                if (dap_hash_sha3_256_is_blank(&l_responce->hdr.tx_cond)){ //if new tx cond creation failed tx_cond in responce will be blank
+                        dap_ht_del(l_srv->grace_hash_tab, l_curr_grace_item);
                         dap_timerfd_delete(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
                         l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_NEW_COND;
                         s_service_substate_go_to_error(l_usage);
@@ -1103,7 +1103,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                 l_usage->tx_cond_hash = l_responce->hdr.tx_cond;
                 if (dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_usage->tx_cond_hash)){
                     pthread_mutex_lock(&l_srv->grace_mutex);
-                    HASH_DEL(l_srv->grace_hash_tab, l_curr_grace_item);
+                    dap_ht_del(l_srv->grace_hash_tab, l_curr_grace_item);
                     DAP_DEL_Z(l_curr_grace_item->grace);
                     DAP_DEL_Z(l_curr_grace_item);
                     pthread_mutex_unlock(&l_srv->grace_mutex);
@@ -1119,16 +1119,16 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                     l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
                     //start timeout timer
                     l_usage->receipt_timeout_timer_start_callback(l_usage);
-                    log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_chain_hash_fast_to_str_static(&l_responce->hdr.tx_cond));
+                    log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_hash_sha3_256_to_str_static(&l_responce->hdr.tx_cond));
                     dap_stream_ch_pkt_write_unsafe(l_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                         l_usage->receipt, l_usage->receipt->size);
                 } else {
                     l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER;
-                    log_it(L_NOTICE, "Can't find new tx cond %s in ledger. Waiting...", dap_chain_hash_fast_to_str_static(&l_responce->hdr.tx_cond));
+                    log_it(L_NOTICE, "Can't find new tx cond %s in ledger. Waiting...", dap_hash_sha3_256_to_str_static(&l_responce->hdr.tx_cond));
                     pthread_mutex_lock(&l_srv->grace_mutex);
-                    HASH_DEL(l_srv->grace_hash_tab, l_curr_grace_item);
+                    dap_ht_del(l_srv->grace_hash_tab, l_curr_grace_item);
                     l_curr_grace_item->tx_cond_hash = l_usage->tx_cond_hash;
-                    HASH_ADD(hh, l_usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
+                    dap_ht_add(l_usage->service->grace_hash_tab, tx_cond_hash, l_curr_grace_item);
                     pthread_mutex_unlock(&l_srv->grace_mutex);
                 }
             }
@@ -1186,7 +1186,7 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
         return PAY_SERVICE_STATUS_TX_ERROR;
     }
 
-    char *l_hash_str = dap_hash_fast_to_str_new(&a_usage->tx_cond_hash);
+    char *l_hash_str = dap_hash_sha3_256_to_str_new(&a_usage->tx_cond_hash);
     log_it(L_NOTICE, "Creating cond_input TX from %s with receipt (Plugin API)", l_hash_str);
     DAP_DEL_Z(l_hash_str);
     
@@ -1225,7 +1225,7 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
     
     // 4. Prepare parameters for cond_input builder
     typedef struct {
-        dap_hash_fast_t *tx_prev_hash;
+        dap_hash_sha3_256_t *tx_prev_hash;
         uint32_t tx_out_prev_idx;
         dap_chain_datum_tx_receipt_t *receipt;
         const dap_chain_addr_t *addr_to;
@@ -1284,7 +1284,7 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
     }
     
     // 7. Update usage hash and return success
-    dap_chain_hash_fast_from_str(l_tx_hash_str, &a_usage->tx_cond_hash);
+    dap_hash_sha3_256_from_str(l_tx_hash_str, &a_usage->tx_cond_hash);
     log_it(L_NOTICE, "Created cond_input TX %s via Plugin API", l_tx_hash_str);
     DAP_DEL_Z(l_tx_hash_str);
     
@@ -1301,8 +1301,8 @@ static void s_service_state_go_to_grace(dap_chain_net_srv_usage_t *a_usage)
 
     a_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_GRACE;
     if (a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE){
-        char* l_hash_str = dap_chain_hash_fast_to_str_new(&a_usage->tx_cond_hash);
-        char* l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
+        char* l_hash_str = dap_hash_sha3_256_to_str_new(&a_usage->tx_cond_hash);
+        char* l_user_key = dap_hash_sha3_256_to_str_new(&a_usage->client_pkey_hash);
         log_it(L_NOTICE, "Tx %s can't be found. Start the grace period for %d seconds for user %s", l_hash_str,
                                                                             a_usage->service->grace_period, l_user_key);
         DAP_DELETE(l_hash_str);
@@ -1325,8 +1325,8 @@ static void s_service_state_go_to_grace(dap_chain_net_srv_usage_t *a_usage)
             DAP_DEL_Z(l_success);
         }
     } else if(a_usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_FIRST_RECEIPT_SIGN){
-        char* l_hash_str = dap_chain_hash_fast_to_str_new(&a_usage->tx_cond_hash);
-        char* l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
+        char* l_hash_str = dap_hash_sha3_256_to_str_new(&a_usage->tx_cond_hash);
+        char* l_user_key = dap_hash_sha3_256_to_str_new(&a_usage->client_pkey_hash);
         log_it(L_NOTICE, "Receipt is OK, but tx %s have no enough funds. New tx cond requested. Start the grace period for %d seconds for user %s", l_hash_str,
                                                                             a_usage->service->grace_period, l_user_key);
         DAP_DELETE(l_hash_str);
@@ -1459,12 +1459,12 @@ static int s_check_tx_params(dap_chain_net_srv_usage_t *a_usage)
 
     const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
     if (!l_ticker) {
-        log_it( L_ERROR, "Token ticker not found for tx cond hash %s", dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash));
+        log_it( L_ERROR, "Token ticker not found for tx cond hash %s", dap_hash_sha3_256_to_str_static(&a_usage->tx_cond_hash));
         return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_TICKER_ERROR;
     }
     dap_stpcpy(a_usage->token_ticker, l_ticker);
 
-    log_it(L_MSG, "Using price from order %s.", dap_chain_hash_fast_to_str_static(&a_usage->static_order_hash));
+    log_it(L_MSG, "Using price from order %s.", dap_hash_sha3_256_to_str_static(&a_usage->static_order_hash));
     if ((l_price = a_usage->price)){
         if (a_usage->net->pub.id.uint64  != a_usage->service->net_id.uint64){
             log_it( L_WARNING, "Pricelist is not for net %s.", a_usage->net->pub.name);
@@ -1529,8 +1529,8 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                     l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                     break;
             }
-            log_it(L_INFO, "User %s has %ld %s remain service. Start service without paying.", dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash), 
-                            l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, 
+            log_it(L_INFO, "User %s has %"DAP_INT64_FORMAT" %s remain service. Start service without paying.", dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash),
+                            (int64_t)(l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes),
                             dap_chain_srv_unit_enum_to_str(a_usage->price->units_uid.enm));
             size_t l_success_size = sizeof (dap_chain_net_srv_ch_pkt_success_hdr_t );
             dap_chain_net_srv_ch_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_chain_net_srv_ch_pkt_success_t,
@@ -1572,7 +1572,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
         switch (l_ret){
             case PAY_SERVICE_STATUS_SUCCESS:
                 // Store last receipt if any problems with transactions
-                dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_receipt, l_receipt->size, false, NULL, NULL);
+                dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, dap_hash_sha3_256_to_str_static(&a_usage->client_pkey_hash), l_receipt, l_receipt->size, false, NULL, NULL);
                 if (a_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL)
                     s_service_state_go_to_normal(a_usage);
                 else 
@@ -1663,10 +1663,10 @@ static void s_service_substate_go_to_waiting_prev_tx(dap_chain_net_srv_usage_t *
     l_item->tx_cond_hash = a_usage->tx_cond_hash;
 
     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING;
-    char *l_user_key = dap_chain_hash_fast_to_str_static(&l_grace->usage->client_pkey_hash);
+    char *l_user_key = dap_hash_sha3_256_to_str_static(&l_grace->usage->client_pkey_hash);
 
     pthread_mutex_lock(&a_usage->service->grace_mutex);
-    HASH_ADD(hh, a_usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+    dap_ht_add(a_usage->service->grace_hash_tab, tx_cond_hash, l_item);
     pthread_mutex_unlock(&a_usage->service->grace_mutex);
     l_grace->timer = dap_timerfd_start_on_worker(l_grace->stream_worker->worker, l_grace->usage->service->grace_period * 1000,
                                                            (dap_timerfd_callback_t)s_grace_period_finish, l_item);
@@ -1699,10 +1699,10 @@ static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a
     l_item->tx_cond_hash = a_usage->tx_cond_hash;
 
     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT;
-    char *l_user_key = dap_chain_hash_fast_to_str_static(&l_grace->usage->client_pkey_hash);
+    char *l_user_key = dap_hash_sha3_256_to_str_static(&l_grace->usage->client_pkey_hash);
 
     pthread_mutex_lock(&a_usage->service->grace_mutex);
-    HASH_ADD(hh, a_usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+    dap_ht_add(a_usage->service->grace_hash_tab, tx_cond_hash, l_item);
     pthread_mutex_unlock(&a_usage->service->grace_mutex);
     l_grace->timer = dap_timerfd_start_on_worker(l_grace->stream_worker->worker, l_grace->usage->service->grace_period * 1000,
                                                            (dap_timerfd_callback_t)s_grace_period_finish, l_item);

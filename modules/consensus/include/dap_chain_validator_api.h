@@ -75,7 +75,7 @@ typedef int (*dap_chain_validator_mark_active_func_t)(
  */
 typedef dap_pkey_t* (*dap_chain_validator_get_pkey_func_t)(
     dap_chain_net_id_t a_net_id,
-    dap_hash_fast_t *a_hash
+    dap_hash_sha3_256_t *a_hash
 );
 
 /**
@@ -91,8 +91,8 @@ typedef dap_pkey_t* (*dap_chain_validator_get_pkey_func_t)(
 typedef void (*dap_chain_validator_delegate_func_t)(
     dap_chain_net_t *a_net,
     dap_chain_addr_t *a_signing_addr,
-    dap_hash_fast_t *a_decree_hash,
-    dap_hash_fast_t *a_tx_hash,
+    dap_hash_sha3_256_t *a_decree_hash,
+    dap_hash_sha3_256_t *a_tx_hash,
     uint256_t a_value,
     dap_chain_node_addr_t *a_node_addr,
     dap_pkey_t *a_pkey
@@ -170,9 +170,9 @@ void dap_chain_validator_api_register(const dap_chain_validator_api_registry_t *
 dap_list_t* dap_chain_validator_api_get_validators(dap_chain_net_id_t a_net_id, bool a_only_active, uint16_t **a_excluded_list);
 int dap_chain_validator_api_check_key_delegated(dap_chain_addr_t *a_signing_addr);
 int dap_chain_validator_api_mark_validator_active(dap_chain_addr_t *a_signing_addr, bool a_active);
-dap_pkey_t* dap_chain_validator_api_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hash);
+dap_pkey_t* dap_chain_validator_api_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_sha3_256_t *a_hash);
 void dap_chain_validator_api_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, 
-    dap_hash_fast_t *a_decree_hash, dap_hash_fast_t *a_tx_hash, uint256_t a_value, 
+    dap_hash_sha3_256_t *a_decree_hash, dap_hash_sha3_256_t *a_tx_hash, uint256_t a_value, 
     dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey);
 uint256_t dap_chain_validator_api_get_allowed_min_value(dap_chain_net_id_t a_net_id);
 void dap_chain_validator_api_hardfork_tx_update(dap_chain_net_t *a_net);

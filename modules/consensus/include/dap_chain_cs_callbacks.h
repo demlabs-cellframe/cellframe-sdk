@@ -210,7 +210,7 @@ typedef int (*dap_chain_cs_callback_set_hardfork_complete_t)(dap_chain_t *a_chai
  * @param a_sovereign_addr Output: sovereign address if found
  * @return 0 if valid, negative on error
  */
-typedef int (*dap_chain_cs_callback_stake_check_pkey_hash_t)(dap_chain_t *a_chain, dap_hash_fast_t *a_pkey_hash, 
+typedef int (*dap_chain_cs_callback_stake_check_pkey_hash_t)(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_pkey_hash, 
                                                               uint256_t *a_sovereign_tax, dap_chain_addr_t *a_sovereign_addr);
 
 /**
@@ -219,7 +219,7 @@ typedef int (*dap_chain_cs_callback_stake_check_pkey_hash_t)(dap_chain_t *a_chai
  * @param a_decree_hash Decree hash containing hardfork data
  * @return 0 on success, negative on error
  */
-typedef int (*dap_chain_cs_callback_stake_hardfork_data_import_t)(dap_chain_t *a_chain, dap_hash_fast_t *a_decree_hash);
+typedef int (*dap_chain_cs_callback_stake_hardfork_data_import_t)(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_decree_hash);
 
 /**
  * @brief Switch stake table between main and sandbox

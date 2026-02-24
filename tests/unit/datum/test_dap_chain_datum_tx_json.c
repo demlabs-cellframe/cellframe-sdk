@@ -44,7 +44,8 @@
 #include "dap_time.h"
 #include "dap_pkey.h"
 #include "dap_chain_net_srv.h"
-#include "json.h"
+#include "dap_json.h"
+#include "dap_hash_compat.h"
 
 #define LOG_TAG "test_dap_chain_datum_tx_json"
 

@@ -48,7 +48,7 @@ typedef struct dap_chain_receipt_info {
     byte_t padding[3];
     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
     uint256_t value_datoshi; // Receipt value
-    dap_hash_fast_t prev_tx_cond_hash;
+    dap_hash_sha3_256_t prev_tx_cond_hash;
 } DAP_ALIGN_PACKED dap_chain_receipt_info_t;
 
 /**
@@ -83,7 +83,7 @@ extern "C" {
 
 dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create(dap_chain_srv_uid_t srv_uid,
                                                                   dap_chain_net_srv_price_unit_uid_t units_type,
-                                                                    uint64_t units, uint256_t value_datoshi, const void * a_ext, size_t a_ext_size, dap_hash_fast_t *a_prev_tx_hash);
+                                                                    uint64_t units, uint256_t value_datoshi, const void * a_ext, size_t a_ext_size, dap_hash_sha3_256_t *a_prev_tx_hash);
 
 dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t *a_receipt, dap_enc_key_t *a_key);
 dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size , uint16_t sign_position);

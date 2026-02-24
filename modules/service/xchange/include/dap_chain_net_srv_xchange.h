@@ -40,8 +40,8 @@ typedef struct dap_chain_net_srv_xchange_price {
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t rate;
     uint256_t fee;
-    dap_chain_hash_fast_t tx_hash;
-    dap_chain_hash_fast_t order_hash;
+    dap_hash_sha3_256_t tx_hash;
+    dap_hash_sha3_256_t order_hash;
     dap_chain_addr_t creator_addr;
     dap_time_t creation_date;
 } dap_chain_net_srv_xchange_price_t;
@@ -173,7 +173,7 @@ typedef enum dap_chain_net_srv_xchange_remove_error_list{
     XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE,
     XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX
 } dap_chain_net_srv_xchange_remove_error_t;
-DAP_STATIC_INLINE dap_chain_net_srv_xchange_remove_error_t dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+DAP_STATIC_INLINE dap_chain_net_srv_xchange_remove_error_t dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_hash_tx, uint256_t a_fee,
                                      dap_chain_wallet_t *a_wallet, char **a_out_hash_tx) { return XCHANGE_REMOVE_ERROR_OK; }
 
 dap_list_t *dap_chain_net_srv_xchange_get_tx_xchange(dap_chain_net_t *a_net);
@@ -186,12 +186,12 @@ typedef enum dap_chain_net_srv_xchange_purchase_error_list{
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_PRICE,
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_EXCHANGE_TX,
 } dap_chain_net_srv_xchange_purchase_error_t;
-dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
+dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out);
 
-uint64_t dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash);
+uint64_t dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_net, dap_hash_sha3_256_t a_order_tx_hash);
 
-dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash);
+dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_sha3_256_t a_order_tx_hash);
 bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr, uint16_t *a_type);
 xchange_tx_type_t dap_chain_net_srv_xchange_tx_get_type (dap_ledger_t * a_ledger, dap_chain_datum_tx_t * a_tx, 
                                                             dap_chain_tx_out_cond_t **a_out_cond_item, int *a_item_idx, 

@@ -26,7 +26,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain.h"  // Full definition needed in .c file  
 #include "dap_chain_datum_decree.h"  // Full definition needed in .c file
 #include "dap_list.h"
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_json.h"
 
 #define LOG_TAG "dap_chain_policy"
@@ -48,12 +48,12 @@ typedef struct dap_chain_policy_activate {
 
 struct policy_activate_table {
     dap_chain_policy_activate_t *policy;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 };
 
 struct policy_deactivate_table {
     uint32_t num;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 };
 
 struct net_policy_item {
@@ -62,7 +62,7 @@ struct net_policy_item {
     uint32_t *exceptions;  // [0] - exceptions count
     struct policy_activate_table *activate;
     struct policy_deactivate_table *deactivate;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 };
 
 static struct net_policy_item *s_net_policy_items = NULL;
@@ -75,7 +75,7 @@ static struct net_policy_item *s_net_policy_items = NULL;
 DAP_STATIC_INLINE struct net_policy_item *s_net_item_find(dap_chain_net_id_t a_net_id)
 {
     struct net_policy_item *l_net_item = NULL;
-    HASH_FIND(hh, s_net_policy_items, &a_net_id, sizeof(a_net_id), l_net_item);
+    dap_ht_find(s_net_policy_items, &a_net_id, sizeof(a_net_id), l_net_item);
     return l_net_item;
 }
 
@@ -87,7 +87,7 @@ DAP_STATIC_INLINE dap_chain_policy_activate_t *s_policy_activate_find(dap_chain_
         return NULL;
     }
     struct policy_activate_table *l_ret = NULL;
-    HASH_FIND_BYHASHVALUE(hh, l_net_item->activate, &a_num, sizeof(a_num), a_num, l_ret);
+    dap_ht_find_by_hashvalue(l_net_item->activate, &a_num, sizeof(a_num), a_num, l_ret);
     return l_ret ? l_ret->policy : NULL;
 }
 
@@ -97,15 +97,15 @@ DAP_STATIC_INLINE void s_net_item_purge(struct net_policy_item *a_net_item)
     struct policy_activate_table
         *l_temp_activate = NULL,
         *l_current_activate = NULL;
-    HASH_ITER(hh, a_net_item->activate, l_current_activate, l_temp_activate) {
-        HASH_DEL(a_net_item->activate, l_current_activate);
+    dap_ht_foreach(a_net_item->activate, l_current_activate, l_temp_activate) {
+        dap_ht_del(a_net_item->activate, l_current_activate);
         DAP_DELETE(l_current_activate);
     }
     struct policy_deactivate_table
         *l_temp_deactivate = NULL,
         *l_current_deactivate = NULL;
-    HASH_ITER(hh, a_net_item->deactivate, l_current_deactivate, l_temp_deactivate) {
-        HASH_DEL(a_net_item->deactivate, l_current_deactivate);
+    dap_ht_foreach(a_net_item->deactivate, l_current_deactivate, l_temp_deactivate) {
+        dap_ht_del(a_net_item->deactivate, l_current_deactivate);
         DAP_DELETE(l_current_deactivate);
     }
 }
@@ -128,7 +128,7 @@ DAP_STATIC_INLINE bool s_policy_in_exceptions_list(struct net_policy_item *a_net
 DAP_STATIC_INLINE struct policy_deactivate_table *s_policy_find_in_deactivate_table(struct net_policy_item *a_net_item, uint32_t a_num)
 {
     struct policy_deactivate_table *l_find = NULL;
-    HASH_FIND_BYHASHVALUE(hh, a_net_item->deactivate, &a_num, sizeof(a_num), a_num, l_find);
+    dap_ht_find_by_hashvalue(a_net_item->deactivate, &a_num, sizeof(a_num), a_num, l_find);
     return l_find;
 }
 
@@ -184,7 +184,7 @@ void dap_chain_policy_net_remove(dap_chain_net_id_t a_net_id)
 {
     struct net_policy_item *l_net_item = s_net_purge(a_net_id);
     if (l_net_item)
-        HASH_DEL(s_net_policy_items, l_net_item);
+        dap_ht_del(s_net_policy_items, l_net_item);
     DAP_DELETE(l_net_item);
 }
 
@@ -196,8 +196,8 @@ void dap_chain_policy_deinit()
     struct net_policy_item
         *l_temp = NULL,
         *l_current = NULL;
-    HASH_ITER(hh, s_net_policy_items, l_current, l_temp) {
-        HASH_DEL(s_net_policy_items, l_current);
+    dap_ht_foreach(s_net_policy_items, l_current, l_temp) {
+        dap_ht_del(s_net_policy_items, l_current);
         s_net_item_purge(l_current);
         DAP_DELETE(l_current);
     }
@@ -249,7 +249,7 @@ int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id, dap_config_t *a_net_cf
     struct net_policy_item *l_new_item = DAP_NEW_Z_RET_VAL_IF_FAIL(struct net_policy_item, -3);
     l_new_item->net_id = a_net_id;
     l_new_item->last_num = dap_config_get_item_uint32(a_net_cfg, "policy", "activate");
-    HASH_ADD(hh, s_net_policy_items, net_id, sizeof(l_new_item->net_id), l_new_item);
+    dap_ht_add(s_net_policy_items, net_id, l_new_item);
     uint16_t l_policy_count = 0;
     const char **l_policy_str = dap_config_get_array_str(a_net_cfg, "policy", "deactivate", &l_policy_count);
     if (l_policy_count && l_policy_str) {
@@ -280,18 +280,18 @@ int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_ne
     if (DAP_FLAG_CHECK(a_policy->flags, DAP_CHAIN_POLICY_FLAG_ACTIVATE)) {
         dap_chain_policy_activate_t *l_to_add = (dap_chain_policy_activate_t *)a_policy->data;
         struct policy_activate_table *l_item_to_add = NULL;
-        HASH_FIND_BYHASHVALUE(hh, l_net_item->activate, &l_to_add->num, sizeof(l_to_add->num), l_to_add->num, l_item_to_add);
+        dap_ht_find_by_hashvalue(l_net_item->activate, &l_to_add->num, sizeof(l_to_add->num), l_to_add->num, l_item_to_add);
         if (l_item_to_add) {
             log_it(L_ERROR, "CN-%u already added to net %"DAP_UINT64_FORMAT_X, l_to_add->num, a_net_id.uint64);
             return -4;
         }
         l_item_to_add = DAP_NEW_Z_RET_VAL_IF_FAIL(struct policy_activate_table, -5);
         l_item_to_add->policy = l_to_add;
-        HASH_ADD_BYHASHVALUE(hh, l_net_item->activate, policy->num, sizeof(l_item_to_add->policy->num), l_item_to_add->policy->num, l_item_to_add);
+        dap_ht_add_by_hashvalue(l_net_item->activate, policy->num, sizeof(l_item_to_add->policy->num), l_item_to_add->policy->num, l_item_to_add);
         // remove from deactivate table
         struct policy_deactivate_table *l_item_to_del = s_policy_find_in_deactivate_table(l_net_item, l_item_to_add->policy->num);
         if (l_item_to_del) {
-            HASH_DEL(l_net_item->deactivate, l_item_to_del);
+            dap_ht_del(l_net_item->deactivate, l_item_to_del);
             DAP_DELETE(l_item_to_del);
         }
         if (!s_policy_is_cond(l_to_add) || s_policy_cond_activated(l_net_item->net_id, l_to_add))
@@ -300,19 +300,19 @@ int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_ne
         dap_chain_policy_deactivate_t *l_to_deactivate = (dap_chain_policy_deactivate_t *)a_policy->data;
         for (uint32_t i = 0; i < l_to_deactivate->count; ++i) {
             struct policy_deactivate_table *l_item_to_add = NULL;
-            HASH_FIND_BYHASHVALUE(hh, l_net_item->deactivate, &l_to_deactivate->nums[i], sizeof(l_to_deactivate->nums[i]), l_to_deactivate->nums[i], l_item_to_add);
+            dap_ht_find_by_hashvalue(l_net_item->deactivate, &l_to_deactivate->nums[i], sizeof(l_to_deactivate->nums[i]), l_to_deactivate->nums[i], l_item_to_add);
             if (l_item_to_add) {
                 log_it(L_ERROR, "CN-%u already added to deactivate list in net %"DAP_UINT64_FORMAT_X, l_to_deactivate->nums[i], a_net_id.uint64);
                 continue;
             }
             l_item_to_add = DAP_NEW_Z_RET_VAL_IF_FAIL(struct policy_deactivate_table, -5);
             l_item_to_add->num = l_to_deactivate->nums[i];
-            HASH_ADD_BYHASHVALUE(hh, l_net_item->deactivate, num, sizeof(l_item_to_add->num), l_item_to_add->num, l_item_to_add);
+            dap_ht_add_by_hashvalue(l_net_item->deactivate, num, sizeof(l_item_to_add->num), l_item_to_add->num, l_item_to_add);
             // remove from activate table
             struct policy_activate_table *l_item_to_del = NULL;
-            HASH_FIND_BYHASHVALUE(hh, l_net_item->activate, &l_to_deactivate->nums[i], sizeof(l_to_deactivate->nums[i]), l_to_deactivate->nums[i], l_item_to_del);
+            dap_ht_find_by_hashvalue(l_net_item->activate, &l_to_deactivate->nums[i], sizeof(l_to_deactivate->nums[i]), l_to_deactivate->nums[i], l_item_to_del);
             if (l_item_to_del) {
-                HASH_DEL(l_net_item->activate, l_item_to_del);
+                dap_ht_del(l_net_item->activate, l_item_to_del);
                 DAP_DELETE(l_item_to_del);
             }
         }
@@ -358,7 +358,7 @@ bool dap_chain_policy_is_activated(dap_chain_net_id_t a_net_id, uint32_t a_polic
         return l_ret;
     // seach politics to condition check
     struct policy_activate_table *l_policy_activate = NULL;
-    HASH_FIND_BYHASHVALUE(hh, l_net_item->activate, &a_policy_num, sizeof(a_policy_num), a_policy_num, l_policy_activate);
+    dap_ht_find_by_hashvalue(l_net_item->activate, &a_policy_num, sizeof(a_policy_num), a_policy_num, l_policy_activate);
     if (l_policy_activate && s_policy_is_cond(l_policy_activate->policy)) {
         l_ret |= s_policy_cond_activated(a_net_id, l_policy_activate->policy);
         if (l_ret && l_net_item->last_num < a_policy_num)
@@ -371,7 +371,7 @@ bool dap_chain_policy_is_activated(dap_chain_net_id_t a_net_id, uint32_t a_polic
         struct policy_activate_table
         *l_temp = NULL,
         *l_current = NULL;
-        HASH_ITER(hh, l_net_item->activate, l_current, l_temp) {
+        dap_ht_foreach(l_net_item->activate, l_current, l_temp) {
             if (s_policy_is_cond(l_current->policy) && s_policy_cond_activated(l_net_item->net_id, l_current->policy) && l_current->policy->num > l_net_item->last_num)
                 l_net_item->last_num = l_current->policy->num;
         }
@@ -408,7 +408,7 @@ dap_json_t *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version)
     struct policy_activate_table
         *l_temp = NULL,
         *l_current = NULL;
-    HASH_ITER(hh, l_net_item->activate, l_current, l_temp) {
+    dap_ht_foreach(l_net_item->activate, l_current, l_temp) {
         if (s_policy_is_cond(l_current->policy)) {
             if (s_policy_cond_activated(l_net_item->net_id, l_current->policy))
                 dap_string_append_printf(l_active_str, "CN-%u ", l_current->policy->num);
@@ -425,7 +425,7 @@ dap_json_t *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version)
     struct policy_deactivate_table
         *l_temp_deactivate = NULL,
         *l_current_deactivate = NULL;
-    HASH_ITER(hh, l_net_item->deactivate, l_current_deactivate, l_temp_deactivate) {
+    dap_ht_foreach(l_net_item->deactivate, l_current_deactivate, l_temp_deactivate) {
         dap_string_append_printf(l_inactive_str, "CN-%u ", l_current_deactivate->num);
     }
     dap_json_object_add_string(l_ret, "deactivated", l_inactive_str->str);

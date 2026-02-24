@@ -35,6 +35,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_ledger.h"
 #include "dap_common.h"
+#include "dap_sl.h"
 #include "dap_config.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
@@ -404,7 +405,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                 dap_json_object_add_string(json_obj_wall, "wallet", l_wallet->name);
             }
             dap_json_object_add_object(json_obj_wall, "addr", l_addr_str ? dap_json_object_new_string(l_addr_str) : dap_json_object_new_string("-"));
-            dap_json_object_add_object(json_obj_wall, "pkey_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_addr->data.hash_fast)));
+            dap_json_object_add_object(json_obj_wall, "pkey_hash", dap_json_object_new_string(dap_hash_sha3_256_to_str_static(&l_addr->data.hash_fast)));
             dap_json_object_add_object(json_obj_wall, "network", l_net_name? dap_json_object_new_string(l_net_name) : dap_json_object_new_string("-"));
 
             size_t l_addr_tokens_size = 0;
@@ -461,7 +462,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
             if (l_locked_outs) {
                 dap_json_t *j_arr_locked_balance = dap_json_array_new();
                 dap_ledger_locked_out_t *it, *tmp;
-                LL_FOREACH_SAFE(l_locked_outs, it, tmp) {
+                dap_sl_foreach_safe(l_locked_outs, it, tmp) {
                     dap_json_t *l_jobj_token = dap_json_object_new();
                     dap_json_t *l_jobj_ticker = dap_json_object_new_string(it->ticker);
                     const char *l_description =  dap_ledger_get_description_by_ticker(l_ledger, it->ticker);
@@ -478,7 +479,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                     dap_time_to_str_rfc822(ts, DAP_TIME_STR_SIZE, it->unlock_time);
                     dap_json_object_add_string(j_balance_data, "locked_until", ts);
                     dap_json_array_add(j_arr_locked_balance, j_balance_data);
-                    LL_DELETE(l_locked_outs, it);
+                    dap_sl_delete(l_locked_outs, it);
                     DAP_DELETE(it);
                 }
                 dap_json_object_add_object(json_obj_wall, "locked_outs", j_arr_locked_balance);
@@ -598,7 +599,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                 dap_json_object_add_object(json_obj_item,"item_type", dap_json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
                 dap_json_object_add_object(json_obj_item,"value_coins", dap_json_object_new_string(l_out_value_coins_str));
                 dap_json_object_add_object(json_obj_item,a_version == 1 ? "value_datosi" : "value_datoshi", dap_json_object_new_string(l_out_value_str));
-                dap_json_object_add_object(json_obj_item,"prev_hash", dap_json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));
+                dap_json_object_add_object(json_obj_item,"prev_hash", dap_json_object_new_string(dap_hash_sha3_256_to_str_static(&l_item->tx_hash_fast)));
                 dap_json_object_add_int64(json_obj_item,"out_prev_idx", l_item->num_idx_out);
                 dap_json_array_add(l_json_outs_arr, json_obj_item);
                 if (l_cond_outs)

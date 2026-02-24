@@ -57,7 +57,7 @@ void dap_chain_block_deinit()
  * @param a_block_size
  * @return
  */
-dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size_t *a_block_size)
+dap_chain_block_t *dap_chain_block_new(dap_hash_sha3_256_t *a_prev_block, size_t *a_block_size)
 {
     dap_chain_block_t *l_block = DAP_NEW_Z(dap_chain_block_t);
     if (!l_block) {
@@ -183,7 +183,7 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
  * @param a_datum_hash
  * @return
  */
-size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash)
+size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_hash_sha3_256_t* a_datum_hash)
 {
     assert(a_block_ptr);
     dap_chain_block_t * l_block = *a_block_ptr;
@@ -211,10 +211,10 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
             return a_block_size;
         }
         // Calc current datum hash
-        dap_chain_hash_fast_t l_datum_hash;
-        dap_hash_fast(l_datum,l_datum_size,&l_datum_hash);
+        dap_hash_sha3_256_t l_datum_hash;
+        dap_hash_sha3_256(l_datum,l_datum_size,&l_datum_hash);
         // Check datum hash and delete if compares successfuly
-        if (dap_hash_fast_compare(&l_datum_hash,a_datum_hash)){
+        if (dap_hash_sha3_256_compare(&l_datum_hash,a_datum_hash)){
             memmove(l_datum, (byte_t*)l_datum + l_datum_size, a_block_size - sizeof(l_block->hdr) - l_offset - l_datum_size);
             l_block = DAP_REALLOC_RET_VAL_IF_FAIL(*a_block_ptr, a_block_size - l_datum_size, a_block_size);
             *a_block_ptr = l_block;
@@ -498,10 +498,10 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
     case DAP_CHAIN_BLOCK_META_ANCHOR:
     case DAP_CHAIN_BLOCK_META_LINK:
     case DAP_CHAIN_BLOCK_META_MERKLE:
-        if (a_meta->hdr.data_size == sizeof(dap_hash_t))
+        if (a_meta->hdr.data_size == sizeof(dap_hash_sha3_256_t))
             return a_meta->data;
         log_it(L_WARNING, "Meta %s has wrong size %hu when expecting %zu",
-               s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, sizeof(dap_hash_t));
+               s_meta_type_to_string(a_meta->hdr.type), a_meta->hdr.data_size, sizeof(dap_hash_sha3_256_t));
     break;
     case DAP_CHAIN_BLOCK_META_NONCE:
     case DAP_CHAIN_BLOCK_META_NONCE2:
@@ -585,10 +585,10 @@ uint8_t *dap_chain_block_meta_get(const dap_chain_block_t *a_block, size_t a_blo
  * @param a_reward
  */
 int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size,
-                                    dap_chain_hash_fast_t *a_block_prev_hash,
-                                    dap_chain_hash_fast_t *a_block_anchor_hash,
-                                    dap_chain_hash_fast_t *a_merkle,
-                                    dap_chain_hash_fast_t **a_block_links,
+                                    dap_hash_sha3_256_t *a_block_prev_hash,
+                                    dap_hash_sha3_256_t *a_block_anchor_hash,
+                                    dap_hash_sha3_256_t *a_merkle,
+                                    dap_hash_sha3_256_t **a_block_links,
                                     size_t *a_block_links_count,
                                     bool *a_is_genesis,
                                     uint64_t *a_nonce,
@@ -639,7 +639,7 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
             if (a_block_prev_hash) {
                 l_meta_data = s_meta_extract(l_meta);
                 if (l_meta_data)
-                    *a_block_prev_hash = *(dap_hash_t *)l_meta_data;
+                    *a_block_prev_hash = *(dap_hash_sha3_256_t *)l_meta_data;
                 else
                     return -4;
             }
@@ -653,7 +653,7 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
             if (a_block_anchor_hash) {
                 l_meta_data = s_meta_extract(l_meta);
                 if (l_meta_data)
-                    *a_block_anchor_hash = *(dap_hash_t *)l_meta_data;
+                    *a_block_anchor_hash = *(dap_hash_sha3_256_t *)l_meta_data;
                 else
                     return -4;
             }
@@ -661,17 +661,17 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
         case DAP_CHAIN_BLOCK_META_LINK:
             if (!a_block_links || !a_block_links_count)
                 return -6;
-            dap_hash_fast_t *l_block_links = *a_block_links;
+            dap_hash_sha3_256_t *l_block_links = *a_block_links;
             if (l_links_count == 0)
-                l_block_links = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_hash_t, l_links_count_max, -5);
+                l_block_links = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(dap_hash_sha3_256_t, l_links_count_max, -5);
             else if (l_links_count == l_links_count_max) {
                 l_links_count_max *= 2;
-                dap_chain_hash_fast_t *l_new_block_links = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_block_links, l_links_count_max, -5);
+                dap_hash_sha3_256_t *l_new_block_links = DAP_REALLOC_COUNT_RET_VAL_IF_FAIL(l_block_links, l_links_count_max, -5);
                 l_block_links = l_new_block_links;
             }
             l_meta_data = s_meta_extract(l_meta);
             if (l_meta_data)
-                l_block_links[l_links_count++] = *(dap_hash_t *)l_meta_data;
+                l_block_links[l_links_count++] = *(dap_hash_sha3_256_t *)l_meta_data;
             *a_block_links_count = l_links_count;
             *a_block_links = l_block_links;
             if (!l_meta_data)
@@ -714,7 +714,7 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
             if (a_merkle) {
                 l_meta_data = s_meta_extract(l_meta);
                 if (l_meta_data)
-                    *a_merkle = *(dap_hash_t *)l_meta_data;
+                    *a_merkle = *(dap_hash_sha3_256_t *)l_meta_data;
                 else
                     return -4;
             }
