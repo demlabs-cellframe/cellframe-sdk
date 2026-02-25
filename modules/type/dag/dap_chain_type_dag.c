@@ -48,6 +48,7 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_type_dag.h"
+#include "dap_chain_type_dag_wrap.h"
 #include "dap_chain_cs_type.h"  // For old consensus class registration
 #include "dap_json.h"
 #include "dap_global_db.h"
@@ -851,6 +852,69 @@ dap_chain_type_dag_event_t* dap_chain_type_dag_find_event_by_hash(dap_chain_type
     pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
     dap_chain_type_dag_event_t * l_event = l_event_item? l_event_item->event: NULL;
     return l_event;
+}
+
+/**
+ * @brief Get count of events in DAG
+ * @param a_dag Pointer to DAG structure
+ * @return Number of events
+ */
+uint64_t dap_chain_type_dag_get_events_count(dap_chain_type_dag_t *a_dag)
+{
+    if (!a_dag)
+        return 0;
+    pthread_mutex_lock(&PVT(a_dag)->events_mutex);
+    uint64_t l_count = HASH_COUNT(PVT(a_dag)->events);
+    pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
+    return l_count;
+}
+
+/**
+ * @brief Get count of events in threshold
+ * @param a_dag Pointer to DAG structure
+ * @return Number of events in threshold
+ */
+uint64_t dap_chain_type_dag_get_threshold_count(dap_chain_type_dag_t *a_dag)
+{
+    if (!a_dag)
+        return 0;
+    pthread_mutex_lock(&PVT(a_dag)->events_mutex);
+    uint64_t l_count = HASH_COUNT(PVT(a_dag)->events_treshold);
+    pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
+    return l_count;
+}
+
+/**
+ * @brief Get last event information
+ * @param a_dag Pointer to DAG structure
+ * @param a_event_number Output: event number (can be NULL)
+ * @param a_event_hash Output: event hash (can be NULL)
+ * @param a_ts_created Output: creation timestamp (can be NULL)
+ * @return true if last event exists, false otherwise
+ */
+bool dap_chain_type_dag_get_last_event(dap_chain_type_dag_t *a_dag,
+                                       uint64_t *a_event_number,
+                                       dap_chain_hash_fast_t *a_event_hash,
+                                       dap_time_t *a_ts_created)
+{
+    if (!a_dag)
+        return false;
+    
+    pthread_mutex_lock(&PVT(a_dag)->events_mutex);
+    dap_chain_type_dag_event_item_t *l_last_item = HASH_LAST(PVT(a_dag)->events);
+    pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
+    
+    if (!l_last_item)
+        return false;
+    
+    if (a_event_number)
+        *a_event_number = l_last_item->event_number;
+    if (a_event_hash)
+        *a_event_hash = l_last_item->hash;
+    if (a_ts_created)
+        *a_ts_created = l_last_item->ts_created;
+    
+    return true;
 }
 
 /**
@@ -2012,8 +2076,9 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     size_t l_objs_count = dap_global_db_driver_count(l_gdb_group_events, c_dap_global_db_driver_hash_blank, false);
                     dap_json_object_add_int(json_obj_event_count, a_version == 1 ? "event count in round new" : "event_count_in_round_new", l_objs_count);
                 }
-                size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
-                size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
+                // Use wrapper functions for testability
+                size_t l_event_count = dap_chain_type_dag_get_events_count_w(l_dag);
+                size_t l_event_treshold_count = dap_chain_type_dag_get_threshold_count_w(l_dag);
                 dap_json_object_add_object(json_obj_event_count,a_version == 1 ? "atom in events" : "atom_in_events", dap_json_object_new_uint64(l_event_count));
                 dap_json_object_add_object(json_obj_event_count,a_version == 1 ? "atom in threshold" : "atom_in_threshold", dap_json_object_new_uint64(l_event_treshold_count));
                 dap_json_array_add(a_json_arr_reply, json_obj_event_count);
@@ -2021,18 +2086,21 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
             case SUBCMD_EVENT_LAST:{
                 dap_json_t *json_obj_out = dap_json_object_new();
                 char l_tmp_buff[128] = {0};
-                pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-                dap_chain_type_dag_event_item_t *l_last_item = HASH_LAST(PVT(l_dag)->events);
-                pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+                // Use wrapper function for testability
+                uint64_t l_last_event_number = 0;
+                dap_chain_hash_fast_t l_last_event_hash = {0};
+                dap_time_t l_last_ts_created = 0;
+                bool l_has_last_event = dap_chain_type_dag_get_last_event_w(l_dag, &l_last_event_number, &l_last_event_hash, &l_last_ts_created);
                 char l_buf[DAP_TIME_STR_SIZE];
-                if (l_last_item)
-                    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_item->ts_created);
-                dap_json_object_add_uint64(json_obj_out, a_version == 1 ? "Last event num" : "last_event_num", l_last_item ? l_last_item->event_number : 0);
-                dap_json_object_add_object(json_obj_out, a_version == 1 ? "Last event hash" : "last_event_hash", dap_json_object_new_string(l_last_item ?
-                                                                                dap_hash_fast_to_str_static(&l_last_item->hash) : "empty"));
-                dap_json_object_add_string(json_obj_out, "ts_created", l_last_item ? l_buf : "never");
+                if (l_has_last_event)
+                    dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_ts_created);
+                dap_json_object_add_uint64(json_obj_out, a_version == 1 ? "Last event num" : "last_event_num", l_has_last_event ? l_last_event_number : 0);
+                dap_json_object_add_object(json_obj_out, a_version == 1 ? "Last event hash" : "last_event_hash", dap_json_object_new_string(l_has_last_event ?
+                                                                                dap_hash_fast_to_str_static(&l_last_event_hash) : "empty"));
+                dap_json_object_add_string(json_obj_out, "ts_created", l_has_last_event ? l_buf : "never");
 
-                size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
+                // Use wrapper function for testability
+                size_t l_event_count = dap_chain_type_dag_get_events_count_w(l_dag);
                 snprintf(l_tmp_buff, sizeof(l_tmp_buff), "%s.%s has events", l_net->pub.name, l_chain->name);
                 dap_json_object_add_uint64(json_obj_out, l_tmp_buff, l_event_count);
                 dap_json_array_add(a_json_arr_reply, json_obj_out);

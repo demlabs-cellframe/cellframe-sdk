@@ -100,3 +100,30 @@ void dap_chain_type_dag_start(dap_chain_type_dag_t *a_dag);
 
 void dap_chain_type_dag_proc_event_round_new(dap_chain_type_dag_t *a_dag);
 dap_chain_type_dag_event_t* dap_chain_type_dag_find_event_by_hash(dap_chain_type_dag_t * a_dag, dap_chain_hash_fast_t * a_hash);
+
+/**
+ * @brief Get count of events in DAG
+ * @param a_dag Pointer to DAG structure
+ * @return Number of events
+ */
+uint64_t dap_chain_type_dag_get_events_count(dap_chain_type_dag_t *a_dag);
+
+/**
+ * @brief Get count of events in threshold
+ * @param a_dag Pointer to DAG structure
+ * @return Number of events in threshold
+ */
+uint64_t dap_chain_type_dag_get_threshold_count(dap_chain_type_dag_t *a_dag);
+
+/**
+ * @brief Get last event information
+ * @param a_dag Pointer to DAG structure
+ * @param a_event_number Output: event number (can be NULL)
+ * @param a_event_hash Output: event hash (can be NULL)
+ * @param a_ts_created Output: creation timestamp (can be NULL)
+ * @return true if last event exists, false otherwise
+ */
+bool dap_chain_type_dag_get_last_event(dap_chain_type_dag_t *a_dag,
+                                       uint64_t *a_event_number,
+                                       dap_chain_hash_fast_t *a_event_hash,
+                                       dap_time_t *a_ts_created);

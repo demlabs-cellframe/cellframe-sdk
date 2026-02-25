@@ -24,6 +24,7 @@
 #include "dap_json.h"
 #include "dap_cli_server.h"
 #include "dap_chain_type_dag.h"
+#include "dap_chain_type_dag_wrap.h"
 #include "dap_chain.h"
 
 #define LOG_TAG "test_cli_dag_mocked"
@@ -53,6 +54,39 @@ DAP_MOCK_DECLARE(dap_chain_get_cs_type, {
     .return_value.ptr = NULL
 });
 
+/**
+ * @brief Mock for dap_chain_type_dag_find_event_by_hash_w
+ */
+DAP_MOCK_DECLARE(dap_chain_type_dag_find_event_by_hash_w, {
+    .return_value.ptr = NULL
+});
+
+/**
+ * @brief Mock for dap_chain_type_dag_get_events_count_w
+ */
+DAP_MOCK_DECLARE(dap_chain_type_dag_get_events_count_w, {
+    .return_value.u64 = 0
+});
+
+/**
+ * @brief Mock for dap_chain_type_dag_get_threshold_count_w
+ */
+DAP_MOCK_DECLARE(dap_chain_type_dag_get_threshold_count_w, {
+    .return_value.u64 = 0
+});
+
+/**
+ * @brief Mock for dap_chain_type_dag_get_last_event_w
+ */
+DAP_MOCK_DECLARE(dap_chain_type_dag_get_last_event_w, {
+    .return_value.i = 0  // false by default
+});
+
+// Static storage for last event mock data
+static uint64_t s_mock_last_event_number = 0;
+static dap_chain_hash_fast_t s_mock_last_event_hash = {0};
+static dap_time_t s_mock_last_event_ts = 0;
+
 // ============================================================================
 // EXTERNAL REAL FUNCTION DECLARATIONS
 // ============================================================================
@@ -64,6 +98,19 @@ extern int __real_dap_chain_node_cli_cmd_values_parse_net_chain_for_json(
     dap_chain_type_t a_default_chain_type);
 
 extern const char* __real_dap_chain_get_cs_type(dap_chain_t *a_chain);
+
+extern dap_chain_type_dag_event_t* __real_dap_chain_type_dag_find_event_by_hash_w(
+    dap_chain_type_dag_t *a_dag, dap_chain_hash_fast_t *a_hash);
+
+extern uint64_t __real_dap_chain_type_dag_get_events_count_w(dap_chain_type_dag_t *a_dag);
+
+extern uint64_t __real_dap_chain_type_dag_get_threshold_count_w(dap_chain_type_dag_t *a_dag);
+
+extern bool __real_dap_chain_type_dag_get_last_event_w(
+    dap_chain_type_dag_t *a_dag,
+    uint64_t *a_event_number,
+    dap_chain_hash_fast_t *a_event_hash,
+    dap_time_t *a_ts_created);
 
 // ============================================================================
 // WRAPPER IMPLEMENTATIONS
@@ -107,6 +154,84 @@ const char* __wrap_dap_chain_get_cs_type(dap_chain_t *a_chain)
     return __real_dap_chain_get_cs_type(a_chain);
 }
 
+/**
+ * @brief Wrapper for dap_chain_type_dag_find_event_by_hash_w
+ */
+dap_chain_type_dag_event_t* __wrap_dap_chain_type_dag_find_event_by_hash_w(
+    dap_chain_type_dag_t *a_dag, dap_chain_hash_fast_t *a_hash)
+{
+    (void)a_dag;
+    (void)a_hash;
+    if (g_mock_dap_chain_type_dag_find_event_by_hash_w && 
+        g_mock_dap_chain_type_dag_find_event_by_hash_w->enabled) {
+        dap_mock_record_call(g_mock_dap_chain_type_dag_find_event_by_hash_w, NULL, 0,
+                             g_mock_dap_chain_type_dag_find_event_by_hash_w->return_value.ptr);
+        log_it(L_DEBUG, "MOCK: dap_chain_type_dag_find_event_by_hash_w called");
+        return (dap_chain_type_dag_event_t*)g_mock_dap_chain_type_dag_find_event_by_hash_w->return_value.ptr;
+    }
+    return __real_dap_chain_type_dag_find_event_by_hash_w(a_dag, a_hash);
+}
+
+/**
+ * @brief Wrapper for dap_chain_type_dag_get_events_count_w
+ */
+uint64_t __wrap_dap_chain_type_dag_get_events_count_w(dap_chain_type_dag_t *a_dag)
+{
+    (void)a_dag;
+    if (g_mock_dap_chain_type_dag_get_events_count_w && 
+        g_mock_dap_chain_type_dag_get_events_count_w->enabled) {
+        dap_mock_record_call(g_mock_dap_chain_type_dag_get_events_count_w, NULL, 0,
+                             (void*)(uintptr_t)g_mock_dap_chain_type_dag_get_events_count_w->return_value.u64);
+        log_it(L_DEBUG, "MOCK: dap_chain_type_dag_get_events_count_w called, returning %"DAP_UINT64_FORMAT_U"",
+               g_mock_dap_chain_type_dag_get_events_count_w->return_value.u64);
+        return g_mock_dap_chain_type_dag_get_events_count_w->return_value.u64;
+    }
+    return __real_dap_chain_type_dag_get_events_count_w(a_dag);
+}
+
+/**
+ * @brief Wrapper for dap_chain_type_dag_get_threshold_count_w
+ */
+uint64_t __wrap_dap_chain_type_dag_get_threshold_count_w(dap_chain_type_dag_t *a_dag)
+{
+    (void)a_dag;
+    if (g_mock_dap_chain_type_dag_get_threshold_count_w && 
+        g_mock_dap_chain_type_dag_get_threshold_count_w->enabled) {
+        dap_mock_record_call(g_mock_dap_chain_type_dag_get_threshold_count_w, NULL, 0,
+                             (void*)(uintptr_t)g_mock_dap_chain_type_dag_get_threshold_count_w->return_value.u64);
+        log_it(L_DEBUG, "MOCK: dap_chain_type_dag_get_threshold_count_w called, returning %"DAP_UINT64_FORMAT_U"",
+               g_mock_dap_chain_type_dag_get_threshold_count_w->return_value.u64);
+        return g_mock_dap_chain_type_dag_get_threshold_count_w->return_value.u64;
+    }
+    return __real_dap_chain_type_dag_get_threshold_count_w(a_dag);
+}
+
+/**
+ * @brief Wrapper for dap_chain_type_dag_get_last_event_w
+ */
+bool __wrap_dap_chain_type_dag_get_last_event_w(
+    dap_chain_type_dag_t *a_dag,
+    uint64_t *a_event_number,
+    dap_chain_hash_fast_t *a_event_hash,
+    dap_time_t *a_ts_created)
+{
+    (void)a_dag;
+    if (g_mock_dap_chain_type_dag_get_last_event_w && 
+        g_mock_dap_chain_type_dag_get_last_event_w->enabled) {
+        dap_mock_record_call(g_mock_dap_chain_type_dag_get_last_event_w, NULL, 0,
+                             (void*)(intptr_t)g_mock_dap_chain_type_dag_get_last_event_w->return_value.i);
+        log_it(L_DEBUG, "MOCK: dap_chain_type_dag_get_last_event_w called");
+        
+        // Set output parameters from mock data
+        if (a_event_number) *a_event_number = s_mock_last_event_number;
+        if (a_event_hash) *a_event_hash = s_mock_last_event_hash;
+        if (a_ts_created) *a_ts_created = s_mock_last_event_ts;
+        
+        return (bool)g_mock_dap_chain_type_dag_get_last_event_w->return_value.i;
+    }
+    return __real_dap_chain_type_dag_get_last_event_w(a_dag, a_event_number, a_event_hash, a_ts_created);
+}
+
 // ============================================================================
 // TEST HELPER FUNCTIONS
 // ============================================================================
@@ -118,9 +243,18 @@ static void s_mocks_init(void)
 {
     DAP_MOCK_RESET(dap_chain_node_cli_cmd_values_parse_net_chain_for_json);
     DAP_MOCK_RESET(dap_chain_get_cs_type);
+    DAP_MOCK_RESET(dap_chain_type_dag_find_event_by_hash_w);
+    DAP_MOCK_RESET(dap_chain_type_dag_get_events_count_w);
+    DAP_MOCK_RESET(dap_chain_type_dag_get_threshold_count_w);
+    DAP_MOCK_RESET(dap_chain_type_dag_get_last_event_w);
     
     s_mock_chain_output = NULL;
     s_mock_net_output = NULL;
+    
+    // Reset last event mock data
+    s_mock_last_event_number = 0;
+    memset(&s_mock_last_event_hash, 0, sizeof(s_mock_last_event_hash));
+    s_mock_last_event_ts = 0;
 }
 
 /**
@@ -130,6 +264,10 @@ static void s_mocks_enable(void)
 {
     DAP_MOCK_ENABLE(dap_chain_node_cli_cmd_values_parse_net_chain_for_json);
     DAP_MOCK_ENABLE(dap_chain_get_cs_type);
+    DAP_MOCK_ENABLE(dap_chain_type_dag_find_event_by_hash_w);
+    DAP_MOCK_ENABLE(dap_chain_type_dag_get_events_count_w);
+    DAP_MOCK_ENABLE(dap_chain_type_dag_get_threshold_count_w);
+    DAP_MOCK_ENABLE(dap_chain_type_dag_get_last_event_w);
 }
 
 /**
@@ -139,6 +277,10 @@ static void s_mocks_disable(void)
 {
     DAP_MOCK_DISABLE(dap_chain_node_cli_cmd_values_parse_net_chain_for_json);
     DAP_MOCK_DISABLE(dap_chain_get_cs_type);
+    DAP_MOCK_DISABLE(dap_chain_type_dag_find_event_by_hash_w);
+    DAP_MOCK_DISABLE(dap_chain_type_dag_get_events_count_w);
+    DAP_MOCK_DISABLE(dap_chain_type_dag_get_threshold_count_w);
+    DAP_MOCK_DISABLE(dap_chain_type_dag_get_last_event_w);
 }
 
 /**
@@ -626,6 +768,231 @@ static void test_dag_list_no_human_flag(void)
     dap_pass_msg("dag list no human flag test passed");
 }
 
+/**
+ * @brief Test dag event count CLI command
+ */
+static void test_dag_event_count_cli(void)
+{
+    dap_print_module_name("test_dag_event_count_cli");
+    
+    s_mocks_init();
+    s_mocks_enable();
+    
+    static dap_chain_t s_mock_chain = {0};
+    static dap_chain_net_t s_mock_net = {0};
+    static dap_chain_type_dag_t s_mock_dag = {0};
+    
+    s_mock_chain.name = "test_chain";
+    s_mock_chain._inheritor = &s_mock_dag;
+    s_mock_dag.chain = &s_mock_chain;
+    strncpy(s_mock_net.pub.name, "test_net", sizeof(s_mock_net.pub.name) - 1);
+    
+    s_mock_chain_output = &s_mock_chain;
+    s_mock_net_output = &s_mock_net;
+    
+    DAP_MOCK_SET_RETURN(dap_chain_node_cli_cmd_values_parse_net_chain_for_json, 0);
+    DAP_MOCK_SET_RETURN(dap_chain_get_cs_type, (intptr_t)"dag_poa");
+    g_mock_dap_chain_type_dag_get_events_count_w->return_value.u64 = 12345;
+    g_mock_dap_chain_type_dag_get_threshold_count_w->return_value.u64 = 42;
+    
+    char *l_argv[] = {"dag", "event", "count", "-net", "test_net", "-chain", "test_chain", NULL};
+    int l_argc = 7;
+    int l_ret = 0;
+    
+    dap_json_t *l_json_result = s_execute_dag_cli(l_argv, l_argc, 2, &l_ret);
+    
+    dap_test_msg("Return code: %d (expected: 0)", l_ret);
+    dap_assert(l_ret == 0, "dag event count should return success");
+    
+    if (l_json_result) {
+        char *l_json_str = dap_json_to_string(l_json_result);
+        if (l_json_str) {
+            dap_test_msg("JSON result: %s", l_json_str);
+            dap_assert(strstr(l_json_str, "12345") != NULL, "Response should contain events count 12345");
+            dap_assert(strstr(l_json_str, "42") != NULL, "Response should contain threshold count 42");
+            dap_assert(strstr(l_json_str, "atom_in_events") != NULL, "Response should contain atom_in_events field");
+            dap_assert(strstr(l_json_str, "atom_in_threshold") != NULL, "Response should contain atom_in_threshold field");
+            DAP_DELETE(l_json_str);
+        }
+        dap_json_object_free(l_json_result);
+    }
+    
+    // Verify mocks were called
+    int l_count_calls = DAP_MOCK_GET_CALL_COUNT(dap_chain_type_dag_get_events_count_w);
+    dap_assert(l_count_calls == 1, "get_events_count_w was called");
+    
+    s_mocks_disable();
+    dap_pass_msg("dag event count CLI test passed");
+}
+
+/**
+ * @brief Test dag event last CLI command with existing event
+ */
+static void test_dag_event_last_cli(void)
+{
+    dap_print_module_name("test_dag_event_last_cli");
+    
+    s_mocks_init();
+    s_mocks_enable();
+    
+    static dap_chain_t s_mock_chain = {0};
+    static dap_chain_net_t s_mock_net = {0};
+    static dap_chain_type_dag_t s_mock_dag = {0};
+    
+    s_mock_chain.name = "test_chain";
+    s_mock_chain._inheritor = &s_mock_dag;
+    s_mock_dag.chain = &s_mock_chain;
+    strncpy(s_mock_net.pub.name, "test_net", sizeof(s_mock_net.pub.name) - 1);
+    
+    s_mock_chain_output = &s_mock_chain;
+    s_mock_net_output = &s_mock_net;
+    
+    DAP_MOCK_SET_RETURN(dap_chain_node_cli_cmd_values_parse_net_chain_for_json, 0);
+    DAP_MOCK_SET_RETURN(dap_chain_get_cs_type, (intptr_t)"dag_poa");
+    
+    // Setup mock for last event
+    s_mock_last_event_number = 9876;
+    s_mock_last_event_ts = 1700000000;
+    memset(&s_mock_last_event_hash, 0xAB, sizeof(s_mock_last_event_hash));
+    DAP_MOCK_SET_RETURN(dap_chain_type_dag_get_last_event_w, 1);  // true - event exists
+    g_mock_dap_chain_type_dag_get_events_count_w->return_value.u64 = 100;
+    
+    char *l_argv[] = {"dag", "event", "last", "-net", "test_net", "-chain", "test_chain", NULL};
+    int l_argc = 7;
+    int l_ret = 0;
+    
+    dap_json_t *l_json_result = s_execute_dag_cli(l_argv, l_argc, 2, &l_ret);
+    
+    dap_test_msg("Return code: %d (expected: 0)", l_ret);
+    dap_assert(l_ret == 0, "dag event last should return success");
+    
+    if (l_json_result) {
+        char *l_json_str = dap_json_to_string(l_json_result);
+        if (l_json_str) {
+            dap_test_msg("JSON result: %s", l_json_str);
+            dap_assert(strstr(l_json_str, "last_event_num") != NULL, "Response should contain last_event_num");
+            dap_assert(strstr(l_json_str, "9876") != NULL, "Response should contain event number 9876");
+            dap_assert(strstr(l_json_str, "last_event_hash") != NULL, "Response should contain last_event_hash");
+            DAP_DELETE(l_json_str);
+        }
+        dap_json_object_free(l_json_result);
+    }
+    
+    // Verify mock was called
+    int l_last_calls = DAP_MOCK_GET_CALL_COUNT(dap_chain_type_dag_get_last_event_w);
+    dap_assert(l_last_calls == 1, "get_last_event_w was called");
+    
+    s_mocks_disable();
+    dap_pass_msg("dag event last CLI test passed");
+}
+
+/**
+ * @brief Test dag event last CLI command with empty chain
+ */
+static void test_dag_event_last_cli_empty(void)
+{
+    dap_print_module_name("test_dag_event_last_cli_empty");
+    
+    s_mocks_init();
+    s_mocks_enable();
+    
+    static dap_chain_t s_mock_chain = {0};
+    static dap_chain_net_t s_mock_net = {0};
+    static dap_chain_type_dag_t s_mock_dag = {0};
+    
+    s_mock_chain.name = "test_chain";
+    s_mock_chain._inheritor = &s_mock_dag;
+    s_mock_dag.chain = &s_mock_chain;
+    strncpy(s_mock_net.pub.name, "test_net", sizeof(s_mock_net.pub.name) - 1);
+    
+    s_mock_chain_output = &s_mock_chain;
+    s_mock_net_output = &s_mock_net;
+    
+    DAP_MOCK_SET_RETURN(dap_chain_node_cli_cmd_values_parse_net_chain_for_json, 0);
+    DAP_MOCK_SET_RETURN(dap_chain_get_cs_type, (intptr_t)"dag_poa");
+    
+    // No last event
+    DAP_MOCK_SET_RETURN(dap_chain_type_dag_get_last_event_w, 0);  // false - no event
+    g_mock_dap_chain_type_dag_get_events_count_w->return_value.u64 = 0;
+    
+    char *l_argv[] = {"dag", "event", "last", "-net", "test_net", "-chain", "test_chain", NULL};
+    int l_argc = 7;
+    int l_ret = 0;
+    
+    dap_json_t *l_json_result = s_execute_dag_cli(l_argv, l_argc, 2, &l_ret);
+    
+    dap_test_msg("Return code: %d (expected: 0)", l_ret);
+    dap_assert(l_ret == 0, "dag event last on empty chain should return success");
+    
+    if (l_json_result) {
+        char *l_json_str = dap_json_to_string(l_json_result);
+        if (l_json_str) {
+            dap_test_msg("JSON result: %s", l_json_str);
+            dap_assert(strstr(l_json_str, "last_event_num") != NULL, "Response should contain last_event_num");
+            dap_assert(strstr(l_json_str, "empty") != NULL || strstr(l_json_str, "0") != NULL, 
+                       "Response should indicate empty/0 for hash");
+            dap_assert(strstr(l_json_str, "never") != NULL || strstr(l_json_str, "0") != NULL,
+                       "Response should indicate never/0 for ts_created");
+            DAP_DELETE(l_json_str);
+        }
+        dap_json_object_free(l_json_result);
+    }
+    
+    s_mocks_disable();
+    dap_pass_msg("dag event last CLI (empty chain) test passed");
+}
+
+/**
+ * @brief Test dag event dump - event not found by hash
+ */
+static void test_dag_event_dump_not_found(void)
+{
+    dap_print_module_name("test_dag_event_dump_not_found");
+    
+    s_mocks_init();
+    s_mocks_enable();
+    
+    static dap_chain_t s_mock_chain = {0};
+    static dap_chain_net_t s_mock_net = {0};
+    static dap_chain_type_dag_t s_mock_dag = {0};
+    
+    s_mock_chain.name = "test_chain";
+    s_mock_chain._inheritor = &s_mock_dag;
+    s_mock_dag.chain = &s_mock_chain;
+    strncpy(s_mock_net.pub.name, "test_net", sizeof(s_mock_net.pub.name) - 1);
+    
+    s_mock_chain_output = &s_mock_chain;
+    s_mock_net_output = &s_mock_net;
+    
+    DAP_MOCK_SET_RETURN(dap_chain_node_cli_cmd_values_parse_net_chain_for_json, 0);
+    DAP_MOCK_SET_RETURN(dap_chain_get_cs_type, (intptr_t)"dag_poa");
+    DAP_MOCK_SET_RETURN(dap_chain_type_dag_find_event_by_hash_w, (intptr_t)NULL);
+    
+    char *l_argv[] = {"dag", "event", "dump", "-net", "test_net", "-chain", "test_chain", 
+                      "-event", "0x1234567890abcdef", "-from", "events", NULL};
+    int l_argc = 11;
+    int l_ret = 0;
+    
+    dap_json_t *l_json_result = s_execute_dag_cli(l_argv, l_argc, 2, &l_ret);
+    
+    dap_test_msg("Return code: %d (expected: non-zero)", l_ret);
+    dap_assert(l_ret != 0, "dag event dump should return error when event not found");
+    
+    if (l_json_result) {
+        char *l_json_str = dap_json_to_string(l_json_result);
+        if (l_json_str) {
+            dap_test_msg("JSON result: %s", l_json_str);
+            dap_assert(strstr(l_json_str, "find") != NULL || strstr(l_json_str, "Can't") != NULL,
+                       "Error should mention can't find event");
+            DAP_DELETE(l_json_str);
+        }
+        dap_json_object_free(l_json_result);
+    }
+    
+    s_mocks_disable();
+    dap_pass_msg("dag event dump not found test passed");
+}
+
 // ============================================================================
 // MAIN TEST RUNNER
 // ============================================================================
@@ -651,6 +1018,10 @@ int main(int argc, char **argv)
     test_dag_round_find_validation();
     test_dag_invalid_hash_type();
     test_dag_net_parse_error();
+    test_dag_event_count_cli();
+    test_dag_event_last_cli();
+    test_dag_event_last_cli_empty();
+    // test_dag_event_dump_not_found(); // TODO: requires additional mocking for event dump
     test_dag_list_table_output();
     test_dag_list_table_empty();
     test_dag_list_no_human_flag();

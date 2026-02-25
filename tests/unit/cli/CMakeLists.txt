@@ -142,22 +142,164 @@ add_test(NAME cli_dag_mocked
 )
 
 # ============================================================================
-# Future tests (uncomment when implemented):
+# Test: XChange CLI Output with Mocking
+# ============================================================================
+# This test uses DAP Mock Framework to mock xchange service dependencies
+# allowing full CLI command execution with controlled behavior
 # ============================================================================
 
-# Test: Ledger CLI Output
-# add_executable(test_cli_output_ledger
-#     test_cli_output_ledger.c
-# )
-# target_link_libraries(test_cli_output_ledger ${CLI_TEST_LIBS})
-# add_test(NAME cli_output_ledger COMMAND test_cli_output_ledger)
+add_executable(test_cli_xchange_mocked
+    test_cli_xchange_mocked.c
+)
 
-# Test: Token CLI Output
-# add_executable(test_cli_output_token
-#     test_cli_output_token.c
-# )
-# target_link_libraries(test_cli_output_token ${CLI_TEST_LIBS})
-# add_test(NAME cli_output_token COMMAND test_cli_output_token)
+# Include generated mock wrappers directory
+target_include_directories(test_cli_xchange_mocked PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/mock_gen/test_cli_xchange_mocked
+    ${CMAKE_SOURCE_DIR}/modules/service/xchange/include
+    ${CMAKE_SOURCE_DIR}/modules/chain/include
+    ${CMAKE_SOURCE_DIR}/modules/wallet/include
+)
+
+target_link_libraries(test_cli_xchange_mocked
+    ${CLI_TEST_LIBS}
+)
+
+# Apply auto-wrap for DAP_MOCK_DECLARE macros in source file
+dap_mock_autowrap(test_cli_xchange_mocked)
+
+add_test(NAME cli_xchange_mocked
+    COMMAND test_cli_xchange_mocked
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# ============================================================================
+# Test: Stake CLI Output with Mocking
+# ============================================================================
+# This test uses DAP Mock Framework to mock stake service dependencies
+# allowing full CLI command execution with controlled behavior
+# ============================================================================
+
+add_executable(test_cli_stake_mocked
+    test_cli_stake_mocked.c
+)
+
+# Include generated mock wrappers directory
+target_include_directories(test_cli_stake_mocked PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/mock_gen/test_cli_stake_mocked
+    ${CMAKE_SOURCE_DIR}/modules/service/stake/include
+    ${CMAKE_SOURCE_DIR}/modules/net/srv/stake/include
+    ${CMAKE_SOURCE_DIR}/modules/chain/include
+    ${CMAKE_SOURCE_DIR}/modules/wallet/include
+)
+
+target_link_libraries(test_cli_stake_mocked
+    ${CLI_TEST_LIBS}
+)
+
+# Apply auto-wrap for DAP_MOCK_DECLARE macros in source file
+dap_mock_autowrap(test_cli_stake_mocked)
+
+add_test(NAME cli_stake_mocked
+    COMMAND test_cli_stake_mocked
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# ============================================================================
+# Test: Token CLI Output with Mocking
+# ============================================================================
+# This test uses DAP Mock Framework to mock token/ledger dependencies
+# allowing full CLI command execution with controlled behavior
+# ============================================================================
+
+add_executable(test_cli_token_mocked
+    test_cli_token_mocked.c
+)
+
+# Include generated mock wrappers directory
+target_include_directories(test_cli_token_mocked PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/mock_gen/test_cli_token_mocked
+    ${CMAKE_SOURCE_DIR}/modules/ledger/include
+    ${CMAKE_SOURCE_DIR}/modules/ledger/cli/include
+    ${CMAKE_SOURCE_DIR}/modules/net/tx/include
+    ${CMAKE_SOURCE_DIR}/modules/chain/include
+)
+
+target_link_libraries(test_cli_token_mocked
+    ${CLI_TEST_LIBS}
+)
+
+# Apply auto-wrap for DAP_MOCK_DECLARE macros in source file
+dap_mock_autowrap(test_cli_token_mocked)
+
+add_test(NAME cli_token_mocked
+    COMMAND test_cli_token_mocked
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# ============================================================================
+# Test: Mempool CLI Output with Mocking
+# ============================================================================
+# This test uses DAP Mock Framework to mock mempool/network dependencies
+# allowing full CLI command execution with controlled behavior
+# ============================================================================
+
+add_executable(test_cli_mempool_mocked
+    test_cli_mempool_mocked.c
+)
+
+# Include generated mock wrappers directory
+target_include_directories(test_cli_mempool_mocked PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/mock_gen/test_cli_mempool_mocked
+    ${CMAKE_SOURCE_DIR}/modules/mempool/include
+    ${CMAKE_SOURCE_DIR}/modules/chain/include
+)
+
+target_link_libraries(test_cli_mempool_mocked
+    ${CLI_TEST_LIBS}
+)
+
+# Apply auto-wrap for DAP_MOCK_DECLARE macros in source file
+dap_mock_autowrap(test_cli_mempool_mocked)
+
+add_test(NAME cli_mempool_mocked
+    COMMAND test_cli_mempool_mocked
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# ============================================================================
+# Test: Ledger CLI Output with Mocking
+# ============================================================================
+# This test uses DAP Mock Framework to mock ledger/network dependencies
+# allowing full CLI command execution with controlled behavior
+# ============================================================================
+
+add_executable(test_cli_ledger_mocked
+    test_cli_ledger_mocked.c
+)
+
+# Include generated mock wrappers directory
+target_include_directories(test_cli_ledger_mocked PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/mock_gen/test_cli_ledger_mocked
+    ${CMAKE_SOURCE_DIR}/modules/ledger/include
+    ${CMAKE_SOURCE_DIR}/modules/ledger/cli/include
+    ${CMAKE_SOURCE_DIR}/modules/chain/include
+)
+
+target_link_libraries(test_cli_ledger_mocked
+    ${CLI_TEST_LIBS}
+)
+
+# Apply auto-wrap for DAP_MOCK_DECLARE macros in source file
+dap_mock_autowrap(test_cli_ledger_mocked)
+
+add_test(NAME cli_ledger_mocked
+    COMMAND test_cli_ledger_mocked
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# ============================================================================
+# Future tests (uncomment when implemented):
+# ============================================================================
 
 # Test: Network CLI Output
 # add_executable(test_cli_output_net
