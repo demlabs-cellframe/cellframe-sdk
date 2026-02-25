@@ -116,10 +116,10 @@ int dap_chain_cell_init(void)
         HMODULE ntdll = GetModuleHandle("ntdll.dll");
         if ( !ntdll )
             return log_it(L_CRITICAL, "Ntdll error"), -1;
-        pfnNtCreateSection      = (pfn_NtCreateSection)     GetProcAddress(ntdll, "NtCreateSection");
-        pfnNtMapViewOfSection   = (pfn_NtMapViewOfSection)  GetProcAddress(ntdll, "NtMapViewOfSection");
-        pfnNtExtendSection      = (pfn_NtExtendSection)     GetProcAddress(ntdll, "NtExtendSection");
-        pfnNtUnmapViewOfSection = (pfn_NtUnmapViewOfSection)GetProcAddress(ntdll, "NtUnmapViewOfSection");
+        pfnNtCreateSection      = (pfn_NtCreateSection)     (void *)GetProcAddress(ntdll, "NtCreateSection");
+        pfnNtMapViewOfSection   = (pfn_NtMapViewOfSection)  (void *)GetProcAddress(ntdll, "NtMapViewOfSection");
+        pfnNtExtendSection      = (pfn_NtExtendSection)     (void *)GetProcAddress(ntdll, "NtExtendSection");
+        pfnNtUnmapViewOfSection = (pfn_NtUnmapViewOfSection)(void *)GetProcAddress(ntdll, "NtUnmapViewOfSection");
     }
     
 #endif
@@ -147,7 +147,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
                                            (HANDLE)_get_osfhandle(fileno(a_cell->file_storage)) );
         if ( !NT_SUCCESS(err) )
             return log_it(L_ERROR, "NtCreateSection() failed, status %lx: \"%s\"",
-                                   err, dap_str_ntstatus(err) ), -1;
+                                   (unsigned long)err, dap_str_ntstatus(err) ), -1;
     }
 #endif
     dap_chain_cell_mmap_volume_t *l_new_vol = DAP_NEW_Z(dap_chain_cell_mmap_volume_t);
@@ -161,13 +161,15 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
             : 0,
         l_offset = a_fpos - l_volume_offset;
 #ifdef DAP_OS_WINDOWS
-    int err = 0;
+    NTSTATUS err = 0;
     LARGE_INTEGER Offset = { .QuadPart = l_volume_offset };
+    SIZE_T l_view_size = (SIZE_T)l_new_vol->size;
     err = pfnNtMapViewOfSection(a_cell->mapping->section, GetCurrentProcess(), (HANDLE)&l_new_vol->base, 0, 0, 
-                                &Offset, &l_new_vol->size, ViewUnmap, MEM_RESERVE, PAGE_READONLY);
+                                &Offset, &l_view_size, ViewUnmap, MEM_RESERVE, PAGE_READONLY);
+    l_new_vol->size = (off_t)l_view_size;
     if ( !NT_SUCCESS(err) ) {
         NtClose(a_cell->mapping->section);
-        log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx: \"%s\"", err, dap_str_ntstatus(err) );
+        log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx: \"%s\"", (unsigned long)err, dap_str_ntstatus(err) );
         DAP_DELETE(l_new_vol);
         return -1;
     }
@@ -287,7 +289,7 @@ int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
         LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_pos };
         NTSTATUS err = pfnNtExtendSection(l_cell->mapping->section, &SectionSize);
         if ( !NT_SUCCESS(err) )
-            log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+            log_it(L_ERROR, "NtExtendSection() failed, status %lx", (unsigned long)err);
     } else
 #endif
     ftruncate(fileno(l_cell->file_storage), l_pos);
@@ -448,7 +450,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_pos };
             NTSTATUS err = pfnNtExtendSection(a_cell->mapping->section, &SectionSize);
             if ( !NT_SUCCESS(err) )
-                log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+                log_it(L_ERROR, "NtExtendSection() failed, status %lx", (unsigned long)err);
         } else
 #endif
             ftruncate(fileno(a_cell->file_storage), l_pos);
@@ -576,7 +578,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
 #elif defined DAP_OS_WINDOWS
         LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = ftello(a_cell->file_storage) };
         NTSTATUS err = pfnNtExtendSection(a_cell->mapping->section, &SectionSize);
-        dap_return_val_if_fail_err( NT_SUCCESS(err), -2, "NtExtendSection() failed, status %lx: \"%s\"", err, dap_str_ntstatus(err) );
+        dap_return_val_if_fail_err( NT_SUCCESS(err), -2, "NtExtendSection() failed, status %lx: \"%s\"", (unsigned long)err, dap_str_ntstatus(err) );
 #endif
         /* Pass ptr to mapped area */
         if (a_atom_map)
