@@ -7473,6 +7473,7 @@ dap_chain_net_srv_dex_purchase_auto(dap_chain_net_t *a_net, const char *a_sell_t
                                                   a_create_buyer_order_on_leftover, a_leftover_rate, a_leftover_min_fill, a_tx, NULL);
 }
 
+/* ============================================================================
  * Purchase with forced UTXO (for bridge-dex)
  * ============================================================================ */
 
