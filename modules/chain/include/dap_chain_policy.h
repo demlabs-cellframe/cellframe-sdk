@@ -32,8 +32,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_POLICY_PUBLIC_KEY_HASH_SIGN_VALIDATORS    0x1
 #define DAP_CHAIN_POLICY_OUT_STD_TIMELOCK_USE               0x2
 #define DAP_CHAIN_POLICY_ACCEPT_RECEIPT_VERSION_2           0x3
-#define DAP_CHAIN_POLICY_XCHANGE_LEGACY_TX_CUTOFF           0x10
-#define DAP_CHAIN_POLICY_XCHANGE_MIGRATE_CUTOFF             0x11
+#define DAP_CHAIN_POLICY_XCHANGE_LEGACY_TX_CUTOFF           0x4
+#define DAP_CHAIN_POLICY_XCHANGE_MIGRATE_CUTOFF             0x5
+#define DAP_CHAIN_POLICY_VOTING_SPENT_CUTOFF                0x6
 
 typedef struct dap_chain_policy {
     uint16_t version;

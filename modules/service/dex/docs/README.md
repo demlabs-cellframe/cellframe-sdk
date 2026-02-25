@@ -17,6 +17,7 @@ DEX v2 is a decentralized exchange service for the Cellframe network, enabling t
 | [07_CONFIGURATION.md](07_CONFIGURATION.md) | Node configuration and governance |
 | [08_API_REFERENCE.md](08_API_REFERENCE.md) | C API functions and error codes |
 | [09_MIGRATION_SYNC.md](09_MIGRATION_SYNC.md) | SRV_XCHANGE -> SRV_DEX migration notes |
+| [11_DIAGRAMS.md](11_DIAGRAMS.md) | Mermaid diagrams for DEX v2 flows |
 
 ## Quick Start
 

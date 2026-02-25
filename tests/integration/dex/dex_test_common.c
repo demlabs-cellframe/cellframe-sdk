@@ -815,7 +815,7 @@ bool test_dex_verify_balance(dex_test_fixture_t *f, const dap_chain_addr_t *addr
     uint256_t expected_val = dap_chain_coins_to_balance(expected);
     
     bool match = EQUAL_256(balance, expected_val);
-    log_it(match ? L_INFO : L_ERROR, "Balance %s %s: expected %s, got %s",
+    log_it(L_INFO, "Balance %s %s: expected %s, got %s",
            dap_chain_addr_to_str_static(addr), token, expected,
            dap_uint256_to_char_ex(balance).frac);
     

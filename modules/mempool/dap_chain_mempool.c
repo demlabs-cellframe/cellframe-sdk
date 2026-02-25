@@ -68,6 +68,8 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_srv.h"
+#include "dap_config.h"
 
 #define LOG_TAG "dap_chain_mempool"
 
@@ -80,8 +82,16 @@ static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_db
 
 /**
  * @brief Callback function for handling mempool record deletion by TTL
+ * 
  * @details This callback is triggered when a mempool record expires due to TTL.
  *          It notifies all cluster subscribers about the deletion and then removes the record.
+ * 
+ * CONTRACT (from dap_global_db.c):
+ * - This callback is called INSTEAD OF dap_global_db_driver_delete(), not in addition to it
+ * - The callback MUST call dap_global_db_driver_delete() if record should be removed
+ * - No re-entrancy risk: calling driver_delete here won't trigger this callback again
+ * - No double-delete risk: we are the only delete path when this callback is set
+ * 
  * @param a_obj Store object being deleted (contains datum from mempool)
  * @param a_arg Custom argument (chain pointer)
  */
@@ -149,7 +159,14 @@ static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
 
 /**
  * @brief Initialize mempool TTL delete callbacks for all chains
- * @details Registers del_callback for each chain's mempool cluster to handle TTL-based deletions
+ * 
+ * @details Registers del_callback for each chain's mempool cluster to handle TTL-based deletions.
+ * 
+ * INITIALIZATION ORDER REQUIREMENT:
+ * - Must be called AFTER dap_chain_net_load_all() completes
+ * - Networks and chains must be fully initialized before this function
+ * - Called from dap_datum_mempool_init() which is invoked during node startup
+ * 
  * @return 0 if successful, negative error code otherwise
  */
 int dap_chain_mempool_delete_callback_init()
@@ -1298,6 +1315,222 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
     return l_ret;
 }
 
+char *dap_chain_mempool_tx_cond_refill(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
+        dap_hash_fast_t *a_tx_cond_hash, uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type)
+{
+    dap_ledger_t *l_ledger = a_net ? dap_ledger_by_net_name(a_net->pub.name) : NULL;
+    if (!a_net || !l_ledger || !a_key_from || !a_tx_cond_hash || IS_ZERO_256(a_value))
+        return NULL;
+
+    // Find the final TX in chain
+    dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(
+        l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_cond_hash, false);
+    if (dap_hash_fast_is_blank(&l_final_tx_hash)) {
+        log_it(L_WARNING, "Can't find conditional TX to refill");
+        return NULL;
+    }
+
+    // Get token ticker from TX
+    const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_final_tx_hash);
+    if (!l_tx_ticker) {
+        log_it(L_ERROR, "Can't get token ticker from TX");
+        return NULL;
+    }
+
+    // Get previous TX and OUT_COND
+    dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(l_ledger, &l_final_tx_hash);
+    if (!l_tx_prev) {
+        log_it(L_ERROR, "Can't find TX in ledger");
+        return NULL;
+    }
+
+    int l_prev_cond_idx = 0;
+    dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_out_cond_get(
+        l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_prev_cond_idx);
+    if (!l_cond_prev) {
+        log_it(L_ERROR, "TX doesn't have SRV_PAY conditional output");
+        return NULL;
+    }
+
+    // Check if TX is already used
+    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_final_tx_hash, l_prev_cond_idx, NULL)) {
+        log_it(L_WARNING, "Conditional TX is already used out");
+        return NULL;
+    }
+
+    // Calculate fees
+    uint256_t l_net_fee = {};
+    dap_chain_addr_t l_addr_fee = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
+    uint256_t l_fee_total = a_value_fee;
+    if (l_net_fee_used && SUM_256_256(l_fee_total, l_net_fee, &l_fee_total))
+    {
+        log_it(L_ERROR, "Integer overflow in fee calculation");
+        return NULL;
+    }
+
+    // Check if refill in native token
+    bool l_refill_native = !dap_strcmp(a_net->pub.native_ticker, l_tx_ticker);
+    uint256_t l_value_need = a_value;
+    if (l_refill_native && SUM_256_256(l_value_need, l_fee_total, &l_value_need))
+    {
+        log_it(L_ERROR, "Integer overflow in value calculation");
+        return NULL;
+    }
+
+    // Get owner address from key
+    dap_chain_addr_t l_addr_from = {};
+    dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_net->pub.id);
+
+    // Find UTXO to pay for refill
+    uint256_t l_value_transfer = {};
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, l_tx_ticker, &l_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_tx_ticker, &l_addr_from, l_value_need, &l_value_transfer);
+    if (!l_list_used_out) {
+        log_it(L_ERROR, "Not enough funds for refill");
+        return NULL;
+    }
+
+    // Find UTXO for fee if not native
+    uint256_t l_fee_transfer = {};
+    dap_list_t *l_list_fee_out = NULL;
+    if (!l_refill_native) {
+        if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_net->pub.native_ticker, &l_addr_from, &l_list_fee_out, l_fee_total, &l_fee_transfer) == -101)
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_net->pub.native_ticker, &l_addr_from, l_fee_total, &l_fee_transfer);
+        if (!l_list_fee_out) {
+            dap_list_free_full(l_list_used_out, NULL);
+            log_it(L_ERROR, "Not enough funds for fee");
+            return NULL;
+        }
+    }
+
+    // Create transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+    // Add 'in' items for refill value
+    uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+    dap_list_free_full(l_list_used_out, NULL);
+    if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
+        dap_chain_datum_tx_delete(l_tx);
+        if (l_list_fee_out) dap_list_free_full(l_list_fee_out, NULL);
+        log_it(L_ERROR, "Can't compose transaction input");
+        return NULL;
+    }
+
+    // Add 'in' items for fee if not native
+    if (!l_refill_native && l_list_fee_out) {
+        uint256_t l_fee_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+        dap_list_free_full(l_list_fee_out, NULL);
+        if (!EQUAL_256(l_fee_to_items, l_fee_transfer)) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_ERROR, "Can't compose fee transaction input");
+            return NULL;
+        }
+    }
+
+    // Add 'in_cond' item (owner operation - no receipt required)
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, DAP_CHAIN_TX_IN_COND_NO_RECEIPT) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Can't add conditional input");
+        return NULL;
+    }
+
+    // Calculate new value
+    uint256_t l_new_value = {};
+    if (SUM_256_256(l_cond_prev->header.value, a_value, &l_new_value))
+    {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Integer overflow in new conditional value calculation");
+        return NULL;
+    }
+
+    // Create new OUT_COND with increased value (copy structure)
+    size_t l_cond_size = sizeof(dap_chain_tx_out_cond_t) + l_cond_prev->tsd_size;
+    dap_chain_tx_out_cond_t *l_out_cond = DAP_DUP_SIZE(l_cond_prev, l_cond_size);
+    if (!l_out_cond) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Memory allocation error");
+        return NULL;
+    }
+    l_out_cond->header.value = l_new_value;
+
+    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond) < 0) {
+        DAP_DELETE(l_out_cond);
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Can't add conditional output");
+        return NULL;
+    }
+    DAP_DELETE(l_out_cond);
+
+    // Add TSD refill marker
+    dap_chain_tx_tsd_t *l_refill_tsd = dap_chain_datum_tx_item_tsd_create(&a_value, DAP_CHAIN_SRV_PAY_TSD_REFILL, sizeof(uint256_t));
+    if (!l_refill_tsd || dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_refill_tsd) != 1)
+    {
+        DAP_DEL_Z(l_refill_tsd);
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Can't add TSD refill marker");
+        return NULL;
+    }
+    DAP_DELETE(l_refill_tsd);
+
+    // Add coin back
+    uint256_t l_value_back = {};
+    SUBTRACT_256_256(l_value_transfer, l_value_need, &l_value_back);
+    if (!IS_ZERO_256(l_value_back)) {
+        const char *l_back_ticker = l_refill_native ? a_net->pub.native_ticker : l_tx_ticker;
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_from, l_value_back, l_back_ticker) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_ERROR, "Can't add coin back output");
+            return NULL;
+        }
+    }
+
+    // Add net fee
+    if (l_net_fee_used) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, a_net->pub.native_ticker) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_ERROR, "Can't add net fee output");
+            return NULL;
+        }
+    }
+
+    // Add validator fee
+    if (!IS_ZERO_256(a_value_fee) && dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Can't add validator fee output");
+        return NULL;
+    }
+
+    // Add fee coin back if not native
+    if (!l_refill_native) {
+        uint256_t l_fee_back = {};
+        SUBTRACT_256_256(l_fee_transfer, l_fee_total, &l_fee_back);
+        if (!IS_ZERO_256(l_fee_back)) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_from, l_fee_back, a_net->pub.native_ticker) != 1) {
+                dap_chain_datum_tx_delete(l_tx);
+                log_it(L_ERROR, "Can't add fee back output");
+                return NULL;
+            }
+        }
+    }
+
+    // Add sign
+    if (dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Can't add sign output");
+        return NULL;
+    }
+
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    dap_chain_datum_tx_delete(l_tx);
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    DAP_DELETE(l_datum);
+    return l_ret;
+}
+
 char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
                                        dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_private_key,
@@ -1837,11 +2070,13 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
             dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t*)l_item;
             if (l_tx_in->header.tx_out_prev_idx == a_out_idx && dap_hash_fast_compare(&l_tx_in->header.tx_prev_hash, a_out_hash)) {
                 dap_global_db_objs_delete(l_objs, l_objs_count);
+                DAP_DELETE(l_gdb_group_mempool);
                 return true;
             }
         }
     }
     dap_global_db_objs_delete(l_objs, l_objs_count);
+    DAP_DELETE(l_gdb_group_mempool);
     return false;
 }
 
@@ -1937,6 +2172,7 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
+    DAP_DELETE(l_event_item);  // add_item copies data, free original
 
     // Add TSD section with event data if provided
     if (a_event_data && a_event_data_size > 0) {

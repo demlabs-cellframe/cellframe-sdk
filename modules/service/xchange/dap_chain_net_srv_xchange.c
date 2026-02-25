@@ -444,7 +444,7 @@ int dap_chain_net_srv_xchange_init()
     dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, NULL, "eXchange service commands",
     "srv_xchange order remove -net <net_name> -order <order_hash> -w <wallet_name> -fee <value_datoshi>\n"
          "\tRemove order with specified order hash in specified net name\n"
-    "srv_xchange orders -net <net_name> [-addr <seller_addr>]\n"
+    "srv_xchange orders -net <net_name> [-addr <seller_addr> | -seller <seller_addr>]\n"
          "\tList open orders for seller address or all open orders in network\n"
         );
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
@@ -643,6 +643,9 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
                         l_in_val = ((dap_chain_tx_out_std_t*)l_in_prev_item)->value;
                         break;
                     case TX_ITEM_TYPE_OUT_OLD:
+                        l_in_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in->header.tx_prev_hash);
+                        l_in_val = GET_256_FROM_64(((dap_chain_tx_out_old_t*)l_in_prev_item)->header.value);
+                        break;
                     case TX_ITEM_TYPE_OUT:
                         l_in_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in->header.tx_prev_hash);
                         l_in_val = ((dap_chain_tx_out_t*)l_in_prev_item)->header.value;
@@ -2131,6 +2134,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                 return -DAP_CHAIN_NODE_CLI_COM_NET_SRV_XCNGE_ORDRS_NET_NOT_FOUND_ERR;
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
+            if (!l_addr_str)
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-seller", &l_addr_str);
             dap_chain_addr_t *l_addr = NULL;
             if (l_addr_str) {
                 l_addr = dap_chain_addr_from_str(l_addr_str);

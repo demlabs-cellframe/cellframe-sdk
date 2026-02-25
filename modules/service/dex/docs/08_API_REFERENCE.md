@@ -324,6 +324,23 @@ typedef enum dap_chain_net_srv_dex_cancel_all_error_list {
 
 ---
 
+## Pair Whitelist Query
+
+### Check Pair Whitelist
+
+```c
+bool dap_chain_net_srv_dex_pair_is_whitelisted(
+    const char *a_sell_token,
+    dap_chain_net_id_t a_sell_net_id,
+    const char *a_buy_token,
+    dap_chain_net_id_t a_buy_net_id
+);
+```
+
+Returns `true` if the canonical pair for the given tokens is whitelisted via DEX decrees.
+
+---
+
 ## Order Matching API
 
 ### Match Hashes Query

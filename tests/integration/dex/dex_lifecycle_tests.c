@@ -130,8 +130,11 @@ static expected_deltas_t calc_purchase_deltas(
         DIV_128(tmp, GET_128_FROM_64(S_POW18), &seller_gets);
         // % fee from INPUT (QUOTE for ASK), 0.1% step
         if (!fee_waived && is_pct_fee) {
-            MULT_128_128(seller_gets, GET_128_FROM_64(fee_cfg & 0x7F), &tmp);
-            DIV_128(tmp, GET_128_FROM_64(1000), &service_fee);
+            uint64_t l_pct = fee_cfg & 0x7F;
+            if (l_pct) {
+                MULT_128_128(seller_gets, GET_128_FROM_64(l_pct), &tmp);
+                DIV_128(tmp, GET_128_FROM_64(1000), &service_fee);
+            }
         }
         SUM_128_128(seller_gets, service_fee, &buyer_spends);
         
@@ -162,8 +165,11 @@ static expected_deltas_t calc_purchase_deltas(
         
         // % fee from INPUT (BASE for BID), 0.1% step
         if (!fee_waived && is_pct_fee) {
-            MULT_128_128(exec_base, GET_128_FROM_64(fee_cfg & 0x7F), &tmp);
-            DIV_128(tmp, GET_128_FROM_64(1000), &service_fee);
+            uint64_t l_pct = fee_cfg & 0x7F;
+            if (l_pct) {
+                MULT_128_128(exec_base, GET_128_FROM_64(l_pct), &tmp);
+                DIV_128(tmp, GET_128_FROM_64(1000), &service_fee);
+            }
         }
         SUM_128_128(exec_base, service_fee, &buyer_spends);
         buyer_gets = exec_value;  // full QUOTE, no deduction
@@ -1169,8 +1175,11 @@ static int run_phase_partial_buy(test_context_t *ctx) {
         uint128_t service_fee = uint128_0;
         // % fee from INPUT (BASE for BID), 0.1% step
         if (is_pct_fee) {
-            MULT_128_128(exec_sell_canonical, GET_128_FROM_64(fee_cfg & 0x7F), &tmp128);
-            DIV_128(tmp128, GET_128_FROM_64(1000), &service_fee);
+            uint64_t l_pct = fee_cfg & 0x7F;
+            if (l_pct) {
+                MULT_128_128(exec_sell_canonical, GET_128_FROM_64(l_pct), &tmp128);
+                DIV_128(tmp128, GET_128_FROM_64(1000), &service_fee);
+            }
         }
         
         SUM_128_128(exec_sell_canonical, service_fee, &d_sell.buyer_base);
