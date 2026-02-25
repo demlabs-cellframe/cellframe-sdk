@@ -261,6 +261,30 @@ dap_chain_net_srv_dex_purchase_auto(dap_chain_net_t *a_net, const char *a_sell_t
                                     bool a_create_buyer_order_on_leftover, uint256_t a_leftover_rate, uint8_t a_leftover_min_fill,
                                     dap_chain_datum_tx_t **a_tx);
 
+/**
+ * @brief Auto-match purchase using specific UTXO as input for sell token
+ * @param a_net             Target network
+ * @param a_sell_token      Token buyer wants to sell (from forced UTXO)
+ * @param a_buy_token       Token buyer wants to buy
+ * @param a_fee             Validator fee (collected automatically from wallet)
+ * @param a_rate_cap        Rate limit (0 = no limit)
+ * @param a_wallet          Buyer wallet for signing and fee UTXO source
+ * @param a_recipient_addr  Address to receive purchased tokens (can differ from wallet)
+ * @param a_utxo_tx_hash    TX hash containing the forced UTXO input
+ * @param a_utxo_out_idx    Output index of the forced UTXO
+ * @param a_utxo_value      Value available in the forced UTXO
+ * @param a_tx              [out] Composed TX
+ * @return Error code; uses forced UTXO for sell token, auto-collects fee
+ * @note This function is designed for bridge-dex scenarios where a specific
+ *       UTXO must be consumed to prevent double-spending
+ */
+dap_chain_net_srv_dex_purchase_error_t
+dap_chain_net_srv_dex_purchase_auto_with_utxo(dap_chain_net_t *a_net, const char *a_sell_token, const char *a_buy_token,
+                                              uint256_t a_fee, uint256_t a_rate_cap, dap_chain_wallet_t *a_wallet,
+                                              const dap_chain_addr_t *a_recipient_addr,
+                                              const dap_hash_fast_t *a_utxo_tx_hash, uint32_t a_utxo_out_idx, uint256_t a_utxo_value,
+                                              dap_chain_datum_tx_t **a_tx);
+
 /* ============================================================================
  * Legacy Migration (XCHANGE -> DEX)
  * ============================================================================ */

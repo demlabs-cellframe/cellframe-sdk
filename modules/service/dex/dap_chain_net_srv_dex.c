@@ -7594,6 +7594,423 @@ dap_chain_net_srv_dex_purchase_auto(dap_chain_net_t *a_net, const char *a_sell_t
                                                   a_create_buyer_order_on_leftover, a_leftover_rate, a_leftover_min_fill, a_tx, NULL);
 }
 
+/* ============================================================================
+ * Purchase with forced UTXO (for bridge-dex)
+ * ============================================================================ */
+
+/** @brief Collect inputs with one forced UTXO for specific ticker, auto-collect others. */
+static int s_dex_collect_inputs_with_forced_utxo(dap_chain_net_t *a_net, const dap_chain_addr_t *a_addr,
+                                                  dex_tx_requirements_t *a_reqs, dap_chain_datum_tx_t **a_tx,
+                                                  const char *a_forced_ticker, const dap_hash_fast_t *a_forced_tx_hash,
+                                                  uint32_t a_forced_out_idx, uint256_t a_forced_value)
+{
+    dap_ret_val_if_any(-1, !a_reqs->utxo_reqs, !a_addr || dap_chain_addr_is_blank(a_addr));
+    dap_chain_addr_t l_addr = *a_addr;
+
+    // Debug: list all requirements
+    log_it(L_INFO, "s_dex_collect_inputs_with_forced_utxo: forced_ticker=%s, looking for requirements:", a_forced_ticker);
+    dex_utxo_requirement_t *l_debug_req, *l_debug_tmp;
+    HASH_ITER(hh, a_reqs->utxo_reqs, l_debug_req, l_debug_tmp) {
+        log_it(L_INFO, "  - requirement ticker=%s, amount=%s", l_debug_req->ticker, dap_uint256_to_char_ex(l_debug_req->amount).frac);
+    }
+
+    dex_utxo_requirement_t *l_req, *l_tmp;
+    HASH_ITER(hh, a_reqs->utxo_reqs, l_req, l_tmp)
+    {
+        if (IS_ZERO_256(l_req->amount))
+            continue;
+
+        if (a_forced_ticker && !dap_strcmp(l_req->ticker, a_forced_ticker)) {
+            // FORCED: use specific UTXO input
+            // Get real UTXO value from ledger to ensure balance matches
+            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_forced_tx_hash);
+            if (!l_prev_tx) {
+                log_it(L_ERROR, "Failed to find transaction for forced UTXO %s:%u",
+                       dap_chain_hash_fast_to_str_static(a_forced_tx_hash), a_forced_out_idx);
+                return -2;
+            }
+            
+            byte_t *l_prev_out = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, a_forced_out_idx);
+            if (!l_prev_out) {
+                log_it(L_ERROR, "Failed to get output %u from transaction %s",
+                       a_forced_out_idx, dap_chain_hash_fast_to_str_static(a_forced_tx_hash));
+                return -2;
+            }
+            
+            // Extract real value from UTXO
+            uint256_t l_real_value = uint256_0;
+            switch (*l_prev_out) {
+                case TX_ITEM_TYPE_OUT:
+                    l_real_value = ((dap_chain_tx_out_t *)l_prev_out)->header.value;
+                    break;
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_real_value = ((dap_chain_tx_out_std_t *)l_prev_out)->value;
+                    break;
+                case TX_ITEM_TYPE_OUT_EXT:
+                    l_real_value = ((dap_chain_tx_out_ext_t *)l_prev_out)->header.value;
+                    break;
+                default:
+                    log_it(L_ERROR, "Unsupported output type %d for forced UTXO", *l_prev_out);
+                    return -2;
+            }
+            
+            // Warn if values don't match (for debugging)
+            if (!EQUAL_256(l_real_value, a_forced_value)) {
+                log_it(L_WARNING, "Forced UTXO value mismatch: passed %s, actual %s - using actual",
+                       dap_uint256_to_char_ex(a_forced_value).frac, dap_uint256_to_char_ex(l_real_value).frac);
+            }
+            
+            if (dap_chain_datum_tx_add_in_item(a_tx, (dap_chain_hash_fast_t*)a_forced_tx_hash, a_forced_out_idx) != 1) {
+                log_it(L_ERROR, "Failed to add forced UTXO input for %s", a_forced_ticker);
+                return -2;
+            }
+            l_req->transfer = l_real_value;  // Use real value from ledger
+            log_it(L_DEBUG, "Added forced UTXO input %s %s (from %s:%u)",
+                   dap_uint256_to_char_ex(l_real_value).frac, l_req->ticker,
+                   dap_chain_hash_fast_to_str_static(a_forced_tx_hash), a_forced_out_idx);
+        } else {
+            // AUTO: collect as usual (for fee tokens)
+            l_req->transfer = uint256_0;
+            if (s_dex_collect_utxo_for_ticker(a_net, l_req->ticker, &l_addr, l_req->amount, a_tx, &l_req->transfer) < 0) {
+                log_it(L_WARNING, "Failed to collect %s %s", dap_uint256_to_char_ex(l_req->amount).frac, l_req->ticker);
+                return -3;
+            }
+            log_it(L_DEBUG, "Added %s %s inputs (auto), needed %s",
+                   dap_uint256_to_char_ex(l_req->transfer).frac, l_req->ticker,
+                   dap_uint256_to_char_ex(l_req->amount).frac);
+        }
+    }
+    return 0;
+}
+
+/** @brief Compose TX from match table using forced UTXO for sell token. */
+static dap_chain_datum_tx_t *s_dex_compose_with_forced_utxo(dap_chain_net_t *a_net, dap_chain_wallet_t *a_wallet,
+                                                            const dap_chain_addr_t *a_buyer_addr, uint256_t a_fee,
+                                                            dex_match_table_entry_t *a_matches,
+                                                            const char *a_forced_ticker, const dap_hash_fast_t *a_forced_tx_hash,
+                                                            uint32_t a_forced_out_idx, uint256_t a_forced_value)
+{
+    // Extract pair info from first match (all matches share same pair)
+    dex_match_table_entry_t *l_match0 = a_matches;
+    dex_pair_key_t *l_key0 = l_match0->pair_key;
+    const char *l_token_quote = l_key0->token_quote, *l_token_base = l_key0->token_base;
+
+    log_it(L_INFO, "s_dex_compose_with_forced_utxo: forced_ticker=%s, forced_value=%s, pair BASE=%s QUOTE=%s",
+           a_forced_ticker, dap_uint256_to_char_ex(a_forced_value).frac, l_token_base, l_token_quote);
+
+    // Detect partial match
+    dex_match_table_entry_t *l_partial_match = NULL, *l_cur_match, *l_tmp;
+    uint256_t l_best_rate = l_match0->match.rate;
+
+    HASH_ITER(hh, a_matches, l_cur_match, l_tmp)
+    {
+        uint256_t l_full_base = uint256_0;
+        if (l_match0->side_version & 0x1)
+            DIV_256_COIN(l_cur_match->match.value, l_cur_match->match.rate, &l_full_base);
+        else
+            l_full_base = l_cur_match->match.value;
+
+        if (compare256(l_full_base, l_cur_match->exec_b_sell) > 0) {
+            if (l_partial_match)
+                ret_log_it(NULL, L_CRITICAL, "Multiple partial matches detected!");
+            l_partial_match = l_cur_match;
+        }
+    }
+
+    // Self-purchase check
+    HASH_ITER(hh, a_matches, l_cur_match, l_tmp)
+    {
+        if (dap_chain_addr_compare(a_buyer_addr, &l_cur_match->seller_addr))
+            ret_log_it(NULL, L_ERROR, "Self-purchase not allowed: buyer is seller %s", dap_chain_addr_to_str_static(a_buyer_addr));
+    }
+
+    // Build requirements
+    dex_tx_requirements_t l_reqs;
+    if (s_dex_requirements_build(a_net, a_matches, a_fee, a_buyer_addr, l_partial_match, &l_reqs))
+        ret_log_it(NULL, L_ERROR, "Failed to build requirements");
+
+    dap_chain_addr_t *l_payer_addr = a_wallet ? dap_chain_wallet_get_addr(a_wallet, a_net->pub.id) : (dap_chain_addr_t*)a_buyer_addr;
+    if (!l_payer_addr)
+        ret_log_it(NULL, L_ERROR, "Failed to get wallet address");
+
+    dap_chain_datum_tx_t *l_tx = NULL;
+    int l_err_line = 0;
+#define RET_ERR do { \
+    l_err_line = __LINE__; \
+    goto forced_compose_ret; \
+} while(0)
+
+    // Create TX
+    l_tx = dap_chain_datum_tx_create();
+    if (!l_tx)
+        RET_ERR;
+
+    // Collect inputs with forced UTXO for sell token
+    if (s_dex_collect_inputs_with_forced_utxo(a_net, l_payer_addr, &l_reqs, &l_tx,
+                                              a_forced_ticker, a_forced_tx_hash, a_forced_out_idx, a_forced_value) != 0) {
+        log_it(L_ERROR, "Failed to collect inputs with forced UTXO");
+        RET_ERR;
+    }
+
+    // IN_COND: spend sellers' SRV_DEX outs
+    if (l_partial_match) {
+        int l_idx = l_partial_match->match.prev_idx;
+        if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_partial_match->match.tail, l_idx < 0 ? 0 : l_idx, 0) != 1)
+            RET_ERR;
+    }
+    HASH_ITER(hh, a_matches, l_cur_match, l_tmp)
+    {
+        if (l_partial_match == l_cur_match)
+            continue;
+        int l_idx = l_cur_match->match.prev_idx;
+        if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_cur_match->match.tail, l_idx < 0 ? 0 : l_idx, 0) != 1)
+            RET_ERR;
+    }
+
+    // OUTs depend on direction
+    bool l_srv_fee_used = !IS_ZERO_256(l_reqs.fee_srv);
+    bool l_native_is_quote = !strcmp(l_reqs.ticker_native, l_token_quote);
+    bool l_native_is_base = !strcmp(l_reqs.ticker_native, l_token_base);
+
+    if (l_reqs.side == DEX_SIDE_ASK) {
+        // ASK: taker buys BASE, pays QUOTE
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_buyer_addr, l_reqs.exec_sell_base, l_token_base, 0) == -1)
+            RET_ERR;
+
+        bool l_can_agg_ask = l_reqs.fee_pct_mode || l_native_is_quote;
+        const dap_chain_addr_t *l_srv_addr = (l_can_agg_ask && l_srv_fee_used) ? &l_reqs.service_addr : NULL;
+        uint256_t l_srv_fee_agg = l_srv_addr ? l_reqs.fee_srv : uint256_0;
+        if (s_dex_add_seller_payouts(&l_tx, a_matches, l_srv_addr, l_srv_fee_agg, l_token_quote, true) < 0)
+            RET_ERR;
+    } else {
+        // BID: taker spends BASE, receives QUOTE
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_buyer_addr, l_reqs.sellers_payout_quote, l_token_quote, 0) == -1)
+            RET_ERR;
+
+        bool l_can_agg_bid = l_reqs.fee_pct_mode || l_native_is_base;
+        const dap_chain_addr_t *l_srv_addr_bid = (l_can_agg_bid && l_srv_fee_used) ? &l_reqs.service_addr : NULL;
+        uint256_t l_srv_fee_agg_bid = l_srv_addr_bid ? l_reqs.fee_srv : uint256_0;
+        if (s_dex_add_seller_payouts(&l_tx, a_matches, l_srv_addr_bid, l_srv_fee_agg_bid, l_token_base, false) < 0)
+            RET_ERR;
+    }
+
+    // Add fees
+    if (s_dex_add_fees_to_tx(&l_tx, a_fee, l_reqs.network_fee, &l_reqs.network_addr, l_reqs.ticker_native) < 0)
+        RET_ERR;
+
+    // Service fee in NATIVE (if not aggregated)
+    bool l_srv_fee_aggregated =
+        l_reqs.fee_pct_mode || (l_reqs.side == DEX_SIDE_ASK && l_native_is_quote) || (l_reqs.side == DEX_SIDE_BID && l_native_is_base);
+    if (!l_srv_fee_aggregated && l_srv_fee_used) {
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, &l_reqs.service_addr, l_reqs.fee_srv, l_reqs.ticker_native, 0) == -1)
+            RET_ERR;
+    }
+
+    // Cashback (per token from UTXO overpayment)
+    log_it(L_INFO, "s_dex_compose_with_forced_utxo: Cashback calculation:");
+    dex_utxo_requirement_t *l_req, *l_req_tmp;
+    HASH_ITER(hh, l_reqs.utxo_reqs, l_req, l_req_tmp)
+    {
+        log_it(L_INFO, "  - ticker=%s, transfer=%s, amount=%s", 
+               l_req->ticker, dap_uint256_to_char_ex(l_req->transfer).frac, dap_uint256_to_char_ex(l_req->amount).frac);
+        
+        if (compare256(l_req->transfer, l_req->amount) <= 0)
+            continue;
+
+        uint256_t l_cashback;
+        SUBTRACT_256_256(l_req->transfer, l_req->amount, &l_cashback);
+
+        log_it(L_INFO, "  - Adding cashback %s %s to buyer", dap_uint256_to_char_ex(l_cashback).frac, l_req->ticker);
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_buyer_addr, l_cashback, l_req->ticker, 0) == -1)
+            RET_ERR;
+    }
+
+    // Seller residual for partial match (no buyer leftover in this simplified version)
+    if (l_partial_match) {
+        uint256_t l_residual = uint256_0;
+        if (l_reqs.side == DEX_SIDE_ASK) {
+            SUBTRACT_256_256(l_partial_match->match.value, l_partial_match->exec_b_sell, &l_residual);
+        } else {
+            if (IS_ZERO_256(l_partial_match->exec_q)) {
+                log_it(L_ERROR, "exec_quote not set for BID partial fill!");
+                RET_ERR;
+            }
+            SUBTRACT_256_256(l_partial_match->match.value, l_partial_match->exec_q, &l_residual);
+        }
+        const char *l_residual_ticker = (l_reqs.side == DEX_SIDE_ASK) ? l_token_base : l_token_quote;
+
+        if (!IS_ZERO_256(l_residual)) {
+            uint256_t l_fixed_native = a_fee;
+            if (!IS_ZERO_256(l_reqs.network_fee))
+                SUM_256_256(l_fixed_native, l_reqs.network_fee, &l_fixed_native);
+            if (!l_reqs.fee_pct_mode && !IS_ZERO_256(l_reqs.fee_srv))
+                SUM_256_256(l_fixed_native, l_reqs.fee_srv, &l_fixed_native);
+            uint8_t l_fee_cfg_eff = l_key0->fee_config;
+            if (dap_chain_addr_compare(a_buyer_addr, &l_reqs.service_addr))
+                l_fee_cfg_eff &= 0x80;
+            const char *l_buy_ticker = (l_reqs.side == DEX_SIDE_ASK) ? l_token_quote : l_token_base;
+            bool l_is_bid = (l_reqs.side == DEX_SIDE_BID);
+            uint256_t l_dust_thr = s_dex_calc_dust_threshold(l_residual_ticker, l_buy_ticker, l_reqs.ticker_native, l_fee_cfg_eff,
+                                                             l_partial_match->match.rate, l_is_bid, l_fixed_native);
+            if (!IS_ZERO_256(l_dust_thr) && compare256(l_residual, l_dust_thr) <= 0) {
+                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_partial_match->seller_addr, l_residual, l_residual_ticker) != 1)
+                    RET_ERR;
+            } else {
+                // Re-issue EXCHANGE
+                uint256_t l_rate = l_partial_match->match.rate;
+                dap_chain_tx_out_cond_t *l_out_cond = NULL;
+                if (l_reqs.side == DEX_SIDE_ASK) {
+                    l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_dex(
+                        (dap_chain_net_srv_uid_t){.uint64 = DAP_CHAIN_NET_SRV_DEX_ID}, l_key0->net_id_base, l_residual, l_key0->net_id_quote,
+                        l_token_quote, l_rate, &l_partial_match->seller_addr, &l_partial_match->match.root, l_partial_match->match.min_fill,
+                        (l_partial_match->side_version >> 1), l_partial_match->flags, DEX_TX_TYPE_EXCHANGE, NULL, 0);
+                } else {
+                    l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_dex(
+                        (dap_chain_net_srv_uid_t){.uint64 = DAP_CHAIN_NET_SRV_DEX_ID}, l_key0->net_id_quote, l_residual, l_key0->net_id_base,
+                        l_token_base, l_rate, &l_partial_match->seller_addr, &l_partial_match->match.root, l_partial_match->match.min_fill,
+                        (l_partial_match->side_version >> 1), l_partial_match->flags, DEX_TX_TYPE_EXCHANGE, NULL, 0);
+                }
+                int l_add_out_cond_res = -1;
+                if (l_out_cond) {
+                    l_add_out_cond_res = dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
+                    DAP_DELETE(l_out_cond);
+                }
+                if (l_add_out_cond_res == -1)
+                    RET_ERR;
+            }
+        }
+    }
+
+    // Sign with wallet
+    if (a_wallet && s_dex_sign_tx(&l_tx, a_wallet) < 0)
+        RET_ERR;
+
+#undef RET_ERR
+forced_compose_ret:
+    if (a_wallet)
+        DAP_DELETE(l_payer_addr);
+    s_dex_requirements_free(&l_reqs);
+    if (l_err_line) {
+        log_it(L_ERROR, "Error at line %d, datum was not composed", l_err_line);
+        dap_chain_datum_tx_delete(l_tx);
+        l_tx = NULL;
+    }
+    return l_tx;
+}
+
+/** @brief Auto-match purchase using specific UTXO as input for sell token. */
+dap_chain_net_srv_dex_purchase_error_t
+dap_chain_net_srv_dex_purchase_auto_with_utxo(dap_chain_net_t *a_net, const char *a_sell_token, const char *a_buy_token,
+                                              uint256_t a_fee, uint256_t a_rate_cap, dap_chain_wallet_t *a_wallet,
+                                              const dap_chain_addr_t *a_recipient_addr,
+                                              const dap_hash_fast_t *a_utxo_tx_hash, uint32_t a_utxo_out_idx, uint256_t a_utxo_value,
+                                              dap_chain_datum_tx_t **a_tx)
+{
+    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_sell_token, !a_buy_token, !a_tx,
+                       !a_utxo_tx_hash || dap_hash_fast_is_blank(a_utxo_tx_hash), IS_ZERO_256(a_utxo_value));
+    *a_tx = NULL;
+
+    // Get buyer/recipient address
+    dap_chain_addr_t *l_buyer_addr = a_recipient_addr ? (dap_chain_addr_t*)a_recipient_addr
+                                                      : a_wallet ? dap_chain_wallet_get_addr(a_wallet, a_net->pub.id) : NULL;
+    if (!l_buyer_addr || dap_chain_addr_is_blank(l_buyer_addr))
+        return DEX_PURCHASE_ERROR_INVALID_ARGUMENT;
+
+    // Get real UTXO value from ledger (passed value may not match exactly)
+    uint256_t l_real_utxo_value = a_utxo_value;
+    dap_chain_datum_tx_t *l_utxo_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_utxo_tx_hash);
+    if (l_utxo_tx) {
+        byte_t *l_utxo_out = dap_chain_datum_tx_out_get_by_out_idx(l_utxo_tx, a_utxo_out_idx);
+        if (l_utxo_out) {
+            switch (*l_utxo_out) {
+                case TX_ITEM_TYPE_OUT:
+                    l_real_utxo_value = ((dap_chain_tx_out_t *)l_utxo_out)->header.value;
+                    break;
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_real_utxo_value = ((dap_chain_tx_out_std_t *)l_utxo_out)->value;
+                    break;
+                case TX_ITEM_TYPE_OUT_EXT:
+                    l_real_utxo_value = ((dap_chain_tx_out_ext_t *)l_utxo_out)->header.value;
+                    break;
+                default:
+                    log_it(L_WARNING, "Unsupported output type %d, using passed value", *l_utxo_out);
+                    break;
+            }
+            if (!EQUAL_256(l_real_utxo_value, a_utxo_value)) {
+                log_it(L_WARNING, "UTXO value mismatch: passed %s, actual %s - using actual",
+                       dap_uint256_to_char_ex(a_utxo_value).frac, dap_uint256_to_char_ex(l_real_utxo_value).frac);
+            }
+        }
+    }
+
+    log_it(L_INFO, "Purchase auto with UTXO: sell=%s buy=%s value=%s fee=%s utxo=%s:%u",
+           a_sell_token, a_buy_token, dap_uint256_to_char_ex(l_real_utxo_value).frac, dap_uint256_to_char_ex(a_fee).frac,
+           dap_chain_hash_fast_to_str_static(a_utxo_tx_hash), a_utxo_out_idx);
+
+    // Get fee_config for this pair to adjust budget for service fee
+    // Service fee in percent mode is taken from INPUT (what buyer pays = our UTXO)
+    // So effective_budget = utxo_value / (1 + fee_pct/1000)
+    uint256_t l_effective_budget = l_real_utxo_value;
+    dex_pair_key_t l_pair_key = {};
+    uint8_t l_side = 0;
+    s_dex_pair_normalize(a_sell_token, a_net->pub.id, a_buy_token, a_net->pub.id, &l_pair_key, &l_side);
+    
+    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+    dex_pair_index_t *l_pair_idx = s_dex_pair_index_get(&l_pair_key);
+    if (l_pair_idx) {
+        uint8_t l_fee_cfg = l_pair_idx->key.fee_config;
+        if (l_fee_cfg & 0x80) {
+            // Percent mode: fee_pct = (fee_cfg & 0x7F) in 0.1% steps
+            uint8_t l_pct = l_fee_cfg & 0x7F;
+            if (l_pct > 0) {
+                // effective_budget = budget * 1000 / (1000 + fee_pct)
+                // This ensures: seller_payout + service_fee = budget
+                uint256_t l_scale = GET_256_FROM_64(1000);
+                uint256_t l_divisor = GET_256_FROM_64(1000 + l_pct);
+                MULT_256_256(l_real_utxo_value, l_scale, &l_effective_budget);
+                DIV_256(l_effective_budget, l_divisor, &l_effective_budget);
+                log_it(L_INFO, "Adjusted budget for %u%% service fee: %s -> %s",
+                       l_pct, dap_uint256_to_char_ex(l_real_utxo_value).frac, 
+                       dap_uint256_to_char_ex(l_effective_budget).frac);
+            }
+        }
+    }
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+
+    // Build matches using adjusted budget (accounts for service fee)
+    dex_match_criteria_t l_crit = {
+        .token_sell = a_sell_token,
+        .token_buy = a_buy_token,
+        .net_id_sell = a_net->pub.id,
+        .net_id_buy = a_net->pub.id,
+        .rate_cap = a_rate_cap,
+        .budget = l_effective_budget,  // Adjusted for service fee
+        .buyer_addr = l_buyer_addr,
+        .is_budget_buy = false   // Budget is in SELL tokens (what we have on UTXO)
+    };
+
+    uint256_t l_leftover_quote = uint256_0;
+    dex_match_table_entry_t *l_matches = s_dex_matches_build_by_criteria(a_net, &l_crit, &l_leftover_quote);
+
+    dap_chain_net_srv_dex_purchase_error_t l_err = DEX_PURCHASE_ERROR_OK;
+    if (l_matches) {
+        // Compose TX with forced UTXO (use real value for consistency)
+        *a_tx = s_dex_compose_with_forced_utxo(a_net, a_wallet, l_buyer_addr, a_fee, l_matches,
+                                               a_sell_token, a_utxo_tx_hash, a_utxo_out_idx, l_real_utxo_value);
+        if (!*a_tx)
+            l_err = DEX_PURCHASE_ERROR_COMPOSE_TX;
+        s_dex_match_pair_index_clear(&l_matches);
+    } else {
+        l_err = DEX_PURCHASE_AUTO_ERROR_NO_MATCHES;
+        log_it(L_WARNING, "No matching orders found for %s -> %s", a_sell_token, a_buy_token);
+    }
+
+    if (!a_recipient_addr)
+        DAP_DELETE(l_buyer_addr);
+    return l_err;
+}
+
+/** @brief Cancel order. */
 dap_chain_net_srv_dex_remove_error_t dap_chain_net_srv_dex_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_fee,
                                                                   dap_chain_wallet_t *a_wallet, const dap_chain_addr_t *a_owner_addr,
                                                                   dap_chain_datum_tx_t **a_tx)
