@@ -4197,7 +4197,6 @@ dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_ch
         }
     } else
         *a_out_datum = l_tx;
-    
     DAP_DELETE(l_price);
     // To avoid confusion, the term "order" will apply to the original conditional exchange offer transactions.
     

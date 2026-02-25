@@ -26,7 +26,7 @@ tests:amd64.gcc:
     image: demlabs/debian/amd64:qt6
     script:
       - mkdir build
-      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
+      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON && make -j$(nproc) && ctest --output-on-failure --verbose
 
 
 tests:amd64.clang:
@@ -34,7 +34,7 @@ tests:amd64.clang:
     image: demlabs/debian/amd64:qt6
     script:
       - mkdir build
-      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
+      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON && make -j$(nproc) && ctest --output-on-failure --verbose
 
 
 tests:arm64.cross:
@@ -42,7 +42,7 @@ tests:arm64.cross:
     image: demlabs/debian/amd64:cross
     script:
       - mkdir build
-      - cd build && cmake-arm64 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc) && ctest --verbose
+      - cd build && cmake-arm64 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON && make -j$(nproc) && ctest --output-on-failure --verbose
 
 
 tests:arm32.cross:
@@ -50,15 +50,15 @@ tests:arm32.cross:
     image: demlabs/debian/amd64:cross
     script:
       - mkdir build
-      - cd build && cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON  && make -j$(nproc) && ctest --verbose
+      - cd build && cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON && make -j$(nproc) && ctest --output-on-failure --verbose
 
 tests:windows.amd64:
     extends: .tests
     image: demlabs/windows/amd64:qt6
     script:
       - mkdir build
-      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/wine -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON && make -j$(nproc)
-      - ctest --verbose
+      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/wine -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON && make -j$(nproc)
+      - ctest --output-on-failure --verbose
 
 tests:macos.arm64:
     extends: .tests
@@ -66,8 +66,8 @@ tests:macos.arm64:
       - macos-native
     script:
       - mkdir build
-      - cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && make -j$(nproc)
-      - ctest --verbose
+      - cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && make -j$(nproc)
+      - ctest --output-on-failure --verbose
 
 
 build:android:
@@ -120,4 +120,3 @@ cppcheck_code_quality:
       allow_failure: true
   tags:
     - ci-polygon
-

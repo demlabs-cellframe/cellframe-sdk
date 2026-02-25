@@ -668,16 +668,16 @@ if ( a_pass )
         .signature  = DAP_CHAIN_WALLETS_FILE_SIGNATURE,
         .version    = a_pass ? DAP_WALLET$K_VER_2 : DAP_WALLET$K_VER_1,
         .type       = a_pass ? DAP_WALLET$K_TYPE_GOST89 : DAP_WALLET$K_TYPE_PLAIN,
-        .wallet_len = strnlen(l_cp, DAP_WALLET$SZ_NAME)
+        .wallet_name_len = strnlen(l_cp, DAP_WALLET$SZ_NAME)
     };
 
     iovec_t l_iov[] = {
         { .iov_base = &l_file_hdr,  .iov_len = sizeof(l_file_hdr) },    /* WALLET$K_IOV_HEADER */
-        { .iov_base = l_cp,         .iov_len = l_file_hdr.wallet_len }  /* WALLET$K_IOV_BODY */
+        { .iov_base = l_cp,         .iov_len = l_file_hdr.wallet_name_len }  /* WALLET$K_IOV_BODY */
     };
 
     l_rc = dap_writev(l_fh, l_cp, l_iov, WALLET$SZ_IOV_NR, &l_err);     /* Performs writting vectorized buffer */
-    if (l_err || (l_len = sizeof(l_file_hdr) + l_file_hdr.wallet_len) != l_rc) {
+    if (l_err || (l_len = sizeof(l_file_hdr) + l_file_hdr.wallet_name_len) != l_rc) {
         log_it(L_ERROR, "Error write Wallet header to file '%s', err %"DAP_FORMAT_ERRNUM, l_wallet_internal->file_name, l_err);
         dap_fileclose(l_fh);
         return -l_err;
@@ -833,7 +833,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         return NULL;
     }
 
-    if ( l_file_hdr.wallet_len > DAP_WALLET$SZ_NAME ) {
+    if ( l_file_hdr.wallet_name_len > DAP_WALLET$SZ_NAME ) {
         log_it(L_ERROR, "Invalid Wallet name (%s) length ( >%d)", a_file_name, DAP_WALLET$SZ_NAME);
         dap_fileclose(l_fh);
         if ( a_out_stat )
@@ -842,10 +842,10 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     }
 
 #ifdef DAP_OS_WINDOWS
-    if (!ReadFile(l_fh, l_wallet_name, l_file_hdr.wallet_len, &l_rc, 0) || l_rc != l_file_hdr.wallet_len) {
+    if (!ReadFile(l_fh, l_wallet_name, l_file_hdr.wallet_name_len, &l_rc, 0) || l_rc != l_file_hdr.wallet_name_len) {
         l_err = GetLastError();
 #else
-    if (l_file_hdr.wallet_len != read(l_fh, l_wallet_name, l_file_hdr.wallet_len)) { /* Read wallet's name */
+    if (l_file_hdr.wallet_name_len != read(l_fh, l_wallet_name, l_file_hdr.wallet_name_len)) { /* Read wallet's name */
         l_err = errno;
 #endif
         if ( a_out_stat )
@@ -855,10 +855,10 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     }
 
     l_csum = crc32c(l_csum, &l_file_hdr, sizeof(l_file_hdr) );           /* Compute check sum of the Wallet file header */
-    l_csum = crc32c(l_csum, l_wallet_name,  l_file_hdr.wallet_len);
+    l_csum = crc32c(l_csum, l_wallet_name,  l_file_hdr.wallet_name_len);
 
     debug_if(s_debug_more, L_DEBUG, "Wallet file: %s, Wallet[Version: %d, type: %d, name: '%.*s']",
-           a_file_name, l_file_hdr.version, l_file_hdr.type, l_file_hdr.wallet_len, l_wallet_name);
+           a_file_name, l_file_hdr.version, l_file_hdr.type, l_file_hdr.wallet_name_len, l_wallet_name);
 
     /* First run - count certs in file */
 
@@ -930,7 +930,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         return NULL;
     }
 
-    snprintf(l_wallet->name, DAP_WALLET$SZ_NAME + 1, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
+    snprintf(l_wallet->name, DAP_WALLET$SZ_NAME + 1, "%.*s", l_file_hdr.wallet_name_len, l_wallet_name);
     strncpy(l_wallet_internal->file_name, a_file_name, sizeof(l_wallet_internal->file_name) - 1);
 
     l_wallet_internal->certs_count = l_certs_count;
@@ -957,10 +957,10 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
 #ifdef DAP_OS_WINDOWS
     LARGE_INTEGER l_offset;
-    l_offset.QuadPart = sizeof(l_file_hdr) + l_file_hdr.wallet_len;
+    l_offset.QuadPart = sizeof(l_file_hdr) + l_file_hdr.wallet_name_len;
     if (SetFilePointerEx(l_fh, l_offset, &l_offset, FILE_BEGIN))
 #else
-    lseek(l_fh,  sizeof(l_file_hdr) + l_file_hdr.wallet_len, SEEK_SET);     /* Set file pointer to first record after cert file header */
+    lseek(l_fh,  sizeof(l_file_hdr) + l_file_hdr.wallet_name_len, SEEK_SET);     /* Set file pointer to first record after cert file header */
 #endif
 
 #ifdef DAP_OS_WINDOWS

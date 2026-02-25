@@ -4209,7 +4209,7 @@ dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id
 
 int dap_chain_net_srv_stake_get_validator_ext(dap_chain_net_srv_order_t *a_order, uint256_t *a_tax, uint256_t *a_value_max)
 {
-    dap_return_val_if_pass(!a_order || !a_order->ext_n_sign, -1);
+    dap_return_val_if_pass(!a_order, -1);
     if (a_order->direction != SERV_DIR_SELL) {
         log_it(L_ERROR, "Order type is not a buy order");
         return -1;
