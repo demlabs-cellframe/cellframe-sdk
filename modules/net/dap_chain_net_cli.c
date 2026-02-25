@@ -13,6 +13,7 @@
 #include <errno.h>
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "dap_strptime.h"
 #include "dap_chain_net_cli.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_core.h"
@@ -1339,9 +1340,9 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-prev_day", &l_prev_day_str);
                 time_t l_ts_now = time(NULL);
                 if (l_from_str) {
-                    strptime( (char *)l_from_str, c_time_fmt, &l_from_tm );
+                    dap_strptime( (char *)l_from_str, c_time_fmt, &l_from_tm );
                     if (l_to_str) {
-                        strptime( (char *)l_to_str, c_time_fmt, &l_to_tm );
+                        dap_strptime( (char *)l_to_str, c_time_fmt, &l_to_tm );
                     } else { // If not set '-to' - we set up current time
                         localtime_r(&l_ts_now, &l_to_tm);
                     }
