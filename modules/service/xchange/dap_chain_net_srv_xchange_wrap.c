@@ -59,24 +59,4 @@ bool dap_chain_net_srv_xchange_get_fee_w(
     return dap_chain_net_srv_xchange_get_fee(a_net_id, a_value, a_addr, a_type);
 }
 
-/**
- * @brief Wrapper for getting all xchange prices
- * @param a_net Network pointer
- * @return List of prices
- */
-dap_list_t *dap_chain_net_srv_xchange_get_prices_w(dap_chain_net_t *a_net)
-{
-    return dap_chain_net_srv_xchange_get_prices(a_net);
-}
-
-/**
- * @brief Wrapper for getting xchange transactions
- * @param a_net Network pointer
- * @return List of transactions
- */
-dap_list_t *dap_chain_net_srv_xchange_get_tx_xchange_w(dap_chain_net_t *a_net)
-{
-    return dap_chain_net_srv_xchange_get_tx_xchange(a_net);
-}
-
 

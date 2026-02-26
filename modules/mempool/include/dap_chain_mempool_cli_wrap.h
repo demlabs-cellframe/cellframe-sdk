@@ -23,13 +23,6 @@ extern "C" {
 #endif
 
 /**
- * @brief Wrapper for dap_chain_net_by_name
- * @param a_name Network name to look up
- * @return Pointer to network structure or NULL if not found
- */
-dap_chain_net_t* dap_chain_net_by_name_w(const char *a_name);
-
-/**
  * @brief Wrapper for dap_global_db_get_all_sync
  * @param a_group Group name to query
  * @param a_count Output parameter for object count

@@ -78,3 +78,4 @@ uint256_t dap_chain_net_srv_stake_get_percent_max_w(
     return dap_chain_net_srv_stake_get_percent_max(a_net_id);
 }
 
+

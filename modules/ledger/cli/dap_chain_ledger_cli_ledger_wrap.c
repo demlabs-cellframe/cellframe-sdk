@@ -39,16 +39,6 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_by_hash_w(dap_ledger_t *a_ledger, dap_c
 }
 
 /**
- * @brief Wrapper for dap_ledger_get_txs
- */
-dap_hash_fast_t* dap_ledger_get_txs_w(dap_ledger_t *a_ledger, size_t *a_count,
-                                       const char *a_token, dap_chain_addr_t *a_addr,
-                                       size_t a_limit, size_t a_offset)
-{
-    return dap_ledger_get_txs(a_ledger, a_count, a_token, a_addr, a_limit, a_offset);
-}
-
-/**
  * @brief Wrapper for dap_ledger_token_ticker_check
  */
 bool dap_ledger_token_ticker_check_w(dap_ledger_t *a_ledger, const char *a_token_ticker)
@@ -56,3 +46,10 @@ bool dap_ledger_token_ticker_check_w(dap_ledger_t *a_ledger, const char *a_token
     return dap_ledger_token_ticker_check(a_ledger, a_token_ticker);
 }
 
+/**
+ * @brief Wrapper for dap_ledger_token_info_by_name
+ */
+dap_json_t* dap_ledger_token_info_by_name_w(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version)
+{
+    return dap_ledger_token_info_by_name(a_ledger, a_token_ticker, a_version);
+}

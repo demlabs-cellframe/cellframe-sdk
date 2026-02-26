@@ -612,6 +612,153 @@ static void test_xchange_order_create_wallet_not_found(void)
 }
 
 // ============================================================================
+// TESTS: Table Output Formatting
+// ============================================================================
+
+/**
+ * @brief Test xchange orders -h table output formatting
+ */
+static void test_xchange_orders_table_output(void)
+{
+    dap_print_module_name("xchange orders -h table output");
+    
+    // Get the command to access func_rpc (s_print_for_srv_xchange_list)
+    dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find("srv_xchange");
+    dap_assert(l_cmd != NULL, "srv_xchange command found");
+    dap_assert(l_cmd->func_rpc != NULL, "srv_xchange command has func_rpc for table formatting");
+    
+    // Prepare mock JSON input (simulating xchange orders result)
+    // Structure: [{orders: [...], page: [{limit: N, offset: M}]}]
+    dap_json_t *l_json_input = dap_json_array_new();
+    dap_json_t *l_json_data = dap_json_object_new();
+    
+    // Add orders array
+    dap_json_t *l_orders_array = dap_json_array_new();
+    
+    // Add test order with known data
+    dap_json_t *l_order1 = dap_json_object_new();
+    dap_json_object_add_string(l_order1, "order_hash", "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    dap_json_object_add_string(l_order1, "ts_created", "Mon, 01 Jan 2024 12:00:00 +0000");
+    dap_json_object_add_string(l_order1, "status", "opened");
+    dap_json_object_add_string(l_order1, "proposed_coins", "100.5000000000");
+    dap_json_object_add_string(l_order1, "amount_coins", "50.2500000000");
+    dap_json_object_add_uint64(l_order1, "filled_percent", 50);
+    dap_json_object_add_string(l_order1, "token_buy", "tCELL");
+    dap_json_object_add_string(l_order1, "token_sell", "tKEL");
+    dap_json_object_add_string(l_order1, "rate", "0.5");
+    dap_json_object_add_string(l_order1, "owner_addr", "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234TESTADDRESS12345");
+    dap_json_array_add(l_orders_array, l_order1);
+    
+    dap_json_t *l_order2 = dap_json_object_new();
+    dap_json_object_add_string(l_order2, "order_hash", "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+    dap_json_object_add_string(l_order2, "ts_created", "Tue, 15 Feb 2024 15:30:45 +0300");
+    dap_json_object_add_string(l_order2, "status", "closed");
+    dap_json_object_add_string(l_order2, "proposed_coins", "200.0000000000");
+    dap_json_object_add_string(l_order2, "amount_coins", "200.0000000000");
+    dap_json_object_add_uint64(l_order2, "filled_percent", 100);
+    dap_json_object_add_string(l_order2, "token_buy", "KEL");
+    dap_json_object_add_string(l_order2, "token_sell", "CELL");
+    dap_json_object_add_string(l_order2, "rate", "1.25");
+    dap_json_object_add_string(l_order2, "owner_addr", "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234TESTADDRESS67890");
+    dap_json_array_add(l_orders_array, l_order2);
+    
+    dap_json_object_add_array(l_json_data, "orders", l_orders_array);
+    
+    // Add pagination info
+    dap_json_t *l_page_array = dap_json_array_new();
+    dap_json_t *l_page = dap_json_object_new();
+    dap_json_object_add_int64(l_page, "limit", 100);
+    dap_json_object_add_int64(l_page, "offset", 0);
+    dap_json_array_add(l_page_array, l_page);
+    dap_json_object_add_array(l_json_data, "page", l_page_array);
+    
+    dap_json_array_add(l_json_input, l_json_data);
+    
+    // Prepare output
+    dap_json_t *l_json_output = dap_json_array_new();
+    
+    // Prepare argv with -h and orders
+    char *l_argv[] = {"srv_xchange", "orders", "-net", "test", "-h", NULL};
+    int l_argc = 5;
+    
+    // Call the formatting function
+    int l_ret = l_cmd->func_rpc(l_json_input, l_json_output, l_argv, l_argc);
+    
+    dap_assert(l_ret == 0, "table formatting succeeds");
+    
+    // Get the output string
+    dap_json_t *l_result = dap_json_array_get_idx(l_json_output, 0);
+    dap_assert(l_result != NULL, "result object exists");
+    
+    dap_json_t *l_output_obj = NULL;
+    dap_json_object_get_ex(l_result, "output", &l_output_obj);
+    dap_assert(l_output_obj != NULL, "output field exists");
+    
+    const char *l_table = dap_json_get_string(l_output_obj);
+    dap_assert(l_table != NULL, "table string exists");
+    
+    log_it(L_DEBUG, "Table output:\n%s", l_table);
+    
+    // Verify table structure
+    dap_assert(strstr(l_table, "Order hash") != NULL, "table has 'Order hash' header");
+    dap_assert(strstr(l_table, "Token buy") != NULL, "table has 'Token buy' header");
+    dap_assert(strstr(l_table, "Token sell") != NULL, "table has 'Token sell' header");
+    dap_assert(strstr(l_table, "Status") != NULL, "table has 'Status' header");
+    dap_assert(strstr(l_table, "Rate") != NULL, "table has 'Rate' header");
+    
+    // Check order data is present
+    dap_assert(strstr(l_table, "opened") != NULL, "table contains order status 'opened'");
+    dap_assert(strstr(l_table, "closed") != NULL, "table contains order status 'closed'");
+    dap_assert(strstr(l_table, "tCELL") != NULL, "table contains token tCELL");
+    dap_assert(strstr(l_table, "KEL") != NULL, "table contains token KEL");
+    
+    // Check separator lines
+    dap_assert(strstr(l_table, "___") != NULL, "table has separator lines");
+    
+    // Check limit display
+    dap_assert(strstr(l_table, "limit") != NULL, "table shows limit");
+    
+    // Cleanup
+    dap_json_object_free(l_json_input);
+    dap_json_object_free(l_json_output);
+    
+    dap_pass_msg("xchange orders -h table output complete");
+}
+
+/**
+ * @brief Test xchange orders -h with empty results
+ */
+static void test_xchange_orders_table_empty(void)
+{
+    dap_print_module_name("xchange orders -h table (empty)");
+    
+    dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find("srv_xchange");
+    dap_assert(l_cmd != NULL, "srv_xchange command found");
+    
+    // Prepare empty JSON input (no orders)
+    dap_json_t *l_json_input = dap_json_array_new();
+    dap_json_t *l_json_data = dap_json_object_new();
+    dap_json_t *l_orders_array = dap_json_array_new();
+    dap_json_object_add_array(l_json_data, "orders", l_orders_array);
+    dap_json_array_add(l_json_input, l_json_data);
+    
+    dap_json_t *l_json_output = dap_json_array_new();
+    
+    char *l_argv[] = {"srv_xchange", "orders", "-h", NULL};
+    int l_argc = 3;
+    
+    int l_ret = l_cmd->func_rpc(l_json_input, l_json_output, l_argv, l_argc);
+    
+    // Should return 0 for empty orders (shows "Response array is empty")
+    dap_assert(l_ret == 0, "table formatting returns 0 for empty orders");
+    
+    dap_json_object_free(l_json_input);
+    dap_json_object_free(l_json_output);
+    
+    dap_pass_msg("xchange orders -h table empty test complete");
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -648,8 +795,12 @@ int main(void)
     // Run wallet validation tests
     test_xchange_order_create_wallet_not_found();
     
+    // Run table output tests
+    test_xchange_orders_table_output();
+    test_xchange_orders_table_empty();
+    
     log_it(L_NOTICE, "All CLI XChange mocked tests passed!");
-    printf("\n✓ All %d tests passed\n", 10);
+    printf("\n✓ All %d tests passed\n", 12);
     
     return 0;
 }

@@ -459,6 +459,136 @@ static void test_mempool_invalid_hash_format(void)
 }
 
 // ============================================================================
+// TESTS: Table Output Formatting
+// ============================================================================
+
+/**
+ * @brief Test mempool list -h table output formatting
+ */
+static void test_mempool_list_table_output(void)
+{
+    dap_print_module_name("mempool list -h table output");
+    
+    // Get the command to access func_rpc (s_print_for_mempool_list)
+    dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find("mempool");
+    dap_assert(l_cmd != NULL, "mempool command found");
+    dap_assert(l_cmd->func_rpc != NULL, "mempool command has func_rpc for table formatting");
+    
+    // Prepare mock JSON input for mempool list
+    // Structure: [{net: "test", chains: [{name: "main", datums: [...], total: N}]}]
+    dap_json_t *l_json_input = dap_json_array_new();
+    dap_json_t *l_json_response = dap_json_object_new();
+    
+    dap_json_object_add_string(l_json_response, "net", "TestNet");
+    
+    dap_json_t *l_chains_array = dap_json_array_new();
+    dap_json_t *l_chain = dap_json_object_new();
+    dap_json_object_add_string(l_chain, "name", "main");
+    
+    // Add datums array
+    dap_json_t *l_datums_array = dap_json_array_new();
+    
+    dap_json_t *l_datum1 = dap_json_object_new();
+    dap_json_object_add_string(l_datum1, "hash", "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    dap_json_object_add_string(l_datum1, "type", "TX");
+    dap_json_t *l_created1 = dap_json_object_new();
+    dap_json_object_add_string(l_created1, "str", "Mon, 01 Jan 2024 12:00:00 +0000");
+    dap_json_object_add_object(l_datum1, "created", l_created1);
+    dap_json_array_add(l_datums_array, l_datum1);
+    
+    dap_json_t *l_datum2 = dap_json_object_new();
+    dap_json_object_add_string(l_datum2, "hash", "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+    dap_json_object_add_string(l_datum2, "type", "TOKEN");
+    dap_json_t *l_created2 = dap_json_object_new();
+    dap_json_object_add_string(l_created2, "str", "Tue, 15 Feb 2024 15:30:45 +0300");
+    dap_json_object_add_object(l_datum2, "created", l_created2);
+    dap_json_array_add(l_datums_array, l_datum2);
+    
+    dap_json_object_add_array(l_chain, "datums", l_datums_array);
+    dap_json_object_add_string(l_chain, "total", "2");
+    dap_json_array_add(l_chains_array, l_chain);
+    
+    dap_json_object_add_array(l_json_response, "chains", l_chains_array);
+    dap_json_array_add(l_json_input, l_json_response);
+    
+    // Prepare output
+    dap_json_t *l_json_output = dap_json_array_new();
+    
+    // Prepare argv with -h and list
+    char *l_argv[] = {"mempool", "list", "-net", "test", "-h", NULL};
+    int l_argc = 5;
+    
+    // Call the formatting function
+    int l_ret = l_cmd->func_rpc(l_json_input, l_json_output, l_argv, l_argc);
+    
+    dap_assert(l_ret == 0, "table formatting succeeds");
+    
+    // Get the output string
+    dap_json_t *l_result = dap_json_array_get_idx(l_json_output, 0);
+    dap_assert(l_result != NULL, "result object exists");
+    
+    dap_json_t *l_output_obj = NULL;
+    dap_json_object_get_ex(l_result, "output", &l_output_obj);
+    dap_assert(l_output_obj != NULL, "output field exists");
+    
+    const char *l_table = dap_json_get_string(l_output_obj);
+    dap_assert(l_table != NULL, "table string exists");
+    
+    log_it(L_DEBUG, "Table output:\n%s", l_table);
+    
+    // Verify table structure
+    dap_assert(strstr(l_table, "Hash") != NULL, "table has 'Hash' header");
+    dap_assert(strstr(l_table, "Datum type") != NULL, "table has 'Datum type' header");
+    dap_assert(strstr(l_table, "Time create") != NULL, "table has 'Time create' header");
+    
+    // Check datum data is present
+    dap_assert(strstr(l_table, "TX") != NULL, "table contains datum type TX");
+    dap_assert(strstr(l_table, "TOKEN") != NULL, "table contains datum type TOKEN");
+    dap_assert(strstr(l_table, "0xAAAA") != NULL, "table contains hash 0xAAAA");
+    
+    // Check separator lines
+    dap_assert(strstr(l_table, "___") != NULL, "table has separator lines");
+    
+    // Check total
+    dap_assert(strstr(l_table, "total") != NULL, "table shows total");
+    
+    // Cleanup
+    dap_json_object_free(l_json_input);
+    dap_json_object_free(l_json_output);
+    
+    dap_pass_msg("mempool list -h table output complete");
+}
+
+/**
+ * @brief Test mempool list -h with empty results
+ */
+static void test_mempool_list_table_empty(void)
+{
+    dap_print_module_name("mempool list -h table (empty)");
+    
+    dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find("mempool");
+    dap_assert(l_cmd != NULL, "mempool command found");
+    
+    // Prepare empty JSON input (no chains or invalid structure)
+    dap_json_t *l_json_input = dap_json_array_new();
+    
+    dap_json_t *l_json_output = dap_json_array_new();
+    
+    char *l_argv[] = {"mempool", "list", "-h", NULL};
+    int l_argc = 3;
+    
+    int l_ret = l_cmd->func_rpc(l_json_input, l_json_output, l_argv, l_argc);
+    
+    // Should return -1 for empty/invalid input
+    dap_assert(l_ret == -1, "table formatting returns -1 for empty input");
+    
+    dap_json_object_free(l_json_input);
+    dap_json_object_free(l_json_output);
+    
+    dap_pass_msg("mempool list -h table empty test complete");
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -494,6 +624,10 @@ int main(int argc, char **argv)
     // test_mempool_check_without_datum();
     // test_mempool_dump_without_datum();
     // test_mempool_invalid_hash_format();
+    
+    // Table output tests
+    test_mempool_list_table_output();
+    test_mempool_list_table_empty();
     
     dap_print_module_name("All CLI Mempool mocked tests passed!");
     

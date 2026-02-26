@@ -44,20 +44,6 @@ dap_chain_net_t* dap_chain_net_by_name_w(const char *a_name);
 dap_chain_datum_tx_t* dap_ledger_tx_find_by_hash_w(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
 
 /**
- * @brief Wrapper for dap_ledger_get_txs
- * @param a_ledger Ledger to get transactions from
- * @param a_count Output parameter for transaction count
- * @param a_token Token ticker filter (can be NULL)
- * @param a_addr Address filter (can be NULL)
- * @param a_limit Maximum number of transactions
- * @param a_offset Offset for pagination
- * @return Array of transaction hashes
- */
-dap_hash_fast_t* dap_ledger_get_txs_w(dap_ledger_t *a_ledger, size_t *a_count, 
-                                       const char *a_token, dap_chain_addr_t *a_addr,
-                                       size_t a_limit, size_t a_offset);
-
-/**
  * @brief Wrapper for dap_ledger_token_ticker_check
  * @param a_ledger Ledger to check in
  * @param a_token_ticker Token ticker to check
@@ -65,7 +51,15 @@ dap_hash_fast_t* dap_ledger_get_txs_w(dap_ledger_t *a_ledger, size_t *a_count,
  */
 bool dap_ledger_token_ticker_check_w(dap_ledger_t *a_ledger, const char *a_token_ticker);
 
+/**
+ * @brief Wrapper for dap_ledger_token_info_by_name
+ * @param a_ledger Ledger to get token info from
+ * @param a_token_ticker Token ticker
+ * @param a_version JSON version
+ * @return JSON object with token info or NULL
+ */
+dap_json_t* dap_ledger_token_info_by_name_w(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version);
+
 #ifdef __cplusplus
 }
 #endif
-

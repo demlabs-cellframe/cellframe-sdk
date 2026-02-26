@@ -298,6 +298,67 @@ add_test(NAME cli_ledger_mocked
 )
 
 # ============================================================================
+# Test: TX History CLI Output with Mocking
+# ============================================================================
+# This test uses DAP Mock Framework to mock ledger/network dependencies
+# allowing full CLI command execution with controlled behavior
+# ============================================================================
+
+add_executable(test_cli_tx_history_mocked
+    test_cli_tx_history_mocked.c
+)
+
+# Include generated mock wrappers directory
+target_include_directories(test_cli_tx_history_mocked PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/mock_gen/test_cli_tx_history_mocked
+    ${CMAKE_SOURCE_DIR}/modules/ledger/include
+    ${CMAKE_SOURCE_DIR}/modules/ledger/cli/include
+    ${CMAKE_SOURCE_DIR}/modules/chain/include
+)
+
+target_link_libraries(test_cli_tx_history_mocked
+    ${CLI_TEST_LIBS}
+)
+
+# Apply auto-wrap for DAP_MOCK_DECLARE macros in source file
+dap_mock_autowrap(test_cli_tx_history_mocked)
+
+add_test(NAME cli_tx_history_mocked
+    COMMAND test_cli_tx_history_mocked
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# ============================================================================
+# Test: Global DB CLI Output with Mocking
+# ============================================================================
+# This test uses DAP Mock Framework to mock global_db dependencies
+# allowing full CLI command execution with controlled behavior
+# ============================================================================
+
+add_executable(test_cli_global_db_mocked
+    test_cli_global_db_mocked.c
+)
+
+# Include generated mock wrappers directory
+target_include_directories(test_cli_global_db_mocked PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}/mock_gen/test_cli_global_db_mocked
+    ${CMAKE_SOURCE_DIR}/dap-sdk/module/global-db/include
+    ${CMAKE_SOURCE_DIR}/dap-sdk/module/global-db/cli/include
+)
+
+target_link_libraries(test_cli_global_db_mocked
+    ${CLI_TEST_LIBS}
+)
+
+# Apply auto-wrap for DAP_MOCK_DECLARE macros in source file
+dap_mock_autowrap(test_cli_global_db_mocked)
+
+add_test(NAME cli_global_db_mocked
+    COMMAND test_cli_global_db_mocked
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+# ============================================================================
 # Future tests (uncomment when implemented):
 # ============================================================================
 

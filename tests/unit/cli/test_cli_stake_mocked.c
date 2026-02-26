@@ -631,6 +631,135 @@ static void test_stake_invalidate_requires_net(void)
 }
 
 // ============================================================================
+// TESTS: Table Output Formatting
+// ============================================================================
+
+/**
+ * @brief Test stake list keys -h table output formatting
+ */
+static void test_stake_list_keys_table_output(void)
+{
+    dap_print_module_name("stake list keys -h table output");
+    
+    // Get the command to access func_rpc (s_print_for_srv_stake_all)
+    dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find("srv_stake");
+    dap_assert(l_cmd != NULL, "srv_stake command found");
+    dap_assert(l_cmd->func_rpc != NULL, "srv_stake command has func_rpc for table formatting");
+    
+    // Prepare mock JSON input for list keys
+    // Structure: [[{key1}, {key2}, ..., {totals}]]
+    dap_json_t *l_json_input = dap_json_array_new();
+    dap_json_t *l_keys_array = dap_json_array_new();
+    
+    // Add test validator key with known data
+    dap_json_t *l_key1 = dap_json_object_new();
+    dap_json_object_add_string(l_key1, "node_addr", "AAAA::BBBB::CCCC::DDDD");
+    dap_json_object_add_string(l_key1, "pkey_hash", "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    dap_json_object_add_int64(l_key1, "stake_value", 1000);
+    dap_json_object_add_int64(l_key1, "effective_value", 950);
+    dap_json_object_add_int64(l_key1, "related_weight", 25);
+    dap_json_object_add_string(l_key1, "sovereign_addr", "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234TESTADDRESS12345");
+    dap_json_object_add_string(l_key1, "sovereign_tax", "5%");
+    dap_json_array_add(l_keys_array, l_key1);
+    
+    dap_json_t *l_key2 = dap_json_object_new();
+    dap_json_object_add_string(l_key2, "node_addr", "1111::2222::3333::4444");
+    dap_json_object_add_string(l_key2, "pkey_hash", "0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
+    dap_json_object_add_int64(l_key2, "stake_value", 2000);
+    dap_json_object_add_int64(l_key2, "effective_value", 1900);
+    dap_json_object_add_int64(l_key2, "related_weight", 50);
+    dap_json_object_add_string(l_key2, "sovereign_addr", "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234TESTADDRESS67890");
+    dap_json_object_add_string(l_key2, "sovereign_tax", "10%");
+    dap_json_array_add(l_keys_array, l_key2);
+    
+    // Add totals object
+    dap_json_t *l_totals = dap_json_object_new();
+    dap_json_object_add_int64(l_totals, "total_keys", 2);
+    dap_json_object_add_string(l_totals, "key_delegating_min_value", "100.0");
+    dap_json_object_add_string(l_totals, "key_delegating_min_value_ticker", "CELL");
+    dap_json_object_add_int64(l_totals, "each_validator_max_related_weight", 100);
+    dap_json_array_add(l_keys_array, l_totals);
+    
+    dap_json_array_add(l_json_input, l_keys_array);
+    
+    // Prepare output
+    dap_json_t *l_json_output = dap_json_array_new();
+    
+    // Prepare argv with -h and list keys
+    char *l_argv[] = {"srv_stake", "list", "keys", "-net", "test", "-h", NULL};
+    int l_argc = 6;
+    
+    // Call the formatting function
+    int l_ret = l_cmd->func_rpc(l_json_input, l_json_output, l_argv, l_argc);
+    
+    dap_assert(l_ret == 0, "table formatting succeeds");
+    
+    // Get the output string
+    dap_json_t *l_result = dap_json_array_get_idx(l_json_output, 0);
+    dap_assert(l_result != NULL, "result object exists");
+    
+    dap_json_t *l_output_obj = NULL;
+    dap_json_object_get_ex(l_result, "output", &l_output_obj);
+    dap_assert(l_output_obj != NULL, "output field exists");
+    
+    const char *l_table = dap_json_get_string(l_output_obj);
+    dap_assert(l_table != NULL, "table string exists");
+    
+    log_it(L_DEBUG, "Table output:\n%s", l_table);
+    
+    // Verify table structure
+    dap_assert(strstr(l_table, "Node addres") != NULL, "table has 'Node addres' header");
+    dap_assert(strstr(l_table, "Pkey hash") != NULL, "table has 'Pkey hash' header");
+    dap_assert(strstr(l_table, "Stake val") != NULL, "table has 'Stake val' header");
+    dap_assert(strstr(l_table, "Eff val") != NULL, "table has 'Eff val' header");
+    
+    // Check data is present
+    dap_assert(strstr(l_table, "AAAA") != NULL, "table contains node address AAAA");
+    dap_assert(strstr(l_table, "1111") != NULL, "table contains node address 1111");
+    
+    // Check separator lines
+    dap_assert(strstr(l_table, "___") != NULL, "table has separator lines");
+    
+    // Check totals
+    dap_assert(strstr(l_table, "total_keys") != NULL, "table shows total_keys");
+    
+    // Cleanup
+    dap_json_object_free(l_json_input);
+    dap_json_object_free(l_json_output);
+    
+    dap_pass_msg("stake list keys -h table output complete");
+}
+
+/**
+ * @brief Test stake list keys -h with empty results
+ */
+static void test_stake_list_keys_table_empty(void)
+{
+    dap_print_module_name("stake list keys -h table (empty)");
+    
+    dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find("srv_stake");
+    dap_assert(l_cmd != NULL, "srv_stake command found");
+    
+    // Prepare empty JSON input
+    dap_json_t *l_json_input = dap_json_array_new();
+    
+    dap_json_t *l_json_output = dap_json_array_new();
+    
+    char *l_argv[] = {"srv_stake", "list", "keys", "-h", NULL};
+    int l_argc = 4;
+    
+    int l_ret = l_cmd->func_rpc(l_json_input, l_json_output, l_argv, l_argc);
+    
+    // Should return -1 for empty input
+    dap_assert(l_ret == -1, "table formatting returns -1 for empty input");
+    
+    dap_json_object_free(l_json_input);
+    dap_json_object_free(l_json_output);
+    
+    dap_pass_msg("stake list keys -h table empty test complete");
+}
+
+// ============================================================================
 // MAIN
 // ============================================================================
 
@@ -672,8 +801,12 @@ int main(int argc, char **argv)
     test_stake_update_requires_net();
     test_stake_invalidate_requires_net();
     
+    // Run table output tests
+    test_stake_list_keys_table_output();
+    test_stake_list_keys_table_empty();
+    
     log_it(L_NOTICE, "All CLI Stake mocked tests passed!");
-    printf("\n✓ All %d tests passed\n", 11);
+    printf("\n✓ All %d tests passed\n", 13);
     
     return 0;
 }

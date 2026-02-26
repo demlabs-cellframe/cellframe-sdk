@@ -17,14 +17,6 @@
 #include "dap_chain_mempool.h"
 
 /**
- * @brief Wrapper for dap_chain_net_by_name
- */
-dap_chain_net_t* dap_chain_net_by_name_w(const char *a_name)
-{
-    return dap_chain_net_by_name(a_name);
-}
-
-/**
  * @brief Wrapper for dap_global_db_get_all_sync
  */
 dap_global_db_obj_t* dap_global_db_get_all_sync_w(const char *a_group, size_t *a_count)
