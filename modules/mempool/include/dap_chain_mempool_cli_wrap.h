@@ -23,14 +23,6 @@ extern "C" {
 #endif
 
 /**
- * @brief Wrapper for dap_global_db_get_all_sync
- * @param a_group Group name to query
- * @param a_count Output parameter for object count
- * @return Array of database objects
- */
-dap_global_db_obj_t* dap_global_db_get_all_sync_w(const char *a_group, size_t *a_count);
-
-/**
  * @brief Wrapper for dap_global_db_driver_is
  * @param a_group Group name
  * @param a_key Key to check

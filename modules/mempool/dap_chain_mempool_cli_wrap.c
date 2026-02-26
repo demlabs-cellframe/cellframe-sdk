@@ -17,14 +17,6 @@
 #include "dap_chain_mempool.h"
 
 /**
- * @brief Wrapper for dap_global_db_get_all_sync
- */
-dap_global_db_obj_t* dap_global_db_get_all_sync_w(const char *a_group, size_t *a_count)
-{
-    return dap_global_db_get_all_sync(a_group, a_count);
-}
-
-/**
  * @brief Wrapper for dap_global_db_driver_is
  */
 bool dap_global_db_driver_is_w(const char *a_group, const char *a_key)
