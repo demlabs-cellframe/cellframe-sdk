@@ -4001,6 +4001,17 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
 }
 
 
+/**
+ * @brief Structure for deduplicating validator fee orders by pkey_hash.
+ *        Only the latest order (by ts_created) for each validator is kept.
+ */
+typedef struct validator_fee_item {
+    dap_hash_fast_t pkey_hash;      // Public key hash of the validator
+    uint256_t price;                // Fee price from order
+    dap_time_t ts_created;          // Order creation timestamp
+    UT_hash_handle hh;              // Hash handle for uthash
+} validator_fee_item_t;
+
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
                                                 uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee, uint256_t *a_median_fee)
 {
@@ -4009,9 +4020,10 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
     size_t l_orders_count = 0;
     dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
     DAP_DELETE(l_gdb_group_str);
-    uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
-    size_t l_order_fee_count = 0;
-    uint256_t* l_all_fees = DAP_NEW_Z_COUNT(uint256_t, l_orders_count);
+
+    // Hash table for deduplication: only latest order per validator (by pkey_hash)
+    validator_fee_item_t *l_validators_fees = NULL;
+
     for (size_t i = 0; i < l_orders_count; i++) {
         const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
         if (!l_order) {
@@ -4020,50 +4032,111 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         }
         if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
             continue;
-        if (l_order_fee_count == 0) {
-            l_min = l_max = l_order->price;
-        }
-        l_all_fees[l_order_fee_count] = l_order->price;
-        for(int j = l_order_fee_count; j > 0 && compare256(l_all_fees[j], l_all_fees[j - 1]) == -1; --j) {
-            uint256_t l_temp = l_all_fees[j];
-            l_all_fees[j] = l_all_fees[j - 1];
-            l_all_fees[j - 1] = l_temp;
-        }
-        l_order_fee_count++;
-        uint256_t t = uint256_0;
-        SUM_256_256(l_order->price, l_average, &t);
-        l_average = t;
-    }
 
-    uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
-    uint256_t l_min_tmp = uint256_0;
-    uint16_t l_min_tmp_count = 0;
-    bool l_found = false;
-    for (size_t k = 0; k < l_order_fee_count; k++) {
-        if (!l_found) {
-            switch (compare256(l_min_tmp, l_all_fees[k])) {
-                case  0: l_min_tmp_count++; break;
-                case  1: 
-                case -1: l_min_tmp = l_all_fees[k]; l_min_tmp_count = 1; break;
-                default: break;
+        // Extract signature and get pkey_hash
+        dap_sign_t *l_order_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
+        if (l_order_sign->header.type.type == SIG_TYPE_NULL)
+            continue;  // Skip unsigned orders
+
+        dap_hash_fast_t l_pkey_hash = {0};
+        if (!dap_sign_get_pkey_hash(l_order_sign, &l_pkey_hash))
+            continue;  // Skip orders with invalid signature
+
+        // Deduplicate: keep only the latest order per validator
+        validator_fee_item_t *l_item = NULL;
+        HASH_FIND(hh, l_validators_fees, &l_pkey_hash, sizeof(dap_hash_fast_t), l_item);
+        if (!l_item) {
+            // New validator - add to hash table
+            l_item = DAP_NEW_Z(validator_fee_item_t);
+            if (!l_item) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                continue;
             }
-            if (l_min_tmp_count == l_min_count) {
-                l_min = l_min_tmp;
-                l_found = true;
-            }
-        }
-        if (compare256(l_max, l_all_fees[k]) == -1) {
-            l_max = l_all_fees[k];
+            l_item->pkey_hash = l_pkey_hash;
+            l_item->price = l_order->price;
+            l_item->ts_created = l_order->ts_created;
+            HASH_ADD(hh, l_validators_fees, pkey_hash, sizeof(dap_hash_fast_t), l_item);
+        } else if (l_item->ts_created < l_order->ts_created) {
+            // Update to newer order
+            l_item->price = l_order->price;
+            l_item->ts_created = l_order->ts_created;
         }
     }
     dap_global_db_objs_delete(l_orders, l_orders_count);
-    uint256_t t = uint256_0;
-    if (!IS_ZERO_256(l_average))
-        DIV_256(l_average, dap_chain_uint256_from(l_order_fee_count), &t);
-    l_average = t;
 
-    if (l_order_fee_count) {
-        l_median = l_all_fees[(size_t)(l_order_fee_count * 2 / 3)];
+    // Collect unique fees from deduplicated hash table
+    size_t l_order_fee_count = HASH_COUNT(l_validators_fees);
+    uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
+    uint256_t *l_all_fees = NULL;
+
+    if (l_order_fee_count > 0) {
+        l_all_fees = DAP_NEW_Z_COUNT(uint256_t, l_order_fee_count);
+        if (!l_all_fees) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            // Cleanup hash table
+            validator_fee_item_t *l_item, *l_tmp;
+            HASH_ITER(hh, l_validators_fees, l_item, l_tmp) {
+                HASH_DEL(l_validators_fees, l_item);
+                DAP_DELETE(l_item);
+            }
+            return false;
+        }
+
+        size_t l_idx = 0;
+        validator_fee_item_t *l_item, *l_tmp;
+        HASH_ITER(hh, l_validators_fees, l_item, l_tmp) {
+            l_all_fees[l_idx] = l_item->price;
+            // Insertion sort while adding
+            for (int j = l_idx; j > 0 && compare256(l_all_fees[j], l_all_fees[j - 1]) == -1; --j) {
+                uint256_t l_temp = l_all_fees[j];
+                l_all_fees[j] = l_all_fees[j - 1];
+                l_all_fees[j - 1] = l_temp;
+            }
+            // Sum for average
+            uint256_t t = uint256_0;
+            SUM_256_256(l_item->price, l_average, &t);
+            l_average = t;
+
+            l_idx++;
+            // Cleanup hash table item
+            HASH_DEL(l_validators_fees, l_item);
+            DAP_DELETE(l_item);
+        }
+
+        // Calculate min (based on min_validators_count threshold)
+        uint16_t l_min_count = dap_chain_esbocs_get_min_validators_count(a_net->pub.id);
+        uint256_t l_min_tmp = uint256_0;
+        uint16_t l_min_tmp_count = 0;
+        bool l_found = false;
+        l_min = l_max = l_all_fees[0];  // Initialize with first element
+        for (size_t k = 0; k < l_order_fee_count; k++) {
+            if (!l_found) {
+                switch (compare256(l_min_tmp, l_all_fees[k])) {
+                    case  0: l_min_tmp_count++; break;
+                    case  1:
+                    case -1: l_min_tmp = l_all_fees[k]; l_min_tmp_count = 1; break;
+                    default: break;
+                }
+                if (l_min_tmp_count == l_min_count) {
+                    l_min = l_min_tmp;
+                    l_found = true;
+                }
+            }
+            if (compare256(l_max, l_all_fees[k]) == -1) {
+                l_max = l_all_fees[k];
+            }
+        }
+
+        // Calculate average
+        uint256_t t = uint256_0;
+        if (!IS_ZERO_256(l_average))
+            DIV_256(l_average, dap_chain_uint256_from(l_order_fee_count), &t);
+        l_average = t;
+
+        // Calculate true median (50th percentile, not 66th)
+        l_median = l_all_fees[l_order_fee_count / 2];
+
+        DAP_DELETE(l_all_fees);
     }
 
     if (a_min_fee)
@@ -4074,7 +4147,6 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         *a_median_fee = l_median;
     if (a_max_fee)
         *a_max_fee = l_max;
-    DAP_DELETE(l_all_fees);
     return true;
 }
 
