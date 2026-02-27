@@ -2132,6 +2132,414 @@ int run_cancel_extra_native_input_tests(dex_test_fixture_t *f) {
 }
 
 // ============================================================================
+// SPONSORED CASHBACK TESTS (payer != buyer, cashback → payer)
+// ============================================================================
+
+static inline int s_rollback_tx(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hash, const char *a_label) {
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, a_hash);
+    if (!l_tx || dap_ledger_tx_remove(a_ledger, l_tx, a_hash) != 0) {
+        log_it(L_ERROR, "Rollback failed: %s", a_label);
+        return -1;
+    }
+    return 0;
+}
+
+typedef struct {
+    const dap_chain_addr_t *from_addr;
+    const dap_chain_addr_t *to_addr;
+    const char *token;
+} tamper_sponsored_cashback_redirect_t;
+
+static uint256_t s_sum_stdext_out_by_addr_token(dap_chain_datum_tx_t *a_tx, const dap_chain_addr_t *a_addr, const char *a_token)
+{
+    uint256_t l_sum = uint256_0;
+    if (!a_tx || !a_addr || !a_token || !*a_token)
+        return l_sum;
+    byte_t *it; size_t sz;
+    TX_ITEM_ITER_TX(it, sz, a_tx) {
+        if (*it == TX_ITEM_TYPE_OUT_STD) {
+            dap_chain_tx_out_std_t *o = (dap_chain_tx_out_std_t *)it;
+            if (dap_chain_addr_compare(&o->addr, a_addr) && !dap_strcmp(o->token, a_token) && !IS_ZERO_256(o->value))
+                SUM_256_256(l_sum, o->value, &l_sum);
+        } else if (*it == TX_ITEM_TYPE_OUT_EXT) {
+            dap_chain_tx_out_ext_t *o = (dap_chain_tx_out_ext_t *)it;
+            if (dap_chain_addr_compare(&o->addr, a_addr) && !dap_strcmp(o->token, a_token) && !IS_ZERO_256(o->header.value))
+                SUM_256_256(l_sum, o->header.value, &l_sum);
+        }
+    }
+    return l_sum;
+}
+
+static bool s_tamper_redirect_stdext_out(dap_chain_datum_tx_t *a_tx, void *a_user_data)
+{
+    tamper_sponsored_cashback_redirect_t *l_ctx = (tamper_sponsored_cashback_redirect_t *)a_user_data;
+    if (!a_tx || !l_ctx || !l_ctx->from_addr || !l_ctx->to_addr || !l_ctx->token || !*l_ctx->token)
+        return false;
+    byte_t *it; size_t sz;
+    TX_ITEM_ITER_TX(it, sz, a_tx) {
+        if (*it == TX_ITEM_TYPE_OUT_STD) {
+            dap_chain_tx_out_std_t *o = (dap_chain_tx_out_std_t *)it;
+            if (dap_chain_addr_compare(&o->addr, l_ctx->from_addr) && !dap_strcmp(o->token, l_ctx->token) && !IS_ZERO_256(o->value)) {
+                memcpy(&o->addr, l_ctx->to_addr, sizeof(dap_chain_addr_t));
+                return true;
+            }
+        } else if (*it == TX_ITEM_TYPE_OUT_EXT) {
+            dap_chain_tx_out_ext_t *o = (dap_chain_tx_out_ext_t *)it;
+            if (dap_chain_addr_compare(&o->addr, l_ctx->from_addr) && !dap_strcmp(o->token, l_ctx->token) && !IS_ZERO_256(o->header.value)) {
+                memcpy(&o->addr, l_ctx->to_addr, sizeof(dap_chain_addr_t));
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static const dap_chain_addr_t *s_pick_alt_addr(
+    dex_test_fixture_t *a_f,
+    const dap_chain_addr_t *a_exclude0,
+    const dap_chain_addr_t *a_exclude1,
+    const dap_chain_addr_t *a_exclude2)
+{
+    const dap_chain_addr_t *l_candidates[] = { &a_f->alice_addr, &a_f->bob_addr, &a_f->carol_addr, &a_f->dave_addr };
+    for (size_t i = 0; i < sizeof(l_candidates) / sizeof(l_candidates[0]); i++) {
+        const dap_chain_addr_t *l_addr = l_candidates[i];
+        if ((a_exclude0 && dap_chain_addr_compare(l_addr, a_exclude0)) ||
+            (a_exclude1 && dap_chain_addr_compare(l_addr, a_exclude1)) ||
+            (a_exclude2 && dap_chain_addr_compare(l_addr, a_exclude2)))
+            continue;
+        return l_addr;
+    }
+    return &a_f->carol_addr;
+}
+
+static int s_run_sponsored_cashback_case(
+    dex_test_fixture_t *f,
+    const test_pair_config_t *pair,
+    uint8_t a_side,
+    wallet_id_t a_seller_id,
+    wallet_id_t a_payer_id,
+    const dap_chain_addr_t *a_beneficiary_addr,
+    bool a_partial_fill,
+    bool a_run_tamper)
+{
+    dap_ret_val_if_any(-1, !f, !pair, !a_beneficiary_addr);
+    const char *l_side_str = a_side == SIDE_ASK ? "ASK" : "BID";
+    const char *l_rate = a_side == SIDE_ASK ? "2.5" : "0.4";
+    const char *l_amount = "10.0";
+
+    dap_chain_wallet_t *l_payer_wallet = get_wallet(f, a_payer_id);
+    const dap_chain_addr_t *l_payer_addr = get_wallet_addr(f, a_payer_id);
+    const dap_chain_addr_t *l_seller_addr = get_wallet_addr(f, a_seller_id);
+    dap_ledger_t *l_ledger = f->net->net->pub.ledger;
+    if (!l_payer_wallet || !l_payer_addr || !l_seller_addr)
+        return -2;
+
+    const char *l_order_sell_token = NULL, *l_order_buy_token = NULL;
+    get_order_tokens(pair, a_side, &l_order_sell_token, &l_order_buy_token);
+    const char *l_beneficiary_trade_token = l_order_sell_token;
+    const char *l_payer_payment_token = l_order_buy_token;
+
+    log_it(L_INFO, "  %s %s [%s]: seller=%s payer=%s beneficiary=Dave",
+           pair->description, l_side_str, a_partial_fill ? "partial" : "full",
+           get_wallet_name(a_seller_id), get_wallet_name(a_payer_id));
+
+    dap_hash_fast_t l_order_hash = {};
+    dap_hash_fast_t l_tx_hash = {};
+    bool l_order_added = false;
+    bool l_purchase_added = false;
+    int l_ret = 0;
+    dap_chain_datum_tx_t *l_tx = NULL;
+
+    if (s_create_test_order(f, pair, a_seller_id, a_side, MINFILL_NONE, l_rate, l_amount, &l_order_hash)) {
+        l_ret = -3;
+        goto sponsored_end;
+    }
+    l_order_added = true;
+
+    uint256_t l_benef_trade_before = dap_ledger_calc_balance(l_ledger, a_beneficiary_addr, l_beneficiary_trade_token);
+    uint256_t l_benef_pay_before = dap_ledger_calc_balance(l_ledger, a_beneficiary_addr, l_payer_payment_token);
+    uint256_t l_payer_trade_before = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_beneficiary_trade_token);
+    uint256_t l_payer_pay_before = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_payer_payment_token);
+
+    uint256_t l_budget = a_partial_fill ? dap_chain_coins_to_balance("5.0") : uint256_0;
+    bool l_is_budget_buy = a_partial_fill;
+    dap_chain_net_srv_dex_purchase_error_t l_err = dap_chain_net_srv_dex_purchase(
+        f->net->net, &l_order_hash, l_budget, l_is_budget_buy,
+        f->network_fee, l_payer_wallet, a_beneficiary_addr, false, uint256_0, 0, &l_tx);
+    if (l_err != DEX_PURCHASE_ERROR_OK || !l_tx) {
+        log_it(L_ERROR, "Sponsored %s compose failed: err=%d", l_side_str, l_err);
+        l_ret = -4;
+        goto sponsored_end;
+    }
+
+    uint256_t l_payer_cashback_out = s_sum_stdext_out_by_addr_token(l_tx, l_payer_addr, l_payer_payment_token);
+    if (!dap_chain_addr_compare(l_payer_addr, l_seller_addr) && IS_ZERO_256(l_payer_cashback_out)) {
+        log_it(L_ERROR, "No cashback output to payer in payment token %s", l_payer_payment_token);
+        l_ret = -5;
+        goto sponsored_end;
+    }
+
+    if (a_run_tamper && !dap_chain_addr_compare(l_payer_addr, l_seller_addr)) {
+        tamper_sponsored_cashback_redirect_t l_tamper_to_beneficiary = {
+            .from_addr = l_payer_addr,
+            .to_addr = a_beneficiary_addr,
+            .token = l_payer_payment_token
+        };
+        if (test_dex_tamper_and_verify_rejection_ex(f, l_tx, l_payer_wallet,
+                s_tamper_redirect_stdext_out, &l_tamper_to_beneficiary,
+                "Sponsored cashback redirect to beneficiary", true) != 0) {
+            l_ret = -6;
+            goto sponsored_end;
+        }
+        const dap_chain_addr_t *l_third_addr = s_pick_alt_addr(f, l_payer_addr, a_beneficiary_addr, l_seller_addr);
+        tamper_sponsored_cashback_redirect_t l_tamper_to_third = {
+            .from_addr = l_payer_addr,
+            .to_addr = l_third_addr,
+            .token = l_payer_payment_token
+        };
+        if (test_dex_tamper_and_verify_rejection_ex(f, l_tx, l_payer_wallet,
+                s_tamper_redirect_stdext_out, &l_tamper_to_third,
+                "Sponsored cashback redirect to third-party", true) != 0) {
+            l_ret = -7;
+            goto sponsored_end;
+        }
+    }
+
+    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+    if (dap_ledger_tx_add(l_ledger, l_tx, &l_tx_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "Sponsored %s TX failed verification", l_side_str);
+        l_ret = -8;
+        goto sponsored_end;
+    }
+    l_purchase_added = true;
+    log_it(L_NOTICE, "  ✓ Sponsored %s TX passed verification", l_side_str);
+    dap_chain_datum_tx_delete(l_tx);
+    l_tx = NULL;
+
+    uint256_t l_benef_trade_after = dap_ledger_calc_balance(l_ledger, a_beneficiary_addr, l_beneficiary_trade_token);
+    uint256_t l_benef_pay_after = dap_ledger_calc_balance(l_ledger, a_beneficiary_addr, l_payer_payment_token);
+    uint256_t l_payer_trade_after = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_beneficiary_trade_token);
+    uint256_t l_payer_pay_after = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_payer_payment_token);
+
+    if (compare256(l_benef_trade_after, l_benef_trade_before) <= 0) {
+        log_it(L_ERROR, "Beneficiary did not receive trade payout in %s", l_beneficiary_trade_token);
+        l_ret = -9;
+        goto sponsored_end;
+    }
+    if (compare256(l_benef_pay_after, l_benef_pay_before) != 0) {
+        log_it(L_ERROR, "Beneficiary received unexpected cashback in %s", l_payer_payment_token);
+        l_ret = -10;
+        goto sponsored_end;
+    }
+    if (!dap_chain_addr_compare(l_payer_addr, l_seller_addr) && compare256(l_payer_trade_after, l_payer_trade_before) > 0) {
+        log_it(L_ERROR, "Payer received beneficiary trade token unexpectedly (%s)", l_beneficiary_trade_token);
+        l_ret = -11;
+        goto sponsored_end;
+    }
+    if (!dap_chain_addr_compare(l_payer_addr, l_seller_addr) && compare256(l_payer_pay_before, l_payer_pay_after) == 0) {
+        log_it(L_ERROR, "Payer balance in payment token %s did not change", l_payer_payment_token);
+        l_ret = -12;
+        goto sponsored_end;
+    }
+
+    log_it(L_NOTICE, "  ✓ Beneficiary/payer balances validated (cashback token=%s)", l_payer_payment_token);
+
+sponsored_end:
+    if (l_tx)
+        dap_chain_datum_tx_delete(l_tx);
+    if (l_purchase_added && s_rollback_tx(l_ledger, &l_tx_hash, "sponsored purchase") != 0 && l_ret == 0)
+        l_ret = -13;
+    if (l_order_added && s_rollback_tx(l_ledger, &l_order_hash, "sponsored order") != 0 && l_ret == 0)
+        l_ret = -14;
+    return l_ret;
+}
+
+static int s_run_sponsored_cashback_multi_match(dex_test_fixture_t *f, const test_pair_config_t *pair)
+{
+    dap_ret_val_if_any(-1, !f, !pair);
+    dap_ledger_t *l_ledger = f->net->net->pub.ledger;
+    dap_chain_wallet_t *l_payer_wallet = f->bob;
+    const dap_chain_addr_t *l_payer_addr = &f->bob_addr;
+    const dap_chain_addr_t *l_beneficiary_addr = &f->dave_addr;
+    const char *l_buyer_pay_token = pair->quote_token; // ASK mode: buyer pays QUOTE
+    const char *l_buyer_get_token = pair->base_token;  // ASK mode: buyer receives BASE
+
+    dap_hash_fast_t l_order_a = {}, l_order_b = {}, l_tx_hash = {};
+    bool l_order_a_added = false, l_order_b_added = false, l_purchase_added = false;
+    dap_chain_datum_tx_t *l_tx = NULL;
+    int l_ret = 0;
+
+    if (s_create_test_order(f, pair, WALLET_ALICE, SIDE_ASK, MINFILL_NONE, "2.5", "7.0", &l_order_a) != 0) {
+        l_ret = -2;
+        goto sponsored_multi_end;
+    }
+    l_order_a_added = true;
+    if (s_create_test_order(f, pair, WALLET_CAROL, SIDE_ASK, MINFILL_NONE, "2.6", "8.0", &l_order_b) != 0) {
+        l_ret = -3;
+        goto sponsored_multi_end;
+    }
+    l_order_b_added = true;
+
+    log_it(L_INFO, "  %s ASK [multi-match]: payer=Bob beneficiary=Dave", pair->description);
+
+    uint256_t l_benef_get_before = dap_ledger_calc_balance(l_ledger, l_beneficiary_addr, l_buyer_get_token);
+    uint256_t l_benef_pay_before = dap_ledger_calc_balance(l_ledger, l_beneficiary_addr, l_buyer_pay_token);
+    uint256_t l_payer_get_before = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_buyer_get_token);
+    uint256_t l_payer_pay_before = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_buyer_pay_token);
+
+    int l_err = dap_chain_net_srv_dex_purchase_auto(
+        f->net->net,
+        l_buyer_pay_token,
+        l_buyer_get_token,
+        dap_chain_coins_to_balance("12.0"),
+        true,
+        f->network_fee,
+        uint256_0,
+        l_payer_wallet,
+        l_beneficiary_addr,
+        false,
+        uint256_0,
+        0,
+        &l_tx);
+    if (l_err != DEX_PURCHASE_ERROR_OK || !l_tx) {
+        log_it(L_ERROR, "Sponsored multi-match compose failed: err=%d", l_err);
+        l_ret = -4;
+        goto sponsored_multi_end;
+    }
+
+    int l_match_count = dex_test_count_in_cond(l_tx);
+    if (l_match_count < 2) {
+        log_it(L_ERROR, "Sponsored multi-match expected >=2 matches, got %d", l_match_count);
+        l_ret = -5;
+        goto sponsored_multi_end;
+    }
+
+    uint256_t l_payer_cashback_out = s_sum_stdext_out_by_addr_token(l_tx, l_payer_addr, l_buyer_pay_token);
+    if (IS_ZERO_256(l_payer_cashback_out)) {
+        log_it(L_ERROR, "Sponsored multi-match: payer cashback output not found");
+        l_ret = -6;
+        goto sponsored_multi_end;
+    }
+
+    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+    if (dap_ledger_tx_add(l_ledger, l_tx, &l_tx_hash, false, NULL) != 0) {
+        log_it(L_ERROR, "Sponsored multi-match TX failed verification");
+        l_ret = -7;
+        goto sponsored_multi_end;
+    }
+    l_purchase_added = true;
+    dap_chain_datum_tx_delete(l_tx);
+    l_tx = NULL;
+
+    uint256_t l_benef_get_after = dap_ledger_calc_balance(l_ledger, l_beneficiary_addr, l_buyer_get_token);
+    uint256_t l_benef_pay_after = dap_ledger_calc_balance(l_ledger, l_beneficiary_addr, l_buyer_pay_token);
+    uint256_t l_payer_get_after = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_buyer_get_token);
+    uint256_t l_payer_pay_after = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_buyer_pay_token);
+
+    if (compare256(l_benef_get_after, l_benef_get_before) <= 0 || compare256(l_benef_pay_after, l_benef_pay_before) != 0) {
+        log_it(L_ERROR, "Sponsored multi-match beneficiary balances mismatch");
+        l_ret = -8;
+        goto sponsored_multi_end;
+    }
+    if (compare256(l_payer_get_after, l_payer_get_before) > 0 || compare256(l_payer_pay_before, l_payer_pay_after) == 0) {
+        log_it(L_ERROR, "Sponsored multi-match payer balances mismatch");
+        l_ret = -9;
+        goto sponsored_multi_end;
+    }
+
+    log_it(L_NOTICE, "  ✓ Sponsored multi-match balances validated (matches=%d)", l_match_count);
+
+sponsored_multi_end:
+    if (l_tx)
+        dap_chain_datum_tx_delete(l_tx);
+    if (l_purchase_added && s_rollback_tx(l_ledger, &l_tx_hash, "sponsored multi purchase") != 0 && l_ret == 0)
+        l_ret = -10;
+    if (l_order_b_added && s_rollback_tx(l_ledger, &l_order_b, "sponsored multi order B") != 0 && l_ret == 0)
+        l_ret = -11;
+    if (l_order_a_added && s_rollback_tx(l_ledger, &l_order_a, "sponsored multi order A") != 0 && l_ret == 0)
+        l_ret = -12;
+    return l_ret;
+}
+
+int run_sponsored_cashback_tests(dex_test_fixture_t *f) {
+    dap_ret_val_if_any(-1, !f);
+    log_it(L_NOTICE, " ");
+    log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
+    log_it(L_NOTICE, "║  SPONSORED CASHBACK TESTS (payer != buyer)               ║");
+    log_it(L_NOTICE, "╚══════════════════════════════════════════════════════════╝");
+
+    // Use Alice as net fee collector so Dave's balance is unaffected by fees
+    test_set_net_fee_collector(f, NET_FEE_ALICE);
+
+    const test_pair_config_t *l_pairs = test_get_standard_pairs();
+    size_t l_pairs_count = test_get_standard_pairs_count();
+    size_t l_tested = 0;
+
+    for (size_t p = 0; p < l_pairs_count; p++) {
+        log_it(L_NOTICE, "--- Pair %zu: %s ---", p, l_pairs[p].description);
+
+        for (uint8_t side = SIDE_ASK; side <= SIDE_BID; side++) {
+            wallet_id_t l_seller_id = side == SIDE_ASK
+                ? WALLET_ALICE
+                : (!dap_strcmp(l_pairs[p].quote_token, "KEL") ? WALLET_ALICE : WALLET_BOB);
+            int ret = s_run_sponsored_cashback_case(
+                f, &l_pairs[p], side, l_seller_id, WALLET_CAROL, &f->dave_addr, false, false);
+            if (ret != 0) {
+                log_it(L_ERROR, "Sponsored cashback FAILED: pair=%s side=%s mode=full ret=%d",
+                       l_pairs[p].description, side == SIDE_ASK ? "ASK" : "BID", ret);
+                return ret;
+            }
+            ret = s_run_sponsored_cashback_case(
+                f, &l_pairs[p], side, l_seller_id, WALLET_CAROL, &f->dave_addr, true, false);
+            if (ret != 0) {
+                log_it(L_ERROR, "Sponsored cashback FAILED: pair=%s side=%s mode=partial ret=%d",
+                       l_pairs[p].description, side == SIDE_ASK ? "ASK" : "BID", ret);
+                return ret;
+            }
+            l_tested += 2;
+        }
+    }
+
+    if (l_pairs_count >= 6) {
+        // Role matrix: payer=service, payer=seller, payer=seller=service
+        if (s_run_sponsored_cashback_case(f, &l_pairs[0], SIDE_ASK, WALLET_ALICE, WALLET_CAROL, &f->dave_addr, false, false) != 0 ||
+            s_run_sponsored_cashback_case(f, &l_pairs[0], SIDE_BID, WALLET_BOB, WALLET_CAROL, &f->dave_addr, false, false) != 0) {
+            log_it(L_ERROR, "Sponsored cashback FAILED: role matrix payer=service");
+            return -100;
+        }
+        if (s_run_sponsored_cashback_case(f, &l_pairs[4], SIDE_ASK, WALLET_ALICE, WALLET_ALICE, &f->dave_addr, false, false) != 0 ||
+            s_run_sponsored_cashback_case(f, &l_pairs[5], SIDE_BID, WALLET_ALICE, WALLET_ALICE, &f->dave_addr, false, false) != 0) {
+            log_it(L_ERROR, "Sponsored cashback FAILED: role matrix payer=seller");
+            return -101;
+        }
+        if (s_run_sponsored_cashback_case(f, &l_pairs[0], SIDE_ASK, WALLET_CAROL, WALLET_CAROL, &f->dave_addr, false, false) != 0 ||
+            s_run_sponsored_cashback_case(f, &l_pairs[0], SIDE_BID, WALLET_CAROL, WALLET_CAROL, &f->dave_addr, false, false) != 0) {
+            log_it(L_ERROR, "Sponsored cashback FAILED: role matrix payer=seller=service");
+            return -102;
+        }
+        l_tested += 6;
+
+        // Security tampering: redirect payer cashback to beneficiary / third-party
+        if (s_run_sponsored_cashback_case(f, &l_pairs[0], SIDE_ASK, WALLET_ALICE, WALLET_BOB, &f->dave_addr, false, true) != 0 ||
+            s_run_sponsored_cashback_case(f, &l_pairs[0], SIDE_BID, WALLET_BOB, WALLET_ALICE, &f->dave_addr, false, true) != 0) {
+            log_it(L_ERROR, "Sponsored cashback FAILED: tamper redirect checks");
+            return -103;
+        }
+        l_tested += 2;
+
+        // Sponsored multi-match (>=2 IN_COND)
+        if (s_run_sponsored_cashback_multi_match(f, &l_pairs[0]) != 0) {
+            log_it(L_ERROR, "Sponsored cashback FAILED: multi-match");
+            return -104;
+        }
+        l_tested++;
+    }
+
+    log_it(L_NOTICE, "✓ Sponsored cashback: %zu scenarios passed (all pair types + role matrix + tamper + multi-match)", l_tested);
+    return 0;
+}
+
+// ============================================================================
 // SEED ORDERBOOK (multi-level ASK/BID by roles)
 // ============================================================================
 
