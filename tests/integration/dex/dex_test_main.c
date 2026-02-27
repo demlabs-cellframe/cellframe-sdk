@@ -1065,6 +1065,15 @@ int main(int argc, char *argv[]) {
         return ret;
     }
     
+    // Sponsored cashback: verify cashback goes to payer, not buyer
+    ret = run_sponsored_cashback_tests(fixture);
+    if (ret != 0) {
+        log_it(L_ERROR, "Sponsored cashback tests FAILED with code %d", ret);
+        dex_test_fixture_destroy(fixture);
+        s_teardown();
+        return ret;
+    }
+    
     // TODO: Add when implemented
     // run_leftover_tests(fixture);
     // run_operations_tests(fixture);

@@ -2200,7 +2200,7 @@ static int s_dex_add_seller_payouts(dap_chain_datum_tx_t **a_tx, dex_match_table
 
 /** @brief Compute TX requirements (fees, payouts, UTXO needs) from match table. */
 static int s_dex_requirements_build(dap_chain_net_t *a_net, dex_match_table_entry_t *a_matches, uint256_t a_validator_fee,
-                                    const dap_chain_addr_t *a_buyer_addr, dex_match_table_entry_t *a_partial_match,
+                                    const dap_chain_addr_t *a_fee_payer_addr, dex_match_table_entry_t *a_partial_match,
                                     dex_tx_requirements_t *a_out_reqs)
 {
     // Extract pair and direction from first match (all matches share same pair/side)
@@ -2287,10 +2287,10 @@ static int s_dex_requirements_build(dap_chain_net_t *a_net, dex_match_table_entr
             ret_log_it(-4, L_ERROR, "Service fee address is blank, cannot create NATIVE service fee OUT");
     }
 
-    // Waive only if service collector is BUYER; if SELLER, do not waive here
+    // Waive only if service collector is FEE PAYER; if SELLER, do not waive here
     if (!IS_ZERO_256(a_out_reqs->fee_srv) && !dap_chain_addr_is_blank(&a_out_reqs->service_addr))
-        if (a_buyer_addr && dap_chain_addr_compare(a_buyer_addr, &a_out_reqs->service_addr)) {
-            debug_if_f(s_debug_more, L_DEBUG, "Service fee waived: service collector is buyer");
+        if (a_fee_payer_addr && dap_chain_addr_compare(a_fee_payer_addr, &a_out_reqs->service_addr)) {
+            debug_if_f(s_debug_more, L_DEBUG, "Service fee waived: service collector is fee payer");
             a_out_reqs->fee_srv = uint256_0;
         }
 
@@ -2443,14 +2443,17 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
             ret_log_it(NULL, L_ERROR, "Self-purchase not allowed: buyer is seller %s", dap_chain_addr_to_str_static(a_buyer_addr));
     }
 
-    // Build requirements (includes fee waiver check internally)
-    dex_tx_requirements_t l_reqs;
-    if (s_dex_requirements_build(a_net, a_matches, a_fee, a_buyer_addr, l_partial_match, &l_reqs))
-        ret_log_it(NULL, L_ERROR, "Failed to build requirements");
-
     dap_chain_addr_t *l_payer_addr = a_wallet ? dap_chain_wallet_get_addr(a_wallet, a_net->pub.id) : (dap_chain_addr_t*)a_buyer_addr;
     if (!l_payer_addr)
         ret_log_it(NULL, L_ERROR, "Failed to get wallet address");
+
+    // Build requirements (includes fee waiver check internally)
+    dex_tx_requirements_t l_reqs;
+    if (s_dex_requirements_build(a_net, a_matches, a_fee, l_payer_addr, l_partial_match, &l_reqs)) {
+        if (a_wallet)
+            DAP_DELETE(l_payer_addr);
+        ret_log_it(NULL, L_ERROR, "Failed to build requirements");
+    }
     // Validate budget: check if wallet has enough funds before collecting inputs
     // Use utxo_reqs to determine actual required amounts (already computed by s_dex_requirements_build)
     // This check is redundant with collection failure, but provides early error with clearer message
@@ -2489,7 +2492,12 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
     //   Matched BID → Bob sells BASE → leftover ASK (sell BASE)
     bool l_leftover_in_quote = (l_reqs.side == DEX_SIDE_ASK) != a_is_budget_buy;
     uint256_t l_leftover_rate = !IS_ZERO_256(a_leftover_rate) ? a_leftover_rate : l_best_rate;
+    bool l_sponsored_mode = !dap_chain_addr_compare(l_payer_addr, a_buyer_addr);
     bool l_create_buyer_leftover = a_create_buyer_order_on_leftover && !IS_ZERO_256(a_leftover_budget);
+    if (l_create_buyer_leftover && l_sponsored_mode) {
+        debug_if_f(s_debug_more, L_DEBUG, "Buyer-leftover disabled for sponsored compose (payer != beneficiary)");
+        l_create_buyer_leftover = false;
+    }
     if (l_create_buyer_leftover) {
         // Collect the SELL token for leftover order (may need conversion)
         const char *l_leftover_sell_ticker = (l_reqs.side == DEX_SIDE_ASK) ? l_token_quote : l_token_base;
@@ -2514,7 +2522,7 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
         if (!l_reqs.fee_pct_mode && !IS_ZERO_256(l_reqs.fee_srv))
             SUM_256_256(l_fixed_native, l_reqs.fee_srv, &l_fixed_native);
         uint8_t l_fee_cfg_eff = l_key0->fee_config;
-        if (dap_chain_addr_compare(a_buyer_addr, &l_reqs.service_addr))
+        if (dap_chain_addr_compare(l_payer_addr, &l_reqs.service_addr))
             l_fee_cfg_eff &= 0x80; // percent fee waived (pct=0), native fee waived (abs=0 via fee_srv)
         const char *l_leftover_buy_ticker = (l_reqs.side == DEX_SIDE_ASK) ? l_token_base : l_token_quote;
         bool l_leftover_is_bid = (l_reqs.side == DEX_SIDE_ASK);
@@ -2627,9 +2635,9 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
         uint256_t l_cashback;
         SUBTRACT_256_256(l_req->transfer, l_req->amount, &l_cashback);
 
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_buyer_addr, l_cashback, l_req->ticker, 0) == -1)
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, l_payer_addr, l_cashback, l_req->ticker, 0) == -1)
             RET_ERR;
-        debug_if_f(s_debug_more, L_DEBUG, "Added cashback %s %s to buyer", dap_uint256_to_char_ex(l_cashback).frac,
+        debug_if_f(s_debug_more, L_DEBUG, "Added cashback %s %s to fee payer", dap_uint256_to_char_ex(l_cashback).frac,
                  l_req->ticker);
     }
     // Buyer leftover and seller residual are mutually exclusive:
@@ -2725,7 +2733,7 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
             if (!l_reqs.fee_pct_mode && !IS_ZERO_256(l_reqs.fee_srv))
                 SUM_256_256(l_fixed_native, l_reqs.fee_srv, &l_fixed_native);
             uint8_t l_fee_cfg_eff = l_key0->fee_config;
-            if (dap_chain_addr_compare(a_buyer_addr, &l_reqs.service_addr))
+            if (dap_chain_addr_compare(l_payer_addr, &l_reqs.service_addr))
                 l_fee_cfg_eff &= 0x80;
             const char *l_buy_ticker = (l_reqs.side == DEX_SIDE_ASK) ? l_token_quote : l_token_base;
             bool l_is_bid = (l_reqs.side == DEX_SIDE_BID);
@@ -4428,6 +4436,8 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
     dap_chain_net_id_t l_sell_net_id = {},
                        l_buy_net_id  = {};
     dap_time_t l_now = dap_ledger_get_blockchain_time(a_ledger);
+    dap_chain_addr_t l_payer_signer_addr = s_dex_extract_buyer_addr(a_tx_in, a_ledger->net->pub.id);
+    const dap_chain_addr_t *l_payer_addr = dap_chain_addr_is_blank(&l_payer_signer_addr) ? NULL : &l_payer_signer_addr;
     bool l_is_leftover   = l_out_cond && !dap_hash_fast_is_blank(&l_out_cond->subtype.srv_dex.order_root_hash),
          l_is_invalidate = !l_out_cond,
          l_is_update     = false,
@@ -4876,21 +4886,9 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         uint256_t l_fixed_native = l_fee_native;
         if (l_net_used && !IS_ZERO_256(l_net_fee_req))
             SUM_256_256(l_fixed_native, l_net_fee_req, &l_fixed_native);
-        bool l_is_buyer_service = false;
-        for (int i = 0; i < l_out_cnt && !l_is_buyer_service; ++i) {
-            dex_out_t *o = &l_outs[i];
-            if ((o->out_type != TX_ITEM_TYPE_OUT_STD && o->out_type != TX_ITEM_TYPE_OUT_EXT) || !o->token ||
-                strcmp(o->token, l_sell_ticker) || o->seller_idx >= 0)
-                continue;
-            if (l_net_used && !strcmp(l_sell_ticker, l_native_ticker) && dap_chain_addr_compare(o->addr, &l_net_addr) &&
-                compare256(o->value, l_net_fee_req) == 0)
-                continue;
-            if (!IS_ZERO_256(l_srv_fee_req) && dap_chain_addr_compare(o->addr, &l_srv_addr) && compare256(o->value, l_srv_fee_req) == 0)
-                continue;
-            l_is_buyer_service = dap_chain_addr_compare(o->addr, &l_srv_addr);
-        }
-        uint8_t l_fee_cfg_eff = l_is_buyer_service ? (l_fee_cfg & 0x80) : l_fee_cfg;
-        if (!l_is_buyer_service && (l_fee_cfg_eff & 0x80) == 0) {
+        bool l_is_payer_service = l_payer_addr && dap_chain_addr_compare(l_payer_addr, &l_srv_addr);
+        uint8_t l_fee_cfg_eff = l_is_payer_service ? (l_fee_cfg & 0x80) : l_fee_cfg;
+        if (!l_is_payer_service && (l_fee_cfg_eff & 0x80) == 0) {
             uint8_t l_mult = l_fee_cfg & 0x7F;
             uint256_t l_srv_abs = l_mult > 0 ? GET_256_FROM_64((uint64_t)l_mult * DAP_DEX_FEE_UNIT_NATIVE) : l_native_fee_cached;
             if (!IS_ZERO_256(l_srv_abs))
@@ -4982,7 +4980,9 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
               l_buy_others      = uint256_0,
               l_sell_others     = uint256_0,
               l_paid_sell_total = uint256_0,
-              l_buyer_buy_cashback = uint256_0;
+              l_buyer_buy_cashback = uint256_0,
+              l_payer_sell_cashback = uint256_0,
+              l_payer_buy_cashback = uint256_0;
 
     for (int i = 0; i < l_out_cnt; ++i) {
         dex_out_t *o = &l_outs[i];
@@ -5039,6 +5039,18 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
 
         // Buyer detection (skip seller payouts — they can include dust-refund)
         if (!strcmp(o->token, l_sell_ticker) && o->seller_idx < 0) {
+            // Non-seller payout in sell token indicates EXCHANGE path, even if signer owns the order
+            // (sponsored flow: payer can be the seller, buyer/beneficiary can be different).
+            if (o->out_type != TX_ITEM_TYPE_OUT_COND)
+                l_is_invalidate = false;
+            bool l_is_payer_out = l_payer_addr && dap_chain_addr_compare(o->addr, l_payer_addr);
+            if (l_is_payer_out && l_buyer_addr && !dap_chain_addr_compare(l_buyer_addr, l_payer_addr)) {
+                SUM_256_256(l_payer_sell_cashback, o->value, &l_payer_sell_cashback);
+                debug_if_f(s_debug_more, L_DEBUG, "Fee payer sell-token cashback OUT #%d; Addr: %s; Value current / total: %s / %s %s", i,
+                          dap_chain_addr_to_str_static(o->addr), dap_uint256_to_char_ex(o->value).frac,
+                          dap_uint256_to_char_ex(l_payer_sell_cashback).frac, l_sell_ticker);
+                continue;
+            }
             // Buyer detection: first OUT in sell_token to non-seller addr
             if (!l_buyer_addr) {
                 l_buyer_addr = o->addr;
@@ -5069,6 +5081,11 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 debug_if_f(s_debug_more, L_DEBUG, "Buyer cashback OUT #%d in buy token: %s %s", i,
                          dap_uint256_to_char_ex(o->value).frac, l_buy_ticker);
                 SUM_256_256(l_buyer_buy_cashback, o->value, &l_buyer_buy_cashback);
+            } else if (o->seller_idx < 0 && l_payer_addr && l_buyer_addr && !dap_chain_addr_compare(l_buyer_addr, l_payer_addr) &&
+                       dap_chain_addr_compare(l_payer_addr, o->addr)) {
+                debug_if_f(s_debug_more, L_DEBUG, "Fee payer buy-token cashback OUT #%d: %s %s", i,
+                         dap_uint256_to_char_ex(o->value).frac, l_buy_ticker);
+                SUM_256_256(l_payer_buy_cashback, o->value, &l_payer_buy_cashback);
             } else if (o->seller_idx < 0) {
                 // Leak detection: unexpected buy_token to non-buyer, non-seller
                 log_it_f(L_WARNING, "Buy token leak at OUT #%d; Addr: %s; Value: %s %s", i,
@@ -5100,7 +5117,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
     }
 
     // Waive/Aggregate service fee according to matrix:
-    // - buyer == service: waive (l_srv_fee_req=0)
+    // - fee payer == service: waive (l_srv_fee_req=0)
     // - seller == service AND fee_ticker==buy_token (ASK+QUOTE): aggregate (increase expected_buy, then set l_srv_fee_req=0)
     // - otherwise: require separate service fee OUT
     if (l_srv_seller_idx < 0) {
@@ -5109,9 +5126,10 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 l_srv_seller_idx = i;
     }
     if (l_srv_used && !IS_ZERO_256(l_srv_fee_req)) {
-        bool l_is_buyer_service = (l_buyer_addr && dap_chain_addr_compare(l_buyer_addr, &l_srv_addr));
-        if (l_is_buyer_service) {
-            debug_if_f(s_debug_more, L_DEBUG, "Service fee %s %s waived: buyer is service beneficiary",
+        const dap_chain_addr_t *l_fee_role_addr = l_payer_addr ? l_payer_addr : l_buyer_addr;
+        bool l_is_fee_payer_service = l_fee_role_addr && dap_chain_addr_compare(l_fee_role_addr, &l_srv_addr);
+        if (l_is_fee_payer_service) {
+            debug_if_f(s_debug_more, L_DEBUG, "Service fee %s %s waived: fee payer is service beneficiary",
                      dap_uint256_to_char_ex(l_srv_fee_req).frac, l_srv_ticker ? l_srv_ticker : "");
             l_srv_fee_req = uint256_0;
             l_paid_srv_fee = uint256_0;
@@ -5136,12 +5154,12 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
     if (l_srv_used && compare256(l_paid_srv_fee, l_srv_fee_req) < 0)
         RET_ERR(DEXV_SERVICE_FEE_UNDERPAID);
 
-    const dap_chain_addr_t *l_fee_payer_addr = l_buyer_addr;
+    const dap_chain_addr_t *l_fee_payer_addr = l_payer_addr ? l_payer_addr : l_buyer_addr;
     if (l_ins && l_in_cnt > 0) {
         for (int i = 0; i < l_in_cnt; ++i) {
             if ((l_ins[i].token && strcmp(l_ins[i].token, l_native_ticker)) || dap_chain_addr_is_blank(&l_ins[i].addr))
                 continue;
-            if (l_fee_payer_addr == l_buyer_addr)
+            if (!l_fee_payer_addr)
                 l_fee_payer_addr = &l_ins[i].addr;
             else if (!dap_chain_addr_compare(l_fee_payer_addr, &l_ins[i].addr)) {
                 debug_if_f(s_debug_more, L_ERROR, "Native IN addr mismatch at IN #%d; Token: %s; IN #%d addr: %s; Expected fee payer: %s",
@@ -5155,7 +5173,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
 
     // Compute sell_token cashback (needed for canonical validation when sell_token == native)
     // Also verify fee contribution if fee payer != fee_collector
-    uint256_t l_buyer_sell_cashback = uint256_0;
+    uint256_t l_fee_payer_sell_cashback = uint256_0;
     bool l_fee_payer_is_fee_collector = l_fee_payer_addr && dap_chain_addr_compare(l_fee_payer_addr, &l_net_addr);
     if (l_fee_payer_addr && l_ins && l_sell_ticker && !strcmp(l_sell_ticker, l_native_ticker)) {
         // Sum fee payer inputs in native token using pre-resolved IN data
@@ -5185,9 +5203,9 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
 
         // Compute cashback = inputs - fees (always needed for canonical validation)
         if (compare256(l_fee_payer_native_inputs, l_total_fee) > 0) {
-            SUBTRACT_256_256(l_fee_payer_native_inputs, l_total_fee, &l_buyer_sell_cashback);
+            SUBTRACT_256_256(l_fee_payer_native_inputs, l_total_fee, &l_fee_payer_sell_cashback);
             debug_if_f(s_debug_more, L_DEBUG, "Sell token cashback %s (inputs %s - fee %s)",
-                                              dap_uint256_to_char_ex(l_buyer_sell_cashback).frac,
+                                              dap_uint256_to_char_ex(l_fee_payer_sell_cashback).frac,
                                               dap_uint256_to_char_ex(l_fee_payer_native_inputs).frac,
                                               dap_uint256_to_char_ex(l_total_fee).frac);
         }
@@ -5207,9 +5225,11 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         //  - BID: sum of expected_buy from Phase 2 (already in BASE)
         uint256_t l_total_base = uint256_0;
         if (l_is_ask) {
-            // Subtract buyer's sell_token cashback (only relevant when sell_token == native)
-            if (!IS_ZERO_256(l_buyer_sell_cashback) && compare256(l_buyer_received, l_buyer_sell_cashback) > 0)
-                SUBTRACT_256_256(l_buyer_received, l_buyer_sell_cashback, &l_total_base);
+            bool l_buyer_is_fee_payer = l_buyer_addr && l_fee_payer_addr && dap_chain_addr_compare(l_buyer_addr, l_fee_payer_addr);
+            // Subtract sell-token cashback only when it was returned to buyer itself.
+            if (l_buyer_is_fee_payer && !IS_ZERO_256(l_fee_payer_sell_cashback) &&
+                compare256(l_buyer_received, l_fee_payer_sell_cashback) > 0)
+                SUBTRACT_256_256(l_buyer_received, l_fee_payer_sell_cashback, &l_total_base);
             else
                 l_total_base = l_buyer_received;
         } else {
@@ -5447,9 +5467,9 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             // We need to add l_srv_fee_req_canon to canonical expected_buy before comparison.
             // With % mode: ASK→fee in QUOTE (=buy_token), BID→fee in BASE (=buy_token)
             // Both cases aggregate if seller == service.
-            bool l_is_buyer_service = (l_buyer_addr && dap_chain_addr_compare(l_buyer_addr, &l_srv_addr));
+            bool l_is_fee_payer_service = l_fee_payer_addr && dap_chain_addr_compare(l_fee_payer_addr, &l_srv_addr);
             bool l_fee_was_aggregated =
-                (l_srv_seller_idx >= 0 && l_srv_ticker && !strcmp(l_srv_ticker, l_buy_ticker) && !l_is_buyer_service);
+                (l_srv_seller_idx >= 0 && l_srv_ticker && !strcmp(l_srv_ticker, l_buy_ticker) && !l_is_fee_payer_service);
             if (l_fee_was_aggregated && !IS_ZERO_256(l_srv_fee_req_canon)) {
                 SUM_256_256(l_canon_expected_buy[l_srv_seller_idx], l_srv_fee_req_canon, &l_canon_expected_buy[l_srv_seller_idx]);
             }
@@ -5562,18 +5582,57 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
     // EXCHANGE: validate per-seller expected_buy == paid_buy
     // Validate seller payouts (self-purchase is now forbidden, so exact match required)
     for (int j = 0; j < l_uniq_sllrs_cnt; ++j) {
+        uint256_t l_paid_buy_effective = l_sellers[j].paid_buy;
+        if (l_fee_payer_addr && dap_chain_addr_compare(&l_sellers[j].addr, l_fee_payer_addr) &&
+            compare256(l_sellers[j].paid_buy, l_sellers[j].expected_buy) > 0) {
+            uint256_t l_fee_payer_excess = uint256_0;
+            SUBTRACT_256_256(l_sellers[j].paid_buy, l_sellers[j].expected_buy, &l_fee_payer_excess);
+            SUM_256_256(l_payer_buy_cashback, l_fee_payer_excess, &l_payer_buy_cashback);
+            l_paid_buy_effective = l_sellers[j].expected_buy;
+            debug_if_f(s_debug_more, L_DEBUG, "Fee payer cashback embedded in seller payout #%d: %s %s", j,
+                     dap_uint256_to_char_ex(l_fee_payer_excess).frac, l_buy_ticker);
+        }
         debug_if_f(s_debug_more, L_DEBUG, "Seller #%d; Buy expected / paid: %s / %s %s; to addr %s", j,
                  dap_uint256_to_char_ex(l_sellers[j].expected_buy).frac,
-                 dap_uint256_to_char_ex(l_sellers[j].paid_buy).frac, l_buy_ticker,
+                 dap_uint256_to_char_ex(l_paid_buy_effective).frac, l_buy_ticker,
                  dap_chain_addr_to_str_static(&l_sellers[j].addr));
 
         // Verify paid_buy == expected_buy (both computed via same division path)
-        if (compare256(l_sellers[j].paid_buy, l_sellers[j].expected_buy) != 0) {
+        if (compare256(l_paid_buy_effective, l_sellers[j].expected_buy) != 0) {
             log_it_f(L_ERROR, "Seller %d payout mismatch; Buy paid / expected: %s / %s %s", j,
-                   dap_uint256_to_char_ex(l_sellers[j].paid_buy).frac,
+                   dap_uint256_to_char_ex(l_paid_buy_effective).frac,
                    dap_uint256_to_char_ex(l_sellers[j].expected_buy).frac,
                    l_buy_ticker);
             RET_ERR(DEXV_SELLER_PAYOUT_MISMATCH);
+        }
+    }
+
+    // Bound fee-payer cashback in buy_token by actual buy_token overpayment from fee-payer inputs.
+    if (l_fee_payer_addr && l_ins && l_in_cnt > 0 && l_buy_ticker && !IS_ZERO_256(l_payer_buy_cashback)) {
+        uint256_t l_fee_payer_buy_inputs = uint256_0,
+                  l_required_buy_spend = uint256_0,
+                  l_payer_buy_cashback_cap = uint256_0;
+        for (int i = 0; i < l_in_cnt; ++i)
+            if (l_ins[i].token && !strcmp(l_ins[i].token, l_buy_ticker) && dap_chain_addr_compare(&l_ins[i].addr, l_fee_payer_addr))
+                SUM_256_256(l_fee_payer_buy_inputs, l_ins[i].value, &l_fee_payer_buy_inputs);
+
+        for (int j = 0; j < l_uniq_sllrs_cnt; ++j)
+            SUM_256_256(l_required_buy_spend, l_sellers[j].expected_buy, &l_required_buy_spend);
+
+        if (l_srv_used && l_srv_ticker && !strcmp(l_srv_ticker, l_buy_ticker))
+            SUM_256_256(l_required_buy_spend, l_srv_fee_req, &l_required_buy_spend);
+
+        if (l_out_cond && l_out_cond->subtype.srv_dex.tx_type == DEX_TX_TYPE_EXCHANGE &&
+            dap_hash_fast_is_blank(&l_out_cond->subtype.srv_dex.order_root_hash))
+            SUM_256_256(l_required_buy_spend, l_out_cond->header.value, &l_required_buy_spend);
+
+        if (compare256(l_fee_payer_buy_inputs, l_required_buy_spend) > 0)
+            SUBTRACT_256_256(l_fee_payer_buy_inputs, l_required_buy_spend, &l_payer_buy_cashback_cap);
+
+        if (compare256(l_payer_buy_cashback, l_payer_buy_cashback_cap) > 0) {
+            log_it_f(L_WARNING, "Fee payer cashback in buy token %s exceeds cap %s %s", dap_uint256_to_char_ex(l_payer_buy_cashback).frac,
+                   dap_uint256_to_char_ex(l_payer_buy_cashback_cap).frac, l_buy_ticker);
+            RET_ERR(DEXV_BUY_TOKEN_LEAK);
         }
     }
 
@@ -5629,9 +5688,9 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             uint256_t l_fixed_native = l_fee_native;
             if (l_net_used && !IS_ZERO_256(l_net_fee_req))
                 SUM_256_256(l_fixed_native, l_net_fee_req, &l_fixed_native);
-            bool l_is_buyer_service = (l_buyer_addr && dap_chain_addr_compare(l_buyer_addr, &l_srv_addr));
-            uint8_t l_fee_cfg_eff = l_is_buyer_service ? (l_fee_cfg & 0x80) : l_fee_cfg;
-            if (!l_is_buyer_service && (l_fee_cfg_eff & 0x80) == 0) {
+            bool l_is_fee_payer_service = l_fee_payer_addr && dap_chain_addr_compare(l_fee_payer_addr, &l_srv_addr);
+            uint8_t l_fee_cfg_eff = l_is_fee_payer_service ? (l_fee_cfg & 0x80) : l_fee_cfg;
+            if (!l_is_fee_payer_service && (l_fee_cfg_eff & 0x80) == 0) {
                 uint8_t l_mult = l_fee_cfg_eff & 0x7F;
                 uint256_t l_srv_abs = l_mult > 0 ? GET_256_FROM_64((uint64_t)l_mult * DAP_DEX_FEE_UNIT_NATIVE) : l_native_fee_cached;
                 if (!IS_ZERO_256(l_srv_abs))

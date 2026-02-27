@@ -43,3 +43,9 @@ int run_cancel_extra_native_input_tests(dex_test_fixture_t *f);
  */
 int run_multi_execution_tests(dex_test_fixture_t *f);
 
+/**
+ * Sponsored cashback tests: verify cashback goes to payer (not beneficiary)
+ * for full/partial, all pair types, role matrix, tamper and multi-match paths
+ */
+int run_sponsored_cashback_tests(dex_test_fixture_t *f);
+
