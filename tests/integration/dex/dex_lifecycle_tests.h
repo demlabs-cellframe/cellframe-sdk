@@ -49,3 +49,8 @@ int run_multi_execution_tests(dex_test_fixture_t *f);
  */
 int run_sponsored_cashback_tests(dex_test_fixture_t *f);
 
+/**
+ * Forced-UTXO tests: verify purchase_auto_with_utxo composes TX correctly
+ * with payer/beneficiary separation, proper cashback, and ledger acceptance
+ */
+int run_forced_utxo_tests(dex_test_fixture_t *f);

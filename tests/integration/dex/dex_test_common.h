@@ -206,6 +206,24 @@ int test_dex_fund_wallet(
     const char *token_ticker,
     const char *amount_str);
 
+/**
+ * @brief Fund wallet and return UTXO info (tx_hash + out_idx)
+ * @param fixture Test fixture
+ * @param wallet Wallet to fund
+ * @param token_ticker Token to emit
+ * @param amount_str Amount as string
+ * @param out_tx_hash [out] Hash of the funding transaction (UTXO source)
+ * @param out_out_idx [out] Output index within the transaction
+ * @return 0 on success, negative error code on failure
+ */
+int test_dex_fund_wallet_ex(
+    dex_test_fixture_t *fixture,
+    dap_chain_wallet_t *wallet,
+    const char *token_ticker,
+    const char *amount_str,
+    dap_hash_fast_t *out_tx_hash,
+    uint32_t *out_out_idx);
+
 // ============================================================================
 // FORWARD DECLARATIONS - Order Creation/Purchase Helpers
 // ============================================================================

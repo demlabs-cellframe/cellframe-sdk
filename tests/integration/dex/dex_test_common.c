@@ -573,6 +573,90 @@ int test_dex_fund_wallet(
     return 0;
 }
 
+int test_dex_fund_wallet_ex(
+    dex_test_fixture_t *fixture,
+    dap_chain_wallet_t *wallet,
+    const char *token_ticker,
+    const char *amount_str,
+    dap_hash_fast_t *out_tx_hash,
+    uint32_t *out_out_idx)
+{
+    dap_ret_val_if_any(-1, !fixture, !wallet, !token_ticker, !amount_str, !out_tx_hash);
+    
+    dap_chain_wallet_internal_t *l_wallet_int = DAP_CHAIN_WALLET_INTERNAL(wallet);
+    dap_cert_t *l_cert = l_wallet_int->certs[0];
+    dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(wallet, fixture->net->net->pub.id);
+    if (!l_addr) {
+        log_it(L_ERROR, "Failed to get wallet address");
+        return -2;
+    }
+    
+    dap_chain_net_id_t l_net_id = fixture->net->net->pub.id;
+    uint256_t l_saved_fee = {};
+    dap_chain_addr_t l_saved_fee_addr = {};
+    bool l_had_fee = dap_chain_net_tx_get_fee(l_net_id, &l_saved_fee, &l_saved_fee_addr);
+    if (l_had_fee)
+        dap_chain_net_tx_set_fee(l_net_id, uint256_0, c_dap_chain_addr_blank);
+    
+    dap_chain_hash_fast_t l_emission_hash = {0};
+    test_emission_fixture_t *l_emission = test_emission_fixture_create_with_cert(
+        token_ticker, dap_chain_coins_to_balance(amount_str), l_addr, l_cert
+    );
+    if (!l_emission) {
+        if (l_had_fee) dap_chain_net_tx_set_fee(l_net_id, l_saved_fee, l_saved_fee_addr);
+        DAP_DELETE(l_addr);
+        return -3;
+    }
+    
+    if (test_emission_fixture_add_to_ledger(fixture->net->ledger, l_emission) != 0) {
+        if (l_had_fee) dap_chain_net_tx_set_fee(l_net_id, l_saved_fee, l_saved_fee_addr);
+        test_emission_fixture_destroy(l_emission);
+        DAP_DELETE(l_addr);
+        return -4;
+    }
+    
+    if (!test_emission_fixture_get_hash(l_emission, &l_emission_hash)) {
+        if (l_had_fee) dap_chain_net_tx_set_fee(l_net_id, l_saved_fee, l_saved_fee_addr);
+        test_emission_fixture_destroy(l_emission);
+        DAP_DELETE(l_addr);
+        return -5;
+    }
+    
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        fixture->net->ledger, &l_emission_hash, token_ticker, amount_str, l_addr, l_cert
+    );
+    if (!l_tx) {
+        if (l_had_fee) dap_chain_net_tx_set_fee(l_net_id, l_saved_fee, l_saved_fee_addr);
+        test_emission_fixture_destroy(l_emission);
+        DAP_DELETE(l_addr);
+        return -6;
+    }
+    
+    int l_ret = test_tx_fixture_add_to_ledger(fixture->net->ledger, l_tx);
+    
+    if (l_had_fee)
+        dap_chain_net_tx_set_fee(l_net_id, l_saved_fee, l_saved_fee_addr);
+    
+    if (l_ret != 0) {
+        test_tx_fixture_destroy(l_tx);
+        test_emission_fixture_destroy(l_emission);
+        DAP_DELETE(l_addr);
+        return -7;
+    }
+    
+    *out_tx_hash = l_tx->tx_hash;
+    if (out_out_idx)
+        *out_out_idx = 0;  // First output is always the funded amount
+    
+    log_it(L_NOTICE, "✓ Funded wallet with %s %s (UTXO: %s:0)",
+           amount_str, token_ticker, dap_chain_hash_fast_to_str_static(out_tx_hash));
+    
+    test_tx_fixture_destroy(l_tx);
+    test_emission_fixture_destroy(l_emission);
+    DAP_DELETE(l_addr);
+    return 0;
+}
+
 // ============================================================================
 // ORDER CREATION
 // ============================================================================

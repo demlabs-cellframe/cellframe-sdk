@@ -5636,6 +5636,25 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         }
     }
 
+    // Sponsored mode (payer ≠ buyer): buyer's buy-token cashback must not exceed buyer's own buy-token inputs.
+    // In sponsored purchases the buyer/beneficiary has ZERO buy-token inputs (only the payer contributes),
+    // so any buy-token "cashback" to the buyer is a fund-redirect attack.
+    if (l_fee_payer_addr && l_buyer_addr && !dap_chain_addr_compare(l_buyer_addr, l_fee_payer_addr) &&
+        !IS_ZERO_256(l_buyer_buy_cashback) && l_buy_ticker) {
+        uint256_t l_buyer_buy_inputs = uint256_0;
+        if (l_ins && l_in_cnt > 0) {
+            for (int i = 0; i < l_in_cnt; ++i)
+                if (l_ins[i].token && !strcmp(l_ins[i].token, l_buy_ticker) && dap_chain_addr_compare(&l_ins[i].addr, l_buyer_addr))
+                    SUM_256_256(l_buyer_buy_inputs, l_ins[i].value, &l_buyer_buy_inputs);
+        }
+        if (compare256(l_buyer_buy_cashback, l_buyer_buy_inputs) > 0) {
+            log_it_f(L_WARNING, "Buyer buy-token cashback %s exceeds buyer buy-token inputs %s %s (sponsored mode)",
+                   dap_uint256_to_char_ex(l_buyer_buy_cashback).frac,
+                   dap_uint256_to_char_ex(l_buyer_buy_inputs).frac, l_buy_ticker);
+            RET_ERR(DEXV_BUY_TOKEN_LEAK);
+        }
+    }
+
     // EXCHANGE partial: validate buyer payout
     if (l_out_cond && l_out_cond->subtype.srv_dex.tx_type == DEX_TX_TYPE_EXCHANGE) {
         if (!l_buyer_addr)
@@ -7662,14 +7681,17 @@ static dap_chain_datum_tx_t *s_dex_compose_with_forced_utxo(dap_chain_net_t *a_n
             ret_log_it(NULL, L_ERROR, "Self-purchase not allowed: buyer is seller %s", dap_chain_addr_to_str_static(a_buyer_addr));
     }
 
-    // Build requirements
-    dex_tx_requirements_t l_reqs;
-    if (s_dex_requirements_build(a_net, a_matches, a_fee, a_buyer_addr, l_partial_match, &l_reqs))
-        ret_log_it(NULL, L_ERROR, "Failed to build requirements");
-
     dap_chain_addr_t *l_payer_addr = a_wallet ? dap_chain_wallet_get_addr(a_wallet, a_net->pub.id) : (dap_chain_addr_t*)a_buyer_addr;
     if (!l_payer_addr)
         ret_log_it(NULL, L_ERROR, "Failed to get wallet address");
+
+    // Build requirements (includes fee waiver check internally)
+    dex_tx_requirements_t l_reqs;
+    if (s_dex_requirements_build(a_net, a_matches, a_fee, l_payer_addr, l_partial_match, &l_reqs)) {
+        if (a_wallet)
+            DAP_DELETE(l_payer_addr);
+        ret_log_it(NULL, L_ERROR, "Failed to build requirements");
+    }
 
     dap_chain_datum_tx_t *l_tx = NULL;
     int l_err_line = 0;
@@ -7758,8 +7780,8 @@ static dap_chain_datum_tx_t *s_dex_compose_with_forced_utxo(dap_chain_net_t *a_n
         uint256_t l_cashback;
         SUBTRACT_256_256(l_req->transfer, l_req->amount, &l_cashback);
 
-        log_it(L_INFO, "  - Adding cashback %s %s to buyer", dap_uint256_to_char_ex(l_cashback).frac, l_req->ticker);
-        if (dap_chain_datum_tx_add_out_std_item(&l_tx, a_buyer_addr, l_cashback, l_req->ticker, 0) == -1)
+        log_it(L_INFO, "  - Adding cashback %s %s to fee payer", dap_uint256_to_char_ex(l_cashback).frac, l_req->ticker);
+        if (dap_chain_datum_tx_add_out_std_item(&l_tx, l_payer_addr, l_cashback, l_req->ticker, 0) == -1)
             RET_ERR;
     }
 
@@ -7784,7 +7806,7 @@ static dap_chain_datum_tx_t *s_dex_compose_with_forced_utxo(dap_chain_net_t *a_n
             if (!l_reqs.fee_pct_mode && !IS_ZERO_256(l_reqs.fee_srv))
                 SUM_256_256(l_fixed_native, l_reqs.fee_srv, &l_fixed_native);
             uint8_t l_fee_cfg_eff = l_key0->fee_config;
-            if (dap_chain_addr_compare(a_buyer_addr, &l_reqs.service_addr))
+            if (dap_chain_addr_compare(l_payer_addr, &l_reqs.service_addr))
                 l_fee_cfg_eff &= 0x80;
             const char *l_buy_ticker = (l_reqs.side == DEX_SIDE_ASK) ? l_token_quote : l_token_base;
             bool l_is_bid = (l_reqs.side == DEX_SIDE_BID);
@@ -7885,10 +7907,41 @@ dap_chain_net_srv_dex_purchase_auto_with_utxo(dap_chain_net_t *a_net, const char
            a_sell_token, a_buy_token, dap_uint256_to_char_ex(l_real_utxo_value).frac, dap_uint256_to_char_ex(a_fee).frac,
            dap_chain_hash_fast_to_str_static(a_utxo_tx_hash), a_utxo_out_idx);
 
-    // Get fee_config for this pair to adjust budget for service fee
-    // Service fee in percent mode is taken from INPUT (what buyer pays = our UTXO)
-    // So effective_budget = utxo_value / (1 + fee_pct/1000)
+    // Adjust effective budget: subtract fees that share the same token as the forced UTXO,
+    // then adjust for service fee. This ensures the auto-matcher doesn't overspend.
     uint256_t l_effective_budget = l_real_utxo_value;
+
+    // When sell_token == native token, validator + network fees come from the same UTXO
+    const char *l_native_ticker = a_net->pub.native_ticker;
+    bool l_sell_is_native = !dap_strcmp(a_sell_token, l_native_ticker);
+    if (l_sell_is_native) {
+        // Subtract validator fee
+        if (!IS_ZERO_256(a_fee)) {
+            if (compare256(l_effective_budget, a_fee) <= 0) {
+                log_it(L_ERROR, "Forced UTXO value %s insufficient for validator fee %s",
+                       dap_uint256_to_char_ex(l_real_utxo_value).frac, dap_uint256_to_char_ex(a_fee).frac);
+                if (!a_recipient_addr) DAP_DELETE(l_buyer_addr);
+                return DEX_PURCHASE_ERROR_COMPOSE_TX;
+            }
+            SUBTRACT_256_256(l_effective_budget, a_fee, &l_effective_budget);
+        }
+        // Subtract network fee
+        uint256_t l_net_fee = uint256_0;
+        dap_chain_addr_t l_net_fee_addr = {};
+        if (dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr) && !IS_ZERO_256(l_net_fee)) {
+            if (compare256(l_effective_budget, l_net_fee) <= 0) {
+                log_it(L_ERROR, "Forced UTXO value %s insufficient for network fee %s (after validator fee)",
+                       dap_uint256_to_char_ex(l_effective_budget).frac, dap_uint256_to_char_ex(l_net_fee).frac);
+                if (!a_recipient_addr) DAP_DELETE(l_buyer_addr);
+                return DEX_PURCHASE_ERROR_COMPOSE_TX;
+            }
+            SUBTRACT_256_256(l_effective_budget, l_net_fee, &l_effective_budget);
+        }
+        log_it(L_INFO, "Budget after native fees: %s -> %s %s",
+               dap_uint256_to_char_ex(l_real_utxo_value).frac, dap_uint256_to_char_ex(l_effective_budget).frac, a_sell_token);
+    }
+
+    // Adjust for service fee
     dex_pair_key_t l_pair_key = {};
     uint8_t l_side = 0;
     s_dex_pair_normalize(a_sell_token, a_net->pub.id, a_buy_token, a_net->pub.id, &l_pair_key, &l_side);
@@ -7898,17 +7951,25 @@ dap_chain_net_srv_dex_purchase_auto_with_utxo(dap_chain_net_t *a_net, const char
     if (l_pair_idx) {
         uint8_t l_fee_cfg = l_pair_idx->key.fee_config;
         if (l_fee_cfg & 0x80) {
-            // Percent mode: fee_pct = (fee_cfg & 0x7F) in 0.1% steps
+            // Percent mode: effective = budget * 1000 / (1000 + fee_pct)
             uint8_t l_pct = l_fee_cfg & 0x7F;
             if (l_pct > 0) {
-                // effective_budget = budget * 1000 / (1000 + fee_pct)
-                // This ensures: seller_payout + service_fee = budget
+                uint256_t l_pre_srv = l_effective_budget;
                 uint256_t l_scale = GET_256_FROM_64(1000);
                 uint256_t l_divisor = GET_256_FROM_64(1000 + l_pct);
-                MULT_256_256(l_real_utxo_value, l_scale, &l_effective_budget);
+                MULT_256_256(l_effective_budget, l_scale, &l_effective_budget);
                 DIV_256(l_effective_budget, l_divisor, &l_effective_budget);
-                log_it(L_INFO, "Adjusted budget for %u%% service fee: %s -> %s",
-                       l_pct, dap_uint256_to_char_ex(l_real_utxo_value).frac, 
+                log_it(L_INFO, "Budget after %u%% service fee: %s -> %s",
+                       l_pct, dap_uint256_to_char_ex(l_pre_srv).frac,
+                       dap_uint256_to_char_ex(l_effective_budget).frac);
+            }
+        } else if (l_sell_is_native) {
+            // Native mode: fixed service fee in native token — subtract from budget
+            uint256_t l_srv_fee = s_dex_get_srv_fee(l_fee_cfg);
+            if (!IS_ZERO_256(l_srv_fee) && compare256(l_effective_budget, l_srv_fee) > 0) {
+                SUBTRACT_256_256(l_effective_budget, l_srv_fee, &l_effective_budget);
+                log_it(L_INFO, "Budget after native service fee %s: %s",
+                       dap_uint256_to_char_ex(l_srv_fee).frac,
                        dap_uint256_to_char_ex(l_effective_budget).frac);
             }
         }

@@ -1074,6 +1074,22 @@ int main(int argc, char *argv[]) {
         return ret;
     }
     
+    // Cleanup before forced-UTXO tests (auto-match needs clean orderbook)
+    ret = run_cancel_all_active(fixture);
+    if (ret != 0) {
+        log_it(L_WARNING, "Pre-FUTXO cleanup failed: %d (continuing)", ret);
+    }
+    test_dex_dump_orderbook(fixture, "After cancel-all (pre-FUTXO)");
+
+    // Forced-UTXO: verify purchase_auto_with_utxo composes TX correctly
+    ret = run_forced_utxo_tests(fixture);
+    if (ret != 0) {
+        log_it(L_ERROR, "Forced-UTXO tests FAILED with code %d", ret);
+        dex_test_fixture_destroy(fixture);
+        s_teardown();
+        return ret;
+    }
+    
     // TODO: Add when implemented
     // run_leftover_tests(fixture);
     // run_operations_tests(fixture);

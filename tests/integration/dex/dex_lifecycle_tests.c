@@ -6161,6 +6161,289 @@ static const char* get_net_fee_collector_name(net_fee_collector_t nfc) {
     }
 }
 
+// ============================================================================
+// FORCED-UTXO TESTS (purchase_auto_with_utxo)
+// ============================================================================
+
+/**
+ * @brief Single forced-UTXO test case
+ * 
+ * Creates an order, funds a separate UTXO, calls purchase_auto_with_utxo,
+ * verifies TX passes ledger, checks beneficiary/payer balances.
+ *
+ * @param f             Test fixture
+ * @param pair          Pair config
+ * @param a_side        Order side (ASK/BID)
+ * @param a_seller_id   Who creates the order
+ * @param a_payer_id    Who pays (wallet for forced UTXO)
+ * @param a_beneficiary Recipient of exchange result (can differ from payer)
+ * @param a_partial     If true, UTXO covers only part of the order
+ * @param a_run_tamper  If true, also run tamper-rejection tests
+ */
+static int s_run_forced_utxo_case(
+    dex_test_fixture_t *f,
+    const test_pair_config_t *pair,
+    uint8_t a_side,
+    wallet_id_t a_seller_id,
+    wallet_id_t a_payer_id,
+    const dap_chain_addr_t *a_beneficiary,
+    bool a_partial,
+    bool a_run_tamper)
+{
+    dap_ret_val_if_any(-1, !f, !pair, !a_beneficiary);
+    const char *l_side_str = a_side == SIDE_ASK ? "ASK" : "BID";
+    const char *l_rate = a_side == SIDE_ASK ? "2.5" : "0.4";
+    const char *l_order_amount = "10.0";
+
+    dap_chain_wallet_t *l_payer_wallet = get_wallet(f, a_payer_id);
+    const dap_chain_addr_t *l_payer_addr = get_wallet_addr(f, a_payer_id);
+    const dap_chain_addr_t *l_seller_addr = get_wallet_addr(f, a_seller_id);
+    dap_ledger_t *l_ledger = f->net->net->pub.ledger;
+    if (!l_payer_wallet || !l_payer_addr || !l_seller_addr)
+        return -2;
+
+    // Determine tokens from order perspective
+    const char *l_order_sell_token = NULL, *l_order_buy_token = NULL;
+    get_order_tokens(pair, a_side, &l_order_sell_token, &l_order_buy_token);
+    // buyer pays in order_buy_token, receives order_sell_token
+    const char *l_payer_payment_token = l_order_buy_token;
+    const char *l_beneficiary_trade_token = l_order_sell_token;
+
+    log_it(L_INFO, "  FUTXO %s %s [%s]: seller=%s payer=%s beneficiary=Dave",
+           pair->description, l_side_str, a_partial ? "partial" : "full",
+           get_wallet_name(a_seller_id), get_wallet_name(a_payer_id));
+
+    dap_hash_fast_t l_order_hash = {};
+    dap_hash_fast_t l_utxo_fund_hash = {};
+    dap_hash_fast_t l_tx_hash = {};
+    bool l_order_added = false;
+    bool l_utxo_funded = false;
+    bool l_purchase_added = false;
+    int l_ret = 0;
+    dap_chain_datum_tx_t *l_tx = NULL;
+
+    // 1. Create order
+    if (s_create_test_order(f, pair, a_seller_id, a_side, MINFILL_NONE, l_rate, l_order_amount, &l_order_hash)) {
+        l_ret = -3;
+        goto futxo_end;
+    }
+    l_order_added = true;
+
+    // 2. Fund a single UTXO for the payer in payment token.
+    //    The amount must cover everything: exchange payment + network fee + service fee
+    //    (all may be in the same token when payment token == native token).
+    //    Full:    generous amount to cover order + all fees with cashback
+    //    Partial: small amount → only partial fill of the order
+    {
+        const char *l_fund_amount = a_partial ? "5.0" : "100.0";
+        uint32_t l_out_idx = 0;
+        if (test_dex_fund_wallet_ex(f, l_payer_wallet, l_payer_payment_token,
+                                    l_fund_amount, &l_utxo_fund_hash, &l_out_idx) != 0) {
+            log_it(L_ERROR, "Failed to fund UTXO for payer");
+            l_ret = -4;
+            goto futxo_end;
+        }
+        l_utxo_funded = true;
+
+        // Read back actual UTXO value from ledger
+        uint256_t l_utxo_value = dap_chain_coins_to_balance(l_fund_amount);
+
+        // Take balance snapshots
+        uint256_t l_benef_trade_before = dap_ledger_calc_balance(l_ledger, a_beneficiary, l_beneficiary_trade_token);
+        uint256_t l_benef_pay_before = dap_ledger_calc_balance(l_ledger, a_beneficiary, l_payer_payment_token);
+        uint256_t l_payer_trade_before = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_beneficiary_trade_token);
+        uint256_t l_payer_pay_before = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_payer_payment_token);
+
+        // 3. Call purchase_auto_with_utxo
+        dap_chain_net_srv_dex_purchase_error_t l_err = dap_chain_net_srv_dex_purchase_auto_with_utxo(
+            f->net->net, l_payer_payment_token, l_beneficiary_trade_token,
+            f->network_fee, uint256_0, l_payer_wallet,
+            a_beneficiary,
+            &l_utxo_fund_hash, l_out_idx, l_utxo_value,
+            &l_tx);
+        if (l_err != DEX_PURCHASE_ERROR_OK || !l_tx) {
+            log_it(L_ERROR, "FUTXO %s compose failed: err=%d", l_side_str, l_err);
+            l_ret = -5;
+            goto futxo_end;
+        }
+
+        // 4. Verify cashback goes to payer (not beneficiary)
+        uint256_t l_payer_cashback = s_sum_stdext_out_by_addr_token(l_tx, l_payer_addr, l_payer_payment_token);
+        if (!dap_chain_addr_compare(l_payer_addr, l_seller_addr) && IS_ZERO_256(l_payer_cashback)) {
+            log_it(L_WARNING, "No cashback output to payer (may be exact match)");
+            // Not necessarily an error — exact match means no cashback needed
+        }
+
+        // 5. Tamper tests: redirect cashback from payer to beneficiary
+        if (a_run_tamper && !IS_ZERO_256(l_payer_cashback) &&
+            !dap_chain_addr_compare(l_payer_addr, l_seller_addr))
+        {
+            tamper_sponsored_cashback_redirect_t l_tamper = {
+                .from_addr = l_payer_addr,
+                .to_addr = a_beneficiary,
+                .token = l_payer_payment_token
+            };
+            if (test_dex_tamper_and_verify_rejection_ex(f, l_tx, l_payer_wallet,
+                    s_tamper_redirect_stdext_out, &l_tamper,
+                    "FUTXO: cashback redirect to beneficiary", true) != 0) {
+                l_ret = -6;
+                goto futxo_end;
+            }
+        }
+
+        // 6. Add TX to ledger — must pass verification
+        dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+        if (dap_ledger_tx_add(l_ledger, l_tx, &l_tx_hash, false, NULL) != 0) {
+            log_it(L_ERROR, "FUTXO %s TX failed verification", l_side_str);
+            l_ret = -7;
+            goto futxo_end;
+        }
+        l_purchase_added = true;
+        log_it(L_NOTICE, "  ✓ FUTXO %s TX passed verification", l_side_str);
+        dap_chain_datum_tx_delete(l_tx);
+        l_tx = NULL;
+
+        // 7. Verify balances
+        uint256_t l_benef_trade_after = dap_ledger_calc_balance(l_ledger, a_beneficiary, l_beneficiary_trade_token);
+        uint256_t l_benef_pay_after = dap_ledger_calc_balance(l_ledger, a_beneficiary, l_payer_payment_token);
+        uint256_t l_payer_trade_after = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_beneficiary_trade_token);
+        uint256_t l_payer_pay_after = dap_ledger_calc_balance(l_ledger, l_payer_addr, l_payer_payment_token);
+
+        // Beneficiary must receive trade token
+        if (compare256(l_benef_trade_after, l_benef_trade_before) <= 0) {
+            log_it(L_ERROR, "FUTXO: Beneficiary did not receive %s", l_beneficiary_trade_token);
+            l_ret = -8;
+            goto futxo_end;
+        }
+        // Beneficiary must NOT receive cashback in payment token
+        if (compare256(l_benef_pay_after, l_benef_pay_before) != 0) {
+            log_it(L_ERROR, "FUTXO: Beneficiary got unexpected cashback in %s", l_payer_payment_token);
+            l_ret = -9;
+            goto futxo_end;
+        }
+        // Payer should NOT receive trade token (unless payer == seller)
+        if (!dap_chain_addr_compare(l_payer_addr, l_seller_addr) &&
+            compare256(l_payer_trade_after, l_payer_trade_before) > 0) {
+            log_it(L_ERROR, "FUTXO: Payer got trade token %s unexpectedly", l_beneficiary_trade_token);
+            l_ret = -10;
+            goto futxo_end;
+        }
+        // Payer's payment token balance must have changed (spent UTXO)
+        if (!dap_chain_addr_compare(l_payer_addr, l_seller_addr) &&
+            compare256(l_payer_pay_before, l_payer_pay_after) == 0) {
+            log_it(L_ERROR, "FUTXO: Payer balance unchanged in %s", l_payer_payment_token);
+            l_ret = -11;
+            goto futxo_end;
+        }
+
+        log_it(L_NOTICE, "  ✓ FUTXO balances validated");
+    }
+
+futxo_end:
+    if (l_tx)
+        dap_chain_datum_tx_delete(l_tx);
+    if (l_purchase_added && s_rollback_tx(l_ledger, &l_tx_hash, "futxo purchase") != 0 && l_ret == 0)
+        l_ret = -12;
+    if (l_utxo_funded) {
+        // Funding TX was created with fees disabled, so temporarily disable fees for rollback
+        dap_chain_net_id_t l_net_id = f->net->net->pub.id;
+        uint256_t l_saved_fee = {};
+        dap_chain_addr_t l_saved_fee_addr = {};
+        bool l_had_fee = dap_chain_net_tx_get_fee(l_net_id, &l_saved_fee, &l_saved_fee_addr);
+        if (l_had_fee)
+            dap_chain_net_tx_set_fee(l_net_id, uint256_0, c_dap_chain_addr_blank);
+        if (s_rollback_tx(l_ledger, &l_utxo_fund_hash, "futxo funding") != 0 && l_ret == 0)
+            l_ret = -13;
+        if (l_had_fee)
+            dap_chain_net_tx_set_fee(l_net_id, l_saved_fee, l_saved_fee_addr);
+    }
+    if (l_order_added && s_rollback_tx(l_ledger, &l_order_hash, "futxo order") != 0 && l_ret == 0)
+        l_ret = -14;
+    return l_ret;
+}
+
+/**
+ * @brief Run all forced-UTXO tests
+ */
+int run_forced_utxo_tests(dex_test_fixture_t *f) {
+    dap_ret_val_if_any(-1, !f);
+    log_it(L_NOTICE, " ");
+    log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
+    log_it(L_NOTICE, "║  FORCED-UTXO TESTS (purchase_auto_with_utxo)            ║");
+    log_it(L_NOTICE, "╚══════════════════════════════════════════════════════════╝");
+
+    // Use Alice as net fee collector so Dave is unaffected
+    test_set_net_fee_collector(f, NET_FEE_ALICE);
+
+    const test_pair_config_t *l_pairs = test_get_standard_pairs();
+    size_t l_pairs_count = test_get_standard_pairs_count();
+    size_t l_tested = 0;
+    int ret;
+
+    // 1. Basic: all pairs × both sides, full + partial
+    for (size_t p = 0; p < l_pairs_count; p++) {
+        log_it(L_NOTICE, "--- FUTXO Pair %zu: %s ---", p, l_pairs[p].description);
+
+        for (uint8_t side = SIDE_ASK; side <= SIDE_BID; side++) {
+            wallet_id_t l_seller_id = side == SIDE_ASK
+                ? WALLET_ALICE
+                : (!dap_strcmp(l_pairs[p].quote_token, "KEL") ? WALLET_ALICE : WALLET_BOB);
+
+            // Full fill via forced UTXO
+            ret = s_run_forced_utxo_case(f, &l_pairs[p], side, l_seller_id,
+                                         WALLET_CAROL, &f->dave_addr, false, false);
+            if (ret != 0) {
+                log_it(L_ERROR, "FUTXO FAILED: pair=%s side=%s mode=full ret=%d",
+                       l_pairs[p].description, side == SIDE_ASK ? "ASK" : "BID", ret);
+                return ret;
+            }
+
+            // Partial fill via forced UTXO
+            ret = s_run_forced_utxo_case(f, &l_pairs[p], side, l_seller_id,
+                                         WALLET_CAROL, &f->dave_addr, true, false);
+            if (ret != 0) {
+                log_it(L_ERROR, "FUTXO FAILED: pair=%s side=%s mode=partial ret=%d",
+                       l_pairs[p].description, side == SIDE_ASK ? "ASK" : "BID", ret);
+                return ret;
+            }
+            l_tested += 2;
+        }
+    }
+
+    // 2. Role matrix (on first pair that has enough configurations)
+    if (l_pairs_count >= 6) {
+        // payer=seller (Alice pays for her own ASK)
+        ret = s_run_forced_utxo_case(f, &l_pairs[0], SIDE_ASK, WALLET_ALICE,
+                                     WALLET_ALICE, &f->dave_addr, false, false);
+        if (ret != 0) {
+            log_it(L_ERROR, "FUTXO FAILED: role payer=seller ret=%d", ret);
+            return ret;
+        }
+        l_tested++;
+
+        // payer=service holder (Carol as payer)
+        ret = s_run_forced_utxo_case(f, &l_pairs[0], SIDE_ASK, WALLET_ALICE,
+                                     WALLET_CAROL, &f->dave_addr, false, false);
+        if (ret != 0) {
+            log_it(L_ERROR, "FUTXO FAILED: role payer=service ret=%d", ret);
+            return ret;
+        }
+        l_tested++;
+
+        // Tamper test: redirect cashback from payer to beneficiary
+        ret = s_run_forced_utxo_case(f, &l_pairs[0], SIDE_ASK, WALLET_ALICE,
+                                     WALLET_BOB, &f->dave_addr, false, true);
+        if (ret != 0) {
+            log_it(L_ERROR, "FUTXO FAILED: tamper test ret=%d", ret);
+            return ret;
+        }
+        l_tested++;
+    }
+
+    log_it(L_NOTICE, "✓ Forced-UTXO: %zu scenarios passed", l_tested);
+    return 0;
+}
+
 int run_lifecycle_tests(dex_test_fixture_t *f) {
     log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "╔══════════════════════════════════════════════════════════╗");
