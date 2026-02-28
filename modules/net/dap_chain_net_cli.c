@@ -13,6 +13,7 @@
 #include <errno.h>
 #include "dap_common.h"
 #include "dap_strfuncs.h"
+#include "dap_strptime.h"
 #include "dap_chain_net_cli.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_core.h"
@@ -31,7 +32,7 @@
 #include "dap_link_manager.h"                // For dap_link_manager_* functions
 #include "dap_cli_server.h"
 #include "dap_json_rpc.h"
-#include "utlist.h"
+#include "dap_dl.h"
 
 #define LOG_TAG "dap_chain_net_cli"
 
@@ -63,7 +64,7 @@ static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
         return NULL;
 
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(a_net->pub.chains, l_chain) {
+    dap_dl_foreach(a_net->pub.chains, l_chain) {
         if (!l_chain)
             continue;
 
@@ -71,7 +72,6 @@ static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
         if (!l_jobj_chain)
             continue;
 
-        // Chain sync status
         const char *l_status_str = "unknown";
         switch (l_chain->state) {
             case CHAIN_SYNC_STATE_IDLE:
@@ -771,7 +771,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
 
         // Requesting chains
         dap_chain_t *l_chain = NULL;
-        DL_FOREACH(l_net->pub.chains, l_chain)
+        dap_dl_foreach(l_net->pub.chains, l_chain)
         {
             // reset state NODE_CLIENT_STATE_SYNCED
             dap_chain_node_client_reset(l_node_client);
@@ -1494,9 +1494,9 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-prev_day", &l_prev_day_str);
                 time_t l_ts_now = time(NULL);
                 if (l_from_str) {
-                    strptime( (char *)l_from_str, c_time_fmt, &l_from_tm );
+                    dap_strptime( (char *)l_from_str, c_time_fmt, &l_from_tm );
                     if (l_to_str) {
-                        strptime( (char *)l_to_str, c_time_fmt, &l_to_tm );
+                        dap_strptime( (char *)l_to_str, c_time_fmt, &l_to_tm );
                     } else { // If not set '-to' - we set up current time
                         localtime_r(&l_ts_now, &l_to_tm);
                     }
@@ -1850,10 +1850,10 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                                                "Can't serialize public key of certificate \"%s\"", l_cert_string);
                         return DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD;
                     }
-                    dap_chain_hash_fast_t l_pkey_hash;
-                    dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+                    dap_hash_sha3_256_t l_pkey_hash;
+                    dap_hash_sha3_256(l_pub_key, l_pub_key_size, &l_pkey_hash);
                     DAP_DELETE(l_pub_key);
-                    l_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+                    l_hash_hex_str = dap_hash_sha3_256_to_str_new(&l_pkey_hash);
                     //l_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
                 } else {
                     l_hash_hex_str = !dap_strncmp(l_hash_string, "0x", 2) || !dap_strncmp(l_hash_string, "0X", 2)
@@ -1984,10 +1984,10 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
             }
             for (dap_list_t *it = l_net->pub.keys; it; it = it->next) {
-                dap_hash_fast_t l_pkey_hash;
-                char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_hash_sha3_256_t l_pkey_hash;
+                char l_pkey_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
                 dap_pkey_get_hash(it->data, &l_pkey_hash);
-                dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                dap_hash_sha3_256_to_str(&l_pkey_hash, l_pkey_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
                 dap_json_t *l_jobj_hash_key = dap_json_object_new_string(l_pkey_hash_str);
                 if (!l_jobj_hash_key) {
                     dap_json_object_free(l_jobj_pkeys);

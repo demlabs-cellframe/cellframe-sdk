@@ -33,7 +33,7 @@
 #endif
 #include <pthread.h>
 #include <dirent.h>
-#include "uthash.h"
+#include "dap_ht.h"
 
 #include "dap_chain_net.h"
 #include "dap_chain_net_core.h"
@@ -65,8 +65,8 @@
 
 static int s_cli_net_srv(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 
-static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
-static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
+static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_sha3_256_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
+static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_sha3_256_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond);
 static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_price_unit_uid_t *a_price_unit);
 
 /**
@@ -369,7 +369,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                     if (l_order) {
                         if (l_tx_to_json) {
                             uint64_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
-                            char *l_tx_hash_str = dap_hash_fast_str_new(l_order, dap_chain_net_srv_order_get_size(l_order));
+                            char *l_tx_hash_str = dap_hash_sha3_256_str_new(l_order, dap_chain_net_srv_order_get_size(l_order));
 
                             dap_json_object_add_object(json_obj_net_srv, "data_hash", dap_json_object_new_string(l_tx_hash_str));
                             DAP_DELETE(l_tx_hash_str);
@@ -443,7 +443,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                 if ( l_srv_uid_str && l_price_str && l_price_token_str && l_price_unit_str && l_units_str) {
                     dap_chain_srv_uid_t l_srv_uid={{0}};
                     dap_chain_node_addr_t l_node_addr={0};
-                    dap_chain_hash_fast_t l_tx_cond_hash={{0}};
+                    dap_hash_sha3_256_t l_tx_cond_hash={{0}};
                     dap_time_t l_expires = 0; // TS when the service expires
                     uint256_t l_price = {0};
                     char l_price_token[DAP_CHAIN_TICKER_SIZE_MAX]={0};
@@ -490,7 +490,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
                         l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                     }
                     if (l_tx_cond_hash_str)
-                        dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
+                        dap_hash_sha3_256_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                     l_price = dap_chain_balance_scan(l_price_str);
 
                     uint64_t l_units = strtoull(l_units_str, NULL, 10);
@@ -640,7 +640,7 @@ static int s_cli_net_srv( int argc, char **argv, dap_json_t *a_json_arr_reply, i
  * @param a_owner
  * @return
  */
-static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool)
+static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_sha3_256_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool)
 {
     if (a_owner)
         return 0;
@@ -687,8 +687,8 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
     }
 
     // Checking the signature matches the provider's signature
-    dap_hash_fast_t l_tx_sign_pkey_hash = {};
-    dap_hash_fast_t l_provider_pkey_hash = {};
+    dap_hash_sha3_256_t l_tx_sign_pkey_hash = {};
+    dap_hash_sha3_256_t l_provider_pkey_hash = {};
     if (!dap_sign_get_pkey_hash(l_sign, &l_provider_pkey_hash)){
         log_it(L_ERROR, "Can't get pkey hash from provider sign.");
         return -4;
@@ -712,7 +712,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
         return -6;
     }
 
-    if(!dap_hash_fast_compare(&l_tx_sign_pkey_hash, &l_provider_pkey_hash)){
+    if(!dap_hash_sha3_256_compare(&l_tx_sign_pkey_hash, &l_provider_pkey_hash)){
         log_it(L_ERROR, "Provider signature in receipt and tx is different.");
         return -7;
     }
@@ -723,13 +723,13 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
         log_it(L_ERROR, "Can't get client signature from receipt.");
         return -8;
     }
-    dap_hash_fast_t l_pkey_hash = {};
+    dap_hash_sha3_256_t l_pkey_hash = {};
     if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)){
         log_it(L_ERROR, "Can't get pkey hash from receipt client signature");
         return -9;
     }
 
-    if(!dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash)){
+    if(!dap_hash_sha3_256_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash)){
         log_it(L_ERROR, "Client signature in receipt is invalid!");
         return -10;
     }
@@ -757,7 +757,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
     }
 
     // Checking the tx hash in receipt matched tx hash in in cond
-    if (l_receipt && l_receipt->receipt_info.version > 1 && !dap_hash_fast_compare(&l_receipt->receipt_info.prev_tx_cond_hash, &l_tx_in_cond->header.tx_prev_hash)){
+    if (l_receipt && l_receipt->receipt_info.version > 1 && !dap_hash_sha3_256_compare(&l_receipt->receipt_info.prev_tx_cond_hash, &l_tx_in_cond->header.tx_prev_hash)){
         log_it(L_ERROR, "The hashes of previous transactions in receipt and conditional input doesn't match.");
         return -16;
     }
@@ -828,7 +828,7 @@ static int s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_t
     return compare256(l_receipt_value_datoshi, l_cond_out_value) ? log_it(L_ERROR, "Value in tx out is invalid!"), -13 : 0;
 }
 
-static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond)
+static void s_pay_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_out, dap_hash_sha3_256_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(dap_ledger_get_net_id(a_ledger));
     if (!l_net || dap_chain_net_get_load_mode(l_net))
@@ -850,11 +850,11 @@ dap_chain_net_srv_price_t *dap_chain_net_srv_get_price_from_order(dap_chain_net_
     dap_stpcpy(l_price->token, a_order->price_ticker);
     l_price->units = a_order->units;
     l_price->units_uid = a_order->price_unit;
-    dap_hash_fast_t l_order_pkey_hash = {};
+    dap_hash_sha3_256_t l_order_pkey_hash = {};
     dap_sign_get_pkey_hash((dap_sign_t*)(a_order->ext_n_sign + a_order->ext_size), &l_order_pkey_hash);
-    dap_hash_fast_t l_price_pkey_hash = {};
-    dap_cert_get_pkey_hash(a_service->receipt_sign_cert, DAP_HASH_TYPE_SHA3_256, (byte_t *)&l_price_pkey_hash, sizeof(dap_hash_fast_t));
-    if (!dap_hash_fast_compare(&l_order_pkey_hash, &l_price_pkey_hash)) {
+    dap_hash_sha3_256_t l_price_pkey_hash = {};
+    dap_cert_get_pkey_hash(a_service->receipt_sign_cert, DAP_HASH_TYPE_SHA3_256, l_price_pkey_hash.raw, sizeof(dap_hash_sha3_256_t));
+    if (!dap_hash_sha3_256_compare(&l_order_pkey_hash, &l_price_pkey_hash)) {
         log_it(L_ERROR, "pkey in order not equal to pkey in config.");
         DAP_DELETE(l_price);
         return NULL;
@@ -933,8 +933,8 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
 // grace table clean
     dap_chain_net_srv_grace_usage_t *l_gdata, *l_gdata_tmp;
     pthread_mutex_lock(&a_srv->grace_mutex);
-    HASH_ITER(hh, a_srv->grace_hash_tab, l_gdata, l_gdata_tmp) {
-        HASH_DEL(a_srv->grace_hash_tab, l_gdata);
+    dap_ht_foreach(a_srv->grace_hash_tab, l_gdata, l_gdata_tmp) {
+        dap_ht_del(a_srv->grace_hash_tab, l_gdata);
         DAP_DELETE(l_gdata);
     }
     pthread_mutex_unlock(&a_srv->grace_mutex);
@@ -950,7 +950,7 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
  */
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
-                                                               const void * a_ext, size_t a_ext_size, dap_hash_fast_t *a_prev_tx_hash)
+                                                               const void * a_ext, size_t a_ext_size, dap_hash_sha3_256_t *a_prev_tx_hash)
 {
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
                     a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size, a_prev_tx_hash);

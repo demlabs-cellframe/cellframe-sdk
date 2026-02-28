@@ -81,23 +81,10 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed);
 char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
 
 
-bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_out_hash, uint32_t a_out_idx);
 
-/**
- * @brief Create base transaction from emission
- * @param a_chain Target chain
- * @param a_emission_hash Emission hash
- * @param a_emission_chain_id Emission chain ID
- * @param a_emission_value Value (0 to get from emission)
- * @param a_ticker Token ticker (NULL to get from emission)
- * @param a_addr_to Destination address (NULL to get from emission)
- * @param a_private_key Private key for signing
- * @param a_hash_out_type Hash output format ("hex" or "base58")
- * @param a_value_fee Fee value
- * @return Hash string of created TX or NULL on error
- */
-char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
-                                       dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, 
-                                       const char *a_ticker, dap_chain_addr_t *a_addr_to, 
-                                       dap_enc_key_t *a_private_key, const char *a_hash_out_type, 
+char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_emission_hash,
+                                       dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value,
+                                       const char *a_ticker, dap_chain_addr_t *a_addr_to,
+                                       dap_enc_key_t *a_private_key, const char *a_hash_out_type,
                                        uint256_t a_value_fee);

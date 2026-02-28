@@ -22,7 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_chain.h"
 #include "dap_chain_type_dag_event.h"
 
@@ -32,11 +32,11 @@ typedef struct dap_chain_type_dag dap_chain_type_dag_t;
 
 typedef void (*dap_chain_type_dag_callback_t)(dap_chain_type_dag_t *a_dag);
 typedef void (*dap_chain_type_dag_callback_rc_ptr_t)(dap_chain_type_dag_t *, int a_rc, void * a_arg);
-typedef int (*dap_chain_type_dag_callback_event_t)(dap_chain_type_dag_t *a_dag, dap_chain_type_dag_event_t *a_event, dap_hash_fast_t *a_event_hash);
+typedef int (*dap_chain_type_dag_callback_event_t)(dap_chain_type_dag_t *a_dag, dap_chain_type_dag_event_t *a_event, dap_hash_sha3_256_t *a_event_hash);
 
 typedef dap_chain_type_dag_event_t * (*dap_chain_type_dag_callback_event_create_t)(dap_chain_type_dag_t *,
                                                                                dap_chain_datum_t *,
-                                                                               dap_chain_hash_fast_t *,
+                                                                               dap_hash_sha3_256_t *,
                                                                                size_t, size_t*);
 
 typedef void (*dap_chain_type_dag_callback_get_round_info_t)(dap_chain_type_dag_t *, dap_chain_type_dag_event_round_info_t *);
@@ -46,8 +46,8 @@ typedef int (*dap_chain_type_dag_callback_event_round_sync_t)(dap_chain_type_dag
                                                 const char *a_key, const void *a_value, const size_t a_value_size);
 
 typedef struct dap_chain_type_dag_hal_item {
-    dap_chain_hash_fast_t hash;
-    UT_hash_handle hh;
+    dap_hash_sha3_256_t hash;
+    dap_ht_handle_t hh;
 } dap_chain_type_dag_hal_item_t;
 
 typedef struct dap_chain_type_dag
@@ -57,7 +57,7 @@ typedef struct dap_chain_type_dag
     bool is_celled;
     bool is_add_directly;
     bool is_static_genesis_event;
-    dap_chain_hash_fast_t static_genesis_event_hash;
+    dap_hash_sha3_256_t static_genesis_event_hash;
     dap_chain_type_dag_hal_item_t *hal;
 
     uint16_t datum_add_hashes_count;
@@ -98,4 +98,4 @@ void dap_chain_type_dag_deinit(void);
 void dap_chain_type_dag_start(dap_chain_type_dag_t *a_dag);
 
 void dap_chain_type_dag_proc_event_round_new(dap_chain_type_dag_t *a_dag);
-dap_chain_type_dag_event_t* dap_chain_type_dag_find_event_by_hash(dap_chain_type_dag_t * a_dag, dap_chain_hash_fast_t * a_hash);
+dap_chain_type_dag_event_t* dap_chain_type_dag_find_event_by_hash(dap_chain_type_dag_t * a_dag, dap_hash_sha3_256_t * a_hash);

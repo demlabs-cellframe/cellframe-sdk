@@ -24,30 +24,27 @@
 #include "dap_chain_net.h"
 #include "dap_time.h"
 #include "dap_hash.h"
+#include "dap_hash_compat.h"
 #include "dap_list.h"
 #include "dap_cert.h"
 
 #define LOG_TAG "test_voting_comprehensive"
 
 
-// Ledger balance mock - необходим т.к. g_mock_ledger не имеет инициализированного _internal
-// NOTE: Используем DAP_MOCK_CUSTOM для uint256_t return type
-
-DAP_MOCK_CUSTOM(uint256_t, dap_ledger_calc_balance, 
-                (dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr, const char *a_token_ticker))
+// Ledger balance mock
+DAP_MOCK_CUSTOM(uint256_t, dap_ledger_calc_balance,
+    (dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr, const char *a_token_ticker))
     UNUSED(a_ledger);
     UNUSED(a_addr);
     UNUSED(a_token_ticker);
-    // Mock implementation: всегда возвращаем достаточный баланс (1M datoshi)
     return GET_256_FROM_64(1000000);
 }
 
-// Ledger tx_find mock - избегаем обращения к _internal
-DAP_MOCK_CUSTOM(dap_chain_datum_tx_t *, dap_ledger_tx_find_by_hash,
-                (dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash))
+// Ledger tx_find mock
+DAP_MOCK_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
+    (dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash))
     UNUSED(a_ledger);
     UNUSED(a_tx_hash);
-    // Mock implementation: poll не найден (NULL)
     return NULL;
 }
 

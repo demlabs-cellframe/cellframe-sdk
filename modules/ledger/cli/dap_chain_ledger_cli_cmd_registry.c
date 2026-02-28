@@ -9,7 +9,7 @@
 #include "dap_chain_ledger_cli_cmd_registry.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
-#include "uthash.h"
+#include "dap_ht.h"
 
 #define LOG_TAG "ledger_cli_registry"
 
@@ -20,7 +20,7 @@ typedef struct dap_ledger_cli_cmd_entry {
     dap_ledger_cli_cmd_handler_t handler;    // Handler function
     char *description;                       // Short description
     char key[256];                           // Hash key: "category:command"
-    UT_hash_handle hh;                       // Hash table handle
+    dap_ht_handle_t hh;                       // Hash table handle
 } dap_ledger_cli_cmd_entry_t;
 
 // Global registry
@@ -65,7 +65,7 @@ int dap_ledger_cli_cmd_register(const char *a_category,
     
     // Check if already registered
     dap_ledger_cli_cmd_entry_t *l_existing = NULL;
-    HASH_FIND_STR(s_cmd_registry, l_entry->key, l_existing);
+    dap_ht_find_str(s_cmd_registry, l_entry->key, l_existing);
     if (l_existing) {
         pthread_rwlock_unlock(&s_registry_lock);
         log_it(L_WARNING, "CLI command '%s %s' already registered, replacing", a_category, a_command);
@@ -73,7 +73,7 @@ int dap_ledger_cli_cmd_register(const char *a_category,
         pthread_rwlock_wrlock(&s_registry_lock);
     }
     
-    HASH_ADD_STR(s_cmd_registry, key, l_entry);
+    dap_ht_add_str(s_cmd_registry, key, l_entry);
     pthread_rwlock_unlock(&s_registry_lock);
     
     log_it(L_INFO, "Registered CLI command: %s %s", a_category, a_command);
@@ -95,10 +95,10 @@ void dap_ledger_cli_cmd_unregister(const char *a_category, const char *a_command
     pthread_rwlock_wrlock(&s_registry_lock);
     
     dap_ledger_cli_cmd_entry_t *l_entry = NULL;
-    HASH_FIND_STR(s_cmd_registry, l_key, l_entry);
+    dap_ht_find_str(s_cmd_registry, l_key, l_entry);
     
     if (l_entry) {
-        HASH_DEL(s_cmd_registry, l_entry);
+        dap_ht_del(s_cmd_registry, l_entry);
         DAP_DELETE(l_entry->category);
         DAP_DELETE(l_entry->command);
         DAP_DELETE(l_entry->description);
@@ -128,7 +128,7 @@ int dap_ledger_cli_cmd_execute(const char *a_category,
     pthread_rwlock_rdlock(&s_registry_lock);
     
     dap_ledger_cli_cmd_entry_t *l_entry = NULL;
-    HASH_FIND_STR(s_cmd_registry, l_key, l_entry);
+    dap_ht_find_str(s_cmd_registry, l_key, l_entry);
     
     if (!l_entry) {
         pthread_rwlock_unlock(&s_registry_lock);
@@ -156,7 +156,7 @@ bool dap_ledger_cli_cmd_is_registered(const char *a_category, const char *a_comm
         // Check if any command in this category exists
         pthread_rwlock_rdlock(&s_registry_lock);
         dap_ledger_cli_cmd_entry_t *l_entry, *l_tmp;
-        HASH_ITER(hh, s_cmd_registry, l_entry, l_tmp) {
+        dap_ht_foreach(s_cmd_registry, l_entry, l_tmp) {
             if (strcmp(l_entry->category, a_category) == 0) {
                 pthread_rwlock_unlock(&s_registry_lock);
                 return true;
@@ -171,7 +171,7 @@ bool dap_ledger_cli_cmd_is_registered(const char *a_category, const char *a_comm
     
     pthread_rwlock_rdlock(&s_registry_lock);
     dap_ledger_cli_cmd_entry_t *l_entry = NULL;
-    HASH_FIND_STR(s_cmd_registry, l_key, l_entry);
+    dap_ht_find_str(s_cmd_registry, l_key, l_entry);
     pthread_rwlock_unlock(&s_registry_lock);
     
     return l_entry != NULL;
@@ -222,8 +222,8 @@ void dap_ledger_cli_cmd_registry_deinit(void)
     pthread_rwlock_wrlock(&s_registry_lock);
     
     dap_ledger_cli_cmd_entry_t *l_entry, *l_tmp;
-    HASH_ITER(hh, s_cmd_registry, l_entry, l_tmp) {
-        HASH_DEL(s_cmd_registry, l_entry);
+    dap_ht_foreach(s_cmd_registry, l_entry, l_tmp) {
+        dap_ht_del(s_cmd_registry, l_entry);
         DAP_DELETE(l_entry->category);
         DAP_DELETE(l_entry->command);
         DAP_DELETE(l_entry->description);

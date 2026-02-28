@@ -36,7 +36,7 @@
  */
 dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_output(
     dap_list_t *a_list_used_outs,
-    dap_hash_fast_t *a_pkey_cond_hash,
+    dap_hash_sha3_256_t *a_pkey_cond_hash,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     uint256_t a_value,
     uint256_t a_value_per_unit_max,
@@ -141,7 +141,7 @@ dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_output(
  * @brief Parameters structure for cond_output callback
  */
 typedef struct {
-    dap_hash_fast_t *pkey_cond_hash;
+    dap_hash_sha3_256_t *pkey_cond_hash;
     const char *ticker;
     uint256_t value;
     uint256_t value_per_unit_max;
@@ -231,7 +231,7 @@ static dap_chain_datum_t* s_net_srv_cond_output_compose_cb(
  * This creates a TX that spends a conditional output using a receipt
  */
 dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_input(
-    dap_hash_fast_t *a_tx_prev_hash,
+    dap_hash_sha3_256_t *a_tx_prev_hash,
     uint32_t a_tx_out_prev_idx,
     dap_chain_datum_tx_receipt_t *a_receipt,
     const dap_chain_addr_t *a_addr_to,
@@ -282,7 +282,7 @@ dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_input(
  * @brief Parameters for cond_input compose callback
  */
 typedef struct {
-    dap_hash_fast_t *tx_prev_hash;
+    dap_hash_sha3_256_t *tx_prev_hash;
     uint32_t tx_out_prev_idx;
     dap_chain_datum_tx_receipt_t *receipt;
     const dap_chain_addr_t *addr_to;

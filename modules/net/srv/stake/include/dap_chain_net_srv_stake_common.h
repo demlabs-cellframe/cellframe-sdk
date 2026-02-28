@@ -15,7 +15,7 @@
 #include "dap_chain_common.h"
 #include "dap_hash.h"
 #include "dap_math_ops.h"
-#include "uthash.h"
+#include "dap_ht.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,18 +38,18 @@ typedef struct dap_chain_net_srv_stake_item {
     uint256_t value;
     dap_chain_addr_t signing_addr;
     union {
-        dap_chain_hash_fast_t hash;     // Transaction hash (packed)
-        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash
+        dap_hash_sha3_256_t hash;     // Transaction hash (packed)
+        uint8_t hash_key[DAP_HASH_SHA3_256_SIZE];  // Aligned key for uthash
     } tx_hash;
     union {
-        dap_chain_hash_fast_t hash;     // Decree hash (packed)
-        uint8_t hash_key[DAP_CHAIN_HASH_FAST_SIZE];  // Aligned key for uthash
+        dap_hash_sha3_256_t hash;     // Decree hash (packed)
+        uint8_t hash_key[DAP_HASH_SHA3_256_SIZE];  // Aligned key for uthash
     } decree_hash;
     dap_chain_node_addr_t node_addr;
     dap_chain_addr_t sovereign_addr;
     uint256_t sovereign_tax;
     dap_pkey_t *pkey;
-    UT_hash_handle hh, ht;  // hh for signing_addr hash, ht for tx_hash
+    dap_ht_handle_t hh, ht;
 } dap_chain_net_srv_stake_item_t;
 
 /**

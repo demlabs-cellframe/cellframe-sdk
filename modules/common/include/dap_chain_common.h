@@ -115,16 +115,16 @@ typedef struct dap_chain_addr{
     dap_chain_net_id_t net_id;  // Testnet, mainnet or alternet
     dap_sign_type_t sig_type;
     union {
-        //dap_chain_hash_fast_t hash;
+        //dap_hash_sha3_256_t hash;
         struct {
-            uint8_t key_spend[sizeof(dap_chain_hash_fast_t)/2];
-            uint8_t key_view[sizeof(dap_chain_hash_fast_t)/2];
+            uint8_t key_spend[sizeof(dap_hash_sha3_256_t)/2];
+            uint8_t key_view[sizeof(dap_hash_sha3_256_t)/2];
         } DAP_ALIGN_PACKED key_sv;
-        uint8_t key[sizeof(dap_chain_hash_fast_t)];
-        uint8_t hash[sizeof(dap_chain_hash_fast_t)];
-        dap_chain_hash_fast_t hash_fast;
+        uint8_t key[sizeof(dap_hash_sha3_256_t)];
+        uint8_t hash[sizeof(dap_hash_sha3_256_t)];
+        dap_hash_sha3_256_t hash_fast;
     } DAP_ALIGN_PACKED data;
-    dap_chain_hash_fast_t checksum;
+    dap_hash_sha3_256_t checksum;
 } DAP_ALIGN_PACKED dap_chain_addr_t;
 
 typedef union dap_chain_addr_str {
@@ -245,7 +245,7 @@ DAP_STATIC_INLINE dap_chain_srv_uid_t dap_chain_srv_uid_from_str(const char *a_s
     return l_ret;
 }
 
-void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
+void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_hash_sha3_256_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id);
 

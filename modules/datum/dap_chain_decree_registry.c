@@ -25,7 +25,7 @@
 #include "dap_chain_datum_decree.h"  // For decree structure access
 #include "dap_common.h"
 #include "dap_hash.h"
-#include "uthash.h"
+#include "dap_ht.h"
 
 #define LOG_TAG "dap_decree_registry"
 
@@ -38,7 +38,7 @@ typedef struct dap_chain_decree_handler_entry {
     
     // UTHASH key: decree_type (2 bytes) + decree_subtype (2 bytes) = 4 bytes
     uint32_t key;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_decree_handler_entry_t;
 
 // Global registry state
@@ -74,8 +74,8 @@ void dap_chain_decree_registry_deinit(void)
     pthread_rwlock_wrlock(&s_decree_registry_lock);
     
     dap_chain_decree_handler_entry_t *l_entry, *l_tmp;
-    HASH_ITER(hh, s_decree_handlers, l_entry, l_tmp) {
-        HASH_DEL(s_decree_handlers, l_entry);
+    dap_ht_foreach(s_decree_handlers, l_entry, l_tmp) {
+        dap_ht_del(s_decree_handlers, l_entry);
         if (l_entry->handler_name)
             DAP_FREE(l_entry->handler_name);
         DAP_FREE(l_entry);
@@ -112,7 +112,7 @@ int dap_chain_decree_registry_register_handler(
     
     // Check if handler already registered
     dap_chain_decree_handler_entry_t *l_existing = NULL;
-    HASH_FIND(hh, s_decree_handlers, &l_key, sizeof(uint32_t), l_existing);
+    dap_ht_find(s_decree_handlers, &l_key, sizeof(uint32_t), l_existing);
     
     if (l_existing) {
         pthread_rwlock_unlock(&s_decree_registry_lock);
@@ -138,7 +138,7 @@ int dap_chain_decree_registry_register_handler(
         l_entry->handler_name = dap_strdup(a_handler_name);
     }
     
-    HASH_ADD(hh, s_decree_handlers, key, sizeof(uint32_t), l_entry);
+    dap_ht_add(s_decree_handlers, key, l_entry);
     
     pthread_rwlock_unlock(&s_decree_registry_lock);
     
@@ -162,7 +162,7 @@ int dap_chain_decree_registry_unregister_handler(
     pthread_rwlock_wrlock(&s_decree_registry_lock);
     
     dap_chain_decree_handler_entry_t *l_entry = NULL;
-    HASH_FIND(hh, s_decree_handlers, &l_key, sizeof(uint32_t), l_entry);
+    dap_ht_find(s_decree_handlers, &l_key, sizeof(uint32_t), l_entry);
     
     if (!l_entry) {
         pthread_rwlock_unlock(&s_decree_registry_lock);
@@ -171,7 +171,7 @@ int dap_chain_decree_registry_unregister_handler(
         return -2;
     }
     
-    HASH_DEL(s_decree_handlers, l_entry);
+    dap_ht_del(s_decree_handlers, l_entry);
     
     log_it(L_INFO, "Unregistered decree handler '%s' for type=0x%04x subtype=0x%04x",
            l_entry->handler_name ?: "unnamed", a_decree_type, a_decree_subtype);
@@ -212,7 +212,7 @@ int dap_chain_decree_registry_process(
     pthread_rwlock_rdlock(&s_decree_registry_lock);
     
     dap_chain_decree_handler_entry_t *l_entry = NULL;
-    HASH_FIND(hh, s_decree_handlers, &l_key, sizeof(uint32_t), l_entry);
+    dap_ht_find(s_decree_handlers, &l_key, sizeof(uint32_t), l_entry);
     
     if (!l_entry) {
         pthread_rwlock_unlock(&s_decree_registry_lock);
@@ -254,7 +254,7 @@ bool dap_chain_decree_registry_has_handler(
     pthread_rwlock_rdlock(&s_decree_registry_lock);
     
     dap_chain_decree_handler_entry_t *l_entry = NULL;
-    HASH_FIND(hh, s_decree_handlers, &l_key, sizeof(uint32_t), l_entry);
+    dap_ht_find(s_decree_handlers, &l_key, sizeof(uint32_t), l_entry);
     
     pthread_rwlock_unlock(&s_decree_registry_lock);
     

@@ -7,7 +7,7 @@
 #include "dap_chain.h"
 #include "dap_common.h"
 #include "dap_config.h"
-#include "uthash.h"
+#include "dap_ht.h"
 
 #define LOG_TAG "dap_chain_cs"
 #define DAP_CHAIN_CS_NAME_STRLEN_MAX 32
@@ -16,7 +16,7 @@
 typedef struct dap_chain_cs_item {
     char name[DAP_CHAIN_CS_NAME_STRLEN_MAX];
     dap_chain_cs_lifecycle_t callbacks;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_cs_item_t;
 
 static dap_chain_cs_item_t *s_cs_registry = NULL;
@@ -37,8 +37,8 @@ int dap_chain_cs_init(void)
 void dap_chain_cs_deinit(void)
 {
     dap_chain_cs_item_t *l_item, *l_tmp;
-    HASH_ITER(hh, s_cs_registry, l_item, l_tmp) {
-        HASH_DEL(s_cs_registry, l_item);
+    dap_ht_foreach(s_cs_registry, l_item, l_tmp) {
+        dap_ht_del(s_cs_registry, l_item);
         DAP_DELETE(l_item);
     }
     log_it(L_INFO, "Consensus registry cleaned up");
@@ -163,7 +163,7 @@ bool dap_chain_cs_hardfork_engaged(dap_chain_t *a_chain)
 }
 
 // Stake service wrappers
-int dap_chain_cs_stake_check_pkey_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_pkey_hash, 
+int dap_chain_cs_stake_check_pkey_hash(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_pkey_hash, 
                                        uint256_t *a_sovereign_tax, dap_chain_addr_t *a_sovereign_addr)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
@@ -173,7 +173,7 @@ int dap_chain_cs_stake_check_pkey_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_
     return 0;
 }
 
-int dap_chain_cs_stake_hardfork_data_import(dap_chain_t *a_chain, dap_hash_fast_t *a_decree_hash)
+int dap_chain_cs_stake_hardfork_data_import(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_decree_hash)
 {
     dap_chain_cs_callbacks_t *cbs = dap_chain_cs_get_callbacks(a_chain);
     if (cbs && cbs->stake_hardfork_data_import) {
@@ -210,7 +210,7 @@ void dap_chain_cs_add(const char *a_cs_str, dap_chain_cs_lifecycle_t a_callbacks
     dap_chain_cs_item_t *l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_cs_item_t);
     dap_strncpy(l_item->name, a_cs_str, sizeof(l_item->name));
     l_item->callbacks = a_callbacks;
-    HASH_ADD_STR(s_cs_registry, name, l_item);
+    dap_ht_add_str(s_cs_registry, name, l_item);
     log_it(L_NOTICE, "Consensus '%s' registered", a_cs_str);
 }
 
@@ -227,7 +227,7 @@ int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     }
     
     dap_chain_cs_item_t *l_item = NULL;
-    HASH_FIND_STR(s_cs_registry, l_consensus, l_item);
+    dap_ht_find_str(s_cs_registry, l_consensus, l_item);
     if (!l_item) {
         log_it(L_ERROR, "Consensus '%s' not registered", l_consensus);
         return -1;
@@ -248,7 +248,7 @@ int dap_chain_cs_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 int dap_chain_cs_load(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_item_t *l_item = NULL;
-    HASH_FIND_STR(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
+    dap_ht_find_str(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
     dap_return_val_if_fail_err(l_item, -1, "Consensus %s not registered!", DAP_CHAIN_PVT(a_chain)->cs_name);
     return l_item->callbacks.callback_load
         ? l_item->callbacks.callback_load(a_chain, a_chain_cfg)
@@ -258,7 +258,7 @@ int dap_chain_cs_load(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 int dap_chain_cs_start(dap_chain_t *a_chain)
 {
     dap_chain_cs_item_t *l_item = NULL;
-    HASH_FIND_STR(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
+    dap_ht_find_str(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
     dap_return_val_if_fail(l_item, -1);
     return l_item->callbacks.callback_start
         ? l_item->callbacks.callback_start(a_chain)
@@ -268,7 +268,7 @@ int dap_chain_cs_start(dap_chain_t *a_chain)
 int dap_chain_cs_stop(dap_chain_t *a_chain)
 {
     dap_chain_cs_item_t *l_item = NULL;
-    HASH_FIND_STR(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
+    dap_ht_find_str(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
     dap_return_val_if_fail(l_item, -1);
     return l_item->callbacks.callback_stop
         ? l_item->callbacks.callback_stop(a_chain)
@@ -278,7 +278,7 @@ int dap_chain_cs_stop(dap_chain_t *a_chain)
 int dap_chain_cs_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_item_t *l_item = NULL;
-    HASH_FIND_STR(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
+    dap_ht_find_str(s_cs_registry, DAP_CHAIN_PVT(a_chain)->cs_name, l_item);
     dap_return_val_if_fail(l_item, -1);
     return l_item->callbacks.callback_purge
         ? l_item->callbacks.callback_purge(a_chain)

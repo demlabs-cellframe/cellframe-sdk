@@ -51,7 +51,7 @@ extern "C" {
 
 int dap_chain_net_srv_ch_init();
 
-int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_fast_t *a_tx_hash);
+int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_sha3_256_t *a_tx_hash);
 char *dap_chain_net_srv_ch_create_statistic_report();
 
 

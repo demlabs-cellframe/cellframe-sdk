@@ -54,7 +54,7 @@ void dap_chain_block_cache_deinit()
  * @return
  */
 
-dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block,
+dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_sha3_256_t *a_block_hash, dap_chain_block_t *a_block,
                                                    size_t a_block_size, uint64_t a_block_number, bool a_copy_block)
 {
     if (! a_block)
@@ -88,7 +88,7 @@ dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return NULL;
     }
-    l_ret->hh = (UT_hash_handle){ }; // Drop hash handle to prevent its usage
+    l_ret->hh = (dap_ht_handle_t){ }; // Drop hash handle to prevent its usage
     return l_ret;
 }
 
@@ -97,16 +97,16 @@ dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_
  * @param a_block_cache
  */
 
-int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash)
+int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_sha3_256_t *a_block_hash)
 {
     assert(a_block_cache);
     assert(a_block_cache->block);
     if (a_block_hash)
         a_block_cache->block_hash = *a_block_hash;
     else
-        dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
+        dap_hash_sha3_256(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
 
-    dap_hash_fast_to_str(&a_block_cache->block_hash, a_block_cache->block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    dap_hash_sha3_256_to_str(&a_block_cache->block_hash, a_block_cache->block_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
 
     if (dap_chain_block_meta_extract(a_block_cache->block, a_block_cache->block_size,
                                         &a_block_cache->prev_hash,
@@ -129,7 +129,7 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
         return -2;
     }
 
-    a_block_cache->datum_hash = DAP_NEW_Z_SIZE(dap_hash_fast_t, a_block_cache->datum_count * sizeof(dap_hash_fast_t));
+    a_block_cache->datum_hash = DAP_NEW_Z_SIZE(dap_hash_sha3_256_t, a_block_cache->datum_count * sizeof(dap_hash_sha3_256_t));
     for (size_t i = 0; i < a_block_cache->datum_count; i++) {
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
         // For hardfork block TX, use pre-hardfork hash from TSD if present (optimization: skip hash computation)
@@ -138,8 +138,8 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
             dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_DATUM_TX_TSD_TYPE_HARDFORK_TX_HASH);
             if (l_tsd) {
                 dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_tsd->tsd;
-                if (l_tsd_data->size == sizeof(dap_hash_fast_t)) {
-                    a_block_cache->datum_hash[i] = *(dap_hash_fast_t *)l_tsd_data->data;
+                if (l_tsd_data->size == sizeof(dap_hash_sha3_256_t)) {
+                    a_block_cache->datum_hash[i] = *(dap_hash_sha3_256_t *)l_tsd_data->data;
                     continue;
                 }
             }
@@ -184,7 +184,7 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
             continue;
 
         //Check whether used 'out' items
-        dap_hash_fast_t *l_tx_hash = a_block_cache->datum_hash + i;
+        dap_hash_sha3_256_t *l_tx_hash = a_block_cache->datum_hash + i;
         if (!dap_ledger_tx_hash_is_used_out_item (a_ledger, l_tx_hash, l_out_idx_tmp, NULL)) {
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             if (!l_item) {

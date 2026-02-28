@@ -21,7 +21,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_global_db.h"
@@ -116,10 +116,10 @@ int dap_chain_cell_init(void)
         HMODULE ntdll = GetModuleHandle("ntdll.dll");
         if ( !ntdll )
             return log_it(L_CRITICAL, "Ntdll error"), -1;
-        pfnNtCreateSection      = (pfn_NtCreateSection)     GetProcAddress(ntdll, "NtCreateSection");
-        pfnNtMapViewOfSection   = (pfn_NtMapViewOfSection)  GetProcAddress(ntdll, "NtMapViewOfSection");
-        pfnNtExtendSection      = (pfn_NtExtendSection)     GetProcAddress(ntdll, "NtExtendSection");
-        pfnNtUnmapViewOfSection = (pfn_NtUnmapViewOfSection)GetProcAddress(ntdll, "NtUnmapViewOfSection");
+        pfnNtCreateSection      = (pfn_NtCreateSection)     (void *)GetProcAddress(ntdll, "NtCreateSection");
+        pfnNtMapViewOfSection   = (pfn_NtMapViewOfSection)  (void *)GetProcAddress(ntdll, "NtMapViewOfSection");
+        pfnNtExtendSection      = (pfn_NtExtendSection)     (void *)GetProcAddress(ntdll, "NtExtendSection");
+        pfnNtUnmapViewOfSection = (pfn_NtUnmapViewOfSection)(void *)GetProcAddress(ntdll, "NtUnmapViewOfSection");
     }
     
 #endif
@@ -147,7 +147,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
                                            (HANDLE)_get_osfhandle(fileno(a_cell->file_storage)) );
         if ( !NT_SUCCESS(err) )
             return log_it(L_ERROR, "NtCreateSection() failed, status %lx: \"%s\"",
-                                   err, dap_str_ntstatus(err) ), -1;
+                                   (unsigned long)err, dap_str_ntstatus(err) ), -1;
     }
 #endif
     dap_chain_cell_mmap_volume_t *l_new_vol = DAP_NEW_Z(dap_chain_cell_mmap_volume_t);
@@ -161,13 +161,15 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
             : 0,
         l_offset = a_fpos - l_volume_offset;
 #ifdef DAP_OS_WINDOWS
-    int err = 0;
+    NTSTATUS err = 0;
     LARGE_INTEGER Offset = { .QuadPart = l_volume_offset };
+    SIZE_T l_view_size = (SIZE_T)l_new_vol->size;
     err = pfnNtMapViewOfSection(a_cell->mapping->section, GetCurrentProcess(), (HANDLE)&l_new_vol->base, 0, 0, 
-                                &Offset, &l_new_vol->size, ViewUnmap, MEM_RESERVE, PAGE_READONLY);
+                                &Offset, &l_view_size, ViewUnmap, MEM_RESERVE, PAGE_READONLY);
+    l_new_vol->size = (off_t)l_view_size;
     if ( !NT_SUCCESS(err) ) {
         NtClose(a_cell->mapping->section);
-        log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx: \"%s\"", err, dap_str_ntstatus(err) );
+        log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx: \"%s\"", (unsigned long)err, dap_str_ntstatus(err) );
         DAP_DELETE(l_new_vol);
         return -1;
     }
@@ -191,7 +193,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
     if (a_load)
         madvise(l_new_vol->base, l_new_vol->size, MADV_SEQUENTIAL);
 #endif
-    DL_PREPEND(a_cell->mapping->volume, l_new_vol);
+    dap_dl_prepend(a_cell->mapping->volume, l_new_vol);
     return 0;
 }
 
@@ -201,14 +203,14 @@ DAP_STATIC_INLINE int s_cell_close(dap_chain_cell_t *a_cell) {
         a_cell->mapping->cursor = NULL;
         int i = 0;
         dap_chain_cell_mmap_volume_t *l_vol, *l_tmp;
-        DL_FOREACH_SAFE(a_cell->mapping->volume, l_vol, l_tmp) {
-            debug_if(s_debug_more, L_DEBUG, "Unmap volume #%d, %lu bytes", i++, l_vol->size);
+        dap_dl_foreach_safe(a_cell->mapping->volume, l_vol, l_tmp) {
+            debug_if(s_debug_more, L_DEBUG, "Unmap volume #%d, %"DAP_INT64_FORMAT" bytes", i++, (int64_t)l_vol->size);
 #ifdef DAP_OS_WINDOWS
             pfnNtUnmapViewOfSection(GetCurrentProcess(), l_vol->base);
 #else
             munmap(l_vol->base, l_vol->size);
 #endif
-            DL_DELETE(a_cell->mapping->volume, l_vol);
+            dap_dl_delete(a_cell->mapping->volume, l_vol);
             DAP_DELETE(l_vol);
         }
 #ifdef DAP_OS_WINDOWS
@@ -240,7 +242,7 @@ int s_chain_cell_close(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool
         return -2;
     }
     s_cell_close(l_cell);
-    HASH_DEL(a_chain->cells, l_cell);
+    dap_ht_del(a_chain->cells, l_cell);
     dap_chain_cell_remit(a_chain);
     if (a_make_file_copy) {
         if (!a_remove_file)
@@ -280,14 +282,14 @@ int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
     }
     off_t l_pos = !fseeko(l_cell->file_storage, 0, SEEK_END) ? ftello(l_cell->file_storage) : -1;
     if (l_pos < (off_t)a_delta)
-        dap_return_val_if_fail_err(l_cell, -3, "Can't truncate more than file size %" DAP_UINT64_FORMAT_U, l_pos);
+        dap_return_val_if_fail_err(l_cell, -3, "Can't truncate more than file size %"DAP_INT64_FORMAT, (int64_t)l_pos);
     l_pos -= a_delta;
 #ifdef DAP_OS_WINDOWS
     if (l_cell->chain->is_mapped) {
         LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_pos };
         NTSTATUS err = pfnNtExtendSection(l_cell->mapping->section, &SectionSize);
         if ( !NT_SUCCESS(err) )
-            log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+            log_it(L_ERROR, "NtExtendSection() failed, status %lx", (unsigned long)err);
     } else
 #endif
     ftruncate(fileno(l_cell->file_storage), l_pos);
@@ -299,9 +301,9 @@ void dap_chain_cell_close_all(dap_chain_t *a_chain) {
     dap_return_if_fail(a_chain);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
     dap_chain_cell_t *l_cell, *l_tmp;
-    HASH_ITER(hh, a_chain->cells, l_cell, l_tmp) {
+    dap_ht_foreach(a_chain->cells, l_cell, l_tmp) {
         s_cell_close(l_cell);
-        HASH_DEL(a_chain->cells, l_cell);
+        dap_ht_del(a_chain->cells, l_cell);
         DAP_DELETE(l_cell);
     }
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
@@ -337,7 +339,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                                         "Can't read chain header \"%s\"", a_cell->file_storage_path );
         }
         dap_return_val_if_fail_err( l_hdr->cell_id.uint64 == a_cell->id.uint64, 5,
-                                    "Wrong cell id, %lu != %lu", l_hdr->cell_id.uint64, a_cell->id.uint64);
+                                    "Wrong cell id, %"DAP_UINT64_FORMAT_U" != %"DAP_UINT64_FORMAT_U, l_hdr->cell_id.uint64, a_cell->id.uint64);
         dap_return_val_if_fail_err( l_hdr->signature == DAP_CHAIN_CELL_FILE_SIGNATURE, 5,
                                     "Wrong signature in chain \"%s\", possible file corrupt", a_cell->file_storage_path );
         dap_return_val_if_fail_err( l_hdr->version >= DAP_CHAIN_CELL_FILE_VERSION, -6,
@@ -365,7 +367,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     int l_ret = 0;    
     off_t l_el_size = 0, q = 0;
     dap_chain_atom_ptr_t l_atom;
-    dap_hash_fast_t l_atom_hash;
+    dap_hash_sha3_256_t l_atom_hash;
     if (a_cell->chain->is_mapped) {
         for ( off_t l_vol_rest = 0; !s_load_skip && l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += sizeof(uint64_t) + l_el_size ) {
             l_vol_rest = (off_t)( a_cell->mapping->volume->base + a_cell->mapping->volume->size - a_cell->mapping->cursor - sizeof(uint64_t) );
@@ -374,13 +376,13 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             if ( !l_el_size || l_el_size > l_full_size - l_pos )
                 break;
             l_atom = (dap_chain_atom_ptr_t)(a_cell->mapping->cursor + sizeof(uint64_t));
-            dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            dap_hash_sha3_256(l_atom, l_el_size, &l_atom_hash);
             dap_chain_atom_verify_res_t l_verif = a_cell->chain->callback_atom_prefetch
                 ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
                 : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
             if ( l_verif == ATOM_CORRUPTED ) {
-                log_it(L_ERROR, "Atom #%ld is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
-                                q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
+                log_it(L_ERROR, "Atom #%"DAP_INT64_FORMAT" is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
+                                (int64_t)q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
                 l_ret = 8;
                 break;
             }
@@ -401,7 +403,7 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
         size_t l_read = 0;
         while (!s_load_skip && ( l_read = fread(&l_el_size, 1, sizeof(l_el_size), a_cell->file_storage) ) && !feof(a_cell->file_storage) ) {
             if ( !l_el_size || l_read != sizeof(l_el_size) ) {
-                log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, a_cell->file_storage_path);
+                log_it(L_ERROR, "Corrupted element size %"DAP_INT64_FORMAT", chain %s is damaged", (int64_t)l_el_size, a_cell->file_storage_path);
                 l_ret = 8;
                 break;
             }
@@ -413,19 +415,19 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
             }
             l_read = fread((void*)l_atom, 1, l_el_size, a_cell->file_storage);
             if (l_read != (size_t)l_el_size) {
-                log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
+                log_it(L_ERROR, "Read only %zu of %"DAP_INT64_FORMAT" bytes, stop cell loading", l_read, (int64_t)l_el_size);
                 DAP_DELETE(l_atom);
                 l_ret = 10;
                 break;
             }
-            dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            dap_hash_sha3_256(l_atom, l_el_size, &l_atom_hash);
             dap_chain_atom_verify_res_t l_verif = a_cell->chain->callback_atom_prefetch
                 ? a_cell->chain->callback_atom_prefetch(a_cell->chain, l_atom, l_el_size, &l_atom_hash)
                 : a_cell->chain->callback_atom_add(a_cell->chain, l_atom, l_el_size, &l_atom_hash, false);
             DAP_DELETE(l_atom);
             if ( l_verif == ATOM_CORRUPTED ) {
-                log_it(L_ERROR, "Atom #%ld is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
-                                q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
+                log_it(L_ERROR, "Atom #%"DAP_INT64_FORMAT" is corrupted, can't proceed with loading chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
+                                (int64_t)q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
                 l_ret = 11;
                 break;
             }
@@ -441,14 +443,14 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
         }
     }
     if ( !s_load_skip && l_pos < l_full_size && l_ret > 0 ) {
-        log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %zu bytes",
-                        a_cell->file_storage_path, l_full_size - l_pos );
+        log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %"DAP_INT64_FORMAT" bytes",
+                        a_cell->file_storage_path, (int64_t)(l_full_size - l_pos) );
 #ifdef DAP_OS_WINDOWS
         if (a_cell->chain->is_mapped) {
             LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_pos };
             NTSTATUS err = pfnNtExtendSection(a_cell->mapping->section, &SectionSize);
             if ( !NT_SUCCESS(err) )
-                log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+                log_it(L_ERROR, "NtExtendSection() failed, status %lx", (unsigned long)err);
         } else
 #endif
             ftruncate(fileno(a_cell->file_storage), l_pos);
@@ -456,8 +458,8 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     if ( a_cell->chain->callback_atoms_prefetched_add )
         a_cell->chain->callback_atoms_prefetched_add(a_cell->chain);
-    log_it(L_INFO, "Loaded %lu atoms in chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
-                    q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
+    log_it(L_INFO, "Loaded %"DAP_INT64_FORMAT" atoms in chain \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X"",
+                    (int64_t)q, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64);
     return l_ret;
 }
 
@@ -468,12 +470,12 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
 #define m_ret_err(err, ...) return ({ if (l_cell->file_storage) fclose(l_cell->file_storage); \
                                       DAP_DELETE(l_cell); log_it(L_ERROR, ##__VA_ARGS__), err; })
 
-    HASH_FIND(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
+    dap_ht_find(a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
     if (l_cell) {
         if (a_mode == 'w') {
             /* Attention! File rewriting requires that ledger was already purged */
             s_cell_close(l_cell);
-            HASH_DEL(a_chain->cells, l_cell);
+            dap_ht_del(a_chain->cells, l_cell);
             DAP_DELETE(l_cell);
         } else
             m_ret_err(EEXIST, "Cell \"%s\" is already loaded in chain \"%s : %s\"",
@@ -528,7 +530,7 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
     default:
         break;
     }
-    HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
+    dap_ht_add(a_chain->cells, id, l_cell);
     log_it(L_INFO, "Cell storage \"%s\" is %s for chain \"%s : %s\"",
                     a_filename, *mode == 'w' ? "created" : "opened", a_chain->net_name, a_chain->name);
     return 0;
@@ -560,7 +562,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
     dap_return_val_if_fail_err(
         fwrite(&a_atom_size, sizeof(a_atom_size), 1, a_cell->file_storage) == 1 &&
         fwrite(a_atom,       a_atom_size,         1, a_cell->file_storage) == 1,
-        -3, "Can't write atom [%zu b] to \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X", error %d: \"%s\"",
+        -3, "Can't write atom [%"DAP_UINT64_FORMAT_U" b] to \"%s : %s\" cell 0x%016"DAP_UINT64_FORMAT_X", error %d: \"%s\"",
             a_atom_size, a_cell->chain->net_name, a_cell->chain->name, a_cell->id.uint64, errno, dap_strerror(errno)
     );
     fflush(a_cell->file_storage);
@@ -576,7 +578,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
 #elif defined DAP_OS_WINDOWS
         LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = ftello(a_cell->file_storage) };
         NTSTATUS err = pfnNtExtendSection(a_cell->mapping->section, &SectionSize);
-        dap_return_val_if_fail_err( NT_SUCCESS(err), -2, "NtExtendSection() failed, status %lx: \"%s\"", err, dap_str_ntstatus(err) );
+        dap_return_val_if_fail_err( NT_SUCCESS(err), -2, "NtExtendSection() failed, status %lx: \"%s\"", (unsigned long)err, dap_str_ntstatus(err) );
 #endif
         /* Pass ptr to mapped area */
         if (a_atom_map)

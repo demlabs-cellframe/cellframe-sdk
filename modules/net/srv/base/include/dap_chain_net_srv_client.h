@@ -103,7 +103,7 @@ int dap_chain_net_srv_client_request(
     dap_chain_net_srv_client_t *a_client,
     dap_chain_net_id_t a_net_id,
     dap_chain_srv_uid_t a_srv_uid,
-    dap_chain_hash_fast_t *a_tx_cond,
+    dap_hash_sha3_256_t *a_tx_cond,
     dap_chain_net_srv_ch_pkt_success_t **a_out_success,
     size_t *a_out_size,
     int a_timeout_ms

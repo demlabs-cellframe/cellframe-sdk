@@ -11,8 +11,8 @@
 #include "dap_chain_net_types.h"  // Base types from common (NOT dap_chain_net.h!)
 #include "dap_chain.h"
 #include "dap_string.h"
-#include "uthash.h"
-#include "utlist.h"
+#include "dap_ht.h"
+#include "dap_dl.h"
 #include "dap_chain_net_utils.h"  // For dap_chain_net_get_default_chain_by_chain_type
 
 #define LOG_TAG "chain_net_core"
@@ -26,10 +26,24 @@ extern dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net
 extern bool dap_chain_net_get_load_mode(dap_chain_net_t *a_net);
 
 // ============ NETWORK REGISTRY ============
-// Reference the global registry from dap_chain_net.c (not duplicated here)
-// Networks are registered in dap_chain_net.c:s_net_new() via HASH_ADD
-extern dap_chain_net_t *s_nets_by_name;
-extern dap_chain_net_t *s_nets_by_id;
+static dap_chain_net_t *s_nets_by_name = NULL;
+static dap_chain_net_t *s_nets_by_id = NULL;
+
+void dap_chain_net_register(dap_chain_net_t *a_net)
+{
+    if (!a_net)
+        return;
+    dap_ht_add_str(s_nets_by_name, pub.name, a_net);
+    dap_ht_add_hh(hh2, s_nets_by_id, pub.id, a_net);
+}
+
+void dap_chain_net_unregister(dap_chain_net_t *a_net)
+{
+    if (!a_net)
+        return;
+    dap_ht_del(s_nets_by_name, a_net);
+    dap_ht_del_hh(hh2, s_nets_by_id, a_net);
+}
 
 /**
  * @brief Find network by name
@@ -40,7 +54,7 @@ dap_chain_net_t *dap_chain_net_by_name(const char *a_name)
 {
     dap_chain_net_t *l_net = NULL;
     if (a_name)
-        HASH_FIND_STR(s_nets_by_name, a_name, l_net);
+        dap_ht_find_str(s_nets_by_name, a_name, l_net);
     return l_net;
 }
 
@@ -52,7 +66,7 @@ dap_chain_net_t *dap_chain_net_by_name(const char *a_name)
 dap_chain_net_t *dap_chain_net_by_id(dap_chain_net_id_t a_id)
 {
     dap_chain_net_t *l_net = NULL;
-    HASH_FIND(hh2, s_nets_by_id, &a_id, sizeof(a_id), l_net);
+    dap_ht_find_hh(hh2, s_nets_by_id, &a_id, sizeof(a_id), l_net);
     return l_net;
 }
 
@@ -98,7 +112,7 @@ int dap_chain_net_parse_net_chain(dap_json_t *a_json_arr_reply, int *a_arg_index
                 dap_string_append_printf(l_reply, "Invalid '-chain' parameter \"%s\", not found in net %s\nAvailable chains:",
                                                   l_chain_str, l_net_str);
                 dap_chain_t *l_chain;
-                DL_FOREACH((*a_net)->pub.chains, l_chain) {
+                dap_dl_foreach((*a_net)->pub.chains, l_chain) {
                     dap_string_append_printf(l_reply, "\n\t%s", l_chain->name);
                 }
                 char *l_str_reply = dap_string_free(l_reply, false);
@@ -131,7 +145,7 @@ int dap_chain_net_parse_net_chain(dap_json_t *a_json_arr_reply, int *a_arg_index
 dap_chain_t* dap_chain_net_get_chain_by_name(dap_chain_net_t *a_net, const char *a_name)
 {
    dap_chain_t *l_chain;
-   DL_FOREACH(a_net->pub.chains, l_chain){
+   dap_dl_foreach(a_net->pub.chains, l_chain){
         if(dap_strcmp(l_chain->name, a_name) == 0)
             return l_chain;
    }
@@ -147,7 +161,7 @@ dap_chain_t* dap_chain_net_get_chain_by_name(dap_chain_net_t *a_net, const char 
 dap_chain_t* dap_chain_net_get_chain_by_id(dap_chain_net_t *a_net, dap_chain_id_t a_chain_id)
 {
    dap_chain_t *l_chain;
-   DL_FOREACH(a_net->pub.chains, l_chain)
+   dap_dl_foreach(a_net->pub.chains, l_chain)
         if (l_chain->id.uint64 == a_chain_id.uint64)
             return l_chain;
    return NULL;
