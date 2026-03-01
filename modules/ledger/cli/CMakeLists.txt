@@ -15,6 +15,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..
 
 # Include mempool headers for emission-based TX (no link dep - resolved at final link)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../mempool/include/)
+# Crypto headers for dap_cert (resolved at final link via dap_crypto)
+target_include_directories(${PROJECT_NAME} PRIVATE ${DAP_SDK_SOURCE_DIR}/module/crypto/include/)
+# Hash headers for dap_hash_sha3_256_from_str
+target_include_directories(${PROJECT_NAME} PRIVATE ${DAP_SDK_SOURCE_DIR}/module/hash/include/)
 # Include net headers for dap_chain_net_get_default_chain_by_chain_type
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../net/include/)
 # Include DAG type headers for event/datum extraction

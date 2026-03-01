@@ -757,15 +757,15 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
 
-    // Check if this node is present in nodelist
+    // Check if this node is present in nodelist (non-fatal: GDB sync may populate it later)
     dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_session->my_addr);
     if (!l_node_info) {
-        log_it(L_ERROR, "This node address "NODE_ADDR_FP_STR" is not present in nodelist. "
-                        "Add it with 'node add' command before starting consensus",
+        log_it(L_WARNING, "This node address "NODE_ADDR_FP_STR" is not yet present in nodelist. "
+                        "Consensus will start once the node appears via GDB sync or 'node add'",
                         NODE_ADDR_FP_ARGS_S(l_session->my_addr));
-        return -8;
+    } else {
+        DAP_DELETE(l_node_info);
     }
-    DAP_DELETE(l_node_info);
 
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,

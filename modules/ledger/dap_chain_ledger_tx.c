@@ -2693,12 +2693,13 @@ int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
     } else {
         log_it(L_WARNING, "Verificator subtype %d already used, callbacks addresses will be replaced", a_subtype);
     }
-    *l_new_verificator = (dap_ledger_verificator_t) {
-            .subtype = (int)a_subtype,
-            .callback_in_verify = a_callback_in_verify, .callback_out_verify = a_callback_out_verify,
-            .callback_in_add = a_callback_in_add, .callback_out_add = a_callback_out_add,
-            .callback_in_delete = a_callback_in_delete, .callback_out_delete = a_callback_out_delete
-        };
+    l_new_verificator->subtype = (int)a_subtype;
+    l_new_verificator->callback_in_verify = a_callback_in_verify;
+    l_new_verificator->callback_out_verify = a_callback_out_verify;
+    l_new_verificator->callback_in_add = a_callback_in_add;
+    l_new_verificator->callback_out_add = a_callback_out_add;
+    l_new_verificator->callback_in_delete = a_callback_in_delete;
+    l_new_verificator->callback_out_delete = a_callback_out_delete;
     if (l_is_new) {
         pthread_rwlock_wrlock(&s_verificators_rwlock);
         dap_ht_add_int(s_verificators, subtype, l_new_verificator);

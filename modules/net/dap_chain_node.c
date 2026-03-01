@@ -475,14 +475,25 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
+    log_it(L_DEBUG, "mempool_process_all: chain=%s group=%s objs_count=%zu force=%d autoproc=%d",
+           a_chain->name, l_gdb_group_mempool, l_objs_count, a_force, l_net->pub.mempool_autoproc);
     if (l_objs_count) {
         for (size_t i = 0; i < l_objs_count; i++) {
-            if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
+            if (l_objs[i].value_len < sizeof(dap_chain_datum_t)) {
+                log_it(L_DEBUG, "mempool_process_all: skip datum %s: value_len=%zu < datum_hdr=%zu",
+                       l_objs[i].key, l_objs[i].value_len, sizeof(dap_chain_datum_t));
                 continue;
+            }
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
+            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
+                log_it(L_DEBUG, "mempool_process_all: skip datum %s: datum_size=%zu != value_len=%zu",
+                       l_objs[i].key, dap_chain_datum_size(l_datum), l_objs[i].value_len);
                 continue;
-            if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
+            }
+            bool l_need = dap_chain_node_mempool_need_process(a_chain, l_datum);
+            log_it(L_DEBUG, "mempool_process_all: datum %s type=0x%x need_process=%d",
+                   l_objs[i].key, l_datum->header.type_id, l_need);
+            if (l_need) {
                 int l_ret = 0;
                 if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, &l_ret)) {
                     // Delete processed objects
