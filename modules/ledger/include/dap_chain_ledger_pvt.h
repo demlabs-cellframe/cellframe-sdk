@@ -23,6 +23,7 @@
 
 #include "dap_chain_ledger.h"
 #include "dap_global_db.h"
+#include "dap_chain_ledger_cache.h"
 
 #define LEDGER_PVT_TX_META_FLAG_MULTICHANNEL    BIT(1)
 #define LEDGER_PVT_TX_META_FLAG_IMMUTABLE       BIT(2)
@@ -49,7 +50,8 @@ typedef struct dap_ledger_token_emission_item {
     size_t datum_token_emission_size;
     dap_chain_hash_fast_t tx_used_out;
     dap_nanotime_t ts_added;
-    bool is_hardfork;  // Mark if emission was created during/after hardfork
+    bool is_hardfork;
+    uint64_t cache_record_offset;
     UT_hash_handle hh;
 } dap_ledger_token_emission_item_t;
 
@@ -58,6 +60,7 @@ typedef struct dap_ledger_token_update_item {
     dap_chain_datum_token_t	*datum_token_update;
     size_t					datum_token_update_size;
     time_t					updated_time;
+    uint64_t				cache_record_offset;
     UT_hash_handle hh;
 } dap_ledger_token_update_item_t;
 
@@ -97,6 +100,7 @@ typedef struct dap_ledger_token_item {
     char delegated_from[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t emission_rate;
 
+    uint64_t cache_record_offset;
     UT_hash_handle hh;
 } dap_ledger_token_item_t;
 
@@ -121,12 +125,14 @@ typedef struct dap_ledger_tx_item {
         dap_chain_srv_uid_t tag; //tag (or service this tx is belong to)
         dap_chain_tx_tag_action_type_t action;
     } DAP_ALIGN_PACKED cache_data;
-    dap_ledger_tx_out_metadata_t out_metadata[]; // spent outs list
+    uint64_t cache_record_offset;
+    dap_ledger_tx_out_metadata_t out_metadata[];
 } dap_ledger_tx_item_t;
 
 typedef struct dap_ledger_stake_lock_item {
     dap_chain_hash_fast_t tx_for_stake_lock_hash;
     dap_chain_hash_fast_t tx_used_out;
+    uint64_t cache_record_offset;
     UT_hash_handle hh;
 } dap_ledger_stake_lock_item_t;
 
@@ -246,8 +252,11 @@ typedef struct dap_ledger_private {
     dap_ledger_balance_change_notifier_t *balance_change_notifiers;  // List of balance change callbacks
 
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
-    // White- and blacklist
-    dap_ledger_hal_item_t *hal_items, *hrl_items;    
+
+    dap_ledger_hal_item_t *hal_items, *hrl_items;
+
+    dap_ledger_cache_t mmap_cache;
+    bool mmap_cache_active;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -258,6 +267,7 @@ typedef struct dap_ledger_private {
 #define is_ledger_mapped(l)         ( l->flags & DAP_LEDGER_MAPPED )
 #define is_ledger_cached(l)         ( l->flags & DAP_LEDGER_CACHE_ENABLED )
 #define is_ledger_threshld(l)       ( l->flags & DAP_LEDGER_THRESHOLD_ENABLED )
+#define is_ledger_mmap_cached(l)    ( l->mmap_cache_active )
 
 extern bool g_debug_ledger;
 

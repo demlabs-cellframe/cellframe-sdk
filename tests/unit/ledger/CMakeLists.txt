@@ -26,3 +26,35 @@ set(ENV{DAP_MOCK_ADDITIONAL_INCLUDES} "#include \"dap_hash.h\"\n#include \"dap_c
 dap_mock_autowrap(${PROJECT_NAME})
 
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+
+# --- Ledger Cache Tests ---
+set(CACHE_TEST_NAME test_ledger_cache)
+
+add_executable(${CACHE_TEST_NAME}
+    test_ledger_cache.c
+)
+
+target_link_libraries(${CACHE_TEST_NAME}
+    dap_test
+    dap_sdk
+    cellframe_sdk
+    dap_chain_ledger
+)
+
+add_test(NAME ${CACHE_TEST_NAME} COMMAND ${CACHE_TEST_NAME})
+
+# --- Ledger Cache Performance Benchmark ---
+set(CACHE_BENCH_NAME bench_ledger_cache)
+
+add_executable(${CACHE_BENCH_NAME}
+    bench_ledger_cache.c
+)
+
+target_link_libraries(${CACHE_BENCH_NAME}
+    dap_test
+    dap_sdk
+    cellframe_sdk
+    dap_chain_ledger
+)
+
+add_test(NAME ${CACHE_BENCH_NAME} COMMAND ${CACHE_BENCH_NAME})

@@ -14,6 +14,7 @@ file(GLOB DAP_CHAIN_LEDGER_SRCS
     dap_chain_ledger_event.c
     dap_chain_ledger_token.c
     dap_chain_ledger_json.c
+    dap_chain_ledger_cache.c
     # dap_chain_ledger_decree.c  # DISABLED - moved to governance module
     dap_chain_ledger_cli_error_codes.c
     # OLD CLI dap_chain_ledger_cli.c is DISABLED - using new modular CLI in cli/ subdirectory

@@ -318,7 +318,11 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
 {
     if(!a_ledger)
         return;
-    // Destroy Read/Write Lock
+    if (PVT(a_ledger)->mmap_cache_active) {
+        if (dap_ledger_cache_shutdown(&PVT(a_ledger)->mmap_cache, NULL, 0) != 0)
+            dap_ledger_cache_close(&PVT(a_ledger)->mmap_cache);
+        PVT(a_ledger)->mmap_cache_active = false;
+    }
     pthread_rwlock_destroy(&PVT(a_ledger)->ledger_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->tokens_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->threshold_txs_rwlock);
@@ -784,6 +788,183 @@ bool dap_ledger_pvt_cache_gdb_load_balances_callback(dap_global_db_instance_t *a
     return true;
 }
 
+/* ---- mmap warm load callbacks ---- */
+
+static int s_mmap_load_token(const dap_ledger_cache_token_record_t *a_rec,
+                              uint64_t a_offset, void *a_user_data)
+{
+    dap_ledger_t *l_ledger = (dap_ledger_t *)a_user_data;
+    dap_ledger_private_t *l_pvt = PVT(l_ledger);
+
+    dap_ledger_token_item_t *l_item = DAP_NEW_Z(dap_ledger_token_item_t);
+    if (!l_item)
+        return -1;
+    memcpy(l_item->ticker, a_rec->ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    l_item->subtype = a_rec->subtype;
+    l_item->current_supply = a_rec->current_supply;
+    l_item->cache_record_offset = a_offset;
+    l_item->datum_token = NULL;
+    l_item->datum_token_size = a_rec->datum_size;
+    pthread_rwlock_init(&l_item->token_emissions_rwlock, NULL);
+    pthread_rwlock_init(&l_item->token_ts_updated_rwlock, NULL);
+    HASH_ADD_STR(l_pvt->tokens, ticker, l_item);
+    return 0;
+}
+
+static int s_mmap_load_emission(const dap_ledger_cache_emission_record_t *a_rec,
+                                 uint64_t a_offset, void *a_user_data)
+{
+    dap_ledger_t *l_ledger = (dap_ledger_t *)a_user_data;
+    dap_ledger_private_t *l_pvt = PVT(l_ledger);
+
+    dap_ledger_token_item_t *l_token_item = NULL;
+    HASH_FIND_STR(l_pvt->tokens, a_rec->ticker, l_token_item);
+    if (!l_token_item) {
+        log_it(L_WARNING, "Warm load: emission references unknown token '%.*s', skipping (will recover during chain cell loading)",
+               (int)sizeof(a_rec->ticker), a_rec->ticker);
+        return 0;
+    }
+
+    dap_ledger_token_emission_item_t *l_item = DAP_NEW_Z(dap_ledger_token_emission_item_t);
+    if (!l_item)
+        return -1;
+    l_item->datum_token_emission_hash = a_rec->datum_token_emission_hash;
+    l_item->tx_used_out = a_rec->tx_used_out;
+    l_item->ts_added = a_rec->ts_added;
+    l_item->is_hardfork = a_rec->is_hardfork;
+    l_item->cache_record_offset = a_offset;
+    l_item->datum_token_emission = NULL;
+    l_item->datum_token_emission_size = a_rec->datum_size;
+
+    HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash,
+             sizeof(dap_chain_hash_fast_t), l_item);
+    return 0;
+}
+
+static int s_mmap_load_stake_lock(const dap_ledger_cache_stake_lock_record_t *a_rec,
+                                   uint64_t a_offset, void *a_user_data)
+{
+    dap_ledger_t *l_ledger = (dap_ledger_t *)a_user_data;
+    dap_ledger_private_t *l_pvt = PVT(l_ledger);
+
+    dap_ledger_stake_lock_item_t *l_item = DAP_NEW_Z(dap_ledger_stake_lock_item_t);
+    if (!l_item)
+        return -1;
+    l_item->tx_for_stake_lock_hash = a_rec->tx_for_stake_lock_hash;
+    l_item->tx_used_out = a_rec->tx_used_out;
+    l_item->cache_record_offset = a_offset;
+    HASH_ADD(hh, l_pvt->emissions_for_stake_lock, tx_for_stake_lock_hash,
+             sizeof(dap_chain_hash_fast_t), l_item);
+    return 0;
+}
+
+static int s_mmap_load_tx(const dap_ledger_cache_tx_record_t *a_rec,
+                           uint64_t a_offset, void *a_user_data)
+{
+    dap_ledger_t *l_ledger = (dap_ledger_t *)a_user_data;
+    dap_ledger_private_t *l_pvt = PVT(l_ledger);
+
+    size_t l_meta_size = a_rec->n_outs * sizeof(dap_ledger_tx_out_metadata_t);
+    dap_ledger_tx_item_t *l_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t,
+        sizeof(dap_ledger_tx_item_t) + l_meta_size);
+    if (!l_item)
+        return -1;
+    l_item->tx_hash_fast = a_rec->tx_hash_fast;
+    l_item->tx = NULL;
+    l_item->ts_added = a_rec->ts_added;
+    l_item->cache_data.ts_created = a_rec->ts_created;
+    l_item->cache_data.n_outs = a_rec->n_outs;
+    l_item->cache_data.n_outs_used = a_rec->n_outs_used;
+    memcpy(l_item->cache_data.token_ticker, a_rec->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    l_item->cache_data.flags = a_rec->flags;
+    l_item->cache_data.ts_spent = a_rec->ts_spent;
+    l_item->cache_data.tag.uint64 = a_rec->tag;
+    l_item->cache_data.action = (dap_chain_tx_tag_action_type_t)a_rec->action;
+    l_item->cache_record_offset = a_offset;
+
+    for (uint32_t i = 0; i < a_rec->n_outs; i++) {
+        l_item->out_metadata[i].tx_spent_hash_fast = a_rec->out_spent_hashes[i];
+        l_item->out_metadata[i].trackers = NULL;
+    }
+
+    HASH_ADD(hh, l_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_item);
+    return 0;
+}
+
+static int s_mmap_load_token_update(const dap_ledger_cache_token_update_record_t *a_rec,
+                                     uint64_t a_offset, void *a_user_data)
+{
+    dap_ledger_t *l_ledger = (dap_ledger_t *)a_user_data;
+    dap_ledger_private_t *l_pvt = PVT(l_ledger);
+
+    dap_ledger_token_item_t *l_token_item = NULL;
+    HASH_FIND_STR(l_pvt->tokens, a_rec->ticker, l_token_item);
+    if (!l_token_item) {
+        log_it(L_WARNING, "Warm load: token_update references unknown token '%.*s', skipping (will recover during chain cell loading)",
+               (int)sizeof(a_rec->ticker), a_rec->ticker);
+        return 0;
+    }
+
+    dap_ledger_token_update_item_t *l_item = DAP_NEW_Z(dap_ledger_token_update_item_t);
+    if (!l_item)
+        return -1;
+    l_item->update_token_hash = a_rec->update_token_hash;
+    l_item->datum_token_update = NULL;
+    l_item->datum_token_update_size = a_rec->datum_size;
+    l_item->updated_time = (time_t)a_rec->updated_time;
+    l_item->cache_record_offset = a_offset;
+    HASH_ADD(hh, l_token_item->token_ts_updated, update_token_hash,
+             sizeof(dap_chain_hash_fast_t), l_item);
+    if ((time_t)a_rec->updated_time > l_token_item->last_update_token_time)
+        l_token_item->last_update_token_time = (time_t)a_rec->updated_time;
+    return 0;
+}
+
+/**
+ * @brief Attempt warm load from mmap cache. Returns true if successful.
+ *
+ * On success, all in-memory hash tables are populated from the cache.
+ * Datum pointers (tx, datum_token, datum_token_emission) are left NULL
+ * and must be resolved after chain cells are loaded.
+ * Balance accounts are NOT loaded (must be recomputed from UTXO state).
+ *
+ * Ordering invariant: the cache file records the exact atom processing order.
+ * Since the ledger layer rejects emissions for unknown tokens and TXs for
+ * unknown emissions, the processing order inherently satisfies:
+ *   tokens (type 2) → emissions (type 3) → TX spends (type 1)
+ *   tokens (type 2) → token updates (type 5)
+ *
+ * If an emission or token_update references a token not yet in the hash table
+ * (e.g. due to cross-chain interleaving in a future parallel loader), the
+ * record is silently skipped and will be naturally rebuilt during chain cell
+ * loading. TX and stake-lock callbacks have no ordering dependencies.
+ */
+static bool s_ledger_try_mmap_warm_load(dap_ledger_t *a_ledger)
+{
+    dap_ledger_private_t *l_pvt = PVT(a_ledger);
+    if (!l_pvt->mmap_cache_active)
+        return false;
+
+    dap_ledger_cache_warm_load_callbacks_t l_cbs = {
+        .on_token        = s_mmap_load_token,
+        .on_emission     = s_mmap_load_emission,
+        .on_stake_lock   = s_mmap_load_stake_lock,
+        .on_tx           = s_mmap_load_tx,
+        .on_token_update = s_mmap_load_token_update,
+        .user_data       = a_ledger
+    };
+
+    int l_rc = dap_ledger_cache_warm_load(&l_pvt->mmap_cache, &l_cbs);
+    if (l_rc != 0) {
+        log_it(L_WARNING, "mmap warm load failed (rc=%d), will fall back to GDB cache", l_rc);
+        dap_ledger_cache_purge(&l_pvt->mmap_cache);
+        return false;
+    }
+
+    log_it(L_INFO, "mmap warm load succeeded for ledger '%s'", a_ledger->name);
+    return true;
+}
+
 /**
  * @brief Load ledger from cache (stored in GDB)
  * @param a_ledger
@@ -958,11 +1139,23 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
     // Add to global registry for find_by_name lookup
     HASH_ADD_STR(s_ledger_registry, name, l_ledger);
     
-    // Load ledger cache from GDB if caching is enabled
-    // This pre-loads tokens before chain loading begins, ensuring token declarations
-    // are available when processing emissions (fixes ordering issues in DAG chains)
-    if (is_ledger_cached(l_ledger_pvt))
-        dap_ledger_load_cache(l_ledger);
+    if (a_options->flags & DAP_LEDGER_MMAP_CACHE_ENABLED && a_options->cache_dir) {
+        char l_cache_path[1024];
+        snprintf(l_cache_path, sizeof(l_cache_path), "%s/%s.lcache",
+                 a_options->cache_dir, l_ledger->name);
+        if (dap_ledger_cache_open(&l_ledger_pvt->mmap_cache, l_cache_path,
+                                  l_ledger->net_id.uint64) == 0) {
+            l_ledger_pvt->mmap_cache_active = true;
+            log_it(L_INFO, "Opened mmap ledger cache: %s", l_cache_path);
+        } else {
+            log_it(L_ERROR, "Failed to open mmap ledger cache: %s", l_cache_path);
+        }
+    }
+
+    if (is_ledger_cached(l_ledger_pvt)) {
+        if (!s_ledger_try_mmap_warm_load(l_ledger))
+            dap_ledger_load_cache(l_ledger);
+    }
     
     log_it(L_INFO, "Created ledger '%s' with net_id=%016" DAP_UINT64_FORMAT_X " and %zu chain(s)", 
            l_ledger->name, l_ledger->net_id.uint64, l_ledger->chain_ids_count);

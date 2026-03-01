@@ -58,6 +58,7 @@ typedef struct dap_ledger_create_options {
     size_t chain_ids_count;            // Number of chain IDs (default: 1, with chain_id=0)
     uint16_t flags;                    // Ledger flags
     const char *native_ticker;         // Native token ticker (default: NULL, must be set)
+    const char *cache_dir;             // Directory for mmap cache file (NULL = disabled)
 } dap_ledger_create_options_t;
 
 // Callback typedefs
@@ -380,6 +381,9 @@ typedef struct dap_ledger_datum_iter_data {
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint32_t action;
     dap_chain_srv_uid_t uid;
+    dap_chain_id_t chain_id;
+    dap_chain_cell_id_t cell_id;
+    uint64_t datum_file_offset;
 } dap_ledger_datum_iter_data_t;
 
 //Change this UUID to automatically reload ledger cache on next node startup
@@ -399,6 +403,8 @@ typedef struct dap_ledger_datum_iter_data {
 #define DAP_LEDGER_MAPPED                   0x0400
 
 #define DAP_LEDGER_THRESHOLD_ENABLED        0x0800
+
+#define DAP_LEDGER_MMAP_CACHE_ENABLED      0x1000
 
 // Error code for no previous transaction (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS     DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND
