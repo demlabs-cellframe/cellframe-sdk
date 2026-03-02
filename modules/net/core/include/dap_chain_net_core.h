@@ -24,8 +24,18 @@ extern "C" {
  */
 
 // ============ NETWORK REGISTRY ============
-// Note: Network registration happens in dap_chain_net.c:s_net_new()
-// These lookup functions access the global registry from there
+
+/**
+ * @brief Register a network in the global registry (by name and ID)
+ * @param a_net Network to register
+ */
+void dap_chain_net_register(dap_chain_net_t *a_net);
+
+/**
+ * @brief Unregister a network from the global registry
+ * @param a_net Network to unregister
+ */
+void dap_chain_net_unregister(dap_chain_net_t *a_net);
 
 /**
  * @brief Find network by name
