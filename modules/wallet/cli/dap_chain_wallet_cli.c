@@ -447,7 +447,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                     dap_json_object_add_object(l_jobj_token, "description", l_jobj_description);
                     dap_json_t *j_balance_data = dap_json_object_new();
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
-                    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
+                    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_const_char(l_balance, &l_balance_coins);
                     dap_json_object_add_string(j_balance_data, "balance", "");
                     dap_json_object_add_string(j_balance_data, "coins", l_balance_coins);
                     dap_json_object_add_string(j_balance_data, "datoshi", l_balance_datoshi);
@@ -471,7 +471,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                     dap_json_object_add_object(l_jobj_token, "ticker", l_jobj_ticker);
                     dap_json_object_add_object(l_jobj_token, "description", l_jobj_description);
                     dap_json_t *j_balance_data = dap_json_object_new();
-                    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(it->value, &l_balance_coins);
+                    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_const_char(it->value, &l_balance_coins);
                     dap_json_object_add_string(j_balance_data, "coins", l_balance_coins);
                     dap_json_object_add_string(j_balance_data, "datoshi", l_balance_datoshi);
                     dap_json_object_add_object(j_balance_data, "token", l_jobj_token);
@@ -595,7 +595,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                 if (!json_obj_item)
                     return dap_json_object_free(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
                 dap_chain_tx_used_out_item_t *l_item = l_temp->data;
-                const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
+                const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_const_char(l_item->value, &l_out_value_coins_str);
                 dap_json_object_add_object(json_obj_item,"item_type", dap_json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
                 dap_json_object_add_object(json_obj_item,"value_coins", dap_json_object_new_string(l_out_value_coins_str));
                 dap_json_object_add_object(json_obj_item,a_version == 1 ? "value_datosi" : "value_datoshi", dap_json_object_new_string(l_out_value_str));
@@ -606,7 +606,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                     SUM_256_256(l_value_sum, l_item->value, &l_value_sum);
             }
             dap_list_free_full(l_outs_list, NULL);
-            const char * l_out_total_value_coins_str, *l_out_total_value_str = dap_uint256_to_char(l_value_sum, &l_out_total_value_coins_str);
+            const char * l_out_total_value_coins_str, *l_out_total_value_str = dap_uint256_to_const_char(l_value_sum, &l_out_total_value_coins_str);
             dap_json_object_add_string(json_obj_wall, "total_value_coins", l_out_total_value_coins_str);
             dap_json_object_add_string(json_obj_wall, "total_value_datoshi", l_out_total_value_str);
             dap_json_object_add_object(json_obj_wall, "outs", l_json_outs_arr);

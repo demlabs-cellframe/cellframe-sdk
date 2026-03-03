@@ -392,7 +392,7 @@ static void s_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t 
             log_it(L_INFO, "XChange ORDER added to cache: %s (sell %s, buy %s, rate %s)",
                    dap_hash_sha3_256_to_str_static(a_tx_hash),
                    l_cache_item->sell_token, l_cache_item->buy_token,
-                   dap_uint256_to_char(l_cache_item->rate, NULL));
+                   dap_uint256_to_const_char(l_cache_item->rate, NULL));
             break;
         }
         
@@ -1182,17 +1182,17 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_datu
     MULT_256_COIN(l_sell_val, a_tx_out_cond->subtype.srv_xchange.rate, &l_buyer_val_expected);
     if (s_debug_more) {
         const char *l_value_str;
-        dap_uint256_to_char(a_tx_out_cond->header.value, &l_value_str);
+        dap_uint256_to_const_char(a_tx_out_cond->header.value, &l_value_str);
         log_it(L_NOTICE, "Total sell %s %s from %s", l_value_str, l_sell_ticker, dap_hash_sha3_256_to_str_static(&l_tx_in_cond->header.tx_prev_hash));
-        dap_uint256_to_char(a_tx_out_cond->subtype.srv_xchange.rate, &l_value_str);
+        dap_uint256_to_const_char(a_tx_out_cond->subtype.srv_xchange.rate, &l_value_str);
         log_it(L_NOTICE, "Rate is %s", l_value_str);
-        dap_uint256_to_char(l_sell_again_val, &l_value_str);
+        dap_uint256_to_const_char(l_sell_again_val, &l_value_str);
         log_it(L_NOTICE, "Resell %s %s", l_value_str, l_sell_ticker);
-        dap_uint256_to_char(l_buyer_val_expected, &l_value_str);
+        dap_uint256_to_const_char(l_buyer_val_expected, &l_value_str);
         log_it(L_NOTICE, "Expect to buy %s %s", l_value_str, l_buy_ticker);
-        dap_uint256_to_char(l_buy_val, &l_value_str);
+        dap_uint256_to_const_char(l_buy_val, &l_value_str);
         log_it(L_NOTICE, "Buy %s %s", l_value_str, l_buy_ticker);
-        dap_uint256_to_char(l_fee_val, &l_value_str);
+        dap_uint256_to_const_char(l_fee_val, &l_value_str);
         log_it(L_NOTICE, "Service fee is %s %s", l_value_str, l_service_ticker);
     }
     if (compare256(l_buyer_val_expected, l_buy_val) > 0)
@@ -1531,7 +1531,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
             l_datoshi_buy = a_datoshi_buy;
         
         if (s_debug_more) {
-            const char *l_datoshi_sell_str; dap_uint256_to_char(l_datoshi_sell, &l_datoshi_sell_str);
+            const char *l_datoshi_sell_str; dap_uint256_to_const_char(l_datoshi_sell, &l_datoshi_sell_str);
             log_it(L_NOTICE, "l_value_sell = %s %s", l_datoshi_sell_str, a_price->token_sell);
         }
         
@@ -1555,14 +1555,14 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     }
     // transfer unselling coins (partial exchange)
     if (s_debug_more) {
-        const char *l_value_str; dap_uint256_to_char(l_tx_out_cond->header.value, &l_value_str);
+        const char *l_value_str; dap_uint256_to_const_char(l_tx_out_cond->header.value, &l_value_str);
         log_it(L_NOTICE, "l_value_cond = %s", l_value_str);
     }
     
     if (compare256(l_tx_out_cond->header.value, l_datoshi_sell) == 1) {
         SUBTRACT_256_256(l_tx_out_cond->header.value, l_datoshi_sell, &l_value_back);
         if (s_debug_more) {
-            const char *l_value_back_str; dap_uint256_to_char(l_value_back, &l_value_back_str);
+            const char *l_value_back_str; dap_uint256_to_const_char(l_value_back, &l_value_back_str);
             log_it(L_NOTICE, "l_value_unselled = %s", l_value_back_str);
         }
         
@@ -1586,7 +1586,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         return NULL;
     }
     if (s_debug_more) {
-        const char *l_buy_str; dap_uint256_to_char(l_datoshi_buy, &l_buy_str);
+        const char *l_buy_str; dap_uint256_to_const_char(l_datoshi_buy, &l_buy_str);
         log_it(L_NOTICE, "l_value_buy = %s %s", l_buy_str, a_price->token_buy);
     }
     
@@ -1598,7 +1598,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
             return NULL;
         }
         if (s_debug_more) {
-            const char *l_fee_str; dap_uint256_to_char(a_datoshi_fee, &l_fee_str);
+            const char *l_fee_str; dap_uint256_to_const_char(a_datoshi_fee, &l_fee_str);
             log_it (L_NOTICE, "l_validator_fee = %s", l_fee_str);
         }
     }
@@ -1610,7 +1610,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
             return NULL;
         }
         if (s_debug_more) {
-            const char *l_net_fee_str; dap_uint256_to_char(l_net_fee, &l_net_fee_str);
+            const char *l_net_fee_str; dap_uint256_to_const_char(l_net_fee, &l_net_fee_str);
             log_it(L_NOTICE, "l_net_fee = %s", l_net_fee_str);
         }
     }
@@ -1622,7 +1622,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
             return NULL;
         }
         if (s_debug_more) {
-            const char *l_srv_fee_str; dap_uint256_to_char(l_service_fee, &l_srv_fee_str);
+            const char *l_srv_fee_str; dap_uint256_to_const_char(l_service_fee, &l_srv_fee_str);
             log_it(L_NOTICE, "l_service_fee = %s %s", 
                              l_srv_fee_str, l_service_ticker ? l_service_ticker : "<undefined>");
         }
@@ -1637,9 +1637,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         }
     }
     if (s_debug_more) {
-        const char *l_value_transfer_str; dap_uint256_to_char(l_value_transfer, &l_value_transfer_str);
+        const char *l_value_transfer_str; dap_uint256_to_const_char(l_value_transfer, &l_value_transfer_str);
         log_it(L_NOTICE, "l_value_transfer = %s", l_value_transfer_str);
-        const char *l_value_back_str; dap_uint256_to_char(l_value_back, &l_value_back_str);
+        const char *l_value_back_str; dap_uint256_to_const_char(l_value_back, &l_value_back_str);
         log_it(L_NOTICE, "l_value_back = %s", l_value_back_str);
     }
     // fee back
@@ -1653,9 +1653,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
             }
         }
         if (s_debug_more) {
-            const char *l_fee_transfer_str; dap_uint256_to_char(l_fee_transfer, &l_fee_transfer_str);
+            const char *l_fee_transfer_str; dap_uint256_to_const_char(l_fee_transfer, &l_fee_transfer_str);
             log_it(L_NOTICE, "l_fee_transfer = %s", l_fee_transfer_str);
-            const char *l_val_back_str; dap_uint256_to_char(l_value_back, &l_val_back_str);
+            const char *l_val_back_str; dap_uint256_to_const_char(l_value_back, &l_val_back_str);
             log_it(L_NOTICE, "l_cashback = %s", l_val_back_str);
         }
     }
@@ -2626,18 +2626,18 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, d
             dap_json_object_add_string(json_obj_order, "ts_created", l_tmp_buf);
             dap_json_object_add_string(json_obj_order, "status", l_status_order);
 
-            l_proposed_datoshi_str = dap_uint256_to_char(l_proposed, &l_proposed_coins_str);
+            l_proposed_datoshi_str = dap_uint256_to_const_char(l_proposed, &l_proposed_coins_str);
             dap_json_object_add_string(json_obj_order, "proposed_coins", *l_proposed_coins_str ? l_proposed_coins_str : "0.0");
             dap_json_object_add_string(json_obj_order, "proposed_datoshi", *l_proposed_datoshi_str ? l_proposed_datoshi_str : "0");
             
-            l_amount_datoshi_str = dap_uint256_to_char(l_amount, &l_amount_coins_str);
+            l_amount_datoshi_str = dap_uint256_to_const_char(l_amount, &l_amount_coins_str);
             dap_json_object_add_string(json_obj_order, "amount_coins", *l_amount_coins_str ? l_amount_coins_str : "0.0"); 
             dap_json_object_add_string(json_obj_order, "amount_datoshi", *l_amount_datoshi_str ? l_amount_datoshi_str : "0"); 
             dap_json_object_add_uint64(json_obj_order, "filled_percent", l_percent_completed);
             dap_json_object_add_string(json_obj_order, "token_buy", l_token_buy);
             dap_json_object_add_string(json_obj_order, "token_sell", l_token_sell);
 
-            dap_uint256_to_char(l_rate, &l_cp_rate);
+            dap_uint256_to_const_char(l_rate, &l_cp_rate);
             dap_json_object_add_string(json_obj_order, "rate", l_cp_rate);
 
             dap_json_object_add_string(json_obj_order, "net", l_net->pub.name);

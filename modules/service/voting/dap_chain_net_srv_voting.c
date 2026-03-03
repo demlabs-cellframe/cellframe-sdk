@@ -1168,8 +1168,8 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
 
             DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
             MULT_256_COIN(l_weight_percentage, dap_chain_balance_coins_scan("100.0"), &l_weight_percentage);
-            const char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true),
-                       *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
+            const char *l_weight_percentage_str = dap_uint256_decimal_to_round_const_char(l_weight_percentage, 2, true),
+                       *l_w_coins, *l_w_datoshi = dap_uint256_to_const_char(l_results[i].weights, &l_w_coins);
             dap_json_object_add_string(json_option_obj, "votes_sum", l_w_coins);
             dap_json_object_add_string(json_option_obj, "votes_sum_datoshi", l_w_datoshi);
             dap_json_object_add_string(json_option_obj, "votes_sum_weight", l_weight_percentage_str);
@@ -1177,7 +1177,7 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
         }
         dap_json_object_add_object(json_vote_out, "results", json_arr_options_out);
         dap_json_object_add_uint64(json_vote_out, "votes_count", l_votes_count);
-        const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
+        const char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_const_char(l_total_weight, &l_tw_coins);
         dap_json_object_add_string(json_vote_out, "total_sum", l_tw_coins);
         dap_json_object_add_string(json_vote_out, "total_sum_datoshi", l_tw_datoshi);
 
@@ -1192,7 +1192,7 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
             const char *l_pkey_hash_str = dap_hash_sha3_256_to_str_static(&((struct vote *)l_vote_item->data)->pkey_hash);
             dap_json_object_add_string(json_vote_obj, "pkey_hash", l_pkey_hash_str);
             dap_json_object_add_object(json_vote_obj, "answer_idx", dap_json_object_new_int(((struct vote *)l_vote_item->data)->answer_idx));
-            const char *l_weight_str; dap_uint256_to_char(((struct vote *)l_vote_item->data)->weight, &l_weight_str);
+            const char *l_weight_str; dap_uint256_to_const_char(((struct vote *)l_vote_item->data)->weight, &l_weight_str);
             dap_json_object_add_string(json_vote_obj, "weight", l_weight_str);
             dap_json_array_add(json_arr_votes_out, json_vote_obj);
         }

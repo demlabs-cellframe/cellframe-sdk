@@ -1194,14 +1194,14 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_t *a_esbocs, dap_hash_
                 unsigned l_strlen = 1024, l_off = 0;
                 const char *l_chosen_weight_str, *l_total_weight_str, *l_raw_result_str;
                 char l_str[l_strlen];
-                dap_uint256_to_char(l_chosen_weight, &l_chosen_weight_str);
+                dap_uint256_to_const_char(l_chosen_weight, &l_chosen_weight_str);
                 l_off = snprintf(l_str, l_strlen,
                                      "Round seed %s, sync attempt %"DAP_UINT64_FORMAT_U", chosen weight %s ",
                                      dap_hash_sha3_256_to_str_static(a_last_hash),
                                      a_skip_count + 1, l_chosen_weight_str);
-                dap_uint256_to_char(l_total_weight, &l_total_weight_str);
+                dap_uint256_to_const_char(l_total_weight, &l_total_weight_str);
                 l_off += snprintf(l_str + l_off, l_strlen - l_off, "from %s, ", l_total_weight_str);
-                dap_uint256_to_char(l_raw_result, &l_raw_result_str);
+                dap_uint256_to_const_char(l_raw_result, &l_raw_result_str);
                 l_off += snprintf(l_str + l_off, l_strlen - l_off, "by number %s", l_raw_result_str);
                 log_it(L_MSG, "%s", l_str);
             }

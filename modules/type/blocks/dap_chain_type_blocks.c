@@ -632,7 +632,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_json_t *a_json
         dap_json_t *json_obj_t = dap_json_object_new();
         dap_global_db_obj_t *l_obj_cur = l_objs + i;
         uint256_t l_cur_value = *(uint256_t*)l_obj_cur->value;
-        const char *l_value_str; dap_uint256_to_char(l_cur_value, &l_value_str);
+        const char *l_value_str; dap_uint256_to_const_char(l_cur_value, &l_value_str);
         dap_json_object_add_string(json_obj_t, "obj_key", l_obj_cur->key);
         dap_json_object_add_string(json_obj_t, "obj_val", l_value_str);
         dap_json_array_add(json_arr_out, json_obj_t);
@@ -947,7 +947,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 uint256_t l_reward = l_chain->callback_calc_reward(l_chain, &l_block_cache->block_hash, l_pkey);
                 DAP_DELETE(l_pkey);
                 const char *l_reward_coins_str = NULL;
-                const char *l_reward_value_str = dap_uint256_to_char(l_reward, &l_reward_coins_str);
+                const char *l_reward_value_str = dap_uint256_to_const_char(l_reward, &l_reward_coins_str);
                 dap_json_t *json_obj_reward = dap_json_object_new();
                 dap_json_object_add_object(json_obj_reward, "coins", dap_json_object_new_string(l_reward_coins_str));
                 dap_json_object_add_object(json_obj_reward, "value", dap_json_object_new_string(l_reward_value_str));
@@ -1306,7 +1306,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show") >= 0) {
                     uint256_t l_cur_reward = dap_chain_net_api_get_reward(l_net, UINT64_MAX);
-                    const char *l_reward_str; dap_uint256_to_char(l_cur_reward, &l_reward_str);
+                    const char *l_reward_str; dap_uint256_to_const_char(l_cur_reward, &l_reward_str);
                     dap_json_t *json_obj_out = dap_json_object_new();
                     char *l_val = dap_strdup_printf("Current base block reward is %s\n", l_reward_str);
                     dap_json_object_add_string(json_obj_out, "status", l_val);

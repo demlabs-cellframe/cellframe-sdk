@@ -1409,7 +1409,7 @@ int dap_chain_wallet_add_wallet_created_notify(dap_chain_wallet_opened_callback_
 // MOVED_TO_WALLET_CACHE:                 }
 // MOVED_TO_WALLET_CACHE:                 uint256_t l_balance = dap_ledger_calc_balance(l_net->pub.ledger, l_wallet_addr_in_net,
 // MOVED_TO_WALLET_CACHE:                                                               l_addr_tokens[i]);
-// MOVED_TO_WALLET_CACHE:                 const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_balance, &l_balance_coins);
+// MOVED_TO_WALLET_CACHE:                 const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_const_char(l_balance, &l_balance_coins);
 // MOVED_TO_WALLET_CACHE:                 const char *l_description = dap_ledger_get_description_by_ticker(l_net->pub.ledger,
 // MOVED_TO_WALLET_CACHE:                                                                                  l_addr_tokens[i]);
 // MOVED_TO_WALLET_CACHE:                 dap_json_t *l_ticker_obj = dap_json_object_new_string(l_addr_tokens[i]);

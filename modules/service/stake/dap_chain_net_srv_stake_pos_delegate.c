@@ -990,7 +990,7 @@ static int s_stake_out_check_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx
 {
     if (compare256(a_cond->header.value, dap_chain_net_srv_stake_get_allowed_min_value(a_ledger->net_id)) == -1) {
         log_it(L_WARNING, "Conditional out of tx %s have value %s lower than minimum service required",
-                    dap_hash_sha3_256_to_str_static(a_tx_out_hash), dap_uint256_to_char(a_cond->header.value, NULL));
+                    dap_hash_sha3_256_to_str_static(a_tx_out_hash), dap_uint256_to_const_char(a_cond->header.value, NULL));
         return -17;
     }
     return 0;
@@ -1148,7 +1148,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     if (!l_found)
         dap_ht_add(l_srv_stake->itemlist, signing_addr.data.hash_fast, l_stake);
     if (l_srv_stake->hardfork.in_process) {
-        const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
+        const char *l_value_str; dap_uint256_to_const_char(a_value, &l_value_str);
         log_it(L_DEBUG, "Added key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                                 dap_hash_sha3_256_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
         s_stake_recalculate_weights(a_signing_addr->net_id);
@@ -1165,7 +1165,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     if (l_chain) {
         dap_chain_cs_add_validator(l_chain, a_node_addr);
     }
-    const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
+    const char *l_value_str; dap_uint256_to_const_char(a_value, &l_value_str);
     log_it(L_NOTICE, "Added key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                             dap_hash_sha3_256_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
     s_stake_recalculate_weights(a_signing_addr->net_id);
@@ -1197,7 +1197,7 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     }
     dap_ht_del(l_srv_stake->itemlist, l_stake);
     dap_ht_del_hh(ht, l_srv_stake->tx_itemlist, l_stake);
-    const char *l_value_str; dap_uint256_to_char(l_stake->locked_value, &l_value_str);
+    const char *l_value_str; dap_uint256_to_const_char(l_stake->locked_value, &l_value_str);
     log_it(L_NOTICE, "Removed key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                             dap_hash_sha3_256_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
     DAP_DELETE(l_stake);
@@ -1224,7 +1224,7 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
     l_stake->locked_value = l_stake->value = a_new_value;
     l_stake->tx_hash.hash = *a_new_tx_hash;
     dap_ht_add_hh(ht, l_srv_stake->tx_itemlist, tx_hash.hash_key, l_stake);
-    const char *l_new_value_str; dap_uint256_to_char(a_new_value, &l_new_value_str);
+    const char *l_new_value_str; dap_uint256_to_const_char(a_new_value, &l_new_value_str);
     log_it(L_NOTICE, "Updated key with fingerprint %s and locked value %s to new locked value %s for node " NODE_ADDR_FP_STR,
                             dap_hash_sha3_256_to_str_static(&a_signing_addr->data.hash_fast), l_old_value_str,
                                 l_new_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
@@ -2482,7 +2482,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, dap
         uint256_t l_allowed_min = dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id);
         if (compare256(l_value_min, l_allowed_min) == -1) {
             const char *l_allowed_min_coin_str = NULL;
-            const char *l_allowed_min_datoshi_str = dap_uint256_to_char(l_allowed_min, &l_allowed_min_coin_str);
+            const char *l_allowed_min_datoshi_str = dap_uint256_to_const_char(l_allowed_min, &l_allowed_min_coin_str);
             char *l_reply_str = dap_strdup_printf("Number in '-value_min' param %s is lower than service minimum allowed value %s(%s)",
                                             l_value_min_str, l_allowed_min_coin_str, l_allowed_min_datoshi_str);
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_MIN_VALUE_ERR, l_reply_str);
@@ -2501,7 +2501,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, dap
         }
         if (compare256(l_value_max, l_allowed_min) == -1) {
             const char *l_allowed_min_coin_str = NULL;
-            const char *l_allowed_min_datoshi_str = dap_uint256_to_char(l_allowed_min, &l_allowed_min_coin_str);
+            const char *l_allowed_min_datoshi_str = dap_uint256_to_const_char(l_allowed_min, &l_allowed_min_coin_str);
             char *l_reply_str = dap_strdup_printf("Number in '-value_max' param %s is lower than service minimum allowed value %s(%s)",
                                             l_value_max_str, l_allowed_min_coin_str, l_allowed_min_datoshi_str);
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_ORDER_MIN_VALUE_ERR, l_reply_str);
@@ -2798,9 +2798,9 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, dap
                         struct validator_order_ext *l_ext = (struct validator_order_ext *)l_order->ext_n_sign;
                         dap_json_t *l_json_obj_ext_params = dap_json_object_new();
                         const char *l_coins_str;
-                        dap_uint256_to_char(l_ext->tax, &l_coins_str);
+                        dap_uint256_to_const_char(l_ext->tax, &l_coins_str);
                         dap_json_object_add_string(l_json_obj_ext_params, "tax", l_coins_str);
-                        dap_uint256_to_char(l_ext->value_max, &l_coins_str);
+                        dap_uint256_to_const_char(l_ext->value_max, &l_coins_str);
                         dap_json_object_add_string(l_json_obj_ext_params, "maximum_value", l_coins_str);
                         dap_json_object_add_object(l_json_obj_order, "external_params", l_json_obj_ext_params);
                     } else { // l_order->direction = SERV_DIR_BUY
@@ -2833,7 +2833,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, dap
                             }
                         }                   
                         if (!l_error) {
-                            const char *l_tax_str; dap_uint256_to_char(l_tax, &l_tax_str);
+                            const char *l_tax_str; dap_uint256_to_const_char(l_tax, &l_tax_str);
                             dap_json_t *l_json_obj_cond_tx_params = dap_json_object_new();
                             dap_json_object_add_string(l_json_obj_cond_tx_params, "sovereign_tax", l_tax_str);
                             dap_json_object_add_string(l_json_obj_cond_tx_params, "sovereign_addr", dap_chain_addr_to_str_static(&l_addr));
@@ -3084,7 +3084,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             l_sovereign_tax = l_ext->tax;
             if (l_order_hash_str && compare256(l_value, l_order->price) == -1) {
                 const char *l_coin_min_str, *l_value_min_str =
-                    dap_uint256_to_char(l_order->price, &l_coin_min_str);
+                    dap_uint256_to_const_char(l_order->price, &l_coin_min_str);
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_LOW_VALUE_ERR, "Number in '-value' param %s is lower than order minimum allowed value %s(%s)",
                                                   l_value_str, l_coin_min_str, l_value_min_str);
                 DAP_DELETE(l_order);
@@ -3092,7 +3092,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             }
             if (l_order_hash_str && compare256(l_value, l_ext->value_max) == 1) {
                 const char *l_coin_max_str, *l_value_max_str =
-                    dap_uint256_to_char(l_ext->value_max, &l_coin_max_str);
+                    dap_uint256_to_const_char(l_ext->value_max, &l_coin_max_str);
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_HIGH_VALUE_ERR, "Number in '-value' param %s is higher than order minimum allowed value %s(%s)",
                                                   l_value_str, l_coin_max_str, l_value_max_str);
                 DAP_DELETE(l_order);
@@ -3153,7 +3153,7 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
     }
     uint256_t l_allowed_min = dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id);
     if (compare256(l_value, l_allowed_min) == -1) {
-        const char *l_coin_min_str, *l_value_min_str = dap_uint256_to_char(l_allowed_min, &l_coin_min_str);
+        const char *l_coin_min_str, *l_value_min_str = dap_uint256_to_const_char(l_allowed_min, &l_coin_min_str);
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_DELEGATE_LOW_VALUE_ERR, "Number in '-value' param %s is lower than minimum allowed value %s(%s)",
                                           l_value_str, l_coin_min_str, l_value_min_str);
         DAP_DELETE(l_pkey);
@@ -3332,7 +3332,7 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, da
     }
     uint256_t l_value_min = dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id);
     if (compare256(l_value, l_value_min) == -1) {
-        const char *l_value_min_str; dap_uint256_to_char(l_value_min, &l_value_min_str);
+        const char *l_value_min_str; dap_uint256_to_const_char(l_value_min, &l_value_min_str);
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_PARAM_FORMAT_ERR, "New delegation value should be not less than service required minimum %s", l_value_min_str);
         return -25;
     }
@@ -4253,15 +4253,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, dap_json_t *a_json_arr_rep
                         dap_json_object_add_int(l_json_obj_keys_count, "inactive_keys", l_inactive_count);
                     }
 
-                    const char *l_total_weight_coins, *l_total_weight_str = dap_uint256_to_char(l_total_locked_weight, &l_total_weight_coins);
+                    const char *l_total_weight_coins, *l_total_weight_str = dap_uint256_to_const_char(l_total_locked_weight, &l_total_weight_coins);
                     dap_json_object_add_string(l_json_obj_keys_count, "total_weight_coins", l_total_weight_coins);
                     dap_json_object_add_string(l_json_obj_keys_count, "total_weight_str", l_total_weight_str);
-                    l_total_weight_str = dap_uint256_to_char(l_total_weight, &l_total_weight_coins);
+                    l_total_weight_str = dap_uint256_to_const_char(l_total_weight, &l_total_weight_coins);
                     dap_json_object_add_string(l_json_obj_keys_count, "total_effective_weight_coins", l_total_weight_coins);
                     dap_json_object_add_string(l_json_obj_keys_count, "total_effective_weight", l_total_weight_str);
                 }
 
-                const char *l_delegate_min_str; dap_uint256_to_char(dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id),
+                const char *l_delegate_min_str; dap_uint256_to_const_char(dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id),
                                                                     &l_delegate_min_str);
                 char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
                 dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_net->pub.native_ticker);
@@ -4271,7 +4271,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, dap_json_t *a_json_arr_rep
                 const char *l_percent_max_str = NULL;
                 if (!IS_ZERO_256(l_percent_max)) {
                     MULT_256_256(l_percent_max, GET_256_FROM_64(100), &l_percent_max);
-                    dap_uint256_to_char(l_percent_max, &l_percent_max_str);
+                    dap_uint256_to_const_char(l_percent_max, &l_percent_max_str);
                 }
                 dap_json_object_add_string(l_json_obj_keys_count, "each_validator_max_related_weight", IS_ZERO_256(l_percent_max) ? "100" : l_percent_max_str);
                 dap_json_array_add(l_json_arr_list, l_json_obj_keys_count);
@@ -4320,7 +4320,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, dap_json_t *a_json_arr_rep
 
                     char l_pkey_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
                     dap_hash_sha3_256_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast, l_pkey_hash_str, sizeof(l_pkey_hash_str));
-                    l_balance = dap_uint256_to_char(l_tx_out_cond->header.value, &l_coins);
+                    l_balance = dap_uint256_to_const_char(l_tx_out_cond->header.value, &l_coins);
                     
                     l_signing_addr_str = dap_chain_addr_to_str_static(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
                     dap_json_object_add_string(l_json_obj_tx, "signing_addr", l_signing_addr_str);
@@ -4758,7 +4758,7 @@ static dap_json_t *s_dap_chain_net_srv_stake_reward_all(dap_json_t *a_json_arr_r
                 l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash, l_block_sign_pkey);
                 DAP_DELETE(l_block_sign_pkey);
                 const char  *l_coins_str,
-                        *l_value_str = dap_uint256_to_char(l_value_reward, &l_coins_str);
+                        *l_value_str = dap_uint256_to_const_char(l_value_reward, &l_coins_str);
                 dap_json_object_add_string(json_obj_sign, a_version == 1 ? "reward value" : "reward_value", l_value_str);
                 dap_json_object_add_string(json_obj_sign, a_version == 1 ? "reward coins" : "reward_coins", l_coins_str);
                                     
@@ -4774,7 +4774,7 @@ static dap_json_t *s_dap_chain_net_srv_stake_reward_all(dap_json_t *a_json_arr_r
             }
             const char  *l_coins_t_out_str, *l_value_t_str;
             dap_json_t *json_value_t_out = dap_json_object_new();
-            l_value_t_str = dap_uint256_to_char(l_value_total_calc, &l_coins_t_out_str);
+            l_value_t_str = dap_uint256_to_const_char(l_value_total_calc, &l_coins_t_out_str);
             dap_json_object_add_string(json_value_t_out, a_version == 1 ? "Rewards value (calculated)" : "reward_value_calculated", l_value_t_str);
             dap_json_object_add_string(json_value_t_out, a_version == 1 ? "Rewards coins (calculated)" : "reward_coins_calculated", l_coins_t_out_str);
             dap_json_array_add(json_obj_reward, json_value_t_out);
@@ -4786,7 +4786,7 @@ static dap_json_t *s_dap_chain_net_srv_stake_reward_all(dap_json_t *a_json_arr_r
             log_it(L_ERROR, "Value total calculation overflow");
             return NULL;
         }
-        l_value_str = dap_uint256_to_char(l_value_out, &l_coins_out_str);
+        l_value_str = dap_uint256_to_const_char(l_value_out, &l_coins_out_str);
         dap_json_object_add_string(json_value_out, a_version == 1 ? "Rewards value (tx_out)" : "reward_value_tx_out", l_value_str);
         dap_json_object_add_string(json_value_out, a_version == 1 ? "Rewards coins (tx_out)" : "reward_coins_tx_out", l_coins_out_str);
         dap_json_array_add(json_obj_reward, json_value_out);
@@ -4796,7 +4796,7 @@ static dap_json_t *s_dap_chain_net_srv_stake_reward_all(dap_json_t *a_json_arr_r
     {
         const char  *l_coins_out_str, *l_value_str;
         dap_json_t *json_value_out = dap_json_object_new();
-        l_value_str = dap_uint256_to_char(l_value_total, &l_coins_out_str);
+        l_value_str = dap_uint256_to_const_char(l_value_total, &l_coins_out_str);
         dap_json_object_add_string(json_value_out, a_version == 1 ? "Rewards value (total)" : "reward_value_total", l_value_str);
         dap_json_object_add_string(json_value_out, a_version == 1 ? "Rewards coins (total)" : "reward_coins_total", l_coins_out_str);
         dap_json_array_add(json_obj_reward, json_value_out);
@@ -4902,16 +4902,16 @@ static dap_json_t *s_pos_delegate_get_fee_validators_json(dap_chain_net_id_t a_n
                 *l_jobj_ret     = dap_json_object_new();
                 
     const char *l_coins_str;
-    dap_json_object_add_string( l_jobj_min,     "balance",  dap_uint256_to_char(l_min, &l_coins_str) );
+    dap_json_object_add_string( l_jobj_min,     "balance",  dap_uint256_to_const_char(l_min, &l_coins_str) );
     dap_json_object_add_string( l_jobj_min,     "coin",     l_coins_str );
 
-    dap_json_object_add_string( l_jobj_max,     "balance",  dap_uint256_to_char(l_max, &l_coins_str) );
+    dap_json_object_add_string( l_jobj_max,     "balance",  dap_uint256_to_const_char(l_max, &l_coins_str) );
     dap_json_object_add_string( l_jobj_max,     "coin",     l_coins_str );
 
-    dap_json_object_add_string( l_jobj_average, "balance",  dap_uint256_to_char(l_average, &l_coins_str) );
+    dap_json_object_add_string( l_jobj_average, "balance",  dap_uint256_to_const_char(l_average, &l_coins_str) );
     dap_json_object_add_string( l_jobj_average, "coin",     l_coins_str );
     
-    dap_json_object_add_string( l_jobj_median, "balance",   dap_uint256_to_char(l_median, &l_coins_str) );
+    dap_json_object_add_string( l_jobj_median, "balance",   dap_uint256_to_const_char(l_median, &l_coins_str) );
     dap_json_object_add_string( l_jobj_median, "coin",      l_coins_str );
 
     dap_json_object_add_string(l_jobj_ret, "service",   "validators");

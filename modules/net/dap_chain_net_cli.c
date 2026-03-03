@@ -1513,7 +1513,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 dap_chain_addr_t l_network_fee_addr = {};
                 dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
                 const char *l_network_fee_coins_str, *l_network_fee_balance_str =
-                    dap_uint256_to_char(l_network_fee, &l_network_fee_coins_str);
+                    dap_uint256_to_const_char(l_network_fee, &l_network_fee_coins_str);
                 dap_json_t *l_jobj_network =  dap_json_object_new();
                 if (!l_jobj_network) {
                     dap_json_object_free(l_jobj_return);

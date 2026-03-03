@@ -548,7 +548,7 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
         dap_string_append_printf(a_str_out, "  created:          %s\n", buf_time);
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
         
-        const char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
+        const char *l_balance_coins, *l_balance = dap_uint256_to_const_char(a_order->price, &l_balance_coins);
         dap_string_append_printf(a_str_out, "  price:            %s (%s)\n", l_balance_coins, l_balance);
         dap_string_append_printf(a_str_out, "  price_token:      %s\n",  (*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker);
         dap_string_append_printf(a_str_out, "  units:            %"DAP_UINT64_FORMAT_U"\n", a_order->units);
@@ -614,7 +614,7 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         snprintf(buf_srv_uid, sizeof(buf_srv_uid), "0x%016"DAP_UINT64_FORMAT_X"", a_order->srv_uid.uint64);
         dap_json_object_add_string(a_json_obj_out, "srv_uid", buf_srv_uid);
         
-        const char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
+        const char *l_balance_coins, *l_balance = dap_uint256_to_const_char(a_order->price, &l_balance_coins);
         dap_json_object_add_string(a_json_obj_out, "created", buf_time);
 
         dap_json_object_add_string(a_json_obj_out, a_version == 1 ? "price coins" : "price_coins", l_balance_coins);

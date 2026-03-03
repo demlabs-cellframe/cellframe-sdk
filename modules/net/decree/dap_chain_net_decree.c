@@ -113,7 +113,7 @@ static int s_net_decree_fee_handler(dap_chain_datum_decree_t *a_decree,
         a_ledger->fee_addr = l_fee_addr;
     }
     
-    const char *l_fee_str = dap_uint256_to_char(l_fee, NULL);
+    const char *l_fee_str = dap_uint256_to_const_char(l_fee, NULL);
     const char *l_addr_str = dap_chain_addr_to_str(&l_fee_addr);
     log_it(L_NOTICE, "Network fee updated: %s, address: %s", l_fee_str, l_addr_str);
     

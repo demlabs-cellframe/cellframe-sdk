@@ -46,7 +46,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, const void *a_data
             }
             uint256_t l_value = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_value);
-            const char *l_value_str = dap_uint256_to_char(l_value, NULL);
+            const char *l_value_str = dap_uint256_to_const_char(l_value, NULL);
             dap_json_object_add_string(a_json_out, a_version == 1 ? "Value" : "value", l_value_str);
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
@@ -58,7 +58,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, const void *a_data
             }
             uint256_t l_fee_value = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_fee_value);
-            const char *l_fee_value_str = dap_uint256_to_char(l_fee_value, NULL);
+            const char *l_fee_value_str = dap_uint256_to_const_char(l_fee_value, NULL);
             dap_json_object_add_string(a_json_out, a_version == 1 ? "Fee" : "fee", l_fee_value_str);
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER:
@@ -76,7 +76,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, const void *a_data
             }
             uint256_t l_owner_min = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_owner_min);
-            const char *l_owner_min_str = dap_uint256_to_char(l_owner_min, NULL);
+            const char *l_owner_min_str = dap_uint256_to_const_char(l_owner_min, NULL);
             dap_json_object_add_string(a_json_out, a_version == 1 ? "Owner min" : "owner_min", l_owner_min_str);
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET:
@@ -104,7 +104,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, const void *a_data
             }
             uint256_t l_stake_value = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_stake_value);
-            const char *l_stake_value_str = dap_uint256_to_char(l_stake_value, NULL);
+            const char *l_stake_value_str = dap_uint256_to_const_char(l_stake_value, NULL);
             dap_json_object_add_string(a_json_out, a_version == 1 ? "Stake value" : "stake_value", l_stake_value_str);
             break;
        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
@@ -137,7 +137,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, const void *a_data
             }
             uint256_t l_min_value = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_min_value);
-            const char *l_min_value_str = dap_uint256_to_char(l_min_value, NULL);
+            const char *l_min_value_str = dap_uint256_to_const_char(l_min_value, NULL);
             dap_json_object_add_string(a_json_out, a_version == 1 ? "Min value": "min_value", l_min_value_str);
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
@@ -147,7 +147,7 @@ void dap_chain_datum_decree_dump_json(dap_json_t *a_json_out, const void *a_data
             }
             uint256_t l_min_signers_count = uint256_0;
             _dap_tsd_get_scalar(l_tsd, &l_min_signers_count);
-            const char *l_min_signers_count_str = dap_uint256_to_char(l_min_signers_count, NULL);
+            const char *l_min_signers_count_str = dap_uint256_to_const_char(l_min_signers_count, NULL);
             dap_json_object_add_string(a_json_out, a_version == 1 ? "Min signers count" : "min_sig_count", l_min_signers_count_str);
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:

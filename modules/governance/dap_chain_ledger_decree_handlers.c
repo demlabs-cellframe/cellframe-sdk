@@ -66,7 +66,7 @@ static int s_decree_owners_min_handler(dap_chain_datum_decree_t *a_decree,
     }
     
     if (IS_ZERO_256(l_value) || compare256(l_value, GET_256_FROM_64(UINT16_MAX)) == 1) {
-        log_it(L_WARNING, "Illegal min number of owners %s", dap_uint256_to_char(l_value, NULL));
+        log_it(L_WARNING, "Illegal min number of owners %s", dap_uint256_to_const_char(l_value, NULL));
         return -116;
     }
     

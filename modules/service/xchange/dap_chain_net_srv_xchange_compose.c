@@ -244,7 +244,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
         uint256_t l_balance_native = dap_ledger_calc_balance(a_ledger, a_wallet_addr, l_native_ticker);
         if (compare256(l_balance_native, a_fee) == -1) {
             log_it(L_ERROR, "Not enough native tokens for fee. Need %s, have %s",
-                   dap_uint256_to_char(a_fee, NULL), dap_uint256_to_char(l_balance_native, NULL));
+                   dap_uint256_to_const_char(a_fee, NULL), dap_uint256_to_const_char(l_balance_native, NULL));
             return NULL;
         }
     }
@@ -252,7 +252,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
     // Check if enough balance
     if (compare256(l_balance_sell, l_value_needed) == -1) {
         log_it(L_ERROR, "Not enough %s tokens. Need %s, have %s",
-               a_token_sell, dap_uint256_to_char(l_value_needed, NULL), dap_uint256_to_char(l_balance_sell, NULL));
+               a_token_sell, dap_uint256_to_const_char(l_value_needed, NULL), dap_uint256_to_const_char(l_balance_sell, NULL));
         return NULL;
     }
     
@@ -313,8 +313,8 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
     }
     
     log_it(L_INFO, "Created xchange order TX (unsigned, inputs will be added by compose layer): sell %s %s for %s at rate %s",
-           dap_uint256_to_char(a_datoshi_sell, NULL), a_token_sell, a_token_buy,
-           dap_uint256_to_char(a_rate, NULL));
+           dap_uint256_to_const_char(a_datoshi_sell, NULL), a_token_sell, a_token_buy,
+           dap_uint256_to_const_char(a_rate, NULL));
     
     return l_tx;
 }
@@ -379,7 +379,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
     uint256_t l_balance = dap_ledger_calc_balance(a_ledger, a_wallet_addr, l_native_ticker);
     if (compare256(l_balance, a_fee) == -1) {
         log_it(L_ERROR, "Not enough balance for fee. Need %s, have %s",
-               dap_uint256_to_char(a_fee, NULL), dap_uint256_to_char(l_balance, NULL));
+               dap_uint256_to_const_char(a_fee, NULL), dap_uint256_to_const_char(l_balance, NULL));
         DAP_DEL_Z(l_token_ticker);
         return NULL;
     }
@@ -447,7 +447,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
     
     log_it(L_INFO, "Creating xchange purchase TX for order %s, value %s",
            dap_hash_sha3_256_to_str_static(a_order_hash),
-           dap_uint256_to_char(a_value, NULL));
+           dap_uint256_to_const_char(a_value, NULL));
     
     // 1. Find last TX in order chain
     dap_time_t l_ts_created = 0;
@@ -480,8 +480,8 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
     // 3. Validate purchase value
     if (compare256(a_value, l_value_available) == 1) {
         log_it(L_ERROR, "Purchase value %s exceeds available %s",
-               dap_uint256_to_char(a_value, NULL),
-               dap_uint256_to_char(l_value_available, NULL));
+               dap_uint256_to_const_char(a_value, NULL),
+               dap_uint256_to_const_char(l_value_available, NULL));
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
@@ -507,8 +507,8 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
     if (compare256(l_balance_buy, l_total_needed) == -1) {
         log_it(L_ERROR, "Not enough %s tokens. Need %s, have %s",
                l_token_buy,
-               dap_uint256_to_char(l_total_needed, NULL),
-               dap_uint256_to_char(l_balance_buy, NULL));
+               dap_uint256_to_const_char(l_total_needed, NULL),
+               dap_uint256_to_const_char(l_balance_buy, NULL));
         DAP_DEL_Z(l_token_ticker_sell);
         return NULL;
     }
@@ -595,8 +595,8 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
     }
     
     log_it(L_INFO, "Created xchange purchase TX (unsigned, inputs will be added by compose layer): bought %s, paid %s",
-           dap_uint256_to_char(a_value, NULL),
-           dap_uint256_to_char(l_value_to_pay, NULL));
+           dap_uint256_to_const_char(a_value, NULL),
+           dap_uint256_to_const_char(l_value_to_pay, NULL));
     
     return l_tx;
 }

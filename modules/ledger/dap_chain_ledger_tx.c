@@ -465,7 +465,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 if (MULT_256_COIN(l_tx_service_out_cond->header.value, l_delegated_item->emission_rate, &l_value_expected)) {
                     if (g_debug_ledger) {
                         char *l_emission_rate_str = dap_chain_balance_coins_print(l_delegated_item->emission_rate);
-                        const char *l_locked_value_str; dap_uint256_to_char(l_tx_service_out_cond->header.value, &l_locked_value_str);
+                        const char *l_locked_value_str; dap_uint256_to_const_char(l_tx_service_out_cond->header.value, &l_locked_value_str);
                         log_it( L_WARNING, "Multiplication overflow for %s emission: locked value %s emission rate %s",
                                                                 l_tx_in_ems->header.ticker, l_locked_value_str, l_emission_rate_str);
                         DAP_DEL_Z(l_emission_rate_str);
@@ -1408,7 +1408,7 @@ int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_add
     const char *l_addr_str = dap_chain_addr_to_str_static(a_addr);
     dap_ledger_wallet_balance_t *l_wallet_balance = NULL;
     char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, a_token_ticker, (char*)NULL);
-    debug_if(g_debug_ledger, L_DEBUG, "%s %s to addr: %s", a_reverse ? "UNDO" : "GOT", dap_uint256_to_char(a_value, NULL), l_wallet_balance_key);
+    debug_if(g_debug_ledger, L_DEBUG, "%s %s to addr: %s", a_reverse ? "UNDO" : "GOT", dap_uint256_to_const_char(a_value, NULL), l_wallet_balance_key);
     pthread_rwlock_wrlock(&l_ledger_pvt->balance_accounts_rwlock);
     dap_ht_find_str(l_ledger_pvt->balance_accounts, l_wallet_balance_key, l_wallet_balance);
     if (l_wallet_balance) {
@@ -1693,7 +1693,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
             if (wallet_balance) {
                 debug_if(g_debug_ledger, L_DEBUG, "SPEND %s from addr: %s",
-                    dap_uint256_to_char(l_bound_item->value, NULL), l_wallet_balance_key);
+                    dap_uint256_to_const_char(l_bound_item->value, NULL), l_wallet_balance_key);
                 SUBTRACT_256_256(wallet_balance->balance, l_bound_item->value, &wallet_balance->balance);
                 // Update the cache
                 s_balance_cache_update(a_ledger, wallet_balance);
@@ -2102,7 +2102,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
             if (wallet_balance) {
                 debug_if(g_debug_ledger, L_DEBUG, "REFUND %s from addr: %s because tx was removed.",
-                         dap_uint256_to_char(l_bound_item->value, NULL), l_wallet_balance_key);
+                         dap_uint256_to_const_char(l_bound_item->value, NULL), l_wallet_balance_key);
                 SUM_256_256(wallet_balance->balance, l_bound_item->value, &wallet_balance->balance);
                 // Update the cache
                 s_balance_cache_update(a_ledger, wallet_balance);
@@ -2857,7 +2857,7 @@ static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, dap_ledg
 {
     // Skip blank addresses to avoid aggregating funds to invalid destinations
     if (!a_addr || dap_chain_addr_is_blank(a_addr)) {
-        const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
+        const char *l_value_str; dap_uint256_to_const_char(a_value, &l_value_str);
         log_it(L_WARNING, "Skipping hardfork aggregation of %s %s for blank/null address", l_value_str, a_ticker);
         return 0;
     }
@@ -2882,11 +2882,11 @@ static int s_aggregate_out(dap_ledger_hardfork_balances_t **a_out_list, dap_ledg
         dap_dl_append(*a_out_list, l_exist);
     } else if (SUM_256_256(l_exist->value, a_value, &l_exist->value)) {
         log_it(L_ERROR, "Integer overflow of hardfork aggregated data for addr %s and token %s with value %s",
-                                    dap_chain_addr_to_str_static(a_addr), a_ticker, dap_uint256_to_char(a_value, NULL));
+                                    dap_chain_addr_to_str_static(a_addr), a_ticker, dap_uint256_to_const_char(a_value, NULL));
         return -2;
     }
     if (g_debug_ledger) {
-        const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
+        const char *l_value_str; dap_uint256_to_const_char(a_value, &l_value_str);
         if (a_unlock_time) {
             char l_unlock_time_str[DAP_TIME_STR_SIZE];
             dap_time_to_str_rfc822(l_unlock_time_str, sizeof(l_unlock_time_str), a_unlock_time);
@@ -2916,7 +2916,7 @@ static int s_aggregate_out_cond(dap_ledger_hardfork_condouts_t **a_ret_list, dap
     };
     dap_strncpy(l_new_condout->ticker, a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     if (g_debug_ledger) {
-        const char *l_value_str; dap_uint256_to_char(a_out_cond->header.value, &l_value_str);
+        const char *l_value_str; dap_uint256_to_const_char(a_out_cond->header.value, &l_value_str);
         log_it(L_NOTICE, "Aggregate conditional out %s %s with subtype %d for tx %s",
                l_value_str, a_token_ticker, a_out_cond->header.subtype,
                dap_hash_sha3_256_to_str_static(a_tx_hash));
