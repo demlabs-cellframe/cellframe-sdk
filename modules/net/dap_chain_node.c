@@ -486,8 +486,8 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
             }
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
-                log_it(L_DEBUG, "mempool_process_all: skip datum %s: datum_size=%zu != value_len=%zu",
-                       l_objs[i].key, dap_chain_datum_size(l_datum), l_objs[i].value_len);
+                log_it(L_DEBUG, "mempool_process_all: skip datum %s: datum_size=%" DAP_UINT64_FORMAT_U " != value_len=%zu",
+                       l_objs[i].key, (uint64_t)dap_chain_datum_size(l_datum), l_objs[i].value_len);
                 continue;
             }
             bool l_need = dap_chain_node_mempool_need_process(a_chain, l_datum);

@@ -1911,7 +1911,7 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
             if ( l_chain->callback_get_poa_certs ) {
                 uint16_t l_min_count = 0;
                 dap_list_t *l_chain_keys = l_chain->callback_get_poa_certs(l_chain, NULL, &l_min_count);
-                log_it(L_NOTICE, "Chain %s returned %zu PoA keys (min_count=%u)", 
+                log_it(L_NOTICE, "Chain %s returned %" DAP_UINT64_FORMAT_U " PoA keys (min_count=%u)",
                        l_chain->name, dap_list_length(l_chain_keys), l_min_count);
                 a_net->pub.keys = dap_list_concat(a_net->pub.keys, l_chain_keys);
                 a_net->pub.keys_min_count += l_min_count;
@@ -1925,7 +1925,7 @@ static int s_chains_init_all(dap_chain_net_t *a_net, const char *a_path, uint16_
         }
     }
     dap_ht_clear(l_all_chain_configs);
-    log_it(L_NOTICE, "After chains init: collected %zu PoA keys (min_count=%u) for net %s",
+    log_it(L_NOTICE, "After chains init: collected %" DAP_UINT64_FORMAT_U " PoA keys (min_count=%u) for net %s",
            dap_list_length(a_net->pub.keys), a_net->pub.keys_min_count, a_net->pub.name);
     return 0;
 }
