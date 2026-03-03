@@ -156,8 +156,7 @@ if(NOT TARGET dap_sdk)
     # DAP SDK not found - include our own copy
     message("[+] Cellframe SDK: Using embedded DAP SDK")
 
-    # Ensure uthash include is available before processing dap-sdk subdirectory
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/3rdparty/uthash/src)
+    # Hash table includes are now provided transitively by dap_hash_table target
 
     # =========================================
     # DAP_TPL CENTRALIZED PATH
@@ -225,8 +224,7 @@ endif()
 
 # monero_crypto removed - not needed
 
-# Add uthash include path for all modules
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dap-sdk/3rdparty/uthash/src)
+# Hash table includes provided by dap_hash_table INTERFACE target (no global include needed)
 
 add_subdirectory(modules/)
 
