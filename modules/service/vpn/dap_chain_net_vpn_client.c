@@ -509,8 +509,8 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
     int l_res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_ESTABLISHED, l_timeout_ms);
     if(l_res) {
         log_it(L_ERROR, "No response from VPN server %s : %d", a_host, a_port);
-        // clean client struct
         dap_chain_node_client_close_mt(s_vpn_client);
+        s_vpn_client = NULL;
         DAP_DEL_Z(s_node_info);
         return -3;
     }
@@ -548,8 +548,8 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
         a_timeout_test_ms = 5000;
     l_res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_CHECKED, a_timeout_test_ms);
     log_it(L_INFO, "%s response from VPN server %s : %d", l_res ? "No" : "Got", a_host, a_port);
-    // clean client struct
     dap_chain_node_client_close_mt(s_vpn_client);
+    s_vpn_client = NULL;
     DAP_DELETE(s_node_info);
     s_node_info = NULL;
     if(l_res)
@@ -578,19 +578,16 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_host, u
     s_vpn_client = dap_chain_node_client_connect_channels(a_net,s_node_info, l_active_channels);
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server %s : %d", a_host, a_port);
-        // clean client struct
-        dap_chain_node_client_close_mt(s_vpn_client);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -2;
     }
-    // wait connected
-    int timeout_ms = 5000; //5 sec = 5000 ms
+    int timeout_ms = 5000;
     int res = dap_chain_node_client_wait(s_vpn_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
     if(res) {
         log_it(L_ERROR, "No response from VPN server %s : %d", a_host, a_port);
-        // clean client struct
         dap_chain_node_client_close_mt(s_vpn_client);
+        s_vpn_client = NULL;
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
