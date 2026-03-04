@@ -141,7 +141,7 @@ static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
 static dap_json_t *s_dap_chain_callback_atom_to_json(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type, int a_version);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
-static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
+static bool s_debug_more = false, s_threshold_enabled = false;
 
 static int s_print_for_dag_list(dap_json_rpc_response_t *a_response, char **a_cmd_param, int a_cmd_cnt)
 {
@@ -231,7 +231,6 @@ int dap_chain_type_dag_init()
                                                    .callback_delete = s_chain_cs_dag_delete,
                                                    .callback_purge = s_chain_cs_dag_purge };
     dap_chain_type_add("dag", l_callbacks);
-    s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
@@ -730,6 +729,8 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
 {
     dap_return_val_if_fail(a_datum && a_chain, false);
     dap_chain_type_dag_t * l_dag = DAP_CHAIN_TYPE_DAG(a_chain);
+    debug_if(s_debug_more, L_INFO, "DAG datum_pool_proc: chain=%s, is_add_directly=%d, is_single_line=%d, seed_mode=%d",
+           a_chain->name, l_dag->is_add_directly, l_dag->is_single_line, a_chain->seed_mode);
     /* If datum passes thru rounds, let's check if it wasn't added before */
     dap_hash_sha3_256_t l_datum_hash;
     dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
@@ -772,7 +773,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     if (!dap_ht_count(PVT(l_dag)->events_lasts_unlinked)) {
         pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         log_it(L_INFO, "Nothing to link");
-        if (!s_seed_mode)
+        if (!a_chain->seed_mode)
             return false;
     } else {
         /* We'll use modification-safe iteration thru the additional hashtable thus the chosen events will not repeat */
@@ -882,7 +883,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
     pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
     // genesis or seed mode
     if ( !l_event->header.hash_count ) {
-        if ( s_seed_mode ) /* TODO: lock with mutex too. Is this yet used?...*/
+        if ( a_chain->seed_mode )
             return !PVT(l_dag)->events
                 ? log_it(L_NOTICE,"Treating event %s as genesis. Time to turn seed mode off!", dap_hash_sha3_256_to_str_static(a_atom_hash)), ATOM_ACCEPT
                 : ( log_it(L_ERROR, "Genesis event is already present! Turn off seed mode and try again!"), ATOM_REJECT );

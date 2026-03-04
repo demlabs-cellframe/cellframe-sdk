@@ -46,6 +46,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_ledger_cli.h"
 #include "dap_chain_ledger_cli_error_codes.h"
+#include "dap_chain_net_types.h"
 #include "dap_cli_error_codes.h"
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
@@ -949,6 +950,7 @@ dap_json_t *dap_db_history_tx_all(dap_json_t *a_json_arr_reply, dap_chain_t *a_c
 					const char *a_srv, dap_chain_tx_tag_action_type_t a_action, bool a_head, int a_version)
 {
         log_it(L_DEBUG, "Start getting tx from chain");
+        dap_ledger_t *l_ledger = a_net->pub.ledger;
         size_t
             l_tx_ledger_accepted = 0,
             l_tx_ledger_rejected = 0,
@@ -2021,6 +2023,7 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
     int arg_index = 1;
     const char *l_net_str = NULL;
     dap_chain_net_t * l_net = NULL;
+    dap_ledger_t *l_ledger = NULL;
 
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -3998,3 +4001,19 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_r
 }
 #endif  // End of com_tx_create - DISABLED
 
+int dap_chain_ledger_cli_init(void)
+{
+    dap_cli_server_cmd_add("ledger", com_ledger, NULL,
+                           "Ledger information",
+                           -1,
+                           "ledger list { coins | threshold | addrs | balance } -net <net_name>\n"
+                           "ledger tx -all { -net <net_name> | -chain <chain_name> }\n"
+                           "ledger tx -hash <tx_hash> -net <net_name>\n");
+    log_it(L_NOTICE, "Ledger CLI commands registered");
+    return 0;
+}
+
+void dap_chain_ledger_cli_deinit(void)
+{
+    log_it(L_INFO, "Ledger CLI commands unregistered");
+}

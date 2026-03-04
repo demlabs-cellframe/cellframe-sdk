@@ -89,7 +89,6 @@ static void s_round_event_cs_done(dap_chain_type_dag_poa_round_item_t *a_event_i
 // CLI commands
 static int s_cli_dag_poa(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a_version);
 
-static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
 /**
@@ -108,7 +107,6 @@ int dap_chain_type_dag_poa_init()
     };
     dap_chain_cs_add("dag_poa", l_cs_callbacks);
     
-    s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",  0 ,  // Auto-assign ID
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
@@ -757,7 +755,7 @@ static dap_chain_type_dag_event_t * s_callback_event_create(dap_chain_type_dag_t
     dap_chain_type_dag_poa_t *l_poa = DAP_CHAIN_TYPE_DAG_POA(a_dag);
     if ( !PVT(l_poa)->events_sign_cert )
         log_it(L_ERROR, "Can't sign event with events_sign_cert in [dag-poa] section");
-    else if ( s_seed_mode || (a_hashes && a_hashes_count) ) {
+    else if ( a_dag->chain->seed_mode || (a_hashes && a_hashes_count) ) {
         if ( !PVT(l_poa)->callback_pre_sign || !PVT(l_poa)->callback_pre_sign->callback) {
             return dap_chain_type_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_datum,
                                               PVT(l_poa)->events_sign_cert->enc_key,

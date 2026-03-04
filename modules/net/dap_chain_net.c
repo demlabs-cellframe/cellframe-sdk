@@ -894,7 +894,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg)
  */
 void dap_chain_net_load_all()
 {
-    int l_nets_count = dap_ht_count(s_nets_by_name), i = 0, l_err;
+    int l_nets_count = dap_ht_count(s_nets_by_name), i = 0, l_err = 0;
     if (!l_nets_count)
         return log_it(L_ERROR, "No networks initialized!");
     pthread_t l_tids[l_nets_count];
@@ -2227,17 +2227,18 @@ void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_global_db_s
 static void s_nodelist_change_notify(dap_global_db_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_net_t *l_net = a_arg;
-    dap_return_if_fail(a_obj->key && !dap_strcmp(l_net->pub.gdb_nodes, a_obj->group));
+    dap_return_if_fail(a_obj && a_obj->key && !dap_strcmp(l_net->pub.gdb_nodes, a_obj->group));
     char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
     if (dap_global_db_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL) {
-        log_it(L_NOTICE, "Removed node %s from network %s at %s\n",
+        log_it(L_NOTICE, "Removed node %s from network %s at %s",
                                  a_obj->key, l_net->pub.name, l_ts);
         return;
     }
+    if (!a_obj->value || a_obj->value_len < sizeof(dap_chain_node_info_t))
+        return;
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
-    assert(dap_chain_node_info_get_size(l_node_info) == a_obj->value_len);
-    log_it(L_NOTICE, "Added node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s\n",
+    log_it(L_NOTICE, "Added node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s",
                              NODE_ADDR_FP_ARGS_S(l_node_info->address),
                              l_node_info->ext_host, l_node_info->ext_port,
                              l_net->pub.name, l_ts);

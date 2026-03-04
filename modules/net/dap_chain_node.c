@@ -475,6 +475,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
+    debug_if(g_dap_global_db_debug_more, L_INFO, "mempool_process_all: group '%s', force=%d, found %zu objects", l_gdb_group_mempool, a_force, l_objs_count);
     if (l_objs_count) {
         for (size_t i = 0; i < l_objs_count; i++) {
             if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
@@ -482,16 +483,18 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
                 continue;
-            if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
+            bool l_need = dap_chain_node_mempool_need_process(a_chain, l_datum);
+            debug_if(g_dap_global_db_debug_more, L_INFO, "mempool_process_all: datum %s type 0x%02x need_process=%d autoproc_count=%u",
+                   l_objs[i].key, l_datum->header.type_id, l_need, a_chain->autoproc_datum_types_count);
+            if (l_need) {
                 int l_ret = 0;
                 if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, &l_ret)) {
-                    // Delete processed objects
-                    log_it(L_INFO, " ! Delete datum %s from mempool", l_objs[i].key);
+                    debug_if(g_dap_global_db_debug_more, L_INFO, " ! Delete datum %s from mempool (ret=%d)", l_objs[i].key, l_ret);
                     char* l_ret_str = dap_strdup_printf("%d", l_ret);
                     dap_global_db_del_ex(l_gdb_group_mempool, l_objs[i].key, l_ret_str, strlen(l_ret_str)+1 , NULL, NULL);
                     DAP_DELETE(l_ret_str);
                 } else {
-                    log_it(L_INFO, " ! Datum %s remains in mempool", l_objs[i].key);
+                    debug_if(g_dap_global_db_debug_more, L_INFO, " ! Datum %s remains in mempool (ret=%d)", l_objs[i].key, l_ret);
                 }
             }
         }
