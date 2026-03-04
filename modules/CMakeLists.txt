@@ -10,6 +10,11 @@ if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(wallet)
 endif()
 
+# Mining (provides dap_chain_crypto, required by network and other modules)
+if (CELLFRAME_MODULES MATCHES "mining")
+    add_subdirectory(mining)
+endif()
+
 # Distributed Hash Tables (DHT)
 if (CELLFRAME_MODULES MATCHES "dht")
     add_subdirectory(dht)
