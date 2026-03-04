@@ -25,7 +25,7 @@ if(NOT DEFINED CELLFRAME_MODULES)
     option(BUILD_WITH_GDB_DRIVER_SQLITE "Build with SQLite driver for GlobalDB" OFF)
     option(BUILD_WITH_GDB_DRIVER_PGSQL "Build with PostgreSQL driver for GlobalDB" OFF)
 
-    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-dex compose")
+    set(CELLFRAME_MODULES "core chains network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-dex compose")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
