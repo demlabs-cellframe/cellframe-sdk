@@ -29,6 +29,18 @@ extern dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net
 extern dap_chain_net_t *s_nets_by_name, *s_nets_by_id;
 
 /**
+ * @brief Register network in global registry
+ * @param a_net Network to register (must have pub.name and pub.id set)
+ */
+void dap_chain_net_register(dap_chain_net_t *a_net)
+{
+    if (!a_net)
+        return;
+    dap_ht_add_str(s_nets_by_name, pub.name, a_net);
+    dap_ht_add_hh(hh2, s_nets_by_id, pub.id, a_net);
+}
+
+/**
  * @brief Unregister network from global registry
  * @param a_net Network to unregister
  */
