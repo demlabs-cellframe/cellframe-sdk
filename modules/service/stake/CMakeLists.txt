@@ -12,7 +12,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 # MERGED: Use common stake types + proper dependencies
 target_link_libraries(${PROJECT_NAME} dap_chain_net_srv_stake_common
-    dap_sdk dap_chain dap_chain_ledger dap_chain_cs
+    dap_core dap_crypto dap_chain dap_chain_ledger dap_chain_cs
     dap_chain_wallet dap_chain_net dap_chain_net_srv dap_chain_net_tx dap_common
     dap_chain_tx_compose dap_chain_type_blocks)
 # NO dap_chain_cs_esbocs - breaks cycle (stake is service, esbocs is consensus)

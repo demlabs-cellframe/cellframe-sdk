@@ -2682,22 +2682,28 @@ int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
 {
     dap_ledger_verificator_t *l_new_verificator = NULL;
     int l_tmp = (int)a_subtype;
+    bool l_already_exists = false;
     pthread_rwlock_rdlock(&s_verificators_rwlock);
     dap_ht_find_int(s_verificators, l_tmp, l_new_verificator);
     pthread_rwlock_unlock(&s_verificators_rwlock);
     if (!l_new_verificator)
         l_new_verificator = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_verificator_t, -1);
-    else
+    else {
         log_it(L_WARNING, "Verificator subtype %d already used, callbacks addresses will be replaced", a_subtype);
-    *l_new_verificator = (dap_ledger_verificator_t) {
-            .subtype = (int)a_subtype,
-            .callback_in_verify = a_callback_in_verify, .callback_out_verify = a_callback_out_verify,
-            .callback_in_add = a_callback_in_add, .callback_out_add = a_callback_out_add,
-            .callback_in_delete = a_callback_in_delete, .callback_out_delete = a_callback_out_delete
-        };
-    pthread_rwlock_wrlock(&s_verificators_rwlock);
-    dap_ht_add_int(s_verificators, subtype, l_new_verificator);
-    pthread_rwlock_unlock(&s_verificators_rwlock);
+        l_already_exists = true;
+    }
+    l_new_verificator->subtype = (int)a_subtype;
+    l_new_verificator->callback_in_verify = a_callback_in_verify;
+    l_new_verificator->callback_out_verify = a_callback_out_verify;
+    l_new_verificator->callback_in_add = a_callback_in_add;
+    l_new_verificator->callback_out_add = a_callback_out_add;
+    l_new_verificator->callback_in_delete = a_callback_in_delete;
+    l_new_verificator->callback_out_delete = a_callback_out_delete;
+    if (!l_already_exists) {
+        pthread_rwlock_wrlock(&s_verificators_rwlock);
+        dap_ht_add_int(s_verificators, subtype, l_new_verificator);
+        pthread_rwlock_unlock(&s_verificators_rwlock);
+    }
     return 0;
 }
 

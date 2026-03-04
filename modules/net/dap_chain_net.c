@@ -83,7 +83,7 @@
 #include "dap_chain_node_sync_client.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_net.h"
-#include "dap_chain_net_core.h"  // For dap_chain_net_core_init()
+#include "dap_chain_net_core.h"
 #include "dap_chain_cs_type.h"  // For dap_chain_cs_load/start/stop
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_fee.h"  // Fee management (now in net core)
@@ -290,8 +290,8 @@ extern void _s_print_chains(dap_json_t *a_obj_chain, dap_chain_t *a_chain);
  */
 int dap_chain_net_init()
 {
-    // Initialize network core module FIRST - registers API functions
-    // This must be done before any other net initialization to avoid circular dependencies
+    dap_chain_net_api_init();
+
     int l_ret = dap_chain_net_core_init();
     if (l_ret != 0) {
         log_it(L_ERROR, "Failed to initialize network core module (code %d)", l_ret);
