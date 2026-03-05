@@ -15,12 +15,8 @@ win32 {
 }
 
 android {
-    for (AABI, ANDROID_ABIS) {
-        message("Requested ABI: $$AABI")
-        CONFIG(release, debug | release): sdk_build_$${AABI}.commands += $$PWD/../cellframe-sdk/prod_build/build.sh -b $$AABI --target android release -DANDROID_PLATFORM=android-21 -DANDROID_ABI=$$AABI -DANDROID_NATIVE_API_LEVEL=29 -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCELLFRAME_NO_OPTIMIZATION=1
-        CONFIG(debug, debug | release): sdk_build_$${AABI}.commands += $$PWD/../cellframe-sdk/prod_build/build.sh -b $$AABI --target android release -DANDROID_PLATFORM=android-21 -DANDROID_ABI=$$AABI -DANDROID_NATIVE_API_LEVEL=29 -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCELLFRAME_NO_OPTIMIZATION=1
-
-    }
+    CONFIG(release, debug | release): sdk_build.commands = export ANDROID_NDK_ROOT=$$NDK_ROOT && $$PWD/../cellframe-sdk/prod_build/build.sh -b $$QT_ARCH --target android release -DANDROID_PLATFORM=android-24 -DANDROID_ABI=$$QT_ARCH -DANDROID_NATIVE_API_LEVEL=24 -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCELLFRAME_NO_OPTIMIZATION=1
+    CONFIG(debug, debug | release): sdk_build.commands = export ANDROID_NDK_ROOT=$$NDK_ROOT && $$PWD/../cellframe-sdk/prod_build/build.sh -b $$QT_ARCH --target android rwd -DANDROID_PLATFORM=android-24 -DANDROID_ABI=$$QT_ARCH -DANDROID_NATIVE_API_LEVEL=24 -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCELLFRAME_NO_OPTIMIZATION=1
 }
 
 mac {
@@ -32,14 +28,6 @@ mac {
 
 QMAKE_EXTRA_TARGETS += sdk_build
 PRE_TARGETDEPS = sdk_build
-
-android {   
-    for (AABI, ANDROID_ABIS) {
-        
-        QMAKE_EXTRA_TARGETS += sdk_build_$${AABI}
-        PRE_TARGETDEPS += sdk_build_$${AABI}
-    }
-}
 
 sdk_targets.path = /
 sdk_targets.CONFIG += no_check_exist
