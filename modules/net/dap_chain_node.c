@@ -40,6 +40,8 @@
 #include "dap_json.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_datum_service_state.h"
+#include "dap_chain_block.h"
+#include "dap_chain_type_blocks.h"
 #include "dap_dl.h"
 #include "dap_link_manager.h"
 
@@ -105,13 +107,15 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 #define DAP_VERSION "0.9-15"
 #endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE || dap_chain_net_get_load_mode(l_net))
+        if (dap_chain_net_get_load_mode(l_net))
             continue;
         size_t
             l_uplinks_count = 0,
             l_downlinks_count = 0,
             l_info_size = 0;
-        dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
+        dap_stream_node_addr_t *l_linked_node_addrs = NULL;
+        if (dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE)
+            l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
         l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
         dap_chain_node_net_states_info_t *l_info = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
         l_info->version_info = DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION;
@@ -126,9 +130,9 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
         l_chain = l_chain ? l_chain->next : NULL;  // mainchain
         l_info->info_v1.atoms_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
 
-        memcpy( l_info->info_v1.links_addrs, l_linked_node_addrs,
-               (l_info->info_v1.uplinks_count + l_info->info_v1.downlinks_count) * sizeof(dap_chain_node_addr_t) );
-        // DB write
+        if (l_linked_node_addrs && (l_uplinks_count + l_downlinks_count) > 0)
+            memcpy( l_info->info_v1.links_addrs, l_linked_node_addrs,
+                   (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t) );
         char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
         const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->info_v1.address);
         dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
@@ -503,8 +507,6 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     DAP_DELETE(l_gdb_group_mempool);
 }
 
-// DISABLED: requires dap_chain_type_blocks.h (DAP_CHAIN_CANDIDATE_MAX_SIZE, dap_chain_block_t)
-#if 0
 static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t *a_state, size_t *a_datums_count)
 {
     dap_chain_datum_t **ret = NULL;
@@ -536,10 +538,6 @@ static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_
         *a_datums_count = l_datums_count;
     return ret;
 }
-#endif // DISABLED: requires dap_chain_type_blocks.h
-
-// DISABLED: requires dap_chain_type_blocks_fees_aggregate
-#if 0
 
 int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs)
 {
@@ -571,7 +569,7 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
         for (size_t i = 0; i < l_datums_count; i++)
             if (l_mp_cbs && l_mp_cbs->mempool_datum_add)
-                DAP_DELETE(l_mp_cbs->mempool_datum_add(l_datums[i], a_chain, "hex"));
+                DAP_DELETE(l_mp_cbs->mempool_datum_add(a_chain, l_datums[i], "hex"));
         dap_dl_delete(l_states->service_states, it);
         DAP_DELETE(it);
     }
@@ -581,7 +579,6 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     l_states->main_iterator = l_states->anchors;
     return 0;
 }
-#endif // DISABLED: dap_chain_node_hardfork_prepare
 
 static int s_tx_trackers_add(dap_chain_datum_tx_t **a_tx, dap_list_t *a_trackers)
 {
@@ -802,7 +799,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         for (dap_chain_srv_hardfork_state_t *it = l_states->main_iterator; it; it = it->next) {
             if (it->uid.uint64 >= (uint64_t)INT64_MIN)       // MSB is set
                 continue;
-#if 0 // DISABLED: calls s_service_state_datums_create which is disabled
             bool l_break = false;
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
@@ -810,7 +806,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                 if (!a_chain->callback_add_datums(a_chain, l_datums + i, 1)) {
                     log_it(L_NOTICE, "Hardfork processed to datum service_state with uid %" DAP_UINT64_FORMAT_x " and number %zu",
                                         it->uid.uint64, i);
-                    // save iterator to state machine
                     l_states->service_state_datum_iterator = i;
                     l_states->main_iterator = it;
                     l_break = true;
@@ -824,7 +819,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             if (l_break)
                 return 0;
             l_states->service_state_datum_iterator = 0;
-#endif // DISABLED: s_service_state_datums_create usage
         }
         l_states->main_iterator = NULL;
         l_states->state_current = STATE_MEMPOOL;

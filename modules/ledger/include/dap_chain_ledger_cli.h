@@ -25,26 +25,48 @@
 #pragma once
 
 #include "dap_json.h"
+#include "dap_hash.h"
+#include "dap_chain.h"
+#include "dap_chain_ledger.h"
+#include "dap_chain_common.h"
+
+typedef struct dap_chain_net dap_chain_net_t;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/**
- * @brief Ledger CLI commands
- * @details Implements ledger-related CLI commands: ledger info, tx operations, etc.
- */
-
-/**
- * @brief Initialize ledger CLI commands
- * @return 0 on success, negative error code on failure
- */
 int dap_chain_ledger_cli_init(void);
-
-/**
- * @brief Cleanup ledger CLI
- */
 void dap_chain_ledger_cli_deinit(void);
+
+dap_json_t *dap_db_history_tx(dap_json_t *a_json_arr_reply,
+                              dap_hash_sha3_256_t *a_tx_hash,
+                              dap_chain_t *a_chain,
+                              const char *a_hash_out_type,
+                              dap_ledger_t *a_ledger,
+                              int a_version);
+
+dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply,
+                                dap_chain_addr_t *a_addr,
+                                dap_chain_t *a_chain,
+                                dap_ledger_t *a_ledger,
+                                const char *a_hash_out_type,
+                                const char *a_addr_str,
+                                dap_json_t *a_json_obj_summary,
+                                size_t a_limit, size_t a_offset,
+                                bool a_brief, const char *a_srv,
+                                dap_chain_tx_tag_action_type_t a_action,
+                                bool a_head, int a_version);
+
+dap_json_t *dap_db_history_tx_all(dap_json_t *a_json_arr_reply,
+                                  dap_chain_t *a_chain,
+                                  dap_chain_net_t *a_net,
+                                  const char *a_hash_out_type,
+                                  dap_json_t *a_json_obj_summary,
+                                  size_t a_limit, size_t a_offset,
+                                  bool a_brief, const char *a_srv,
+                                  dap_chain_tx_tag_action_type_t a_action,
+                                  bool a_head, int a_version);
 
 #ifdef __cplusplus
 }

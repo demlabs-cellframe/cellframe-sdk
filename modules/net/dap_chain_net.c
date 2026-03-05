@@ -1967,6 +1967,14 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
         
         // Set ledger callbacks and context
         a_net->pub.ledger->load_mode = true;
+
+        // Register all chains with the ledger
+        dap_chain_t *l_chain = NULL;
+        dap_dl_foreach(a_net->pub.chains, l_chain) {
+            uint16_t l_primary_type = l_chain->default_datum_types_count > 0
+                ? (uint16_t)l_chain->default_datum_types[0] : 0;
+            dap_ledger_register_chain(a_net->pub.ledger, l_chain->id, l_chain->name, l_primary_type, l_chain);
+        }
     }
     
     return l_res;

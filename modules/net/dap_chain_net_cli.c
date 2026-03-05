@@ -581,11 +581,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
 
         break;
         // make connect
-    case CMD_CONNECT:
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR,
-                                                                                        "Not implemented yet");
-         break;
-#if 0
+    case CMD_CONNECT: {
         // get address from alias if addr not defined
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_alias_find(l_net, alias_str);
@@ -598,9 +594,9 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
                 return -1;
             }
         }
-        // for auto mode
+        // TODO: migrate "node connect" to new 6.x APIs (dap_chain_node_client_t removed)
+#if 0
         int l_is_auto = 0;
-        // list of dap_chain_node_addr_t struct
         unsigned int l_nodes_count = 0;
         dap_list_t *l_node_list = NULL;
         dap_chain_node_addr_t *l_remote_node_addr = NULL;
@@ -766,10 +762,8 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
         dap_chain_node_client_close(l_node_client);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Node sync completed: Chains and gdb are synced");
         return 0;
-
-    }
 #endif
-        // make handshake
+    }
     case CMD_HANDSHAKE: {
         // get address from alias if addr not defined
         if (alias_str && !l_node_addr.uint64) {
@@ -1113,15 +1107,8 @@ static int s_com_help(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, i
 static int s_cli_chain(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
 {
     UNUSED(a_version);
-    int l_arg_index = 1;
-    const char *l_subcmd = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, l_arg_index + 1, "seed", &l_subcmd);
-    if (!l_subcmd) {
-        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, NULL, &l_subcmd);
-    }
-
-    if (l_subcmd && !dap_strcmp(l_subcmd, "seed")) {
-        l_arg_index++;
+    if (a_argc > 1 && !dap_strcmp(a_argv[1], "seed")) {
+        int l_arg_index = 2;
         dap_chain_t *l_chain = NULL;
         dap_chain_net_t *l_net = NULL;
         if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID) < 0)

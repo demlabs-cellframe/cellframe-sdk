@@ -1742,10 +1742,8 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
                     size_t l_datum_size =  dap_chain_datum_size(l_datum);
 
-                    // Nested datum
                     const char *l_datum_type = NULL;
                     DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type)
-                    dap_json_object_add_object(json_obj_event,a_version == 1 ? "Datum" : "datum", dap_json_object_new_string("empty"));
                     dap_json_object_add_object(json_obj_event,"datum_size", dap_json_object_new_uint64(l_datum_size));
                     snprintf(l_buf, sizeof(l_buf), "0x%02hhX",l_datum->header.version_id);
                     dap_json_object_add_object(json_obj_event,"version", dap_json_object_new_string(l_buf));
