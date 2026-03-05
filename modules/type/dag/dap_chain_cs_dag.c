@@ -1430,6 +1430,18 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
             }
             // write events to file and delete events from db
             if(l_list_to_del) {
+                /* file_update + cell_close will truncate the file and munmap
+                 * the old mapping.  DAG event_item->event pointers reference
+                 * that mapping, so copy them to heap first.                  */
+                if (l_chain->is_mapped) {
+                    dap_chain_cs_dag_event_item_t *l_ev, *l_tmp;
+                    HASH_ITER(hh, PVT(l_dag)->events, l_ev, l_tmp) {
+                        if (l_ev->event && l_ev->event_size) {
+                            l_ev->event = DAP_DUP_SIZE(l_ev->event, l_ev->event_size);
+                            l_ev->mapped_region = NULL;
+                        }
+                    }
+                }
                 if (dap_chain_cell_file_update(l_chain->cells) > 0) {
                     // delete events from db
                     dap_list_t *l_el;

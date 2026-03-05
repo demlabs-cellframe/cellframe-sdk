@@ -604,38 +604,85 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     bool l_err = false;
     pthread_rwlock_wrlock(&a_cell->storage_rwlock);
     if (!a_atom || !a_atom_size) {
+        bool was_mapped = a_cell->chain->is_mapped;
+
+        /*  When the chain uses mmap, atom pointers (e.g. DAG event_item->event)
+         *  reference the mapped file region.  freopen(…,"w+b") truncates the
+         *  file to zero, which invalidates those pages (SIGBUS on access).
+         *  Pre-copy every atom to heap before truncation.                     */
+        typedef struct { void *data; uint64_t size; } _atom_copy_t;
+        _atom_copy_t *l_copies = NULL;
+        size_t        l_ncopy  = 0;
+
+        if (was_mapped) {
+            dap_chain_atom_iter_t *l_pre = a_cell->chain->callback_atom_iter_create(
+                                                a_cell->chain, a_cell->id, NULL);
+            dap_chain_atom_ptr_t  l_a;
+            uint64_t              l_sz = 0;
+            size_t                l_cap = 64;
+            l_copies = DAP_NEW_Z_SIZE(_atom_copy_t, l_cap * sizeof(_atom_copy_t));
+            for (l_a  = a_cell->chain->callback_atom_iter_get(l_pre, DAP_CHAIN_ITER_OP_FIRST, &l_sz);
+                 l_a && l_sz;
+                 l_a  = a_cell->chain->callback_atom_iter_get(l_pre, DAP_CHAIN_ITER_OP_NEXT,  &l_sz))
+            {
+                if (l_ncopy >= l_cap) {
+                    l_cap *= 2;
+                    l_copies = DAP_REALLOC(l_copies, l_cap * sizeof(_atom_copy_t));
+                }
+                l_copies[l_ncopy].data = DAP_DUP_SIZE(l_a, l_sz);
+                l_copies[l_ncopy].size = l_sz;
+                l_ncopy++;
+            }
+            a_cell->chain->callback_atom_iter_delete(l_pre);
+        }
+
 #ifdef DAP_OS_WINDOWS
         strcat(a_cell->file_storage_path, ".new");
 #endif
         a_cell->file_storage = freopen(a_cell->file_storage_path, "w+b", a_cell->file_storage);
         debug_if (s_debug_more,L_DEBUG, "Rewinding file %s", a_cell->file_storage_path);
-        bool was_mapped = a_cell->chain->is_mapped;
         a_cell->chain->is_mapped = false;
         if ( s_cell_file_write_header(a_cell) < 0 ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't fill header",
                             a_cell->file_storage_path, a_cell->id.uint64);
             a_cell->chain->is_mapped = was_mapped;
+            for (size_t i = 0; i < l_ncopy; i++) DAP_DELETE(l_copies[i].data);
+            DAP_DEL_Z(l_copies);
             pthread_rwlock_unlock(&a_cell->storage_rwlock);
             return -2;
         }
         l_total_res += sizeof(dap_chain_cell_file_header_t);
-        dap_chain_atom_iter_t *l_atom_iter = a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id, NULL);
-        dap_chain_atom_ptr_t l_atom;
-        uint64_t l_atom_size = 0;
-        for (l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
-             l_atom && l_atom_size;
-             l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size))
-        {
-            if ( s_cell_file_atom_add(a_cell, l_atom, l_atom_size) ) {
-                l_err = true;
-                break;
-            } else {
-                l_total_res += sizeof(uint64_t) + l_atom_size;
-                ++l_count;
+
+        if (was_mapped && l_copies) {
+            for (size_t i = 0; i < l_ncopy && !l_err; i++) {
+                if ( s_cell_file_atom_add(a_cell, l_copies[i].data, l_copies[i].size) ) {
+                    l_err = true;
+                } else {
+                    l_total_res += sizeof(uint64_t) + l_copies[i].size;
+                    ++l_count;
+                }
             }
+            for (size_t i = 0; i < l_ncopy; i++) DAP_DELETE(l_copies[i].data);
+            DAP_DEL_Z(l_copies);
+        } else {
+            dap_chain_atom_iter_t *l_atom_iter = a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id, NULL);
+            dap_chain_atom_ptr_t l_atom;
+            uint64_t l_atom_size = 0;
+            for (l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
+                 l_atom && l_atom_size;
+                 l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size))
+            {
+                if ( s_cell_file_atom_add(a_cell, l_atom, l_atom_size) ) {
+                    l_err = true;
+                    break;
+                } else {
+                    l_total_res += sizeof(uint64_t) + l_atom_size;
+                    ++l_count;
+                }
+            }
+            a_cell->chain->callback_atom_iter_delete(l_atom_iter);
         }
         a_cell->chain->is_mapped = was_mapped;
-        a_cell->chain->callback_atom_iter_delete(l_atom_iter);
         debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "After rewriting file %s, stream pos is %ld and map pos is %zu",
                       a_cell->file_storage_path, ftello(a_cell->file_storage),
                       (size_t)(a_cell->map_pos - a_cell->map));
