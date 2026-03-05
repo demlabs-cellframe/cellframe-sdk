@@ -23,15 +23,15 @@
 #pragma once
 #include "dap_chain_block.h"
 #include "dap_hash.h"
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_chain_ledger.h"
 
 typedef struct dap_chain_type_blocks dap_chain_type_blocks_t;
 
 typedef struct dap_chain_block_cache {
     // Block's general non-nested attributes
-    dap_chain_hash_fast_t block_hash;
-    char block_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_hash_sha3_256_t block_hash;
+    char block_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
     size_t block_size;
     uint64_t block_number;
 
@@ -41,13 +41,13 @@ typedef struct dap_chain_block_cache {
     // Block's datums
     size_t datum_count;
     dap_chain_datum_t ** datum;
-    dap_hash_fast_t *datum_hash;
+    dap_hash_sha3_256_t *datum_hash;
 
     // Extracted metadata
-    dap_chain_hash_fast_t prev_hash;
-    dap_chain_hash_fast_t anchor_hash;
-    dap_chain_hash_fast_t merkle_root;
-    dap_chain_hash_fast_t* links_hash;
+    dap_hash_sha3_256_t prev_hash;
+    dap_hash_sha3_256_t anchor_hash;
+    dap_hash_sha3_256_t merkle_root;
+    dap_hash_sha3_256_t* links_hash;
     size_t links_hash_count;
     uint64_t nonce;
     uint64_t nonce2;
@@ -65,14 +65,13 @@ typedef struct dap_chain_block_cache {
     // List for keeping pointers to list of atoms in side branches
     dap_list_t *forked_branches;
 
-    // uthash handle
-    UT_hash_handle hh, hh2;
+    dap_ht_handle_t hh, hh2;
 } dap_chain_block_cache_t;
 
 typedef struct dap_chain_block_forked_branch_atoms_table{
-    dap_hash_fast_t block_hash;
+    dap_hash_sha3_256_t block_hash;
     dap_chain_block_cache_t *block_cache;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_block_forked_branch_atoms_table_t;
 
 typedef struct dap_chain_block_forked_branch {
@@ -84,10 +83,10 @@ int dap_chain_block_cache_init();
 void dap_chain_block_cache_deinit();
 
 
-dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block,
+dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_sha3_256_t *a_block_hash, dap_chain_block_t *a_block,
                                                    size_t a_block_size, uint64_t a_block_number, bool a_copy_block);
 dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_block);
-int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
+int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_sha3_256_t *a_block_hash);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 
 // Get the list of 'out_cond' items from previous transactions with summary out value. Put this summary value to a_value_out

@@ -91,7 +91,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx)
+int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_hash_sha3_256_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx)
 {
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_in_t,
         dap_chain_datum_tx_item_in_create(a_tx_prev_hash, a_tx_out_prev_idx) );
@@ -106,7 +106,7 @@ uint256_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_l
 {
     dap_list_t *l_item_out;
     uint256_t l_value_to_items = { }; // how many datoshi to transfer
-    DL_FOREACH(a_list_used_out, l_item_out) {
+    dap_dl_foreach(a_list_used_out, l_item_out) {
         dap_chain_tx_used_out_item_t *l_item = l_item_out->data;
         if (dap_chain_datum_tx_add_in_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out) == 1) {
             SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
@@ -124,7 +124,7 @@ uint256_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_l
  * @param a_receipt_idx
  * @return
  */
-int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
+int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_hash_sha3_256_t *a_tx_prev_hash,
                                         uint32_t a_tx_out_prev_idx,
                                         int32_t a_receipt_idx)
 {
@@ -136,7 +136,7 @@ uint256_t dap_chain_datum_tx_add_in_cond_item_list(dap_chain_datum_tx_t **a_tx, 
 {
    dap_list_t *l_item_out;
    uint256_t l_value_to_items = { };
-   DL_FOREACH(a_list_used_out_cound, l_item_out) {
+   dap_dl_foreach(a_list_used_out_cound, l_item_out) {
        dap_chain_tx_used_out_item_t *l_item = l_item_out->data;
        if (1 == dap_chain_datum_tx_add_in_cond_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out, -1)) {
            SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
@@ -145,7 +145,7 @@ uint256_t dap_chain_datum_tx_add_in_cond_item_list(dap_chain_datum_tx_t **a_tx, 
    return l_value_to_items;
 }
 
-int dap_chain_datum_tx_add_in_reward_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_block_hash)
+int dap_chain_datum_tx_add_in_reward_item(dap_chain_datum_tx_t **a_tx, dap_hash_sha3_256_t *a_block_hash)
 {
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_in_reward_t,
         dap_chain_datum_tx_item_in_reward_create(a_block_hash) );
@@ -225,7 +225,7 @@ int dap_chain_datum_tx_add_out_std_item(dap_chain_datum_tx_t **a_tx, const dap_c
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
+int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_hash_sha3_256_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
         uint256_t a_value, uint256_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit, const void *a_cond, size_t a_cond_size)
 {
     return dap_chain_datum_tx_add_new_generic( a_tx, dap_chain_tx_out_cond_t,

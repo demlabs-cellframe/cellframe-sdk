@@ -42,8 +42,8 @@ typedef struct dap_chain_tx_event {
     dap_chain_srv_uid_t srv_uid;        /// @param srv_uid              @brief Service UID.
     dap_time_t timestamp;               /// @param timestamp            @brief Timestamp of the event.
     char *group_name;                   /// @param group_name           @brief Event group name
-    dap_chain_hash_fast_t tx_hash;      /// @param tx_hash              @brief Hash of the transaction.
-    dap_chain_hash_fast_t pkey_hash;    /// @param pkey_hash            @brief Hash of the public key.
+    dap_hash_sha3_256_t tx_hash;      /// @param tx_hash              @brief Hash of the transaction.
+    dap_hash_sha3_256_t pkey_hash;    /// @param pkey_hash            @brief Hash of the public key.
     uint16_t event_type;                /// @param event_type           @brief Event type.
     void *event_data;                   /// @param event_data           @brief Event data.
     size_t event_data_size;             /// @param event_data_size      @brief Event data size.

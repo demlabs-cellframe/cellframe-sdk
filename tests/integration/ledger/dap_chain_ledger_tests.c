@@ -1,6 +1,7 @@
 #include "dap_math_convert.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_datum_tx_receipt.h"
+#include "dap_dl.h"
 
 #define LOG_TAG "dap_chain_ledger_tests"
 
@@ -16,6 +17,8 @@
 #include "dap_chain_cs_type.h"
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
+#include "dap_hash.h"
+#include "dap_hash_compat.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stake.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
@@ -25,7 +28,20 @@
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_type_dag_poa.h"
+#include "dap_chain_decree_callbacks.h"
 #include "integration_test_fixtures.h"  // ✓ Integration test fixtures
+
+static int s_test_reward_handler(dap_chain_datum_decree_t *a_decree, dap_ledger_t *a_ledger,
+                                  dap_chain_t *a_chain, bool a_apply)
+{
+    UNUSED(a_ledger);
+    UNUSED(a_chain);
+    UNUSED(a_apply);
+    uint256_t l_value;
+    if (dap_chain_datum_decree_get_value(a_decree, &l_value))
+        return -103;
+    return 0;
+}
 
 static const uint64_t s_fee = 2;
 static const uint64_t s_total_supply = 500;
@@ -992,8 +1008,9 @@ void dap_ledger_test_run(void){
     int l_net_create_result = s_ledger_test_net_create();
     (void)l_net_create_result;  // Test network created through fixture
     
-    dap_chain_net_id_t l_iddn = {.uint64 = 0};
-    sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
+    uint64_t l_net_id_val = 0;
+    sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_net_id_val);
+    dap_chain_net_id_t l_iddn = {.uint64 = l_net_id_val};
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_iddn);
     if (!l_net) {
         // Test fixture created network, but lookup failed - this is OK for unit tests
@@ -1010,19 +1027,42 @@ void dap_ledger_test_run(void){
     dap_ledger_t *l_ledger = dap_ledger_create(&l_opts);
     l_net->pub.ledger = l_ledger;
 
+    // Generate and register auth certificate required by dag_poa consensus
+    dap_cert_t *l_poa_cert = dap_cert_generate_mem_with_seed(
+        "test_dag_poa.0", DAP_ENC_KEY_TYPE_SIG_PICNIC,
+        "dag_poa_test_seed_42", strlen("dag_poa_test_seed_42"));
+    dap_assert_PIF(l_poa_cert != NULL, "Generate dag_poa auth cert");
+    dap_cert_add(l_poa_cert);
+
     // Create zerochain with dag_poa consensus
     dap_chain_t *l_chain_zero =  dap_chain_create(l_net->pub.name, "test_chain_zerochain", l_net->pub.id, (dap_chain_id_t){.uint64 = 0});
     l_chain_zero->config = dap_config_create_empty();
     dap_config_set_item_str(l_chain_zero->config, "chain", "consensus", "dag_poa");
+    dap_config_set_item_str(l_chain_zero->config, "dag-poa", "auth_certs_prefix", "test_dag_poa");
+    dap_config_set_item_uint(l_chain_zero->config, "dag-poa", "auth_certs_number", 1);
+    dap_config_set_item_uint(l_chain_zero->config, "dag-poa", "auth_certs_number_verify", 1);
     dap_assert_PIF(dap_chain_cs_create(l_chain_zero, l_chain_zero->config) == 0, "Chain cs dag_poa creating: ");
-    DL_APPEND(l_net->pub.chains, l_chain_zero);
+    dap_dl_append(l_net->pub.chains, l_chain_zero);
+    dap_ledger_register_chain(l_ledger, l_chain_zero->id, l_chain_zero->name, 0, l_chain_zero);
+
+    // Generate and register auth certificate required by esbocs consensus
+    dap_cert_t *l_esbocs_cert = dap_cert_generate_mem_with_seed(
+        "test_esbocs.0", DAP_ENC_KEY_TYPE_SIG_PICNIC,
+        "esbocs_test_seed_42", strlen("esbocs_test_seed_42"));
+    dap_assert_PIF(l_esbocs_cert != NULL, "Generate esbocs auth cert");
+    dap_cert_add(l_esbocs_cert);
 
     // Create main chain with esbocs consensus  
     dap_chain_t *l_chain_main =  dap_chain_create(l_net->pub.name, "test_chain_main", l_net->pub.id, (dap_chain_id_t){.uint64 = 1});
     l_chain_main->config = dap_config_create_empty();
     dap_config_set_item_str(l_chain_main->config, "chain", "consensus", "esbocs");
+    dap_config_set_item_str(l_chain_main->config, "esbocs", "auth_certs_prefix", "test_esbocs");
+    dap_config_set_item_uint(l_chain_main->config, "esbocs", "min_validators_count", 1);
+    const char *l_validator_addrs[] = { "0000::0000::0000::0001" };
+    dap_config_set_item_str_array(l_chain_main->config, "esbocs", "validators_addrs", l_validator_addrs, 1);
     dap_assert_PIF(dap_chain_cs_create(l_chain_main, l_chain_main->config) == 0, "Chain esbocs cs creating: ");
-    DL_APPEND(l_net->pub.chains, l_chain_main);
+    dap_dl_append(l_net->pub.chains, l_chain_main);
+    dap_ledger_register_chain(l_ledger, l_chain_main->id, l_chain_main->name, 1, l_chain_main);
 
     // Setup blockchain timer callbacks for both chains
     dap_ledger_set_blockchain_timer(l_ledger, l_chain_zero);
@@ -1033,6 +1073,9 @@ void dap_ledger_test_run(void){
     dap_ledger_set_blockchain_time(l_ledger, dap_time_now() + 3600); // +1 hour
 
     dap_ledger_decree_init(l_net->pub.ledger);
+    dap_chain_decree_handler_register(DAP_CHAIN_DATUM_DECREE_TYPE_COMMON,
+                                      DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD,
+                                      s_test_reward_handler);
 
     char *l_seed_ph = "H58i9GJKbn91238937^#$t6cjdf";
     size_t l_seed_ph_size = strlen(l_seed_ph);

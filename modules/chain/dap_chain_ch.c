@@ -64,9 +64,9 @@ struct sync_context {
 };
 
 typedef struct dap_chain_ch_hash_item {
-    dap_hash_fast_t hash;
+    dap_hash_sha3_256_t hash;
     uint32_t size;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_ch_hash_item_t;
 
 typedef struct dap_chain_ch {
@@ -224,9 +224,9 @@ static bool s_sync_in_chains_callback(void *a_arg)
         DAP_DELETE(l_args);
         return false;
     }
-    dap_hash_fast_t l_atom_hash = { }; 
-    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
-    char *l_atom_hash_str = dap_hash_fast_to_str_static(&l_atom_hash);
+    dap_hash_sha3_256_t l_atom_hash = { }; 
+    dap_hash_sha3_256(l_atom, l_atom_size, &l_atom_hash);
+    char *l_atom_hash_str = dap_hash_sha3_256_to_str_static(&l_atom_hash);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash, false);
     bool l_ack_send = false;
     switch (l_atom_add_res) {
@@ -376,7 +376,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_args->ack_req = true;
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         debug_if(s_debug_more, L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U ", atom id %" DAP_UINT64_FORMAT_U,
-                                        dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size,
+                                        dap_hash_sha3_256_data_to_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size,
                                         l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                         (uint64_t)(((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo));
         dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
@@ -398,7 +398,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             log_it(L_INFO, "In: CHAIN_REQ pkt: net 0x%016" DAP_UINT64_FORMAT_x " chain 0x%016" DAP_UINT64_FORMAT_x
                             " cell 0x%016" DAP_UINT64_FORMAT_x ", hash from %s, num from %" DAP_UINT64_FORMAT_U,
                             l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
-                            dap_hash_fast_to_str_static(&l_request->hash_from), l_request->num_from);
+                            dap_hash_sha3_256_to_str_static(&l_request->hash_from), l_request->num_from);
         if (l_ch_chain->sync_context) {
             log_it(L_WARNING, "Can't process CHAIN_REQ request cause already busy with synchronization");
             dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
@@ -422,7 +422,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     DAP_CHAIN_CH_ERROR_NET_IS_OFFLINE);
             break;
         }
-        bool l_sync_from_begin = dap_hash_fast_is_blank(&l_request->hash_from) || l_request_generation < l_chain->generation;
+        bool l_sync_from_begin = dap_hash_sha3_256_is_blank(&l_request->hash_from) || l_request_generation < l_chain->generation;
         dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, l_sync_from_begin
                                                                            ? NULL : &l_request->hash_from);
         if (!l_iter) {
@@ -471,26 +471,26 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_missed_hash = true;
         } else if (!l_sync_from_begin && l_last_num >= l_request->num_from) {
             l_missed_hash = true;
-            debug_if(s_debug_more, L_WARNING, "Requested atom with hash %s not found", dap_hash_fast_to_str_static(&l_request->hash_from));
+            debug_if(s_debug_more, L_WARNING, "Requested atom with hash %s not found", dap_hash_sha3_256_to_str_static(&l_request->hash_from));
         }
         if (l_missed_hash) {
             l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_LAST, NULL);
             dap_chain_ch_miss_info_t l_miss_info = { .missed_hash = l_request->hash_from,
-                                                     .last_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){ },
+                                                     .last_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_sha3_256_t){ },
                                                      .last_num = l_iter->cur_num };
             dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS,
                                           l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id,
                                           l_chain_pkt->hdr.cell_id, &l_miss_info, sizeof(l_miss_info),
                                           DAP_CHAIN_CH_PKT_VERSION_CURRENT);
             if (s_debug_more) {
-                char l_last_hash_str[DAP_HASH_FAST_STR_SIZE];
-                dap_hash_fast_to_str(&l_miss_info.last_hash, l_last_hash_str, DAP_HASH_FAST_STR_SIZE);
+                char l_last_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+                dap_hash_sha3_256_to_str(&l_miss_info.last_hash, l_last_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
                 log_it(L_INFO, "Out: CHAIN_MISS %s for net %s to source " NODE_ADDR_FP_STR
                                              " with hash missed %s, hash last %s and num last %" DAP_UINT64_FORMAT_U,
                         l_chain ? l_chain->name : "(null)",
                                     l_chain ? l_chain->net_name : "(null)",
                                                     NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
-                        dap_hash_fast_to_str_static(&l_miss_info.missed_hash),
+                        dap_hash_sha3_256_to_str_static(&l_miss_info.missed_hash),
                         l_last_hash_str,
                         l_miss_info.last_num);
             }
@@ -596,14 +596,14 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         dap_chain_ch_miss_info_t *l_miss_info = (dap_chain_ch_miss_info_t *)l_chain_pkt->data;
         if (s_debug_more) {
-            char l_last_hash_str[DAP_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(&l_miss_info->last_hash, l_last_hash_str, DAP_HASH_FAST_STR_SIZE);
+            char l_last_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+            dap_hash_sha3_256_to_str(&l_miss_info->last_hash, l_last_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
             log_it(L_INFO, "In: CHAIN_MISS %s for net %s from source " NODE_ADDR_FP_STR
                                          " with hash missed %s, hash last %s and num last %" DAP_UINT64_FORMAT_U,
                     l_chain ? l_chain->name : "(null)",
                                 l_chain ? l_chain->net_name : "(null)",
                                                 NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
-                    dap_hash_fast_to_str_static(&l_miss_info->missed_hash),
+                    dap_hash_sha3_256_to_str_static(&l_miss_info->missed_hash),
                     l_last_hash_str,
                     l_miss_info->last_num);
         }
@@ -694,7 +694,7 @@ static bool s_chain_iter_callback(void *a_arg)
                                 l_chain ? l_chain->name : "(null)",
                                             l_chain ? l_chain->net_name : "(null)",
                                                             NODE_ADDR_FP_ARGS_S(l_context->addr),
-                                l_iter->cur_num, dap_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_size);
+                                l_iter->cur_num, dap_hash_sha3_256_to_str_static(l_iter->cur_hash), l_iter->cur_size);
         l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size);
         if (!l_atom || !l_atom_size || l_iter->cur_num > l_context->num_last)
             break;

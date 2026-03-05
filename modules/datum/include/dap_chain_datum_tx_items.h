@@ -132,20 +132,20 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
  *
  * return item, NULL Error
  */
-dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_in_ems_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
+dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_in_ems_create(dap_chain_id_t a_id, dap_hash_sha3_256_t *a_datum_token_hash, const char *a_ticker);
 
 /**
  * Create item dap_chain_tx_out_old_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
+dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_hash_sha3_256_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
 
-dap_chain_tx_in_reward_t *dap_chain_datum_tx_item_in_reward_create(dap_chain_hash_fast_t *a_block_hash);
+dap_chain_tx_in_reward_t *dap_chain_datum_tx_item_in_reward_create(dap_hash_sha3_256_t *a_block_hash);
 
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(const void *a_data, int a_type, size_t a_size);
 
-dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx,
+dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_hash_sha3_256_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx,
                                                                uint32_t a_receipt_idx);
 
 /**
@@ -186,7 +186,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size);
 
-dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_fast_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay_with_hash(dap_hash_sha3_256_t *a_key_hash, dap_chain_srv_uid_t a_srv_uid,
                                                                                 uint256_t a_value, uint256_t a_value_max_per_unit,
                                                                                 dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                                 const void *a_params, size_t a_params_size);
@@ -224,13 +224,13 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_lock(dap_chain_srv_uid_t a_srv_uid,
                                                                                   uint256_t a_value,
-                                                                                  const dap_hash_fast_t *a_stake_ext_hash,
+                                                                                  const dap_hash_sha3_256_t *a_stake_ext_hash,
                                                                                   dap_time_t a_lock_time,
                                                                                   uint32_t a_position_id,
                                                                                   const void *a_params, size_t a_params_size);
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
-                                                                               uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
+                                                                               uint32_t a_signs_min, dap_hash_sha3_256_t *a_pkey_hashes,
                                                                                size_t a_pkey_hashes_count, const char *a_tag_str);
 
 /**

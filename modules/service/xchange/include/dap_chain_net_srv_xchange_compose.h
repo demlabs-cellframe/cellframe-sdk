@@ -73,7 +73,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_create_order(
  */
 dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_order_hash,
+    dap_hash_sha3_256_t *a_order_hash,
     uint256_t a_fee,
     dap_chain_addr_t *a_wallet_addr);
 
@@ -88,7 +88,7 @@ dap_chain_datum_tx_t *dap_xchange_tx_create_invalidate(
  */
 dap_chain_datum_tx_t *dap_xchange_tx_create_purchase(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_order_hash,
+    dap_hash_sha3_256_t *a_order_hash,
     uint256_t a_value,
     uint256_t a_fee,
     dap_chain_addr_t *a_wallet_addr);
@@ -111,8 +111,8 @@ dap_chain_net_srv_xchange_price_t *dap_xchange_price_from_order(
     dap_ledger_t *a_ledger,
     dap_chain_tx_out_cond_t *a_cond_tx, 
     dap_time_t a_ts_created, 
-    dap_hash_fast_t *a_order_hash, 
-    dap_hash_fast_t *a_hash_out, 
+    dap_hash_sha3_256_t *a_order_hash, 
+    dap_hash_sha3_256_t *a_hash_out, 
     const char *a_token_ticker,
     uint256_t *a_fee, 
     bool a_ret_is_invalid);
@@ -130,12 +130,12 @@ dap_chain_net_srv_xchange_price_t *dap_xchange_price_from_order(
  */
 dap_chain_tx_out_cond_t *dap_xchange_find_last_tx(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_order_hash,
+    dap_hash_sha3_256_t *a_order_hash,
     dap_chain_addr_t *a_seller_addr,
     dap_time_t *a_ts_created,
     char **a_token_ticker,
     int32_t *a_prev_cond_idx,
-    dap_hash_fast_t *a_hash_out);
+    dap_hash_sha3_256_t *a_hash_out);
 
 // ========== CLI/RPC WRAPPERS (return JSON responses) ==========
 

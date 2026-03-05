@@ -15,6 +15,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..
 
 # Include mempool headers for emission-based TX (no link dep - resolved at final link)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../mempool/include/)
+# Crypto headers for dap_cert (resolved at final link via dap_crypto)
+target_include_directories(${PROJECT_NAME} PRIVATE ${DAP_SDK_SOURCE_DIR}/module/crypto/include/)
+# Hash headers for dap_hash_sha3_256_from_str
+target_include_directories(${PROJECT_NAME} PRIVATE ${DAP_SDK_SOURCE_DIR}/module/hash/include/)
 # Include net headers for dap_chain_net_get_default_chain_by_chain_type
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../net/include/)
 # Include DAG type headers for event/datum extraction
@@ -26,6 +30,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/.
 
 # Include cert headers for decree signing
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../dap-sdk/module/crypto/include/)
+# Include timer headers for dap_interval_timer.h (required by dap_chain_ledger_pvt.h)
+target_include_directories(${PROJECT_NAME} PRIVATE ${DAP_SDK_SOURCE_DIR}/module/timer/include/)
 
 # Dependencies - ONLY low-level modules, NO wallet/net/mempool link deps!
 target_link_libraries(${PROJECT_NAME}

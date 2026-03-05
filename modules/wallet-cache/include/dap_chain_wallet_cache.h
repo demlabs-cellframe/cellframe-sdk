@@ -36,8 +36,8 @@ typedef enum dap_chain_wallet_getting_type {
 } dap_chain_wallet_getting_type_t;
 typedef struct dap_chain_wallet_cache_iter {
     dap_chain_datum_tx_t *cur_tx;
-    dap_chain_hash_fast_t *cur_hash;
-    dap_chain_hash_fast_t *cur_atom_hash;
+    dap_hash_sha3_256_t *cur_hash;
+    dap_hash_sha3_256_t *cur_atom_hash;
     uint32_t action;
     dap_chain_srv_uid_t uid;
     int ret_code;
@@ -78,7 +78,7 @@ int dap_chain_wallet_cache_register_chain(struct dap_chain *a_chain, void *a_net
  *         -101 - addr is not found in cache
  */
 int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_chain_datum_tx_t **a_tx, 
-                                                            dap_hash_fast_t *a_tx_hash_curr, int* a_ret_code);
+                                                            dap_hash_sha3_256_t *a_tx_hash_curr, int* a_ret_code);
 
 /**
  * @brief Find next transactions after l_tx_hash_curr for wallet addr and save pointer to transaction into a_tx. 
@@ -95,7 +95,7 @@ int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_
  *         -101 - addr is not found in cache
  */
 int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a_token, int* a_ret_code, dap_chain_tx_tag_action_type_t *a_action,
-                                              dap_chain_srv_uid_t *a_uid, dap_chain_datum_tx_t **a_tx, dap_hash_fast_t *a_tx_hash_curr);
+                                              dap_chain_srv_uid_t *a_uid, dap_chain_datum_tx_t **a_tx, dap_hash_sha3_256_t *a_tx_hash_curr);
 
 
 /**

@@ -41,7 +41,7 @@ typedef struct dap_chain_net_voting_info_option {
 } dap_chain_net_voting_option_info_t;
 
 typedef struct dap_chain_net_voting_info {
-    dap_hash_fast_t hash;
+    dap_hash_sha3_256_t hash;
     dap_chain_net_id_t net_id;
     bool is_expired;
     bool is_cancelled;
@@ -148,8 +148,8 @@ extern "C" {
 int dap_chain_net_srv_voting_init();
 void dap_chain_net_srv_voting_deinit();
 
-uint64_t *dap_chain_net_srv_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash);
-dap_time_t dap_chain_net_srv_voting_get_expiration_time(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_voting_hash);
+uint64_t *dap_chain_net_srv_voting_get_result(dap_ledger_t* a_ledger, dap_hash_sha3_256_t* a_voting_hash);
+dap_time_t dap_chain_net_srv_voting_get_expiration_time(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_voting_hash);
 
 int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_options, dap_time_t a_expire_vote,
                                     uint64_t a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
@@ -158,15 +158,15 @@ int dap_chain_net_srv_voting_create(const char *a_question, dap_list_t *a_option
                                     const char *a_hash_out_type, char **a_hash_output);
 
 
-int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash,
+int dap_chain_net_srv_vote_create(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_sha3_256_t *a_voting_hash,
                               uint64_t a_option_idx, dap_chain_net_t *a_net, const char *a_hash_out_type,
                               char **a_hash_tx_out);
 
 dap_list_t *dap_chain_net_voting_list(dap_chain_net_t *a_net);
-dap_chain_net_voting_info_t *dap_chain_net_voting_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting_hash);
+dap_chain_net_voting_info_t *dap_chain_net_voting_extract_info(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_voting_hash);
 void dap_chain_net_voting_info_free(dap_chain_net_voting_info_t *a_info);
 dap_list_t* dap_get_options_list_from_str(const char* a_str);
-int dap_chain_net_vote_cancel(dap_json_t *a_json_arr_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t *a_voting_hash,
+int dap_chain_net_vote_cancel(dap_json_t *a_json_arr_reply, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_sha3_256_t *a_voting_hash,
                               dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_tx_out);
 
 #if defined(__cplusplus)

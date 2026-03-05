@@ -68,9 +68,9 @@ typedef struct dap_chain_net_srv_usage{
     dap_chain_net_srv_price_t * price; // Price for issue next receipt
     dap_chain_net_srv_client_remote_t *client;
     dap_chain_datum_tx_t * tx_cond;
-    dap_chain_hash_fast_t tx_cond_hash;
-    dap_chain_hash_fast_t client_pkey_hash;
-    dap_chain_hash_fast_t static_order_hash;
+    dap_hash_sha3_256_t tx_cond_hash;
+    dap_hash_sha3_256_t client_pkey_hash;
+    dap_hash_sha3_256_t static_order_hash;
     dap_timerfd_t *save_limits_timer;
     dap_timerfd_t *receipts_timeout_timer;
     void (*receipt_timeout_timer_start_callback)(struct dap_chain_net_srv_usage *a_usage);

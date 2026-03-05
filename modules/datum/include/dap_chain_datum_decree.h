@@ -307,7 +307,7 @@ int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, ui
  * @param a_tx_hash pointer to tx hash buffer
  * @return result code. 0 - success
  */
-int dap_chain_datum_decree_get_hash(dap_chain_datum_decree_t *a_decree, dap_hash_fast_t *a_tx_hash);
+int dap_chain_datum_decree_get_hash(dap_chain_datum_decree_t *a_decree, dap_hash_sha3_256_t *a_tx_hash);
 
 /**
  * @brief dap_chain_datum_decree_get_stake_value get stake value

@@ -252,7 +252,7 @@ dap_chain_datum_tx_t *dap_voting_tx_create_poll(
  */
 dap_chain_datum_tx_t *dap_voting_tx_create_vote(
     dap_ledger_t *a_ledger,
-    dap_hash_fast_t *a_poll_hash,
+    dap_hash_sha3_256_t *a_poll_hash,
     uint64_t a_option_idx,
     uint256_t a_fee,
     dap_chain_addr_t *a_wallet_addr,
@@ -269,7 +269,7 @@ dap_chain_datum_tx_t *dap_voting_tx_create_vote(
     // Find the poll transaction
     dap_chain_datum_tx_t *l_poll_tx = dap_ledger_tx_find_by_hash(a_ledger, a_poll_hash);
     if (!l_poll_tx) {
-        log_it(L_ERROR, "Poll transaction not found: %s", dap_hash_fast_to_str_static(a_poll_hash));
+        log_it(L_ERROR, "Poll transaction not found: %s", dap_hash_sha3_256_to_str_static(a_poll_hash));
         return NULL;
     }
     
@@ -345,7 +345,7 @@ dap_chain_datum_tx_t *dap_voting_tx_create_vote(
     DAP_DELETE(l_vote_item);
     
     log_it(L_INFO, "Created vote TX (unsigned, signature and inputs will be added by compose layer): poll=%s, option=%"DAP_UINT64_FORMAT_U,
-           dap_hash_fast_to_str_static(a_poll_hash), a_option_idx);
+           dap_hash_sha3_256_to_str_static(a_poll_hash), a_option_idx);
     
     return l_tx;
 }
@@ -374,7 +374,7 @@ typedef struct voting_poll_create_params {
 typedef struct voting_vote_params {
     const char *wallet_name;         // Wallet for signing
     dap_chain_addr_t *wallet_addr;   // Voter wallet address
-    dap_hash_fast_t poll_hash;       // Poll hash to vote on
+    dap_hash_sha3_256_t poll_hash;       // Poll hash to vote on
     uint64_t option_idx;             // Selected option index
     uint256_t fee;                   // Transaction fee
     dap_cert_t *cert;                // Certificate (if required by poll)
@@ -577,7 +577,7 @@ static dap_chain_datum_t* s_voting_vote_compose_cb(
     }
 
     log_it(L_INFO, "Voting vote datum created successfully for poll %s, option %"DAP_UINT64_FORMAT_U,
-           dap_hash_fast_to_str_static(&l_params->poll_hash), l_params->option_idx);
+           dap_hash_sha3_256_to_str_static(&l_params->poll_hash), l_params->option_idx);
     return l_datum;
 }
 

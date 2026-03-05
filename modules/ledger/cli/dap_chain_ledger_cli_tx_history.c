@@ -25,7 +25,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
@@ -65,7 +65,7 @@ extern void* dap_chain_net_by_id(dap_chain_net_id_t a_id);
  */
 typedef struct dap_chain_tx_hash_processed_ht {
     dap_chain_hash_fast_t hash;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_tx_hash_processed_ht_t;
 
 /**
@@ -76,8 +76,8 @@ static void s_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **a_has
     if (!a_hash_processed || !*a_hash_processed)
         return;
     dap_chain_tx_hash_processed_ht_t *l_tmp, *l_current;
-    HASH_ITER(hh, *a_hash_processed, l_current, l_tmp) {
-        HASH_DEL(*a_hash_processed, l_current);
+    dap_ht_foreach(*a_hash_processed, l_current, l_tmp) {
+        dap_ht_del(*a_hash_processed, l_current);
         DAP_DELETE(l_current);
     }
 }
@@ -184,7 +184,7 @@ static void s_tx_header_print(dap_json_t *json_obj_datum, dap_chain_tx_hash_proc
         dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
     
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
-    HASH_FIND(hh, *a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
+    dap_ht_find(*a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
     if (l_tx_data) {
         l_declined = true;
     } else {
@@ -194,7 +194,7 @@ static void s_tx_header_print(dap_json_t *json_obj_datum, dap_chain_tx_hash_proc
             return;
         }
         l_tx_data->hash = *a_tx_hash;
-        HASH_ADD(hh, *a_tx_data_ht, hash, sizeof(*a_tx_hash), l_tx_data);
+        dap_ht_add(*a_tx_data_ht, hash, l_tx_data);
         if (a_ret_code)
             l_declined = true;
     }
@@ -723,7 +723,7 @@ int com_tx_history(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int 
     } else {
         // Find default TX chain
         dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
-        HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+        dap_ht_foreach(l_ledger->chains_registry, l_chain_info, l_tmp) {
             if (l_chain_info->chain_type == CHAIN_TYPE_TX) {
                 l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
                 break;

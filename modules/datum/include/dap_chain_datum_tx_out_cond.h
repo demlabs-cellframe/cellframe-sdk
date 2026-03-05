@@ -87,7 +87,7 @@ typedef struct dap_chain_tx_out_cond {
         /// Structure with specific for service pay condition subtype
         struct {
             /// Public key hash that could use this conditioned outout
-            dap_chain_hash_fast_t pkey_hash;
+            dap_hash_sha3_256_t pkey_hash;
             /// Price unit thats used to check price max
             dap_chain_net_srv_price_unit_uid_t unit;
             /// Maximum price per unit
@@ -114,7 +114,7 @@ typedef struct dap_chain_tx_out_cond {
         } DAP_ALIGN_PACKED srv_stake_pos_delegate;
         struct {
             dap_time_t		time_unlock;
-            dap_hash_fast_t	unused;
+            dap_hash_sha3_256_t	unused;
             uint256_t		reinvest_percent;
             uint32_t		flags;
             byte_t          padding[4];
@@ -123,7 +123,7 @@ typedef struct dap_chain_tx_out_cond {
             uint32_t signers_minimum;
         } DAP_ALIGN_PACKED wallet_shared;
         struct {
-            dap_hash_fast_t stake_ext_hash;     ///< Hash of the stake_ext this lock belongs to
+            dap_hash_sha3_256_t stake_ext_hash;     ///< Hash of the stake_ext this lock belongs to
             uint8_t range_end;                  ///< Ending range for CellSlot (1-8, range_start always = 1)
             byte_t padding[3];                  ///< Padding for alignment (increased by 1)
             uint32_t position_id;               ///< Position ID

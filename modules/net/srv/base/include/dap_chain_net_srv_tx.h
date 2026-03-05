@@ -60,7 +60,7 @@ extern "C" {
  */
 dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_output(
     dap_list_t *a_list_used_outs,
-    dap_hash_fast_t *a_pkey_cond_hash,
+    dap_hash_sha3_256_t *a_pkey_cond_hash,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     uint256_t a_value,
     uint256_t a_value_per_unit_max,
@@ -83,7 +83,7 @@ dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_output(
  * @return Unsigned TX or NULL on error
  */
 dap_chain_datum_tx_t *dap_net_srv_tx_create_cond_input(
-    dap_hash_fast_t *a_tx_prev_hash,
+    dap_hash_sha3_256_t *a_tx_prev_hash,
     uint32_t a_tx_out_prev_idx,
     dap_chain_datum_tx_receipt_t *a_receipt,
     const dap_chain_addr_t *a_addr_to,

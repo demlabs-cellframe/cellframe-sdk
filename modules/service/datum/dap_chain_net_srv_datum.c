@@ -30,6 +30,7 @@
 #include "dap_file_utils.h"
 // REMOVED: dap_chain_node_cli.h - breaks layering (CLI is high-level)
 // REMOVED: dap_chain_node_cli_cmd.h - breaks layering (CLI is high-level)
+#include "dap_chain_ledger.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_datum.h"
 
@@ -44,7 +45,7 @@ typedef enum s_com_srv_datum_err{
 static dap_chain_net_srv_t *s_srv_datum = NULL;
 static int s_srv_datum_cli(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a_version);
 
-void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg);
+void s_order_notficator(dap_global_db_store_obj_t *a_obj, void *a_arg);
 
 static bool s_tag_check_datum(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
@@ -214,9 +215,9 @@ static int s_srv_datum_cli(int argc, char ** argv, dap_json_t *a_json_arr_reply,
  * @param a_value
  * @param a_value_len
  */
-void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
+void s_order_notficator(dap_global_db_store_obj_t *a_obj, void *a_arg)
 {
-    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL)
+    if (dap_global_db_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;
     const char * a_obj_key_str = a_obj->key ? a_obj->key : "unknow";
 
@@ -224,7 +225,7 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
     const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(a_obj->key, a_obj->value, a_obj->value_len);    // Old format comliance
     if (!l_order) {
         log_it(L_NOTICE, "Order %s is corrupted", a_obj_key_str);
-        if (dap_global_db_driver_delete(a_obj, 1) != 0)
+        if (dap_global_db_del_sync(a_obj->group, a_obj->key) != 0)
             log_it(L_ERROR,"Can't delete order %s", a_obj_key_str);
         return; // order is corrupted
     }
@@ -243,12 +244,12 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
         DAP_DELETE(l_balance_service);
         return; // price from order is not equal with service price
     }
-    char l_tx_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(&l_order->tx_cond_hash, l_tx_cond_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    char l_tx_cond_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+    dap_hash_sha3_256_to_str(&l_order->tx_cond_hash, l_tx_cond_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
     dap_chain_t *l_chain;
     dap_chain_datum_t *l_datum = NULL;
     dap_chain_datum_tx_t *l_tx_cond = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
+    dap_dl_foreach(l_net->pub.chains, l_chain) {
         size_t l_datum_size;
         char *l_gdb_group = dap_chain_mempool_group_new(l_chain);
         l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group, l_tx_cond_hash_str, &l_datum_size, NULL, NULL);
@@ -269,7 +270,7 @@ void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
     if (!l_cond_out || l_cond_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY) {
         log_it(L_DEBUG, "Condition with required subtype SRV_PAY not found in requested tx");
     }
-    dap_hash_fast_t l_sign_hash;
+    dap_hash_sha3_256_t l_sign_hash;
     if (!dap_sign_get_pkey_hash((dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size), &l_sign_hash)) {
          log_it(L_DEBUG, "Wrong order sign");
          return;

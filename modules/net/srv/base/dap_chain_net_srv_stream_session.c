@@ -109,13 +109,13 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
 
     dap_chain_net_srv_grace_usage_t *l_item = NULL;
     pthread_mutex_lock(&a_srv_session->usage_active->service->grace_mutex);
-    HASH_FIND(hh, a_srv_session->usage_active->service->grace_hash_tab, &a_srv_session->usage_active->tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+    dap_ht_find(a_srv_session->usage_active->service->grace_hash_tab, &a_srv_session->usage_active->tx_cond_hash, sizeof(dap_hash_sha3_256_t), l_item);
     if (l_item){
         log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
         // Stop timer
         dap_timerfd_delete(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
         // finish grace
-        HASH_DEL(a_srv_session->usage_active->service->grace_hash_tab, l_item);
+        dap_ht_del(a_srv_session->usage_active->service->grace_hash_tab, l_item);
         DAP_DELETE(l_item->grace);
         DAP_DELETE(l_item);
     }
@@ -125,7 +125,7 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
         DAP_DEL_Z( a_srv_session->usage_active->receipt );
     if ( a_srv_session->usage_active->receipt_next )
         DAP_DEL_Z( a_srv_session->usage_active->receipt_next);
-    if (!dap_hash_fast_is_blank(&a_srv_session->usage_active->static_order_hash) && a_srv_session->usage_active->price)
+    if (!dap_hash_sha3_256_is_blank(&a_srv_session->usage_active->static_order_hash) && a_srv_session->usage_active->price)
         DAP_DEL_Z( a_srv_session->usage_active->price);
     if ( a_srv_session->usage_active->client ){
         for (dap_chain_net_srv_client_remote_t * l_srv_client = a_srv_session->usage_active->client, * tmp = NULL; l_srv_client; ){

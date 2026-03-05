@@ -98,7 +98,7 @@ int dap_chain_validator_api_mark_validator_active(dap_chain_addr_t *a_signing_ad
 /**
  * @brief Get public key by hash
  */
-dap_pkey_t* dap_chain_validator_api_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hash)
+dap_pkey_t* dap_chain_validator_api_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_sha3_256_t *a_hash)
 {
     VALIDATOR_API_CALL(get_pkey_by_hash, NULL, a_net_id, a_hash);
 }
@@ -107,7 +107,7 @@ dap_pkey_t* dap_chain_validator_api_get_pkey_by_hash(dap_chain_net_id_t a_net_id
  * @brief Delegate key
  */
 void dap_chain_validator_api_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr,
-    dap_hash_fast_t *a_decree_hash, dap_hash_fast_t *a_tx_hash, uint256_t a_value,
+    dap_hash_sha3_256_t *a_decree_hash, dap_hash_sha3_256_t *a_tx_hash, uint256_t a_value,
     dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey)
 {
     pthread_mutex_lock(&s_api_mutex);

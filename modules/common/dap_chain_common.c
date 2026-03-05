@@ -168,9 +168,9 @@ int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key,
         log_it(L_ERROR,"Can't fill address from key, its empty");
         return -1;
     }
-    dap_chain_hash_fast_t l_hash_public_key;
+    dap_hash_sha3_256_t l_hash_public_key;
     // serialized key -> key hash
-    dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key);
+    dap_hash_sha3_256(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key);
     dap_chain_addr_fill(a_addr, l_type, &l_hash_public_key, a_net_id);
     DAP_DELETE(l_pub_key_data);
     return 0;
@@ -178,7 +178,7 @@ int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key,
 
 int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id)
 {
-    dap_hash_fast_t l_sign_pkey_hash;
+    dap_hash_sha3_256_t l_sign_pkey_hash;
     if (!dap_sign_get_pkey_hash(a_sign, &l_sign_pkey_hash))
         return -1;
     dap_chain_addr_fill(a_addr, a_sign->header.type, &l_sign_pkey_hash, a_net_id);
@@ -193,16 +193,16 @@ int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, 
  * @param a_net_id
  * @return
  */
-void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id)
+void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_hash_sha3_256_t *a_pkey_hash, dap_chain_net_id_t a_net_id)
 {
     if(!a_addr || !a_pkey_hash)
         return;
     a_addr->addr_ver = DAP_CHAIN_ADDR_VERSION_CURRENT;
     a_addr->net_id.uint64 = a_net_id.uint64;
     a_addr->sig_type.raw = a_type.raw;
-    memcpy(a_addr->data.hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t));
+    memcpy(a_addr->data.hash, a_pkey_hash, sizeof(dap_hash_sha3_256_t));
     // calc checksum
-    dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &a_addr->checksum);
+    dap_hash_sha3_256(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_hash_sha3_256_t), &a_addr->checksum);
 }
 
 /**
@@ -216,9 +216,9 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
         return -1;
     if (dap_chain_addr_is_blank(a_addr))
         return 0;
-    dap_chain_hash_fast_t l_checksum;
+    dap_hash_sha3_256_t l_checksum;
     // calc checksum
-    dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &l_checksum);
+    dap_hash_sha3_256(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_hash_sha3_256_t), &l_checksum);
     return memcmp(a_addr->checksum.raw, l_checksum.raw, sizeof(l_checksum.raw));
 }
 

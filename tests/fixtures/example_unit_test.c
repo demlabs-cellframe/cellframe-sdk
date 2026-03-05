@@ -5,6 +5,7 @@
  */
 
 #include "unit_test_fixtures.h"
+#include "dap_hash_compat.h"
 #include "dap_common.h"
 #include "dap_chain_common.h"
 #include <assert.h>

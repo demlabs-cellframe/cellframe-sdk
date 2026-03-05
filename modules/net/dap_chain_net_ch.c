@@ -116,7 +116,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
         if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST)
             return log_it(L_ATT, "Receive test data packet with hash %s", 
-                                 dap_get_data_hash_str(l_ch_pkt->data, l_ch_pkt->hdr.data_size).s), false;
+                                 dap_hash_sha3_256_data_to_str(l_ch_pkt->data, l_ch_pkt->hdr.data_size).s), false;
         if (l_ch_pkt->hdr.data_size < sizeof(dap_chain_net_ch_pkt_t))
             return log_it(L_WARNING, "Too small stream channel N packet size %u (header size %zu)",
                                     l_ch_pkt->hdr.data_size, sizeof(dap_chain_net_ch_pkt_t)), false;
@@ -214,7 +214,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             dap_list_t * l_orders = NULL;
             dap_enc_key_t *l_enc_key_pvt = NULL;
             dap_chain_t *l_chain = NULL;
-            DL_FOREACH(l_net->pub.chains, l_chain)
+            dap_dl_foreach(l_net->pub.chains, l_chain)
                 if (!dap_strcmp(dap_chain_get_cs_type(l_chain), "esbocs")) {
                     // TODO Phase 5.4: Use consensus API for sign key (avoid esbocs dependency)
                     // l_enc_key_pvt = dap_chain_cs_get_sign_key(l_chain);

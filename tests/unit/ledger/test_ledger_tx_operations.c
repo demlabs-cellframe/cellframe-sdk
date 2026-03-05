@@ -1,7 +1,7 @@
 /**
  * @file test_ledger_tx_operations.c
  * @brief Comprehensive unit tests for ledger TX operations
- * @details Demonstrates DAP Mock Framework with custom mocks using PARAM macros
+ * @details Demonstrates DAP Mock Framework with custom mocks
  * 
  * @author Cellframe Development Team
  * @date 2026-01-12
@@ -15,6 +15,7 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_common.h"
 #include "dap_hash.h"
+#include "dap_hash_compat.h"
 #include "dap_enc_key.h"
 #include "dap_time.h"
 #include "dap_chain_tx_compose_api.h"
@@ -42,7 +43,7 @@ DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_add, DAP_MOCK_CONFIG_DEFAULT);
 DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_get_token_ticker_by_hash, DAP_MOCK_CONFIG_DEFAULT);
 
 DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
-    (dap_ledger_t* a_ledger, dap_hash_fast_t* a_tx_hash)
+    (dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_find_by_hash;
     dap_chain_datum_tx_t* l_result = NULL;
@@ -66,7 +67,7 @@ DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
 }
 
 DAP_MOCK_WRAPPER_CUSTOM(int, dap_ledger_tx_add,
-    (dap_ledger_t* a_ledger, dap_chain_datum_tx_t* a_tx, dap_hash_fast_t* a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t* a_datum_index_data)
+    (dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_add;
     if (!a_ledger || !a_tx || !a_tx_hash) {
@@ -81,7 +82,7 @@ DAP_MOCK_WRAPPER_CUSTOM(int, dap_ledger_tx_add,
 }
 
 DAP_MOCK_WRAPPER_CUSTOM(const char*, dap_ledger_tx_get_token_ticker_by_hash,
-    (dap_ledger_t* a_ledger, dap_hash_fast_t* a_tx_hash)
+    (dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_get_token_ticker_by_hash;
     if (a_tx_hash) {
@@ -320,7 +321,7 @@ int main(void)
     test_mock_return_override();
     test_null_return();
     
-    // Custom mock tests demonstrating PARAM syntax
+    // Custom mock tests
     test_custom_mock_zero_hash();
     test_custom_mock_ticker_by_hash();
     test_custom_mock_null_validation();
@@ -331,7 +332,7 @@ int main(void)
     
     log_it(L_INFO, "========================================");
     log_it(L_INFO, "✅ ALL LEDGER UNIT TESTS PASSED (8/8)");
-    log_it(L_INFO, "✅ DAP_MOCK_WRAPPER_CUSTOM without PARAM!");
+    log_it(L_INFO, "✅ DAP_MOCK_WRAPPER_CUSTOM works!");
     log_it(L_INFO, "========================================");
     
     return 0;

@@ -13,6 +13,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_COMMON_SRCS})
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC .)
+target_link_libraries(${PROJECT_NAME} dap_hash_table)
 
 # Only depends on DAP SDK for basic types
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_global_db dap_link_manager)

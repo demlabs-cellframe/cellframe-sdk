@@ -89,10 +89,10 @@ enum error_code {
 };
 
 typedef struct dap_ledger_token_emission_for_stake_lock_item {
-    dap_chain_hash_fast_t	datum_token_emission_for_stake_lock_hash;
-    dap_chain_hash_fast_t	tx_used_out;
-//	const char 				datum_token_emission_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    UT_hash_handle hh;
+    dap_hash_sha3_256_t	datum_token_emission_for_stake_lock_hash;
+    dap_hash_sha3_256_t	tx_used_out;
+//	const char 				datum_token_emission_hash[DAP_HASH_SHA3_256_STR_SIZE];
+    dap_ht_handle_t hh;
 } dap_ledger_token_emission_for_stake_lock_item_t;
 
 #define LOG_TAG		"dap_chain_net_stake_lock"
@@ -110,14 +110,14 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
                                                     int *res);
 // Create unlock datum
 static dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
-                                               dap_hash_fast_t *a_stake_tx_hash, uint32_t a_prev_cond_idx,
+                                               dap_hash_sha3_256_t *a_stake_tx_hash, uint32_t a_prev_cond_idx,
                                                const char *a_main_ticker, uint256_t a_value,
                                                uint256_t a_value_fee,
                                                const char *a_delegated_ticker_str, uint256_t a_delegated_value,
                                                int *res);
 // Callbacks
-static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_cond);
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
+static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_sha3_256_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_cond);
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_sha3_256_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool);
 
 static inline int s_tsd_str_cmp(const byte_t *a_tsdata, size_t a_tsdsize,  const char *str ) {
     size_t l_strlen = (size_t)strlen(str);
@@ -242,7 +242,7 @@ static bool s_tag_check_staking(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
         return false;
 
     dap_chain_tx_in_ems_t *l_tx_in_ems = a_items_grp->items_in_ems->data;
-    dap_hash_fast_t ems_hash = l_tx_in_ems->header.token_emission_hash;
+    dap_hash_sha3_256_t ems_hash = l_tx_in_ems->header.token_emission_hash;
     dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(a_ledger, &ems_hash);
     if(l_emission) {   
         bool success = s_get_ems_staking_action(l_emission, a_action);
@@ -493,7 +493,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     char 								*l_datum_hash_str;
     dap_ledger_t						*l_ledger;
     dap_chain_wallet_t					*l_wallet;
-    dap_hash_fast_t						l_tx_hash;
+    dap_hash_sha3_256_t						l_tx_hash;
     dap_chain_datum_tx_t				*l_cond_tx;
     dap_chain_tx_out_cond_t				*l_tx_out_cond;
     dap_enc_key_t						*l_owner_key;
@@ -531,7 +531,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     ||	NULL == l_tx_str)
         return TX_ARG_ERROR;
 
-    if (dap_chain_hash_fast_from_str(l_tx_str, &l_tx_hash))
+    if (dap_hash_sha3_256_from_str(l_tx_str, &l_tx_hash))
         return HASH_IS_BLANK_ERROR;
 
     l_ledger = l_net->pub.ledger;
@@ -1014,12 +1014,12 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool)
+static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_sha3_256_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond, bool a_owner, bool a_from_mempool)
 {
     dap_chain_datum_tx_t									*l_burning_tx       = NULL;
     dap_chain_datum_tx_receipt_old_t						*l_receipt        = NULL;
     uint256_t												l_value_delegated   = {};
-    dap_hash_fast_t											l_burning_tx_hash;
+    dap_hash_sha3_256_t											l_burning_tx_hash;
     dap_chain_tx_in_cond_t									*l_tx_in_cond;
     const char												*l_prev_tx_ticker;
     dap_chain_datum_token_t									*l_delegated_token;
@@ -1035,7 +1035,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
     if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(
                                                             a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL)))
         return -3;
-    if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+    if (dap_hash_sha3_256_is_blank(&l_tx_in_cond->header.tx_prev_hash))
         return -3;
     if (NULL == (l_prev_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(
                                                             a_ledger, &l_tx_in_cond->header.tx_prev_hash)))
@@ -1059,7 +1059,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
         if (l_receipt) {
             if (a_from_mempool) { // It's mempool process, so we don't accept f*cking legacy!
                 log_it(L_WARNING, "Legacy stakes are not accepted from mempool anymore! Dismiss unstake tx %s",
-                                   dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
+                                   dap_hash_sha3_256_data_to_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
                 return -    DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN;
             }
             // Legacy stake lock verification
@@ -1067,17 +1067,17 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
                 return -13;
             if (!dap_chain_net_srv_uid_compare_scalar(l_receipt->receipt_info.srv_uid, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID))
                 return -7;
-            if (l_receipt->exts_size < sizeof(dap_hash_fast_t))
+            if (l_receipt->exts_size < sizeof(dap_hash_sha3_256_t))
                 return -8;
-            l_burning_tx_hash = *(dap_hash_fast_t*)(l_receipt->exts_n_signs);
-            if (dap_hash_fast_is_blank(&l_burning_tx_hash))
+            l_burning_tx_hash = *(dap_hash_sha3_256_t*)(l_receipt->exts_n_signs);
+            if (dap_hash_sha3_256_is_blank(&l_burning_tx_hash))
                 return -9;
             l_burning_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_burning_tx_hash);
             if (!l_burning_tx) {
-                char l_burning_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
-                dap_hash_fast_to_str(&l_burning_tx_hash, l_burning_tx_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                char l_burning_tx_hash_str[DAP_HASH_SHA3_256_STR_SIZE] = { '\0' };
+                dap_hash_sha3_256_to_str(&l_burning_tx_hash, l_burning_tx_hash_str, DAP_HASH_SHA3_256_STR_SIZE);
                 debug_if(s_debug_more, L_ERROR, "[Legacy] Can't find burning tx with hash %s, obtained from the receipt of take tx %s",
-                                                l_burning_tx_hash_str, dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
+                                                l_burning_tx_hash_str, dap_hash_sha3_256_data_to_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
                 return -10;
             }
         } else
@@ -1143,7 +1143,7 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_d
  * @param a_tx_item_idx
  * @return
  */
-static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_cond)
+static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_sha3_256_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_out_cond)
 {
     if (a_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX)
         dap_ledger_emission_for_stake_lock_item_add(a_ledger, a_tx_in_hash);
@@ -1226,7 +1226,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         // add 'in_ems' item
         {
             dap_chain_id_t l_chain_id = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX)->id;
-            dap_hash_fast_t l_blank_hash = {};
+            dap_hash_sha3_256_t l_blank_hash = {};
             dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(l_chain_id, &l_blank_hash, a_delegated_ticker_str);
             if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems) == -1) {
                 log_it(L_ERROR, "Can't add IN_EMS item");
@@ -1341,13 +1341,13 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
 }
 
 dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
-                                               dap_hash_fast_t *a_stake_tx_hash, uint32_t a_prev_cond_idx,
+                                               dap_hash_sha3_256_t *a_stake_tx_hash, uint32_t a_prev_cond_idx,
                                                const char *a_main_ticker, uint256_t a_value,
                                                uint256_t a_value_fee,
                                                const char *a_delegated_ticker_str, uint256_t a_delegated_value, int *result)
 {
     // check valid param
-    if (!a_net || !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || dap_hash_fast_is_blank(a_stake_tx_hash)) {
+    if (!a_net || !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || dap_hash_sha3_256_is_blank(a_stake_tx_hash)) {
         *result = -1;
         return log_it(L_CRITICAL, "Invalid arg"), NULL;
     }

@@ -23,7 +23,7 @@
 */
 
 #include "dap_common.h"
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_chain_cs_type.h"
 
 #define DAP_CHAIN_CS_NAME_STRLEN_MAX        32
@@ -33,7 +33,7 @@
 typedef struct dap_chain_type_callbacks_item {
     char name[DAP_CHAIN_CS_CLASS_NAME_STRLEN_MAX];
     dap_chain_type_callbacks_t callbacks;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_type_callbacks_item_t;
 
 #define LOG_TAG "dap_chain_cs"
@@ -56,8 +56,8 @@ int dap_chain_type_init(void)
 void dap_chain_type_deinit(void)
 {
     dap_chain_type_callbacks_item_t *l_item, *l_tmp;
-    HASH_ITER(hh, s_type_callbacks, l_item, l_tmp) {
-        HASH_DEL(s_type_callbacks, l_item);
+    dap_ht_foreach(s_type_callbacks, l_item, l_tmp) {
+        dap_ht_del(s_type_callbacks, l_item);
         DAP_DELETE(l_item);
     }
     log_it(L_INFO, "Chain type registry cleaned up");
@@ -73,7 +73,7 @@ void dap_chain_type_add(const char *a_cs_str, dap_chain_type_callbacks_t a_callb
     dap_chain_type_callbacks_item_t *l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_type_callbacks_item_t);
     dap_strncpy(l_item->name, a_cs_str, sizeof (l_item->name));
     l_item->callbacks = a_callbacks;
-    HASH_ADD_STR(s_type_callbacks, name, l_item);
+    dap_ht_add_str(s_type_callbacks, name, l_item);
 }
 
 /**
@@ -85,7 +85,7 @@ void dap_chain_type_add(const char *a_cs_str, dap_chain_type_callbacks_t a_callb
 int dap_chain_type_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_type_callbacks_item_t *l_item = NULL;
-    HASH_FIND_STR(s_type_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
+    dap_ht_find_str(s_type_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
     return l_item && l_item->callbacks.callback_init
         ? l_item->callbacks.callback_init(a_chain, a_chain_cfg)
         : -1;
@@ -94,7 +94,7 @@ int dap_chain_type_create(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 int dap_chain_type_delete(dap_chain_t *a_chain)
 {
     dap_chain_type_callbacks_item_t *l_item = NULL;
-    HASH_FIND_STR(s_type_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
+    dap_ht_find_str(s_type_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
     dap_return_val_if_fail_err(l_item, -1, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name);
     return l_item->callbacks.callback_delete
         ? l_item->callbacks.callback_delete(a_chain)
@@ -104,7 +104,7 @@ int dap_chain_type_delete(dap_chain_t *a_chain)
 int dap_chain_type_purge(dap_chain_t *a_chain)
 {
     dap_chain_type_callbacks_item_t *l_item = NULL;
-    HASH_FIND_STR(s_type_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
+    dap_ht_find_str(s_type_callbacks, DAP_CHAIN_PVT(a_chain)->cs_type, l_item);
     dap_return_val_if_fail_err(l_item, -1, "Callbacks for cs %s not found!", DAP_CHAIN_PVT(a_chain)->cs_name);
     return l_item->callbacks.callback_purge
         ? l_item->callbacks.callback_purge(a_chain)

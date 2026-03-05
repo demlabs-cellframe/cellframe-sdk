@@ -89,7 +89,7 @@ static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_db
  * @param a_obj Store object being deleted (contains datum from mempool)
  * @param a_arg Custom argument (chain pointer)
  */
-static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
+static void s_mempool_ttl_delete_callback(dap_global_db_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_obj) {
         log_it(L_WARNING, "Received NULL object in mempool TTL delete callback");
@@ -100,7 +100,7 @@ static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
     if (!l_chain) {
         log_it(L_WARNING, "Chain context is NULL in mempool TTL delete callback for group %s key %s", 
                a_obj->group, a_obj->key);
-        dap_global_db_driver_delete(a_obj, 1);
+        dap_global_db_del_sync(a_obj->group, a_obj->key);
         return;
     }
 
@@ -108,7 +108,7 @@ static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
     dap_global_db_cluster_t *l_cluster = dap_chain_net_get_mempool_cluster(l_chain);
     if (!l_cluster) {
         log_it(L_WARNING, "Can't find mempool cluster for chain %s", l_chain->name);
-        dap_global_db_driver_delete(a_obj, 1);
+        dap_global_db_del_sync(a_obj->group, a_obj->key);
         return;
     }
 
@@ -148,7 +148,7 @@ static void s_mempool_ttl_delete_callback(dap_store_obj_t *a_obj, void *a_arg)
     }
 
     // Actually delete the record from GlobalDB
-    dap_global_db_driver_delete(a_obj, 1);
+    dap_global_db_del_sync(a_obj->group, a_obj->key);
 }
 
 /**
@@ -164,7 +164,7 @@ int dap_chain_mempool_delete_callback_init()
         dap_chain_t *l_chain = NULL;
         
         // Iterate through all chains in the network
-        DL_FOREACH(l_net->pub.chains, l_chain) {
+        dap_dl_foreach(l_net->pub.chains, l_chain) {
             // Get the mempool cluster for this chain
             dap_global_db_cluster_t *l_cluster = dap_chain_net_get_mempool_cluster(l_chain);
             
@@ -216,9 +216,9 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 {
     dap_return_val_if_pass(!a_datum, NULL);
 
-    dap_chain_hash_fast_t l_key_hash;
+    dap_hash_sha3_256_t l_key_hash;
     dap_chain_datum_calc_hash(a_datum, &l_key_hash);
-    char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    char *l_key_str = dap_hash_sha3_256_to_str_new(&l_key_hash);
     const char *l_key_str_out = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
             : l_key_str;
@@ -234,7 +234,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
         uint64_t l_net_id = l_emission ? l_emission->hdr.address.net_id.uint64 : 0;
         DAP_DELETE(l_emission);
         if (l_net_id != a_chain->net_id.uint64) {
-            log_it(L_WARNING, "Datum emission with hash %s NOT placed in mempool: wallet addr net ID %lu != %lu chain net ID",
+            log_it(L_WARNING, "Datum emission with hash %s NOT placed in mempool: wallet addr net ID %"DAP_UINT64_FORMAT_U" != %"DAP_UINT64_FORMAT_U" chain net ID",
                    l_key_str_out, l_net_id, a_chain->net_id.uint64);
             DAP_DELETE(l_key_str);
             return NULL;
@@ -281,7 +281,7 @@ char *dap_chain_mempool_group_new(dap_chain_t *a_chain)
  * @param a_out_idx Output index
  * @return true if used
  */
-bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx)
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_out_hash, uint32_t a_out_idx)
 {
     // Check if this UTXO is spent by any TX in mempool
     if (!a_net || !a_out_hash)
@@ -289,7 +289,7 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
     
     // Iterate through all chains in network
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(a_net->pub.chains, l_chain) {
+    dap_dl_foreach(a_net->pub.chains, l_chain) {
         char *l_gdb_group = dap_chain_mempool_group_new(l_chain);
         if (!l_gdb_group)
             continue;
@@ -315,7 +315,7 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
                     continue;
                 
                 dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t *)l_item;
-                if (dap_hash_fast_compare(&l_in->header.tx_prev_hash, a_out_hash) &&
+                if (dap_hash_sha3_256_compare(&l_in->header.tx_prev_hash, a_out_hash) &&
                     l_in->header.tx_out_prev_idx == a_out_idx) {
                     dap_global_db_objs_delete(l_objs, l_objs_count);
                     return true;  // Found: output is spent
@@ -368,7 +368,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed)
  * @details Creates a transaction that spends an emission. The emission value goes to the
  *          specified destination address, minus any fees.
  */
-char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
+char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_hash_sha3_256_t *a_emission_hash,
                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, 
                                        const char *a_ticker, dap_chain_addr_t *a_addr_to, 
                                        dap_enc_key_t *a_private_key, const char *a_hash_out_type, 
@@ -395,8 +395,8 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
            l_net->pub.name, a_chain->name, (void*)a_addr_to);
 
     if (!a_addr_to) {
-        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
+        char l_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
+        dap_hash_sha3_256_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
         log_it(L_INFO, "Looking for emission with hash: %s in ledger %p", l_hash_str, (void*)l_net->pub.ledger);
         
         dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(l_net->pub.ledger, a_emission_hash);

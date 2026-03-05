@@ -47,7 +47,7 @@ typedef int (*dap_chain_rpc_consensus_callback_t)(dap_chain_rpc_consensus_params
 typedef struct dap_chain_rpc_storage_params {
     dap_chain_t *chain;
     dap_chain_net_t *net;
-    dap_hash_fast_t *block_hash;
+    dap_hash_sha3_256_t *block_hash;
     void *custom_data;
 } dap_chain_rpc_storage_params_t;
 
@@ -87,7 +87,7 @@ typedef int (*dap_chain_rpc_wallet_callback_t)(dap_chain_rpc_wallet_params_t *pa
 typedef struct dap_chain_rpc_tx_notify_params {
     dap_chain_net_t *net;
     dap_chain_datum_t *tx_datum;
-    dap_hash_fast_t *tx_hash;
+    dap_hash_sha3_256_t *tx_hash;
     dap_ledger_t *ledger;
     void *custom_data;
 } dap_chain_rpc_tx_notify_params_t;

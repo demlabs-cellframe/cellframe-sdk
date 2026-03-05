@@ -148,11 +148,11 @@ DAP_STATIC_INLINE uint64_t dap_chain_datum_size(const dap_chain_datum_t *a_datum
     return (uint64_t)sizeof(a_datum->header) + a_datum->header.data_size;
 }
 
-DAP_STATIC_INLINE void dap_chain_datum_calc_hash(const dap_chain_datum_t *a_datum, dap_hash_fast_t *a_out_hash)
+DAP_STATIC_INLINE void dap_chain_datum_calc_hash(const dap_chain_datum_t *a_datum, dap_hash_sha3_256_t *a_out_hash)
 {
     if (!a_datum || !a_out_hash)
         return;
-    dap_hash_fast(a_datum->header.data_size ? a_datum->data : (void *)a_datum,
+    dap_hash_sha3_256(a_datum->header.data_size ? a_datum->data : (void *)a_datum,
                   a_datum->header.data_size ? a_datum->header.data_size : dap_chain_datum_size(a_datum),
                   a_out_hash);
 }
@@ -183,7 +183,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
                              const char *a_ticker,
                              dap_json_t *json_obj_out,
                              const char *a_hash_out_type,
-                             dap_hash_fast_t *a_tx_hash,
+                             dap_hash_sha3_256_t *a_tx_hash,
                              dap_chain_net_id_t a_net_id,
                              int a_version);
 dap_json_t *dap_chain_datum_to_json(dap_chain_datum_t *a_datum);

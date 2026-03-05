@@ -26,6 +26,7 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_ledger.h"
 #include "dap_enc_base58.h"
+#include "dap_ht.h"
 
 #define LOG_TAG "ledger_cli_token"
 
@@ -160,7 +161,7 @@ static size_t s_db_net_history_token_list(dap_json_t *a_json_arr_reply,
     
     // Iterate through registered chains in ledger
     dap_chain_info_t *l_chain_info, *l_tmp;
-    HASH_ITER(hh, a_ledger->chains_registry, l_chain_info, l_tmp) {
+    dap_ht_foreach(a_ledger->chains_registry, l_chain_info, l_tmp) {
         dap_chain_t *l_chain_cur = (dap_chain_t *)l_chain_info->chain_ptr;
         if (!l_chain_cur) continue;
         

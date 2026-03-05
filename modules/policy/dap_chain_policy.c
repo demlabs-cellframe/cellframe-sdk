@@ -21,7 +21,7 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_chain_policy.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_decree.h"
@@ -34,14 +34,14 @@ typedef struct dap_policy_decree_handler {
     uint16_t decree_subtype;
     dap_chain_policy_decree_callback_t callback;
     void *arg;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_policy_decree_handler_t;
 
 typedef struct dap_policy_anchor_handler {
     uint16_t anchor_subtype;
     dap_chain_policy_anchor_callback_t callback;
     void *arg;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_policy_anchor_handler_t;
 
 static dap_policy_decree_handler_t *s_policy_decree_handlers = NULL;
@@ -58,7 +58,7 @@ static int s_policy_decree_dispatcher(dap_chain_datum_decree_t *a_decree, dap_ch
     dap_policy_decree_handler_t *l_handler = NULL;
     
     pthread_rwlock_rdlock(&s_policy_decree_rwlock);
-    HASH_FIND(hh, s_policy_decree_handlers, &l_subtype, sizeof(uint16_t), l_handler);
+    dap_ht_find(s_policy_decree_handlers, &l_subtype, sizeof(uint16_t), l_handler);
     pthread_rwlock_unlock(&s_policy_decree_rwlock);
     
     if (l_handler && l_handler->callback) {
@@ -72,13 +72,13 @@ static int s_policy_decree_dispatcher(dap_chain_datum_decree_t *a_decree, dap_ch
 /**
  * @brief Generic anchor dispatcher - called by ledger
  */
-static int s_policy_anchor_dispatcher(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_fast_t *a_anchor_hash, void *a_arg)
+static int s_policy_anchor_dispatcher(dap_chain_datum_anchor_t *a_anchor, dap_chain_t *a_chain, dap_hash_sha3_256_t *a_anchor_hash, void *a_arg)
 {
     uint16_t l_subtype = a_anchor->header.sub_type;
     dap_policy_anchor_handler_t *l_handler = NULL;
     
     pthread_rwlock_rdlock(&s_policy_anchor_rwlock);
-    HASH_FIND(hh, s_policy_anchor_handlers, &l_subtype, sizeof(uint16_t), l_handler);
+    dap_ht_find(s_policy_anchor_handlers, &l_subtype, sizeof(uint16_t), l_handler);
     pthread_rwlock_unlock(&s_policy_anchor_rwlock);
     
     if (l_handler && l_handler->callback) {
@@ -113,7 +113,7 @@ int dap_chain_policy_decree_callback_register(
     l_handler->arg = a_arg;
     
     pthread_rwlock_wrlock(&s_policy_decree_rwlock);
-    HASH_ADD(hh, s_policy_decree_handlers, decree_subtype, sizeof(uint16_t), l_handler);
+    dap_ht_add(s_policy_decree_handlers, decree_subtype, l_handler);
     pthread_rwlock_unlock(&s_policy_decree_rwlock);
     
     log_it(L_INFO, "Registered policy decree callback for subtype %u", a_decree_subtype);
@@ -144,7 +144,7 @@ int dap_chain_policy_anchor_callback_register(
     l_handler->arg = a_arg;
     
     pthread_rwlock_wrlock(&s_policy_anchor_rwlock);
-    HASH_ADD(hh, s_policy_anchor_handlers, anchor_subtype, sizeof(uint16_t), l_handler);
+    dap_ht_add(s_policy_anchor_handlers, anchor_subtype, l_handler);
     pthread_rwlock_unlock(&s_policy_anchor_rwlock);
     
     log_it(L_INFO, "Registered policy anchor callback for subtype %u", a_anchor_subtype);
@@ -187,15 +187,15 @@ void dap_chain_policy_deinit(void)
     
     // Free decree handlers
     dap_policy_decree_handler_t *l_handler, *l_tmp;
-    HASH_ITER(hh, s_policy_decree_handlers, l_handler, l_tmp) {
-        HASH_DEL(s_policy_decree_handlers, l_handler);
+    dap_ht_foreach(s_policy_decree_handlers, l_handler, l_tmp) {
+        dap_ht_del(s_policy_decree_handlers, l_handler);
         DAP_DELETE(l_handler);
     }
     
     // Free anchor handlers
     dap_policy_anchor_handler_t *l_anchor_handler, *l_anchor_tmp;
-    HASH_ITER(hh, s_policy_anchor_handlers, l_anchor_handler, l_anchor_tmp) {
-        HASH_DEL(s_policy_anchor_handlers, l_anchor_handler);
+    dap_ht_foreach(s_policy_anchor_handlers, l_anchor_handler, l_anchor_tmp) {
+        dap_ht_del(s_policy_anchor_handlers, l_anchor_handler);
         DAP_DELETE(l_anchor_handler);
     }
     

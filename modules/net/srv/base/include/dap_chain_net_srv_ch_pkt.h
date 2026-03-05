@@ -103,11 +103,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 // TYPE_REQUEST
 typedef struct dap_chain_net_srv_ch_pkt_request_hdr{
     dap_chain_net_id_t net_id;// Network id wheither to request
-    dap_chain_hash_fast_t tx_cond; // Conditioned transaction with paymemt for
+    dap_hash_sha3_256_t tx_cond; // Conditioned transaction with paymemt for
     dap_chain_srv_uid_t srv_uid;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
-    dap_chain_hash_fast_t client_pkey_hash;
-    dap_chain_hash_fast_t order_hash;
+    dap_hash_sha3_256_t client_pkey_hash;
+    dap_hash_sha3_256_t order_hash;
 } DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_request_hdr_t;
 
 typedef struct dap_chain_net_srv_ch_pkt_request{
@@ -159,7 +159,7 @@ typedef struct dap_chain_net_srv_ch_pkt_test {
     char                    host_send[DAP_HOSTADDR_STRLEN], host_recv[DAP_HOSTADDR_STRLEN];
     int32_t                 err_code;
     uint64_t                data_size_send, data_size_recv, data_size;
-    dap_chain_hash_fast_t   data_hash;
+    dap_hash_sha3_256_t   data_hash;
     uint8_t                 data[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_ch_pkt_test_t;
 

@@ -141,7 +141,7 @@ int dap_chain_net_srv_client_check(
     
     if (a_data && a_data_size > 0) {
         memcpy(l_request->data, a_data, a_data_size);
-        dap_hash_fast(l_request->data, l_request->data_size, &l_request->data_hash);
+        dap_hash_sha3_256(l_request->data, l_request->data_size, &l_request->data_hash);
     }
     
     // Send request and wait for response
@@ -175,9 +175,9 @@ int dap_chain_net_srv_client_check(
     dap_chain_net_srv_ch_pkt_test_t *l_response = (dap_chain_net_srv_ch_pkt_test_t *)l_response_data;
     
     // Verify hash
-    dap_chain_hash_fast_t l_data_hash;
-    dap_hash_fast(l_response->data, l_response->data_size, &l_data_hash);
-    if (!dap_hash_fast_compare(&l_data_hash, &l_response->data_hash)) {
+    dap_hash_sha3_256_t l_data_hash;
+    dap_hash_sha3_256(l_response->data, l_response->data_size, &l_data_hash);
+    if (!dap_hash_sha3_256_compare(&l_data_hash, &l_response->data_hash)) {
         log_it(L_WARNING, "Service check: response hash mismatch");
         DAP_DELETE(l_response_data);
         return DAP_SRV_CLIENT_ERROR_WRONG_RESPONSE;
@@ -200,7 +200,7 @@ int dap_chain_net_srv_client_request(
     dap_chain_net_srv_client_t *a_client,
     dap_chain_net_id_t a_net_id,
     dap_chain_srv_uid_t a_srv_uid,
-    dap_chain_hash_fast_t *a_tx_cond,
+    dap_hash_sha3_256_t *a_tx_cond,
     dap_chain_net_srv_ch_pkt_success_t **a_out_success,
     size_t *a_out_size,
     int a_timeout_ms)

@@ -34,13 +34,13 @@
 typedef struct dap_chain_tx_in{
     struct {
         dap_chain_tx_item_type_t type; /// @param    type            @brief Transaction item type
-        dap_chain_hash_fast_t tx_prev_hash; /// @param tx_prev_hash    @brief Hash of the previous transaction. 0 for generation TX
+        dap_hash_sha3_256_t tx_prev_hash; /// @param tx_prev_hash    @brief Hash of the previous transaction. 0 for generation TX
         uint32_t tx_out_prev_idx DAP_ALIGNED(4); ///      @param   tx_prev_idx     @brief Previous tx_out index. 0 for generation TX
     } DAP_PACKED header; /// Only header's hash is used for verification
 } DAP_PACKED dap_chain_tx_in_t;
 
 typedef struct dap_chain_tx_used_out_item {
-    dap_chain_hash_fast_t tx_hash_fast;
+    dap_hash_sha3_256_t tx_hash_fast;
     uint32_t num_idx_out;
     uint256_t value;
 } dap_chain_tx_used_out_item_t;

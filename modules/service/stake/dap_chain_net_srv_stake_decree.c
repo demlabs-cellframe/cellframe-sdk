@@ -38,8 +38,8 @@ static int s_decree_stake_approve_handler(
     bool a_anchored)
 {
     dap_return_val_if_fail(a_decree && a_net, -100);
-    
-    dap_hash_fast_t l_hash = {};
+
+    dap_hash_sha3_256_t l_hash = {};
     uint256_t l_value = {};
     dap_chain_addr_t l_addr = {};
     dap_chain_node_addr_t l_node_addr = {};
@@ -72,8 +72,8 @@ static int s_decree_stake_approve_handler(
     }
     if (!a_apply)
         return 0;
-    dap_hash_fast_t l_decree_hash = {};
-    dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+    dap_hash_sha3_256_t l_decree_hash = {};
+    dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
     dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_decree_hash, &l_hash, l_value, &l_node_addr, dap_chain_datum_decree_get_pkey(a_decree));
     if (!dap_chain_net_get_load_mode(a_net))
         dap_chain_net_srv_stake_add_approving_decree_info(a_decree, a_net);

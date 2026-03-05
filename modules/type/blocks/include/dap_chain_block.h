@@ -53,7 +53,7 @@ typedef struct dap_chain_block_hdr{
     dap_time_t ts_created; /// @param timestamp @brief Block create time timestamp
     uint16_t meta_count; // Meta values number
     uint16_t datum_count; // Datums's count
-    dap_chain_hash_fast_t merkle;
+    dap_hash_sha3_256_t merkle;
     uint32_t meta_n_datum_n_signs_size; // Meta&Datum&Signs section size
 } DAP_ALIGN_PACKED dap_chain_block_hdr_t;
 
@@ -100,16 +100,16 @@ int dap_chain_block_init();
 void dap_chain_block_deinit();
 
 // Create new block
-dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size_t *a_block_size);
+dap_chain_block_t *dap_chain_block_new(dap_hash_sha3_256_t *a_prev_block, size_t *a_block_size);
 
 // Add metadata in block
 size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, uint8_t a_meta_type, const void * a_data, size_t a_data_size);
 uint8_t *dap_chain_block_meta_get(const dap_chain_block_t *a_block, size_t a_block_size, uint8_t a_meta_type);
 int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size,
-                                 dap_chain_hash_fast_t *a_block_prev_hash,
-                                 dap_chain_hash_fast_t *a_block_anchor_hash,
-                                 dap_chain_hash_fast_t *a_merkle,
-                                 dap_chain_hash_fast_t **a_block_links,
+                                 dap_hash_sha3_256_t *a_block_prev_hash,
+                                 dap_hash_sha3_256_t *a_block_anchor_hash,
+                                 dap_hash_sha3_256_t *a_merkle,
+                                 dap_hash_sha3_256_t **a_block_links,
                                  size_t *a_block_links_count,
                                  bool *a_is_genesis,
                                  uint64_t *a_nonce,
@@ -118,7 +118,7 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
                                  bool *a_blockgen);
 // Add datum in block
 size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size);
-size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);
+size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_hash_sha3_256_t* a_datum_hash);
 
 // Add sign in block
 size_t dap_chain_block_sign_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_enc_key_t *a_key);
@@ -127,7 +127,7 @@ bool dap_chain_block_sign_match_pkey(const dap_chain_block_t *a_block, size_t a_
 size_t dap_chain_block_get_signs_count(const dap_chain_block_t *a_block, size_t a_block_size);
 size_t dap_chain_block_get_sign_offset(const dap_chain_block_t *a_block, size_t a_block_size);
 
-dap_hash_fast_t *dap_chain_block_get_prev_hash(const dap_chain_block_t *a_block, size_t a_block_size);
+dap_hash_sha3_256_t *dap_chain_block_get_prev_hash(const dap_chain_block_t *a_block, size_t a_block_size);
 
 // Create and return datums list
 dap_chain_datum_t** dap_chain_block_get_datums(const dap_chain_block_t * a_block, size_t a_block_size,size_t * a_datums_count );

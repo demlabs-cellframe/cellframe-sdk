@@ -30,7 +30,7 @@
 #include "dap_chain.h"
 #include "dap_list.h"
 #include "dap_chain_ch_pkt.h"
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_global_db_cluster.h"
 
 #define DAP_CHAIN_CH_ID 'C'

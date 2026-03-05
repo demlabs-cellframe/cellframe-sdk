@@ -29,7 +29,7 @@ target_link_libraries(${PROJECT_NAME}
     dap_http_server dap_chain_datum dap_cli_server dap_chain_net_core
     dap_chain_tx_compose
     dap_chain_ledger_cli
-    dap_chain_wallet)  # Wallet is LOWER than ledger (crypto + keys only, no ledger deps)
+    dap_chain_wallet dap_timer)  # Wallet is LOWER than ledger (crypto + keys only, no ledger deps)
 # REMOVED dap_chain_mempool - creates CYCLE (mempool depends on ledger already)
 # Mempool will register callbacks in ledger if needed
 target_include_directories(${PROJECT_NAME} INTERFACE . )

@@ -14,6 +14,7 @@
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
 #include "dap_hash.h"
+#include "dap_hash_compat.h"
 #include "dap_mock.h"
 #include <stdbool.h>
 

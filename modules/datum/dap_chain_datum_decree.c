@@ -92,11 +92,11 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
     dap_return_val_if_fail(a_decree && a_owners_num, NULL);
     dap_list_t *l_ret = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER, 0);
     dap_list_t *it, *tmp;
-    DL_FOREACH_SAFE(l_ret, it, tmp) {
+    dap_dl_foreach_safe(l_ret, it, tmp) {
         dap_tsd_t *l_tsd = it->data;
         if (l_tsd->size < sizeof(dap_pkey_t) || l_tsd->size != sizeof(dap_pkey_t) + ((dap_pkey_t *)l_tsd->data)->header.size) {
             log_it(L_ERROR, "Incorrect size %u of owner pkey", l_tsd->size);
-            DL_DELETE(l_ret, it);
+            dap_dl_delete(l_ret, it);
             DAP_DEL_MULTY(it->data, it);
         }
     }
@@ -119,11 +119,11 @@ int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, ui
     return l_tsd && l_tsd->size == sizeof(uint256_t) ? ( _dap_tsd_get_scalar(l_tsd, a_min_owners_num), 0 ) : 1;
 }
 
-int dap_chain_datum_decree_get_hash(dap_chain_datum_decree_t *a_decree, dap_hash_fast_t *a_tx_hash)
+int dap_chain_datum_decree_get_hash(dap_chain_datum_decree_t *a_decree, dap_hash_sha3_256_t *a_tx_hash)
 {
     dap_return_val_if_fail(a_decree && a_tx_hash, -1);
     dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HASH);
-    return l_tsd && l_tsd->size == sizeof(dap_hash_fast_t) ? ( _dap_tsd_get_scalar(l_tsd, a_tx_hash), 0 ) : 1;
+    return l_tsd && l_tsd->size == sizeof(dap_hash_sha3_256_t) ? ( _dap_tsd_get_scalar(l_tsd, a_tx_hash), 0 ) : 1;
 }
 
 int dap_chain_datum_decree_get_stake_value(dap_chain_datum_decree_t *a_decree, uint256_t *a_stake_value)
@@ -229,7 +229,7 @@ void dap_chain_datum_decree_certs_dump_json(dap_json_t *a_json_out, byte_t *a_si
             continue;
         }
 
-        dap_chain_hash_fast_t l_pkey_hash = {0};
+        dap_hash_sha3_256_t l_pkey_hash = {0};
         if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hash) == false) {
             dap_json_object_add_string(json_obj_sign, a_version == 1 ? "sign status" : "sig_status", "CORRUPTED - can't calc hash");
             dap_json_array_add(json_arr_certs_out, json_obj_sign);
@@ -238,7 +238,7 @@ void dap_chain_datum_decree_certs_dump_json(dap_json_t *a_json_out, byte_t *a_si
 
         const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
+                : dap_hash_sha3_256_to_str_static(&l_pkey_hash);
         dap_json_object_add_uint64(json_obj_sign, a_version == 1 ? "sign #" : "sig_num", i);
         dap_json_object_add_string(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", l_hash_str);
         dap_json_object_add_string(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_sign_type_to_str(l_sign->header.type));
@@ -271,9 +271,9 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
     for(size_t i = 0; i < a_certs_count; i++) {
         dap_pkey_t *l_cur_pkey = dap_cert_to_pkey(a_certs[i]);
         if (s_find_pkey(a_datum_decree, l_cur_pkey)) {
-            dap_chain_hash_fast_t l_pkey_hash = { };
+            dap_hash_sha3_256_t l_pkey_hash = { };
             dap_pkey_get_hash(l_cur_pkey, &l_pkey_hash);
-            log_it(L_ERROR, "Sign with %s pkey already exist in decree", dap_hash_fast_to_str_static(&l_pkey_hash));
+            log_it(L_ERROR, "Sign with %s pkey already exist in decree", dap_hash_sha3_256_to_str_static(&l_pkey_hash));
             DAP_DELETE(l_cur_pkey);
             continue;;
         }

@@ -28,11 +28,14 @@
 #include <assert.h>
 
 #include "dap_common.h"
+#include "dap_ht.h"
 #include "dap_test.h"
 #include "test_stake_ext.h"
 #include "test_fixtures.h"  // Use common test fixtures
 #include "dap_chain_net_srv_stake_ext.h"
 #include "dap_chain_datum_tx_event.h"
+#include "dap_hash.h"
+#include "dap_hash_compat.h"
 #include "dap_math_ops.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake_ext_tests"
@@ -229,7 +232,7 @@ void dap_chain_srv_stake_ext_test_cache_stake_ext_management(void)
     dap_assert_PIF(l_found_stake_ext != NULL, "Stake_ext should be found by hash");
     dap_assert_PIF(strcmp(l_found_stake_ext->guuid, l_group_name) == 0, "Group name should match");
     dap_assert_PIF(l_found_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE, "Status should be ACTIVE");
-    dap_assert_PIF(HASH_COUNT(l_found_stake_ext->positions) == 3, "Positions count should be 3");
+    dap_assert_PIF(dap_ht_count(l_found_stake_ext->positions) == 3, "Positions count should be 3");
     dap_pass_msg("Test 2: Testing stake_ext search by hash: passed");
     
     // Test 3: Find stake_ext by name
@@ -798,7 +801,7 @@ void dap_chain_srv_stake_ext_test_event_processing(void)
     dap_chain_srv_stake_ext_cache_item_t *l_found_stake_ext = dap_chain_srv_stake_ext_cache_find_stake_ext_by_name(l_cache, l_group_name);
     dap_assert_PIF(l_found_stake_ext, "Stake_ext should be added to cache after creation");
     dap_assert_PIF(l_found_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE, "Stake_ext status should be ACTIVE");
-    dap_assert_PIF(HASH_COUNT(l_found_stake_ext->positions) == 3, "Positions count should be 3");
+    dap_assert_PIF(dap_ht_count(l_found_stake_ext->positions) == 3, "Positions count should be 3");
     dap_assert_PIF(l_cache->active_stake_ext == 1, "Active stake_ext count should be 1");
     dap_assert_PIF(l_cache->total_stake_ext == 1, "Total stake_ext count should be 1");
     
@@ -1044,10 +1047,10 @@ void dap_chain_srv_stake_ext_test_lock_transactions(void)
     
     // Verify position_id exists in stake_ext
     bool l_position_found = false;
-    if (HASH_COUNT(l_found_stake_ext->positions) > 0 && l_found_stake_ext->positions) {
+    if (dap_ht_count(l_found_stake_ext->positions) > 0 && l_found_stake_ext->positions) {
         // In real implementation, we would iterate through positions to find position_id
         // For test, we know position 1001 exists from create_test_stake_ext_started_data()
-        l_position_found = (l_position_id >= 1000 && l_position_id < 1000 + HASH_COUNT(l_found_stake_ext->positions));
+        l_position_found = (l_position_id >= 1000 && l_position_id < 1000 + (uint32_t)dap_ht_count(l_found_stake_ext->positions));
     }
     dap_assert_PIF(l_position_found, "Position ID should exist in stake_ext");
     
@@ -1067,7 +1070,7 @@ void dap_chain_srv_stake_ext_test_lock_transactions(void)
     // Test position_id not in stake_ext
     uint32_t l_nonexistent_position_id = 9999;
     bool l_invalid_position_found = (l_nonexistent_position_id >= 1000 && 
-                                   l_nonexistent_position_id < 1000 + HASH_COUNT(l_found_stake_ext->positions));
+                                   l_nonexistent_position_id < 1000 + (uint32_t)dap_ht_count(l_found_stake_ext->positions));
     dap_assert_PIF(!l_invalid_position_found, "Non-existent position_id should be rejected");
     
     // Test non-existent stake_ext hash
@@ -1835,7 +1838,7 @@ void dap_chain_srv_stake_ext_test_verificators(void)
     if(l_found_stake_ext && l_found_stake_ext->positions) {
         // In a real test we would check for specific position hashes
         // For testing purposes, just verify positions array is accessible
-        l_position_valid = (HASH_COUNT(l_found_stake_ext->positions) > 0);
+        l_position_valid = (dap_ht_count(l_found_stake_ext->positions) > 0);
     }
     dap_assert_PIF(l_position_valid, "Position ID should be valid in stake_ext");
     
@@ -1954,7 +1957,7 @@ void dap_chain_srv_stake_ext_test_verificators(void)
             // Check stake_ext status (verificator operation)
             volatile bool l_is_active = (l_perf_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE);
             // Check position validity (verificator operation)
-            volatile uint32_t l_position_count = HASH_COUNT(l_perf_stake_ext->positions);
+            volatile uint32_t l_position_count = dap_ht_count(l_perf_stake_ext->positions);
             (void)l_is_active; (void)l_position_count; // Prevent optimization
         }
     }

@@ -13,15 +13,19 @@
 #include "dap_chain_mempool_cli_wrap.h"
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
-#include "dap_global_db_driver.h"
 #include "dap_chain_mempool.h"
 
 /**
- * @brief Wrapper for dap_global_db_driver_is
+ * @brief Wrapper for checking if record exists in global_db
  */
 bool dap_global_db_driver_is_w(const char *a_group, const char *a_key)
 {
-    return dap_global_db_driver_is(a_group, a_key);
+    dap_global_db_store_obj_t *l_obj = dap_global_db_get_raw_sync(a_group, a_key);
+    if (l_obj) {
+        dap_global_db_store_obj_free(l_obj, 1);
+        return true;
+    }
+    return false;
 }
 
 /**

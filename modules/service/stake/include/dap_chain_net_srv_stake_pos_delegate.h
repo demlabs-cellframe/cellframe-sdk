@@ -39,10 +39,10 @@
 int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();
 
-void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_decree_hash,
-                                          dap_hash_fast_t *a_tx_hash, uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey);
+void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_sha3_256_t *a_decree_hash,
+                                          dap_hash_sha3_256_t *a_tx_hash, uint256_t a_value, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey);
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr);
-void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint256_t a_new_value, dap_hash_fast_t *a_new_tx_hash);
+void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint256_t a_new_value, dap_hash_sha3_256_t *a_new_tx_hash);
 void dap_chain_net_srv_stake_pkey_update(dap_chain_net_t *a_net, dap_pkey_t *a_pkey);
 void dap_chain_net_srv_stake_set_allowed_min_value(dap_chain_net_id_t a_net_id, uint256_t a_value);
 uint256_t dap_chain_net_srv_stake_get_allowed_min_value(dap_chain_net_id_t a_net_id);
@@ -57,22 +57,22 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
                                                 uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee, uint256_t *a_median_fee);
 
 int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net);
-int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_chain_ch_validator_test_t * out_data,
+int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_sha3_256_t *a_tx_hash, dap_chain_ch_validator_test_t * out_data,
                                              int a_time_connect, int a_time_respone);
 
 dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t *a_net,
-                                                                 dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert);
+                                                                 dap_hash_sha3_256_t *a_stake_tx_hash, dap_cert_t *a_cert);
 int dap_chain_net_srv_stake_mark_validator_active(dap_chain_addr_t *a_signing_addr, bool a_on_off);
 
-dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_pkey_hash);
+dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_chain_net_id_t a_net_id, dap_hash_sha3_256_t *a_pkey_hash);
 uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id, uint256_t *a_locked_weight);
 size_t dap_chain_net_srv_stake_get_total_keys(dap_chain_net_id_t a_net_id, size_t *a_in_active_count);
 void dap_chain_net_srv_stake_add_approving_decree_info(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net);
 void dap_chain_net_srv_stake_remove_approving_decree_info(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr);
 int dap_chain_net_srv_stake_hardfork_data_export(dap_chain_net_t *a_net, dap_list_t **a_out);
-int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hardfork_decree_hash);
-int dap_chain_net_srv_stake_hardfork_data_verify(dap_chain_net_t *a_net, dap_hash_fast_t *a_hardfork_decree_hash);
+int dap_chain_net_srv_stake_hardfork_data_import(dap_chain_net_id_t a_net_id, dap_hash_sha3_256_t *a_hardfork_decree_hash);
+int dap_chain_net_srv_stake_hardfork_data_verify(dap_chain_net_t *a_net, dap_hash_sha3_256_t *a_hardfork_decree_hash);
 int dap_chain_net_srv_stake_switch_table(dap_chain_net_id_t a_net_id, bool a_to_sandbox);
-dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_hash);
+dap_pkey_t *dap_chain_net_srv_stake_get_pkey_by_hash(dap_chain_net_id_t a_net_id, dap_hash_sha3_256_t *a_hash);
 void dap_chain_net_srv_stake_hardfork_tx_update(dap_chain_net_t *a_net);
 int dap_chain_net_srv_stake_get_validator_ext(dap_chain_net_srv_order_t *a_order, uint256_t *a_tax, uint256_t *a_value_max);

@@ -67,7 +67,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_lock(
  */
 dap_chain_datum_tx_t *dap_stake_tx_create_unlock(
     dap_list_t *a_list_used_outs,
-    dap_hash_fast_t *a_stake_tx_hash,
+    dap_hash_sha3_256_t *a_stake_tx_hash,
     uint32_t a_prev_cond_idx,
     const char *a_main_ticker,
     uint256_t a_value,
@@ -112,7 +112,7 @@ dap_chain_datum_tx_t *dap_stake_tx_create_delegate(
  */
 dap_chain_datum_tx_t *dap_stake_tx_create_invalidate(
     dap_list_t *a_list_used_outs,
-    dap_hash_fast_t *a_tx_hash,
+    dap_hash_sha3_256_t *a_tx_hash,
     uint256_t a_fee
 );
 

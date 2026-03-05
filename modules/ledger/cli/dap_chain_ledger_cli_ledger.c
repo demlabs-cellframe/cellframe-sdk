@@ -26,7 +26,7 @@
 #include <stddef.h>
 #include <pthread.h>
 
-#include "uthash.h"
+#include "dap_ht.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
@@ -68,7 +68,7 @@ static int s_print_for_ledger_list(dap_json_t *a_json_input, dap_json_t *a_json_
  */
 typedef struct dap_chain_tx_hash_processed_ht {
     dap_chain_hash_fast_t hash;
-    UT_hash_handle hh;
+    dap_ht_handle_t hh;
 } dap_chain_tx_hash_processed_ht_t;
 
 /**
@@ -498,7 +498,7 @@ int com_ledger(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
                 // Get decree chain from ledger's chain registry
                 dap_chain_t *l_chain = NULL;
                 dap_chain_info_t *l_chain_info, *l_tmp;
-                HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+                dap_ht_foreach(l_ledger->chains_registry, l_chain_info, l_tmp) {
                     if (l_chain_info->chain_type == CHAIN_TYPE_DECREE) {
                         l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
                         break;
@@ -522,7 +522,7 @@ int com_ledger(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ve
                 } else {
                     // Find default TX chain
                     dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
-                    HASH_ITER(hh, l_ledger->chains_registry, l_chain_info, l_tmp) {
+                    dap_ht_foreach(l_ledger->chains_registry, l_chain_info, l_tmp) {
                         if (l_chain_info->chain_type == CHAIN_TYPE_TX) {
                             l_target_chain = (dap_chain_t *)l_chain_info->chain_ptr;
                             break;

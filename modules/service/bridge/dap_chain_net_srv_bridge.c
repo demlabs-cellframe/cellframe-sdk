@@ -46,7 +46,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_bridge.h"
-#include "uthash.h"
+#include "dap_ht.h"
 
 #define LOG_TAG "dap_chain_net_srv_bridge"
 
@@ -137,7 +137,7 @@ static bool s_tag_check_bridge(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
     
     if (a_items_grp->items_in_ems){
         dap_chain_tx_in_ems_t *l_tx_in_ems = a_items_grp->items_in_ems->data;
-        dap_hash_fast_t ems_hash = l_tx_in_ems->header.token_emission_hash;
+        dap_hash_sha3_256_t ems_hash = l_tx_in_ems->header.token_emission_hash;
         dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(a_ledger, &ems_hash);
         if(l_emission)
             return s_get_ems_bridge_action(l_emission, a_action);

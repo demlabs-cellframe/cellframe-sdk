@@ -125,7 +125,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_cond_output(
     dap_chain_net_id_t a_net_id,
     dap_pkey_t *a_pkey_from,
     const dap_chain_addr_t *a_addr_from,
-    dap_hash_fast_t *a_pkey_cond_hash,
+    dap_hash_sha3_256_t *a_pkey_cond_hash,
     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
     uint256_t a_value,
     uint256_t a_value_per_unit_max,
@@ -176,7 +176,7 @@ dap_chain_datum_tx_t *dap_chain_datum_tx_create_event(
  */
 dap_chain_datum_tx_t *dap_chain_datum_tx_create_from_emission(
     dap_chain_net_id_t a_net_id,
-    dap_chain_hash_fast_t *a_emission_hash,
+    dap_hash_sha3_256_t *a_emission_hash,
     dap_chain_id_t a_emission_chain_id,
     uint256_t a_emission_value,
     const char *a_ticker,
