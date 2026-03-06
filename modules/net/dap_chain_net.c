@@ -528,7 +528,9 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->addr), a_link->uplink.client->link_info.uplink_addr, a_error);
         dap_json_object_add_string(l_json, "errorMessage", l_err_str);
-        dap_notify_server_send(dap_json_to_string(l_json));
+        char *l_json_str = dap_json_to_string(l_json);
+        dap_notify_server_send(l_json_str);
+        DAP_DELETE(l_json_str);
         dap_json_object_free(l_json);
     }
 }
@@ -584,7 +586,9 @@ static int s_link_manager_link_count_changed()
 {
     dap_json_t *l_json = dap_chain_nets_info_json_collect(dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
     dap_json_object_add_string(l_json, "errorMessage", " "); // regular notify has no error
-    dap_notify_server_send(dap_json_to_string(l_json));
+    char *l_json_str = dap_json_to_string(l_json);
+    dap_notify_server_send(l_json_str);
+    DAP_DELETE(l_json_str);
     dap_json_object_free(l_json);
     return 0;
 }
@@ -762,7 +766,9 @@ static void s_net_states_notify(dap_chain_net_t *a_net)
 {
     dap_json_t *l_json = dap_chain_net_states_json_collect(a_net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
     dap_json_object_add_string(l_json, "errorMessage", " "); // regular notify has no error
-    dap_notify_server_send(dap_json_to_string(l_json));
+    char *l_json_str = dap_json_to_string(l_json);
+    dap_notify_server_send(l_json_str);
+    DAP_DELETE(l_json_str);
     dap_json_object_free(l_json);
 }
 
@@ -771,7 +777,9 @@ static bool s_net_states_notify_timer_callback(UNUSED_ARG void *a_arg)
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
         dap_json_t *l_json = dap_chain_net_states_json_collect(net, dap_config_get_item_int32_default(g_config, "cli-server", "version", 1));
         dap_json_object_add_string(l_json, "errorMessage", " "); // regular notify has no error
-        dap_notify_server_send(dap_json_to_string(l_json));
+        char *l_json_str = dap_json_to_string(l_json);
+        dap_notify_server_send(l_json_str);
+        DAP_DELETE(l_json_str);
         dap_json_object_free(l_json);
     }
 
@@ -885,7 +893,9 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg)
         dap_json_object_add_object(l_jobj_nets, net->pub.name, json_chains);
     }
     dap_json_object_add_object(json_obj, "nets", l_jobj_nets);
-    dap_notify_server_send(dap_json_to_string(json_obj));
+    char *l_json_str = dap_json_to_string(json_obj);
+    dap_notify_server_send(l_json_str);
+    DAP_DELETE(l_json_str);
     dap_json_object_free(json_obj);
     //s_net_states_notify_timer_callback(NULL);
     return true;
