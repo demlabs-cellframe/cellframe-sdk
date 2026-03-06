@@ -661,7 +661,7 @@ uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_
     uint64_t l_used = 0;
     if (a_prev)
         l_prev = *a_prev;
-    dap_return_val_if_fail(a_usage && a_usage->price, l_prev);
+    dap_return_val_if_fail(a_usage && a_usage->price && a_usage->client, l_prev);
     switch(a_usage->price->units_uid.enm){
         case SERV_UNIT_SEC:
             l_used = dap_time_now() - a_usage->ts_created;
@@ -683,7 +683,7 @@ uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_
 void s_set_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
 {
 // sanity check
-    dap_return_if_pass(!a_usage);
+    dap_return_if_pass(!a_usage || !a_usage->client);
 // func work
     client_statistic_key_t l_bin_key = {0};
     client_statistic_value_t l_bin_value_new = {0};
