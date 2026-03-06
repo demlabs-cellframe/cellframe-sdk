@@ -759,7 +759,7 @@ int main(void)
 {
     // Initialize test framework
     dap_set_appname("test_cli_xchange_mocked");
-    dap_log_set_min_level(L_ERROR);
+    dap_log_level_set(L_ERROR);
     
     // Initialize mocks
     s_mocks_init();

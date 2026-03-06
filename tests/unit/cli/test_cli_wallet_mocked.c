@@ -156,7 +156,7 @@ static dap_chain_net_t s_mock_net = {
 static dap_chain_addr_t s_mock_addr = {
     .net_id = { .uint64 = 0x0000000000000001 },
     .sig_type = { .type = SIG_TYPE_DILITHIUM },
-    .data = { .hash_fast = { 0 } }
+    .data = { .hash_fast = {{ 0 }} }
 };
 
 // ============================================================================
