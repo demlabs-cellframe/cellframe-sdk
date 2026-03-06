@@ -308,7 +308,7 @@ int dap_stake_ext_cache_add_stake_ext(dap_stake_ext_cache_t *a_cache,
             }
         }
         
-        log_it(L_DEBUG, "Added stake_ext %s with %u positions, duration: %llu %s", 
+        log_it(L_DEBUG, "Added stake_ext %s with %u positions, duration: %lu %s", 
                dap_chain_hash_fast_to_str_static(a_stake_ext_hash),
                a_started_data->total_positions,
                a_started_data->duration,
