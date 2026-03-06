@@ -1157,12 +1157,30 @@ int dap_chain_net_cli_init(void)
     dap_cli_server_cmd_add("node", com_node, NULL,
                            "Node operations",
                            -1,
-                           "node { add | del | link | alias | connect | list | dump | connections | balancer }\n");
+                           "node { add | del | link | alias | connect | list | dump | connections | balancer }\n"
+                           "\tnode add -net <net_name> -addr <node_addr> -port <port> [-alias <alias>]\n"
+                           "\tnode del -net <net_name> -addr <node_addr>\n"
+                           "\tnode link -net <net_name> { add | del } -addr <node_addr> -link <link_addr>\n"
+                           "\tnode alias -net <net_name> -addr <node_addr> -alias <alias>\n"
+                           "\tnode connect -net <net_name> -addr <node_addr>\n"
+                           "\tnode list -net <net_name>\n"
+                           "\tnode dump [-net <net_name>]\n"
+                           "\tnode connections -net <net_name>\n"
+                           "\tnode balancer -net <net_name>\n");
 
     dap_cli_server_cmd_add("net", s_cli_net, NULL,
                            "Network operations",
                            -1,
-                           "net { list | get | go | stats | sync | link | ca | ledger | poa_certs }\n");
+                           "net { list | get | go | stats | sync | link | ca | ledger | poa_certs }\n"
+                           "\tnet list\n"
+                           "\tnet -net <net_name> get { status | id }\n"
+                           "\tnet -net <net_name> go { online | offline | sync }\n"
+                           "\tnet -net <net_name> stats { tx [-chain <chain_name>] }\n"
+                           "\tnet -net <net_name> sync { all | gdb | chains } [-chain <chain_name>]\n"
+                           "\tnet -net <net_name> link { add | del | list | info } [-addr <node_addr>]\n"
+                           "\tnet -net <net_name> ca add -cert <cert_name>\n"
+                           "\tnet -net <net_name> ledger reload\n"
+                           "\tnet -net <net_name> poa_certs list\n");
 
     dap_cli_server_cmd_add("version", s_com_version, NULL,
                            "Return software version",

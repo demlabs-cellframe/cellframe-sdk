@@ -1508,17 +1508,24 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
 
             // Check if its ready or not
             for (size_t i = 0; i< l_objs_size; i++ ){
+                bool l_key_done = false;
+                for (dap_list_t *l_el = l_list_to_del; l_el; l_el = l_el->next) {
+                    if (!strcmp((const char *)l_el->data, l_objs[i].key)) {
+                        l_key_done = true;
+                        break;
+                    }
+                }
+                if (l_key_done)
+                    continue;
                 dap_chain_type_dag_event_round_item_t *l_round_item = (dap_chain_type_dag_event_round_item_t *)l_objs[i].value;
                 dap_chain_type_dag_event_t *l_event = (dap_chain_type_dag_event_t *)l_round_item->event_n_signs;
                 dap_hash_sha3_256_t l_event_hash = {};
                 size_t l_event_size = l_round_item->event_size;
                 dap_hash_sha3_256(l_event, l_event_size, &l_event_hash);
                 int l_ret_event_verify;
-                if ( ( l_ret_event_verify = l_dag->callback_cs_verify(l_dag, l_event, &l_event_hash) ) !=0 ) {// if consensus accept the event
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR,"Error! Event %s is not passing consensus verification, ret code %d\n",
-                                              l_objs[i].key, l_ret_event_verify );
-                    ret = -DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR;
-                    break;
+                if ( ( l_ret_event_verify = l_dag->callback_cs_verify(l_dag, l_event, &l_event_hash) ) !=0 ) {
+                    log_it(L_DEBUG, "Event %s version doesn't pass verification (code %d), trying next", l_objs[i].key, l_ret_event_verify);
+                    continue;
                 }else {
                     snprintf(l_buf, 150, "Event %s verification passed", l_objs[i].key);
                     dap_json_object_add_object(json_obj_round,a_version == 1 ? "verification status" : "verification_status", dap_json_object_new_string(l_buf));
