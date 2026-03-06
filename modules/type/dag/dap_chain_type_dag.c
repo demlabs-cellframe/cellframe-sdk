@@ -1965,7 +1965,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
 
                     dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "net name" : "net_name", dap_json_object_new_string(l_net->pub.name));
                     dap_json_object_add_object(json_obj_event_list,"chain", dap_json_object_new_string(l_chain->name));
-                    dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "total events" : "total_events", dap_json_object_new_uint64(l_events_count));
+                    dap_json_object_add_object(json_obj_event_list, "total_events", dap_json_object_new_uint64(l_events_count));
 
                     dap_json_array_add(a_json_arr_reply, json_obj_event_list);
                 }else if (l_from_events_str && (strcmp(l_from_events_str,"threshold") == 0) ){
@@ -1996,7 +1996,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                     dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "net name" : "net_name", dap_json_object_new_string(l_net->pub.name));
                     dap_json_object_add_object(json_obj_event_list,"chain", dap_json_object_new_string(l_chain->name));
-                    dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "total events" : "total_events", dap_json_object_new_uint64(l_events_count));
+                    dap_json_object_add_object(json_obj_event_list, "total_events", dap_json_object_new_uint64(l_events_count));
 
                     dap_json_array_add(a_json_arr_reply, json_obj_event_list);
 
