@@ -35,11 +35,12 @@
 
 /**
  * @brief Mock network data structure
+ * NOTE: dap_chain_net_t has flexible array member, must be LAST in struct
  */
 static struct {
-    dap_chain_net_t net;
     char name[32];
     dap_chain_t chain;
+    dap_chain_net_t net;  // Must be last - has flexible array member (pvt[])
 } s_mock_net_data;
 
 /**

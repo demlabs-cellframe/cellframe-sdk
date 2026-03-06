@@ -271,19 +271,11 @@ const char* __wrap_dap_chain_wallet_get_path(dap_config_t *a_config)
 // ============================================================================
 
 /**
- * @brief Initialize all mocks
+ * @brief Initialize mock framework
  */
 static void s_mocks_init(void)
 {
-    dap_mock_init(g_mock_dap_chain_net_by_name);
-    dap_mock_init(g_mock_dap_chain_net_srv_xchange_get_order_status_w);
-    dap_mock_init(g_mock_dap_chain_net_srv_xchange_get_order_completion_rate_w);
-    dap_mock_init(g_mock_dap_chain_net_srv_xchange_get_fee_w);
-    dap_mock_init(g_mock_dap_chain_net_srv_xchange_get_prices_w);
-    dap_mock_init(g_mock_dap_chain_net_srv_xchange_get_tx_xchange_w);
-    dap_mock_init(g_mock_dap_ledger_token_ticker_check);
-    dap_mock_init(g_mock_dap_chain_wallet_open);
-    dap_mock_init(g_mock_dap_chain_wallet_get_path);
+    dap_mock_init();
 }
 
 /**
@@ -291,15 +283,15 @@ static void s_mocks_init(void)
  */
 static void s_mocks_enable(void)
 {
-    dap_mock_enable(g_mock_dap_chain_net_by_name);
-    dap_mock_enable(g_mock_dap_chain_net_srv_xchange_get_order_status_w);
-    dap_mock_enable(g_mock_dap_chain_net_srv_xchange_get_order_completion_rate_w);
-    dap_mock_enable(g_mock_dap_chain_net_srv_xchange_get_fee_w);
-    dap_mock_enable(g_mock_dap_chain_net_srv_xchange_get_prices_w);
-    dap_mock_enable(g_mock_dap_chain_net_srv_xchange_get_tx_xchange_w);
-    dap_mock_enable(g_mock_dap_ledger_token_ticker_check);
-    dap_mock_enable(g_mock_dap_chain_wallet_open);
-    dap_mock_enable(g_mock_dap_chain_wallet_get_path);
+    dap_mock_set_enabled(g_mock_dap_chain_net_by_name, true);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_order_status_w, true);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_order_completion_rate_w, true);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_fee_w, true);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_prices_w, true);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_tx_xchange_w, true);
+    dap_mock_set_enabled(g_mock_dap_ledger_token_ticker_check, true);
+    dap_mock_set_enabled(g_mock_dap_chain_wallet_open, true);
+    dap_mock_set_enabled(g_mock_dap_chain_wallet_get_path, true);
 }
 
 /**
@@ -307,15 +299,15 @@ static void s_mocks_enable(void)
  */
 static void s_mocks_disable(void)
 {
-    dap_mock_disable(g_mock_dap_chain_net_by_name);
-    dap_mock_disable(g_mock_dap_chain_net_srv_xchange_get_order_status_w);
-    dap_mock_disable(g_mock_dap_chain_net_srv_xchange_get_order_completion_rate_w);
-    dap_mock_disable(g_mock_dap_chain_net_srv_xchange_get_fee_w);
-    dap_mock_disable(g_mock_dap_chain_net_srv_xchange_get_prices_w);
-    dap_mock_disable(g_mock_dap_chain_net_srv_xchange_get_tx_xchange_w);
-    dap_mock_disable(g_mock_dap_ledger_token_ticker_check);
-    dap_mock_disable(g_mock_dap_chain_wallet_open);
-    dap_mock_disable(g_mock_dap_chain_wallet_get_path);
+    dap_mock_set_enabled(g_mock_dap_chain_net_by_name, false);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_order_status_w, false);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_order_completion_rate_w, false);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_fee_w, false);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_prices_w, false);
+    dap_mock_set_enabled(g_mock_dap_chain_net_srv_xchange_get_tx_xchange_w, false);
+    dap_mock_set_enabled(g_mock_dap_ledger_token_ticker_check, false);
+    dap_mock_set_enabled(g_mock_dap_chain_wallet_open, false);
+    dap_mock_set_enabled(g_mock_dap_chain_wallet_get_path, false);
 }
 
 /**
@@ -339,10 +331,11 @@ static void s_mocks_reset(void)
 // ============================================================================
 
 // Mock network structure with minimal required fields
+// NOTE: dap_chain_net_t has flexible array member, must be LAST in struct
 static struct {
-    dap_chain_net_t net;
     char name[64];
     dap_ledger_t *ledger;
+    dap_chain_net_t net;  // Must be last - has flexible array member (pvt[])
 } s_mock_net_data;
 
 /**
@@ -352,7 +345,7 @@ static void s_setup_mock_net(const char *a_name)
 {
     memset(&s_mock_net_data, 0, sizeof(s_mock_net_data));
     strncpy(s_mock_net_data.name, a_name, sizeof(s_mock_net_data.name) - 1);
-    s_mock_net_data.net.pub.name = s_mock_net_data.name;
+    strncpy(s_mock_net_data.net.pub.name, a_name, sizeof(s_mock_net_data.net.pub.name) - 1);
     s_mock_net_data.net.pub.id.uint64 = 0x1234567890ABCDEF;
     s_mock_net_output = &s_mock_net_data.net;
 }
@@ -412,7 +405,7 @@ static void test_xchange_order_create_requires_net(void)
     // Should return error about missing -net
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
@@ -433,7 +426,7 @@ static void test_xchange_order_create_requires_token_sell(void)
     
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
@@ -454,7 +447,7 @@ static void test_xchange_order_create_requires_token_buy(void)
     
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
@@ -472,7 +465,7 @@ static void test_xchange_order_status_requires_net(void)
     
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
@@ -490,7 +483,7 @@ static void test_xchange_order_history_requires_net(void)
     
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
@@ -508,7 +501,7 @@ static void test_xchange_order_remove_requires_net(void)
     
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
@@ -532,7 +525,7 @@ static void test_xchange_order_create_net_not_found(void)
     
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
@@ -552,7 +545,7 @@ static void test_xchange_order_status_net_not_found(void)
     
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
@@ -579,7 +572,7 @@ static void test_xchange_order_create_same_tokens(void)
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     // Should return error about same tokens
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
@@ -607,7 +600,7 @@ static void test_xchange_order_create_wallet_not_found(void)
     
     dap_assert(l_reply != NULL, "Reply should not be NULL");
     
-    dap_json_free(l_reply);
+    dap_json_object_free(l_reply);
     s_mocks_disable();
 }
 
