@@ -469,8 +469,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
                 break;
             }
             default: {
-                l_ret = -2;
-                log_it(L_ERROR, "Unknown channel id %d (%c)", a_ch_id, a_ch_id);
+                log_it(L_DEBUG, "Channel id %d (%c) has no node-client notify setup, handled by plugin", a_ch_id, a_ch_id);
                 break;
             }
             }
