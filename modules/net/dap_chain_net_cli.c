@@ -1155,7 +1155,7 @@ int dap_chain_net_cli_init(void)
                            "\tSeed mode allows creation of genesis blocks/events.\n\n");
 
     dap_cli_server_cmd_add("node", com_node, NULL,
-                           "Node operations",
+                           "Work with node",
                            -1,
                            "node { add | del | link | alias | connect | list | dump | connections | balancer }\n"
                            "\tnode add -net <net_name> -addr <node_addr> -port <port> [-alias <alias>]\n"

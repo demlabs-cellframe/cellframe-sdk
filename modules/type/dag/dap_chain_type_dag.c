@@ -2031,8 +2031,8 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 char l_buf[DAP_TIME_STR_SIZE];
                 if (l_last_item)
                     dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_item->ts_created);
-                dap_json_object_add_uint64(json_obj_out, a_version == 1 ? "Last event num" : "last_event_num", l_last_item ? l_last_item->event_number : 0);
-                dap_json_object_add_object(json_obj_out, a_version == 1 ? "Last event hash" : "last_event_hash", dap_json_object_new_string(l_last_item ?
+                dap_json_object_add_uint64(json_obj_out, "last_event_num", l_last_item ? l_last_item->event_number : 0);
+                dap_json_object_add_object(json_obj_out, "last_event_hash", dap_json_object_new_string(l_last_item ?
                                                                                 dap_hash_sha3_256_to_str_static(&l_last_item->hash) : "empty"));
                 dap_json_object_add_string(json_obj_out, "ts_created", l_last_item ? l_buf : "never");
 
