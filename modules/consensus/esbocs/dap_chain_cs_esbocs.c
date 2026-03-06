@@ -2375,13 +2375,14 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                 return;
             }
         } else if (l_message->hdr.round_id != l_session->cur_round.id) {
-            // round check
+            // round check — reject messages from different rounds to prevent state corruption
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                            " Message passed, but round number %"DAP_UINT64_FORMAT_U
-                                                " doesn't match message's one %"DAP_UINT64_FORMAT_U,
+                                            " Message rejected, round number %"DAP_UINT64_FORMAT_U
+                                                " doesn't match current round %"DAP_UINT64_FORMAT_U,
                                                     l_session->chain->net_name, l_session->chain->name,
                                                         l_session->cur_round.id, l_session->cur_round.attempt_num,
-                                                            l_session->cur_round.id, l_message->hdr.round_id);
+                                                            l_message->hdr.round_id, l_session->cur_round.id);
+            return;
         }
 
         dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
@@ -2544,6 +2545,16 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                         " Receive SUBMIT candidate NULL",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
+            if (l_message->hdr.attempt_num != l_session->cur_round.attempt_num ||
+                    l_session->state != DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC) {
+                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                            " Ignoring SUBMIT NULL for attempt %hhu"
+                                                " (current attempt %hhu, state %d)",
+                                                    l_session->chain->net_name, l_session->chain->name,
+                                                        l_session->cur_round.id, l_message->hdr.attempt_num,
+                                                            l_session->cur_round.attempt_num, l_session->state);
+                break;
+            }
             s_session_attempt_new(l_session);
             break;
         }
