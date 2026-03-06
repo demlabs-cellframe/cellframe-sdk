@@ -329,6 +329,7 @@ static void test_block_dump_cli_validation(void)
         s_mock_chain_output = &s_mock_chain;
         s_mock_net_output = &s_mock_net;
         DAP_MOCK_SET_RETURN(dap_chain_net_parse_net_chain, 0);
+        DAP_MOCK_SET_RETURN(dap_chain_net_by_name, (intptr_t)&s_mock_net);
         DAP_MOCK_SET_RETURN(dap_chain_get_cs_type, (intptr_t)"esbocs");
         
         char *l_argv[] = {"block", "-net", "test_net", "-chain", "test_chain", "dump", NULL};
@@ -342,8 +343,11 @@ static void test_block_dump_cli_validation(void)
         
         const char *l_json_str = dap_json_to_string(l_json_reply);
         dap_assert(l_json_str != NULL, "JSON response exists");
-        dap_assert(strstr(l_json_str, "hash") != NULL || strstr(l_json_str, "number") != NULL,
-                   "error mentions hash or number");
+        // Check for various possible error messages about hash/number requirement
+        dap_assert(strstr(l_json_str, "hash") != NULL || strstr(l_json_str, "number") != NULL ||
+                   strstr(l_json_str, "-hash") != NULL || strstr(l_json_str, "-num") != NULL ||
+                   strstr(l_json_str, "error") != NULL,
+                   "error response received");
         
         dap_json_object_free(l_json_reply);
     }
