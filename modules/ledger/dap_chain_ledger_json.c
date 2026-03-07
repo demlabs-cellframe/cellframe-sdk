@@ -163,7 +163,7 @@ void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_o
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             size_t l_emission_size = a_datum->header.data_size;
             dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emission_size);
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_emission->hdr.value, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_const_char(l_emission->hdr.value, &l_coins_str);
             dap_json_object_add_object(json_obj_datum, a_version == 1 ? "emission hash" : "emission_hash", dap_json_object_new_string(l_hash_str));
             dap_json_object_add_object(json_obj_datum, "coins", dap_json_object_new_string(l_coins_str));
             dap_json_object_add_object(json_obj_datum, "value", dap_json_object_new_string(l_value_str));

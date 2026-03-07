@@ -306,7 +306,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
             dap_json_object_add_object(json_obj_item, a_version == 1 ? "Tx out prev idx" : "tx_out_prev_idx", dap_json_object_new_uint64(((dap_chain_tx_in_t*)item)->header.tx_out_prev_idx));
             break;
         case TX_ITEM_TYPE_OUT_OLD: {
-            const char *l_value_str = dap_uint256_to_char(
+            const char *l_value_str = dap_uint256_to_const_char(
                 dap_chain_uint256_from(((dap_chain_tx_out_old_t*)item)->header.value), NULL );
             if (a_version == 1)
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("OUT OLD"));
@@ -315,7 +315,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
         } break;
         case TX_ITEM_TYPE_OUT: { // 256
             const char *l_coins_str,
-                    *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_t*)item)->header.value, &l_coins_str),
+                    *l_value_str = dap_uint256_to_const_char(((dap_chain_tx_out_t*)item)->header.value, &l_coins_str),
                     *l_addr_str = dap_chain_addr_to_str_static(&((dap_chain_tx_out_t*)item)->addr);
             if (a_version == 1)
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("OUT"));
@@ -358,7 +358,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
         } break;
         case TX_ITEM_TYPE_RECEIPT_OLD:{
             dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)item;
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_receipt_old->receipt_info.value_datoshi, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_const_char(l_receipt_old->receipt_info.value_datoshi, &l_coins_str);
             dap_json_object_add_object(json_obj_item,"item type", dap_json_object_new_string("RECEIPT"));
             dap_json_object_add_object(json_obj_item,"size", dap_json_object_new_uint64(l_receipt_old->size));
             dap_json_object_add_object(json_obj_item,"ext size", dap_json_object_new_uint64(l_receipt_old->exts_size));
@@ -385,7 +385,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
             }
         } break;
         case TX_ITEM_TYPE_RECEIPT: {
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_const_char(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi, &l_coins_str);
             if (a_version == 1)
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("RECEIPT"));
             dap_json_object_add_object(json_obj_item, "size", dap_json_object_new_uint64(((dap_chain_datum_tx_receipt_t*)item)->size));
@@ -452,7 +452,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
             char l_tmp_buff[70];
             if (a_version == 1)
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("OUT COND"));
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char(((dap_chain_tx_out_cond_t*)item)->header.value, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_const_char(((dap_chain_tx_out_cond_t*)item)->header.value, &l_coins_str);
             dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->header.ts_expires;
             dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_exp);
             dap_json_object_add_object(json_obj_item,"ts_expires", l_ts_exp ? dap_json_object_new_string(l_tmp_buf) : dap_json_object_new_string("never"));
@@ -465,7 +465,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
             switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
                     const char *l_coins_str, *l_value_str =
-                        dap_uint256_to_char( ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str );
+                        dap_uint256_to_const_char( ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str );
                     l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
@@ -492,7 +492,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
                     const char *l_rate_str;
-                    dap_uint256_to_char( (((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate), &l_rate_str );
+                    dap_uint256_to_const_char( (((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate), &l_rate_str );
                     snprintf(l_tmp_buff,sizeof(l_tmp_buff),"0x%016"DAP_UINT64_FORMAT_x"",((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64);
                     dap_json_object_add_object(json_obj_item, a_version == 1 ? "net id" : "net_id", dap_json_object_new_string(l_tmp_buff));
                     dap_json_object_add_object(json_obj_item,"buy_token", dap_json_object_new_string(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_token));
@@ -523,7 +523,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
                         uint256_t l_diff_value = {};
                         memcpy(&l_diff_value, ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->data, sizeof(uint256_t));
                         const char *l_value_coins_str = NULL;
-                        l_value_str = dap_uint256_to_char(l_diff_value, &l_value_coins_str);
+                        l_value_str = dap_uint256_to_const_char(l_diff_value, &l_value_coins_str);
                         dap_json_object_add_string(l_jobj_diff_obj, "type", ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF ? "writeoff" : "refill");
                         dap_json_object_add_string(l_jobj_diff_obj, "value", l_value_str);
                         dap_json_object_add_string(l_jobj_diff_obj, "coins", l_value_coins_str);
@@ -537,7 +537,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
             }
         } break;
         case TX_ITEM_TYPE_OUT_EXT: {
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str );
+            const char *l_coins_str, *l_value_str = dap_uint256_to_const_char( ((dap_chain_tx_out_ext_t*)item)->header.value, &l_coins_str );
             if (a_version == 1)
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("OUT EXT"));
             dap_json_object_add_object(json_obj_item,"addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_ext_t*)item)->addr)));
@@ -547,7 +547,7 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
         } break;
 
         case TX_ITEM_TYPE_OUT_STD: {
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char( ((dap_chain_tx_out_std_t *)item)->value, &l_coins_str );
+            const char *l_coins_str, *l_value_str = dap_uint256_to_const_char( ((dap_chain_tx_out_std_t *)item)->value, &l_coins_str );
             if (a_version == 1)
                 dap_json_object_add_object(json_obj_item, "item type", dap_json_object_new_string("OUT STD"));
             dap_json_object_add_object(json_obj_item, "addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&((dap_chain_tx_out_std_t *)item)->addr)));
@@ -627,7 +627,7 @@ void s_token_dump_decl_json(dap_json_t  *a_obj_out, dap_chain_datum_token_t *a_t
             dap_json_object_add_object(a_obj_out,"decimals",dap_json_object_new_uint64(a_token->header_private_decl.decimals));
             dap_json_object_add_object(a_obj_out, a_version == 1 ? "auth signs valid" : "auth_sig_valid", dap_json_object_new_uint64(a_token->signs_valid));
             dap_json_object_add_object(a_obj_out, a_version == 1 ? "auth signs total" : "auth_sig_total", dap_json_object_new_uint64(a_token->signs_total));
-            dap_json_object_add_object(a_obj_out,"total_supply",dap_json_object_new_string(dap_uint256_to_char(a_token->total_supply, NULL)));
+            dap_json_object_add_object(a_obj_out,"total_supply",dap_json_object_new_string(dap_uint256_to_const_char(a_token->total_supply, NULL)));
 
             dap_chain_datum_token_flags_dump_to_json(a_obj_out, "flags",a_token->header_private_decl.flags);
             dap_datum_token_dump_tsd_to_json(a_obj_out, a_token, a_token_size, a_hash_out_type);
@@ -640,7 +640,7 @@ void s_token_dump_decl_json(dap_json_t  *a_obj_out, dap_chain_datum_token_t *a_t
             dap_json_object_add_object(a_obj_out,"decimals",dap_json_object_new_uint64(a_token->header_native_decl.decimals));
             dap_json_object_add_object(a_obj_out, a_version == 1 ? "auth signs valid" : "auth_sig_valid", dap_json_object_new_uint64(a_token->signs_valid));
             dap_json_object_add_object(a_obj_out, a_version == 1 ? "auth signs total" : "auth_sig_total", dap_json_object_new_uint64(a_token->signs_total));
-            dap_json_object_add_object(a_obj_out,"total_supply",dap_json_object_new_string(dap_uint256_to_char(a_token->total_supply, NULL)));
+            dap_json_object_add_object(a_obj_out,"total_supply",dap_json_object_new_string(dap_uint256_to_const_char(a_token->total_supply, NULL)));
             dap_chain_datum_token_flags_dump_to_json(a_obj_out, "flags", a_token->header_native_decl.flags);
             dap_datum_token_dump_tsd_to_json(a_obj_out, a_token, a_token_size, a_hash_out_type);
             size_t l_certs_field_size = a_token_size - sizeof(*a_token) - a_token->header_native_decl.tsd_total_size;
@@ -650,7 +650,7 @@ void s_token_dump_decl_json(dap_json_t  *a_obj_out, dap_chain_datum_token_t *a_t
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC: {
             dap_chain_addr_t l_premine_addr = a_token->header_public.premine_address;
             dap_json_object_add_object(a_obj_out,"subtype",dap_json_object_new_string("PUBLIC"));
-            dap_json_object_add_object(a_obj_out,"premine_supply", dap_json_object_new_string(dap_uint256_to_char(a_token->header_public.premine_supply, NULL)));
+            dap_json_object_add_object(a_obj_out,"premine_supply", dap_json_object_new_string(dap_uint256_to_const_char(a_token->header_public.premine_supply, NULL)));
             dap_json_object_add_object(a_obj_out,"premine_address", dap_json_object_new_string(dap_chain_addr_to_str_static(&l_premine_addr)));
 
             dap_chain_datum_token_flags_dump_to_json(a_obj_out, "flags", a_token->header_public.flags);

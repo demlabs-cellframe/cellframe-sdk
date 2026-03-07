@@ -575,7 +575,7 @@ static int s_print_for_mempool_list(dap_json_t *a_json_input, dap_json_t *a_json
                         dap_json_rpc_allocation_error(a_json_arr_reply);
                         return;
                     }
-                    const char *l_value_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_value_coins_str);
+                    const char *l_value_coins_str, *l_value_str = dap_uint256_to_const_char(l_value, &l_value_coins_str);
                     dap_json_object_add_object(l_jobj_money, "value", dap_json_object_new_string(l_value_str));
                     dap_json_object_add_object(l_jobj_money, "coins", dap_json_object_new_string(l_value_coins_str));
 
@@ -662,7 +662,7 @@ static int s_print_for_mempool_list(dap_json_t *a_json_input, dap_json_t *a_json
                                 if (l_diff_tx_tsd || (l_diff_tx_tsd = dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL))) {
                                     uint256_t l_diff_value = {};
                                     memcpy(&l_diff_value, ((dap_tsd_t *)(l_diff_tx_tsd->tsd))->data, sizeof(uint256_t));
-                                    l_value_str = dap_uint256_to_char(l_diff_value, &l_value_coins_str);
+                                    l_value_str = dap_uint256_to_const_char(l_diff_value, &l_value_coins_str);
                                     l_jobj_diff = dap_json_array_new();
                                     dap_json_t *l_jobj_diff_obj = dap_json_object_new();
                                     dap_json_object_add_object(l_jobj_diff_obj, "value", dap_json_object_new_string(l_value_str));

@@ -464,7 +464,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             const char *l_dst_addr_str = !dap_chain_addr_is_blank(&l_dst_addr) 
                 ? dap_chain_addr_to_str_static(&l_dst_addr)
                 : dap_chain_tx_out_cond_subtype_to_str( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype );
-            dap_json_object_add_string(l_json_obj_datum, "send", dap_uint256_to_char(l_value, NULL));
+            dap_json_object_add_string(l_json_obj_datum, "send", dap_uint256_to_const_char(l_value, NULL));
             dap_json_object_add_string(l_json_obj_datum, "to_addr", l_dst_addr_str);
             dap_json_object_add_object(l_json_obj_datum, "token", l_src_token ? dap_json_object_new_string(l_src_token) : dap_json_object_new_string("UNKNOWN"));
             dap_json_array_add(json_arr_out, l_json_obj_datum);
@@ -482,7 +482,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                 : ( !dap_chain_addr_is_blank(&l_src_addr) 
                     ? dap_chain_addr_to_str_static(&l_src_addr)
                     : dap_chain_tx_out_cond_subtype_to_str(l_src_subtype) );
-            dap_json_object_add_string(l_json_obj_datum, "recv", dap_uint256_to_char(l_value, NULL));
+            dap_json_object_add_string(l_json_obj_datum, "recv", dap_uint256_to_const_char(l_value, NULL));
             dap_json_object_add_object(l_json_obj_datum, "token", l_dst_token ? dap_json_object_new_string(l_dst_token) :
                                   (l_src_token ? dap_json_object_new_string(l_src_token) : dap_json_object_new_string("UNKNOWN")));
             dap_json_object_add_string(l_json_obj_datum, "from", l_src_addr_str);
@@ -539,7 +539,7 @@ static bool s_pack_ledger_balance_info_json (dap_json_t *a_json_arr_out, dap_led
     dap_json_t *json_obj_tx = dap_json_object_new();   
     dap_json_object_add_string(json_obj_tx, a_version == 1 ? "Ledger balance key" : "balance_key", a_balance_item->key);
     dap_json_object_add_string(json_obj_tx, "token_ticker", a_balance_item->token_ticker);
-    dap_json_object_add_string(json_obj_tx, "balance", dap_uint256_to_char(a_balance_item->balance, NULL));
+    dap_json_object_add_string(json_obj_tx, "balance", dap_uint256_to_const_char(a_balance_item->balance, NULL));
     dap_json_array_add(a_json_arr_out, json_obj_tx);
     return 0;
 }
@@ -1573,7 +1573,7 @@ uint256_t dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t
     pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
     if (l_balance_item) {
         debug_if(g_debug_ledger, L_INFO, "Found address in cache with balance %s",
-            dap_uint256_to_char(l_balance_item->balance, NULL));
+            dap_uint256_to_const_char(l_balance_item->balance, NULL));
         l_ret = l_balance_item->balance;
     } else {
         debug_if(g_debug_ledger, L_WARNING, "Balance item %s not found", l_wallet_balance_key);
@@ -2154,8 +2154,8 @@ dap_list_t *dap_ledger_get_utxo_for_value(
     // Insufficient funds - cleanup and return NULL
     if (compare256(l_value_transfer, a_value_need) < 0) {
         log_it(L_WARNING, "Insufficient UTXO: needed %s, found %s %s",
-               dap_uint256_to_char(a_value_need, NULL),
-               dap_uint256_to_char(l_value_transfer, NULL),
+               dap_uint256_to_const_char(a_value_need, NULL),
+               dap_uint256_to_const_char(l_value_transfer, NULL),
                a_token_ticker);
         
         dap_list_free_full(l_list_used_outs, NULL);

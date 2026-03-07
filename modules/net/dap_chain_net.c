@@ -1435,7 +1435,7 @@ static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_
                 dap_chain_addr_t l_network_fee_addr = {};
                 dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
                 const char *l_network_fee_coins_str, *l_network_fee_balance_str =
-                    dap_uint256_to_char(l_network_fee, &l_network_fee_coins_str);
+                    dap_uint256_to_const_char(l_network_fee, &l_network_fee_coins_str);
                 dap_json_t *l_jobj_network =  dap_json_object_new();
                 if (!l_jobj_network) {
                     dap_json_object_free(l_jobj_return);
@@ -2536,8 +2536,8 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
             if (!dap_chain_datum_tx_get_fee_value(l_tx, &l_tx_fee) && !IS_ZERO_256(l_tx_fee)) {
                 uint256_t l_min_fee = dap_chain_cs_get_fee(a_chain);  // Use generic CS API instead of esbocs-specific
                 if (compare256(l_tx_fee, l_min_fee) < 0) {
-                    const char *l_tx_fee_str; dap_uint256_to_char(l_tx_fee, &l_tx_fee_str);
-                    const char *l_min_fee_str; dap_uint256_to_char(l_min_fee, &l_min_fee_str);
+                    const char *l_tx_fee_str; dap_uint256_to_const_char(l_tx_fee, &l_tx_fee_str);
+                    const char *l_min_fee_str; dap_uint256_to_const_char(l_min_fee, &l_min_fee_str);
                     log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
                            l_tx_fee_str, l_min_fee_str, dap_hash_sha3_256_data_to_str(l_tx, dap_chain_datum_tx_get_size(l_tx)).s);
                     return DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_FEE;

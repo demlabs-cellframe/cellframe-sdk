@@ -175,7 +175,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
     if (l_change_type == DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF && SUBTRACT_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
         char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
         const char *l_writeoff = NULL;
-        dap_uint256_to_char(l_change_value, &l_writeoff);
+        dap_uint256_to_const_char(l_change_value, &l_writeoff);
         log_it(L_ERROR, "Tx %s verificator error: Write-off value %s is greater than account balance %s",
                         dap_hash_sha3_256_to_str_static(a_tx_in_hash), l_writeoff, l_balance);
         DAP_DELETE(l_balance);
@@ -184,7 +184,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
     if (l_change_type == DAP_CHAIN_WALLET_SHARED_TSD_REFILL && SUM_256_256(a_cond->header.value, l_writeoff_value, &l_change_value)) {
         char *l_balance = dap_uint256_decimal_to_char(a_cond->header.value);
         const char *l_refill = NULL;
-        dap_uint256_to_char(l_change_value, &l_refill);
+        dap_uint256_to_const_char(l_change_value, &l_refill);
         log_it(L_ERROR, "Tx %s verificator error: Sum of re-fill value %s and account balance %s is owerflow 256 bit num",
                         dap_hash_sha3_256_to_str_static(a_tx_in_hash), l_refill, l_balance);
         DAP_DELETE(l_balance);
@@ -198,7 +198,7 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_datum_t
         }
         if (compare256(l_change_value, l_cond_out->header.value) != 0) {
             char *l_change = dap_uint256_decimal_to_char(l_change_value);
-            const char *l_cond_out_value; dap_uint256_to_char(l_cond_out->header.value, &l_cond_out_value);
+            const char *l_cond_out_value; dap_uint256_to_const_char(l_cond_out->header.value, &l_cond_out_value);
             log_it(L_ERROR, "Tx %s verificator error: Changeback on conditional output is %s but not is expected %s",
                             dap_hash_sha3_256_to_str_static(a_tx_in_hash), l_cond_out_value, l_change);
             return -9;
@@ -1264,7 +1264,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, dap_json_t *a_
     }
 
     const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_final_tx_hash);
-    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_char(l_cond->header.value, &l_balance_coins);
+    const char *l_balance_coins, *l_balance_datoshi = dap_uint256_to_const_char(l_cond->header.value, &l_balance_coins);
     
     // Search for mempool transactions with conditional inputs referencing this output
     dap_json_t *l_jobj_waiting_operations_hashes = dap_json_array_new();

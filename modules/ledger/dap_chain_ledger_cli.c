@@ -207,7 +207,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_json_t *a_json_arr_reply,
                 dap_json_array_add(l_json_arr_tracker_items, l_json_obj_tracker_item);
                 const char *l_pkey_hash_str = dap_hash_sha3_256_to_str_static(&l_item->pkey_hash);
                 dap_json_object_add_string(l_json_obj_tracker_item, "pkey_hash", l_pkey_hash_str);
-                const char *l_coloured_coins, *l_coloured_value = dap_uint256_to_char(l_item->coloured_value, &l_coloured_coins);
+                const char *l_coloured_coins, *l_coloured_value = dap_uint256_to_const_char(l_item->coloured_value, &l_coloured_coins);
                 dap_json_object_add_string(l_json_obj_tracker_item, "coloured_coins", l_coloured_coins);
                 dap_json_object_add_string(l_json_obj_tracker_item, "coloured_value", l_coloured_value);
             }
@@ -742,7 +742,7 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
                     l_is_need_correction = true;
                     l_corr_value = l_value;
                 }
-                const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);                 
+                const char *l_coins_str, *l_value_str = dap_uint256_to_const_char(l_value, &l_coins_str);                 
 
                 dap_json_t *j_obj_data = dap_json_object_new();
                 if (!j_obj_data) {
@@ -795,7 +795,7 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
                     if (l_recv_from_cond && l_dst_subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE && l_dst_subtype == l_src_subtype)
                         l_send_to_same_cond = true;
                 }
-                const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
+                const char *l_coins_str, *l_value_str = dap_uint256_to_const_char(l_value, &l_coins_str);
                                 
                 dap_json_t *j_obj_data = dap_json_object_new();
                 if (!j_obj_data) {
@@ -824,7 +824,7 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
 
         if (l_is_need_correction) {
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
-            const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
+            const char *l_coins_str, *l_value_str = dap_uint256_to_const_char(l_corr_value, &l_coins_str);
             dap_json_object_add_string(l_corr_object, "recv_coins", l_coins_str);
             dap_json_object_add_string(l_corr_object, "recv_datoshi", l_value_str);
         }
@@ -837,13 +837,13 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply, dap_chain_addr_t *
             int l_direction = compare256(l_cond_recv_value, l_cond_send_value);
             if (l_direction > 0) {
                 SUBTRACT_256_256(l_cond_recv_value, l_cond_send_value, &l_cond_recv_value);
-                const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_cond_recv_value, &l_coins_str);
+                const char *l_coins_str, *l_value_str = dap_uint256_to_const_char(l_cond_recv_value, &l_coins_str);
                 dap_json_object_add_string(l_cond_recv_object, "recv_coins", l_coins_str);
                 dap_json_object_add_string(l_cond_recv_object, "recv_datoshi", l_value_str);
                 dap_json_array_add(j_arr_data, l_cond_recv_object);
             } else if (l_direction < 0) {
                 SUBTRACT_256_256(l_cond_send_value, l_cond_recv_value, &l_cond_send_value);
-                const char *l_coins_str, *l_value_str = dap_uint256_to_char(l_cond_send_value, &l_coins_str);
+                const char *l_coins_str, *l_value_str = dap_uint256_to_const_char(l_cond_send_value, &l_coins_str);
                 dap_json_object_add_string(l_cond_send_object, "send_coins", l_coins_str);
                 dap_json_object_add_string(l_cond_send_object, "send_datoshi", l_value_str);
                 dap_json_array_add(j_arr_data, l_cond_send_object);

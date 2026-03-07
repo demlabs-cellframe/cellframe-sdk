@@ -73,7 +73,7 @@ dap_chain_datum_tx_t *dap_voting_tx_create_poll(
     uint256_t l_balance = dap_ledger_calc_balance(a_ledger, a_wallet_addr, a_token_ticker);
     if (compare256(l_balance, a_fee) == -1) {
         log_it(L_ERROR, "Not enough balance for fee. Need %s, have %s",
-               dap_uint256_to_char(a_fee, NULL), dap_uint256_to_char(l_balance, NULL));
+               dap_uint256_to_const_char(a_fee, NULL), dap_uint256_to_const_char(l_balance, NULL));
         return NULL;
     }
     
@@ -317,7 +317,7 @@ dap_chain_datum_tx_t *dap_voting_tx_create_vote(
     uint256_t l_balance = dap_ledger_calc_balance(a_ledger, a_wallet_addr, l_native_ticker);
     if (compare256(l_balance, a_fee) == -1) {
         log_it(L_ERROR, "Not enough balance for fee. Need %s, have %s",
-               dap_uint256_to_char(a_fee, NULL), dap_uint256_to_char(l_balance, NULL));
+               dap_uint256_to_const_char(a_fee, NULL), dap_uint256_to_const_char(l_balance, NULL));
         return NULL;
     }
     

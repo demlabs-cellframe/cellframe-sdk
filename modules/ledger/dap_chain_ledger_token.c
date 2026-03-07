@@ -924,7 +924,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             /* Bogdanoff, unknown token subtype update. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' update! "
                               "Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
-                              l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
+                              l_token->type, l_token->ticker, dap_uint256_to_const_char(l_token->total_supply, NULL),
                               l_token->signs_valid, l_token->signs_total);
             /* Dump it right now */
             DAP_DELETE(l_token);
@@ -940,7 +940,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             /* Bogdanoff, unknown token subtype declaration. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' declaration! "
                               "Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
-                              l_token->type, l_token->ticker, dap_uint256_to_char(l_token->total_supply, NULL),
+                              l_token->type, l_token->ticker, dap_uint256_to_const_char(l_token->total_supply, NULL),
                               l_token->signs_valid, l_token->signs_total);
             /* Dump it right now */
             DAP_DELETE(l_token);
@@ -1128,7 +1128,7 @@ bool dap_ledger_pvt_token_supply_check_update(dap_ledger_t *a_ledger, dap_ledger
         ? SUM_256_256(a_token_item->current_supply, a_value, &a_token_item->current_supply)
         : SUBTRACT_256_256(a_token_item->current_supply, a_value, &a_token_item->current_supply);
     assert(!l_overflow);
-    const char *l_balance; dap_uint256_to_char(a_token_item->current_supply, &l_balance);
+    const char *l_balance; dap_uint256_to_const_char(a_token_item->current_supply, &l_balance);
     log_it(L_NOTICE, "New current supply %s for token %s", l_balance, a_token_item->ticker);
     s_ledger_token_cache_update(a_ledger, a_token_item);
     return true;
@@ -1259,7 +1259,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     const char *l_balance_dbg = NULL, *l_declare_update_str = NULL, *l_type_str = NULL;
     if (g_debug_ledger)
-        dap_uint256_to_char(l_token->total_supply, &l_balance_dbg);
+        dap_uint256_to_const_char(l_token->total_supply, &l_balance_dbg);
     switch (l_token->type) {
     case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:       l_declare_update_str = "declared"; break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:     l_declare_update_str = "updated"; break;
@@ -1397,7 +1397,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
     pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
     if (l_token_emission_item) {
         debug_if(g_debug_ledger, L_WARNING, "Can't add token emission datum of %s %s ( %s ): already present in cache",
-                                    dap_uint256_to_char(l_emission->hdr.value, NULL), l_emission->hdr.ticker,
+                                    dap_uint256_to_const_char(l_emission->hdr.value, NULL), l_emission->hdr.ticker,
                                     dap_hash_sha3_256_to_str_static(a_emission_hash));
         DAP_DELETE(l_emission);
         return DAP_LEDGER_CHECK_ALREADY_CACHED;
@@ -1492,7 +1492,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
         DAP_DELETE(l_signs);
         if (l_aproves < l_token_item->auth_signs_valid && !dap_ledger_datum_is_enforced(a_ledger, a_emission_hash, true) ) {
             log_it(L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %zu valid aproves when %zu need",
-                        dap_uint256_to_char(l_emission->hdr.value, NULL), a_ledger->name, l_emission->hdr.ticker,
+                        dap_uint256_to_const_char(l_emission->hdr.value, NULL), a_ledger->name, l_emission->hdr.ticker,
                         l_aproves, l_token_item->auth_signs_valid);
             debug_if(g_debug_ledger, L_ATT, "!!! Datum hash for HAL: %s", dap_hash_sha3_256_to_str_static(a_emission_hash));
             DAP_DELETE(l_emission);
@@ -1560,7 +1560,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
     if (l_token_emission_item) {
         pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
         log_it(L_ERROR, "Duplicate token emission datum of %s %s ( %s )",
-                dap_uint256_to_char(l_emission->hdr.value, NULL), l_emission->hdr.ticker, dap_hash_sha3_256_to_str_static(a_emission_hash));
+                dap_uint256_to_const_char(l_emission->hdr.value, NULL), l_emission->hdr.ticker, dap_hash_sha3_256_to_str_static(a_emission_hash));
         DAP_DELETE(l_emission);
         return DAP_LEDGER_CHECK_APPLY_ERROR;
     }
@@ -1585,7 +1585,7 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
     // Add it to cache
     dap_ledger_pvt_emission_cache_update(a_ledger, l_token_emission_item);
     if (g_debug_ledger) {
-        const char *l_balance; dap_uint256_to_char(l_token_emission_item->datum_token_emission->hdr.value, &l_balance);
+        const char *l_balance; dap_uint256_to_const_char(l_token_emission_item->datum_token_emission->hdr.value, &l_balance);
         log_it(L_NOTICE, "Added token emission datum to emissions cache: type=%s value=%s token=%s to_addr=%s",
                        dap_chain_datum_emission_type_str(l_emission->hdr.type),
                        l_balance, l_emission->hdr.ticker,
@@ -1736,8 +1736,8 @@ dap_json_t *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_ve
                                a_token_item->description :
                                "The token description is not set");
     }
-    dap_json_object_add_string(json_obj_datum, a_version == 1 ? "Supply current" : "supply_current", dap_uint256_to_char(a_token_item->current_supply, NULL));
-    dap_json_object_add_string(json_obj_datum, a_version == 1 ? "Supply total" : "supply_total", dap_uint256_to_char(a_token_item->total_supply, NULL));
+    dap_json_object_add_string(json_obj_datum, a_version == 1 ? "Supply current" : "supply_current", dap_uint256_to_const_char(a_token_item->current_supply, NULL));
+    dap_json_object_add_string(json_obj_datum, a_version == 1 ? "Supply total" : "supply_total", dap_uint256_to_const_char(a_token_item->total_supply, NULL));
     dap_json_object_add_string(json_obj_datum, a_version == 1 ? "Decimals" : "decimals", "18");
     dap_json_object_add_int(json_obj_datum, a_version == 1 ? "Auth signs valid" : "auth_sig_valid", a_token_item->auth_signs_valid);
     dap_json_object_add_int(json_obj_datum, a_version == 1 ? "Auth signs total" : "auth_sig_total", a_token_item->auth_signs_total);

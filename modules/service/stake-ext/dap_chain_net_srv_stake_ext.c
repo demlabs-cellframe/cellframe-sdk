@@ -1092,7 +1092,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
             dap_hash_sha3_256_to_str_static(&l_stake_ext_hash),
             l_position_id,
             l_lock_time,
-            dap_uint256_to_char(l_lock_amount, NULL));
+            dap_uint256_to_const_char(l_lock_amount, NULL));
 }
 
 static void s_stake_ext_unlock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in,
@@ -2369,11 +2369,11 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                 dap_json_object_add_object(l_json_obj, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
                 dap_json_object_add_object(l_json_obj, "stake_ext_tx_hash", dap_json_object_new_string(dap_hash_sha3_256_to_str_static(&l_stake_ext_hash)));
                 dap_json_object_add_object(l_json_obj, "stake_ext_name", dap_json_object_new_string(l_stake_ext->guuid));
-                const char *l_amount_str = dap_uint256_to_char(l_amount, NULL);
+                const char *l_amount_str = dap_uint256_to_const_char(l_amount, NULL);
                 dap_json_object_add_object(l_json_obj, "amount", dap_json_object_new_string(l_amount_str));
                 
                 
-                const char *l_fee_str = dap_uint256_to_char(l_fee, NULL);
+                const char *l_fee_str = dap_uint256_to_const_char(l_fee, NULL);
                 dap_json_object_add_object(l_json_obj, "fee", dap_json_object_new_string(l_fee_str));
                 
                 dap_json_object_add_object(l_json_obj, "lock_months", dap_json_object_new_int(l_lock_months));
@@ -2519,9 +2519,9 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                 dap_json_object_add_object(l_json_obj, "status", dap_json_object_new_string("success"));
                 dap_json_object_add_object(l_json_obj, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
                 dap_json_object_add_object(l_json_obj, "lock_tx_hash", dap_json_object_new_string(l_lock_tx_hash_str));
-                const char *l_value_str; dap_uint256_to_char(l_value, &l_value_str);
+                const char *l_value_str; dap_uint256_to_const_char(l_value, &l_value_str);
                 dap_json_object_add_object(l_json_obj, "value", dap_json_object_new_string(l_value_str));
-                const char *l_fee_str; dap_uint256_to_char(l_fee, &l_fee_str);
+                const char *l_fee_str; dap_uint256_to_const_char(l_fee, &l_fee_str);
                 dap_json_object_add_object(l_json_obj, "fee", dap_json_object_new_string(l_fee_str));
                 
                 dap_json_array_add(a_json_arr_reply, l_json_obj);
@@ -2686,7 +2686,7 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                     // Position ID
                     dap_json_object_add_object(l_position_obj, "position_id", dap_json_object_new_uint64(l_position->position_id));
                    
-                    const char *l_total_amount_str = dap_uint256_to_char(l_position->total_amount, NULL);
+                    const char *l_total_amount_str = dap_uint256_to_const_char(l_position->total_amount, NULL);
                     dap_json_object_add_object(l_position_obj, "total_amount", dap_json_object_new_string(l_total_amount_str));
                     
                     // Total amount in CELL
@@ -2709,7 +2709,7 @@ static int s_com_stake_ext(int argc, char **argv, dap_json_t *a_json_arr_reply, 
                             dap_json_t *l_lock_obj = dap_json_object_new();
                             dap_json_array_add(l_locks_array, l_lock_obj);
                             dap_json_object_add_object(l_lock_obj, "lock_tx_hash", dap_json_object_new_string(dap_hash_sha3_256_to_str_static(&l_lock->lock_tx_hash.hash)));
-                            dap_json_object_add_object(l_lock_obj, "lock_amount", dap_json_object_new_string(dap_uint256_to_char(l_lock->lock_amount, NULL)));
+                            dap_json_object_add_object(l_lock_obj, "lock_amount", dap_json_object_new_string(dap_uint256_to_const_char(l_lock->lock_amount, NULL)));
                             dap_json_object_add_object(l_lock_obj, "lock_time", dap_json_object_new_uint64(l_lock->lock_time));
                             char l_lock_created_time_str[DAP_TIME_STR_SIZE] = {'\0'};
                             dap_time_to_str_rfc822(l_lock_created_time_str, sizeof(l_lock_created_time_str), l_lock->created_time);
