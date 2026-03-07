@@ -27,6 +27,8 @@ target_include_directories(${PROJECT_NAME} INTERFACE include)
 target_include_directories(${PROJECT_NAME} INTERFACE wallet-tx/include)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC wallet-tx/include)
+# Include ledger CLI headers for com_token
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../ledger/cli/include)
 # NOTE: All other includes propagated through dependencies!
 
 if (INSTALL_SDK)
