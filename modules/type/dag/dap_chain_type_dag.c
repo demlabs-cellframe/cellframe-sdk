@@ -49,6 +49,7 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_type_dag.h"
+#include "dap_chain_type_dag_wrap.h"
 #include "dap_chain_cs_type.h"  // For old consensus class registration
 #include "dap_json.h"
 #include "dap_global_db.h"
@@ -143,30 +144,25 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 
 static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
 
-static int s_print_for_dag_list(dap_json_rpc_response_t *a_response, char **a_cmd_param, int a_cmd_cnt)
+static int s_print_for_dag_list(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt)
 {
-    dap_return_val_if_pass(!a_response, -1);
+    dap_return_val_if_pass(!a_json_input || !a_json_output, -1);
     
-    // Raw JSON flag
-    if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-h") == -1) {
-        dap_json_print_object(a_response->result_json_object, stdout, 0);
-        return 0;
-    }
+    // Raw JSON flag - if -h not present, use raw JSON
+    if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-h") == -1)
+        return -1;
     if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "list") == -1)
-        return -2;
-    printf("DEBUG: dap_json_get_type: %d\n", dap_json_get_type(a_response->result_json_object));
-    if (dap_json_get_type(a_response->result_json_object) == DAP_JSON_TYPE_ARRAY) {
-        dap_json_print_object(a_response->result_json_object, stdout, 0);
-        return -5;
-    }        
-    int l_result_count = dap_json_array_length(a_response->result_json_object);
-    if (l_result_count <= 0) {
-        printf("Response array is empty\n");
-        return -3;
-    }
-    printf("________________________________________________________________________________________________________________\n");
-    printf(" %7s | Hash \t\t\t\t\t\t\t      | Time create \t\t        |\n","#");
-    dap_json_t *l_json_obj_array = dap_json_array_get_idx(a_response->result_json_object, 0);
+        return -1;
+    if (dap_json_get_type(a_json_input) != DAP_JSON_TYPE_ARRAY)
+        return -1;
+    int l_result_count = dap_json_array_length(a_json_input);
+    if (l_result_count <= 0)
+        return -1;
+
+    dap_string_t *l_str = dap_string_new("\n");
+    dap_string_append(l_str, "________________________________________________________________________________________________________________\n");
+    dap_string_append_printf(l_str, " %7s | Hash \t\t\t\t\t\t\t      | Time create \t\t        |\n","#");
+    dap_json_t *l_json_obj_array = dap_json_array_get_idx(a_json_input, 0);
     dap_json_t *l_object_events = NULL;
     char *l_limit = NULL;
     char *l_offset = NULL;
@@ -177,64 +173,55 @@ static int s_print_for_dag_list(dap_json_rpc_response_t *a_response, char **a_cm
         l_result_count = dap_json_array_length(l_object_events);
         for (int i = 0; i < l_result_count; i++) {
             dap_json_t *l_json_obj_result = dap_json_array_get_idx(l_object_events, i);
-            if (!l_json_obj_result) {
-                printf("Failed to get array element at index %d\n", i);
+            if (!l_json_obj_result)
                 continue;
-            }
 
-            dap_json_t *l_obj_event_number, *l_obj_hash, *l_obj_create, *l_obj_lim, *l_obj_off;
-            if (dap_json_object_get_ex(l_json_obj_result, "event number", &l_obj_event_number) &&
-                dap_json_object_get_ex(l_json_obj_result, "hash", &l_obj_hash) &&
-                dap_json_object_get_ex(l_json_obj_result, "ts_create", &l_obj_create))
-            {
-                if (l_obj_event_number && l_obj_hash && l_obj_create) {
-                    printf(" %7s | %s | %s\t|",
-                            dap_json_get_string(l_obj_event_number), dap_json_get_string(l_obj_hash), dap_json_get_string(l_obj_create));
-                } else {
-                    printf("Missing required fields in array element at index %d\n", i);
-                }
+            dap_json_t *l_obj_event_number = NULL, *l_obj_hash = NULL, *l_obj_create = NULL, *l_obj_lim = NULL, *l_obj_off = NULL;
+            // Try both v1 and v2 field names for event number
+            if (!dap_json_object_get_ex(l_json_obj_result, "event number", &l_obj_event_number))
+                dap_json_object_get_ex(l_json_obj_result, "event_num", &l_obj_event_number);
+            dap_json_object_get_ex(l_json_obj_result, "hash", &l_obj_hash);
+            dap_json_object_get_ex(l_json_obj_result, "ts_create", &l_obj_create);
+            
+            if (l_obj_event_number && l_obj_hash && l_obj_create) {
+                dap_string_append_printf(l_str, " %7" DAP_UINT64_FORMAT_U " | %s | %s\t|\n",
+                        dap_json_get_uint64(l_obj_event_number), dap_json_get_string(l_obj_hash), dap_json_get_string(l_obj_create));
             } else if (dap_json_object_get_ex(l_json_obj_result, "limit", &l_obj_lim)) {
                 dap_json_object_get_ex(l_json_obj_result, "offset", &l_obj_off);
-                l_limit = dap_json_get_int64(l_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT,dap_json_get_int64(l_obj_lim)) : dap_strdup_printf("unlimit");
+                l_limit = dap_json_get_int64(l_obj_lim) ? dap_strdup_printf("%"DAP_INT64_FORMAT, dap_json_get_int64(l_obj_lim)) : dap_strdup_printf("unlimit");
                 if (l_obj_off)
-                    l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT,dap_json_get_int64(l_obj_off));
+                    l_offset = dap_strdup_printf("%"DAP_INT64_FORMAT, dap_json_get_int64(l_obj_off));
                 continue;
-            } else {
-                dap_json_print_object(l_json_obj_result, stdout, 0);
-            }             
-            printf("\n");
+            }
         }
-        printf("_________|____________________________________________________________________|_________________________________|\n\n");
+        dap_string_append(l_str, "_________|____________________________________________________________________|_________________________________|\n\n");
     } else {
-        printf("EVENTS is empty\n");
-        return -4;
+        dap_string_append(l_str, "EVENTS is empty\n");
     }
     if (l_limit) {            
-        printf("\tlimit: %s \n", l_limit);
+        dap_string_append_printf(l_str, "\tlimit: %s \n", l_limit);
         DAP_DELETE(l_limit);
     } 
     if (l_offset) {            
-        printf("\toffset: %s \n", l_offset);
+        dap_string_append_printf(l_str, "\toffset: %s \n", l_offset);
         DAP_DELETE(l_offset);
-    }        
+    }
+
+    dap_json_t *l_json_result = dap_json_object_new();
+    dap_json_object_add_string(l_json_result, "output", l_str->str);
+    dap_json_array_add(a_json_output, l_json_result);
+    dap_string_free(l_str, true);
     return 0;
 }
 
 /**
- * @brief dap_chain_type_dag_init
- * @return always 0
+ * @brief Register CLI command for DAG operations
+ * 
+ * Separated from dap_chain_type_dag_init() to allow unit tests
+ * to register CLI commands without full DAG initialization.
  */
-int dap_chain_type_dag_init()
+void dap_chain_type_dag_cli_init(void)
 {
-    srand((unsigned int) time(NULL));
-    dap_chain_type_callbacks_t l_callbacks = { .callback_init = s_chain_cs_dag_new,
-                                                   .callback_delete = s_chain_cs_dag_delete,
-                                                   .callback_purge = s_chain_cs_dag_purge };
-    dap_chain_type_add("dag", l_callbacks);
-    s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
-    s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
-    s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
-    debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
     dap_cli_server_cmd_add("dag", s_cli_dag, s_print_for_dag_list, "DAG commands", 0,
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
@@ -255,6 +242,24 @@ int dap_chain_type_dag_init()
         "dag event find -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
             "\tSearches for events that contain the specified datum.\n\n"
                                         );
+}
+
+/**
+ * @brief dap_chain_type_dag_init
+ * @return always 0
+ */
+int dap_chain_type_dag_init()
+{
+    srand((unsigned int) time(NULL));
+    dap_chain_type_callbacks_t l_callbacks = { .callback_init = s_chain_cs_dag_new,
+                                                   .callback_delete = s_chain_cs_dag_delete,
+                                                   .callback_purge = s_chain_cs_dag_purge };
+    dap_chain_type_add("dag", l_callbacks);
+    s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
+    s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
+    s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
+    debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
+    dap_chain_type_dag_cli_init();
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
     return 0;
 }
@@ -849,6 +854,69 @@ dap_chain_type_dag_event_t* dap_chain_type_dag_find_event_by_hash(dap_chain_type
     pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
     dap_chain_type_dag_event_t * l_event = l_event_item? l_event_item->event: NULL;
     return l_event;
+}
+
+/**
+ * @brief Get count of events in DAG
+ * @param a_dag Pointer to DAG structure
+ * @return Number of events
+ */
+uint64_t dap_chain_type_dag_get_events_count(dap_chain_type_dag_t *a_dag)
+{
+    if (!a_dag)
+        return 0;
+    pthread_mutex_lock(&PVT(a_dag)->events_mutex);
+    uint64_t l_count = dap_ht_count(PVT(a_dag)->events);
+    pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
+    return l_count;
+}
+
+/**
+ * @brief Get count of events in threshold
+ * @param a_dag Pointer to DAG structure
+ * @return Number of events in threshold
+ */
+uint64_t dap_chain_type_dag_get_threshold_count(dap_chain_type_dag_t *a_dag)
+{
+    if (!a_dag)
+        return 0;
+    pthread_mutex_lock(&PVT(a_dag)->events_mutex);
+    uint64_t l_count = dap_ht_count(PVT(a_dag)->events_treshold);
+    pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
+    return l_count;
+}
+
+/**
+ * @brief Get last event information
+ * @param a_dag Pointer to DAG structure
+ * @param a_event_number Output: event number (can be NULL)
+ * @param a_event_hash Output: event hash (can be NULL)
+ * @param a_ts_created Output: creation timestamp (can be NULL)
+ * @return true if last event exists, false otherwise
+ */
+bool dap_chain_type_dag_get_last_event(dap_chain_type_dag_t *a_dag,
+                                       uint64_t *a_event_number,
+                                       dap_chain_hash_fast_t *a_event_hash,
+                                       dap_time_t *a_ts_created)
+{
+    if (!a_dag)
+        return false;
+    
+    pthread_mutex_lock(&PVT(a_dag)->events_mutex);
+    dap_chain_type_dag_event_item_t *l_last_item = dap_ht_last(PVT(a_dag)->events);
+    pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
+    
+    if (!l_last_item)
+        return false;
+    
+    if (a_event_number)
+        *a_event_number = l_last_item->event_number;
+    if (a_event_hash)
+        *a_event_hash = l_last_item->hash;
+    if (a_ts_created)
+        *a_ts_created = l_last_item->ts_created;
+    
+    return true;
 }
 
 /**
@@ -2042,6 +2110,8 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 if (!l_datum_hash_str) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR, "Command 'event find' requires parameter '-datum'");
                     ret = DAP_CHAIN_NODE_CLI_COM_DAG_PARAM_ERR;
+                    dap_json_object_free(json_obj_out);
+                    break;
                 }
                 dap_hash_sha3_256_t l_datum_hash = {};
                 int ret_code = 0;

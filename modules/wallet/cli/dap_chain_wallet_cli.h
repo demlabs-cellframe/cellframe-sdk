@@ -36,13 +36,21 @@ extern "C" {
  */
 
 /**
- * @brief Wallet command handler
- * @param a_argc Arguments count
- * @param a_argv Arguments array
- * @param a_json_arr_reply JSON reply object
- * @param a_version API version
- * @return 0 on success, error code otherwise
+ * @brief Initialize wallet CLI commands
+ * 
+ * Registers all wallet-related commands with the CLI server.
+ * This function should be called during wallet module initialization.
+ * 
+ * @return 0 on success, negative error code on failure
  */
+int dap_chain_wallet_cli_init(void);
+
+/**
+ * @brief Cleanup wallet CLI
+ * 
+ * Unregisters wallet commands from CLI server.
+ */
+void dap_chain_wallet_cli_deinit(void);
 
 #ifdef __cplusplus
 }

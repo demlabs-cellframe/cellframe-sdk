@@ -5,7 +5,7 @@ project (dap_chain_ledger)
 # Add CLI subdirectory FIRST (creates OBJECT library)
 add_subdirectory(cli)
 
-# Ledger source files - EXCLUDING old CLI and decree (decree -> governance module)
+# Ledger source files - EXCLUDING decree (decree -> governance module)
 file(GLOB DAP_CHAIN_LEDGER_SRCS 
     dap_chain_ledger.c
     dap_chain_ledger_callbacks.c
@@ -16,7 +16,7 @@ file(GLOB DAP_CHAIN_LEDGER_SRCS
     dap_chain_ledger_json.c
     # dap_chain_ledger_decree.c  # DISABLED - moved to governance module
     dap_chain_ledger_cli_error_codes.c
-    # OLD CLI dap_chain_ledger_cli.c is DISABLED - using new modular CLI in cli/ subdirectory
+    # dap_chain_ledger_cli.c - DISABLED, needs major refactoring. Using new modular CLI in cli/
 )
 file(GLOB DAP_CHAIN_LEDGER_HEADERS include/*.h)
 

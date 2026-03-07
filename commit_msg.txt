@@ -1,0 +1,11 @@
+fix(tests): Clang compatibility fixes for mocked CLI tests
+
+1. Move dap_chain_net_t to end of structs - it has flexible array member
+   (pvt[]) and cannot be a non-terminal field (GNU extension)
+
+2. Update mock API calls in test_cli_xchange_mocked.c:
+   - dap_mock_init() now takes no arguments
+   - dap_mock_enable/disable -> dap_mock_set_enabled(mock, bool)
+   - dap_json_free -> dap_json_object_free
+
+3. Fix array assignment: use strncpy for pub.name instead of =

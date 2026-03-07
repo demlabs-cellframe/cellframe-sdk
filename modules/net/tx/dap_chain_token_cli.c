@@ -64,6 +64,8 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_utils.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_cli.h"
+#include "dap_chain_ledger_cli_token.h"  // For com_token
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_chain_srv.h"
@@ -73,6 +75,7 @@
 #include "dap_chain_mempool_cli.h"
 #include "dap_cert_file.h"
 
+static int s_print_for_token_list(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt);
 /**
  * @brief Local utility: Parse -net and -chain arguments
  * @details Local copy to avoid dependency on net/cmd modules (modular architecture)
@@ -1630,25 +1633,163 @@ int dap_chain_token_cli_init(void)
     dap_cli_server_cmd_add("token_decl", com_token_decl, NULL,
                            "Declare new token",
                            -1, // auto ID
-                           "token_decl ...\n");
+        "token_decl -net <net_name> [-chain <chain_name>] -token <token_ticker> -total_supply <total_supply>\n"
+        "           -signs_total <sign_total> -signs_emission <signs_for_emission> -decimals <18>\n"
+        "           -certs <certs_list> [-type {private | CF20}] [-flags <flags_list>] [-H {hex | base58}]\n"
+        "           [<extended_params>]\n\n"
+        "  Declare new token for <net_name>:<chain_name> with ticker <token_ticker>\n\n"
+        "==Flags== (comma-separated list)\n"
+        "  ALL_ALLOWED\n"
+        "\tAllowed all permissions if not blocked them. Be careful with this mode\n"
+        "  ALL_BLOCKED\n"
+        "\tBlocked all permissions, usefull add it first and then add allows what you want to allow\n"
+        "  ALL_FROZEN\n"
+        "\tAll permissions are temporarily frozen\n"
+        "  ALL_UNFROZEN\n"
+        "\tUnfrozen permissions\n"
+        "  STATIC_ALL\n"
+        "\tNo token manipulations after declarations at all. Token declares statically and can't be changed after\n"
+        "  STATIC_FLAGS\n"
+        "\tNo token manipulations after declarations with flags\n"
+        "  STATIC_PERMISSIONS_ALL\n"
+        "\tNo all permissions lists manipulations after declarations\n"
+        "  STATIC_PERMISSIONS_DATUM_TYPE\n"
+        "\tNo datum type permissions lists manipulations after declarations\n"
+        "  STATIC_PERMISSIONS_TX_RECEIVER\n"
+        "\tNo tx receiver permissions lists manipulations after declarations\n"
+        "  STATIC_PERMISSIONS_TX_SENDER\n"
+        "\tNo tx sender permissions lists manipulations after declarations\n"
+        "  UTXO_ARBITRAGE_TX_DISABLED\n"
+        "\tDisables arbitrage transactions for this token\n"
+        "  UTXO_BLOCKING_DISABLED\n"
+        "\tDisables UTXO blocking mechanism (opt-out, blocking enabled by default)\n"
+        "  UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING\n"
+        "\tDisables address-based receiver blocking (tx_recv_block/tx_recv_allow ignored)\n"
+        "  UTXO_DISABLE_ADDRESS_SENDER_BLOCKING\n"
+        "\tDisables address-based sender blocking (tx_send_block/tx_send_allow ignored)\n"
+        "  UTXO_STATIC_BLOCKLIST\n"
+        "\tMakes UTXO blocklist immutable after token creation\n\n"
+        "==Extended params==\n"
+        "  -datum_type_allowed <value>\n"
+        "\tSet allowed datum type(s)\n"
+        "  -datum_type_blocked <value>\n"
+        "\tSet blocked datum type(s)\n"
+        "  -delegated_token_from <ticker>\n"
+        "\tCreate delegated token from specified token ticker\n"
+        "  -description <value>\n"
+        "\tDescription for this token\n"
+        "  -total_signs_valid <value>\n"
+        "\tSet valid signatures count's minimum\n"
+        "  -tx_receiver_allowed <value>\n"
+        "\tSet allowed tx receiver address(es)\n"
+        "  -tx_receiver_blocked <value>\n"
+        "\tSet blocked tx receiver address(es)\n"
+        "  -tx_sender_allowed <value>\n"
+        "\tSet allowed tx sender address(es)\n"
+        "  -tx_sender_blocked <value>\n"
+        "\tSet blocked tx sender address(es)\n"
+        );
+    // Token info
+    dap_cli_server_cmd_add("token", com_token, s_print_for_token_list, "Token info", -1,
+        "token list -net <net_name> [-full] [-h]\n"
+        "\tLists all tokens in specified network. Use -full for detailed information.\n\n"
+        "token info -net <net_name> -name <token_ticker> [-history_limit <N>] [-h]\n"
+        "\tDisplays detailed token information including:\n"
+        "\t  - Token properties (ticker, type, supply, decimals)\n"
+        "\t  - Flags (including UTXO blocking and arbitrage flags)\n"
+        "\t  - Permissions (sender/receiver allow/block lists)\n"
+        "\t  - UTXO blocklist (if UTXO blocking is enabled):\n"
+        "\t      * tx_hash: Transaction hash of blocked UTXO\n"
+        "\t      * out_idx: Output index\n"
+        "\t      * blocked_time: When UTXO was added to blocklist\n"
+        "\t      * becomes_effective: When blocking activates (delayed activation)\n"
+        "\t      * becomes_unblocked: When blocking expires (0 = permanent)\n"
+        "\t      * history_recent: Last N blocking history changes (ADD/REMOVE/CLEAR)\n"
+        "\t      * history_total_count: Total number of history records\n"
+        "\t  - Emission history\n"
+        "\t  - Update history\n\n"
+        "\tOPTIONS:\n"
+        "\t  -history_limit <N>: Number of history items to display (default: 10)\n"
+        "\t                      Use 0 to display all history items\n\n"
+        "\tNOTE: UTXO blocklist is displayed only if UTXO_BLOCKING_DISABLED flag is NOT set.\n");
+
 
     // Register token_update command
     dap_cli_server_cmd_add("token_update", com_token_update, NULL,
                            "Update token",
                            -1, // auto ID
-                           "token_update ...\n");
+        "token_update -net <net_name> [-chain <chain_name>] -token <token_ticker> -certs <certs_list>\n"
+        "             [-flag_set <flags>] [-flag_unset <flags>] [-total_supply_change <value>]\n"
+        "             [-H {hex | base58}] [<extended_params>]\n\n"
+        "  Update existing token for <net_name>:<chain_name> with ticker <token_ticker>\n\n"
+        "==Flags== (use with -flag_set / -flag_unset, comma-separated)\n"
+        "  ALL_ALLOWED\n"
+        "\tAllows all permissions unless they are blocked. Be careful with this mode\n"
+        "  ALL_BLOCKED\n"
+        "\tBlocks all permissions\n"
+        "  ALL_FROZEN\n"
+        "\tTemporarily freezes all permissions\n"
+        "  ALL_UNFROZEN\n"
+        "\tUnfreezes all frozen permissions\n"
+        "  STATIC_ALL\n"
+        "\tBlocks manipulations with a token after declaration\n"
+        "  STATIC_FLAGS\n"
+        "\tBlocks manipulations with token flags after declaration\n"
+        "  STATIC_PERMISSIONS_ALL\n"
+        "\tBlocks all manipulations with permissions list after declaration\n"
+        "  STATIC_PERMISSIONS_DATUM_TYPE\n"
+        "\tBlocks all manipulations with datum permissions list after declaration\n"
+        "  STATIC_PERMISSIONS_TX_RECEIVER\n"
+        "\tBlocks all manipulations with transaction receivers permissions list after declaration\n"
+        "  STATIC_PERMISSIONS_TX_SENDER\n"
+        "\tBlocks all manipulations with transaction senders permissions list after declaration\n"
+        "  UTXO_ARBITRAGE_TX_DISABLED\n"
+        "\tDisables arbitrage transactions for this token\n"
+        "  UTXO_BLOCKING_DISABLED\n"
+        "\tDisables UTXO blocking mechanism (opt-out)\n"
+        "  UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING\n"
+        "\tDisables tx_recv_block/tx_recv_allow checks\n"
+        "  UTXO_DISABLE_ADDRESS_SENDER_BLOCKING\n"
+        "\tDisables tx_send_block/tx_send_allow checks\n"
+        "  UTXO_STATIC_BLOCKLIST\n"
+        "\tMakes UTXO blocklist immutable after first set\n\n"
+        "==Extended params==\n"
+        "  -add_certs <cert_list>\n"
+        "\tAdds certificates to the token's certificates list\n"
+        "  -datum_type_allowed <value>\n"
+        "\tSet allowed datum type(s)\n"
+        "  -datum_type_blocked <value>\n"
+        "\tSet blocked datum type(s)\n"
+        "  -description <value>\n"
+        "\tUpdated description for this token\n"
+        "  -remove_certs <pkeys_hash>\n"
+        "\tRemoves certificates from the list using their public key hashes\n"
+        "  -total_signs_valid <value>\n"
+        "\tSets the minimum amount of valid signatures\n"
+        "  -tx_receiver_allowed <wallet_addr>\n"
+        "\tAdds wallet address to the list of allowed receivers\n"
+        "  -tx_receiver_blocked <wallet_addr>\n"
+        "\tAdds wallet address to the list of blocked receivers\n"
+        "  -tx_sender_allowed <wallet_addr>\n"
+        "\tAdds wallet address to the list of allowed senders\n"
+        "  -tx_sender_blocked <wallet_addr>\n"
+        "\tAdds wallet address to the list of blocked senders\n"
+        );
 
     // Register token_emit command
     dap_cli_server_cmd_add("token_emit", com_token_emit, NULL,
                            "Emit tokens",
                            -1, // auto ID
-                           "token_emit ...\n");
+                           "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
+                            "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n");
 
     // Register token_decl_sign command
     dap_cli_server_cmd_add("token_decl_sign", com_token_decl_sign, NULL,
                            "Sign token declaration",
                            -1, // auto ID
-                           "token_decl_sign ...\n");
+                           "token_decl_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
+            "\t Sign existent <datum_hash> in mempool with <certs_list>\n"
+            );
 
     // Register chain CA commands
     dap_cli_server_cmd_add("chain_ca_copy", com_chain_ca_copy, NULL,
@@ -1659,7 +1800,7 @@ int dap_chain_token_cli_init(void)
     dap_cli_server_cmd_add("chain_ca_pub", com_chain_ca_pub, NULL,
                            "Publish CA certificate",
                            -1, // auto ID
-                           "chain_ca_pub ...\n");
+                           "chain_ca_pub -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n");
 
     log_it(L_INFO, "Chain/Token CLI commands registered");
     return 0;
@@ -1669,3 +1810,197 @@ void dap_chain_token_cli_deinit(void)
 {
     log_it(L_INFO, "Chain/Token CLI commands unregistered");
 }
+
+
+/**
+ * @brief Context structure for token list foreach callback
+ */
+typedef struct token_foreach_ctx {
+    dap_string_t *str;
+    int *token_count;
+    bool full;
+} token_foreach_ctx_t;
+
+/**
+ * @brief Callback for iterating over tokens in a chain's JSON object
+ * @param a_ticker Token ticker name (object key)
+ * @param a_token_data Token data JSON object
+ * @param a_user_data User context (token_foreach_ctx_t*)
+ */
+static void s_token_iter_callback(const char *a_ticker, dap_json_t *a_token_data, void *a_user_data)
+{
+    token_foreach_ctx_t *l_ctx = (token_foreach_ctx_t *)a_user_data;
+    if (!a_ticker || !a_token_data || !l_ctx)
+        return;
+        
+    (*l_ctx->token_count)++;
+    
+    // Get current_state
+    dap_json_t *l_current_state = NULL;
+    if (!dap_json_object_get_ex(a_token_data, "current_state", &l_current_state) &&
+        !dap_json_object_get_ex(a_token_data, "current state", &l_current_state)) {
+        return;
+    }
+    
+    // Extract token info
+    const char *l_type = "N/A";
+    int l_decimals = 0;
+    int l_signs_valid = 0;
+    int l_signs_total = 0;
+    const char *l_total_supply = "0";
+    const char *l_current_supply = "0";
+    
+    dap_json_t *l_tmp = NULL;
+    if (dap_json_object_get_ex(l_current_state, "type", &l_tmp))
+        l_type = dap_json_get_string(l_tmp);
+    if (dap_json_object_get_ex(l_current_state, "Decimals", &l_tmp))
+        l_decimals = dap_json_get_int(l_tmp);
+    if (dap_json_object_get_ex(l_current_state, "Auth signs valid", &l_tmp))
+        l_signs_valid = dap_json_get_int(l_tmp);
+    if (dap_json_object_get_ex(l_current_state, "Auth signs total", &l_tmp))
+        l_signs_total = dap_json_get_int(l_tmp);
+    if (dap_json_object_get_ex(l_current_state, "Supply total", &l_tmp))
+        l_total_supply = dap_json_get_string(l_tmp);
+    if (dap_json_object_get_ex(l_current_state, "Supply current", &l_tmp))
+        l_current_supply = dap_json_get_string(l_tmp);
+    
+    // Get declarations info
+    dap_json_t *l_declarations = NULL;
+    const char *l_decl_status = "N/A";
+    const char *l_decl_hash = "N/A";
+    int l_decl_count = 0;
+    
+    if (dap_json_object_get_ex(a_token_data, "declarations", &l_declarations)) {
+        l_decl_count = dap_json_array_length(l_declarations);
+        if (l_decl_count > 0) {
+            dap_json_t *l_first_decl = dap_json_array_get_idx(l_declarations, 0);
+            if (l_first_decl) {
+                if (dap_json_object_get_ex(l_first_decl, "status", &l_tmp))
+                    l_decl_status = dap_json_get_string(l_tmp);
+                dap_json_t *l_datum = NULL;
+                if (dap_json_object_get_ex(l_first_decl, "Datum", &l_datum)) {
+                    if (dap_json_object_get_ex(l_datum, "hash", &l_tmp))
+                        l_decl_hash = dap_json_get_string(l_tmp);
+                }
+            }
+        }
+    }
+    
+    // Get updates count
+    dap_json_t *l_updates = NULL;
+    int l_update_count = 0;
+    if (dap_json_object_get_ex(a_token_data, "updates", &l_updates))
+        l_update_count = dap_json_array_length(l_updates);
+    
+    // Format signs string
+    char l_signs_str[32];
+    snprintf(l_signs_str, sizeof(l_signs_str), "%d/%d", l_signs_valid, l_signs_total);
+    
+    // Format hash (truncate if not full mode)
+    char l_hash_display[80];
+    if (l_ctx->full || strlen(l_decl_hash) <= 12) {
+        snprintf(l_hash_display, sizeof(l_hash_display), "%s", l_decl_hash);
+    } else {
+        snprintf(l_hash_display, sizeof(l_hash_display), "%.12s...", l_decl_hash);
+    }
+    
+    // Print row
+    if (l_ctx->full) {
+        dap_string_append_printf(l_ctx->str, "  %-15s|  %-7s| %-8d | %-13s | %-13d | %-8d | %-11s| %-68s| %-41s| %-41s|\n",
+            a_ticker, l_type ? l_type : "N/A", l_decimals, l_signs_str, l_decl_count, l_update_count, 
+            l_decl_status ? l_decl_status : "N/A", l_decl_hash ? l_decl_hash : "N/A",
+            l_total_supply ? l_total_supply : "0", l_current_supply ? l_current_supply : "0");
+    } else {
+        dap_string_append_printf(l_ctx->str, "  %-15s|  %-7s| %-8d | %-13s | %-13d | %-8d | %-11s| %-12s| %-41s| %-41s|\n",
+            a_ticker, l_type ? l_type : "N/A", l_decimals, l_signs_str, l_decl_count, l_update_count, 
+            l_decl_status ? l_decl_status : "N/A", l_hash_display,
+            l_total_supply ? l_total_supply : "0", l_current_supply ? l_current_supply : "0");
+    }
+}
+
+/**
+* @brief s_print_for_token_list
+* Post-processing callback for token list command. Formats JSON input into
+* human-readable table output.
+*
+* @param a_json_input Input JSON from command handler
+* @param a_json_output Output JSON array to write formatted result
+* @param a_cmd_param Command parameters array
+* @param a_cmd_cnt Count of command parameters
+* @return 0 on success (result written to a_json_output), non-zero to use original input
+*/
+static int s_print_for_token_list(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt)
+{
+    dap_return_val_if_pass(!a_json_input || !a_json_output, -1);
+    bool l_table_mode = dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-h") != -1;
+    bool l_full = dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "-full") != -1;
+    if (!l_table_mode)
+        return -1;
+    if (dap_cli_server_cmd_check_option(a_cmd_param, 0, a_cmd_cnt, "list") == -1)
+        return -1;
+     
+    if (dap_json_get_type(a_json_input) != DAP_JSON_TYPE_ARRAY)
+        return -1;
+
+    int result_count = dap_json_array_length(a_json_input);
+    if (result_count <= 0)
+        return -1;
+            
+    dap_json_t *json_obj_main = dap_json_array_get_idx(a_json_input, 0);
+    dap_json_t *j_object_tokens = NULL;
+    if (!dap_json_object_get_ex(json_obj_main, "TOKENS", &j_object_tokens) &&
+        !dap_json_object_get_ex(json_obj_main, "tokens", &j_object_tokens)) {
+        return -1;
+    }
+    int chains_count = dap_json_array_length(j_object_tokens);
+    if (chains_count <= 0)
+        return -1;
+    dap_string_t *l_str = dap_string_new("\n");
+    
+    // Print table header
+    if (l_full) {
+        dap_string_append(l_str, "__________________________________________________________________________________________________________________________________________________________________________________"
+            "_________________________________________________________________________\n");
+        dap_string_append_printf(l_str, "  %-15s|  %-7s| %-6s | %-13s | %-13s | %-8s | %-11s| %-68s| %-41s| %-41s|\n",
+            "Token Ticker", "Type", "Decimals", "Current Signs", "Declarations", "Updates", "Decl Status", "Decl Hash (full)", "Total Supply", "Current Supply");
+    } else {
+
+        dap_string_append(l_str, "__________________________________________________________________________________________________________________________________________________________________________________"
+            "________________\n");
+        dap_string_append_printf(l_str, "  %-15s|  %-7s| %-6s | %-13s | %-13s | %-8s | %-11s| %-12s| %-41s| %-41s|\n",
+            "Token Ticker", "Type", "Decimals", "Current Signs", "Declarations", "Updates", "Decl Status", "Decl Hash", "Total Supply", "Current Supply");
+    }
+        
+    int total_tokens = 0;
+    
+    token_foreach_ctx_t l_ctx = {
+        .str = l_str,
+        .token_count = &total_tokens,
+        .full = l_full
+    };
+    
+    // Iterate through chains
+    for (int chain_idx = 0; chain_idx < chains_count; chain_idx++) {
+        dap_json_t *chain_tokens = dap_json_array_get_idx(j_object_tokens, chain_idx);
+        if (!chain_tokens)
+            continue;
+            
+        // Iterate through all tokens in this chain using foreach
+        dap_json_object_foreach(chain_tokens, s_token_iter_callback, &l_ctx);
+    }
+    
+    dap_string_append_printf(l_str, "\nTotal tokens: %d\n", total_tokens);
+    
+    dap_json_t *tokens_count_obj = NULL;
+    if (dap_json_object_get_ex(json_obj_main, "tokens_count", &tokens_count_obj)) {
+        dap_string_append_printf(l_str, "Tokens count: %s\n", dap_json_get_string(tokens_count_obj));
+    }
+
+    // Create output JSON with formatted string
+    dap_json_t *l_json_result = dap_json_object_new();
+    dap_json_object_add_string(l_json_result, "output", l_str->str);
+    dap_json_array_add(a_json_output, l_json_result);
+    dap_string_free(l_str, true);
+    return 0;
+}
+    
