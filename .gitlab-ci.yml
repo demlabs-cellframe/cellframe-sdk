@@ -42,7 +42,7 @@ tests:arm64.cross:
     image: demlabs/debian/amd64:cross
     script:
       - mkdir build
-      - cd build && cmake-arm64 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON && make -j$(nproc) && ctest --output-on-failure --verbose
+      - cd build && cmake-arm64 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON -DBUILD_WITH_GDB_DRIVER_SQLITE=ON && make -j$(nproc) && ctest --output-on-failure --verbose
 
 
 tests:arm32.cross:
@@ -50,7 +50,7 @@ tests:arm32.cross:
     image: demlabs/debian/amd64:cross
     script:
       - mkdir build
-      - cd build && cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON && make -j$(nproc) && ctest --output-on-failure --verbose
+      - cd build && cmake-arm32 .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DBUILD_WITH_GDB_DRIVER_MDBX=ON -DBUILD_WITH_GDB_DRIVER_SQLITE=ON && make -j$(nproc) && ctest --output-on-failure --verbose
 
 tests:windows.amd64:
     extends: .tests
