@@ -296,11 +296,6 @@ void dap_chain_datum_dump_tx_items(json_object* a_json_arr_items,
                                   int a_version,
                                   json_object* a_json_arr_reply)
 {
-    bool l_is_first = false;
-    dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, NULL, TX_ITEM_TYPE_IN, NULL);
-    if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))
-        l_is_first = true;
-
     dap_hash_fast_t l_hash_tmp = { };
     byte_t *item; size_t l_size;
     

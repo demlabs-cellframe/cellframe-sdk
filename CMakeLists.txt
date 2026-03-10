@@ -73,8 +73,6 @@ if (BUILD_WITH_ZIP)
     include_directories(3rdparty/libzip/lib)
 endif()
 
-add_subdirectory(3rdparty/monero_crypto)
-
 add_subdirectory(modules/)
 
 # Post-process all OBJECT libraries to propagate include directories
