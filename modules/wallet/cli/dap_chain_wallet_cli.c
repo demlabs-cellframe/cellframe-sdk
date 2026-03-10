@@ -395,6 +395,14 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
                 }
             }
+            if (!l_ledger) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR,
+                                       "Network ledger is not initialized yet for %s", l_net_name);
+                if (l_wallet) dap_chain_wallet_close(l_wallet);
+                dap_json_object_free(json_arr_out);
+                DAP_DELETE(l_addr);
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
+            }
             dap_json_t *json_obj_wall = dap_json_object_new();
             const char *l_addr_str = dap_chain_addr_to_str_static((dap_chain_addr_t*) l_addr);
             if(l_wallet)

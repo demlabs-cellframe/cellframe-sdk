@@ -177,21 +177,23 @@ dap_chain_datum_tx_t *dap_voting_tx_create_poll(
     }
     DAP_DELETE(l_expire_tsd);
     
-    // Add max votes count TSD
-    dap_chain_tx_tsd_t *l_max_votes_tsd = dap_chain_datum_voting_max_votes_count_tsd_create(a_max_vote);
-    if (!l_max_votes_tsd) {
-        log_it(L_ERROR, "Failed to create max votes TSD");
-        dap_chain_datum_tx_delete(l_tx);
-        return NULL;
-    }
-    
-    if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_max_votes_tsd) != 1) {
-        log_it(L_ERROR, "Failed to add max votes TSD to transaction");
+    // Add max votes count TSD (0 means unlimited — skip TSD)
+    if (a_max_vote > 0) {
+        dap_chain_tx_tsd_t *l_max_votes_tsd = dap_chain_datum_voting_max_votes_count_tsd_create(a_max_vote);
+        if (!l_max_votes_tsd) {
+            log_it(L_ERROR, "Failed to create max votes TSD");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        
+        if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_max_votes_tsd) != 1) {
+            log_it(L_ERROR, "Failed to add max votes TSD to transaction");
+            DAP_DELETE(l_max_votes_tsd);
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
         DAP_DELETE(l_max_votes_tsd);
-        dap_chain_datum_tx_delete(l_tx);
-        return NULL;
     }
-    DAP_DELETE(l_max_votes_tsd);
     
     // Add delegated key required TSD
     dap_chain_tx_tsd_t *l_delegated_tsd = dap_chain_datum_voting_delegated_key_required_tsd_create(a_delegated_key_required);
