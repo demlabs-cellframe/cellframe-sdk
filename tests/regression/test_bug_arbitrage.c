@@ -5,9 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
-#include <errno.h>
 
 #include "dap_common.h"
 #include "dap_hash.h"
@@ -91,6 +89,25 @@ static char s_config_dir[512];
 static char s_gdb_dir[512];
 static char s_certs_dir[512];
 static char s_wallets_dir[512];
+
+static void s_diag_wallet_file(const char *a_wallet_name)
+{
+    char l_path[1024];
+    snprintf(l_path, sizeof(l_path), "%s/%s.dwallet", s_wallets_dir, a_wallet_name);
+    dap_path_to_native_inplace(l_path);
+
+    bool l_dir_ok = dap_dir_test(s_wallets_dir);
+    bool l_file_ok = dap_file_test(l_path);
+    bool l_file_simple = dap_file_simple_test(l_path);
+
+    log_it(l_file_ok ? L_NOTICE : L_ERROR,
+           "[DIAG] wallet file '%s': dap_file_test=%s, dap_file_simple_test=%s, dap_dir_test('%s')=%s",
+           l_path,
+           l_file_ok ? "true" : "FALSE",
+           l_file_simple ? "true" : "FALSE",
+           s_wallets_dir,
+           l_dir_ok ? "true" : "FALSE");
+}
 
 static void s_setup(void)
 {
@@ -351,15 +368,7 @@ static void test_bug_arbitrage_availability(void)
     dap_chain_addr_t l_wallet_addr = {0};
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
-
-    // Open wallet immediately after creation to avoid transient ENOENT on macOS
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_avail", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-
-    dap_enc_key_t *l_wallet_key_avail = dap_chain_wallet_get_key(l_wallet_opened, 0);
-    dap_chain_addr_t l_wallet_addr_avail = {0};
-    dap_chain_addr_fill_from_key(&l_wallet_addr_avail, l_wallet_key_avail, s_net_fixture->net->pub.id);
-
+    
     // 4. Reset network fee before creating tokens
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
@@ -387,14 +396,20 @@ static void test_bug_arbitrage_availability(void)
     DAP_DELETE(l_bal_token_str);
     DAP_DELETE(l_bal_fee_str);
     
+    s_diag_wallet_file("reg_wallet_avail");
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_avail", s_wallets_dir, NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+
+    dap_enc_key_t *l_wallet_key_avail = dap_chain_wallet_get_key(l_wallet_opened, 0);
+    dap_chain_addr_t l_wallet_addr_avail = {0};
+    dap_chain_addr_fill_from_key(&l_wallet_addr_avail, l_wallet_key_avail, s_net_fixture->net->pub.id);
+
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
     test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_avail, 50, 100);
     
     // 4. Attempt to create arbitrage transaction immediately
     char l_cmd[2048];
 
-    // Command: tx_create -net ... -chain ... -from_wallet ... -token ... -value ... -arbitrage -certs ...
-    // Note: -to_addr is omitted for arbitrage (fee address is used automatically)
     // NOTE: -certs parameter is REQUIRED for arbitrage transactions to provide token owner signature
     
     snprintf(l_cmd, sizeof(l_cmd), 
@@ -652,14 +667,6 @@ static void test_bug_arbitrage_arguments(void)
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
 
-    // Open wallet immediately after creation to avoid transient ENOENT on macOS
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_args", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-
-    dap_enc_key_t *l_wallet_key_args = dap_chain_wallet_get_key(l_wallet_opened, 0);
-    dap_chain_addr_t l_wallet_addr_args = {0};
-    dap_chain_addr_fill_from_key(&l_wallet_addr_args, l_wallet_key_args, s_net_fixture->net->pub.id);
-
     // 4. Reset network fee before creating tokens
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
@@ -677,13 +684,20 @@ static void test_bug_arbitrage_arguments(void)
     bool l_token_created = s_create_token_and_emission(l_ticker, &l_wallet_addr, l_cert);
     dap_assert_PIF(l_token_created, "Token Args created with balance on wallet");
     
-    // Certificate is already in s_certs hash
     log_it(L_INFO, "Token owner certificate: %s", l_cert->name);
     
     // Set fee for network (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
-    
+
+    s_diag_wallet_file("reg_wallet_args");
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_args", s_wallets_dir, NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+
+    dap_enc_key_t *l_wallet_key_args = dap_chain_wallet_get_key(l_wallet_opened, 0);
+    dap_chain_addr_t l_wallet_addr_args = {0};
+    dap_chain_addr_fill_from_key(&l_wallet_addr_args, l_wallet_key_args, s_net_fixture->net->pub.id);
+
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
     test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_args, 50, 100);
     
@@ -1253,10 +1267,6 @@ static void test_arbitrage_to_addr_behavior(void)
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
 
-    // Open wallet immediately after creation to avoid transient ENOENT on macOS
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-
     // 4. Reset fee BEFORE creating tokens
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
@@ -1273,6 +1283,10 @@ static void test_arbitrage_to_addr_behavior(void)
     // 7. Set network fee (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
+
+    s_diag_wallet_file("reg_wallet_toaddr");
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", s_wallets_dir, NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
     
     dap_chain_addr_t l_fee_addr = s_net_fixture->net->pub.fee_addr;
     const char *l_fee_addr_str = dap_chain_addr_to_str_static(&l_fee_addr);
@@ -1376,7 +1390,7 @@ static void test_arbitrage_to_addr_behavior(void)
     // === TEST 2.3: Arbitrage WITHOUT -to_addr ===
     log_it(L_NOTICE, "=== 2.3: Testing arbitrage WITHOUT -to_addr ===");
     
-    // Re-open wallet and reload cache for second arbitrage TX
+    s_diag_wallet_file("reg_wallet_toaddr");
     l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", s_wallets_dir, NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet re-opened for second arbitrage TX");
     

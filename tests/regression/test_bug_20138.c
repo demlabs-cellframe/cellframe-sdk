@@ -14,9 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <unistd.h>
-#include <errno.h>
 
 #include "dap_common.h"
 #include "dap_hash.h"
@@ -68,6 +66,25 @@ static char s_config_dir[512];
 static char s_gdb_dir[512];
 static char s_certs_dir[512];
 static char s_wallets_dir[512];
+
+static void s_diag_wallet_file(const char *a_wallet_name)
+{
+    char l_path[1024];
+    snprintf(l_path, sizeof(l_path), "%s/%s.dwallet", s_wallets_dir, a_wallet_name);
+    dap_path_to_native_inplace(l_path);
+
+    bool l_dir_ok = dap_dir_test(s_wallets_dir);
+    bool l_file_ok = dap_file_test(l_path);
+    bool l_file_simple = dap_file_simple_test(l_path);
+
+    log_it(l_file_ok ? L_NOTICE : L_ERROR,
+           "[DIAG] wallet file '%s': dap_file_test=%s, dap_file_simple_test=%s, dap_dir_test('%s')=%s",
+           l_path,
+           l_file_ok ? "true" : "FALSE",
+           l_file_simple ? "true" : "FALSE",
+           s_wallets_dir,
+           l_dir_ok ? "true" : "FALSE");
+}
 
 static void s_setup(void)
 {
@@ -443,7 +460,20 @@ static void test_arbitrage_without_cert(void)
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
     
-    // 4. Open wallet immediately after creation to avoid transient ENOENT on macOS
+    // 4. IMPORTANT: Clear network fee BEFORE creating token (base TX requires no fee)
+    uint256_t l_zero_fee = uint256_0;
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_cert_addr);
+    
+    // 5. Create token and emission
+    bool l_token_created = s_create_token_and_emission(TEST_TOKEN_TICKER_SCENARIO1, &l_wallet_addr, l_cert);
+    dap_assert_PIF(l_token_created, "Token created with balance on wallet");
+    
+    // 6. Set fee for network AFTER token creation (fee address = cert address)
+    uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
+
+    // 7. Open wallet — diagnose if file disappeared (investigating macOS ENOENT)
+    s_diag_wallet_file("reg_wallet_20138_1");
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_20138_1", s_wallets_dir, NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
 
@@ -451,18 +481,6 @@ static void test_arbitrage_without_cert(void)
     dap_chain_addr_t l_wallet_addr_opened = {0};
     dap_chain_addr_fill_from_key(&l_wallet_addr_opened, l_wallet_key_opened, s_net_fixture->net->pub.id);
 
-    // 5. IMPORTANT: Clear network fee BEFORE creating token (base TX requires no fee)
-    uint256_t l_zero_fee = uint256_0;
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_cert_addr);
-    
-    // 6. Create token and emission
-    bool l_token_created = s_create_token_and_emission(TEST_TOKEN_TICKER_SCENARIO1, &l_wallet_addr, l_cert);
-    dap_assert_PIF(l_token_created, "Token created with balance on wallet");
-    
-    // 7. Set fee for network AFTER token creation (fee address = cert address)
-    uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
-    
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
     test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_opened, 50, 100);
     
@@ -545,9 +563,20 @@ static void test_arbitrage_with_cert_stuck(void)
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
 
-    // 4. Open wallet immediately after creation so its address is added to s_wallet_addr_cache
-    // before s_create_token_and_emission() calls dap_chain_wallet_cache_load_for_net().
-    // Opening is deferred to after creation on macOS may hit a transient ENOENT otherwise.
+    // 4. IMPORTANT: Clear network fee BEFORE creating token (base TX requires no fee)
+    uint256_t l_zero_fee = uint256_0;
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_cert_addr);
+    
+    // 5. Create token and emission
+    bool l_token_created = s_create_token_and_emission(TEST_TOKEN_TICKER_SCENARIO2, &l_wallet_addr, l_cert);
+    dap_assert_PIF(l_token_created, "Token created with balance on wallet");
+    
+    // 6. Set fee for network AFTER token creation (fee address = cert address)
+    uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
+
+    // 7. Open wallet — diagnose if file disappeared (investigating macOS ENOENT)
+    s_diag_wallet_file("reg_wallet_20138_2");
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_20138_2", s_wallets_dir, NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
 
@@ -555,19 +584,6 @@ static void test_arbitrage_with_cert_stuck(void)
     dap_chain_addr_t l_wallet_addr_opened = {0};
     dap_chain_addr_fill_from_key(&l_wallet_addr_opened, l_wallet_key_opened, s_net_fixture->net->pub.id);
 
-    // 5. IMPORTANT: Clear network fee BEFORE creating token (base TX requires no fee)
-    uint256_t l_zero_fee = uint256_0;
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_cert_addr);
-    
-    // 6. Create token and emission (wallet address already in s_wallet_addr_cache)
-    bool l_token_created = s_create_token_and_emission(TEST_TOKEN_TICKER_SCENARIO2, &l_wallet_addr, l_cert);
-    dap_assert_PIF(l_token_created, "Token created with balance on wallet");
-    
-    // 7. Set fee for network AFTER token creation (fee address = cert address)
-    uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
-    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
-
-    // Load wallet cache for the already-opened wallet
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
     test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_opened, 50, 100);
     
