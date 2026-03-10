@@ -919,22 +919,39 @@ bool test_wait_for_wallet_cache_loaded(dap_chain_net_t *a_net, const dap_chain_a
 
 /**
  * @brief Return a portable temp directory for tests (works under Wine/Windows and Unix)
- * @return Static string: getenv("TEMP") or getenv("TMP") on Windows, else "/tmp"
+ * @return Static string with a per-user temp directory.
+ *
+ * On macOS, /tmp (/private/tmp) is a system-wide directory subject to periodic
+ * cleanup by launchd and CI runner housekeeping.  Using TMPDIR (set by the OS
+ * to /var/folders/…/T/) avoids random test failures caused by directories
+ * disappearing mid-test.
  */
 const char *test_get_temp_dir(void)
 {
-#ifdef DAP_OS_WINDOWS
     static char s_temp_dir[1024];
+    static bool s_resolved = false;
+    if (s_resolved)
+        return s_temp_dir;
+#ifdef DAP_OS_WINDOWS
     const char *e = getenv("TEMP");
     if (!e || !*e)
         e = getenv("TMP");
     if (e && *e) {
         snprintf(s_temp_dir, sizeof(s_temp_dir), "%s", e);
-        return s_temp_dir;
+    } else {
+        snprintf(s_temp_dir, sizeof(s_temp_dir), "C:\\Temp");
     }
-    snprintf(s_temp_dir, sizeof(s_temp_dir), "C:\\Temp");
-    return s_temp_dir;
 #else
-    return "/tmp";
+    const char *e = getenv("TMPDIR");
+    if (e && *e) {
+        size_t len = strlen(e);
+        while (len > 1 && e[len - 1] == '/')
+            len--;
+        snprintf(s_temp_dir, sizeof(s_temp_dir), "%.*s", (int)len, e);
+    } else {
+        snprintf(s_temp_dir, sizeof(s_temp_dir), "/tmp");
+    }
 #endif
+    s_resolved = true;
+    return s_temp_dir;
 }
