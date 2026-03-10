@@ -54,6 +54,15 @@ int dap_chain_wallet_cache_init();
 int dap_chain_wallet_cache_deinit();
 
 /**
+ * @brief Load wallet cache for all opened wallets in the specified network
+ * This function should be called when network transitions to NET_STATE_ONLINE
+ * to ensure wallet cache is populated even if wallets were opened during NET_STATE_LOADING
+ * @param a_net Network to load wallet cache for
+ * @return 0 on success, -1 on error
+ */
+int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net);
+
+/**
  * @brief Find next transactions after l_tx_hash_curr for wallet addr and save pointer to datum into a_tx. If l_tx_hash_curr is NULL then function find first tx for addr.
  * @param a_addr wallet address
  * @param a_token token ticker for transactions filtering  by it
@@ -98,21 +107,35 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
  *         -101 - addr is not found in cache
  */
 int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
-                                                    dap_list_t **a_outs_list, uint256_t a_value_needed, uint256_t *a_value_transfer, bool a_mempool_check);
+                                                    dap_list_t **a_outs_list, uint256_t a_value_needed, uint256_t *a_value_transfer, bool a_mempool_check,
+                                                    bool a_skip_blocklist);
                                                     
 int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
-                                                    dap_list_t **a_outs_list, uint256_t *a_value_transfer, bool a_mempool_check);
-                                                    
+                                                    dap_list_t **a_outs_list, uint256_t *a_value_transfer, bool a_mempool_check,
+                                                    bool a_skip_blocklist);
+
+/**
+ * @brief Standard UTXO selection with blocklist enforcement (for regular transactions)
+ */
 DAP_STATIC_INLINE int dap_chain_wallet_cache_tx_find_outs_with_val(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
                                                     dap_list_t **a_outs_list, uint256_t a_value_needed, uint256_t *a_value_transfer)
 {
-    return dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(a_net, a_token_ticker, a_addr, a_outs_list, a_value_needed, a_value_transfer, true);
+    return dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(a_net, a_token_ticker, a_addr, a_outs_list, a_value_needed, a_value_transfer, true, false);
+}
+
+/**
+ * @brief UTXO selection bypassing blocklist (for arbitrage transactions)
+ */
+DAP_STATIC_INLINE int dap_chain_wallet_cache_tx_find_outs_with_val_skip_blocklist(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
+                                                    dap_list_t **a_outs_list, uint256_t a_value_needed, uint256_t *a_value_transfer)
+{
+    return dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(a_net, a_token_ticker, a_addr, a_outs_list, a_value_needed, a_value_transfer, true, true);
 }
                                                     
 DAP_STATIC_INLINE int dap_chain_wallet_cache_tx_find_outs(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
                                                     dap_list_t **a_outs_list, uint256_t *a_value_transfer)
 {
-    return dap_chain_wallet_cache_tx_find_outs_mempool_check(a_net, a_token_ticker, a_addr, a_outs_list, a_value_transfer, true);
+    return dap_chain_wallet_cache_tx_find_outs_mempool_check(a_net, a_token_ticker, a_addr, a_outs_list, a_value_transfer, true, false);
 }
 
 dap_chain_wallet_cache_iter_t *dap_chain_wallet_cache_iter_create(dap_chain_addr_t a_addr);

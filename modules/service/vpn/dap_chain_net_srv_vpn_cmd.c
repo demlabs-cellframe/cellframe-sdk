@@ -61,10 +61,10 @@ int com_vpn_statistics(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_AR
             add_value_text(l_str, "  recv lost.........", l_stats->bytes_recv_lost);
             add_value_text(l_str, "  send..............", l_stats->bytes_sent);
             add_value_text(l_str, "  send lost.........", l_stats->bytes_sent_lost);
-            dap_string_append_printf(l_str, "  packets recv.......%ld\n", l_stats->packets_recv);
-            dap_string_append_printf(l_str, "  packets recv lost..%ld\n", l_stats->packets_recv_lost);
-            dap_string_append_printf(l_str, "  packets send.......%ld\n", l_stats->packets_sent);
-            dap_string_append_printf(l_str, "  packets send lost..%ld\n", l_stats->packets_sent_lost);
+            dap_string_append_printf(l_str, "  packets recv.......%llu\n", (unsigned long long)l_stats->packets_recv);
+            dap_string_append_printf(l_str, "  packets recv lost..%lld\n", (long long)l_stats->packets_recv_lost);
+            dap_string_append_printf(l_str, "  packets send.......%llu\n", (unsigned long long)l_stats->packets_sent);
+            dap_string_append_printf(l_str, "  packets send lost..%llu\n", (unsigned long long)l_stats->packets_sent_lost);
             // average bitrate
             double l_bitrate = (l_stats->bytes_recv - l_stats->bytes_recv_lost +
                     l_stats->bytes_sent - l_stats->bytes_sent_lost) * 1. / l_time_len_sec;

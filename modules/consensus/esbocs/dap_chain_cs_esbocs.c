@@ -1228,7 +1228,7 @@ static bool s_session_round_new(void *a_arg)
         } else if (!l_round_already_started) {
             long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.prev_round_start_ts;
             if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay && a_session->esbocs->last_accepted_block_timestamp) {
-                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - *(uint16_t*)l_time_delta;
+                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - (uint16_t)l_time_delta;
             } else {
                 l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay;
             }
@@ -2194,7 +2194,7 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
         log_it(L_ERROR, "Can't get block metadata for SYNC_ATTEMPT");
         return false;
     }
-    uint64_t l_sync_attempt = *(uint64_t *)l_sync_attempt_ptr;
+    uint64_t l_sync_attempt; memcpy(&l_sync_attempt, l_sync_attempt_ptr, sizeof(l_sync_attempt));
     uint8_t l_round_attempt = 0;
     if (a_first_sign) {
         uint8_t *l_round_attempt_ptr = dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT);
