@@ -25,13 +25,12 @@ dap_chain_t* dap_chain_net_get_chain_by_id(dap_chain_net_t *a_net, dap_chain_id_
 extern dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
 
 // ============ NETWORK REGISTRY ============
-// Global registry of all networks (by name and by ID)
-static dap_chain_net_t *s_nets_by_name = NULL;
-static dap_chain_net_t *s_nets_by_id = NULL;
+// Use the global registry owned by dap_chain_net.c (populated by s_net_new)
+extern dap_chain_net_t *s_nets_by_name, *s_nets_by_id;
 
 /**
  * @brief Register network in global registry
- * @param a_net Network to register
+ * @param a_net Network to register (must have pub.name and pub.id set)
  */
 void dap_chain_net_register(dap_chain_net_t *a_net)
 {

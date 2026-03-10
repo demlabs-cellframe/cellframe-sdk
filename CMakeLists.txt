@@ -25,6 +25,7 @@ include(${DAP_SDK_SOURCE_DIR}/cmake/LibraryHelpers.cmake)
 # BUILD OPTIONS
 # =========================================
 option(BUILD_SHARED "Build final Cellframe SDK library as shared (default)" ON)
+option(BUILD_STATIC "Also build static version of Cellframe SDK library" OFF)
 option(INSTALL_CELLFRAME_SDK "Install Cellframe SDK library and headers (disable when used as subproject)" ON)
 
 if(BUILD_SHARED)

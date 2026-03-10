@@ -31,6 +31,7 @@
 #include "dap_chain_types.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_decree.h"
+#include "dap_chain_decree_registry.h"
 #include "dap_chain_srv.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
@@ -89,6 +90,7 @@ int s_prepare_env();
  */
 int dap_chain_init(void)
 {
+    dap_chain_decree_registry_init();
     // Cell sharding init
     dap_chain_cell_init();
     // Type system init (blocks, dag, none)

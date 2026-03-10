@@ -757,15 +757,15 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
 
-    // Check if this node is present in nodelist
+    // Check if this node is present in nodelist (non-fatal: nodelist may be populated later via 'node add' or auto-announce)
     dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_session->my_addr);
     if (!l_node_info) {
-        log_it(L_ERROR, "This node address "NODE_ADDR_FP_STR" is not present in nodelist. "
-                        "Add it with 'node add' command before starting consensus",
-                        NODE_ADDR_FP_ARGS_S(l_session->my_addr));
-        return -8;
+        log_it(L_WARNING, "This node address "NODE_ADDR_FP_STR" is not yet present in nodelist. "
+                          "Consensus will start when node is added via 'node add' or auto-announce",
+                          NODE_ADDR_FP_ARGS_S(l_session->my_addr));
+    } else {
+        DAP_DELETE(l_node_info);
     }
-    DAP_DELETE(l_node_info);
 
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
@@ -815,8 +815,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_global_db_objs_delete(l_orders, l_orders_count);
 
     if (IS_ZERO_256(l_esbocs_pvt->minimum_fee)) {
-        log_it(L_ERROR, "No valid order found was signed by this validator delegated key. Switch off validator mode.");
-        return -4;
+        log_it(L_WARNING, "No valid order found signed by this validator key. "
+                          "Will accept zero-fee transactions until a valid order appears");
     }
     l_esbocs_pvt->emergency_mode = dap_config_get_item_bool_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "emergency_mode", false);
     if (l_esbocs_pvt->emergency_mode && !s_check_emergency_rights(l_esbocs, &l_my_signing_addr)) {
@@ -1485,12 +1485,10 @@ static bool s_session_round_new(void *a_arg)
         a_session->esbocs->hardfork_state = a_session->esbocs->hardfork_generation > a_session->chain->generation &&
                                     a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
         if (a_session->esbocs->hardfork_state) {
-            // DISABLED: dap_chain_node_hardfork_prepare() is #if 0 in dap_chain_node.c
-            // dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
-            // int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
-            //                                          a_session->esbocs->hardfork_trusted_addrs,
-            //                                          a_session->esbocs->hardfork_changed_addrs);
-            int rc = -1; // Disabled: hardfork prepare not implemented
+            dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
+            int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
+                                                     a_session->esbocs->hardfork_trusted_addrs,
+                                                     a_session->esbocs->hardfork_changed_addrs);
             if (rc) {
                 log_it(L_ERROR, "Can't start hardfork process with code %d, see log for more details", rc);
                 a_session->esbocs->hardfork_state = false;

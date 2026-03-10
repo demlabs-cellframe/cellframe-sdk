@@ -9,7 +9,7 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_SRV_VTNG_SRCS} HEADERS ${DAP_SRV_VTN
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-target_link_libraries(${PROJECT_NAME} dap_sdk dap_chain dap_chain_ledger dap_chain_net_srv dap_chain_net_tx 
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_ledger dap_chain_net_srv dap_chain_net_tx
     dap_chain_net_srv_stake)
 
 if (INSTALL_SDK)

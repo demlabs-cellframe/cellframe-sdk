@@ -2781,20 +2781,6 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, dap
                         for (uint16_t k = 0; k < l_delegated_hashes_count && !l_approved; ++k) {
                             l_approved = ({dap_global_db_store_obj_t *_o = dap_global_db_get_raw_sync(l_hashes_group_str, l_delegated_hashes[k].key); bool _r = !!_o; dap_global_db_store_obj_free_one(_o); _r;}) && !strcmp((const char *)(l_delegated_hashes[k].value), l_orders[j].key);
                         }
-#if 0
-                        dap_string_append_printf(l_reply_str, "  delegated:\t    %s\n  delegate hash:\n", l_approved ? "true" : "false");
-                        dap_string_t *l_decree_str = dap_string_new("  decree hash:\n");
-                        for (uint16_t k = 0; k < l_delegated_hashes_count; ++k) {
-                            if (!strcmp((const char *)(l_delegated_hashes->value), l_orders[j].key)) {
-                                dap_string_append_printf(l_reply_str, "\t\t    %s\n", (l_delegated_hashes + k)->key);
-                                char *l_current_decree_str = (char *)dap_global_db_get_sync(l_hashes_group_str, l_delegated_hashes[k].key, NULL, NULL, NULL);
-                                dap_string_append_printf(l_decree_str, "\t\t    %s\n", l_current_decree_str ? l_current_decree_str : "");
-                                DAP_DEL_Z(l_current_decree_str);
-                            }
-                        }
-                        dap_string_append_printf(l_reply_str, "%s", l_decree_str->str);
-                        dap_string_free(l_decree_str, true);
-#endif
                         struct validator_order_ext *l_ext = (struct validator_order_ext *)l_order->ext_n_sign;
                         dap_json_t *l_json_obj_ext_params = dap_json_object_new();
                         const char *l_coins_str;

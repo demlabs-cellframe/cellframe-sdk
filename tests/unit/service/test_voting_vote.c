@@ -149,9 +149,9 @@ static void test_setup(void)
  */
 static void test_teardown(void)
 {
-    // Cleanup options list
+    // Cleanup options list (strings allocated via dap_strdup → use DAP_DELETE)
     if (g_test_options) {
-        dap_list_free_full(g_test_options, free);
+        dap_list_free_full(g_test_options, NULL);
         g_test_options = NULL;
     }
     
@@ -315,7 +315,7 @@ static void test_2_5_poll_insufficient_options(void)
     
     dap_assert_PIF(tx == NULL, "Should fail with < 2 options");
     
-    dap_list_free_full(one_option, free);
+    dap_list_free_full(one_option, NULL);
     log_it(L_INFO, "✅ TEST 2.5 PASSED");
 }
 
@@ -409,6 +409,8 @@ static void test_2_9_poll_insufficient_balance(void)
     // Without mocked balance, function will proceed with internal logic
     // This test validates that function doesn't crash with balance checks
     dap_assert_PIF(true, "Function processes balance internally");
+    if (tx)
+        dap_chain_datum_tx_delete(tx);
     
     log_it(L_INFO, "✅ TEST 2.9 PASSED (balance check validated internally)");
 }
@@ -535,6 +537,8 @@ static void test_4_1_poll_creation_basic(void)
     // With real (not mocked) implementation, TX may or may not be created
     // depending on ledger state. We're testing that function doesn't crash
     dap_assert_PIF(true, "Function executes without crashing");
+    if (tx)
+        dap_chain_datum_tx_delete(tx);
     
     log_it(L_INFO, "✅ TEST 4.1 PASSED");
 }
@@ -559,6 +563,8 @@ static void test_4_2_poll_with_delegated_key(void)
     
     // TX creation proceeds - we're testing the delegated_key flag handling
     dap_assert_PIF(true, "Should handle delegated key flag");
+    if (tx)
+        dap_chain_datum_tx_delete(tx);
     
     log_it(L_INFO, "✅ TEST 4.2 PASSED");
 }
@@ -643,8 +649,10 @@ static void test_6_1_poll_max_options(void)
     // TX creation will proceed with mocked functions
     // We're testing that the function handles many options without crashing
     dap_assert_PIF(true, "Should process poll with many options");
+    if (tx)
+        dap_chain_datum_tx_delete(tx);
     
-    dap_list_free_full(many_options, free);
+    dap_list_free_full(many_options, NULL);
     log_it(L_INFO, "✅ TEST 6.1 PASSED");
 }
 
@@ -674,9 +682,9 @@ static void test_6_3_poll_long_question(void)
     
     // Create long question (4KB)
     char long_question[4096];
-    memset(long_question, 'A', sizeof(long_question) - 1);
+    memset(long_question, 'A', sizeof(long_question) - 2);
+    long_question[sizeof(long_question) - 2] = '?';
     long_question[sizeof(long_question) - 1] = '\0';
-    strcat(long_question, "?");
     
     uint256_t fee = uint256_1;
     dap_chain_datum_tx_t *tx = dap_voting_tx_create_poll(
@@ -695,6 +703,8 @@ static void test_6_3_poll_long_question(void)
     // TX creation will proceed with mocked functions
     // We're testing that the function handles long question without crashing
     dap_assert_PIF(true, "Should process long question");
+    if (tx)
+        dap_chain_datum_tx_delete(tx);
     
     log_it(L_INFO, "✅ TEST 6.3 PASSED");
 }
@@ -709,7 +719,7 @@ static void test_6_4_poll_zero_max_votes(void)
         "Unlimited votes poll?",
         g_test_options,
         dap_time_now() + 86400,
-        0,  // Zero = unlimited
+        0,  // Zero = unlimited (max_votes TSD is skipped)
         fee,
         false,
         false,
@@ -717,9 +727,9 @@ static void test_6_4_poll_zero_max_votes(void)
         "CELL"
     );
     
-    // TX creation will proceed with mocked functions
-    // We're testing that the function allows zero max votes
-    dap_assert_PIF(true, "Should allow zero max votes");
+    dap_assert_PIF(tx != NULL, "Should create TX with zero max votes (unlimited)");
+    if (tx)
+        dap_chain_datum_tx_delete(tx);
     
     log_it(L_INFO, "✅ TEST 6.4 PASSED");
 }

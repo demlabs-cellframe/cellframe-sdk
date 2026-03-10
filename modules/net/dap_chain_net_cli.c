@@ -34,16 +34,25 @@
 #include "dap_json_rpc.h"
 #include "dap_dl.h"
 
+#include "dap_global_db.h"
+#include "dap_ht.h"
+
 #define LOG_TAG "dap_chain_net_cli"
 
-// Forward declarations
+static const char *s_version_string = NULL;
+
+// Forward declarations for core commands
+static int s_com_version(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_com_global_db(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+static int s_com_help(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
+
 // Forward declarations for legacy static functions
 static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, int a_arg_start, int a_argc,
                                                                    dap_json_t *a_json_arr_reply, const char *a_cmd_name);
 static dap_json_t *s_net_sync_status(dap_chain_net_t *a_net, int a_version);
 
 static int com_node(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version);
-// REMOVED: int com_net() - legacy CLI handler removed
+static int s_cli_net(int argc, char **argv, dap_json_t *a_json_arr_reply, int a_version);
 
 /**
  * @brief s_net_sync_status - Creates JSON object with network sync status information
@@ -130,12 +139,8 @@ static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, 
 static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_node_addr,
                                        bool a_is_full, const char *a_alias, dap_json_t *a_json_arr_reply)
 {
-    // Get nodes from global_db (same as rpc_list does)
-    char l_group_name[128];
-    snprintf(l_group_name, sizeof(l_group_name), "node-info.%s", a_net->pub.gdb_groups_prefix);
-    
     size_t l_nodes_count = 0;
-    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group_name, &l_nodes_count);
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
 
     if (!l_nodes_count || !l_objs) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_LIST_NO_RECORDS_ERR,
@@ -576,11 +581,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
 
         break;
         // make connect
-    case CMD_CONNECT:
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR,
-                                                                                        "Not implemented yet");
-         break;
-#if 0
+    case CMD_CONNECT: {
         // get address from alias if addr not defined
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_alias_find(l_net, alias_str);
@@ -593,9 +594,9 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
                 return -1;
             }
         }
-        // for auto mode
+        // TODO: migrate "node connect" to new 6.x APIs (dap_chain_node_client_t removed)
+#if 0
         int l_is_auto = 0;
-        // list of dap_chain_node_addr_t struct
         unsigned int l_nodes_count = 0;
         dap_list_t *l_node_list = NULL;
         dap_chain_node_addr_t *l_remote_node_addr = NULL;
@@ -761,10 +762,8 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
         dap_chain_node_client_close(l_node_client);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Node sync completed: Chains and gdb are synced");
         return 0;
-
-    }
 #endif
-        // make handshake
+    }
     case CMD_HANDSHAKE: {
         // get address from alias if addr not defined
         if (alias_str && !l_node_addr.uint64) {
@@ -1002,35 +1001,199 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
     return 0;
 }
 
-/**
- * @brief com_version
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return
- */
+void dap_chain_net_cli_set_version_info(const char *a_version_string)
+{
+    s_version_string = a_version_string;
+}
 
+static int s_com_version(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    (void)a_argc; (void)a_argv; (void)a_version;
+    dap_json_t *l_jobj = dap_json_object_new();
+    const char *l_ver = s_version_string ? s_version_string : CELLFRAME_SDK_VERSION;
+    dap_json_object_add_object(l_jobj, "version", dap_json_object_new_string(l_ver));
+    dap_json_array_add(a_json_arr_reply, l_jobj);
+    return 0;
+}
+
+static int s_com_global_db(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    (void)a_version;
+    int l_arg_index = 1;
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "flush", NULL)) {
+        int l_res = dap_global_db_flush_sync();
+        dap_json_t *l_jobj = dap_json_object_new();
+        switch (l_res) {
+        case 0:
+            dap_json_object_add_object(l_jobj, "command_status",
+                dap_json_object_new_string("Commit data base and filesystem caches to disk completed."));
+            break;
+        case -1:
+            dap_json_rpc_error_add(a_json_arr_reply, -1,
+                "Couldn't open db directory. Can't init cdb. Reboot the node.");
+            dap_json_object_free(l_jobj);
+            return -1;
+        case -2:
+            dap_json_rpc_error_add(a_json_arr_reply, -2,
+                "Couldn't open db directory. Can't init cdb. Reboot the node.");
+            dap_json_object_free(l_jobj);
+            return -2;
+        default:
+            dap_json_rpc_error_add(a_json_arr_reply, -3,
+                "Can't commit data base caches to disk. Reboot the node.");
+            dap_json_object_free(l_jobj);
+            return -3;
+        }
+        dap_json_array_add(a_json_arr_reply, l_jobj);
+        return 0;
+    }
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "record", NULL)) {
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "global_db record: not yet implemented in 6.0");
+        return -1;
+    }
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "write", NULL)) {
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "global_db write: not yet implemented in 6.0");
+        return -1;
+    }
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "read", NULL)) {
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "global_db read: not yet implemented in 6.0");
+        return -1;
+    }
+    dap_json_rpc_error_add(a_json_arr_reply, -1,
+        "global_db requires subcommand: flush | record | write | read | delete | drop_table | get_keys | group_list");
+    return -1;
+}
+
+static int s_com_help(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    (void)a_version;
+    dap_cli_cmd_t *l_cmd = NULL, *l_tmp = NULL;
+
+    const char *l_cmd_name = NULL;
+    for (int i = 1; i < a_argc; i++) {
+        if (a_argv[i] && a_argv[i][0] != '-') {
+            l_cmd_name = a_argv[i];
+            break;
+        }
+    }
+    if (l_cmd_name) {
+        l_cmd = dap_cli_server_cmd_find(l_cmd_name);
+        if (!l_cmd) {
+            dap_json_rpc_error_add(a_json_arr_reply, -1, "Unknown command: %s", l_cmd_name);
+            return -1;
+        }
+        dap_json_t *l_jobj = dap_json_object_new();
+        dap_json_object_add_object(l_jobj, "command", dap_json_object_new_string(l_cmd->name));
+        if (l_cmd->doc)
+            dap_json_object_add_object(l_jobj, "description", dap_json_object_new_string(l_cmd->doc));
+        if (l_cmd->doc_ex)
+            dap_json_object_add_object(l_jobj, "usage", dap_json_object_new_string(l_cmd->doc_ex));
+        dap_json_array_add(a_json_arr_reply, l_jobj);
+        return 0;
+    }
+
+    dap_ht_foreach(dap_cli_server_cmd_get_first(), l_cmd, l_tmp) {
+        char l_buf[256];
+        snprintf(l_buf, sizeof(l_buf), "%s:\t\t\t%s", l_cmd->name, l_cmd->doc ? l_cmd->doc : "");
+        dap_json_array_add(a_json_arr_reply, dap_json_object_new_string(l_buf));
+    }
+    return 0;
+}
 
 /**
- * @brief Initialize net CLI commands
+ * @brief CLI handler for "chain" command
+ *   chain seed -net <net> -chain <chain> {on | off}
  */
+static int s_cli_chain(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
+{
+    UNUSED(a_version);
+    if (a_argc > 1 && !dap_strcmp(a_argv[1], "seed")) {
+        int l_arg_index = 2;
+        dap_chain_t *l_chain = NULL;
+        dap_chain_net_t *l_net = NULL;
+        if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_INVALID) < 0)
+            return -1;
+        if (!l_net || !l_chain) {
+            dap_json_rpc_error_add(a_json_arr_reply, -2, "Need -net and -chain parameters");
+            return -2;
+        }
+        const char *l_on_off = NULL;
+        for (int i = l_arg_index; i < a_argc; i++) {
+            if (!dap_strcmp(a_argv[i], "on") || !dap_strcmp(a_argv[i], "off")) {
+                l_on_off = a_argv[i];
+                break;
+            }
+        }
+        if (!l_on_off) {
+            dap_json_rpc_error_add(a_json_arr_reply, -3, "Specify 'on' or 'off'");
+            return -3;
+        }
+        bool l_enable = !dap_strcmp(l_on_off, "on");
+        l_chain->seed_mode = l_enable;
+        dap_json_t *l_jobj = dap_json_object_new();
+        char *l_msg = dap_strdup_printf("Seed mode %s for chain '%s' in network '%s'",
+                                        l_enable ? "ON" : "OFF", l_chain->name, l_net->pub.name);
+        dap_json_object_add_string(l_jobj, "result", l_msg);
+        dap_json_array_add(a_json_arr_reply, l_jobj);
+        log_it(L_NOTICE, "Seed mode %s: net '%s' chain '%s'", l_enable ? "ON" : "OFF", l_net->pub.name, l_chain->name);
+        return 0;
+    }
+
+    dap_json_rpc_error_add(a_json_arr_reply, -1, "Unknown subcommand. Use: chain seed -net <net> -chain <chain> {on | off}");
+    return -1;
+}
+
 int dap_chain_net_cli_init(void)
 {
-    // Register error codes FIRST
     dap_chain_net_cli_error_codes_init();
     
-    // Register node command
-    dap_cli_server_cmd_add("node", com_node, NULL,
-                           "Node operations",
-                           -1, // auto ID
-                           "node { add | del | link | alias | connect | list | dump | connections | balancer }\n");
+    dap_cli_server_cmd_add("chain", s_cli_chain, NULL,
+                           "Chain operations",
+                           -1,
+                           "chain seed -net <net_name> -chain <chain_name> {on | off}\n"
+                           "\tEnable or disable seed mode for a specific chain.\n"
+                           "\tSeed mode allows creation of genesis blocks/events.\n\n");
 
-    // REMOVED: com_net legacy CLI handler registration
-    // dap_cli_server_cmd_add("net", com_net, NULL,
-    //                        "Network operations",
-    //                        -1, // auto ID
-    //                        "net { list | get | go | stats | sync }\n");
+    dap_cli_server_cmd_add("node", com_node, NULL,
+                           "Work with node",
+                           -1,
+                           "node { add | del | link | alias | connect | list | dump | connections | balancer }\n"
+                           "\tnode add -net <net_name> -addr <node_addr> -port <port> [-alias <alias>]\n"
+                           "\tnode del -net <net_name> -addr <node_addr>\n"
+                           "\tnode link -net <net_name> { add | del } -addr <node_addr> -link <link_addr>\n"
+                           "\tnode alias -net <net_name> -addr <node_addr> -alias <alias>\n"
+                           "\tnode connect -net <net_name> -addr <node_addr>\n"
+                           "\tnode list -net <net_name>\n"
+                           "\tnode dump [-net <net_name>]\n"
+                           "\tnode connections -net <net_name>\n"
+                           "\tnode balancer -net <net_name>\n");
+
+    dap_cli_server_cmd_add("net", s_cli_net, NULL,
+                           "Network operations",
+                           -1,
+                           "net { list | get | go | stats | sync | link | ca | ledger | poa_certs }\n"
+                           "\tnet list\n"
+                           "\tnet -net <net_name> get { status | id }\n"
+                           "\tnet -net <net_name> go { online | offline | sync }\n"
+                           "\tnet -net <net_name> stats { tx [-chain <chain_name>] }\n"
+                           "\tnet -net <net_name> sync { all | gdb | chains } [-chain <chain_name>]\n"
+                           "\tnet -net <net_name> link { add | del | list | info } [-addr <node_addr>]\n"
+                           "\tnet -net <net_name> ca add -cert <cert_name>\n"
+                           "\tnet -net <net_name> ledger reload\n"
+                           "\tnet -net <net_name> poa_certs list\n");
+
+    dap_cli_server_cmd_add("version", s_com_version, NULL,
+                           "Return software version",
+                           -1, "version\n");
+
+    dap_cli_server_cmd_add("global_db", s_com_global_db, NULL,
+                           "Work with global database",
+                           -1,
+                           "global_db { flush | record | write | read | delete | drop_table | get_keys | group_list }\n");
+
+    dap_cli_server_cmd_add("help", s_com_help, NULL,
+                           "List available commands or show command help",
+                           -1, "help [command_name]\n");
 
     log_it(L_NOTICE, "Net CLI commands registered (with error codes)");
     return 0;
