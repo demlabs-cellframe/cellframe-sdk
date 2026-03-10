@@ -5603,6 +5603,14 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_ADDED,
                            a_datum_index_data ? &a_datum_index_data->atom_hash : NULL);
     }
+    if (!dap_chain_net_get_load_mode(a_ledger->net)) {
+        char l_hash_str[DAP_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(a_tx_hash, l_hash_str, sizeof(l_hash_str));
+        dap_notify_server_send_f_mt(
+            "{\"class\":\"LedgerTxEvent\",\"op\":\"add\","
+            "\"hash\":\"%s\",\"net\":\"%s\"}",
+            l_hash_str, a_ledger->net->pub.name);
+    }
     if (l_cross_network) {
         dap_list_t *l_notifier;
         DL_FOREACH(PVT(a_ledger)->bridged_tx_notifiers, l_notifier) {

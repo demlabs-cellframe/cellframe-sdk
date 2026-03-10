@@ -925,6 +925,19 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
     return;
 #endif
 
+    {
+        char l_hash_str[DAP_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(a_hash, l_hash_str, sizeof(l_hash_str));
+        dap_notify_server_send_f_mt(
+            "{\"class\":\"ChainEvent\",\"op\":\"add\","
+            "\"hash\":\"%s\",\"net\":\"%s\",\"chain\":\"%s\","
+            "\"size\":%zu,\"ts\":%llu}",
+            l_hash_str,
+            a_chain_cell->chain->net_name ? a_chain_cell->chain->net_name : "unknown",
+            a_chain_cell->chain->name ? a_chain_cell->chain->name : "unknown",
+            a_atom_size, (unsigned long long)a_atom_time);
+    }
+
     if (a_chain_cell->id.uint64 == 0)
         a_chain_cell->chain->blockchain_time = a_atom_time;
     dap_list_t *l_iter;

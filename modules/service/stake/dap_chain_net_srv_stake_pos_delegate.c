@@ -45,6 +45,7 @@
 #include "dap_json_rpc_errors.h"
 #include "dap_cli_server.h"
 #include "dap_chain_net_srv_order.h"
+#include "dap_notify_srv.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake_pos_delegate"
 
@@ -516,6 +517,13 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
     log_it(L_NOTICE, "Added key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
+    dap_notify_server_send_f_mt(
+        "{\"class\":\"StakeEvent\",\"op\":\"delegate\","
+        "\"net\":\"%s\",\"key\":\"%s\","
+        "\"value\":\"%s\",\"node\":\"" NODE_ADDR_FP_STR "\"}",
+        a_net->pub.name,
+        dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast),
+        l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
     s_stake_recalculate_weights(a_signing_addr->net_id);
 }
 
@@ -537,6 +545,14 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     const char *l_value_str; dap_uint256_to_char(l_stake->locked_value, &l_value_str);
     log_it(L_NOTICE, "Removed key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_signing_addr->net_id);
+    dap_notify_server_send_f_mt(
+        "{\"class\":\"StakeEvent\",\"op\":\"invalidate\","
+        "\"net\":\"%s\",\"key\":\"%s\","
+        "\"value\":\"%s\",\"node\":\"" NODE_ADDR_FP_STR "\"}",
+        l_net ? l_net->pub.name : "unknown",
+        dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast),
+        l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
     DAP_DEL_MULTY(l_stake->pkey, l_stake);
     s_stake_recalculate_weights(a_signing_addr->net_id);
 }
@@ -561,6 +577,14 @@ void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint25
     log_it(L_NOTICE, "Updated key with fingerprint %s and locked value %s to new locked value %s for node " NODE_ADDR_FP_STR,
                             dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_old_value_str,
                                 l_new_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_signing_addr->net_id);
+    dap_notify_server_send_f_mt(
+        "{\"class\":\"StakeEvent\",\"op\":\"update\","
+        "\"net\":\"%s\",\"key\":\"%s\","
+        "\"value\":\"%s\",\"node\":\"" NODE_ADDR_FP_STR "\"}",
+        l_net ? l_net->pub.name : "unknown",
+        dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast),
+        l_new_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
     DAP_DELETE(l_old_value_str);
     s_stake_recalculate_weights(a_signing_addr->net_id);
 }

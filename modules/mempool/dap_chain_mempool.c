@@ -60,6 +60,7 @@
 #include "dap_list.h"
 #include "dap_chain.h"
 #include "dap_chain_net.h"
+#include "dap_notify_srv.h"
 #include "dap_chain_net_tx.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
@@ -257,9 +258,16 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     int l_res = dap_global_db_set_sync(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false);//, NULL, NULL);
-    if (l_res == DAP_GLOBAL_DB_RC_SUCCESS)
+    if (l_res == DAP_GLOBAL_DB_RC_SUCCESS) {
         log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, l_key_str_out, l_gdb_group);
-    else
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        dap_notify_server_send_f_mt(
+            "{\"class\":\"MempoolEvent\",\"op\":\"add\","
+            "\"hash\":\"%s\",\"type\":\"%s\","
+            "\"net\":\"%s\",\"chain\":\"%s\"}",
+            l_key_str_out, l_type_str,
+            l_net ? l_net->pub.name : "unknown", a_chain->name);
+    } else
         log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, l_key_str_out, l_gdb_group);
     char *ret = (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? dap_strdup(l_key_str_out) : NULL;
     DAP_DELETE(l_gdb_group);

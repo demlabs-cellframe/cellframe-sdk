@@ -258,6 +258,7 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
 static bool s_net_states_proc(void *a_arg);
 static void s_net_states_notify(dap_chain_net_t * l_net);
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
+static void s_gdb_cluster_notify_server(dap_store_obj_t *a_obj, void *a_arg);
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
 static int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx);
 static void *s_net_load(void *a_arg);
@@ -2190,6 +2191,7 @@ static void *s_net_load(void *a_arg)
         goto ret;
     }
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->orders_cluster);
+    dap_chain_net_srv_order_add_notify_callback(l_net, s_gdb_cluster_notify_server, l_net);
     DAP_DELETE(l_gdb_groups_mask);
     // Common orders cluster
     l_gdb_groups_mask = dap_strdup_printf("%s.orders", l_net->pub.gdb_groups_prefix);
@@ -2226,6 +2228,7 @@ static void *s_net_load(void *a_arg)
     }
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_net_pvt->nodes_cluster);
     dap_chain_net_add_nodelist_notify_callback(l_net, s_nodelist_change_notify, l_net);
+    dap_chain_net_add_nodelist_notify_callback(l_net, s_gdb_cluster_notify_server, l_net);
 
     if (dap_link_manager_add_net(l_net->pub.id.uint64, l_net_pvt->nodes_cluster->links_cluster,
                                 dap_config_get_item_uint16_default(l_net->pub.config,
@@ -2323,6 +2326,20 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
                              NODE_ADDR_FP_ARGS_S(l_node_info->address),
                              l_node_info->ext_host, l_node_info->ext_port,
                              l_net->pub.name, l_ts);
+}
+
+static void s_gdb_cluster_notify_server(dap_store_obj_t *a_obj, void *a_arg)
+{
+    dap_chain_net_t *l_net = a_arg;
+    const char *l_op = dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL ? "del" : "set";
+    dap_notify_server_send_f_mt(
+        "{\"class\":\"GDBEvent\",\"op\":\"%s\","
+        "\"group\":\"%s\",\"key\":\"%s\","
+        "\"net\":\"%s\"}",
+        l_op,
+        a_obj->group ? a_obj->group : "",
+        a_obj->key   ? a_obj->key   : "",
+        l_net->pub.name);
 }
 
 void dap_chain_net_add_nodelist_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
