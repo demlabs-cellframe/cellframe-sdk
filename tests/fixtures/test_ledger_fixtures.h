@@ -13,6 +13,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain.h"
 #include "dap_test.h"
+#include <json-c/json.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,6 +28,7 @@ typedef struct test_net_fixture {
     dap_chain_t *chain_zero;       ///< Zero chain (like in production networks)
     dap_chain_t *chain_main;        ///< Master/main chain (like in production networks)
     char *net_name;
+    dap_chain_type_t *chain_main_datum_types; ///< Pointer to datum_types array we created (for cleanup)
 } test_net_fixture_t;
 
 /**
@@ -54,6 +56,111 @@ bool test_ledger_get_token_emission_hash(dap_ledger_t *a_ledger,
                                           const char *a_token_ticker,
                                           dap_chain_hash_fast_t *a_emission_hash);
 
+/**
+ * @brief Return a portable temp directory for tests (Windows/Wine: TEMP/TMP, Unix: /tmp)
+ * @return Static string - do not free
+ */
+const char *test_get_temp_dir(void);
+
+/**
+ * @brief Initialize test environment (config, certs, global DB)
+ * @param a_config_dir Directory for test config files (can be NULL for default)
+ * @param a_global_db_path Path for global DB storage (can be NULL for default)
+ * @return 0 on success, negative on error
+ * @note This function is idempotent - can be called multiple times safely
+ * @note Should be called before creating network fixtures if mempool/global DB is needed
+ */
+int test_env_init(const char *a_config_dir, const char *a_global_db_path);
+
+/**
+ * @brief Deinitialize test environment
+ * @note This function is idempotent - can be called multiple times safely
+ * @note Should be called after destroying all network fixtures
+ */
+void test_env_deinit(void);
+
+/**
+ * @brief Structure for JSON-RPC error information
+ */
+typedef struct test_json_rpc_error {
+    bool has_error;         ///< Whether an error was found
+    int error_code;         ///< Error code (0 if no error)
+    const char *error_msg;  ///< Error message (NULL if no error)
+} test_json_rpc_error_t;
+
+/**
+ * @brief Parse JSON-RPC response to extract error information
+ * @param a_json_response JSON object containing the JSON-RPC response
+ * @param a_error Output structure for error information
+ * @return true if error was found, false otherwise
+ * @note Supports both formats:
+ *   - New format: result[].errors[] (array of error objects)
+ *   - Legacy format: top-level error object
+ * @note If multiple errors exist, only the first one is returned
+ */
+bool test_json_rpc_parse_error(json_object *a_json_response, test_json_rpc_error_t *a_error);
+
+/**
+ * @brief Wait for transaction to be processed from mempool to ledger
+ * @param a_fixture Network fixture
+ * @param a_tx_hash Transaction hash to wait for
+ * @param a_max_attempts Maximum number of search attempts (default: 5 if <= 0)
+ * @param a_delay_ms Delay between attempts in milliseconds (default: 200 if <= 0)
+ * @param a_process_mempool Whether to force mempool processing before each attempt
+ * @return Pointer to transaction if found in ledger, NULL if not found after all attempts
+ * @note This function waits for transaction to appear in ledger (not mempool)
+ * @note If a_process_mempool is true, mempool is processed before each search attempt
+ * @note The returned pointer points to ledger data (persistent, no need to free)
+ * @note Returns NULL if transaction not found in ledger after all attempts
+ * @note This function is useful for waiting for multi-signature transactions to be processed
+ */
+dap_chain_datum_tx_t *test_wait_tx_mempool_to_ledger(
+    test_net_fixture_t *a_fixture,
+    dap_chain_hash_fast_t *a_tx_hash,
+    int a_max_attempts,
+    int a_delay_ms,
+    bool a_process_mempool
+);
+
+/**
+ * @brief Wait for wallet cache to load for specific address
+ * @param a_net Network instance
+ * @param a_addr Wallet address to wait for
+ * @param a_max_attempts Maximum number of check attempts (default: 50 if 0)
+ * @param a_delay_ms Delay between checks in milliseconds (default: 100ms if 0)
+ * @return true if cache loaded, false if timeout
+ * @note Uses dap_chain_wallet_cache_tx_find to poll cache status
+ * @note Returns true when cache becomes available (even if empty)
+ * @note Useful for waiting after dap_chain_wallet_cache_load_for_net
+ */
+bool test_wait_for_wallet_cache_loaded(
+    dap_chain_net_t *a_net,
+    const dap_chain_addr_t *a_addr,
+    int a_max_attempts,
+    int a_delay_ms
+);
+
+/**
+ * @brief Wait for any datum to be processed from mempool to ledger
+ * @param a_fixture Network fixture
+ * @param a_datum_hash Datum hash to wait for
+ * @param a_max_attempts Maximum number of search attempts (default: 5 if <= 0)
+ * @param a_delay_ms Delay between attempts in milliseconds (default: 200 if <= 0)
+ * @param a_process_mempool Whether to force mempool processing before each attempt
+ * @return Pointer to datum if found in ledger, NULL if not found after all attempts
+ * @note This function waits for datum to appear in ledger (not mempool)
+ * @note If a_process_mempool is true, mempool is processed before each search attempt
+ * @note The returned pointer points to ledger data (persistent, no need to free)
+ * @note Returns NULL if datum not found in ledger after all attempts
+ * @note This function works with any datum type (TX, token, emission, etc.)
+ */
+dap_chain_datum_t *test_wait_datum_mempool_to_ledger(
+    test_net_fixture_t *a_fixture,
+    dap_chain_hash_fast_t *a_datum_hash,
+    int a_max_attempts,
+    int a_delay_ms,
+    bool a_process_mempool
+); 
 #ifdef __cplusplus
 }
 #endif

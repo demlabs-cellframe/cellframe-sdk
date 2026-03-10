@@ -236,20 +236,43 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED               BIT(4)
 
 /**
+ * @brief All UTXO flags mask (stored in TSD section 0x002D)
+ * @details Mask covering all UTXO-specific flags
+ *          Used to extract UTXO flags from token flags field
+ *          
+ *          UTXO flags covered by this mask:
+ *          - BIT(0) = UTXO_BLOCKING_DISABLED
+ *          - BIT(1) = UTXO_STATIC_BLOCKLIST
+ *          - BIT(2) = UTXO_DISABLE_ADDRESS_SENDER_BLOCKING
+ *          - BIT(3) = UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING
+ *          - BIT(4) = UTXO_ARBITRAGE_TX_DISABLED
+ *          
+ * @note When adding new UTXO flags, add them to this mask using OR operation
+ */
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK  \
+    (DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED | \
+     DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_STATIC_BLOCKLIST | \
+     DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING | \
+     DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING | \
+     DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED)
+
+/**
  * @brief Irreversible UTXO flags mask (stored in TSD section 0x002D)
  * @details Flags that once set in UTXO_FLAGS TSD CANNOT be unset in subsequent token_update.
  *          These are critical security flags with opt-out behavior.
- *          Validation: (new_utxo_flags & MASK) >= (old_utxo_flags & MASK)
+ *          Validation: ((new_utxo_flags & MASK) & (old_utxo_flags & MASK)) == (old_utxo_flags & MASK)
+ *          This ensures all previously set bits remain set (bitwise check, not numeric comparison)
  *          
- *          Irreversible UTXO flags:
- *          - UTXO_BLOCKING_DISABLED (BIT 0): Once disabled, cannot re-enable UTXO blocking
+ *          Irreversible UTXO flags (once set, cannot be unset):
  *          - UTXO_ARBITRAGE_TX_DISABLED (BIT 4): Once disabled, cannot re-enable arbitrage TX
  *          - UTXO_DISABLE_ADDRESS_SENDER_BLOCKING (BIT 2): Once disabled, cannot re-enable sender bans
  *          - UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING (BIT 3): Once disabled, cannot re-enable receiver bans
+ *          
+ *          Reversible UTXO flags (can be set/unset):
+ *          - UTXO_BLOCKING_DISABLED (BIT 0): Can be enabled/disabled dynamically
  */
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK  \
-    (DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED | \
-     DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED | \
+    (DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED | \
      DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_SENDER_BLOCKING | \
      DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_DISABLE_ADDRESS_RECEIVER_BLOCKING)
 
@@ -387,6 +410,15 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
  * @note This TSD section was introduced to solve uint16_t overflow in header_native_decl.flags
  */
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS                           0x002D
+
+/**
+ * @brief Required signatures count for multi-sig tokens
+ * @details Stores the target number of signatures required for token operations.
+ * The actual current count of signatures is stored in datum_token->signs_total.
+ * This TSD allows gradual signature collection via token_decl_sign.
+ * @note Value type: uint16_t
+ */
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_REQUIRED_SIGNS_COUNT                 0x002E
 
 struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
     uint8_t version;

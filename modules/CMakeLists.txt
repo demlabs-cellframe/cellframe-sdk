@@ -24,11 +24,6 @@ if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(channel/chain-net)
 endif()
 
-# Mining
-if (CELLFRAME_MODULES MATCHES "mining")
-    add_subdirectory(mining)
-endif()
-
 # Network services
 if (CELLFRAME_MODULES MATCHES "srv")
     add_subdirectory(channel/chain-net-srv)
@@ -84,14 +79,18 @@ if (CELLFRAME_MODULES MATCHES "srv-vpn")
     add_subdirectory(service/vpn)
 endif()
 
-# Service eXchange
-if (CELLFRAME_MODULES MATCHES "srv-xchange")
-    add_subdirectory(service/xchange)
-endif()
-
-# Service DEX v2
+# Service DEX v2 (must be before xchange, which depends on it)
 if (CELLFRAME_MODULES MATCHES "srv-dex")
     add_subdirectory(service/dex)
+endif()
+
+# Service eXchange
+if (CELLFRAME_MODULES MATCHES "srv-xchange")
+    if (NOT CELLFRAME_MODULES MATCHES "srv-dex")
+        message(STATUS "srv-xchange requires srv-dex, enabling it automatically")
+        add_subdirectory(service/dex)
+    endif()
+    add_subdirectory(service/xchange)
 endif()
 
 # Service for token staking and PoS delegation

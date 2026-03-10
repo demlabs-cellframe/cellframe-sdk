@@ -24,6 +24,7 @@
  */
 
 
+#include <inttypes.h>
 #include "dap_common.h"
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx_voting.h"
@@ -31,9 +32,7 @@
 #include "dap_chain_net_srv_voting.h"
 #include "dap_chain_net_tx.h"
 #include "dap_net.h"
-#include "dap_app_cli.h"
 #include "dap_json_rpc.h"
-#include "dap_app_cli_net.h"
 #include "dap_cli_server.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_order.h"
@@ -55,7 +54,7 @@ static dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_orde
 
 static compose_config_t* s_compose_config_init(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                  uint16_t a_port, const char *a_enc_cert_path) {
-    dap_return_val_if_pass(!a_net_id.raw || !a_net_name || !a_native_ticker || !a_url_str || !a_port, NULL);
+    dap_return_val_if_pass(!a_net_id.uint64 || !a_net_name || !a_native_ticker || !a_url_str || !a_port, NULL);
     compose_config_t *l_config = DAP_NEW_Z_RET_VAL_IF_FAIL(compose_config_t, NULL);
     l_config->net_id.uint64 = a_net_id.uint64;
     l_config->net_name = a_net_name;
@@ -1773,7 +1772,7 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
         dap_chain_hash_fast_from_str(a_pkey_hash_str, &l_pkey_cond_hash);
     }
     if (dap_hash_fast_is_blank(&l_pkey_cond_hash)) {
-        log_it(L_ERROR, "can't calc pkey hash '%s'", a_cert_str);
+        log_it(L_ERROR, "can't calc pkey hash for cert '%s'", a_cert_str);
         s_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_CERT_KEY, "Cert '%s' doesn't contain a valid public key\n", a_cert_str);
         return s_compose_config_return_response_handler(l_config);
     }
@@ -5908,8 +5907,10 @@ json_object *dap_chain_tx_compose_wallet_shared_take(dap_chain_net_id_t a_net_id
     if (IS_ZERO_256(l_fee)) {
         s_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_INVALID_FEE, "Format -fee <256 bit integer> and not equal zero");
         log_it(L_ERROR, "Format -fee <256 bit integer> and not equal zero");
+        json_object *l_response = l_config->response_handler;
+        l_config->response_handler = NULL;
         s_compose_config_deinit(l_config);
-        return l_config->response_handler;
+        return l_response;
     }
 
     l_addr_el_count = dap_chain_addr_from_str_array(a_to_addr_str, &l_to_addr);
@@ -7077,7 +7078,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
             uint64_t l_found_srv_uid = json_object_get_uint64(l_srv_uid_obj);
             if (l_found_srv_uid != a_srv_uid.uint64)
             {
-                log_it(L_WARNING, "TX %s srv_uid mismatch (got %lu, expected %lu)",
+                log_it(L_WARNING, "TX %s srv_uid mismatch (got %" DAP_UINT64_FORMAT_U ", expected %" DAP_UINT64_FORMAT_U ")",
                        l_input_hash_str, l_found_srv_uid, a_srv_uid.uint64);
                 continue;
             }

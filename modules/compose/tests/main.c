@@ -30,10 +30,10 @@ struct tests_data {
     uint32_t idx_2;
     dap_hash_fast_t hash_1;
     dap_chain_net_srv_uid_t srv_uid;
-    dap_chain_tx_out_cond_t cond_out;
     dap_chain_id_t chain_id;
     compose_config_t config;
     time_t time_staking;
+    dap_chain_tx_out_cond_t cond_out;
 };
 
 static dap_enc_key_type_t s_key_types[] = {

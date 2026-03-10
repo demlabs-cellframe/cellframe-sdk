@@ -587,6 +587,10 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         dap_hash_fast(l_new_atom, l_event_size, &l_atom_hash);
         char l_event_hash_hex_str[DAP_HASH_FAST_STR_SIZE]; dap_hash_fast_to_str(&l_atom_hash, l_event_hash_hex_str, DAP_HASH_FAST_STR_SIZE);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
+        if (!l_datum) {
+            log_it(L_ERROR, "Corrupted event %s: can't extract datum from round item", l_event_hash_hex_str);
+            return DAP_DELETE(l_arg), true;
+        }
         int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size, &l_atom_hash, true);
@@ -886,9 +890,9 @@ static int s_callback_event_verify(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_e
         if (l_signs_verified_count >= l_certs_count_verify)
             return 0;
     }
-    debug_if(s_debug_more, L_ERROR, "Event %s, not enough signs %hu from %hu",
+    debug_if(s_debug_more, L_ERROR, "Event %s, not enough signs %zu from %hu",
                                                     dap_hash_fast_to_str_static(a_event_hash),
-                                                    l_signs_count >= l_certs_count_verify ? l_signs_verified_count : (uint16_t)l_signs_count,
+                                                    l_signs_count >= (size_t)l_certs_count_verify ? (size_t)l_signs_verified_count : l_signs_count,
                                                     l_certs_count_verify);
     return -4;
 }

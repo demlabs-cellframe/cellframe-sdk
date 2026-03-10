@@ -1536,7 +1536,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 }
                 json_object_array_add(*a_json_arr_reply, json_arr_bl_out);
                 json_object* json_obj_out = json_object_new_object();
-                char *l_val = dap_strdup_printf("%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks\n",
+                char *l_val = dap_strdup_printf("%s.%s: Have %zu blocks\n",
                                      l_net->pub.name, l_chain->name, l_block_count);
                 json_object_object_add(json_obj_out, "status", json_object_new_string(l_val));
                 DAP_DELETE(l_val);
@@ -1906,7 +1906,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
             ssize_t l_err = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL);
             if (l_err < 0) {
-                log_it(L_ERROR, "Can't save atom to file, code %ld", l_err);
+                log_it(L_ERROR, "Can't save atom to file, code %zd", l_err);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
@@ -2735,14 +2735,23 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             continue;
         }
         if (l_blocks->block_new_size + l_datum_size > DAP_CHAIN_ATOM_MAX_SIZE) {
-            log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_ATOM_MAX_SIZE);
+            log_it(L_WARNING, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_ATOM_MAX_SIZE);
             break;
         }
         if (!l_blocks->block_new) {
             dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks ? l_blocks_pvt->blocks->hh.tbl->tail->prev : NULL;
             l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
-            l_blocks->block_new = dap_chain_block_new(&l_bcache_last->block_hash, &l_blocks->block_new_size);
-            l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+            l_blocks->block_new = dap_chain_block_new(l_bcache_last ? &l_bcache_last->block_hash : NULL, &l_blocks->block_new_size);
+            if (!l_blocks->block_new) {
+                log_it(L_ERROR, "Failed to create new block in s_callback_add_datums");
+                break;
+            }
+            if (a_chain->cells) {
+                l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+            } else {
+                log_it(L_WARNING, "Chain cells is NULL, using zero cell_id for block");
+                l_blocks->block_new->hdr.cell_id.uint64 = 0;
+            }
             l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
         }
         l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size, l_datum, l_datum_size);

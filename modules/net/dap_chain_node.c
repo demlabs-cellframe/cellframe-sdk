@@ -49,6 +49,10 @@
 #include "dap_chain_net_balancer.h"
 
 #define LOG_TAG "dap_chain_node"
+
+// Debug flag for node operations (read from config: node.debug_more)
+static bool s_debug_more = false;
+
 #define DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION 2
 typedef struct dap_chain_node_net_states_info_v1 {
     dap_chain_node_addr_t address;
@@ -83,7 +87,6 @@ static size_t s_node_list_record_ttl = 3600 * 3;
 static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 {
 #ifndef DAP_VERSION
-#pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
 #define DAP_VERSION "0.9-15"
 #endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
@@ -315,6 +318,7 @@ int dap_chain_node_init()
     }
     s_node_list_auto_update = dap_config_get_item_bool_default(g_config, "global_db", "node_list_auto_update", s_node_list_auto_update);
     s_node_list_record_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_record_ttl", s_node_list_record_ttl);
+    s_debug_more = dap_config_get_item_bool_default(g_config, "node", "debug_more", false);
     return 0;
 }
 
@@ -407,15 +411,32 @@ dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chai
 }
 
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
-    for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++)
+    if (!a_chain || !a_datum) {
+        return false;
+    }
+    // Log for debugging
+    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN) {
+        dap_chain_datum_token_t *l_token_datum = (dap_chain_datum_token_t *)a_datum->data;
+        debug_if(s_debug_more, L_DEBUG, "Checking if token datum '%s' needs processing in chain '%s' (autoproc_count=%u)", 
+               l_token_datum->ticker, a_chain->name, a_chain->autoproc_datum_types_count);
+    }
+    for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
         if (a_datum->header.type_id == a_chain->autoproc_datum_types[j])
             return true;
+    }
     return false;
 }
 
 /* Return true if processed datum should be deleted from mempool */
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str, int * a_ret)
 {
+    // Log emission processing (type_id=61696=0xf100)
+    if (a_datum && a_datum->header.type_id == 0xf100) {
+        debug_if(s_debug_more,L_INFO, "Processing EMISSION datum, hash=%s", a_datum_hash_str);
+    }
+    debug_if(s_debug_more, L_DEBUG, "dap_chain_node_mempool_process: datum type_id=%u, hash=%s", 
+           a_datum ? a_datum->header.type_id : 0, a_datum_hash_str ? a_datum_hash_str : "NULL");
+    
     if (!a_chain->callback_add_datums) {
         log_it(L_ERROR, "Not found chain callback for datums processing");
         return false;
@@ -448,6 +469,10 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
                     *a_ret = l_verify_datum;
                 return true;
         }
+    // Transactions with DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS are NOT deleted from mempool.
+    // This allows distributed signing: arbitrage transactions (and other multi-sig transactions)
+    // can be created with insufficient signatures, then additional signatures added via tx_sign command.
+    // Once sufficient signatures are collected, transaction can be processed normally.
     return false;
 }
 
@@ -484,6 +509,8 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
+    log_it(L_DEBUG, "dap_chain_node_mempool_process_all: Found %zu datums in mempool for chain '%s' (group: %s)", 
+           l_objs_size, a_chain->name, l_gdb_group_mempool ? l_gdb_group_mempool : "NULL");
     if (l_objs_size) {
 #ifdef DAP_TPS_TEST
         log_it(L_TPS, "Get %zu datums from mempool", l_objs_size);
@@ -617,7 +644,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
             l_ignored = a_ignored[j].uint64 == ((dap_chain_node_info_t*)(l_objs + i)->value)->address.uint64;
         }
         if (l_ignored) {
-            log_it(L_DEBUG, "Link to "NODE_ADDR_FP_STR" ignored", NODE_ADDR_FP_ARGS_S(((dap_chain_node_info_t*)(l_objs + i)->value)->address));
+            debug_if(s_debug_more, L_DEBUG, "Link to "NODE_ADDR_FP_STR" ignored", NODE_ADDR_FP_ARGS_S(((dap_chain_node_info_t*)(l_objs + i)->value)->address));
             continue;
         }
         dap_chain_node_states_info_t *l_item = DAP_NEW_Z(dap_chain_node_states_info_t);
@@ -634,7 +661,7 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
         dap_chain_node_net_states_info_t *l_node_info = NULL;
         byte_t *l_node_info_data = dap_global_db_get_sync(l_gdb_group, l_objs[i].key, &l_data_size, NULL, &l_state_timestamp);
         if (!l_node_info_data) {
-            log_it(L_DEBUG, "Can't find state about %s node, apply low priority", l_objs[i].key);
+            debug_if(s_debug_more, L_DEBUG, "Can't find state about %s node, apply low priority", l_objs[i].key);
             l_item->downlinks_count = (uint32_t)(-1);
         } else {
             if ( (l_data_size - sizeof(dap_chain_node_net_states_info_t)) % sizeof(dap_chain_node_addr_t) ) {
