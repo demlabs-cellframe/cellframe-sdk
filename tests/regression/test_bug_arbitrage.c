@@ -351,7 +351,15 @@ static void test_bug_arbitrage_availability(void)
     dap_chain_addr_t l_wallet_addr = {0};
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
-    
+
+    // Open wallet immediately after creation to avoid transient ENOENT on macOS
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_avail", s_wallets_dir, NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+
+    dap_enc_key_t *l_wallet_key_avail = dap_chain_wallet_get_key(l_wallet_opened, 0);
+    dap_chain_addr_t l_wallet_addr_avail = {0};
+    dap_chain_addr_fill_from_key(&l_wallet_addr_avail, l_wallet_key_avail, s_net_fixture->net->pub.id);
+
     // 4. Reset network fee before creating tokens
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
@@ -378,14 +386,6 @@ static void test_bug_arbitrage_availability(void)
     log_it(L_INFO, "Wallet balances: TokenAvail=%s, FeeAvail=%s", l_bal_token_str, l_bal_fee_str);
     DAP_DELETE(l_bal_token_str);
     DAP_DELETE(l_bal_fee_str);
-    
-    // 3. Open wallet and load cache for arbitrage TX
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_avail", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-    
-    dap_enc_key_t *l_wallet_key_avail = dap_chain_wallet_get_key(l_wallet_opened, 0);
-    dap_chain_addr_t l_wallet_addr_avail = {0};
-    dap_chain_addr_fill_from_key(&l_wallet_addr_avail, l_wallet_key_avail, s_net_fixture->net->pub.id);
     
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
     test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_avail, 50, 100);
@@ -651,7 +651,15 @@ static void test_bug_arbitrage_arguments(void)
     dap_chain_addr_t l_wallet_addr = {0};
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
-    
+
+    // Open wallet immediately after creation to avoid transient ENOENT on macOS
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_args", s_wallets_dir, NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+
+    dap_enc_key_t *l_wallet_key_args = dap_chain_wallet_get_key(l_wallet_opened, 0);
+    dap_chain_addr_t l_wallet_addr_args = {0};
+    dap_chain_addr_fill_from_key(&l_wallet_addr_args, l_wallet_key_args, s_net_fixture->net->pub.id);
+
     // 4. Reset network fee before creating tokens
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
@@ -675,14 +683,6 @@ static void test_bug_arbitrage_arguments(void)
     // Set fee for network (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
-    
-    // 4. Open wallet and load cache for arbitrage TX
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_args", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-    
-    dap_enc_key_t *l_wallet_key_args = dap_chain_wallet_get_key(l_wallet_opened, 0);
-    dap_chain_addr_t l_wallet_addr_args = {0};
-    dap_chain_addr_fill_from_key(&l_wallet_addr_args, l_wallet_key_args, s_net_fixture->net->pub.id);
     
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
     test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_args, 50, 100);
@@ -1252,7 +1252,11 @@ static void test_arbitrage_to_addr_behavior(void)
     dap_chain_addr_t l_wallet_addr = {0};
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
-    
+
+    // Open wallet immediately after creation to avoid transient ENOENT on macOS
+    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", s_wallets_dir, NULL);
+    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
+
     // 4. Reset fee BEFORE creating tokens
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
@@ -1286,10 +1290,6 @@ static void test_arbitrage_to_addr_behavior(void)
     
     // === TEST 2.2: Arbitrage WITH -to_addr ===
     log_it(L_NOTICE, "=== 2.2: Testing arbitrage WITH -to_addr (should be IGNORED) ===");
-    
-    // Open wallet and load cache (required for arbitrage TX)
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
     
     // Load wallet cache and wait for completion
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
