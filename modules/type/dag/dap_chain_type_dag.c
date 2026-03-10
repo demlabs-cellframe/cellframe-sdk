@@ -422,7 +422,7 @@ static int s_chain_cs_dag_purge(dap_chain_t *a_chain)
 {
     dap_chain_type_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_TYPE_DAG(a_chain));
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
-    dap_ht_clear(l_dag_pvt->datums);
+    dap_ht_clear_hh(hh_datums, l_dag_pvt->datums);
     dap_chain_type_dag_event_item_t *l_event_current, *l_event_tmp;
     // Clang bug at this, l_event_current should change at every loop cycle
     dap_ht_foreach(l_dag_pvt->events, l_event_current, l_event_tmp) {
@@ -792,7 +792,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
                 }
             }
         }
-        dap_ht_clear(l_tmp);
+        dap_ht_clear_hh(hh_select, l_tmp);
         if (l_hashes_linked < l_hashes_size) {
             log_it(L_ERROR, "No enough unlinked events present (only %zu of %zu), a dummy round?", l_hashes_linked, l_hashes_size);
             return false;
