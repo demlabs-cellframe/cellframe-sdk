@@ -26,7 +26,6 @@
 #include "dap_common.h"
 #include "dap_link_manager.h"
 #include "dap_timerfd.h"
-#include "dap_interval_timer.h"
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_net.h"
@@ -67,7 +66,7 @@ typedef struct dap_chain_type_dag_poa_pvt {
     bool auto_confirmation, auto_round_complete;
     uint32_t confirmations_timeout, wait_sync_before_complete;
     dap_chain_type_dag_poa_presign_callback_t *callback_pre_sign;
-    dap_interval_timer_t mempool_timer;
+    dap_timerfd_t *mempool_timer;
 } dap_chain_type_dag_poa_pvt_t;
 
 #define PVT(a) ((dap_chain_type_dag_poa_pvt_t *) a->_pvt )
@@ -648,9 +647,10 @@ static void s_round_changes_notify(dap_global_db_store_obj_t *a_obj, void *a_arg
     }
 }
 
-static void s_timer_process_callback(void *a_arg)
+static bool s_timer_process_callback(void *a_arg)
 {
     dap_chain_node_mempool_process_all( (dap_chain_t*)a_arg, false );
+    return true;
 }
 
 /**
@@ -684,7 +684,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_dag_cluster->links_cluster);
-    PVT(l_poa)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
+    PVT(l_poa)->mempool_timer = dap_timerfd_start(15000, s_timer_process_callback, a_chain);
 
     switch ( dap_chain_net_get_role(l_net).enums ) {
     case NODE_ROLE_ROOT_MASTER:
@@ -708,7 +708,9 @@ static void s_callback_delete(dap_chain_type_dag_t *a_dag)
     if ( l_poa->_pvt ) {
         dap_chain_type_dag_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
 
-        dap_interval_timer_delete(l_poa_pvt->mempool_timer);
+        if (l_poa_pvt->mempool_timer)
+            dap_timerfd_delete(l_poa_pvt->mempool_timer->worker,
+                               l_poa_pvt->mempool_timer->esocket_uuid);
 
         if ( l_poa_pvt->auth_certs )
             DAP_DELETE ( l_poa_pvt->auth_certs);
