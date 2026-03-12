@@ -74,6 +74,8 @@ else
 
     ##everything else can be done by default make
     MAKE=(make)
+
+    CMAKE+=("-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64")
 fi
 echo "CMAKE=${CMAKE[@]}"
 echo "MAKE=${MAKE[@]}"
