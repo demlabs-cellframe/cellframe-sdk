@@ -256,33 +256,39 @@ int dap_chain_arbitrage_tx_check_outputs(dap_ledger_t *a_ledger,
         case TX_ITEM_TYPE_OUT_STD:
             l_addr = &((dap_chain_tx_out_std_t *)l_out_item)->addr;
             break;
-        case TX_ITEM_TYPE_OUT_COND:
-            // Conditional outputs are not checked - they have their own validation
+        case TX_ITEM_TYPE_OUT_COND: {
+            dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)l_out_item;
+            if (l_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
+                log_it(L_WARNING, "Arbitrage TX for token %s rejected: non-fee conditional output (subtype 0x%02X)",
+                       a_token_item->ticker, l_cond->header.subtype);
+                l_all_outputs_to_fee = false;
+                goto check_done;
+            }
             continue;
+        }
         default:
             log_it(L_WARNING, "Unknown output type 0x%02X in arbitrage TX", l_type);
             continue;
         }
 
-        if (!l_addr) {
+        if (!l_addr)
             continue;
-        }
 
-        // Check if this output goes to fee address
         if (!dap_chain_addr_compare(l_fee_addr, l_addr)) {
             log_it(L_WARNING, "Arbitrage TX for token %s rejected: output to %s (NOT fee address %s)",
                    a_token_item->ticker, 
                    dap_chain_addr_to_str_static(l_addr),
                    dap_chain_addr_to_str_static(l_fee_addr));
             l_all_outputs_to_fee = false;
-            break;
+            goto check_done;
         }
     }
 
+check_done:
     dap_list_free(l_list_out);
 
     if (l_all_outputs_to_fee) {
-        log_it(L_INFO, "✓ Arbitrage TX for token %s: all outputs directed to fee address", 
+        log_it(L_INFO, "Arbitrage TX for token %s: all outputs directed to fee address", 
                a_token_item->ticker);
     }
 

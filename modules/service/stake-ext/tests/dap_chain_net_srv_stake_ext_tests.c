@@ -2693,7 +2693,7 @@ void dap_srv_stake_ext_test_thread_safety(void)
     
     
     // Summary of thread safety tests
-    dap_test_msg("");
+    dap_test_msg(" ");
     dap_test_msg("Thread Safety Test Summary:");
     dap_test_msg("- Test 1: Concurrent cache operations: passed");
     dap_test_msg("- Test 2: Resource locking simulation: passed"); 
