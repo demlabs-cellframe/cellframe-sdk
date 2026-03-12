@@ -5,15 +5,12 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
- #include <time.h>
-#ifdef _WIN32
-#include <direct.h>
-#include <stdlib.h>
-#define TEST_MKDIR(path) _mkdir(path)
-#else
+#include <time.h>
+#ifndef _WIN32
 #include <unistd.h>
-#define TEST_MKDIR(path) mkdir(path, 0755)
 #endif
+#include "dap_file_utils.h"
+#include "test_ledger_fixtures.h"
 #include "dex_test_fixture.h"
 #include "dex_test_common.h"
 #include "dex_lifecycle_tests.h"
@@ -30,51 +27,71 @@
 extern int dap_chain_cs_dag_init(void);
 extern int dap_chain_cs_dag_poa_init(void);
 extern int dap_chain_cs_esbocs_init(void);
+extern int dap_nonconsensus_init(void);
 
 // ============================================================================
 // SETUP / TEARDOWN
 // ============================================================================
 
 static bool s_cache_enabled = false;
+static char s_config_dir[512];
+static char s_gdb_dir[512];
+static char s_certs_dir[512];
 
 static void s_setup(bool a_cache) {
     s_cache_enabled = a_cache;
     log_it(L_NOTICE, "=== DEX Integration Tests Setup ===");
     
-#ifdef _WIN32
-    char l_config_dir[256];
-    const char *l_temp = getenv("TEMP");
-    if (!l_temp) l_temp = getenv("TMP");
-    if (!l_temp) l_temp = ".";
-    snprintf(l_config_dir, sizeof(l_config_dir), "%s\\dex_integration_test_config", l_temp);
-#else
-    const char *l_config_dir = "/tmp/dex_integration_test_config";
-#endif
-    TEST_MKDIR(l_config_dir);
+    const char *l_tmp = test_get_temp_dir();
+    snprintf(s_config_dir, sizeof(s_config_dir), "%s/dex_integration_test_config", l_tmp);
+    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/dex_intg_test_gdb", l_tmp);
+    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/dex_intg_test_certs", l_tmp);
+
+    dap_rm_rf(s_gdb_dir);
+    dap_rm_rf(s_certs_dir);
+    dap_rm_rf(s_config_dir);
+
+    dap_mkdir_with_parents(s_config_dir);
     
-    const char *l_config_content = a_cache ?
-        "[general]\ndebug_mode=true\n[srv_dex]\ncache_enabled=true\nhistory_cache=true\n" :
-        "[general]\ndebug_mode=true\n[srv_dex]\ncache_enabled=false\n";
+    char l_config_content[2048];
+    snprintf(l_config_content, sizeof(l_config_content),
+        a_cache ?
+        "[general]\ndebug_mode=true\n"
+        "[srv_dex]\ncache_enabled=true\nhistory_cache=true\n"
+        "[global_db]\ndriver=mdbx\npath=%s\n"
+        "[resources]\nca_folders=%s\n" :
+        "[general]\ndebug_mode=true\n"
+        "[srv_dex]\ncache_enabled=false\n"
+        "[global_db]\ndriver=mdbx\npath=%s\n"
+        "[resources]\nca_folders=%s\n",
+        s_gdb_dir, s_certs_dir);
     
-    char l_config_path[256], l_log_path[100];
-    snprintf(l_config_path, sizeof(l_config_path), "%s/test.cfg", l_config_dir);
+    char l_config_path[1024], l_log_path[1024];
+    snprintf(l_config_path, sizeof(l_config_path), "%s/test.cfg", s_config_dir);
     FILE *l_config_file = fopen(l_config_path, "w");
     if (l_config_file) {
         fwrite(l_config_content, 1, strlen(l_config_content), l_config_file);
         fclose(l_config_file);
     }
     
-    dap_config_init(l_config_dir);
+    dap_mkdir_with_parents(s_certs_dir);
+    
+    dap_config_init(s_config_dir);
     g_config = dap_config_open("test");
     dap_assert(g_config != NULL, "Config initialization");
-    snprintf(l_log_path, sizeof(l_log_path), "%s/%s", l_config_dir, "log.txt");
+    snprintf(l_log_path, sizeof(l_log_path), "%s/log.txt", s_config_dir);
     dap_common_init(NULL, l_log_path);
+    
+    int l_env_res = test_env_init(s_config_dir, s_gdb_dir);
+    dap_assert(l_env_res == 0, "Test environment initialization");
+    
+    dap_ledger_init();
     
     dap_chain_cs_dag_init();
     dap_chain_cs_dag_poa_init();
     dap_chain_cs_esbocs_init();
+    dap_nonconsensus_init();
     
-    // Initialize CLI server (without network listener) for CLI tests
     dap_cli_server_init(false, "cli-server");
     dap_chain_node_cli_init(g_config);
     
@@ -84,8 +101,8 @@ static void s_setup(bool a_cache) {
 static void s_teardown(void) {
     log_it(L_NOTICE, "Cleaning up test environment...");
     
-    // Clean up CLI server first
     dap_chain_node_cli_delete();
+    test_env_deinit();
     
     if (g_config) {
         dap_config_close(g_config);
@@ -93,8 +110,9 @@ static void s_teardown(void) {
     }
     dap_config_deinit();
     
-    unlink("/tmp/dex_integration_test_config/test.cfg");
-    rmdir("/tmp/dex_integration_test_config");
+    dap_rm_rf(s_config_dir);
+    dap_rm_rf(s_gdb_dir);
+    dap_rm_rf(s_certs_dir);
     
     log_it(L_NOTICE, "Cleanup completed");
 }

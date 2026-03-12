@@ -89,7 +89,9 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_arbitrage.h"
 #include "dap_global_db.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_chain_ch.h"
@@ -2059,14 +2061,29 @@ static void *s_net_load(void *a_arg)
     }
 
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    
+    // CRITICAL: Ensure network is in LOADING state during chain file loading
+    // This ensures dap_ledger_tx_load uses HASH_ADD instead of HASH_ADD_INORDER
+    log_it(L_INFO, "[NET_LOAD] Starting chain file loading for net %s, current state: %d (%s), setting to NET_STATE_LOADING",
+           l_net->pub.name, l_net_pvt->state, 
+           l_net_pvt->state == NET_STATE_LOADING ? "NET_STATE_LOADING" : 
+           l_net_pvt->state == NET_STATE_OFFLINE ? "NET_STATE_OFFLINE" : "OTHER");
+    l_net_pvt->state = NET_STATE_LOADING;
 
-    // reload ledger cache at once
+    // Load stake cache if ledger cache is enabled
+    // This sets up cache_tx_check_callback which is used in dap_ledger_tx_load
+    // Note: One-time cache reload (with purge) is disabled - uncomment if needed
+    if (dap_ledger_cache_enabled(l_net->pub.ledger)) {
+        dap_chain_net_srv_stake_load_cache(l_net);
+    }
+    
+    // One-time ledger cache reload (disabled by default)
+    // Uncomment if you need to force cache reload on next startup:
     /*if (s_chain_net_reload_ledger_cache_once(l_net)) {
         log_it(L_WARNING,"Start one time ledger cache reloading");
         dap_ledger_purge(l_net->pub.ledger, false);
         dap_chain_net_srv_stake_purge(l_net);
-    } else
-        dap_chain_net_srv_stake_load_cache(l_net);*/
+    }*/
 
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
@@ -2112,9 +2129,49 @@ static void *s_net_load(void *a_arg)
         l_chain = l_chain->next;
     }
     dap_ledger_load_end(l_net->pub.ledger);
+    
+    // Load fee_addr from main.cfg configuration
+    // This ensures fee_addr persists across node restarts and is available for arbitrage transactions
+    char l_main_cfg_path[MAX_PATH + 1] = { '\0' };
+    snprintf(l_main_cfg_path, MAX_PATH, "network/%s/main", l_net->pub.name);
+    dap_config_t *l_main_cfg = dap_config_open(l_main_cfg_path);
+    if (l_main_cfg) {
+        const char *l_fee_addr_str = dap_config_get_item_str(l_main_cfg, "esbocs", "fee_addr");
+        if (l_fee_addr_str && strlen(l_fee_addr_str) > 0) {
+            dap_chain_addr_t *l_fee_addr_parsed = dap_chain_addr_from_str(l_fee_addr_str);
+            if (l_fee_addr_parsed) {
+                l_net->pub.fee_addr = *l_fee_addr_parsed;
+                DAP_DELETE(l_fee_addr_parsed);
+                log_it(L_INFO, "Loaded fee_addr from config for network %s: %s", 
+                       l_net->pub.name, dap_chain_addr_to_str_static(&l_net->pub.fee_addr));
+            } else {
+                log_it(L_WARNING, "Failed to parse fee_addr from config for network %s: %s", 
+                       l_net->pub.name, l_fee_addr_str);
+            }
+        } else {
+            log_it(L_DEBUG, "No fee_addr configured in main.cfg for network %s", l_net->pub.name);
+        }
+        dap_config_close(l_main_cfg);
+    } else {
+        log_it(L_DEBUG, "Cannot open main.cfg for network %s, fee_addr will not be loaded from config", l_net->pub.name);
+    }
+    
+    // CRITICAL: Log final state before transitioning to OFFLINE
+    // Note: Detailed ledger_items count logging is done in dap_ledger_tx_load and dap_ledger_tx_add
+    // with [LEDGER_TX_LOAD] and [LEDGER_TX_ADD] prefixes
+    log_it(L_INFO, "[NET_LOAD] Chain file loading completed for net %s, transitioning from NET_STATE_LOADING to NET_STATE_OFFLINE",
+           l_net->pub.name);
 
     // Do specific role actions post-chain created
     l_net_pvt->state_target = NET_STATE_OFFLINE;
+    // CRITICAL: Change state to OFFLINE before loading wallet cache
+    // dap_chain_wallet_cache_load_for_net() checks dap_chain_net_get_load_mode() which returns true
+    // if state == NET_STATE_LOADING, so we must change state first
+    l_net_pvt->state = NET_STATE_OFFLINE;
+    
+    // Load wallet cache immediately after chain loading completes
+    // This ensures UTXO is available even if network remains in OFFLINE state
+    dap_chain_wallet_cache_load_for_net(l_net);
     switch ( l_net_pvt->node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:{
             // Set to process everything in datum pool
@@ -2338,9 +2395,25 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 int dap_chain_net_add_auth_nodes_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
 {
     dap_return_val_if_fail(a_net && a_cluster, -1);
+    bool l_contains_self = false;
     for (dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
-        for (uint16_t i = 0; i < l_chain->authorized_nodes_count; i++)
+        for (uint16_t i = 0; i < l_chain->authorized_nodes_count; i++) {
             dap_global_db_cluster_member_add(a_cluster, l_chain->authorized_nodes_addrs + i, DAP_GDB_MEMBER_ROLE_ROOT);
+            if (l_chain->authorized_nodes_addrs[i].uint64 == g_node_addr.uint64)
+                l_contains_self = true;
+        }
+    }
+    // CRITICAL FIX: For AUTONOMIC clusters, members_register needs to be called AFTER all members are added
+    // Otherwise only g_node_addr gets registered to links_cluster, and other nodes are rejected
+    // with "Node with addr ... is not a member of cluster" error
+    // This call is idempotent - dap_link_manager_add_static_links_cluster skips g_node_addr
+    if (l_contains_self && a_cluster->links_cluster && a_cluster->links_cluster->type == DAP_CLUSTER_TYPE_AUTONOMIC) {
+        // Re-register all members to ensure they are in links_cluster
+        // This is safe because callback was already set when g_node_addr was added
+        dap_cluster_members_register(a_cluster->role_cluster);
+        log_it(L_DEBUG, "Re-registered %zu members to cluster %s for proper links_cluster sync",
+               dap_cluster_members_count(a_cluster->role_cluster),
+               a_cluster->groups_mask ? a_cluster->groups_mask : "unnamed");
     }
     return 0;
 }
@@ -2592,8 +2665,17 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
         return -11;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     switch (a_datum->header.type_id) {
-    case DAP_CHAIN_DATUM_TX:
-        return dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
+    case DAP_CHAIN_DATUM_TX: {
+        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
+        // Check if transaction is arbitrage before calling dap_ledger_tx_add_check
+        bool l_is_arbitrage = dap_chain_arbitrage_tx_is_arbitrage(l_tx);
+        if (l_is_arbitrage) {
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(a_datum_hash, l_hash_str, sizeof(l_hash_str));
+            log_it(L_DEBUG, "Verifying arbitrage TX %s from mempool", l_hash_str);
+        }
+        return dap_ledger_tx_add_check(l_net->pub.ledger, l_tx, a_datum->header.data_size, a_datum_hash);
+    }
     case DAP_CHAIN_DATUM_TOKEN:
         return dap_ledger_token_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size);
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
@@ -2831,7 +2913,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             }
             int l_result = dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
             
-            if (l_result == 0 && a_chain) {
+            if (l_result == 0 && a_chain && a_chain->callback_count_tx_increase) {
                 a_chain->callback_count_tx_increase(a_chain);
             }
             return l_result;
@@ -3232,6 +3314,11 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
     s_net_states_proc(a_net);
     if(l_prev_state == NET_STATE_SYNC_CHAINS)
         dap_ledger_load_end(a_net->pub.ledger);
+    
+    // Load wallet cache when network transitions to ONLINE
+    // This ensures wallet cache is populated even if wallets were opened during NET_STATE_LOADING
+    dap_chain_wallet_cache_load_for_net(a_net);
+    
     return NULL;
 }
 

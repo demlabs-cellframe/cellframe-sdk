@@ -75,6 +75,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
+#include "dap_chain_node_cli_cmd_arbitrage.h"
 #include "dap_net.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
@@ -116,6 +117,21 @@
 #include "dap_chain_net_tx.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
+
+// Debug flag for CLI commands (read from config: cli-server.debug_more)
+static bool s_debug_more = false;
+
+/**
+ * @brief Initialize CLI commands module
+ * Called during module initialization
+ * @param a_config Configuration object
+ */
+void dap_chain_node_cli_cmd_init(dap_config_t *a_config)
+{
+    if (a_config) {
+        s_debug_more = dap_config_get_item_bool_default(a_config, "cli-server", "debug_more", false);
+    }
+}
 
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 static int _cmd_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
@@ -1516,7 +1532,6 @@ int com_version(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_ver
     (void) argc;
     (void) argv;
 #ifndef DAP_VERSION
-#pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
 #define DAP_VERSION "0.9-15"
 #endif
     json_object* json_obj_out = json_object_new_object();
@@ -1999,11 +2014,25 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             if (l_cond_outs)
                 l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, l_cond_type, l_token_tiker, l_addr);
             else if (l_value_str) {
-                if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool))
+                if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool, false)) {
+                    debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s (value needed)",
+                             dap_chain_addr_to_str_static(l_addr));
                     l_outs_list = dap_ledger_get_list_tx_outs_with_val_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum, l_check_mempool); 
+                    if (l_outs_list) {
+                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
+                                 dap_list_length(l_outs_list));
+                    }
+                } 
             } else {
-                if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool))
+                if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool, false)) {
+                    debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s",
+                             dap_chain_addr_to_str_static(l_addr));
                     l_outs_list = dap_ledger_get_list_tx_outs_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum, l_check_mempool);
+                    if (l_outs_list) {
+                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
+                                 dap_list_length(l_outs_list));
+                    }
+                }
             }
             json_object_object_add(json_obj_wall, "wallet_addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             struct json_object *l_json_outs_arr = json_object_new_array();
@@ -2145,7 +2174,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     // create wallet backup 
                     dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
-                    snprintf(l_file_name->file_name, sizeof(l_file_name->file_name), "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
+                    snprintf(l_file_name->file_name, sizeof(l_file_name->file_name), "%s/%s_%012lld%s", c_wallets_path, l_wallet_name, (long long)time(NULL),".backup");
                     if ( dap_chain_wallet_save(l_wallet, NULL) ) {
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR,
                                                "Can't create backup wallet file because of internal error");
@@ -2379,10 +2408,16 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_a
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
 
-    // Net name
-    if(a_net)
-        dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-net", &l_net_str);
-    else {
+    // Net name - search from beginning (index 0) to find -net parameter
+    if(a_net) {
+        // Debug: log all arguments to understand command structure
+        debug_if(s_debug_more, L_DEBUG, "dap_chain_node_cli_cmd_values_parse_net_chain_for_json: argc=%d, argv[0]=%s", a_argc, a_argv[0] ? a_argv[0] : "NULL");
+        for (int i = 0; i < a_argc && i < 10; i++) {
+            debug_if(s_debug_more, L_DEBUG, "  argv[%d]=%s", i, a_argv[i] ? a_argv[i] : "NULL");
+        }
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
+        debug_if(s_debug_more, L_DEBUG, "After search for -net: l_net_str=%s", l_net_str ? l_net_str : "NULL");
+    } else {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_INTERNAL_COMMAND_PROCESSING,
                                "Error in internal command processing.");
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_INTERNAL_COMMAND_PROCESSING;
@@ -2390,7 +2425,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_a
 
     // Select network
     if(!l_net_str) {
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL, "%s requires parameter '-net'", a_argv[0]);
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL, "%s requires parameter '-net'", a_argv[0] ? a_argv[0] : "unknown");
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_STR_IS_NUL;
     }
 
@@ -2420,17 +2455,22 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_a
                 return DAP_DELETE(l_str_reply), DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_NOT_FOUND;
             }
         } else if (a_default_chain_type != CHAIN_TYPE_INVALID) {
+            // First try to get default chain by type
             if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL) {
                 return 0;
-            } else {
+            }
+            // If default chain not found, try to get any chain that supports this type
+            if ((*a_chain = dap_chain_net_get_chain_by_chain_type(*a_net, a_default_chain_type)) != NULL) {
+                return 0;
+            }
+            // If still not found, return error
                 dap_json_rpc_error_add(a_json_arr_reply, 
                         DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE,
                         "Unable to get the default chain of type %s for the network.", dap_chain_type_to_str(a_default_chain_type));
                 return DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_CAN_NOT_FIND_DEFAULT_CHAIN_WITH_TYPE;
-
-            }
         }
     }
+    
     return 0;
 }
 
@@ -2450,7 +2490,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
 
-    // Net name
+    // Net name - search from current position (*a_arg_index) to find -net parameter
     if(a_net)
         dap_cli_server_cmd_find_option_val(a_argv, *a_arg_index, a_argc, "-net", &l_net_str);
     else
@@ -2530,12 +2570,40 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
              ||(l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)))
         l_tsd_size = l_datum_token->header_native_update.tsd_total_size;
     uint16_t l_tmp_cert_sign_count = l_datum_token->signs_total;
+    debug_if(s_debug_more, L_DEBUG, "[SIGN_CERT_CYCLE] Starting: saved signs_total=%u, certs_count=%zu, tsd_size=%zu", 
+             l_tmp_cert_sign_count, l_certs_count, l_tsd_size);
     l_datum_token->signs_total = 0;
 
     for(size_t i = 0; i < l_certs_count; i++)
     {
+        dap_chain_hash_fast_t l_cert_pkey_hash_before_sign = {0};
+        size_t l_cert_pkey_ser_size = 0;
+        uint8_t *l_cert_pkey_ser = NULL;
+        if (l_certs[i] && l_certs[i]->enc_key) {
+            dap_enc_key_get_pkey_hash(l_certs[i]->enc_key, &l_cert_pkey_hash_before_sign);
+            l_cert_pkey_ser = dap_enc_key_serialize_pub_key(l_certs[i]->enc_key, &l_cert_pkey_ser_size);
+        }
+        
         dap_sign_t * l_sign = dap_cert_sign(l_certs[i], l_datum_token, sizeof(*l_datum_token) + l_tsd_size);
         if (l_sign) {
+            dap_chain_hash_fast_t l_sign_pkey_hash = {0};
+            dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+            
+            // Check if serialized pkey in sign matches serialized pkey from enc_key
+            bool l_pkey_match = false;
+            if (l_cert_pkey_ser && l_cert_pkey_ser_size == l_sign->header.sign_pkey_size) {
+                l_pkey_match = !memcmp(l_cert_pkey_ser, l_sign->pkey_n_sign, l_cert_pkey_ser_size);
+            }
+            
+            log_it(L_INFO, "s_sign_cert_in_cycle: cert[%zu] '%s' pkey hash: %s, sign pkey hash: %s, ser_pkey_match: %s (cert_size=%zu, sign_size=%u)", 
+                   i, l_certs[i]->name, 
+                   dap_hash_fast_to_str_static(&l_cert_pkey_hash_before_sign),
+                   dap_hash_fast_to_str_static(&l_sign_pkey_hash),
+                   l_pkey_match ? "true" : "false",
+                   l_cert_pkey_ser_size, l_sign->header.sign_pkey_size);
+            
+            DAP_DELETE(l_cert_pkey_ser);
+            
             size_t l_sign_size = dap_sign_get_size(l_sign);
             dap_chain_datum_token_t *l_datum_token_new
                 = DAP_REALLOC_RET_VAL_IF_FAIL(l_datum_token, sizeof(*l_datum_token) + (*l_datum_signs_offset) + l_sign_size, NULL, l_sign);
@@ -2547,7 +2615,10 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
             (*l_sign_counter)++;
         }
     }
+    debug_if(s_debug_more, L_DEBUG, "[SIGN_CERT_CYCLE] Finished: added %u signatures, restoring signs_total from %u to %u", 
+             *l_sign_counter, l_datum_token->signs_total, l_tmp_cert_sign_count);
     l_datum_token->signs_total = l_tmp_cert_sign_count;
+    debug_if(s_debug_more, L_DEBUG, "[SIGN_CERT_CYCLE] Final signs_total=%u", l_datum_token->signs_total);
 
     return l_datum_token;
 }
@@ -2597,6 +2668,17 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         // Load certs lists
         if (l_certs_str)
             dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        
+        // Debug: log certificate pkey hashes for token_decl_sign
+        for (size_t i = 0; i < l_certs_count; i++) {
+            if (l_certs[i] && l_certs[i]->enc_key) {
+                dap_chain_hash_fast_t l_cert_pkey_hash = {0};
+                if (dap_cert_get_pkey_hash(l_certs[i], &l_cert_pkey_hash)) {
+                    log_it(L_DEBUG, "token_decl: cert[%zu] '%s' pkey hash: %s", 
+                           i, l_certs[i]->name, dap_hash_fast_to_str_static(&l_cert_pkey_hash));
+                }
+            }
+        }
 
         if(!l_certs_count) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_NOT_VALID_CERT_ERR,
@@ -2636,45 +2718,191 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 if ((l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
                     ||  (l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE))
                     l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
-                // Check for signatures, are they all in set and are good enought?
+                // Check EXISTING signatures (only those currently present, not the required total)
+                // signs_total now reflects actual count of signatures, not required count
                 size_t l_signs_size = 0, i = 1;
-                uint16_t l_tmp_signs_total = l_datum_token->signs_total;
+                uint16_t l_current_signs_count = l_datum_token->signs_total;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Reading datum from mempool: signs_total=%u, tsd_size=%zu", 
+                         l_current_signs_count, l_tsd_size);
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Datum size=%zu, token struct size=%zu", 
+                         l_datum_size, sizeof(*l_datum_token));
+                if (l_current_signs_count > 10) {
+                    log_it(L_WARNING, "token_decl_sign: Reading datum from mempool, signs_total=%u seems too high (should be actual count, not required)", 
+                           l_current_signs_count);
+                }
                 l_datum_token->signs_total = 0;
-                for (i = 1; i <= l_tmp_signs_total; i++){
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Verifying %u existing signature(s) before adding new ones", l_current_signs_count);
+                
+                // Calculate available memory for signatures
+                // Total datum size minus token struct size minus TSD size
+                size_t l_available_memory = l_datum_size - sizeof(*l_datum_token) - l_tsd_size;
+                uint16_t l_actual_signs_count = 0;
+                
+                for (i = 1; i <= l_current_signs_count; i++){
+                    // Check if we have enough memory for another signature
+                    if (l_signs_size + sizeof(dap_sign_t) > l_available_memory) {
+                        log_it(L_WARNING, "token_decl_sign: Not enough memory for signature %zu (signs_size=%zu, available=%zu, datum_hash=%s)", 
+                               i, l_signs_size, l_available_memory, l_datum_hash_out_str);
+                        break; // Stop checking signatures if we're out of memory
+                    }
+                    
                     dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->tsd_n_signs + l_tsd_size + l_signs_size);
+                    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Checking signature %zu/%u at offset %zu (tsd_size=%zu, signs_size=%zu)", 
+                             i, l_current_signs_count, l_tsd_size + l_signs_size, l_tsd_size, l_signs_size);
+                    
+                    // Validate signature structure before using it
+                    size_t l_remaining_memory = l_available_memory - l_signs_size;
+                    if (dap_sign_verify_size(l_sign, l_remaining_memory)) {
+                        log_it(L_WARNING, "token_decl_sign: Invalid signature structure at position %zu (datum_hash=%s, remaining_memory=%zu)", 
+                               i, l_datum_hash_out_str, l_remaining_memory);
+                        break; // Stop checking signatures if structure is invalid
+                    }
+                    
+                    // Get signature size before verification to ensure we don't read beyond bounds
+                    uint64_t l_sign_size = dap_sign_get_size(l_sign);
+                    if (l_sign_size == 0 || l_sign_size > l_remaining_memory) {
+                        log_it(L_WARNING, "token_decl_sign: Invalid signature size %llu at position %zu (datum_hash=%s, remaining_memory=%zu)", 
+                               (unsigned long long)l_sign_size, i, l_datum_hash_out_str, l_remaining_memory);
+                        break; // Stop checking signatures if size is invalid
+                    }
+                    
                     if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size) ) {
-                        log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
+                        log_it(L_WARNING, "Wrong existing signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
+                        debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Signature %zu verification failed: sign at %p, datum_token at %p, size=%zu", 
+                                 i, l_sign, l_datum_token, sizeof(*l_datum_token) + l_tsd_size);
                         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_HAS_WRONG_SIGNATURE_ERR,
-                                       "Datum %s with datum token has wrong signature %zu, break process and exit",
+                                       "Datum %s with datum token has wrong existing signature %zu, break process and exit",
                                         l_datum_hash_out_str, i);
                         DAP_DELETE(l_datum_token);
                         DAP_DELETE(l_gdb_group_mempool);
                         return -6;
                     }else{
-                        log_it(L_DEBUG,"Sign %zu passed", i);
+                        debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Existing sign %zu passed verification", i);
                     }
-                    l_signs_size += dap_sign_get_size(l_sign);
+                    l_signs_size += l_sign_size;
+                    l_actual_signs_count++;
                 }
-                l_datum_token->signs_total = l_tmp_signs_total;
-                log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
+                
+                // Use actual count of verified signatures instead of signs_total from datum
+                if (l_actual_signs_count != l_current_signs_count) {
+                    log_it(L_WARNING, "token_decl_sign: Actual signature count (%u) differs from signs_total (%u) in datum %s", 
+                           l_actual_signs_count, l_current_signs_count, l_datum_hash_out_str);
+                }
+                l_datum_token->signs_total = l_actual_signs_count;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Restored signs_total=%u after verification (total sign size=%zu)", 
+                         l_datum_token->signs_total, l_signs_size);
+                log_it(L_DEBUG, "Datum %s with token declaration: %hu existing signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
 
-                // Sign header with all certificates in the list and add signs to the end of token update
-                uint16_t l_sign_counter = 0;
+                // CRITICAL: Remove TOTAL_PKEYS_ADD sections from TSD before adding new signatures
+                // These sections were created by token_decl via -pub_certs, but keys will be added via signatures
+                // Keeping them would cause duplicate key errors in ledger processing
+                // Filter TSD: remove TOTAL_PKEYS_ADD sections, keep all other sections
+                // Initialize l_data_size before filtering (will be updated if TSD size changes)
                 size_t l_data_size = l_tsd_size + l_signs_size;
+                size_t l_filtered_tsd_size = 0;
+                byte_t *l_filtered_tsd = NULL;
+                if (l_tsd_size > 0) {
+                    // First pass: calculate size of filtered TSD (without TOTAL_PKEYS_ADD sections)
+                    uint64_t l_offset = 0;
+                    dap_tsd_t *l_tsd_iter = (dap_tsd_t *)l_datum_token->tsd_n_signs;
+                    while (l_offset < l_tsd_size) {
+                        if (l_offset + sizeof(dap_tsd_t) > l_tsd_size) break;
+                        size_t l_tsd_section_size = dap_tsd_size(l_tsd_iter);
+                        if (l_offset + l_tsd_section_size > l_tsd_size) break;
+                        
+                        // Skip TOTAL_PKEYS_ADD sections (they will be replaced by signatures)
+                        if (l_tsd_iter->type != DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD) {
+                            l_filtered_tsd_size += l_tsd_section_size;
+                        } else {
+                            log_it(L_DEBUG, "token_decl_sign: Removing TOTAL_PKEYS_ADD section from TSD (key will be added via signature)");
+                        }
+                        
+                        l_offset += l_tsd_section_size;
+                        l_tsd_iter = (dap_tsd_t *)((byte_t *)l_tsd_iter + l_tsd_section_size);
+                    }
+                    
+                    // Second pass: copy filtered TSD (without TOTAL_PKEYS_ADD sections)
+                    if (l_filtered_tsd_size > 0 && l_filtered_tsd_size < l_tsd_size) {
+                        l_filtered_tsd = DAP_NEW_SIZE(byte_t, l_filtered_tsd_size);
+                        if (l_filtered_tsd) {
+                            l_offset = 0;
+                            size_t l_filtered_offset = 0;
+                            l_tsd_iter = (dap_tsd_t *)l_datum_token->tsd_n_signs;
+                            while (l_offset < l_tsd_size && l_filtered_offset < l_filtered_tsd_size) {
+                                if (l_offset + sizeof(dap_tsd_t) > l_tsd_size) break;
+                                size_t l_tsd_section_size = dap_tsd_size(l_tsd_iter);
+                                if (l_offset + l_tsd_section_size > l_tsd_size) break;
+                                
+                                // Copy all sections except TOTAL_PKEYS_ADD
+                                if (l_tsd_iter->type != DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD) {
+                                    memcpy(l_filtered_tsd + l_filtered_offset, l_tsd_iter, l_tsd_section_size);
+                                    l_filtered_offset += l_tsd_section_size;
+                                }
+                                
+                                l_offset += l_tsd_section_size;
+                                l_tsd_iter = (dap_tsd_t *)((byte_t *)l_tsd_iter + l_tsd_section_size);
+                            }
+                            
+                            // Replace TSD in datum_token with filtered version
+                            // Need to shift signatures if TSD size changed
+                            if (l_filtered_tsd_size != l_tsd_size) {
+                                size_t l_tsd_diff = l_tsd_size - l_filtered_tsd_size;
+                                // Move signatures to new position
+                                memmove(l_datum_token->tsd_n_signs + l_filtered_tsd_size, 
+                                       l_datum_token->tsd_n_signs + l_tsd_size, 
+                                       l_signs_size);
+                                // Copy filtered TSD
+                                memcpy(l_datum_token->tsd_n_signs, l_filtered_tsd, l_filtered_tsd_size);
+                                // Update TSD size in header
+                                if ((l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
+                                    || (l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE))
+                                    l_datum_token->header_native_decl.tsd_total_size = l_filtered_tsd_size;
+                                // Update data_size (TSD + signatures)
+                                l_data_size = l_filtered_tsd_size + l_signs_size;
+                                l_tsd_size = l_filtered_tsd_size;
+                                log_it(L_INFO, "token_decl_sign: Filtered TSD: removed %zu bytes of TOTAL_PKEYS_ADD sections", l_tsd_diff);
+                            } else {
+                                // No change needed, just copy filtered TSD
+                                memcpy(l_datum_token->tsd_n_signs, l_filtered_tsd, l_filtered_tsd_size);
+                            }
+                            DAP_DELETE(l_filtered_tsd);
+                        } else {
+                            log_it(L_WARNING, "token_decl_sign: Failed to allocate memory for filtered TSD, keeping original");
+                        }
+                    } else if (l_filtered_tsd_size == l_tsd_size) {
+                        // No TOTAL_PKEYS_ADD sections found, no filtering needed
+                        log_it(L_DEBUG, "token_decl_sign: No TOTAL_PKEYS_ADD sections found in TSD, no filtering needed");
+                    }
+                }
+
+                // Add new signatures from certificates
+                uint16_t l_sign_counter = 0;
+                // l_data_size already initialized above (updated if TSD was filtered)
                 l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
                                                             &l_sign_counter);
-                log_it(L_DEBUG, "Apply %u signs to datum %s", l_sign_counter, l_datum_hash_hex_str);
+                log_it(L_INFO, "Added %u new signature(s) to datum %s (total now: %u)", 
+                       l_sign_counter, l_datum_hash_hex_str, l_actual_signs_count + l_sign_counter);
                 if (!l_sign_counter) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_SERT_NOT_VALID_ERR,
                                        "Error! Used certs not valid");
                     DAP_DEL_MULTY(l_datum_token, l_datum_hash_hex_str, l_datum_hash_base58_str, l_gdb_group_mempool);
                     return -9;
                 }
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Before adding new signatures: current signs_total=%u, new signs=%u", 
+                         l_datum_token->signs_total, l_sign_counter);
                 l_datum_token->signs_total += l_sign_counter;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] After adding new signatures: signs_total=%u", 
+                         l_datum_token->signs_total);
                 size_t l_token_size = sizeof(*l_datum_token) + l_data_size;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Creating new datum: token_size=%zu, data_size=%zu", 
+                         l_token_size, l_data_size);
                 l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                                      l_datum_token, l_token_size);
+                // Verify signs_total in new datum
+                dap_chain_datum_token_t *l_new_check_token = (dap_chain_datum_token_t *)l_datum->data;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] New datum created: signs_total in datum data=%u (expected %u)", 
+                         l_new_check_token->signs_total, l_actual_signs_count + l_sign_counter);
                 DAP_DELETE(l_datum_token);
                 // Calc datum's hash
                 l_datum_size = dap_chain_datum_size(l_datum);
@@ -4640,6 +4868,8 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, json_object
 
 static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_object* a_json_arr_reply, dap_sdk_cli_params* a_params, bool a_update_token)
 {
+    debug_if(s_debug_more, L_DEBUG, "s_parse_additional_token_decl_arg: a_update_token=%d, subtype=%d", a_update_token, a_params->subtype);
+    
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &a_params->ext.flags);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &a_params->ext.total_signs_valid);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_supply_change", &a_params->ext.total_supply_change);
@@ -4652,8 +4882,10 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_params->ext.tx_receiver_allowed);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_sender_blocked", &a_params->ext.tx_sender_blocked);
 
-    if (a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE)
+    if (a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE) {
+        debug_if(s_debug_more, L_DEBUG, "SIMPLE subtype, skipping flag processing");
         return 0;
+    }
 
     dap_list_t *l_tsd_list = NULL;
     size_t l_tsd_total_size = 0;
@@ -4696,6 +4928,9 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         const char *l_unset_flags = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flag_set", &l_set_flags);
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flag_unset", &l_unset_flags);
+
+        debug_if(s_debug_more, L_DEBUG, "Found flags: -flag_set='%s', -flag_unset='%s'", 
+               l_set_flags ? l_set_flags : "NULL", l_unset_flags ? l_unset_flags : "NULL");
         if (l_set_flags) {
             l_str_flags = dap_strsplit(l_set_flags,",",0xffff );
             while (l_str_flags && *l_str_flags){
@@ -4735,20 +4970,47 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
             }
         }
         if (l_unset_flags) {
+            debug_if(s_debug_more, L_DEBUG, "Processing -flag_unset with flags: '%s'", l_unset_flags);
             l_str_flags = dap_strsplit(l_unset_flags,",",0xffff );
             while (l_str_flags && *l_str_flags){
                 // Try parsing as regular flag first
                 uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
+                debug_if(s_debug_more, L_DEBUG, "Parsing flag: '%s' -> regular flag=0x%04X (UNDEFINED=0x%04X)", 
+                       *l_str_flags, l_flag, DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED);
                 
                 // If not a regular flag, try parsing as UTXO flag
                 if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
                     uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_str_flags);
+                    debug_if(s_debug_more, L_DEBUG, "Parsing UTXO flag: '%s' -> 0x%08X", *l_str_flags, l_utxo_flag);
+                    
                     if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
                                    "Flag can't be \"%s\"",*l_str_flags);
                         return -20;
                     }
-                    l_utxo_flags |= l_utxo_flag;  // UTXO flag
+                    
+                    // Check if this UTXO flag is irreversible
+                    // Irreversible flags cannot be unset once they are set
+                    // This check prevents unsetting: ARBITRAGE_TX_DISABLED, DISABLE_ADDRESS_SENDER_BLOCKING, DISABLE_ADDRESS_RECEIVER_BLOCKING
+                    uint32_t l_irreversible_mask = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
+                    debug_if(s_debug_more, L_DEBUG, "Checking irreversible: flag=0x%08X, mask=0x%08X, result=0x%08X", 
+                           l_utxo_flag, l_irreversible_mask, l_utxo_flag & l_irreversible_mask);
+                    
+                    if (l_utxo_flag & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK) {
+                        log_it(L_WARNING, "Attempt to unset irreversible UTXO flag 0x%08X (flag: %s) via -flag_unset is not allowed", 
+                               l_utxo_flag, *l_str_flags);
+                        // Provide specific error message for ARBITRAGE_TX_DISABLED
+                        if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED) {
+                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                       "Cannot unset UTXO_ARBITRAGE_TX_DISABLED flag. This flag can only be SET (via -flag_set), never unset. Once set, arbitrage transactions are permanently disabled for this token.");
+                        } else {
+                            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                       "Cannot unset irreversible UTXO flags (ARBITRAGE_TX_DISABLED, DISABLE_ADDRESS_SENDER_BLOCKING, DISABLE_ADDRESS_RECEIVER_BLOCKING). These flags can only be SET, never unset.");
+                        }
+                        return -21;
+                    }
+                    
+                    l_utxo_flags |= l_utxo_flag;  // UTXO flag (only reversible ones allowed here)
                 } else {
                     l_flags |= l_flag;  // Regular flag
                 }
@@ -4763,14 +5025,32 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                 l_tsd_total_size += dap_tsd_size(l_flag_unset_tsd);
             }
             
-            // Note: UTXO flags cannot be unset (they are irreversible)
-            // If l_utxo_flags != 0 here, it's an error condition that should be caught
-            // by ledger validation layer
+            // For UTXO flags: need to get current flags and create new UTXO_FLAGS TSD without unset flags
+            // UTXO flags are set/unset by providing full new value in UTXO_FLAGS TSD
             if (l_utxo_flags != 0) {
-                log_it(L_WARNING, "Attempt to unset UTXO flags via -flag_unset is not allowed (flags are irreversible)");
-                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                           "Cannot unset UTXO flags - they are irreversible");
-                return -21;
+                // Get current flags using public API
+                uint32_t l_current_flags = 0;
+                // Check if token exists using dap_ledger_token_ticker_check
+                dap_chain_datum_token_t *l_token_check = dap_ledger_token_ticker_check(a_params->net->pub.ledger, a_params->ticker);
+                
+                if (!l_token_check) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_LEDGER_TOKEN_TICKER,
+                               "Token '%s' not found in ledger", a_params->ticker);
+                    return -7;
+                }
+                
+                // Extract current UTXO flags using mask
+                uint32_t l_current_utxo_flags = l_current_flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK;
+                
+                // Remove flags that should be unset
+                uint32_t l_new_utxo_flags = l_current_utxo_flags & ~l_utxo_flags;
+                
+                // Create UTXO_FLAGS TSD with new value
+                dap_tsd_t *l_utxo_flags_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_FLAGS, 
+                                                              &l_new_utxo_flags, sizeof(uint32_t));
+                l_tsd_list = dap_list_append(l_tsd_list, l_utxo_flags_tsd);
+                l_tsd_total_size += dap_tsd_size(l_utxo_flags_tsd);
+                l_utxo_flags = 0;
             }
         }
     }
@@ -4865,9 +5145,10 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         l_tsd_list = dap_list_append(l_tsd_list, l_utxo_add_tsd);
         l_tsd_total_size += dap_tsd_size(l_utxo_add_tsd);
         
-        DAP_DELETE(l_utxo_str_copy);
+        // Log before freeing l_utxo_str_copy (l_hash_str points into it)
         log_it(L_INFO, "Added UTXO blocking: %s:%u%s", l_hash_str, l_out_idx, 
                l_timestamp ? " (delayed)" : "");
+        DAP_DELETE(l_utxo_str_copy);
     }
     
     // Process -utxo_blocked_remove
@@ -5001,6 +5282,180 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         l_tsd_list = dap_list_append(l_tsd_list, l_tsd_change_total_supply);
         l_tsd_total_size += dap_tsd_size(l_tsd_change_total_supply);
     }
+    
+    // Process -total_signs_valid (or -signs_valid alias)
+    const char *l_signs_valid_str = a_params->ext.total_signs_valid;
+    if (l_signs_valid_str) {
+        uint16_t l_signs_valid = (uint16_t)atoi(l_signs_valid_str);
+        if (l_signs_valid > 0) {
+            dap_tsd_t *l_signs_valid_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_signs_valid);
+            l_tsd_list = dap_list_append(l_tsd_list, l_signs_valid_tsd);
+            l_tsd_total_size += dap_tsd_size(l_signs_valid_tsd);
+            log_it(L_DEBUG, "Added TSD for total_signs_valid=%u", l_signs_valid);
+        }
+    }
+    
+    // Process -pub_certs parameter for multi-signature tokens (stage-env extension)
+    const char *l_pub_certs_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-pub_certs", &l_pub_certs_str);
+    if (l_pub_certs_str && !a_update_token) {
+        log_it(L_INFO, "Processing -pub_certs: %s", l_pub_certs_str);
+        
+        // Get signing certificates from -certs parameter to check for duplicates
+        const char *l_certs_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-certs", &l_certs_str);
+        dap_cert_t **l_certs = NULL;
+        size_t l_certs_count = 0;
+        if (l_certs_str) {
+            dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        }
+        
+        // Build set of public key hashes from signing certificates (-certs) to avoid duplicates
+        // Public keys from signing certificates are automatically added to auth_pkeys from signatures
+        dap_hash_fast_t *l_signing_pkey_hashes = NULL;
+        size_t l_signing_pkey_count = 0;
+        if (l_certs && l_certs_count > 0) {
+            l_signing_pkey_hashes = DAP_NEW_SIZE(dap_hash_fast_t, l_certs_count);
+            if (l_signing_pkey_hashes) {
+                for (size_t i = 0; i < l_certs_count; i++) {
+                    dap_pkey_t *l_signing_pkey = dap_cert_to_pkey(l_certs[i]);
+                    if (l_signing_pkey) {
+                        dap_pkey_get_hash(l_signing_pkey, &l_signing_pkey_hashes[l_signing_pkey_count]);
+                        l_signing_pkey_count++;
+                        DAP_DELETE(l_signing_pkey);
+                    }
+                }
+                log_it(L_DEBUG, "Collected %zu public key hash(es) from signing certificates to avoid duplicates", l_signing_pkey_count);
+            }
+        }
+        
+        // Parse comma-separated list of certificate names
+        char *l_pub_certs_dup = dap_strdup(l_pub_certs_str);
+        char *l_saveptr = NULL;
+        char *l_cert_name = strtok_r(l_pub_certs_dup, ",", &l_saveptr);
+        size_t l_added_pkeys = 0;
+        size_t l_skipped_duplicates = 0;
+        
+        // Track public key hashes already added from -pub_certs to avoid duplicates within the list
+        dap_hash_fast_t *l_added_pub_pkey_hashes = NULL;
+        size_t l_added_pub_pkey_count = 0;
+        
+        while (l_cert_name) {
+            // Trim whitespace
+            while (*l_cert_name == ' ' || *l_cert_name == '\t') l_cert_name++;
+            char *end = l_cert_name + strlen(l_cert_name) - 1;
+            while (end > l_cert_name && (*end == ' ' || *end == '\t')) *end-- = '\0';
+            
+            // Try to load certificate (public or private, we only need public key)
+            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+            if (l_cert && l_cert->enc_key) {
+                // Extract public key
+                dap_pkey_t *l_pkey = dap_cert_to_pkey(l_cert);
+                if (l_pkey) {
+                    dap_chain_hash_fast_t l_pkey_hash = {0};
+                    dap_pkey_get_hash(l_pkey, &l_pkey_hash);
+                    
+                    // Check if this public key is already from a signing certificate (-certs)
+                    // This prevents duplicates when pvt.stagenet.root.0 and stagenet.root.0 are the same key
+                    bool l_is_duplicate = false;
+                    if (l_signing_pkey_hashes) {
+                        for (size_t i = 0; i < l_signing_pkey_count; i++) {
+                            if (dap_hash_fast_compare(&l_pkey_hash, &l_signing_pkey_hashes[i])) {
+                                log_it(L_WARNING, "Skipping duplicate public key from cert '%s': %s (already present from signing certificate -certs, will be added via signature)",
+                                       l_cert_name, dap_chain_hash_fast_to_str_static(&l_pkey_hash));
+                                l_is_duplicate = true;
+                                l_skipped_duplicates++;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Also check by certificate name: if cert name matches a signing cert (without pvt. prefix)
+                    // This handles the case where pvt.stagenet.root.0 and stagenet.root.0 are the same key
+                    if (!l_is_duplicate && l_certs && l_certs_count > 0) {
+                        // Extract base name (remove pvt. prefix if present)
+                        const char *l_base_name = l_cert_name;
+                        if (dap_strncmp(l_cert_name, "pvt.", 4) == 0) {
+                            l_base_name = l_cert_name + 4;  // Skip "pvt." prefix
+                        }
+                        
+                        for (size_t i = 0; i < l_certs_count; i++) {
+                            if (!l_certs[i]) continue;
+                            
+                            const char *l_signing_base_name = l_certs[i]->name;
+                            if (dap_strncmp(l_certs[i]->name, "pvt.", 4) == 0) {
+                                l_signing_base_name = l_certs[i]->name + 4;  // Skip "pvt." prefix
+                            }
+                            
+                            // Compare base names (without pvt. prefix)
+                            if (dap_strcmp(l_base_name, l_signing_base_name) == 0) {
+                                log_it(L_WARNING, "Skipping duplicate public key from cert '%s': %s (certificate name matches signing certificate '%s' - same key)",
+                                       l_cert_name, dap_chain_hash_fast_to_str_static(&l_pkey_hash), l_certs[i]->name);
+                                l_is_duplicate = true;
+                                l_skipped_duplicates++;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Check if this public key was already added from -pub_certs list (within the same list)
+                    if (!l_is_duplicate && l_added_pub_pkey_hashes) {
+                        for (size_t i = 0; i < l_added_pub_pkey_count; i++) {
+                            if (dap_hash_fast_compare(&l_pkey_hash, &l_added_pub_pkey_hashes[i])) {
+                                log_it(L_WARNING, "Skipping duplicate public key from cert '%s': %s (already added from -pub_certs list)",
+                                       l_cert_name, dap_chain_hash_fast_to_str_static(&l_pkey_hash));
+                                l_is_duplicate = true;
+                                l_skipped_duplicates++;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!l_is_duplicate) {
+                    size_t l_pkey_size = sizeof(dap_pkey_t) + l_pkey->header.size;
+                    dap_tsd_t *l_pkey_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, 
+                                                            l_pkey, l_pkey_size);
+                    l_tsd_list = dap_list_append(l_tsd_list, l_pkey_tsd);
+                    l_tsd_total_size += dap_tsd_size(l_pkey_tsd);
+                    l_added_pkeys++;
+                    
+                        // Add to tracking list
+                        dap_hash_fast_t *l_tmp = DAP_REALLOC_COUNT(l_added_pub_pkey_hashes, l_added_pub_pkey_count + 1);
+                        if (l_tmp) {
+                            l_added_pub_pkey_hashes = l_tmp;
+                            l_added_pub_pkey_hashes[l_added_pub_pkey_count] = l_pkey_hash;
+                            l_added_pub_pkey_count++;
+                        }
+                        
+                        log_it(L_INFO, "Added public key from cert '%s': %s", 
+                               l_cert_name, dap_chain_hash_fast_to_str_static(&l_pkey_hash));
+                    }
+                    DAP_DELETE(l_pkey);
+                } else {
+                    log_it(L_WARNING, "Failed to extract public key from cert '%s'", l_cert_name);
+                }
+            } else {
+                log_it(L_WARNING, "Certificate '%s' not found or has no key", l_cert_name);
+            }
+            
+            l_cert_name = strtok_r(NULL, ",", &l_saveptr);
+        }
+        DAP_DELETE(l_added_pub_pkey_hashes);
+        DAP_DELETE(l_pub_certs_dup);
+        DAP_DELETE(l_signing_pkey_hashes);
+        // Free certificates if they were loaded
+        if (l_certs) {
+            for (size_t i = 0; i < l_certs_count; i++) {
+                if (l_certs[i]) {
+                    dap_cert_delete(l_certs[i]);
+                }
+            }
+            DAP_DELETE(l_certs);
+        }
+        log_it(L_INFO, "Added %zu public keys from certificates (skipped %zu duplicates)", 
+               l_added_pkeys, l_skipped_duplicates);
+    }
+    
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
     if(l_tsd_total_size && !a_params->ext.parsed_tsd) {
@@ -5074,6 +5529,23 @@ static int s_token_decl_check_params_json(int a_argc, char **a_argv, json_object
     int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv, a_json_arr_reply, a_params, a_update_token);
     if (l_parse_params)
         return l_parse_params;
+
+    // For token_update, load existing token from ledger to determine its subtype
+    // This is needed because s_parse_additional_token_decl_arg checks subtype
+    if (a_update_token && a_params->net && a_params->chain && a_params->ticker) {
+        dap_ledger_t *l_ledger = a_params->net->pub.ledger;
+        dap_chain_datum_token_t *l_existing_token = dap_ledger_token_ticker_check(l_ledger, a_params->ticker);
+        if (l_existing_token) {
+            log_it(L_INFO, "Token '%s' found in ledger, subtype=%d (was %d)", 
+                   a_params->ticker, l_existing_token->subtype, a_params->subtype);
+            a_params->subtype = l_existing_token->subtype;
+            // NOTE: l_existing_token is a pointer to internal ledger data (l_token_item->datum_token)
+            // It should NOT be freed - it's managed by the ledger and will be freed when ledger is destroyed
+        } else {
+            log_it(L_WARNING, "Token '%s' not found in ledger, using default subtype=%d", 
+                   a_params->ticker, a_params->subtype);
+        }
+    }
 
     l_parse_params = s_parse_additional_token_decl_arg(a_argc,a_argv, a_json_arr_reply, a_params, a_update_token);
     if (l_parse_params)
@@ -5204,6 +5676,27 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         DAP_DEL_Z(l_params);
         return -10;
     }
+    
+    // Debug: log certificate pkey hashes for token_decl
+    log_it(L_INFO, "token_decl: parsing %zu certificates", l_certs_count);
+    for (size_t i = 0; i < l_certs_count; i++) {
+        if (!l_certs[i]) {
+            log_it(L_WARNING, "token_decl: cert[%zu] is NULL", i);
+            continue;
+        }
+        log_it(L_INFO, "token_decl: cert[%zu] '%s' found", i, l_certs[i]->name);
+        if (!l_certs[i]->enc_key) {
+            log_it(L_WARNING, "token_decl: cert[%zu] '%s' has no enc_key", i, l_certs[i]->name);
+            continue;
+        }
+        dap_chain_hash_fast_t l_cert_pkey_hash = {0};
+        if (dap_enc_key_get_pkey_hash(l_certs[i]->enc_key, &l_cert_pkey_hash) == 0) {
+            log_it(L_INFO, "token_decl: cert[%zu] '%s' pkey hash: %s", 
+                   i, l_certs[i]->name, dap_hash_fast_to_str_static(&l_cert_pkey_hash));
+        } else {
+            log_it(L_WARNING, "token_decl: cert[%zu] '%s' failed to get pkey hash", i, l_certs[i]->name);
+        }
+    }
 
     l_signs_emission = l_params->signs_emission;
     l_signs_total = l_params->signs_total;
@@ -5250,6 +5743,9 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
                 l_signs_total = (uint16_t)atoi(l_params->ext.total_signs_valid);
             }
 
+            // NOTE: REQUIRED_SIGNS_COUNT TSD (0x002E) is deprecated and removed
+            // It was causing "Unexpected TSD type" errors in ledger processing
+            // The actual signs requirement is determined by signs_valid parameter only
 
             size_t l_tsd_total_size = l_tsd_local_list_size + l_params->ext.tsd_total_size;
 
@@ -5381,7 +5877,13 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
     // Sign header with all certificates in the list and add signs to the end of TSD cetions
     uint16_t l_sign_counter = 0;
     l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
+    // For multi-sig tokens: signs_total = actual count of signatures added (can be incremented by token_decl_sign)
+    // For single-sig tokens: signs_total = l_signs_total (1 or the value from -signs_total parameter)
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Before setting signs_total: l_sign_counter=%u, l_signs_total=%u, current signs_total=%u", 
+             l_sign_counter, l_signs_total, l_datum_token->signs_total);
     l_datum_token->signs_total = l_sign_counter;
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] After setting signs_total: signs_total=%u (actual signatures)", l_datum_token->signs_total);
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Token created with %u signature(s), required: %u", l_sign_counter, l_signs_total);
 
     // We skip datum creation opeartion, if count of signed certificates in s_sign_cert_in_cycle is 0.
     // Usually it happen, when certificate in token_decl or token_update command doesn't contain private data or broken
@@ -5392,9 +5894,15 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
             return -9;
     }
 
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Before datum create: signs_total=%u, datum_data_offset=%zu", 
+             l_datum_token->signs_total, l_datum_data_offset);
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN,
                                                          l_datum_token,
                                                          sizeof(*l_datum_token) + l_datum_data_offset);
+    // Verify signs_total in datum data after creation
+    dap_chain_datum_token_t *l_check_token = (dap_chain_datum_token_t *)l_datum->data;
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] After datum create: signs_total in datum data=%u (expected %u)", 
+             l_check_token->signs_total, l_sign_counter);
     DAP_DELETE(l_datum_token);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
 
@@ -5416,7 +5924,12 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         DAP_DEL_Z(l_params);
         return -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_NO_SUITABLE_CHAIN;
     }
+    // Verify signs_total before saving to mempool
+    dap_chain_datum_token_t *l_save_check_token = (dap_chain_datum_token_t *)l_datum->data;
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Before saving to mempool: signs_total in datum=%u (expected %u), datum_size=%zu", 
+             l_save_check_token->signs_total, l_sign_counter, l_datum_size);
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, false) == 0;
+    debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL] Saved to mempool: placed=%d, key=%s", l_placed, l_key_str);
     DAP_DELETE(l_gdb_group_mempool);
     if (a_version == 1) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK,
@@ -5716,6 +6229,27 @@ int com_token_emit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int
                                    "token_emit command requres at least one valid certificate to sign the basic transaction of emission");
         return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_NOT_VALID_CERT_ERRS;
     }
+    
+    // Debug: log certificate pkey hashes
+    log_it(L_INFO, "token_emit: parsing %zu certificates", l_certs_size);
+    for (size_t i = 0; i < l_certs_size; i++) {
+        if (!l_certs[i]) {
+            log_it(L_WARNING, "token_emit: cert[%zu] is NULL", i);
+            continue;
+        }
+        log_it(L_INFO, "token_emit: cert[%zu] '%s' found", i, l_certs[i]->name);
+        if (!l_certs[i]->enc_key) {
+            log_it(L_WARNING, "token_emit: cert[%zu] '%s' has no enc_key", i, l_certs[i]->name);
+            continue;
+        }
+        dap_chain_hash_fast_t l_cert_pkey_hash = {0};
+        if (dap_enc_key_get_pkey_hash(l_certs[i]->enc_key, &l_cert_pkey_hash) == 0) {
+            log_it(L_INFO, "token_emit: cert[%zu] '%s' pkey hash: %s", 
+                   i, l_certs[i]->name, dap_hash_fast_to_str_static(&l_cert_pkey_hash));
+        } else {
+            log_it(L_WARNING, "token_emit: cert[%zu] '%s' failed to get pkey hash", i, l_certs[i]->name);
+        }
+    }
     const char *l_add_sign = NULL;
     dap_chain_addr_t *l_addr = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "sign", &l_add_sign);
@@ -5991,7 +6525,7 @@ static int _cmd_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply, U
     }
 
     dap_enc_key_t *l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
-    dap_chain_wallet_close(l_wallet);
+        dap_chain_wallet_close(l_wallet);
     uint256_t l_value_per_unit_max = {};
     char *l_hash_str = dap_chain_mempool_tx_create_cond(l_net, l_key_from, &l_pkey_cond_hash, l_token_ticker,
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
@@ -8064,6 +8598,8 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_
     return DAP_CHAIN_NET_TX_CREATE_JSON_OK;
 }
 
+// Arbitrage transaction creation moved to dap_chain_node_cli_cmd_arbitrage module
+
 /**
  * @brief Create transaction
  * com_tx_create command
@@ -8127,6 +8663,8 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx_num", &l_tx_num_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_str);
+    const char *l_certs_str = NULL;  // For multiple certificates (arbitrage transactions)
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-lock_before", &l_time_str);
     
     // Check for arbitrage flag
@@ -8224,7 +8762,8 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         }
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &addr_base58_to);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_str);
-        if (!addr_base58_to) {
+        // For arbitrage transactions, -to_addr is optional (will be replaced with fee address)
+        if (!addr_base58_to && !l_is_arbitrage) {
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_TO_ADDR, "tx_create requires parameter '-to_addr'");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_TO_ADDR;
         }
@@ -8232,7 +8771,8 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE, "tx_create requires parameter '-value' to be valid uint256 value");
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE;
         }
-        l_addr_el_count = dap_str_symbol_count(addr_base58_to, ',') + 1;
+        // For arbitrage, use default values if -to_addr not provided
+        l_addr_el_count = addr_base58_to ? dap_str_symbol_count(addr_base58_to, ',') + 1 : 1;
         l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
         if (l_time_str)
             l_time_el_count = dap_str_symbol_count(l_time_str, ',') + 1;
@@ -8270,23 +8810,31 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
         }
-        char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
-        if (!l_addr_base58_to_array) {
-            DAP_DEL_MULTY(l_addr_to, l_value);
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
-            return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
-        }
+        // For arbitrage TX without -to_addr, initialize with NULL (will be replaced with fee address by arbitrage module)
         for (size_t i = 0; i < l_addr_el_count; ++i) {
-            l_addr_to[i] = dap_chain_addr_from_str(l_addr_base58_to_array[i]);
-            if(!l_addr_to[i]) {
-                DAP_DEL_ARRAY(l_addr_to, i);
-                DAP_DEL_MULTY(l_addr_to, l_value);
-                dap_strfreev(l_addr_base58_to_array);
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID, "destination address is invalid");
-                return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID;
-            }
+            l_addr_to[i] = NULL;
         }
-        dap_strfreev(l_addr_base58_to_array);
+        // For arbitrage TX with -to_addr or normal TX, parse -to_addr addresses
+        if (addr_base58_to) {
+            char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
+            if (!l_addr_base58_to_array) {
+                DAP_DEL_MULTY(l_addr_to, l_value);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
+                return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
+            }
+            for (size_t i = 0; i < l_addr_el_count; ++i) {
+                l_addr_to[i] = dap_chain_addr_from_str(l_addr_base58_to_array[i]);
+                if(!l_addr_to[i]) {
+                    DAP_DEL_ARRAY(l_addr_to, i);
+                    DAP_DEL_MULTY(l_addr_to, l_value);
+                    dap_strfreev(l_addr_base58_to_array);
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID, "destination address is invalid");
+                    return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID;
+                }
+            }
+            dap_strfreev(l_addr_base58_to_array);
+        }
+        // For arbitrage without -to_addr, l_addr_to will be filled with fee address in arbitrage module
     }
 
     int l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_OK;
@@ -8355,6 +8903,9 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     }
 
     for (size_t i = 0; i < l_addr_el_count; ++i) {
+        // Skip validation for arbitrage TX - addresses are replaced by arbitrage module
+        if (l_is_arbitrage && !l_addr_to[i])
+            continue;
         if (dap_chain_addr_compare(l_addr_to[i], l_addr_from)) {
             dap_chain_wallet_close(l_wallet);
             dap_enc_key_delete(l_priv_key);
@@ -8368,6 +8919,9 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     }
 
     for (size_t i = 0; i < l_addr_el_count; ++i) {
+        // Skip validation for arbitrage TX without -to_addr - addresses are replaced by arbitrage module
+        if (l_is_arbitrage && !l_addr_to[i])
+            continue;
         if (!dap_chain_addr_is_blank(l_addr_to[i]) && l_addr_to[i]->net_id.uint64 != l_net->pub.id.uint64) {
             bool l_found = false;
             for (size_t j = 0; j < l_net->pub.bridged_networks_count; ++j) {
@@ -8439,37 +8993,32 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
                                                   l_addr_to[0], l_token_ticker, l_value[0], l_value_fee, l_tx_num);
         l_jobj_transfer_status = json_object_new_string((l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
         json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
+        if (l_ret != 0) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                   "Can't create massive transaction: %s",
+                                   (l_ret == -2) ? "not enough funds for transfer" : "creation failed");
+        }
     } else {
         char *l_tx_hash_str = NULL;
         
-        // If arbitrage flag is set, use extended API with TSD
+        // If arbitrage flag is set, use arbitrage module
         if (l_is_arbitrage) {
-            // Create arbitrage TSD marker
-            dap_chain_tx_tsd_t *l_tsd_arbitrage = dap_chain_datum_tx_item_tsd_create(NULL, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 0);
-            if (!l_tsd_arbitrage) {
-                log_it(L_ERROR, "Failed to create arbitrage TSD marker");
+            json_object **l_json_arr_reply = (json_object **)a_json_arr_reply;
+            l_tx_hash_str = dap_chain_arbitrage_cli_create_tx(
+                l_chain, l_net, l_wallet, l_priv_key, l_addr_from, l_addr_to,
+                l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count,
+                l_time_unlock, l_certs_str, l_json_arr_reply, l_jobj_result);
+            
+            if (!l_tx_hash_str) {
+                // Error already added to a_json_arr_reply by dap_chain_arbitrage_cli_create_tx
                 dap_chain_wallet_close(l_wallet);
                 dap_enc_key_delete(l_priv_key);
-                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, "Failed to create arbitrage TSD marker");
                 json_object_put(l_jobj_result);
                 DAP_DELETE(l_addr_from);
                 DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
                 DAP_DEL_MULTY(l_addr_to, l_value);
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
             }
-            
-            // Create TSD list
-            dap_list_t *l_tsd_list = dap_list_append(NULL, l_tsd_arbitrage);
-            
-            // Create arbitrage transaction
-            l_tx_hash_str = dap_chain_mempool_tx_create_extended(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
-                                                                 l_token_ticker, l_value, l_value_fee, l_hash_out_type, l_addr_el_count, l_time_unlock, l_tsd_list);
-            
-            // Cleanup
-            dap_list_free(l_tsd_list);
-            DAP_DELETE(l_tsd_arbitrage);
-            
-            log_it(L_INFO, "Arbitrage transaction created: %s", l_tx_hash_str ? l_tx_hash_str : "FAILED");
         } else {
             // Normal transaction
             l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, l_addr_from, (const dap_chain_addr_t **)l_addr_to,
@@ -8485,6 +9034,9 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         } else {
             l_jobj_transfer_status = json_object_new_string("False");
             json_object_object_add(l_jobj_result, "transfer", l_jobj_transfer_status);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                   "Can't create transaction. Possible reasons: insufficient funds, blocked UTXOs, "
+                                   "or insufficient fee. Check node logs for details.");
             l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
         }
     }
@@ -10274,4 +10826,22 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
     DAP_DELETE(l_decree_hash_str);
 
     return 0;
+}
+
+/**
+ * @brief com_token_emit_sign
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @param a_version
+ * @return
+ */
+int com_token_emit_sign(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
+{
+    (void)a_argc;
+    (void)a_argv;
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_H_PARAM_ERR,
+                           "Command 'token_emit_sign' is deprecated. Please use 'token_emit sign -emission ...' instead.");
+    return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_H_PARAM_ERR;
 }
