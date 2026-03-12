@@ -557,6 +557,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     }
     case ATOM_ACCEPT: {
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_event->header.cell_id);
+        if (!l_cell) {
+            log_it(L_ERROR, "Cell 0x%016" DAP_UINT64_FORMAT_X " not found for accepted event", l_event->header.cell_id.uint64);
+            ret = ATOM_REJECT;
+            break;
+        }
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
             if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_event_hash : NULL) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file");
@@ -1425,6 +1430,10 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
             for (size_t i = 0; i< l_objs_size; i++ ){
                 if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key))
                     continue;
+                if (!l_objs[i].value || l_objs[i].value_len <= sizeof(dap_chain_cs_dag_event_round_item_t)) {
+                    log_it(L_WARNING, "Skipping round item with invalid value (key=%s, len=%zu)", l_objs[i].key, l_objs[i].value_len);
+                    continue;
+                }
                 dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
                 dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
                 dap_hash_fast_t l_event_hash = {};
@@ -1454,16 +1463,12 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                     }
                 }
             }
-            // write events to file and delete events from db
             if(l_list_to_del) {
-                if (dap_chain_cell_file_update(l_chain->cells) > 0) {
-                    // delete events from db
-                    dap_list_t *l_el;
-                    DL_FOREACH(l_list_to_del, l_el) {
-                        dap_global_db_del_sync(l_dag->gdb_group_events_round_new, (char*)l_el->data);
-                    }
+                dap_chain_cell_file_update(l_chain->cells);
+                dap_list_t *l_el;
+                DL_FOREACH(l_list_to_del, l_el) {
+                    dap_global_db_del_sync(l_dag->gdb_group_events_round_new, (char*)l_el->data);
                 }
-                dap_chain_cell_close(l_chain->cells);
                 dap_list_free(l_list_to_del);
             }
 
