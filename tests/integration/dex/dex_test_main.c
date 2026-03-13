@@ -34,6 +34,7 @@ extern int dap_nonconsensus_init(void);
 // ============================================================================
 
 static bool s_cache_enabled = false;
+static char s_test_root[512];
 static char s_config_dir[512];
 static char s_gdb_dir[512];
 static char s_certs_dir[512];
@@ -42,14 +43,11 @@ static void s_setup(bool a_cache) {
     s_cache_enabled = a_cache;
     log_it(L_NOTICE, "=== DEX Integration Tests Setup ===");
     
-    const char *l_tmp = test_get_temp_dir();
-    snprintf(s_config_dir, sizeof(s_config_dir), "%s/dex_integration_test_config", l_tmp);
-    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/dex_intg_test_gdb", l_tmp);
-    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/dex_intg_test_certs", l_tmp);
-
-    dap_rm_rf(s_gdb_dir);
-    dap_rm_rf(s_certs_dir);
-    dap_rm_rf(s_config_dir);
+    dap_assert_PIF(test_make_unique_tmpdir(s_test_root, sizeof(s_test_root), "dex_intg") != NULL,
+                   "Create unique temp directory");
+    snprintf(s_config_dir, sizeof(s_config_dir), "%s/config", s_test_root);
+    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/gdb", s_test_root);
+    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/certs", s_test_root);
 
     dap_mkdir_with_parents(s_config_dir);
     
@@ -110,10 +108,8 @@ static void s_teardown(void) {
     }
     dap_config_deinit();
     
-    dap_rm_rf(s_config_dir);
-    dap_rm_rf(s_gdb_dir);
-    dap_rm_rf(s_certs_dir);
-    
+    dap_rm_rf(s_test_root);
+
     log_it(L_NOTICE, "Cleanup completed");
 }
 

@@ -63,6 +63,18 @@ bool test_ledger_get_token_emission_hash(dap_ledger_t *a_ledger,
 const char *test_get_temp_dir(void);
 
 /**
+ * @brief Create a unique temporary directory for a test run
+ * @param a_buf      Caller-provided buffer to store the resulting path
+ * @param a_buf_size Size of the buffer
+ * @param a_prefix   Short prefix for the directory name (e.g. "reg_20138")
+ * @return a_buf on success, NULL on failure
+ *
+ * Uses mkdtemp() to guarantee uniqueness even when multiple CI pipelines
+ * or concurrent test runs share the same system TMPDIR.
+ */
+char *test_make_unique_tmpdir(char *a_buf, size_t a_buf_size, const char *a_prefix);
+
+/**
  * @brief Initialize test environment (config, certs, global DB)
  * @param a_config_dir Directory for test config files (can be NULL for default)
  * @param a_global_db_path Path for global DB storage (can be NULL for default)

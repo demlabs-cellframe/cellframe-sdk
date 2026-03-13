@@ -89,6 +89,7 @@
 test_net_fixture_t *s_net_fixture = NULL;
 
 // Portable paths for CLI tests (set in setup, used in tests and teardown)
+static char s_test_root[512];
 static char s_cli_test_config_dir[512];
 static char s_cli_test_gdb_dir[512];
 static char s_cli_test_certs_dir[512];
@@ -97,27 +98,18 @@ static char s_cli_test_sock_path[512];
 
 static void s_setup(void)
 {
-    // Initialize logging output BEFORE any log_it calls (if not already set)
-    // Note: This is a safety check - main() should set it, but just in case
     dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
     
     log_it(L_NOTICE, "=== UTXO Blocking CLI Integration Tests Setup ===");
     
-    const char *l_tmp = test_get_temp_dir();
-    snprintf(s_cli_test_config_dir, sizeof(s_cli_test_config_dir), "%s%ccli_test_config", l_tmp, DAP_DIR_SEPARATOR);
-    snprintf(s_cli_test_gdb_dir, sizeof(s_cli_test_gdb_dir), "%s%ccli_test_gdb", l_tmp, DAP_DIR_SEPARATOR);
-    snprintf(s_cli_test_certs_dir, sizeof(s_cli_test_certs_dir), "%s%ccli_test_certs", l_tmp, DAP_DIR_SEPARATOR);
-    snprintf(s_cli_test_wallets_dir, sizeof(s_cli_test_wallets_dir), "%s%ccli_test_wallets", l_tmp, DAP_DIR_SEPARATOR);
-    snprintf(s_cli_test_sock_path, sizeof(s_cli_test_sock_path), "%s%ccli_test.sock", l_tmp, DAP_DIR_SEPARATOR);
+    dap_assert_PIF(test_make_unique_tmpdir(s_test_root, sizeof(s_test_root), "arb_cli") != NULL,
+                   "Create unique temp directory");
+    snprintf(s_cli_test_config_dir, sizeof(s_cli_test_config_dir), "%s%cconfig", s_test_root, DAP_DIR_SEPARATOR);
+    snprintf(s_cli_test_gdb_dir, sizeof(s_cli_test_gdb_dir), "%s%cgdb", s_test_root, DAP_DIR_SEPARATOR);
+    snprintf(s_cli_test_certs_dir, sizeof(s_cli_test_certs_dir), "%s%ccerts", s_test_root, DAP_DIR_SEPARATOR);
+    snprintf(s_cli_test_wallets_dir, sizeof(s_cli_test_wallets_dir), "%s%cwallets", s_test_root, DAP_DIR_SEPARATOR);
+    snprintf(s_cli_test_sock_path, sizeof(s_cli_test_sock_path), "%s%ccli_test.sock", s_test_root, DAP_DIR_SEPARATOR);
     
-    // Step 0: Clean up from previous runs (portable)
-    dap_rm_rf(s_cli_test_gdb_dir);
-    dap_rm_rf(s_cli_test_certs_dir);
-    dap_rm_rf(s_cli_test_wallets_dir);
-    remove(s_cli_test_sock_path);
-    dap_rm_rf(s_cli_test_config_dir);
-    
-    // Step 1: Create minimal config for CLI server
     dap_mkdir_with_parents(s_cli_test_config_dir);
     dap_mkdir_with_parents(s_cli_test_certs_dir);
     dap_mkdir_with_parents(s_cli_test_wallets_dir);
@@ -231,14 +223,7 @@ static void s_teardown(void)
     // 5. Remove test config files and DB (portable paths)
     log_it(L_DEBUG, "Removing test files...");
     {
-        char l_cfg_path[600];
-        snprintf(l_cfg_path, sizeof(l_cfg_path), "%s%ctest.cfg", s_cli_test_config_dir, DAP_DIR_SEPARATOR);
-        remove(l_cfg_path);
-        remove(s_cli_test_sock_path);
-        dap_rm_rf(s_cli_test_config_dir);
-        dap_rm_rf(s_cli_test_gdb_dir);
-        dap_rm_rf(s_cli_test_certs_dir);
-        dap_rm_rf(s_cli_test_wallets_dir);
+        dap_rm_rf(s_test_root);
     }
     
     log_it(L_NOTICE, "✓ Test environment cleaned up");

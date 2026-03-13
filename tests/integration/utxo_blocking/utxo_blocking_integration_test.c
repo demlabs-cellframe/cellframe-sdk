@@ -29,6 +29,7 @@
 // Global test context (shared across all test modules)
 test_net_fixture_t *s_net_fixture = NULL;
 
+static char s_test_root[512];
 static char s_config_dir[512];
 static char s_gdb_dir[512];
 static char s_certs_dir[512];
@@ -40,16 +41,11 @@ static void s_setup(void)
 {
     log_it(L_NOTICE, "=== UTXO Blocking Integration Tests Setup ===");
 
-    const char *l_tmp = test_get_temp_dir();
-    snprintf(s_config_dir, sizeof(s_config_dir), "%s/intg_test_config", l_tmp);
-    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/intg_test_gdb", l_tmp);
-    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/intg_test_certs", l_tmp);
-
-    log_it(L_NOTICE, "Step 0: Cleaning up from previous runs...");
-    dap_rm_rf(s_gdb_dir);
-    dap_rm_rf(s_certs_dir);
-    dap_rm_rf(s_config_dir);
-    log_it(L_NOTICE, "Step 0: Complete");
+    dap_assert_PIF(test_make_unique_tmpdir(s_test_root, sizeof(s_test_root), "intg_utxo") != NULL,
+                   "Create unique temp directory");
+    snprintf(s_config_dir, sizeof(s_config_dir), "%s/config", s_test_root);
+    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/gdb", s_test_root);
+    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/certs", s_test_root);
     
     log_it(L_NOTICE, "Step 1: Creating config...");
     dap_mkdir_with_parents(s_config_dir);
@@ -122,12 +118,7 @@ static void s_teardown(void)
     // Clean up test environment (global DB, certs, events, proc threads)
     test_env_deinit();
     
-    char l_cfg_path[1024];
-    snprintf(l_cfg_path, sizeof(l_cfg_path), "%s/test.cfg", s_config_dir);
-    remove(l_cfg_path);
-    dap_rm_rf(s_config_dir);
-    dap_rm_rf(s_gdb_dir);
-    dap_rm_rf(s_certs_dir);
+    dap_rm_rf(s_test_root);
     
     log_it(L_NOTICE, "✓ Test environment cleaned up");
 }

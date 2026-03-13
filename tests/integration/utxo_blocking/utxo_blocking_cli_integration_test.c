@@ -89,34 +89,25 @@
 
 // Global test context
 test_net_fixture_t *s_net_fixture = NULL;
+static char s_cli_test_root[512];
 
 /**
  * @brief Setup: Initialize test environment
  */
 static void s_setup(void)
 {
-    // Initialize logging output BEFORE any log_it calls (if not already set)
-    // Note: This is a safety check - main() should set it, but just in case
     dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
     
     log_it(L_NOTICE, "=== UTXO Blocking CLI Integration Tests Setup ===");
-    
-    const char *l_tmp = test_get_temp_dir();
+    dap_assert_PIF(test_make_unique_tmpdir(s_cli_test_root, sizeof(s_cli_test_root), "utxo_cli") != NULL,
+                   "Create unique temp directory");
     char l_config_dir_buf[512], l_gdb_buf[512], l_certs_buf[512], l_wallets_buf[512], l_sock_buf[512];
-    snprintf(l_config_dir_buf, sizeof(l_config_dir_buf), "%s%ccli_test_config", l_tmp, DAP_DIR_SEPARATOR);
-    snprintf(l_gdb_buf, sizeof(l_gdb_buf), "%s%ccli_test_gdb", l_tmp, DAP_DIR_SEPARATOR);
-    snprintf(l_certs_buf, sizeof(l_certs_buf), "%s%ccli_test_certs", l_tmp, DAP_DIR_SEPARATOR);
-    snprintf(l_wallets_buf, sizeof(l_wallets_buf), "%s%ccli_test_wallets", l_tmp, DAP_DIR_SEPARATOR);
-    snprintf(l_sock_buf, sizeof(l_sock_buf), "%s%ccli_test.sock", l_tmp, DAP_DIR_SEPARATOR);
+    snprintf(l_config_dir_buf, sizeof(l_config_dir_buf), "%s%cconfig", s_cli_test_root, DAP_DIR_SEPARATOR);
+    snprintf(l_gdb_buf, sizeof(l_gdb_buf), "%s%cgdb", s_cli_test_root, DAP_DIR_SEPARATOR);
+    snprintf(l_certs_buf, sizeof(l_certs_buf), "%s%ccerts", s_cli_test_root, DAP_DIR_SEPARATOR);
+    snprintf(l_wallets_buf, sizeof(l_wallets_buf), "%s%cwallets", s_cli_test_root, DAP_DIR_SEPARATOR);
+    snprintf(l_sock_buf, sizeof(l_sock_buf), "%s%ccli_test.sock", s_cli_test_root, DAP_DIR_SEPARATOR);
     
-    // Step 0: Clean up from previous runs
-    dap_rm_rf(l_gdb_buf);
-    dap_rm_rf(l_certs_buf);
-    dap_rm_rf(l_wallets_buf);
-    dap_rm_rf(l_config_dir_buf);
-    remove(l_sock_buf);
-    
-    // Step 1: Create minimal config for CLI server
     dap_mkdir_with_parents(l_config_dir_buf);
     dap_mkdir_with_parents(l_certs_buf);
     dap_mkdir_with_parents(l_wallets_buf);
@@ -229,18 +220,7 @@ static void s_teardown(void)
     
     // 5. Remove test config files and DB (portable paths)
     log_it(L_DEBUG, "Removing test files...");
-    {
-        const char *l_tmp = test_get_temp_dir();
-        char l_cfg_path[1024], l_config_dir_buf[512], l_gdb_buf[512], l_sock_buf[512];
-        snprintf(l_config_dir_buf, sizeof(l_config_dir_buf), "%s%ccli_test_config", l_tmp, DAP_DIR_SEPARATOR);
-        snprintf(l_cfg_path, sizeof(l_cfg_path), "%s%ctest.cfg", l_config_dir_buf, DAP_DIR_SEPARATOR);
-        snprintf(l_gdb_buf, sizeof(l_gdb_buf), "%s%ccli_test_gdb", l_tmp, DAP_DIR_SEPARATOR);
-        snprintf(l_sock_buf, sizeof(l_sock_buf), "%s%ccli_test.sock", l_tmp, DAP_DIR_SEPARATOR);
-        remove(l_cfg_path);
-        remove(l_sock_buf);
-        dap_rm_rf(l_config_dir_buf);
-        dap_rm_rf(l_gdb_buf);
-    }
+    dap_rm_rf(s_cli_test_root);
     
     log_it(L_NOTICE, "✓ Test environment cleaned up");
 }

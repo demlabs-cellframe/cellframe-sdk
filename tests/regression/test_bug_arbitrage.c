@@ -85,45 +85,23 @@ static dap_chain_datum_tx_t *s_create_base_tx_from_emission(
 // Global test context
 test_net_fixture_t *s_net_fixture = NULL;
 
+static char s_test_root[512];
 static char s_config_dir[512];
 static char s_gdb_dir[512];
 static char s_certs_dir[512];
 static char s_wallets_dir[512];
-
-static void s_diag_wallet_file(const char *a_wallet_name)
-{
-    char l_path[1024];
-    snprintf(l_path, sizeof(l_path), "%s/%s.dwallet", s_wallets_dir, a_wallet_name);
-    dap_path_to_native_inplace(l_path);
-
-    bool l_dir_ok = dap_dir_test(s_wallets_dir);
-    bool l_file_ok = dap_file_test(l_path);
-    bool l_file_simple = dap_file_simple_test(l_path);
-
-    log_it(l_file_ok ? L_NOTICE : L_ERROR,
-           "[DIAG] wallet file '%s': dap_file_test=%s, dap_file_simple_test=%s, dap_dir_test('%s')=%s",
-           l_path,
-           l_file_ok ? "true" : "FALSE",
-           l_file_simple ? "true" : "FALSE",
-           s_wallets_dir,
-           l_dir_ok ? "true" : "FALSE");
-}
 
 static void s_setup(void)
 {
     dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
     log_it(L_NOTICE, "=== Regression Tests: Arbitrage Bugs Setup ===");
     
-    const char *l_tmp = test_get_temp_dir();
-    snprintf(s_config_dir, sizeof(s_config_dir), "%s/reg_test_config", l_tmp);
-    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/reg_test_gdb", l_tmp);
-    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/reg_test_certs", l_tmp);
-    snprintf(s_wallets_dir, sizeof(s_wallets_dir), "%s/reg_test_wallets", l_tmp);
-
-    dap_rm_rf(s_gdb_dir);
-    dap_rm_rf(s_certs_dir);
-    dap_rm_rf(s_config_dir);
-    dap_rm_rf(s_wallets_dir);
+    dap_assert_PIF(test_make_unique_tmpdir(s_test_root, sizeof(s_test_root), "reg_arb") != NULL,
+                   "Create unique temp directory");
+    snprintf(s_config_dir, sizeof(s_config_dir), "%s/config", s_test_root);
+    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/gdb", s_test_root);
+    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/certs", s_test_root);
+    snprintf(s_wallets_dir, sizeof(s_wallets_dir), "%s/wallets", s_test_root);
     
     dap_mkdir_with_parents(s_config_dir);
     dap_mkdir_with_parents(s_wallets_dir);
@@ -193,10 +171,7 @@ static void s_cleanup(void)
     // Step 3: Deinit test environment (GlobalDB, certs, events)
     test_env_deinit();
     
-    dap_rm_rf(s_gdb_dir);
-    dap_rm_rf(s_certs_dir);
-    dap_rm_rf(s_config_dir);
-    dap_rm_rf(s_wallets_dir);
+    dap_rm_rf(s_test_root);
 }
 
 // Helper: Create and save certificate with seed for reproducibility
@@ -396,7 +371,6 @@ static void test_bug_arbitrage_availability(void)
     DAP_DELETE(l_bal_token_str);
     DAP_DELETE(l_bal_fee_str);
     
-    s_diag_wallet_file("reg_wallet_avail");
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_avail", s_wallets_dir, NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
 
@@ -690,7 +664,6 @@ static void test_bug_arbitrage_arguments(void)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
 
-    s_diag_wallet_file("reg_wallet_args");
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_args", s_wallets_dir, NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
 
@@ -1284,7 +1257,6 @@ static void test_arbitrage_to_addr_behavior(void)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
 
-    s_diag_wallet_file("reg_wallet_toaddr");
     dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", s_wallets_dir, NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
     
@@ -1390,7 +1362,6 @@ static void test_arbitrage_to_addr_behavior(void)
     // === TEST 2.3: Arbitrage WITHOUT -to_addr ===
     log_it(L_NOTICE, "=== 2.3: Testing arbitrage WITHOUT -to_addr ===");
     
-    s_diag_wallet_file("reg_wallet_toaddr");
     l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", s_wallets_dir, NULL);
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet re-opened for second arbitrage TX");
     

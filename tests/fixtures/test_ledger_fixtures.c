@@ -4,6 +4,7 @@
  */
 
 #include "test_ledger_fixtures.h"
+#include <stdlib.h>
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_chain.h"
@@ -915,6 +916,23 @@ bool test_wait_for_wallet_cache_loaded(dap_chain_net_t *a_net, const dap_chain_a
     log_it(L_WARNING, "⚠ Wallet cache loading timeout for %s after %d attempts (%d ms total)",
            dap_chain_addr_to_str_static(a_addr), l_max_attempts, l_max_attempts * l_delay_ms);
     return false;
+}
+
+char *test_make_unique_tmpdir(char *a_buf, size_t a_buf_size, const char *a_prefix)
+{
+    if (!a_buf || a_buf_size < 32 || !a_prefix)
+        return NULL;
+    const char *l_tmp = test_get_temp_dir();
+    snprintf(a_buf, a_buf_size, "%s/%s_XXXXXX", l_tmp, a_prefix);
+#ifdef DAP_OS_WINDOWS
+    if (_mktemp_s(a_buf, strlen(a_buf) + 1) != 0)
+        return NULL;
+    dap_mkdir_with_parents(a_buf);
+#else
+    if (!mkdtemp(a_buf))
+        return NULL;
+#endif
+    return a_buf;
 }
 
 /**

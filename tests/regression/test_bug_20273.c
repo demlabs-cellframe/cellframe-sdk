@@ -67,6 +67,7 @@
 // Global test context
 test_net_fixture_t *s_net_fixture = NULL;
 
+static char s_test_root[512];
 static char s_config_dir[512];
 static char s_gdb_dir[512];
 static char s_certs_dir[512];
@@ -77,16 +78,12 @@ static void s_setup(void)
     dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
     log_it(L_NOTICE, "=== Regression Test: Bug #20273 Setup ===");
     
-    const char *l_tmp = test_get_temp_dir();
-    snprintf(s_config_dir, sizeof(s_config_dir), "%s/reg_test_config_20273", l_tmp);
-    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/reg_test_gdb_20273", l_tmp);
-    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/reg_test_certs_20273", l_tmp);
-    snprintf(s_wallets_dir, sizeof(s_wallets_dir), "%s/reg_test_wallets_20273", l_tmp);
-
-    dap_rm_rf(s_gdb_dir);
-    dap_rm_rf(s_certs_dir);
-    dap_rm_rf(s_config_dir);
-    dap_rm_rf(s_wallets_dir);
+    dap_assert_PIF(test_make_unique_tmpdir(s_test_root, sizeof(s_test_root), "reg_20273") != NULL,
+                   "Create unique temp directory");
+    snprintf(s_config_dir, sizeof(s_config_dir), "%s/config", s_test_root);
+    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/gdb", s_test_root);
+    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/certs", s_test_root);
+    snprintf(s_wallets_dir, sizeof(s_wallets_dir), "%s/wallets", s_test_root);
     
     dap_mkdir_with_parents(s_config_dir);
     dap_mkdir_with_parents(s_wallets_dir);
@@ -148,10 +145,7 @@ static void s_cleanup(void)
     
     test_env_deinit();
     
-    dap_rm_rf(s_gdb_dir);
-    dap_rm_rf(s_certs_dir);
-    dap_rm_rf(s_config_dir);
-    dap_rm_rf(s_wallets_dir);
+    dap_rm_rf(s_test_root);
 }
 
 // Helper: Create and save certificate with seed for reproducibility
