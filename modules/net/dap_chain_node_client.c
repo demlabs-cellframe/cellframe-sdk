@@ -402,13 +402,18 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         return -2;
     }
 
-    // signal waiting
+    // Compute absolute deadline once to prevent timeout reset on state-change wakeups
+    struct timespec l_deadline;
+    clock_gettime(CLOCK_MONOTONIC, &l_deadline);
+    l_deadline.tv_sec += a_timeout_ms / 1000;
+    l_deadline.tv_nsec += (a_timeout_ms % 1000) * 1000000L;
+    if (l_deadline.tv_nsec >= 1000000000L) {
+        l_deadline.tv_sec++;
+        l_deadline.tv_nsec -= 1000000000L;
+    }
+
     while (a_client->state != a_waited_state) {
-        // prepare for signal waiting
-        struct timespec l_cond_timeout;
-        clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
-        l_cond_timeout.tv_sec += a_timeout_ms/1000;
-        int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
+        int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_deadline);
         if (l_ret_wait == 0) {
             if (a_client->state != a_waited_state) {
                 if (a_client->state == NODE_CLIENT_STATE_CONNECTING)
