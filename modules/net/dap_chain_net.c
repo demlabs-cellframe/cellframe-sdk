@@ -407,13 +407,13 @@ dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net)
 
 bool dap_chain_net_is_my_node_authorized(dap_chain_net_t *a_net)
 {
-    dap_return_val_if_fail(a_net, false);
+    dap_return_val_if_fail(a_net && PVT(a_net)->nodes_cluster, false);
     return dap_cluster_member_find_role(PVT(a_net)->nodes_cluster->role_cluster, &g_node_addr) == DAP_GDB_MEMBER_ROLE_ROOT;
 }
 
 dap_stream_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_net, size_t *a_nodes_count)
 {
-    dap_return_val_if_fail(a_net, false);
+    dap_return_val_if_fail(a_net && PVT(a_net)->nodes_cluster, NULL);
     return dap_cluster_get_all_members_addrs(PVT(a_net)->nodes_cluster->role_cluster, a_nodes_count, DAP_GDB_MEMBER_ROLE_ROOT);
 }
 

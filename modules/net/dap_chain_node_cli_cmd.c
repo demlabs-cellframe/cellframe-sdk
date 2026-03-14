@@ -1003,6 +1003,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_ve
     case CMD_ADD: {
         int l_res = -10;
         uint16_t l_port = 0;
+        if (dap_chain_net_get_state(l_net) == NET_STATE_LOADING)
+            return dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s is still loading, try again later", l_net->pub.name), -11;
         if (l_addr_str || l_hostname) {
             if (!dap_chain_net_is_my_node_authorized(l_net)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
@@ -1057,6 +1059,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_ve
 
     case CMD_DEL: {
         // handler of command 'node del'
+        if (dap_chain_net_get_state(l_net) == NET_STATE_LOADING)
+            return dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s is still loading, try again later", l_net->pub.name), -11;
         if (l_addr_str) {
             if (!dap_chain_net_is_my_node_authorized(l_net)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "You have no access rights");
