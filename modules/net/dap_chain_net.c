@@ -2007,6 +2007,13 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
         }
     }
     dap_chain_policy_net_remove(a_net->pub.id);
+    // Deferred recheck: if barrier passed but drain timed out, stragglers may have finished during cleanup above
+    if (l_in_notifier_arg && l_barrier_done && !l_in_drained &&
+            !atomic_load_explicit(&l_in_notifier_arg->in_flight, memory_order_acquire))
+        DAP_DELETE(l_in_notifier_arg);
+    if (l_out_notifier_arg && l_barrier_done && !l_out_drained &&
+            !atomic_load_explicit(&l_out_notifier_arg->in_flight, memory_order_acquire))
+        DAP_DELETE(l_out_notifier_arg);
     HASH_DEL(s_nets_by_name, a_net);
     HASH_DELETE(hh2, s_nets_by_id, a_net);
     DAP_DELETE(a_net);
@@ -2490,7 +2497,7 @@ static void *s_net_load(void *a_arg)
     l_net_pvt->sync_split_timeouts = dap_config_get_item_bool_default(g_config, "chain", "sync_split_timeouts", true);
     l_net_pvt->sync_context.sync_idle_time = dap_config_get_item_uint32_default(g_config, "chain", "sync_idle_time", 60);
     l_net_pvt->sync_context.sync_activity_timeout = dap_config_get_item_uint32_default(g_config, "chain", "sync_activity_timeout", DAP_CHAIN_NET_SYNC_ACTIVITY_TIMEOUT);
-    l_net_pvt->sync_context.sync_progress_timeout = dap_config_get_item_uint32_default(g_config, "chain", "sync_progress_timeout", l_net_pvt->sync_context.sync_activity_timeout);
+    l_net_pvt->sync_context.sync_progress_timeout = dap_config_get_item_uint32_default(g_config, "chain", "sync_progress_timeout", DAP_CHAIN_NET_SYNC_PROGRESS_TIMEOUT);
     if (!l_net_pvt->sync_context.sync_progress_timeout)
         l_net_pvt->sync_context.sync_progress_timeout = l_net_pvt->sync_context.sync_activity_timeout;
     dap_time_t l_now = dap_time_now();
@@ -3489,8 +3496,10 @@ static void s_sync_timer_rebind_owner_on_owner_cb(void *a_arg)
         return;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
     if (l_net && PVT(l_net)) {
-        if (s_sync_timer_start_on_worker(l_net, l_arg->owner_worker))
-            debug_if(s_debug_more, L_WARNING, "Can't asynchronously rebind sync timer owner worker for net %s", l_net->pub.name);
+        if (PVT(l_net)->state_target != NET_STATE_OFFLINE) {
+            if (s_sync_timer_start_on_worker(l_net, l_arg->owner_worker))
+                debug_if(s_debug_more, L_WARNING, "Can't asynchronously rebind sync timer owner worker for net %s", l_net->pub.name);
+        }
         s_sync_owner_rebind_clear(PVT(l_net));
     }
     DAP_DELETE(l_arg);
@@ -3507,6 +3516,11 @@ static bool s_sync_timer_rebind_owner_cb(void *a_arg)
         return false;
     }
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    if (l_net_pvt->state_target == NET_STATE_OFFLINE) {
+        s_sync_owner_rebind_clear(l_net_pvt);
+        DAP_DELETE(l_arg);
+        return false;
+    }
     dap_worker_t *l_owner_worker = s_sync_resolve_owner_worker(l_net_pvt);
     if (!l_owner_worker) {
         s_sync_owner_rebind_clear(l_net_pvt);
@@ -3750,6 +3764,51 @@ static void s_sync_process_chain_miss_rewind_prepare(dap_chain_net_t *a_net, syn
     a_arg->prepare_status = SYNC_MISS_REWIND_PREPARE_READY;
 }
 
+/**
+ * @brief Build, send CHAIN_REQ packet and update sync context on success.
+ * @return 0 on success, -1 on alloc failure, -2 on send failure
+ */
+static int s_sync_send_chain_req(dap_chain_net_t *a_net, dap_chain_net_pvt_t *a_net_pvt,
+                                 dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
+                                 dap_chain_ch_sync_request_t *a_request, const char *a_label)
+{
+    dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(a_net->pub.id, a_chain->id, a_cell_id,
+                                                            a_request, sizeof(*a_request), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
+    if (!l_chain_pkt) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        a_chain->state = CHAIN_SYNC_STATE_ERROR;
+        return -1;
+    }
+    if (dap_stream_ch_pkt_send_by_addr(&a_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
+                                       DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ, l_chain_pkt,
+                                       dap_chain_ch_pkt_get_size(l_chain_pkt))) {
+        s_sync_diag_counter_inc(&a_net_pvt->sync_context.diag_send_fail_count);
+        if (++a_net_pvt->sync_context.req_send_retry_count <= DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX) {
+            log_it(L_WARNING, "Can't send %s to " NODE_ADDR_FP_STR " for net %s chain %s, retry %hhu/%d",
+                              a_label, NODE_ADDR_FP_ARGS_S(a_net_pvt->sync_context.current_link),
+                              a_net->pub.name, a_chain->name,
+                              a_net_pvt->sync_context.req_send_retry_count, DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX);
+            a_chain->state = CHAIN_SYNC_STATE_IDLE;
+        } else {
+            log_it(L_ERROR, "Can't send %s to " NODE_ADDR_FP_STR " for net %s chain %s after %d retries",
+                            a_label, NODE_ADDR_FP_ARGS_S(a_net_pvt->sync_context.current_link),
+                            a_net->pub.name, a_chain->name, DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX);
+            a_net_pvt->sync_context.req_send_retry_count = 0;
+            a_chain->state = CHAIN_SYNC_STATE_ERROR;
+        }
+        DAP_DELETE(l_chain_pkt);
+        return -2;
+    }
+    a_net_pvt->sync_context.req_send_retry_count = 0;
+    a_net_pvt->sync_context.requested_atom_hash = a_request->hash_from;
+    a_net_pvt->sync_context.requested_atom_num = a_request->num_from;
+    dap_time_t l_now = dap_time_now();
+    a_net_pvt->sync_context.stage_last_activity = l_now;
+    a_net_pvt->sync_context.last_progress_activity = l_now;
+    DAP_DELETE(l_chain_pkt);
+    return 0;
+}
+
 static void s_sync_process_chain_miss_rewind_owner_cb(void *a_arg)
 {
     sync_miss_rewind_arg_t *l_arg = a_arg;
@@ -3782,40 +3841,7 @@ static void s_sync_process_chain_miss_rewind_owner_cb(void *a_arg)
                                                NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
                                                l_net->pub.name, l_chain->name,
                                                dap_hash_fast_to_str_static(&l_arg->request.hash_from), l_arg->request.num_from);
-                dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_net->pub.id, l_chain->id, l_cell_id,
-                                                                        &l_arg->request, sizeof(l_arg->request), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
-                if (!l_chain_pkt) {
-                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    l_chain->state = CHAIN_SYNC_STATE_ERROR;
-                    break;
-                }
-                if (dap_stream_ch_pkt_send_by_addr(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
-                                                   DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ, l_chain_pkt,
-                                                   dap_chain_ch_pkt_get_size(l_chain_pkt))) {
-                    s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_send_fail_count);
-                    if (++l_net_pvt->sync_context.req_send_retry_count <= DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX) {
-                        log_it(L_WARNING, "Can't send rewind request to " NODE_ADDR_FP_STR " for net %s chain %s, retry %hhu/%d",
-                                          NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
-                                          l_net->pub.name, l_chain->name,
-                                          l_net_pvt->sync_context.req_send_retry_count, DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX);
-                        l_chain->state = CHAIN_SYNC_STATE_IDLE;
-                    } else {
-                        log_it(L_ERROR, "Can't send rewind request to " NODE_ADDR_FP_STR " for net %s chain %s after %d retries",
-                                        NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
-                                        l_net->pub.name, l_chain->name, DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX);
-                        l_net_pvt->sync_context.req_send_retry_count = 0;
-                        l_chain->state = CHAIN_SYNC_STATE_ERROR;
-                    }
-                    DAP_DELETE(l_chain_pkt);
-                    break;
-                }
-                l_net_pvt->sync_context.req_send_retry_count = 0;
-                l_net_pvt->sync_context.requested_atom_hash = l_arg->request.hash_from;
-                l_net_pvt->sync_context.requested_atom_num = l_arg->request.num_from;
-                dap_time_t l_now = dap_time_now();
-                l_net_pvt->sync_context.stage_last_activity = l_now;
-                l_net_pvt->sync_context.last_progress_activity = l_now;
-                DAP_DELETE(l_chain_pkt);
+                s_sync_send_chain_req(l_net, l_net_pvt, l_chain, l_cell_id, &l_arg->request, "rewind request");
                 break;
             }
             case SYNC_MISS_REWIND_PREPARE_ERROR:
@@ -3941,40 +3967,7 @@ static void s_sync_process_start_request_owner_cb(void *a_arg)
                                 NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
                                 l_net->pub.name, l_chain->name,
                                 dap_hash_fast_to_str_static(&l_arg->request.hash_from), l_arg->last_num);
-                dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(l_net->pub.id, l_chain->id, l_cell_id,
-                                                                        &l_arg->request, sizeof(l_arg->request), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
-                if (!l_chain_pkt) {
-                    log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                    l_chain->state = CHAIN_SYNC_STATE_ERROR;
-                    break;
-                }
-                if (dap_stream_ch_pkt_send_by_addr(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
-                                                   DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ, l_chain_pkt,
-                                                   dap_chain_ch_pkt_get_size(l_chain_pkt))) {
-                    s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_send_fail_count);
-                    if (++l_net_pvt->sync_context.req_send_retry_count <= DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX) {
-                        log_it(L_WARNING, "Can't send CHAIN_REQ to " NODE_ADDR_FP_STR " for net %s chain %s, retry %hhu/%d",
-                                          NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
-                                          l_net->pub.name, l_chain->name,
-                                          l_net_pvt->sync_context.req_send_retry_count, DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX);
-                        l_chain->state = CHAIN_SYNC_STATE_IDLE;
-                    } else {
-                        log_it(L_ERROR, "Can't send CHAIN_REQ to " NODE_ADDR_FP_STR " for net %s chain %s after %d retries",
-                                        NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
-                                        l_net->pub.name, l_chain->name, DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX);
-                        l_net_pvt->sync_context.req_send_retry_count = 0;
-                        l_chain->state = CHAIN_SYNC_STATE_ERROR;
-                    }
-                    DAP_DELETE(l_chain_pkt);
-                    break;
-                }
-                l_net_pvt->sync_context.req_send_retry_count = 0;
-                l_net_pvt->sync_context.requested_atom_hash = l_arg->request.hash_from;
-                l_net_pvt->sync_context.requested_atom_num = l_arg->request.num_from;
-                dap_time_t l_now = dap_time_now();
-                l_net_pvt->sync_context.stage_last_activity = l_now;
-                l_net_pvt->sync_context.last_progress_activity = l_now;
-                DAP_DELETE(l_chain_pkt);
+                s_sync_send_chain_req(l_net, l_net_pvt, l_chain, l_cell_id, &l_arg->request, "CHAIN_REQ");
                 break;
             }
             case SYNC_START_REQ_PREPARE_ERROR:
@@ -4273,15 +4266,27 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
                                         DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback,
                                         l_net_pvt->sync_context.out_notifier_arg);
     }
+    dap_stream_node_addr_t l_prev_link = l_net_pvt->sync_context.current_link;
     uint64_t l_session_id = s_sync_session_advance(l_net_pvt);
     size_t l_uplinks_count = 0, l_downlinks_count = 0;
     dap_stream_node_addr_t *l_links_addrs = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64,
                                                                                   &l_uplinks_count,
                                                                                   &l_downlinks_count,
                                                                                   true);
-    if (l_links_addrs && (l_uplinks_count + l_downlinks_count))
-        l_net_pvt->sync_context.current_link = l_links_addrs[0];
-    else
+    if (l_links_addrs && (l_uplinks_count + l_downlinks_count)) {
+        size_t l_links_count = l_uplinks_count + l_downlinks_count;
+        l_net_pvt->sync_context.current_link.uint64 = 0;
+        if (!dap_stream_node_addr_is_blank(&l_prev_link)) {
+            for (size_t i = 0; i < l_links_count; ++i) {
+                if (l_links_addrs[i].uint64 != l_prev_link.uint64)
+                    continue;
+                l_net_pvt->sync_context.current_link = l_prev_link;
+                break;
+            }
+        }
+        if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
+            l_net_pvt->sync_context.current_link = l_links_addrs[0];
+    } else
         l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
     DAP_DELETE(l_links_addrs);
     if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
