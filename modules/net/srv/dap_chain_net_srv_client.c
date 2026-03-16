@@ -31,6 +31,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_srv_client"
 
+static bool s_debug_more = false;
 static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void *a_arg);
 static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_client, void *a_arg);
 static void s_srv_client_callback_disconnected(dap_chain_node_client_t *a_node_client, void *a_arg);
@@ -185,7 +186,7 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_DATA: {
         dap_stream_ch_chain_net_srv_pkt_data_t *l_response = (dap_stream_ch_chain_net_srv_pkt_data_t *)a_pkt->data;
-        log_it(L_DEBUG, "Service client got custom data response");
+        debug_if(s_debug_more, L_DEBUG, "Service client got custom data response");
         if (l_srv_client->callbacks.data)
             l_srv_client->callbacks.data(l_srv_client, l_response->data, l_response->hdr.data_size, l_srv_client->callbacks_arg);
     }

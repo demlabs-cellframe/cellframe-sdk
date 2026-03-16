@@ -28,6 +28,8 @@
 #include "uthash.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake_ext"
+
+static bool s_debug_more = false;
 #define set_ret_code(p,ret_code) if (p) { *p = ret_code;}
 
 // Global stake_ext cache (one per application instance)
@@ -99,7 +101,7 @@ int dap_chain_net_srv_stake_ext_init(void)
         if (l_net->pub.ledger) {
             dap_ledger_event_notify_add(l_net->pub.ledger, dap_stake_ext_cache_event_callback, s_stake_ext_cache);
             dap_ledger_srv_callback_event_verify_add(l_net->pub.ledger, (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_STAKE_EXT_ID }, s_stake_ext_event_verify);
-            log_it(L_DEBUG, "Registered stake_ext event callbacks for network %s", l_net->pub.name);
+            debug_if(s_debug_more, L_DEBUG, "Registered stake_ext event callbacks for network %s", l_net->pub.name);
         } else {
             log_it(L_WARNING, "Network %s has no ledger, skipping stake_ext event registration", l_net->pub.name);
         }
@@ -163,7 +165,7 @@ dap_stake_ext_cache_t *dap_chain_net_srv_stake_ext_service_create(void)
     l_cache->total_stake_ext = 0;
     l_cache->active_stake_ext = 0;
     
-    log_it(L_DEBUG, "stake_ext cache created successfully");
+    debug_if(s_debug_more, L_DEBUG, "stake_ext cache created successfully");
     return l_cache;
 }
 
@@ -210,7 +212,7 @@ void dap_chain_net_srv_stake_ext_service_delete(dap_stake_ext_cache_t *a_cache)
     pthread_rwlock_destroy(&a_cache->cache_rwlock);
     DAP_DELETE(a_cache);
     
-    log_it(L_DEBUG, "stake_ext cache deleted");
+    debug_if(s_debug_more, L_DEBUG, "stake_ext cache deleted");
 }
 
 /**
@@ -308,7 +310,7 @@ int dap_stake_ext_cache_add_stake_ext(dap_stake_ext_cache_t *a_cache,
             }
         }
         
-        log_it(L_DEBUG, "Added stake_ext %s with %u positions, duration: %lu %s", 
+        debug_if(s_debug_more, L_DEBUG, "Added stake_ext %s with %u positions, duration: %lu %s", 
                dap_chain_hash_fast_to_str_static(a_stake_ext_hash),
                a_started_data->total_positions,
                a_started_data->duration,
@@ -326,7 +328,7 @@ int dap_stake_ext_cache_add_stake_ext(dap_stake_ext_cache_t *a_cache,
     
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
     
-    log_it(L_DEBUG, "Added stake_ext %s to cache with ACTIVE status", 
+    debug_if(s_debug_more, L_DEBUG, "Added stake_ext %s to cache with ACTIVE status", 
            dap_chain_hash_fast_to_str_static(a_stake_ext_hash));
     return 0;
 }
@@ -398,7 +400,7 @@ int dap_stake_ext_cache_add_lock(dap_stake_ext_cache_t *a_cache,
         
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
     
-    log_it(L_DEBUG, "Added lock %s to stake_ext %s in cache", 
+    debug_if(s_debug_more, L_DEBUG, "Added lock %s to stake_ext %s in cache", 
                         dap_chain_hash_fast_to_str_static(a_lock_hash), dap_chain_hash_fast_to_str_static(a_stake_ext_hash));
     return 0;
 }
@@ -441,7 +443,7 @@ int dap_stake_ext_cache_update_stake_ext_status(dap_stake_ext_cache_t *a_cache,
     
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
     
-    log_it(L_DEBUG, "Updated stake_ext %s status from %s to %s", 
+    debug_if(s_debug_more, L_DEBUG, "Updated stake_ext %s status from %s to %s", 
            dap_chain_hash_fast_to_str_static(a_stake_ext_hash),
            dap_stake_ext_status_to_str(l_old_status),
            dap_stake_ext_status_to_str(a_new_status));
@@ -469,7 +471,7 @@ int dap_stake_ext_cache_unlock_lock(dap_stake_ext_position_cache_item_t *a_cache
     l_lock->is_unlocked = true;
     if (a_cache->active_locks_count > 0)
         a_cache->active_locks_count--;
-    log_it(L_DEBUG, "Marked lock %s as unlocked in cache", 
+    debug_if(s_debug_more, L_DEBUG, "Marked lock %s as unlocked in cache", 
            dap_chain_hash_fast_to_str_static(a_lock_hash));
     return 0;
 }
@@ -556,7 +558,7 @@ static bool s_verify_dual_hash_table_integrity(dap_stake_ext_cache_t *a_cache)
                primary_count, a_cache->total_stake_ext);
     }
     
-    log_it(L_DEBUG, "Hash table integrity check passed: %u stake_ext in both tables", primary_count);
+    debug_if(s_debug_more, L_DEBUG, "Hash table integrity check passed: %u stake_ext in both tables", primary_count);
     return true;
 }
 
@@ -611,7 +613,7 @@ int dap_stake_ext_cache_update_stake_ext_status_by_name(dap_stake_ext_cache_t *a
         a_cache->active_stake_ext++;
     }
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
-    log_it(L_DEBUG, "Updated stake_ext '%s' status from %s to %s",
+    debug_if(s_debug_more, L_DEBUG, "Updated stake_ext '%s' status from %s to %s",
         a_guuid,
            dap_stake_ext_status_to_str(l_old_status),
            dap_stake_ext_status_to_str(a_new_status));
@@ -710,7 +712,7 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
     const char *l_opcode_str =
             a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED   ? "ADDED" :
             a_opcode == DAP_LEDGER_NOTIFY_OPCODE_DELETED ? "DELETED" : "UNKNOWN";
-    log_it(L_DEBUG, "stake_ext event received: type=%u opcode=%s tx=%s GUUID=\"%s\" data_size=%zu timestamp=%" DAP_UINT64_FORMAT_U,
+    debug_if(s_debug_more, L_DEBUG, "stake_ext event received: type=%u opcode=%s tx=%s GUUID=\"%s\" data_size=%zu timestamp=%" DAP_UINT64_FORMAT_U,
            a_event->event_type,
            l_opcode_str,
            dap_chain_hash_fast_to_str_static(&a_event->tx_hash),
@@ -722,13 +724,13 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
         char l_data_hex[16 * 2 + 1];
         dap_bin2hex(l_data_hex, a_event->event_data, l_preview_len);
         l_data_hex[l_preview_len * 2] = '\0';
-        log_it(L_DEBUG, "stake_ext event data preview (%zu bytes): %s", l_preview_len, l_data_hex);
+        debug_if(s_debug_more, L_DEBUG, "stake_ext event data preview (%zu bytes): %s", l_preview_len, l_data_hex);
     }
     
     // Handle only stake_ext-related events
     switch (a_event->event_type) {
         case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED: {
-            log_it(L_DEBUG, "Processing stake_ext started event for %s", 
+            debug_if(s_debug_more, L_DEBUG, "Processing stake_ext started event for %s", 
                    dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             
             if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
@@ -773,13 +775,13 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                 }
             } else {
                 // TODO: Handle deleted stake_ext started event
-                log_it(L_DEBUG, "Processing deleted stake_ext started event for %s", 
+                debug_if(s_debug_more, L_DEBUG, "Processing deleted stake_ext started event for %s", 
                        dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             }
         } break;
         
         case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_ENDED: {
-            log_it(L_DEBUG, "Processing stake_ext ended event for %s", 
+            debug_if(s_debug_more, L_DEBUG, "Processing stake_ext ended event for %s", 
                    dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             
             if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
@@ -812,7 +814,7 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                         }
                         pthread_rwlock_unlock(&s_stake_ext_cache->cache_rwlock);
                         
-                        log_it(L_DEBUG, "Updated stake_ext %s status from %s to %s", 
+                        debug_if(s_debug_more, L_DEBUG, "Updated stake_ext %s status from %s to %s", 
                                 dap_chain_hash_fast_to_str_static(&a_event->tx_hash),
                                 dap_stake_ext_status_to_str(l_old_status),
                                 dap_stake_ext_status_to_str(DAP_STAKE_EXT_STATUS_ENDED));
@@ -831,7 +833,7 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                         
                         // Log all winners
                         for (uint8_t i = 0; i < l_ended_data->winners_cnt; i++) {
-                            log_it(L_DEBUG, "Winner #%u: project ID %u", i + 1, l_winners_ids[i]);
+                            debug_if(s_debug_more, L_DEBUG, "Winner #%u: project ID %u", i + 1, l_winners_ids[i]);
                         }
                     } else {
                         log_it(L_INFO, "stake_ext %s ended with no winners", 
@@ -840,13 +842,13 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                 }
             } else {
                 // TODO: Handle deleted stake_ext ended event
-                log_it(L_DEBUG, "Processing deleted stake_ext ended event for %s", 
+                debug_if(s_debug_more, L_DEBUG, "Processing deleted stake_ext ended event for %s", 
                        dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             }
         } break;
         
         case DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_CANCELLED: {
-            log_it(L_DEBUG, "Processing stake_ext cancelled event for %s", a_event->group_name);
+            debug_if(s_debug_more, L_DEBUG, "Processing stake_ext cancelled event for %s", a_event->group_name);
             
             if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_ADDED) {
                 // Find stake_ext once and update status + end time efficiently
@@ -864,18 +866,18 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                     }
                     pthread_rwlock_unlock(&s_stake_ext_cache->cache_rwlock);
                     
-                    log_it(L_DEBUG, "Updated stake_ext %s status from %s to %s", 
+                    debug_if(s_debug_more, L_DEBUG, "Updated stake_ext %s status from %s to %s", 
                            a_event->group_name,
                            dap_stake_ext_status_to_str(l_old_status),
                            dap_stake_ext_status_to_str(DAP_STAKE_EXT_STATUS_CANCELLED));
                 } else {
-                    log_it(L_DEBUG, "stake_ext %s not found in cache", 
+                    debug_if(s_debug_more, L_DEBUG, "stake_ext %s not found in cache", 
                            a_event->group_name);
                     return;
                 }
             } else {
                 // TODO: Handle deleted stake_ext cancelled event
-                log_it(L_DEBUG, "Processing deleted stake_ext cancelled event for %s", 
+                debug_if(s_debug_more, L_DEBUG, "Processing deleted stake_ext cancelled event for %s", 
                        dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             }
         } break;
@@ -941,7 +943,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
 
     if (!a_prev_out_item) {
         // **lock CREATION LOGIC** - when a_prev_out_item is NULL
-        log_it(L_DEBUG, "Processing lock creation for transaction %s", 
+        debug_if(s_debug_more, L_DEBUG, "Processing lock creation for transaction %s", 
                dap_chain_hash_fast_to_str_static(a_tx_in_hash));
 
         // 1. Find stake_ext lock conditional output in the current transaction
@@ -950,7 +952,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
                                                                              DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK,
                                                                              &l_out_num);
         if (!l_out_cond) {
-            log_it(L_DEBUG, "No stake_ext lock conditional output found in transaction %s", 
+            debug_if(s_debug_more, L_DEBUG, "No stake_ext lock conditional output found in transaction %s", 
                    dap_chain_hash_fast_to_str_static(a_tx_in_hash));
             return;
         }
@@ -997,7 +999,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
         dap_chain_tx_in_cond_t *l_in_cond_item = (dap_chain_tx_in_cond_t *)l_in_cond;
         dap_hash_fast_t *l_lock_hash = &l_in_cond_item->header.tx_prev_hash;
         // **lock unlockAL LOGIC** - when a_prev_out_item exists (EXISTING LOGIC)
-        log_it(L_DEBUG, "Processing lock unlock for transaction %s", 
+        debug_if(s_debug_more, L_DEBUG, "Processing lock unlock for transaction %s", 
                dap_chain_hash_fast_to_str_static(l_lock_hash));
 
         // Extract stake_ext hash from conditional output
@@ -1073,7 +1075,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
     char l_stake_ext_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&l_stake_ext_hash, l_stake_ext_hash_str, sizeof(l_stake_ext_hash_str));
     
-    log_it(L_DEBUG, "Verifying unlock for stake_ext hash %s by owner", l_stake_ext_hash_str);
+    debug_if(s_debug_more, L_DEBUG, "Verifying unlock for stake_ext hash %s by owner", l_stake_ext_hash_str);
 
     int ret_code = 0;
     dap_time_t l_stake_ext_end_time = 0;
@@ -1092,7 +1094,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
     switch (l_stake_ext->status) {
 
         case DAP_STAKE_EXT_STATUS_CANCELLED: {
-            log_it(L_DEBUG, "unlock allowed: stake_ext %s was cancelled", l_stake_ext_hash_str);
+            debug_if(s_debug_more, L_DEBUG, "unlock allowed: stake_ext %s was cancelled", l_stake_ext_hash_str);
             ret_code = 0;
         } break;
 
@@ -1124,14 +1126,14 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
             // 3. Make decision about unlock validity
             if (l_is_winner) { // If position is winner, check if lock period expired
                 if (l_lock_time > l_stake_ext->end_time) {
-                    log_it(L_DEBUG, "unlock allowed: stake_ext %s won before lock is made", l_stake_ext_hash_str);
+                    debug_if(s_debug_more, L_DEBUG, "unlock allowed: stake_ext %s won before lock is made", l_stake_ext_hash_str);
                     ret_code = 0;
                 } else {
                     dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
                     dap_time_t l_lock_end_time = l_stake_ext->end_time + a_cond->subtype.srv_stake_ext_lock.lock_time;
                     
                     if (l_current_time >= l_lock_end_time) {
-                        log_it(L_DEBUG, "unlock allowed: stake_ext %s won and lock period expired", l_stake_ext_hash_str);
+                        debug_if(s_debug_more, L_DEBUG, "unlock allowed: stake_ext %s won and lock period expired", l_stake_ext_hash_str);
                         ret_code = 0;
                     } else {
                         log_it(L_WARNING, "unlock denied: stake_ext %s won but lock period not expired (current: %"DAP_UINT64_FORMAT_U", lock_end: %"DAP_UINT64_FORMAT_U")", 
@@ -1140,7 +1142,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
                     }
                 }
             } else { // If position is not winner
-                log_it(L_DEBUG, "unlock allowed: position %u in stake_ext %s lost", l_lock_position, l_stake_ext_hash_str);
+                debug_if(s_debug_more, L_DEBUG, "unlock allowed: position %u in stake_ext %s lost", l_lock_position, l_stake_ext_hash_str);
                 ret_code = 0;
             }
         } break;
@@ -1149,7 +1151,7 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
             // For active stake_ext, check if time has expired based on cache data
             dap_time_t l_current_time = dap_ledger_get_blockchain_time(a_ledger);
             if (l_stake_ext->end_time > 0 && l_current_time >= l_stake_ext->end_time + a_cond->subtype.srv_stake_ext_lock.lock_time) {
-                log_it(L_DEBUG, "unlock allowed: stake_ext %s ended by timeout", l_stake_ext_hash_str);
+                debug_if(s_debug_more, L_DEBUG, "unlock allowed: stake_ext %s ended by timeout", l_stake_ext_hash_str);
                 ret_code = 0;
             } else {
                 log_it(L_WARNING, "unlock denied: stake_ext %s still active", l_stake_ext_hash_str);
@@ -1198,7 +1200,7 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
     // Search in stake_ext cache
     dap_stake_ext_cache_item_t *l_cached_stake_ext = dap_stake_ext_cache_find_stake_ext(s_stake_ext_cache, a_hash);
     if (!l_cached_stake_ext) {
-        log_it(L_DEBUG, "stake_ext %s not found in cache", dap_chain_hash_fast_to_str_static(a_hash));
+        debug_if(s_debug_more, L_DEBUG, "stake_ext %s not found in cache", dap_chain_hash_fast_to_str_static(a_hash));
         return NULL;
     }
     
@@ -1242,7 +1244,7 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_find(dap_chain_net_t 
     
     // Positions array is not filled here - use get_detailed for that
     
-    log_it(L_DEBUG, "Found stake_ext %s in cache with status %s", 
+    debug_if(s_debug_more, L_DEBUG, "Found stake_ext %s in cache with status %s", 
            dap_chain_hash_fast_to_str_static(a_hash),
            dap_stake_ext_status_to_str(l_stake_ext->status));
     
@@ -1331,7 +1333,7 @@ dap_chain_net_srv_stake_ext_t *dap_chain_net_srv_stake_ext_get_detailed(dap_chai
     }
     pthread_rwlock_unlock(&s_stake_ext_cache->cache_rwlock);
     
-    log_it(L_DEBUG, "Retrieved detailed stake_ext %s with %u positions", 
+    debug_if(s_debug_more, L_DEBUG, "Retrieved detailed stake_ext %s with %u positions", 
            dap_chain_hash_fast_to_str_static(a_hash), l_stake_ext->positions_count);
     
     return l_stake_ext;
@@ -1397,7 +1399,7 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
         
         // Filter by network ID
         if (l_cached_stake_ext->net_id.uint64 != a_net->pub.id.uint64) {
-            log_it(L_DEBUG, "stake_ext %s: network mismatch (expected %"DAP_UINT64_FORMAT_U", got %"DAP_UINT64_FORMAT_U")",
+            debug_if(s_debug_more, L_DEBUG, "stake_ext %s: network mismatch (expected %"DAP_UINT64_FORMAT_U", got %"DAP_UINT64_FORMAT_U")",
                    l_cached_stake_ext->guuid ? l_cached_stake_ext->guuid : "no_name",
                    a_net->pub.id.uint64, l_cached_stake_ext->net_id.uint64);
             continue;
@@ -1407,7 +1409,7 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
         // Filter by status if specified
         if (a_status_filter != DAP_STAKE_EXT_STATUS_UNKNOWN && 
             l_cached_stake_ext->status != a_status_filter) {
-            log_it(L_DEBUG, "stake_ext %s: status mismatch (expected %d, got %d)",
+            debug_if(s_debug_more, L_DEBUG, "stake_ext %s: status mismatch (expected %d, got %d)",
                    l_cached_stake_ext->guuid ? l_cached_stake_ext->guuid : "no_name",
                    a_status_filter, l_cached_stake_ext->status);
             continue;
@@ -1485,7 +1487,7 @@ dap_list_t *dap_chain_net_srv_stake_ext_get_list(dap_chain_net_t *a_net,
     uint32_t l_final_count = dap_list_length(l_list);
     log_it(L_INFO, "stake_ext filtering results: found=%u, network_matches=%u, status_matches=%u, final_list=%u", 
            l_total_found, l_network_matches, l_status_matches, l_final_count);
-    log_it(L_DEBUG, "Retrieved %u stake_ext from cache", l_final_count);
+    debug_if(s_debug_more, L_DEBUG, "Retrieved %u stake_ext from cache", l_final_count);
     return l_list;
 }
 
@@ -1532,7 +1534,7 @@ dap_stake_ext_stats_t *dap_chain_net_srv_stake_ext_get_stats(dap_chain_net_t *a_
     
     pthread_rwlock_unlock(&s_stake_ext_cache->cache_rwlock);
     
-    log_it(L_DEBUG, "stake_ext stats: total=%u, active=%u, ended=%u, cancelled=%u", 
+    debug_if(s_debug_more, L_DEBUG, "stake_ext stats: total=%u, active=%u, ended=%u, cancelled=%u", 
            l_stats->total_stake_ext, l_stats->active_stake_ext, 
            l_stats->ended_stake_ext, l_stats->cancelled_stake_ext);
     
@@ -1627,7 +1629,7 @@ char *dap_chain_net_srv_stake_ext_unlock_create(dap_chain_net_t *a_net, dap_enc_
             dap_time_t l_stake_ext_end_timeout = l_stake_ext->end_time + l_out_cond->subtype.srv_stake_ext_lock.lock_time;
             dap_time_t l_current_time = dap_ledger_get_blockchain_time(l_ledger);
             if (l_current_time < l_stake_ext_end_timeout) {
-                log_it(L_DEBUG, "unlock debiued: stake_ext %s still active", dap_chain_hash_fast_to_str_static(&l_stake_ext_hash));
+                debug_if(s_debug_more, L_DEBUG, "unlock debiued: stake_ext %s still active", dap_chain_hash_fast_to_str_static(&l_stake_ext_hash));
                 set_ret_code(a_ret_code, -107);
                 return NULL;
             }
@@ -2758,7 +2760,7 @@ int dap_stake_ext_cache_set_winners_by_name(dap_stake_ext_cache_t *a_cache,
 
     pthread_rwlock_unlock(&a_cache->cache_rwlock);
 
-    log_it(L_DEBUG, "Set %u winners for stake_ext '%s' (by GUUID)", a_winners_cnt, a_guuid);
+    debug_if(s_debug_more, L_DEBUG, "Set %u winners for stake_ext '%s' (by GUUID)", a_winners_cnt, a_guuid);
     return 0;
 }
 

@@ -118,6 +118,7 @@
 
 #define LOG_TAG "chain_node_cli_cmd"
 
+static bool s_debug_more = false;
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 static int _cmd_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static int _cmd_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, int a_version);
@@ -1541,7 +1542,7 @@ int com_version(int argc, char ** argv, void **a_str_reply, UNUSED_ARG int a_ver
 int com_help(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_version)
 {
     if (a_argc > 1) {
-        log_it(L_DEBUG, "Help for command %s", a_argv[1]);
+        debug_if(s_debug_more, L_DEBUG, "Help for command %s", a_argv[1]);
         dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find(a_argv[1]);
         if(l_cmd) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s:\n%s", l_cmd->doc, l_cmd->doc_ex);
@@ -1552,7 +1553,7 @@ int com_help(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_ver
         return -1;
     } else {
         // TODO Read list of commands & return it
-        log_it(L_DEBUG, "General help requested");
+        debug_if(s_debug_more, L_DEBUG, "General help requested");
         dap_string_t * l_help_list_str = dap_string_new(NULL);
         dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_get_first();
         while(l_cmd) {
@@ -2517,7 +2518,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
             size_t *l_datum_signs_offset, uint16_t * l_sign_counter)
 {
     if (!l_datum_signs_offset) {
-        log_it(L_DEBUG,"l_datum_data_offset is NULL");
+        debug_if(s_debug_more, L_DEBUG,"l_datum_data_offset is NULL");
         return NULL;
     }
 
@@ -2544,7 +2545,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
             memcpy(l_datum_token->tsd_n_signs + *l_datum_signs_offset, l_sign, l_sign_size);
             *l_datum_signs_offset += l_sign_size;
             DAP_DELETE(l_sign);
-            log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
+            debug_if(s_debug_more, L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
             (*l_sign_counter)++;
         }
     }
@@ -2621,7 +2622,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             ? l_datum_hash_base58_str
             : l_datum_hash_hex_str;
 
-        log_it(L_DEBUG, "Requested to sign token declaration %s in gdb://%s with certs %s",
+        debug_if(s_debug_more, L_DEBUG, "Requested to sign token declaration %s in gdb://%s with certs %s",
                 l_gdb_group_mempool, l_datum_hash_hex_str, l_certs_str);
 
         dap_chain_datum_t * l_datum = NULL;
@@ -2652,12 +2653,12 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                         DAP_DELETE(l_gdb_group_mempool);
                         return -6;
                     }else{
-                        log_it(L_DEBUG,"Sign %zu passed", i);
+                        debug_if(s_debug_more, L_DEBUG,"Sign %zu passed", i);
                     }
                     l_signs_size += dap_sign_get_size(l_sign);
                 }
                 l_datum_token->signs_total = l_tmp_signs_total;
-                log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
+                debug_if(s_debug_more, L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
 
                 // Sign header with all certificates in the list and add signs to the end of token update
@@ -2665,7 +2666,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 size_t l_data_size = l_tsd_size + l_signs_size;
                 l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
                                                             &l_sign_counter);
-                log_it(L_DEBUG, "Apply %u signs to datum %s", l_sign_counter, l_datum_hash_hex_str);
+                debug_if(s_debug_more, L_DEBUG, "Apply %u signs to datum %s", l_sign_counter, l_datum_hash_hex_str);
                 if (!l_sign_counter) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_SERT_NOT_VALID_ERR,
                                        "Error! Used certs not valid");
@@ -4472,7 +4473,7 @@ int cmd_find(int a_argc, char **a_argv, void **a_reply, int a_version) {
 dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd_list, size_t *l_tsd_total_size, uint32_t flag)
 {
     if (!a_tx_address){
-       log_it(L_DEBUG,"a_tx_address is null");
+       debug_if(s_debug_more, L_DEBUG,"a_tx_address is null");
        return l_tsd_list;
     }
 
@@ -4480,19 +4481,19 @@ dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd
     l_str_wallet_addr = dap_strsplit(a_tx_address,",",0xffff);
 
     if (!l_str_wallet_addr){
-       log_it(L_DEBUG,"Error in wallet addresses array parsing in tx_receiver_allowed parameter");
+       debug_if(s_debug_more, L_DEBUG,"Error in wallet addresses array parsing in tx_receiver_allowed parameter");
        return l_tsd_list;
     }
 
     while (l_str_wallet_addr && *l_str_wallet_addr){
-        log_it(L_DEBUG,"Processing wallet address: %s", *l_str_wallet_addr);
+        debug_if(s_debug_more, L_DEBUG,"Processing wallet address: %s", *l_str_wallet_addr);
         dap_chain_addr_t *addr_to = dap_chain_addr_from_str(*l_str_wallet_addr);
         if (addr_to){
             dap_tsd_t * l_tsd = dap_tsd_create(flag, addr_to, sizeof(dap_chain_addr_t));
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
             *l_tsd_total_size += dap_tsd_size(l_tsd);
         }else{
-            log_it(L_DEBUG,"Error in wallet address parsing");
+            debug_if(s_debug_more, L_DEBUG,"Error in wallet address parsing");
         }
         l_str_wallet_addr++;
     }
@@ -5272,7 +5273,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
             l_datum_token->type = l_params->type;
             l_datum_token->subtype = l_params->subtype;
             if (l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE) {
-                log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_tsd_total_size);
+                debug_if(s_debug_more, L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_private_decl.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
@@ -5280,7 +5281,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
                 l_datum_token->header_private_decl.tsd_total_size = l_tsd_local_list_size + l_params->ext.tsd_total_size;
                 l_datum_token->header_private_decl.decimals = atoi(l_params->decimals_str);
             } else { //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
-                log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_tsd_total_size);
+                debug_if(s_debug_more, L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_native_decl.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
@@ -5298,25 +5299,25 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
                 switch (l_tsd->type){
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
                     uint16_t l_t = 0;
-                        log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
+                        debug_if(s_debug_more, L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
                                 _dap_tsd_get_scalar(l_tsd, &l_t) );
                     break;
                 }
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
-                        log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
+                        debug_if(s_debug_more, L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
                                dap_tsd_get_string_const(l_tsd) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
-                        log_it(L_DEBUG,"== TX_SENDER_ALLOWED_ADD: binary data");
+                        debug_if(s_debug_more, L_DEBUG,"== TX_SENDER_ALLOWED_ADD: binary data");
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
-                        log_it(L_DEBUG,"== TYPE_TX_SENDER_BLOCKED: binary data");
+                        debug_if(s_debug_more, L_DEBUG,"== TYPE_TX_SENDER_BLOCKED: binary data");
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
-                        log_it(L_DEBUG,"== TX_RECEIVER_ALLOWED_ADD: binary data");
+                        debug_if(s_debug_more, L_DEBUG,"== TX_RECEIVER_ALLOWED_ADD: binary data");
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
-                        log_it(L_DEBUG,"== TX_RECEIVER_BLOCKED_ADD: binary data");
+                        debug_if(s_debug_more, L_DEBUG,"== TX_RECEIVER_BLOCKED_ADD: binary data");
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
                         if(l_tsd->size >= sizeof(dap_pkey_t)){
@@ -5324,18 +5325,18 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
                             dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
                             dap_hash_fast_t l_hf = {0};
                             if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
-                                log_it(L_DEBUG, "== TOTAL_PKEYS_ADD: <WRONG CALCULATION FINGERPRINT>");
+                                debug_if(s_debug_more, L_DEBUG, "== TOTAL_PKEYS_ADD: <WRONG CALCULATION FINGERPRINT>");
                             } else {
-                                log_it(L_DEBUG, "== TOTAL_PKEYS_ADD: %s",
+                                debug_if(s_debug_more, L_DEBUG, "== TOTAL_PKEYS_ADD: %s",
                                     dap_chain_hash_fast_to_str_static(&l_hf));
                             }
                         } else
-                            log_it(L_DEBUG,"== TOTAL_PKEYS_ADD: <WRONG SIZE %u>", l_tsd->size);
+                            debug_if(s_debug_more, L_DEBUG,"== TOTAL_PKEYS_ADD: <WRONG SIZE %u>", l_tsd->size);
                         break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION:
-                        log_it(L_DEBUG, "== DESCRIPTION: %s", l_tsd->data);
+                        debug_if(s_debug_more, L_DEBUG, "== DESCRIPTION: %s", l_tsd->data);
                         break;
-                    default: log_it(L_DEBUG, "== 0x%04X: binary data %u size ",l_tsd->type, l_tsd->size );
+                    default: debug_if(s_debug_more, L_DEBUG, "== 0x%04X: binary data %u size ",l_tsd->type, l_tsd->size );
                 }
                 size_t l_tsd_size = dap_tsd_size(l_tsd);
                 memcpy(l_datum_token->tsd_n_signs + l_datum_data_offset, l_tsd, l_tsd_size);
@@ -5349,7 +5350,7 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
                 DAP_DELETE(l_params->ext.parsed_tsd);
             }
             dap_list_free_full(l_tsd_list, NULL);
-            log_it(L_DEBUG, "%s token declaration '%s' initialized", l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE ?
+            debug_if(s_debug_more, L_DEBUG, "%s token declaration '%s' initialized", l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE ?
                             "Private" : "CF20", l_datum_token->ticker);
         }break;//end
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
@@ -5546,7 +5547,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_versi
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
             l_datum_token->subtype = l_params->subtype;
             if (l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE) {
-                log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_params->ext.tsd_total_size);
+                debug_if(s_debug_more, L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_params->ext.tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
@@ -5554,7 +5555,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_versi
                 l_datum_token->header_native_update.decimals = 0;
                 l_datum_data_offset = l_params->ext.tsd_total_size;
             } else { // if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
-                log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
+                debug_if(s_debug_more, L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
@@ -5567,7 +5568,7 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_versi
                 memcpy(l_datum_token->tsd_n_signs, l_params->ext.parsed_tsd, l_params->ext.tsd_total_size);
                 DAP_DELETE(l_params->ext.parsed_tsd);
             }
-            log_it(L_DEBUG, "%s token declaration update '%s' initialized", (	l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)	?
+            debug_if(s_debug_more, L_DEBUG, "%s token declaration update '%s' initialized", (	l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)	?
                                                                      "Private" : "CF20", l_datum_token->ticker);
         }break;//end
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
@@ -7189,7 +7190,7 @@ static int _cmd_tx_cond_remove(int a_argc, char ** a_argv, void **a_json_arr_rep
         }
         if (l_already_processed)
         {
-            log_it(L_DEBUG, "Final TX %s already processed, skipping duplicate", dap_hash_fast_to_str_static(&l_final_hash));
+            debug_if(s_debug_more, L_DEBUG, "Final TX %s already processed, skipping duplicate", dap_hash_fast_to_str_static(&l_final_hash));
             continue;
         }
 
@@ -10006,7 +10007,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
 
     dap_chain_node_info_t *node_info = node_info_read_and_reply(l_net, &l_node_addr, NULL);
     if(!node_info) {
-        log_it(L_DEBUG, "Can't find node with addr: %s", l_addr_str);
+        debug_if(s_debug_more, L_DEBUG, "Can't find node with addr: %s", l_addr_str);
         dap_json_rpc_error_add(*a_json_arr_reply, -6, "Can't find node with addr: %s", l_addr_str);
         return -6;
     }

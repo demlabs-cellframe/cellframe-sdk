@@ -40,6 +40,7 @@
 
 #define LOG_TAG "dap_chain_datum_decree"
 
+static bool s_debug_more = false;
 
 static bool s_find_pkey(dap_chain_datum_decree_t *a_decree, dap_pkey_t *a_pkey)
 {
@@ -475,7 +476,7 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
         l_total_signs_size += l_sign_size;
         l_cur_sign_offset += l_sign_size;
         a_datum_decree->header.signs_size = l_total_signs_size;
-        log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
+        debug_if(s_debug_more, L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
         l_total_sign_count++;
     }
     if (a_total_sign_count)

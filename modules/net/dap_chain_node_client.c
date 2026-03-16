@@ -73,6 +73,7 @@
 
 #define LOG_TAG "dap_chain_node_client"
 
+static bool s_debug_more = false;
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
 static bool s_timer_update_states_callback(void *a_arg);
 static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
@@ -101,7 +102,7 @@ void dap_chain_node_client_deinit()
  */
 static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
-    log_it(L_DEBUG, "s_stage_status_error_callback");
+    debug_if(s_debug_more, L_DEBUG, "s_stage_status_error_callback");
 
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
     if(!l_node_client)
@@ -476,7 +477,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
                 break;
             }
             default: {
-                log_it(L_DEBUG, "Channel id %d (%c) has no node-client notify setup, handled by plugin", a_ch_id, a_ch_id);
+                debug_if(s_debug_more, L_DEBUG, "Channel id %d (%c) has no node-client notify setup, handled by plugin", a_ch_id, a_ch_id);
                 break;
             }
             }

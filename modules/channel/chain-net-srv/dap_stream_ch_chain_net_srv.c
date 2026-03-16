@@ -42,6 +42,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
+
+static bool s_debug_more = false;
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
 #define SRV_STATISTIC_GDB_GROUP "local.srv_statistic"
 #define SRV_RECEIPTS_GDB_GROUP "local.receipts"
@@ -179,7 +181,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , UNUSED_ARG void *a_arg)
 // sanity check
     dap_return_if_pass(!a_ch);
 // func work
-    log_it(L_DEBUG, "Stream ch chain net srv delete");
+    debug_if(s_debug_more, L_DEBUG, "Stream ch chain net srv delete");
 
     dap_chain_net_srv_stream_session_t * l_srv_session = a_ch && a_ch->stream && a_ch->stream->session ? (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor : NULL;
     dap_chain_net_srv_t * l_srv = l_srv_session && l_srv_session->usage_active ? dap_chain_net_srv_get(l_srv_session->usage_active->service->uid) : NULL;
@@ -245,13 +247,13 @@ static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
     dap_time_t l_end_of_ban_timestamp = dap_time_now() + (a_usage->service->grace_period * 50); // ban client for 10x grace periods
     char l_tmp_buf[DAP_TIME_STR_SIZE];
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban_timestamp);
-    log_it(L_DEBUG, "Add client %s to ban list till %s.", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_tmp_buf);
+    debug_if(s_debug_more, L_DEBUG, "Add client %s to ban list till %s.", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_tmp_buf);
     char *l_ban_group = s_get_ban_group(a_usage);
 
     int l_ret = dap_global_db_set_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_end_of_ban_timestamp, sizeof(l_end_of_ban_timestamp), false);
     if(l_ret)
     {
-        log_it(L_DEBUG, "Can't add client to ban list group in GDB. Error code: %d", l_ret);
+        debug_if(s_debug_more, L_DEBUG, "Can't add client to ban list group in GDB. Error code: %d", l_ret);
         DAP_DELETE(l_ban_group);
         return;
     }
@@ -260,7 +262,7 @@ static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
 
 static void s_unban_client(dap_chain_net_srv_usage_t *a_usage)
 {
-    log_it(L_DEBUG, "Remove client %s from ban list", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
+    debug_if(s_debug_more, L_DEBUG, "Remove client %s from ban list", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
     char *l_ban_group = s_get_ban_group(a_usage);
     size_t l_data_size = 0;
     byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
@@ -269,7 +271,7 @@ static void s_unban_client(dap_chain_net_srv_usage_t *a_usage)
         int l_ret = dap_global_db_del_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
         if(l_ret)
         {
-            log_it(L_DEBUG, "Can't remove client from ban list group in GDB. Error code: %d", l_ret);
+            debug_if(s_debug_more, L_DEBUG, "Can't remove client from ban list group in GDB. Error code: %d", l_ret);
             DAP_DELETE(l_ban_group);
             return;
         }
@@ -460,7 +462,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     l_err.net_id.uint64 = a_request->hdr.net_id.uint64;
     l_err.srv_uid.uint64 = a_request->hdr.srv_uid.uint64;
 
-    log_it(L_DEBUG, "Got service request from user %s", dap_chain_hash_fast_to_str_static(&a_request->hdr.client_pkey_hash));
+    debug_if(s_debug_more, L_DEBUG, "Got service request from user %s", dap_chain_hash_fast_to_str_static(&a_request->hdr.client_pkey_hash));
 
     if (dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
         log_it( L_ERROR, "No order hash in request.");
@@ -601,7 +603,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
             if (l_end_of_ban != 0) {   // client banned
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban);
-                log_it(L_DEBUG, "Client %s is banned till %s!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash), l_tmp_buf);
+                debug_if(s_debug_more, L_DEBUG, "Client %s is banned till %s!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash), l_tmp_buf);
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH;
                 if(a_ch)
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));

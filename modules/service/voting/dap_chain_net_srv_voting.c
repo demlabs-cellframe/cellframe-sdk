@@ -43,6 +43,7 @@
 
 #define LOG_TAG "chain_net_voting"
 
+static bool s_debug_more = false;
 // Voting status enumeration
 typedef enum {
     DAP_CHAIN_NET_VOTING_STATUS_ACTIVE = 0,
@@ -195,7 +196,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
         HASH_FIND(hh, s_votings, a_tx_hash, sizeof(dap_hash_fast_t), l_voting);
         pthread_rwlock_unlock(&s_votings_rwlock);
         if (l_voting && l_voting->net_id.uint64 == a_ledger->net->pub.id.uint64) {
-            log_it(L_DEBUG, "Poll with hash %s is already presents in net %s",  dap_hash_fast_to_str_static(a_tx_hash), a_ledger->net->pub.name);
+            debug_if(s_debug_more, L_DEBUG, "Poll with hash %s is already presents in net %s",  dap_hash_fast_to_str_static(a_tx_hash), a_ledger->net->pub.name);
             return -1;
         }
 
@@ -481,7 +482,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             return -19;
         }
         if (dap_strcmp(l_ticker_in, l_voting->voting_params.token_ticker)) {
-            log_it(L_DEBUG, "Coin with ticker %s is not allowed for poll %s", l_ticker_in, dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
+            debug_if(s_debug_more, L_DEBUG, "Coin with ticker %s is not allowed for poll %s", l_ticker_in, dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash));
             continue;
         }
         int l_spent_rc = s_datum_tx_voting_coin_check_spent(a_ledger->net, l_vote_tx_item->voting_hash,

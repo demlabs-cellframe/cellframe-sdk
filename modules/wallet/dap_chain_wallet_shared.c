@@ -90,6 +90,7 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_wallet_shared"
 
+static bool s_debug_more = false;
 
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner, bool a_check_for_apply)
 {
@@ -346,7 +347,7 @@ static int s_collect_wallet_pkey_hashes()
     // Open wallet directory
     DIR *l_dir = opendir(l_wallets_path);
     if (!l_dir) {
-        log_it(L_DEBUG, "Cannot open wallet directory: %s", l_wallets_path);
+        debug_if(s_debug_more, L_DEBUG, "Cannot open wallet directory: %s", l_wallets_path);
         return 0; // Not an error, just no wallets
     }
     
@@ -366,7 +367,7 @@ static int s_collect_wallet_pkey_hashes()
                 hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_RET_VAL_IF_FAIL(hold_tx_hashes_t, -1);
                 l_shared_hashes->type = HASH_FILE_TYPE_WALLET;
                 dap_strncpy(l_shared_hashes->name, l_dir_entry->d_name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_dir_entry->d_name) - 8));
-                log_it(L_DEBUG, "Added wallet '%s' hash: %s", l_dir_entry->d_name, dap_hash_fast_to_str_static(&l_pkey_hash));
+                debug_if(s_debug_more, L_DEBUG, "Added wallet '%s' hash: %s", l_dir_entry->d_name, dap_hash_fast_to_str_static(&l_pkey_hash));
                 dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
                     l_shared_hashes, sizeof(hold_tx_hashes_t), false);
                 DAP_DELETE(l_shared_hashes);
@@ -389,7 +390,7 @@ static int s_collect_cert_pkey_hashes()
     // Get all certificates from memory
     dap_list_t *l_certs_list = dap_cert_get_all_mem();
     if (!l_certs_list) {
-        log_it(L_DEBUG, "No certificates found in memory");
+        debug_if(s_debug_more, L_DEBUG, "No certificates found in memory");
         return 0;
     }
     // Extract hashes from certificates
@@ -400,7 +401,7 @@ static int s_collect_cert_pkey_hashes()
             continue;
         }
         if (!l_cert->enc_key->priv_key_data_size || !l_cert->enc_key->priv_key_data) {
-            log_it(L_DEBUG, "Certificate %s without private data ignored", l_cert->name);
+            debug_if(s_debug_more, L_DEBUG, "Certificate %s without private data ignored", l_cert->name);
             continue;
         }
         dap_hash_fast_t l_pkey_hash;
@@ -413,7 +414,7 @@ static int s_collect_cert_pkey_hashes()
         dap_strncpy(l_shared_hashes->name, l_cert->name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_cert->name)));
         dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
                     l_shared_hashes, sizeof(hold_tx_hashes_t), false);
-        log_it(L_DEBUG, "Added certificate '%s' hash: %s", l_cert->name, dap_hash_fast_to_str_static(&l_pkey_hash));
+        debug_if(s_debug_more, L_DEBUG, "Added certificate '%s' hash: %s", l_cert->name, dap_hash_fast_to_str_static(&l_pkey_hash));
         DAP_DELETE(l_shared_hashes);
     }  
     dap_list_free(l_certs_list);
@@ -1510,7 +1511,7 @@ static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_h
     l_shared_hashes->tx[l_shared_hashes->tx_count].hash = dap_chain_node_datum_tx_calc_hash(a_tx);
     l_shared_hashes->tx[l_shared_hashes->tx_count].role = a_role;
     l_shared_hashes->tx_count++;
-    log_it(L_DEBUG, "Added pkey hash %s as %s to shared hashes: %s", l_pkey_hash_str,a_role == TX_ROLE_CREATOR ? "creator" : "owner", dap_hash_fast_to_str_static(&l_shared_hashes->tx[l_shared_hashes->tx_count - 1].hash));
+    debug_if(s_debug_more, L_DEBUG, "Added pkey hash %s as %s to shared hashes: %s", l_pkey_hash_str,a_role == TX_ROLE_CREATOR ? "creator" : "owner", dap_hash_fast_to_str_static(&l_shared_hashes->tx[l_shared_hashes->tx_count - 1].hash));
     dap_global_db_set_sync(a_group, l_pkey_hash_str, l_shared_hashes, l_shared_hashes_size, false);
     DAP_DEL_MULTY(l_pkey_hash_str, l_shared_hashes);
 }
@@ -1714,7 +1715,7 @@ static void s_shared_tx_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
         }
     }
     if (!l_best_is_current) {
-        log_it(L_DEBUG, "Shared funds tx %s rejected, better candidate %s already in mempool with %u signs",
+        debug_if(s_debug_more, L_DEBUG, "Shared funds tx %s rejected, better candidate %s already in mempool with %u signs",
                 l_current_tx_hash_str, l_best_hash_str ? l_best_hash_str : "unknown", l_best_signs);
         goto cleanup;
     }

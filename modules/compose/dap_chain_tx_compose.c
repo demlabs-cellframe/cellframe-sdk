@@ -46,6 +46,8 @@
 #include "dap_chain_common.h"
 #include <json-c/json.h>
 #define LOG_TAG "dap_chain_tx_compose"
+static bool s_debug_more = false;
+
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
 #include "rand/dap_rand.h"
 // Test value: 1 billion datoshi (1 CELL) - large enough to cover any test fee
@@ -68,7 +70,7 @@ static compose_config_t* s_compose_config_init(dap_chain_net_id_t a_net_id, cons
     l_config->enc_cert_path = a_enc_cert_path;
 
 
-    log_it_fl(L_DEBUG, "a_net_name: %s, a_url_str: %s, a_port: %d, a_enc_cert_path: %s", a_net_name, a_url_str, a_port, a_enc_cert_path ? a_enc_cert_path : "NULL");
+    debug_if_fl(s_debug_more, L_DEBUG, "a_net_name: %s, a_url_str: %s, a_port: %d, a_enc_cert_path: %s", a_net_name, a_url_str, a_port, a_enc_cert_path ? a_enc_cert_path : "NULL");
     l_config->response_handler = json_object_new_object();
     if (!l_config->response_handler) {
         log_it(L_ERROR, "Can't create response handler");
@@ -80,7 +82,7 @@ static compose_config_t* s_compose_config_init(dap_chain_net_id_t a_net_id, cons
 
 static json_object* s_compose_config_return_response_handler(compose_config_t *a_config) {
     dap_return_val_if_pass(!a_config || !a_config->response_handler, NULL);
-    log_it_fl(L_DEBUG, "a_config: %p", a_config);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_config: %p", a_config);
     json_object* l_response_handler = a_config->response_handler;
     a_config->response_handler = NULL; // Prevent double free
     DAP_DELETE(a_config);
@@ -89,7 +91,7 @@ static json_object* s_compose_config_return_response_handler(compose_config_t *a
 
 static int s_compose_config_deinit(compose_config_t *a_config) {
     dap_return_val_if_pass(!a_config, -1);
-    log_it_fl(L_DEBUG, "a_config: %p", a_config);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_config: %p", a_config);
     if (a_config->response_handler) {
         json_object_put(a_config->response_handler);
         a_config->response_handler = NULL;
@@ -101,7 +103,7 @@ static int s_compose_config_deinit(compose_config_t *a_config) {
 static int s_json_compose_error_add(json_object* a_json_obj_reply, int a_code_error, const char *msg, ...)
 {
     dap_return_val_if_pass(!a_json_obj_reply || !msg || !json_object_is_type(a_json_obj_reply, json_type_object), -1);
-    log_it_fl(L_DEBUG, "a_json_obj_reply: %p, a_code_error: %d, msg: %s", a_json_obj_reply, a_code_error, msg);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_json_obj_reply: %p, a_code_error: %d, msg: %s", a_json_obj_reply, a_code_error, msg);
 
     va_list args;
     va_start(args, msg);
@@ -153,7 +155,7 @@ static int s_json_compose_error_add(json_object* a_json_obj_reply, int a_code_er
 
 int dap_tx_json_tsd_add(json_object *json_tx, json_object *json_add) {
     dap_return_val_if_pass(!json_tx || !json_add, -1);
-    log_it_fl(L_DEBUG, "json_tx: %p, json_add: %p", json_tx, json_add);
+    debug_if_fl(s_debug_more, L_DEBUG, "json_tx: %p, json_add: %p", json_tx, json_add);
 
     json_object *items_array;
     if (!json_object_object_get_ex(json_tx, "items", &items_array)) {
@@ -172,7 +174,7 @@ int dap_tx_json_tsd_add(json_object *json_tx, json_object *json_add) {
 
 static dap_chain_wallet_t* dap_wallet_open_with_pass(const char *a_wallet_name, const char *a_wallets_path, const char *a_pass_str, compose_config_t* a_config) {
     dap_return_val_if_pass(!a_wallet_name || !a_wallets_path || !a_config, NULL);
-    log_it_fl(L_DEBUG, "a_wallet_name: %s, a_wallets_path: %s, a_pass_str: %s, a_config: %p", a_wallet_name, a_wallets_path, a_pass_str, a_config);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_wallet_name: %s, a_wallets_path: %s, a_pass_str: %s, a_config: %p", a_wallet_name, a_wallets_path, a_pass_str, a_config);
     
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_name, a_wallets_path, NULL);
     if (!l_wallet) {
@@ -214,7 +216,7 @@ struct cmd_request {
 
 static struct cmd_request* s_cmd_request_init()
 {
-    log_it_fl(L_DEBUG, "s_cmd_request_init");
+    debug_if_fl(s_debug_more, L_DEBUG, "s_cmd_request_init");
     struct cmd_request *l_cmd_request = DAP_NEW_Z_RET_VAL_IF_FAIL(struct cmd_request, NULL);
 #ifdef DAP_OS_WINDOWS
     InitializeCriticalSection(&l_cmd_request->wait_crit_sec);
@@ -237,7 +239,7 @@ static struct cmd_request* s_cmd_request_init()
 void s_cmd_request_free(struct cmd_request *a_cmd_request)
 {
     dap_return_if_pass(!a_cmd_request);
-    log_it_fl(L_DEBUG, "a_cmd_request: %p", a_cmd_request);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_cmd_request: %p", a_cmd_request);
 
 #ifdef DAP_OS_WINDOWS
     DeleteCriticalSection(&a_cmd_request->wait_crit_sec);
@@ -253,7 +255,7 @@ static void s_cmd_response_handler(void *a_response, size_t a_response_size, voi
     (void)http_status_code;
     struct cmd_request *l_cmd_request = (struct cmd_request *)a_arg;
     dap_return_if_pass(!l_cmd_request || !a_response);
-    log_it_fl(L_DEBUG, "a_response: %p, a_arg: %p", a_response, a_arg);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_response: %p, a_arg: %p", a_response, a_arg);
 #ifdef DAP_OS_WINDOWS
     EnterCriticalSection(&l_cmd_request->wait_crit_sec);
 #else
@@ -273,7 +275,7 @@ static void s_cmd_response_handler(void *a_response, size_t a_response_size, voi
 static void s_cmd_error_handler(int a_error_code, void *a_arg){
     struct cmd_request * l_cmd_request = (struct cmd_request *)a_arg;
     dap_return_if_pass(!l_cmd_request);
-    log_it_fl(L_DEBUG, "a_error_code: %d, a_arg: %p", a_error_code, a_arg);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_error_code: %d, a_arg: %p", a_error_code, a_arg);
 #ifdef DAP_OS_WINDOWS
     EnterCriticalSection(&l_cmd_request->wait_crit_sec);
     DAP_DELETE(l_cmd_request->response);
@@ -293,7 +295,7 @@ static void s_cmd_error_handler(int a_error_code, void *a_arg){
 
 static int dap_chain_cmd_list_wait(struct cmd_request *a_cmd_request, int a_timeout_ms) {
     dap_return_val_if_pass(!a_cmd_request || a_timeout_ms <= 0, -1);
-    log_it_fl(L_DEBUG, "a_cmd_request: %p, a_timeout_ms: %d", a_cmd_request, a_timeout_ms);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_cmd_request: %p, a_timeout_ms: %d", a_cmd_request, a_timeout_ms);
 
 #ifdef DAP_OS_WINDOWS
     EnterCriticalSection(&a_cmd_request->wait_crit_sec);
@@ -310,7 +312,7 @@ static int dap_chain_cmd_list_wait(struct cmd_request *a_cmd_request, int a_time
 #else
     pthread_mutex_lock(&a_cmd_request->wait_mutex);
     if(a_cmd_request->response) {
-        log_it_fl(L_DEBUG, "response is not NULL");
+        debug_if_fl(s_debug_more, L_DEBUG, "response is not NULL");
         pthread_mutex_unlock(&a_cmd_request->wait_mutex);
         return 0;
     }
@@ -361,7 +363,7 @@ static int dap_chain_cmd_list_wait(struct cmd_request *a_cmd_request, int a_time
 static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_object **a_response_out, size_t *a_response_out_size)
 {
     dap_return_val_if_pass(!a_cmd_request || !a_response_out || !a_response_out_size, -1);
-    log_it_fl(L_DEBUG, "a_cmd_request: %p, a_response_out: %p, a_response_out_size: %p", a_cmd_request, a_response_out, a_response_out_size);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_cmd_request: %p, a_response_out: %p, a_response_out_size: %p", a_cmd_request, a_response_out, a_response_out_size);
 
     int ret = 0;
     *a_response_out = NULL;
@@ -516,7 +518,7 @@ DAP_STATIC_INLINE dap_list_t *s_ledger_get_list_tx_outs_from_json_all(json_objec
 
 json_object *dap_enc_request_command_to_rpc(const char *a_request, const char *a_url, uint16_t a_port, const char * a_cert_path) {
     dap_return_val_if_pass(!a_request || !a_url || !a_port, NULL);
-    log_it_fl(L_DEBUG, "a_request: %s, a_url: %s, a_port: %d, a_cert_path: %s", a_request, a_url, a_port, a_cert_path);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_request: %s, a_url: %s, a_port: %d, a_cert_path: %s", a_request, a_url, a_port, a_cert_path);
 
     size_t url_len = strlen(a_url);
     dap_chain_node_info_t *node_info = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + url_len + 1, NULL);
@@ -573,7 +575,7 @@ typedef enum {
 
 static json_object* s_request_command_to_rpc(const char *a_request, compose_config_t *a_config) {
     dap_return_val_if_pass(!a_request || !a_config, NULL);
-    log_it_fl(L_DEBUG, "a_request: %s, a_config: %p", a_request, a_config);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_request: %s, a_config: %p", a_request, a_config);
 
     json_object *l_response = NULL;
     size_t l_response_size = 0;
@@ -649,7 +651,7 @@ static json_object* s_request_command_parse(json_object *a_response, compose_con
                                          json_object_get_string(error_message));
             }
         }
-        log_it_fl(L_DEBUG, "errors found in the response");
+        debug_if_fl(s_debug_more, L_DEBUG, "errors found in the response");
         s_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_REQUEST_FAILED, "errors found in the response");
         return NULL;
     }
@@ -662,7 +664,7 @@ static json_object* s_request_command_parse(json_object *a_response, compose_con
 
 static json_object *dap_request_command_to_rpc(const char *a_request, compose_config_t *a_config) {
     dap_return_val_if_pass(!a_request || !a_config, NULL);
-    log_it_fl(L_DEBUG, "a_request: %s, a_config: %p", a_request, a_config);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_request: %s, a_config: %p", a_request, a_config);
 
 
     json_object *l_response = a_config->enc_cert_path ? 
@@ -681,7 +683,7 @@ static json_object *dap_request_command_to_rpc(const char *a_request, compose_co
 
 static json_object* s_request_command_to_rpc_with_params(compose_config_t *a_config, const char *a_method, const char *msg, ...) {
     dap_return_val_if_pass(!a_config || !msg || !a_method, NULL);
-    log_it_fl(L_DEBUG, "a_config: %p, a_method: %s, msg: %s", a_config, a_method, msg);
+    debug_if_fl(s_debug_more, L_DEBUG, "a_config: %p, a_method: %s, msg: %s", a_config, a_method, msg);
 
     va_list args;
     va_start(args, msg);
@@ -1267,7 +1269,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
 
 json_object *dap_get_remote_tx_outs(const char *a_token_ticker,  dap_chain_addr_t * a_addr, compose_config_t *a_config) {
     dap_return_val_if_pass(!a_token_ticker || !a_addr || !a_config, NULL);
-    log_it_fl(L_DEBUG, "a_token_ticker: %s, a_addr: %s, a_config: %p",
+    debug_if_fl(s_debug_more, L_DEBUG, "a_token_ticker: %s, a_addr: %s, a_config: %p",
     a_token_ticker, dap_chain_addr_to_str(a_addr), a_config);
 
     json_object *l_json_outs = s_request_command_to_rpc_with_params(a_config, "wallet", "outputs;-addr;%s;-token;%s;-net;%s;-mempool_check", 
@@ -1725,7 +1727,7 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
         return l_json_obj_ret;
     }
     
-    log_it_fl(L_DEBUG, "compose config initialized successfully");
+    debug_if_fl(s_debug_more, L_DEBUG, "compose config initialized successfully");
     
     uint256_t l_value_datoshi = {};    
     uint256_t l_value_fee = {};
@@ -1784,7 +1786,7 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_config);
     if (l_tx) {
-        log_it_fl(L_DEBUG, "conditional transaction created successfully");
+        debug_if_fl(s_debug_more, L_DEBUG, "conditional transaction created successfully");
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
     } else {
@@ -1806,7 +1808,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_create(dap_chain_addr_t
     
     dap_return_val_if_pass(!a_config->net_name || !*a_config->net_name || !a_pkey_cond_hash || IS_ZERO_256(a_value) || !a_config->url_str || !*a_config->url_str || a_config->port == 0 || !a_wallet_addr, NULL);
 
-    log_it_fl(L_DEBUG, "parameters validation passed");
+    debug_if_fl(s_debug_more, L_DEBUG, "parameters validation passed");
 
     if (dap_strcmp(a_config->native_ticker, a_token_ticker)) {
         log_it(L_ERROR, "pay for service should be only in native token_ticker");
@@ -1933,7 +1935,7 @@ json_object *dap_chain_tx_compose_stake_lock_hold(dap_chain_net_id_t a_net_id, c
         return l_json_obj_ret;
     }
     
-    log_it_fl(L_DEBUG, "compose config initialized successfully");
+    debug_if_fl(s_debug_more, L_DEBUG, "compose config initialized successfully");
     
     char 	l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
     dap_enc_key_t						*l_key_from;
@@ -2097,7 +2099,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     // check valid param
     dap_return_val_if_pass(!a_config->net_name || !a_wallet_addr || IS_ZERO_256(a_value), NULL);
-    log_it_fl(L_DEBUG, "parameters validation passed");
+    debug_if_fl(s_debug_more, L_DEBUG, "parameters validation passed");
     
     const char *l_native_ticker = a_config->native_ticker;
     bool l_main_native = !dap_strcmp(a_main_ticker, l_native_ticker);
@@ -2668,7 +2670,7 @@ typedef enum {
 
 uint256_t s_get_key_delegating_min_value(compose_config_t *a_config){
 
-    log_it_fl(L_DEBUG, "getting key delegating min value for net %s", a_config->net_name);
+    debug_if_fl(s_debug_more, L_DEBUG, "getting key delegating min value for net %s", a_config->net_name);
     
     uint256_t l_key_delegating_min_value = uint256_0;
     json_object *response = s_request_command_to_rpc_with_params(a_config, "srv_stake", "list;keys;-net;%s", a_config->net_name);
@@ -2728,7 +2730,7 @@ json_object *dap_chain_tx_compose_poll_create(dap_chain_net_id_t a_net_id, const
         return l_json_obj_ret;
     }
     
-    log_it_fl(L_DEBUG, "compose config initialized successfully");
+    debug_if_fl(s_debug_more, L_DEBUG, "compose config initialized successfully");
     
     if (strlen(a_question_str) > DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH){
         log_it(L_ERROR, "question too long");
@@ -3095,18 +3097,18 @@ static bool s_datum_tx_voting_coin_check_spent_compose(json_object *a_votes_list
     dap_return_val_if_pass(!a_votes_list, false);
 
     size_t l_votes_count = json_object_array_length(a_votes_list);
-    log_it_fl(L_DEBUG, "checking %zu votes", l_votes_count);
+    debug_if_fl(s_debug_more, L_DEBUG, "checking %zu votes", l_votes_count);
 
     for (size_t i = 0; i < l_votes_count; i++) {
         json_object *l_vote = json_object_array_get_idx(a_votes_list, i);
         const char *l_vote_hash = json_object_get_string(json_object_object_get(l_vote, "vote_hash")),
                 *l_pkey_hash = json_object_get_string(json_object_object_get(l_vote, "pkey_hash"));
         if (!dap_strcmp(l_vote_hash, dap_chain_hash_fast_to_str_static(&a_tx_hash)) && a_out_idx == json_object_get_int(json_object_object_get(l_vote, "answer_idx"))) {
-            log_it_fl(L_DEBUG, "found matching vote at index %zu", i);
+            debug_if_fl(s_debug_more, L_DEBUG, "found matching vote at index %zu", i);
             return a_pkey_hash ? !dap_strcmp(l_pkey_hash, dap_chain_hash_fast_to_str_static(a_pkey_hash)) : true;
         }
     }
-    log_it_fl(L_DEBUG, "no matching vote found");
+    debug_if_fl(s_debug_more, L_DEBUG, "no matching vote found");
     return false;
 }
 typedef enum {
@@ -4530,7 +4532,7 @@ static bool s_process_ledger_response(dap_chain_tx_out_cond_subtype_t a_cond_typ
         *a_out_hash = l_hash;
         return true;
     }
-    log_it_fl(L_DEBUG, "no items found in response");
+    debug_if_fl(s_debug_more, L_DEBUG, "no items found in response");
     return false;
 }
 
@@ -7131,7 +7133,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
             continue;
         }
 
-        log_it(L_DEBUG, "Added in_cond for TX %s (final: %s, idx: %d, value: %s)",
+        debug_if(s_debug_more, L_DEBUG, "Added in_cond for TX %s (final: %s, idx: %d, value: %s)",
                l_input_hash_str, l_tx_last_str, l_cond_idx, dap_uint256_to_char(l_value, NULL));
 
         l_cond_value_sum = l_new_sum;

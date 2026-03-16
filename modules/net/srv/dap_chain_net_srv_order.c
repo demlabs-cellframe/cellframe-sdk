@@ -35,6 +35,7 @@
 
 #define LOG_TAG "dap_chain_net_srv_order"
 
+static bool s_debug_more = false;
 /*
 Continent codes :
 AF : Africa			geonameId=6255146
@@ -104,7 +105,7 @@ int dap_chain_srv_order_pin_init() {
             const char * l_addr_str = dap_stream_node_addr_to_str_static(l_order->node_addr);
             if (!dap_strcmp(l_node_addr_str, l_addr_str)) {
                 dap_global_db_pin_sync(l_ret[i].group, l_ret[i].key);
-                log_it(L_DEBUG, "Pin *.service.orders obj %s group, %s key", l_ret[i].group, l_ret[i].key);
+                debug_if(s_debug_more, L_DEBUG, "Pin *.service.orders obj %s group, %s key", l_ret[i].group, l_ret[i].key);
             }
         }
         // DAP_DELETE(l_order); order delete in dap_store_obj_free
@@ -452,7 +453,7 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t *a_net, const dap_chain_
                                   : dap_chain_net_srv_order_get_common_group(a_net);
         size_t l_orders_count = 0;
         dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
-        log_it(L_DEBUG, "Loaded %zu orders", l_orders_count);
+        debug_if(s_debug_more, L_DEBUG, "Loaded %zu orders", l_orders_count);
         const dap_chain_net_srv_order_t *l_order = NULL;
         for (size_t i = 0; i < l_orders_count; i++) {
             l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
