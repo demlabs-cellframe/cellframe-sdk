@@ -101,7 +101,7 @@ int dap_chain_net_srv_stake_ext_init(void)
         if (l_net->pub.ledger) {
             dap_ledger_event_notify_add(l_net->pub.ledger, dap_stake_ext_cache_event_callback, s_stake_ext_cache);
             dap_ledger_srv_callback_event_verify_add(l_net->pub.ledger, (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_STAKE_EXT_ID }, s_stake_ext_event_verify);
-            debug_if(s_debug_more, L_DEBUG, "Registered stake_ext event callbacks for network %s", l_net->pub.name);
+            log_it(L_DEBUG, "Registered stake_ext event callbacks for network %s", l_net->pub.name);
         } else {
             log_it(L_WARNING, "Network %s has no ledger, skipping stake_ext event registration", l_net->pub.name);
         }
@@ -165,7 +165,7 @@ dap_stake_ext_cache_t *dap_chain_net_srv_stake_ext_service_create(void)
     l_cache->total_stake_ext = 0;
     l_cache->active_stake_ext = 0;
     
-    debug_if(s_debug_more, L_DEBUG, "stake_ext cache created successfully");
+    log_it(L_DEBUG, "stake_ext cache created successfully");
     return l_cache;
 }
 
@@ -212,7 +212,7 @@ void dap_chain_net_srv_stake_ext_service_delete(dap_stake_ext_cache_t *a_cache)
     pthread_rwlock_destroy(&a_cache->cache_rwlock);
     DAP_DELETE(a_cache);
     
-    debug_if(s_debug_more, L_DEBUG, "stake_ext cache deleted");
+    log_it(L_DEBUG, "stake_ext cache deleted");
 }
 
 /**
