@@ -87,7 +87,7 @@ int dap_chain_srv_order_pin_init() {
     if ( !l_cert )
         return -1;
     dap_list_t *l_group_list = dap_global_db_get_groups_by_mask("*.service.orders");
-    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(dap_stream_node_addr_from_cert(l_cert));
+    const char *l_node_addr_str = dap_cluster_node_addr_to_str(dap_cluster_node_addr_from_cert(l_cert));
     for (dap_list_t *l_list = l_group_list; l_list && dap_global_db_group_match_mask((char*)l_list->data, "*pinned"); l_list = dap_list_next(l_list)) {
         size_t l_ret_count;
         dap_global_db_store_obj_t *l_ret = dap_global_db_get_all_raw_sync((char*)l_list->data, &l_ret_count);
@@ -99,7 +99,7 @@ int dap_chain_srv_order_pin_init() {
             const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_ret[i].key, l_ret[i].value, l_ret[i].value_len);
             if (!l_order)
                 continue;
-            const char * l_addr_str = dap_stream_node_addr_to_str_static(l_order->node_addr);
+            const char * l_addr_str = dap_cluster_node_addr_to_str(l_order->node_addr);
             if (!dap_strcmp(l_node_addr_str, l_addr_str)) {
                 dap_global_db_pin_sync(l_ret[i].group, l_ret[i].key);
                 log_it(L_DEBUG, "Pin *.service.orders obj %s group, %s key", l_ret[i].group, l_ret[i].key);

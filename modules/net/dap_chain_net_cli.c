@@ -349,7 +349,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
             dap_chain_node_info_t* l_check_node_info = dap_chain_node_list_ip_check(l_node_info, l_net);
             if (l_check_node_info) {
                 log_it(L_INFO, "Replace existed node with same ip %s address %s -> %s", l_check_node_info->ext_host,
-                                         dap_stream_node_addr_to_str_static(l_check_node_info->address), dap_stream_node_addr_to_str_static(l_node_info->address));
+                                         dap_cluster_node_addr_to_str(l_check_node_info->address), dap_cluster_node_addr_to_str(l_node_info->address));
                 dap_chain_node_info_del(l_net, l_check_node_info);
             }
 

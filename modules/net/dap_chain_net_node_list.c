@@ -106,7 +106,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         *l_return_code = DAP_HTTP_STATUS_METHOD_NOT_ALLOWED;
         return;
     }
-    const char *l_key = dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} );
+    const char *l_key = dap_cluster_node_addr_to_str( (dap_chain_node_addr_t){.uint64 = addr} );
     if (!l_key) {
         log_it(L_ERROR, "Bad node address %"DAP_UINT64_FORMAT_U, addr);
         *l_return_code = DAP_HTTP_STATUS_BAD_REQUEST;
@@ -293,7 +293,7 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, uint16_t a_port, boo
                                          g_node_addr.uint64, a_port, a_net->pub.name );
     int l_ret = ERR_NO_SERVER;
     size_t l_seeds_count = 0;
-    dap_stream_node_addr_t *l_seeds_addrs = dap_chain_net_get_authorized_nodes(a_net, &l_seeds_count);
+    dap_cluster_node_addr_t *l_seeds_addrs = dap_chain_net_get_authorized_nodes(a_net, &l_seeds_count);
     for (size_t i = 0; i < l_seeds_count; ++i) {
         dap_chain_node_info_t *l_remote = dap_chain_node_info_read(a_net, l_seeds_addrs + i);
         if (!l_remote)
@@ -375,7 +375,7 @@ int dap_chain_net_node_list_init()
         return l_res;
     }
     dap_chain_node_addr_t l_addr = l_addr_by_alias ? *l_addr_by_alias : a_node_info->address;
-    char *a_key = dap_stream_node_addr_to_str_static(l_addr);
+    char *a_key = dap_cluster_node_addr_to_str(l_addr);
     if ( !(l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key)) ) {
         dap_list_t *list_aliases = get_aliases_by_name(a_net, &l_addr), *l_el = list_aliases;
         while (l_el) {

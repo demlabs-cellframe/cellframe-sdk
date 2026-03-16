@@ -235,14 +235,21 @@ set(CELLFRAME_LIBS "")
 # Core libs from dap-sdk
 if (CELLFRAME_MODULES MATCHES "core")
     message("[+] Module 'core'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_plugin dap_crypto m)
+    if(DAP_WASM)
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto m)
+    else()
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_plugin dap_crypto m)
+    endif()
 endif()
 
 # General chain libs
 if (CELLFRAME_MODULES MATCHES "chains")
     message("[+] Module 'chains'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_datum dap_chain_tx_compose dap_chain_ledger dap_chain dap_global_db dap_chain_wallet)
-    # dap_chain_tx_compose - TX Compose Plugin API from modules/datum/tx
+    if(DAP_WASM)
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_datum dap_chain_tx_compose dap_chain dap_chain_wallet)
+    else()
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_datum dap_chain_tx_compose dap_chain_ledger dap_chain dap_global_db dap_chain_wallet)
+    endif()
 endif()
 
 if (CELLFRAME_MODULES MATCHES "ledger")
@@ -423,6 +430,9 @@ endif()
 # =========================================
 # CREATE FINAL CELLFRAME SDK LIBRARY
 # =========================================
+# Post-process: propagate includes for Cellframe OBJECT libraries
+post_process_object_libraries()
+
 # Combine all internal static modules into one final library
 cellframe_create_final_library()
 

@@ -104,7 +104,7 @@ typedef struct dap_chain_esbocs_message_hdr {
     dap_chain_net_id_t net_id;
     dap_chain_id_t chain_id;
     dap_chain_cell_id_t cell_id;
-    dap_stream_node_addr_t recv_addr;
+    dap_cluster_node_addr_t recv_addr;
     dap_hash_sha3_256_t candidate_hash;
 } DAP_ALIGN_PACKED dap_chain_esbocs_message_hdr_t;
 
@@ -277,8 +277,8 @@ bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id);
 void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
                                         dap_chain_esbocs_block_collect_t *a_block_collect_params,
                                         dap_chain_block_autocollect_type_t a_type);
-bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
-bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
+bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_cluster_node_addr_t *a_validator_addr);
+bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_cluster_node_addr_t *a_validator_addr);
 
 uint256_t dap_chain_esbocs_get_collecting_level(dap_chain_t *a_chain);
 dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain);
