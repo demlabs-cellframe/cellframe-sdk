@@ -87,6 +87,10 @@ static int s_print_for_mempool_list(dap_json_t *a_json_input, dap_json_t *a_json
  void s_com_mempool_list_print_for_chain(dap_json_t *a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_addr,
                                          dap_json_t *a_json_obj, const char *a_hash_out_type, bool a_fast, size_t a_limit, size_t a_offset, int a_version)
 {
+    if (!a_net || !a_chain) {
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "Invalid network or chain pointer");
+        return;
+    }
 
     dap_chain_addr_t l_wallet_addr = {};
     if (a_addr) {
@@ -189,6 +193,11 @@ static int s_print_for_mempool_list(dap_json_t *a_json_input, dap_json_t *a_json
     // Обработка каждого объекта из mempool
     for (size_t i = l_arr_start; i < l_arr_end; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t *) l_objs[i].value;
+        if (!l_datum) {
+            log_it(L_ERROR, "NULL datum value in GDB %s.%s, key: %s",
+                    a_net->pub.name, a_chain->name, l_objs[i].key);
+            continue;
+        }
         if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
             log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s data_size:%u, value_len:%zu",
                     a_net->pub.name, a_chain->name, l_objs[i].key, l_datum->header.data_size, l_objs[i].value_len);
