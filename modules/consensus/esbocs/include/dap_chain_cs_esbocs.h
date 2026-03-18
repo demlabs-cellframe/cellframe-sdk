@@ -23,6 +23,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
+#include <stdatomic.h>
 #include "dap_timerfd.h"
 #include "dap_chain.h"
 #include "dap_chain_block.h"
@@ -229,6 +230,9 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_node_addr_t my_addr;
     uint8_t state, old_state;
     bool cs_timer, round_fast_forward, sync_failed, new_round_enqueued, is_actual_hash;
+    atomic_bool stopping;
+    atomic_uint_fast32_t inflight_callbacks;
+    void *atom_notifier_ctx;
     dap_global_db_driver_hash_t db_hash;
     dap_global_db_driver_hash_t db_hash_legacy;
     dap_chain_esbocs_peer_version_item_t *peer_version_items;
