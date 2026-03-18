@@ -436,6 +436,11 @@ post_process_object_libraries()
 # Combine all internal static modules into one final library
 cellframe_create_final_library()
 
+# Make cellframe-sdk.h available to consumers
+if(TARGET cellframe_sdk)
+    target_include_directories(cellframe_sdk PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
 # =========================================
 # INSTALL TARGETS
 # =========================================
