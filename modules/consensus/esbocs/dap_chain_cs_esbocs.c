@@ -162,6 +162,8 @@ static void s_session_peer_version_set(dap_chain_esbocs_session_t *a_session, da
 {
     if (!s_protocol_version_is_supported(a_version))
         return;
+    if (dap_chain_addr_compare(a_signing_addr, &a_session->my_signing_addr))
+        a_version = DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT;
     dap_chain_esbocs_peer_version_item_t *l_item = NULL;
     HASH_FIND(hh, a_session->peer_version_items, a_signing_addr, sizeof(*a_signing_addr), l_item);
     if (l_item && l_item->version >= a_version)
@@ -177,6 +179,8 @@ static void s_session_peer_version_set(dap_chain_esbocs_session_t *a_session, da
 static uint16_t s_session_peer_version_resolve(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_validator_t *a_validator,
                                                uint16_t a_unknown_peer_version)
 {
+    if (dap_chain_addr_compare(&a_validator->signing_addr, &a_session->my_signing_addr))
+        return DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT;
     uint16_t l_version = s_session_peer_version_get(a_session, &a_validator->signing_addr);
     if (s_protocol_version_is_supported(l_version))
         return l_version;
@@ -722,6 +726,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
+    s_session_peer_version_set(l_session, &l_session->my_signing_addr, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
 
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
@@ -1413,6 +1418,7 @@ static bool s_session_round_new(void *a_arg)
     s_session_peer_versions_cleanup(a_session, a_session->cur_round.all_validators);
     if (!a_session->cur_round.all_validators)
         s_session_peer_versions_cleanup(a_session, NULL);
+    s_session_peer_version_set(a_session, &a_session->my_signing_addr, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
     debug_if(PVT(a_session->esbocs)->debug_more, L_DEBUG,
              "Round peer version cache cleanup: %zu -> %zu entries",
              l_peer_versions_count_before, s_session_peer_versions_count(a_session));
@@ -2766,25 +2772,51 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                 }
             }
         } else if (!l_session->cur_round.sync_sent) { // Send it immediately, if was not sent yet
+            bool l_reply_probe_sent = false;
             dap_list_t *l_all_validator_list = s_validator_check(&l_signing_addr, l_session->cur_round.all_validators);
+            if (!s_protocol_version_is_supported(l_prev_peer_version) && l_all_validator_list) {
+                dap_chain_esbocs_validator_t *l_sender_validator = l_all_validator_list->data;
+                debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                         "Reply START_SYNC probe v%u to %s (unknown peer version)",
+                         DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT,
+                         dap_chain_hash_fast_to_str_static(&l_sender_validator->signing_addr.data.hash_fast));
+                s_session_send_startsync_hash(l_session, &l_session->cur_round.last_block_hash,
+                                              l_sender_validator, l_session->db_hash,
+                                              DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
+                l_reply_probe_sent = true;
+            }
             if (l_all_validator_list) {
                 dap_chain_esbocs_validator_t *l_sender_validator = l_all_validator_list->data;
-                uint16_t l_reply_version = s_protocol_version_is_supported(l_prev_peer_version) ?
-                        s_session_peer_version_resolve(l_session, l_sender_validator, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY) :
-                        DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT;
-                dap_global_db_driver_hash_t l_reply_hash = l_reply_version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY ?
-                        l_session->db_hash_legacy : l_session->db_hash;
-                debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
-                         "Reply START_SYNC to %s with v%hu (prev_peer_v=%hu) hash=%s",
-                         dap_chain_hash_fast_to_str_static(&l_sender_validator->signing_addr.data.hash_fast),
-                         l_reply_version, l_prev_peer_version, dap_global_db_driver_hash_print(l_reply_hash));
-                s_session_send_startsync_hash(l_session, &l_session->cur_round.last_block_hash,
-                                              l_sender_validator, l_reply_hash, l_reply_version);
+                if (!l_reply_probe_sent) {
+                    uint16_t l_reply_version = s_protocol_version_is_supported(l_prev_peer_version) ?
+                            s_session_peer_version_resolve(l_session, l_sender_validator, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY) :
+                            DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT;
+                    dap_global_db_driver_hash_t l_reply_hash = l_reply_version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY ?
+                            l_session->db_hash_legacy : l_session->db_hash;
+                    debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                             "Reply START_SYNC to %s with v%hu (prev_peer_v=%hu) hash=%s",
+                             dap_chain_hash_fast_to_str_static(&l_sender_validator->signing_addr.data.hash_fast),
+                             l_reply_version, l_prev_peer_version, dap_global_db_driver_hash_print(l_reply_hash));
+                    s_session_send_startsync_hash(l_session, &l_session->cur_round.last_block_hash,
+                                                  l_sender_validator, l_reply_hash, l_reply_version);
+                }
             }
             debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
                      "Broadcast START_SYNC after reply, skip sender %s",
                      dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
             s_session_send_startsync_with_unknown_version(l_session, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY, &l_signing_addr);
+        } else if (!s_protocol_version_is_supported(l_prev_peer_version)) {
+            dap_list_t *l_all_validator_list = s_validator_check(&l_signing_addr, l_session->cur_round.all_validators);
+            if (l_all_validator_list) {
+                dap_chain_esbocs_validator_t *l_sender_validator = l_all_validator_list->data;
+                debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                         "Reply START_SYNC probe v%u to %s after sync_sent (unknown peer version)",
+                         DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT,
+                         dap_chain_hash_fast_to_str_static(&l_sender_validator->signing_addr.data.hash_fast));
+                s_session_send_startsync_hash(l_session, &l_session->cur_round.last_block_hash,
+                                              l_sender_validator, l_session->db_hash,
+                                              DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
+            }
         }
 
         s_session_validator_mark_online(l_session, &l_signing_addr);
@@ -2963,11 +2995,15 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         HASH_FIND(hh, l_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
         if (!l_store) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_static(l_candidate_hash);
-            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                " Decline COMMIT_SIGN message for unknown candidate %s",
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                " Receive COMMIT_SIGN message for unknown candidate %s, process it later",
                                     l_session->chain->net_name, l_session->chain->name,
                                         l_session->cur_round.id, l_message->hdr.attempt_num,
                                             l_candidate_hash_str);
+            dap_chain_esbocs_message_item_t *l_unprocessed_item = NULL;
+            HASH_FIND(hh, l_round->message_items, &l_data_hash, sizeof(dap_chain_hash_fast_t), l_unprocessed_item);
+            if (l_unprocessed_item)
+                l_unprocessed_item->unprocessed = true;
             break;
         }
         dap_list_t *l_list = s_validator_check(&l_signing_addr, l_session->cur_round.validators_list);
