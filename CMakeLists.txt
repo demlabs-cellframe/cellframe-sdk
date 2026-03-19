@@ -261,7 +261,7 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_decree dap_chain_net_srv dap_chain_mempool)
+        dap_stream dap_client dap_cli_server dap_chain_net dap_chain_net_decree dap_chain_net_srv dap_chain_mempool)
         # REMOVED: dap_chain_node_cli_cmd - module was refactored and split
         # dap_chain_net_decree - network decree handlers
 endif()
@@ -271,7 +271,7 @@ if (CELLFRAME_MODULES MATCHES "compose")
     message("[+] Module 'compose'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
         # REMOVED: dap_compose - module was replaced with dap_chain_tx_compose
-        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
+        dap_stream dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
 endif()
 
 # Chain net services
