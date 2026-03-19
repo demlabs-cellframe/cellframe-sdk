@@ -1147,7 +1147,9 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_return_val_if_fail(l_esbocs && l_esbocs->session, -2);
+    dap_return_val_if_fail(l_esbocs, -2);
+    if (!l_esbocs->session)
+        return s_esbocs_set_min_validators_count_apply(a_chain, a_new_value);
     s_esbocs_setter_call_t l_call = {
         .session = l_esbocs->session,
         .chain = a_chain,
@@ -1165,7 +1167,13 @@ uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
     if (l_session)
         l_ret = PVT(l_session->esbocs)->min_validators_count;
     pthread_rwlock_unlock(&s_session_items_lock);
-    return l_ret;
+    if (l_session)
+        return l_ret;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    for (dap_chain_t *it = l_net ? l_net->pub.chains : NULL; it; it = it->next)
+        if (!dap_strcmp(dap_chain_get_cs_type(it), DAP_CHAIN_ESBOCS_CS_TYPE_STR))
+            return PVT(DAP_CHAIN_ESBOCS(DAP_CHAIN_CS_BLOCKS(it)))->min_validators_count;
+    return 0;
 }
 
 int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
@@ -1173,7 +1181,9 @@ int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_return_val_if_fail(l_esbocs && l_esbocs->session, -2);
+    dap_return_val_if_fail(l_esbocs, -2);
+    if (!l_esbocs->session)
+        return s_esbocs_set_signs_struct_check_apply(a_chain, a_enable);
     s_esbocs_setter_call_t l_call = {
         .session = l_esbocs->session,
         .chain = a_chain,
@@ -1189,7 +1199,9 @@ int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, u
     dap_return_val_if_fail(a_validator_hash, -2);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_return_val_if_fail(l_esbocs && l_esbocs->session, -3);
+    dap_return_val_if_fail(l_esbocs, -3);
+    if (!l_esbocs->session)
+        return s_esbocs_set_emergency_validator_apply(a_chain, a_add, a_sign_type, a_validator_hash);
     s_esbocs_setter_call_t l_call = {
         .session = l_esbocs->session,
         .chain = a_chain,
@@ -2765,7 +2777,6 @@ static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_ch
         if (dap_hash_fast_compare(&l_authorized_pkey->data.hash_fast, &a_signing_addr->data.hash_fast))
             return it;
     }
-    log_it(L_ERROR, "Emergency rights denied - address %s not in authorized list", dap_chain_addr_to_str_static(a_signing_addr));
     return NULL;
 }
 
@@ -4191,9 +4202,10 @@ int dap_chain_esbocs_set_empty_block_every_times(dap_chain_t *a_chain, uint16_t 
 {
     dap_return_val_if_pass(!a_chain || !DAP_CHAIN_ESBOCS(a_chain), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_return_val_if_pass(!DAP_CHAIN_ESBOCS(l_blocks) || !PVT(DAP_CHAIN_ESBOCS(l_blocks)), -2);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_return_val_if_pass(!l_esbocs || !l_esbocs->session, -3);
+    dap_return_val_if_pass(!l_esbocs || !PVT(l_esbocs), -2);
+    if (!l_esbocs->session)
+        return s_esbocs_set_empty_block_period_apply(a_chain, a_blockgen_period);
     s_esbocs_setter_call_t l_call = {
         .session = l_esbocs->session,
         .chain = a_chain,
