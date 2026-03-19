@@ -19,8 +19,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "dap_common.h"
+#include "dap_config.h"
+#include "dap_file_utils.h"
 #include "dap_hash.h"
 #include "dap_time.h"
 #include "dap_tsd.h"
@@ -29,10 +32,8 @@
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_tx.h"
-#include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_poa.h"
-#include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs_none.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
@@ -257,30 +258,80 @@ static void test_blocking_works_without_flag(void)
     dap_pass_msg("Bug #19971 Test 3 PASSED: blocking works without flag (sanity)");
 }
 
+static char s_config_dir[512];
+static char s_gdb_dir[512];
+static char s_certs_dir[512];
+
+static void s_setup(void)
+{
+    const char *l_tmp = test_get_temp_dir();
+    snprintf(s_config_dir, sizeof(s_config_dir), "%s/reg19971_config", l_tmp);
+    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/reg19971_gdb", l_tmp);
+    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/reg19971_certs", l_tmp);
+
+    dap_rm_rf(s_gdb_dir);
+    dap_rm_rf(s_certs_dir);
+    dap_rm_rf(s_config_dir);
+
+    dap_mkdir_with_parents(s_config_dir);
+    dap_mkdir_with_parents(s_certs_dir);
+
+    char l_cfg[2048];
+    snprintf(l_cfg, sizeof(l_cfg),
+        "[general]\ndebug=true\n"
+        "[ledger]\ndebug_more=true\n"
+        "[global_db]\ndriver=mdbx\npath=%s\n"
+        "[resources]\nca_folders=%s\n",
+        s_gdb_dir, s_certs_dir);
+
+    char l_cfg_path[1024];
+    snprintf(l_cfg_path, sizeof(l_cfg_path), "%s/test.cfg", s_config_dir);
+    FILE *f = fopen(l_cfg_path, "w");
+    if (f) { fwrite(l_cfg, 1, strlen(l_cfg), f); fclose(f); }
+
+    int l_res = test_env_init(s_config_dir, s_gdb_dir);
+    dap_assert_PIF(l_res == 0, "Test environment initialized");
+
+    dap_ledger_init();
+
+    dap_chain_cs_dag_init();
+    dap_chain_cs_dag_poa_init();
+    dap_nonconsensus_init();
+
+    s_net_fixture = test_net_fixture_create("RegNet19971");
+    dap_assert_PIF(s_net_fixture != NULL, "Network fixture created");
+}
+
+static void s_teardown(void)
+{
+    if (s_net_fixture) {
+        test_net_fixture_destroy(s_net_fixture);
+        s_net_fixture = NULL;
+    }
+    test_env_deinit();
+
+    dap_rm_rf(s_config_dir);
+    dap_rm_rf(s_gdb_dir);
+    dap_rm_rf(s_certs_dir);
+}
+
 int main(int argc, char **argv)
 {
     UNUSED(argc);
     UNUSED(argv);
 
+    dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
+    dap_log_level_set(L_DEBUG);
+
     dap_print_module_name("Bug #19971 Regression Test: UTXO_BLOCKING_DISABLED");
 
-    dap_chain_cs_init();
-    dap_chain_cs_dag_init();
-    dap_chain_cs_dag_poa_init();
-    dap_chain_cs_esbocs_init();
-    dap_nonconsensus_init();
-
-    test_env_init(NULL, NULL);
-    s_net_fixture = test_net_fixture_create("RegNet19971");
-    dap_assert_PIF(s_net_fixture != NULL, "Network fixture created");
+    s_setup();
 
     test_blocklist_add_with_disabled_flag();
     test_blocked_utxo_usable_with_disabled_flag();
     test_blocking_works_without_flag();
 
-    test_net_fixture_destroy(s_net_fixture);
-    s_net_fixture = NULL;
-    test_env_deinit();
+    s_teardown();
 
     log_it(L_NOTICE, "=== Bug #19971 Regression Test COMPLETE ===");
     return 0;

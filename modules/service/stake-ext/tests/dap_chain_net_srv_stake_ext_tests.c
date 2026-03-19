@@ -853,7 +853,11 @@ void dap_srv_stake_ext_test_event_processing(void)
     l_result = dap_stake_ext_cache_update_stake_ext_status(l_cache, &l_stake_ext_hash, DAP_STAKE_EXT_STATUS_ENDED);
     dap_assert_PIF(l_result == 0, "Failed to update stake_ext status to ENDED");
     
-    // Manually set winners information (simulating event processing with winners)
+    // Set winners information (simulating event processing with winners)
+    l_result = dap_stake_ext_cache_set_winners_by_name(l_cache, l_group_name, l_ended_data->end_time,
+                                                        l_winners_cnt, l_winners_ids);
+    dap_assert_PIF(l_result == 0, "Failed to set winners");
+
     l_found_stake_ext = dap_stake_ext_cache_find_stake_ext_by_name(l_cache, l_group_name);
     dap_assert_PIF(l_found_stake_ext, "stake_ext should still exist after ENDED status change");
        

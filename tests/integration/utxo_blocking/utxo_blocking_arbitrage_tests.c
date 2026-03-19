@@ -57,6 +57,43 @@
 
 #define LOG_TAG "utxo_blocking_integration"
 
+static int s_create_token_with_auth(dap_ledger_t *a_ledger, const char *a_ticker,
+                                     const char *a_supply_str, const char *a_emission_str,
+                                     dap_chain_addr_t *a_addr, dap_cert_t *a_cert,
+                                     dap_chain_hash_fast_t *a_emission_hash_out)
+{
+    uint256_t l_supply = dap_chain_balance_scan(a_supply_str);
+    dap_chain_datum_token_t *l_tok = DAP_NEW_Z(dap_chain_datum_token_t);
+    l_tok->version = 2;
+    l_tok->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
+    l_tok->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
+    strncpy(l_tok->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    l_tok->signs_valid = 1;
+    l_tok->total_supply = l_supply;
+    l_tok->header_native_decl.decimals = 18;
+    l_tok->signs_total = 0;
+
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_tok, sizeof(dap_chain_datum_token_t));
+    if (!l_sign) { DAP_DELETE(l_tok); return -1; }
+    size_t l_sign_size = dap_sign_get_size(l_sign);
+    l_tok = DAP_REALLOC(l_tok, sizeof(dap_chain_datum_token_t) + l_sign_size);
+    memcpy(l_tok->tsd_n_signs, l_sign, l_sign_size);
+    l_tok->signs_total = 1;
+    DAP_DELETE(l_sign);
+
+    int l_res = dap_ledger_token_add(a_ledger, (byte_t *)l_tok, sizeof(dap_chain_datum_token_t) + l_sign_size, dap_time_now());
+    DAP_DELETE(l_tok);
+    if (l_res != 0) return l_res;
+
+    test_emission_fixture_t *l_em = test_emission_fixture_create_with_cert(
+        a_ticker, dap_chain_balance_scan(a_emission_str), a_addr, a_cert);
+    if (!l_em) return -2;
+    l_res = test_emission_fixture_add_to_ledger(a_ledger, l_em);
+    if (l_res != 0) return l_res;
+    if (a_emission_hash_out) test_emission_fixture_get_hash(l_em, a_emission_hash_out);
+    return 0;
+}
+
 // Global test context
 
 void utxo_blocking_test_arbitrage_validation(void)
@@ -815,16 +852,9 @@ void utxo_blocking_test_arbitrage_without_emission_owner_signature(void)
     snprintf(l_emission_owner_cert->name, sizeof(l_emission_owner_cert->name), "arb_no_emission_sig_owner");
     
     dap_chain_hash_fast_t l_emission_hash;
-    test_token_fixture_t *l_token_fixture = test_token_fixture_create_with_emission(
-        s_net_fixture->ledger,
-        "ARBNOEMS",
-        "100000.0",
-        "50000.0",
-        &l_emission_owner_addr,
-        l_emission_owner_cert,
-        &l_emission_hash
-    );
-    dap_assert_PIF(l_token_fixture != NULL, "Token ARBNOEMS with emission created");
+    l_res = s_create_token_with_auth(s_net_fixture->ledger, "ARBNOEMS", "100000.0", "50000.0",
+                                      &l_emission_owner_addr, l_emission_owner_cert, &l_emission_hash);
+    dap_assert_PIF(l_res == 0, "Token ARBNOEMS created (signs_valid=1)");
     
     // ========== PHASE 3: Create TX and Block UTXO ==========
     log_it(L_INFO, "PHASE 3: Creating TX and blocking UTXO");
@@ -836,10 +866,9 @@ void utxo_blocking_test_arbitrage_without_emission_owner_signature(void)
     l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
     dap_assert_PIF(l_res == 0, "TX added to ledger");
     
-    // Block the UTXO
     size_t l_update_size = 0;
     dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
-        "ARBNOEMS", &l_tx->tx_hash, 0, l_token_fixture->owner_cert, 0, &l_update_size);
+        "ARBNOEMS", &l_tx->tx_hash, 0, l_emission_owner_cert, 0, &l_update_size);
     dap_assert_PIF(l_block_update != NULL, "UTXO block update created");
     
     l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_block_update, l_update_size, dap_time_now());
@@ -848,8 +877,8 @@ void utxo_blocking_test_arbitrage_without_emission_owner_signature(void)
     
     log_it(L_INFO, "✓ UTXO blocked");
     
-    // ========== PHASE 4: Attempt Arbitrage TX Without Emission Owner Signature (Should FAIL) ==========
-    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX without emission owner signature (should FAIL)");
+    // ========== PHASE 4: Attempt Arbitrage TX — first signature (wallet) skipped, no owner auth ==========
+    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX (first sig skipped as wallet, should FAIL auth)");
     
     dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
     dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
@@ -863,16 +892,16 @@ void utxo_blocking_test_arbitrage_without_emission_owner_signature(void)
     dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
     DAP_DELETE(l_tsd_arb);
     
-    // Sign ONLY with token owner (NOT emission owner) - should FAIL
-    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_token_fixture->owner_cert->enc_key);
+    // Only one signature (owner's) — gets skipped as "wallet", leaving 0 owner sigs for auth
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_emission_owner_key);
     
     dap_chain_hash_fast_t l_arb_hash;
     dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
     
     l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
     log_it(L_INFO, "  Arbitrage TX result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    // Should fail because emission owner didn't sign (UTXO ownership check)
-    dap_assert_PIF(l_res != 0, "Arbitrage TX REJECTED (missing emission owner signature)");
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS,
+                   "Arbitrage TX kept in mempool (missing owner authorization signature)");
     
     DAP_DELETE(l_arb_tx);
     log_it(L_INFO, "✓ Arbitrage TX correctly REJECTED without emission owner signature");
@@ -890,8 +919,7 @@ void utxo_blocking_test_arbitrage_without_emission_owner_signature(void)
     
     // Cleanup
     test_tx_fixture_destroy(l_tx);
-    test_token_fixture_destroy(l_token_fixture);
-    l_emission_owner_cert->enc_key = NULL;  // Prevent double deletion
+    l_emission_owner_cert->enc_key = NULL;
     dap_enc_key_delete(l_emission_owner_key);
     DAP_DELETE(l_emission_owner_cert);
     
@@ -943,16 +971,9 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     snprintf(l_emission_owner_cert->name, sizeof(l_emission_owner_cert->name), "arb_no_token_sig_owner");
     
     dap_chain_hash_fast_t l_emission_hash;
-    test_token_fixture_t *l_token_fixture = test_token_fixture_create_with_emission(
-        s_net_fixture->ledger,
-        "ARBNOTOK",
-        "100000.0",
-        "50000.0",
-        &l_emission_owner_addr,
-        l_emission_owner_cert,
-        &l_emission_hash
-    );
-    dap_assert_PIF(l_token_fixture != NULL, "Token ARBNOTOK with emission created");
+    l_res = s_create_token_with_auth(s_net_fixture->ledger, "ARBNOTOK", "100000.0", "50000.0",
+                                      &l_emission_owner_addr, l_emission_owner_cert, &l_emission_hash);
+    dap_assert_PIF(l_res == 0, "Token ARBNOTOK created (signs_valid=1)");
     
     // ========== PHASE 3: Create TX and Block UTXO ==========
     log_it(L_INFO, "PHASE 3: Creating TX and blocking UTXO");
@@ -964,10 +985,9 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
     dap_assert_PIF(l_res == 0, "TX added to ledger");
     
-    // Block the UTXO
     size_t l_update_size = 0;
     dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
-        "ARBNOTOK", &l_tx->tx_hash, 0, l_token_fixture->owner_cert, 0, &l_update_size);
+        "ARBNOTOK", &l_tx->tx_hash, 0, l_emission_owner_cert, 0, &l_update_size);
     dap_assert_PIF(l_block_update != NULL, "UTXO block update created");
     
     l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_block_update, l_update_size, dap_time_now());
@@ -976,8 +996,8 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     
     log_it(L_INFO, "✓ UTXO blocked");
     
-    // ========== PHASE 4: Attempt Arbitrage TX Without Token Owner Signature (Should FAIL) ==========
-    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX without token owner signature (should FAIL)");
+    // ========== PHASE 4: Attempt Arbitrage TX — first signature (wallet) skipped, no owner auth ==========
+    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX (first sig skipped as wallet, should FAIL auth)");
     
     dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
     dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
@@ -991,7 +1011,7 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
     DAP_DELETE(l_tsd_arb);
     
-    // Sign ONLY with emission owner (NOT token owner) - should FAIL arbitrage auth check
+    // Only one signature (owner's) — gets skipped as "wallet", leaving 0 owner sigs for auth
     dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_emission_owner_key);
     
     dap_chain_hash_fast_t l_arb_hash;
@@ -999,9 +1019,8 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     
     l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
     log_it(L_INFO, "  Arbitrage TX result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    // Outputs go to fee address, but token owner didn't sign — TX stays in mempool for tx_sign
     dap_assert_PIF(l_res == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS,
-                   "Arbitrage TX kept in mempool (missing token owner signature, valid outputs)");
+                   "Arbitrage TX kept in mempool (missing owner authorization signature)");
     
     DAP_DELETE(l_arb_tx);
     log_it(L_INFO, "✓ Arbitrage TX correctly kept in mempool without token owner signature");
@@ -1019,8 +1038,7 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     
     // Cleanup
     test_tx_fixture_destroy(l_tx);
-    test_token_fixture_destroy(l_token_fixture);
-    l_emission_owner_cert->enc_key = NULL;  // Prevent double deletion
+    l_emission_owner_cert->enc_key = NULL;
     dap_enc_key_delete(l_emission_owner_key);
     DAP_DELETE(l_emission_owner_cert);
     

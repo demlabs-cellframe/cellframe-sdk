@@ -974,11 +974,14 @@ void utxo_blocking_test_utxo_blocking_disabled_behaviour(void)
     log_it(L_INFO, "✓ Transaction created UTXO: %s:0 (1000.0 NOBLOCK)", 
            dap_chain_hash_fast_to_str_static(&l_tx_fixture->tx_hash));
     
-    // ========== PHASE 3: Attempt UTXO Blocking (should be REJECTED) ==========
-    log_it(L_INFO, "PHASE 3: Attempting UTXO blocking operations (all should be REJECTED)");
+    // ========== PHASE 3: Attempt UTXO Blocking (should SUCCEED — blocklist populated but ignored) ==========
+    // Bug #19971 fix: UTXO_BLOCKING_DISABLED allows populating the blocklist.
+    // The blocklist is only ignored during TX validation (not during token_update).
+    // This supports the workflow: disable blocking → populate blocklist → re-enable blocking.
+    log_it(L_INFO, "PHASE 3: UTXO blocking operations with UTXO_BLOCKING_DISABLED (should succeed)");
     
-    // Step 3.1: Try UTXO_BLOCKED_ADD
-    log_it(L_DEBUG, "  Test 3.1: UTXO_BLOCKED_ADD (should fail)");
+    // Step 3.1: UTXO_BLOCKED_ADD should succeed (blocklist populated, ignored at validation)
+    log_it(L_DEBUG, "  Test 3.1: UTXO_BLOCKED_ADD (should succeed — populate blocklist)");
     size_t l_update_size = 0;
     dap_chain_datum_token_t *l_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
         "NOBLOCK", &l_tx_fixture->tx_hash, 0, l_cert, 0, &l_update_size);
@@ -986,68 +989,23 @@ void utxo_blocking_test_utxo_blocking_disabled_behaviour(void)
     
     l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_update, l_update_size, dap_time_now());
     log_it(L_INFO, "    UTXO_BLOCKED_ADD result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    dap_assert_PIF(l_res == DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN, 
-                   "UTXO_BLOCKED_ADD correctly REJECTED (TSD_FORBIDDEN)");
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_OK,
+                   "UTXO_BLOCKED_ADD accepted (blocklist populated despite UTXO_BLOCKING_DISABLED)");
     DAP_DELETE(l_update);
     
-    // Step 3.2: Try UTXO_BLOCKED_REMOVE (should also fail, even though nothing is blocked)
-    log_it(L_DEBUG, "  Test 3.2: UTXO_BLOCKED_REMOVE (should fail)");
+    // Step 3.2: UTXO_BLOCKED_REMOVE should succeed (entry exists after ADD)
+    log_it(L_DEBUG, "  Test 3.2: UTXO_BLOCKED_REMOVE (should succeed — remove from blocklist)");
     l_update = utxo_blocking_test_create_token_update_with_utxo_unblock_tsd(
         "NOBLOCK", &l_tx_fixture->tx_hash, 0, l_cert, 0, &l_update_size);
     dap_assert_PIF(l_update != NULL, "Token update (REMOVE) created");
     
     l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_update, l_update_size, dap_time_now());
     log_it(L_INFO, "    UTXO_BLOCKED_REMOVE result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    dap_assert_PIF(l_res == DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN, 
-                   "UTXO_BLOCKED_REMOVE correctly REJECTED (TSD_FORBIDDEN)");
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_OK,
+                   "UTXO_BLOCKED_REMOVE accepted (blocklist entry removed)");
     DAP_DELETE(l_update);
     
-    // Step 3.3: Try UTXO_BLOCKED_CLEAR (should also fail)
-    log_it(L_DEBUG, "  Test 3.3: UTXO_BLOCKED_CLEAR (should fail)");
-    dap_tsd_t *l_tsd_clear = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_CLEAR, NULL, 0);
-    dap_assert_PIF(l_tsd_clear != NULL, "TSD CLEAR created");
-    
-    dap_chain_datum_token_t *l_clear_token = DAP_NEW_Z(dap_chain_datum_token_t);
-    dap_assert_PIF(l_clear_token != NULL, "Token datum (CLEAR) allocation");
-    
-    l_clear_token->version = 2;
-    l_clear_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
-    l_clear_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
-    strncpy(l_clear_token->ticker, "NOBLOCK", DAP_CHAIN_TICKER_SIZE_MAX - 1);
-    l_clear_token->ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
-    l_clear_token->signs_valid = 0;
-    l_clear_token->total_supply = uint256_0;
-    l_clear_token->header_native_decl.decimals = 0;
-    l_clear_token->header_native_decl.flags = 0;
-    l_clear_token->signs_total = 0;
-    
-    size_t l_tsd_clear_size = dap_tsd_size(l_tsd_clear);
-    l_clear_token->header_native_decl.tsd_total_size = l_tsd_clear_size;
-    
-    l_clear_token = DAP_REALLOC(l_clear_token, sizeof(dap_chain_datum_token_t) + l_tsd_clear_size);
-    dap_assert_PIF(l_clear_token != NULL, "Token realloc for TSD");
-    memcpy(l_clear_token->tsd_n_signs, l_tsd_clear, l_tsd_clear_size);
-    DAP_DELETE(l_tsd_clear);
-    
-    dap_sign_t *l_clear_sign = dap_cert_sign(l_cert, l_clear_token, sizeof(dap_chain_datum_token_t) + l_tsd_clear_size);
-    dap_assert_PIF(l_clear_sign != NULL, "Token update (CLEAR) signing");
-    
-    size_t l_clear_sign_size = dap_sign_get_size(l_clear_sign);
-    l_clear_token = DAP_REALLOC(l_clear_token, sizeof(dap_chain_datum_token_t) + l_tsd_clear_size + l_clear_sign_size);
-    dap_assert_PIF(l_clear_token != NULL, "Token realloc for signature");
-    memcpy(l_clear_token->tsd_n_signs + l_tsd_clear_size, l_clear_sign, l_clear_sign_size);
-    l_clear_token->signs_total = 1;
-    DAP_DELETE(l_clear_sign);
-    
-    l_update_size = sizeof(dap_chain_datum_token_t) + l_tsd_clear_size + l_clear_sign_size;
-    
-    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_clear_token, l_update_size, dap_time_now());
-    log_it(L_INFO, "    UTXO_BLOCKED_CLEAR result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    dap_assert_PIF(l_res == DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN, 
-                   "UTXO_BLOCKED_CLEAR correctly REJECTED (TSD_FORBIDDEN)");
-    DAP_DELETE(l_clear_token);
-    
-    log_it(L_INFO, "✓ All UTXO blocking operations correctly REJECTED (flag enforcement works)");
+    log_it(L_INFO, "✓ UTXO blocking operations accepted with UTXO_BLOCKING_DISABLED (blocklist populated but ignored)");
     
     // ========== PHASE 4: Verify UTXO Spendability ==========
     log_it(L_INFO, "PHASE 4: Verifying UTXO remains spendable");
@@ -1090,7 +1048,7 @@ void utxo_blocking_test_utxo_blocking_disabled_behaviour(void)
     log_it(L_NOTICE, "UTXO_BLOCKING_DISABLED Comprehensive Verification PASSED:");
     log_it(L_NOTICE, "  ✓ Phase 1: Token created with flag (verified in ledger)");
     log_it(L_NOTICE, "  ✓ Phase 2: Emission and UTXO created successfully");
-    log_it(L_NOTICE, "  ✓ Phase 3: All blocking operations rejected (ADD/REMOVE/CLEAR)");
+    log_it(L_NOTICE, "  ✓ Phase 3: Blocking operations accepted (blocklist populated, ignored)");
     log_it(L_NOTICE, "  ✓ Phase 4: UTXO remains spendable");
     log_it(L_NOTICE, "  ✓ Phase 5: Balance calculations correct");
     log_it(L_NOTICE, "═══════════════════════════════════════════════════════════");
