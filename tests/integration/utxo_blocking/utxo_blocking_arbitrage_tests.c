@@ -999,12 +999,12 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     
     l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
     log_it(L_INFO, "  Arbitrage TX result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    // Should fail because token owner didn't sign (arbitrage authorization check)
-    dap_assert_PIF(l_res == DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED, 
-                   "Arbitrage TX REJECTED (missing token owner signature)");
+    // Outputs go to fee address, but token owner didn't sign — TX stays in mempool for tx_sign
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS,
+                   "Arbitrage TX kept in mempool (missing token owner signature, valid outputs)");
     
     DAP_DELETE(l_arb_tx);
-    log_it(L_INFO, "✓ Arbitrage TX correctly REJECTED without token owner signature");
+    log_it(L_INFO, "✓ Arbitrage TX correctly kept in mempool without token owner signature");
     
     // ========== Summary ==========
     log_it(L_NOTICE, " ");
@@ -1013,7 +1013,7 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     log_it(L_NOTICE, "  ✓ Phase 1: Network fee address configured");
     log_it(L_NOTICE, "  ✓ Phase 2: Token created with emission");
     log_it(L_NOTICE, "  ✓ Phase 3: UTXO blocked");
-    log_it(L_NOTICE, "  ✓ Phase 4: Arbitrage TX rejected (missing token owner signature)");
+    log_it(L_NOTICE, "  ✓ Phase 4: Arbitrage TX kept in mempool (for distributed signing)");
     log_it(L_NOTICE, "═══════════════════════════════════════════════════════════");
     log_it(L_NOTICE, " ");
     

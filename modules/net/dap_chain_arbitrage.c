@@ -316,89 +316,79 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
         return -1;
     }
 
-    // Check if arbitrage is disabled for this token
-    // By default, arbitrage is ALLOWED (flag is NOT set)
-    // Only if UTXO_ARBITRAGE_TX_DISABLED flag is explicitly set, arbitrage is disabled
+    // Check if arbitrage is disabled for this token (hard reject — no point keeping in mempool)
     if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED) {
         log_it(L_WARNING, "Arbitrage transactions disabled for token %s (UTXO_ARBITRAGE_TX_DISABLED flag is set)", a_token_item->ticker);
         return -1;
     }
-    
-    // Arbitrage is allowed by default (flag is not set)
-    debug_if(s_arbitrage_debug_more(), L_DEBUG, "Arbitrage transactions allowed for token %s (UTXO_ARBITRAGE_TX_DISABLED flag is not set, flags=0x%08X)", 
+
+    debug_if(s_arbitrage_debug_more(), L_DEBUG, "Arbitrage transactions allowed for token %s (flags=0x%08X)",
              a_token_item->ticker, a_token_item->flags);
+
+    // CRITICAL: Validate TX structure (outputs) BEFORE checking signatures.
+    // If the outputs are wrong, the TX is fundamentally broken — no amount of signatures will fix it.
+    // If outputs are correct but signatures are missing, the TX should stay in mempool for tx_sign.
+    if (dap_chain_arbitrage_tx_check_outputs(a_ledger, a_tx, a_token_item) != 0) {
+        log_it(L_WARNING, "Arbitrage TX for token %s has outputs to non-fee addresses — hard reject",
+               a_token_item->ticker);
+        return -1;
+    }
 
     // Get TX signatures
     int l_sign_count = 0;
     dap_list_t *l_list_tx_sign = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_SIG, &l_sign_count);
-    
+
     if (!l_list_tx_sign || l_sign_count == 0) {
-        log_it(L_WARNING, "Arbitrage TX has no signatures");
+        log_it(L_WARNING, "Arbitrage TX has no signatures — keeping in mempool for tx_sign");
         dap_list_free(l_list_tx_sign);
-        return -1;
+        return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
     }
 
-    // Determine fee token (native ticker) and compare with arbitrage token
-    // Wallet signature (first signature) is used ONLY for fee payment authorization,
-    // NOT for arbitrage authorization, unless fee token and arbitrage token are the same
+    // Wallet signature (first) is for fee payment only, unless fee token == arbitrage token
     const char *l_fee_token_ticker = a_ledger->net->pub.native_ticker;
-    bool l_fee_token_same_as_arbitrage = l_fee_token_ticker && 
+    bool l_fee_token_same_as_arbitrage = l_fee_token_ticker &&
                                           !dap_strcmp(l_fee_token_ticker, a_token_item->ticker);
-    
+
     debug_if(s_arbitrage_debug_more(), L_DEBUG, "Arbitrage TX for token %s: fee_token=%s, same_as_arbitrage=%d",
              a_token_item->ticker, l_fee_token_ticker ? l_fee_token_ticker : "NULL", l_fee_token_same_as_arbitrage);
 
-    // Check that at least one signature is from token owner
-    // IMPORTANT: First signature (wallet signature) is used ONLY for fee payment authorization.
-    // It should NOT count towards arbitrage authorization unless fee token == arbitrage token.
     size_t l_valid_owner_signs = 0;
     size_t l_sign_index = 0;
-    
+
     for (dap_list_t *l_iter = l_list_tx_sign; l_iter; l_iter = l_iter->next, l_sign_index++) {
         dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t *)l_iter->data;
-        if (!l_sig) {
+        if (!l_sig)
             continue;
-        }
 
-        // Get public key from signature
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_sig);
-        if (!l_sign) {
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sig);
+        if (!l_sign)
             continue;
-        }
 
-        // Get pkey hash from signature
         dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
-        if (!l_pkey) {
+        if (!l_pkey)
             continue;
-        }
 
         dap_chain_hash_fast_t l_pkey_hash;
-        if (!dap_pkey_get_hash(l_pkey, &l_pkey_hash)) {
+        if (!dap_pkey_get_hash(l_pkey, &l_pkey_hash))
+            continue;
+
+        // Skip first signature (wallet for fee) unless fee token == arbitrage token
+        if (l_sign_index == 0 && !l_fee_token_same_as_arbitrage) {
+            debug_if(s_arbitrage_debug_more(), L_DEBUG, "Skipping first signature (wallet) for arbitrage auth");
             continue;
         }
 
-        // Check if this pkey is in token's auth_pkeys
         bool l_is_owner = false;
         for (uint16_t i = 0; i < a_token_item->auth_signs_total; i++) {
             dap_chain_hash_fast_t l_owner_hash;
             if (dap_pkey_get_hash(a_token_item->auth_pkeys[i], &l_owner_hash)) {
                 if (dap_hash_fast_compare(&l_pkey_hash, &l_owner_hash)) {
                     l_is_owner = true;
-                    break;  // Found this owner
+                    break;
                 }
             }
         }
-        
-        // CRITICAL: First signature (wallet signature) is used ONLY for fee payment authorization.
-        // It should NOT count towards arbitrage authorization unless fee token == arbitrage token.
-        if (l_sign_index == 0 && !l_fee_token_same_as_arbitrage) {
-            // First signature is wallet signature for fee payment - skip it for arbitrage auth
-            debug_if(s_arbitrage_debug_more(), L_DEBUG, "Skipping first signature (wallet) for arbitrage auth: fee_token=%s != arbitrage_token=%s",
-                     l_fee_token_ticker ? l_fee_token_ticker : "NULL", a_token_item->ticker);
-            continue;
-        }
-        
-        // Count signature only if it's from token owner
+
         if (l_is_owner) {
             l_valid_owner_signs++;
             debug_if(s_arbitrage_debug_more(), L_DEBUG, "Signature #%zu is from token owner (total valid: %zu)",
@@ -408,31 +398,14 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
 
     dap_list_free(l_list_tx_sign);
 
-    if (l_valid_owner_signs == 0) {
-        log_it(L_WARNING, "Arbitrage TX for token %s not signed by token owner", 
-               a_token_item->ticker);
-        return -1;
-    }
-
-    // Check if we need minimum number of signatures (auth_signs_valid)
+    // Insufficient owner signatures: keep TX in mempool for distributed signing via tx_sign.
+    // dap_chain_node_mempool_process() keeps TXs with DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS.
     if (l_valid_owner_signs < a_token_item->auth_signs_valid) {
-        log_it(L_WARNING, "Arbitrage TX for token %s requires %zu owner signatures, found %zu",
-               a_token_item->ticker, a_token_item->auth_signs_valid, l_valid_owner_signs);
-        // Return NOT_ENOUGH_VALID_SIGNS so transaction stays in mempool for additional signatures
-        // This allows distributed signing: transaction can be created on one node,
-        // then signatures added from other nodes using tx_sign command.
-        // See dap_chain_node_mempool_process() - transactions with DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS
-        // are NOT deleted from mempool, allowing additional signatures to be added.
+        log_it(L_WARNING, "Arbitrage TX for token %s: %zu/%zu owner signatures — keeping in mempool for tx_sign",
+               a_token_item->ticker, l_valid_owner_signs, a_token_item->auth_signs_valid);
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
     }
 
-    // CRITICAL: Check that all outputs go to fee address ONLY
-    if (dap_chain_arbitrage_tx_check_outputs(a_ledger, a_tx, a_token_item) != 0) {
-        log_it(L_WARNING, "Arbitrage TX for token %s has outputs to non-fee addresses",
-               a_token_item->ticker);
-        return -1;
-    }
-
-    return 0;  // Authorized
+    return 0;
 }
 

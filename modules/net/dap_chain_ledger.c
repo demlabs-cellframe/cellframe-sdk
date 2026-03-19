@@ -1090,11 +1090,12 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
 
-            // Check if UTXO blocking is disabled for this token
+            // When UTXO_BLOCKING_DISABLED is set, blocklist operations are still allowed
+            // (the blocklist is simply ignored during TX validation).
+            // This supports the workflow: disable blocking → populate blocklist → re-enable blocking.
             if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
-                log_it(L_WARNING, "UTXO blocking is disabled for token %s, cannot add UTXO to blocklist", 
+                log_it(L_INFO, "UTXO blocking is disabled for token %s, blocklist add will succeed but has no effect until blocking is re-enabled",
                        a_item_apply_to->ticker);
-                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
             }
 
             // Check if blocklist is static
@@ -1175,11 +1176,9 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
 
-            // Check if UTXO blocking is disabled for this token
             if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
-                log_it(L_WARNING, "UTXO blocking is disabled for token %s, cannot remove UTXO from blocklist", 
+                log_it(L_INFO, "UTXO blocking is disabled for token %s, blocklist remove will succeed but has no effect until blocking is re-enabled",
                        a_item_apply_to->ticker);
-                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
             }
 
             // Check if blocklist is static
@@ -1226,11 +1225,9 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 return m_ret_cleanup(DAP_LEDGER_CHECK_INVALID_SIZE);
             }
 
-            // Check if UTXO blocking is disabled for this token
             if (a_item_apply_to->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
-                log_it(L_WARNING, "UTXO blocking is disabled for token %s, cannot clear blocklist", 
+                log_it(L_INFO, "UTXO blocking is disabled for token %s, blocklist clear will succeed but has no effect until blocking is re-enabled",
                        a_item_apply_to->ticker);
-                return m_ret_cleanup(DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN);
             }
 
             // Check if blocklist is static

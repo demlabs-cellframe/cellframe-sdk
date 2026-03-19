@@ -101,3 +101,69 @@ set_tests_properties(regression_bug_20273 PROPERTIES
     LABELS "regression;arbitrage;bug_20273"
 )
 
+# Bug #19971 Regression Test: UTXO_BLOCKING_DISABLED
+add_executable(test_bug_19971
+    test_bug_19971.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
+)
+
+target_include_directories(test_bug_19971 PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
+)
+
+target_link_libraries(test_bug_19971
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_net
+    dap_chain_common
+    dap_chain_wallet
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
+)
+
+add_test(NAME regression_bug_19971 COMMAND test_bug_19971)
+
+set_tests_properties(regression_bug_19971 PROPERTIES
+    TIMEOUT 120
+    LABELS "regression;utxo;blocking;bug_19971"
+)
+
+# Bug #20605 Regression Test: Arbitrage TX mempool retention
+add_executable(test_bug_20605
+    test_bug_20605.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
+)
+
+target_include_directories(test_bug_20605 PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
+)
+
+target_link_libraries(test_bug_20605
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_net
+    dap_chain_common
+    dap_chain_wallet
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
+)
+
+add_test(NAME regression_bug_20605 COMMAND test_bug_20605)
+
+set_tests_properties(regression_bug_20605 PROPERTIES
+    TIMEOUT 120
+    LABELS "regression;arbitrage;mempool;bug_20605"
+)
+

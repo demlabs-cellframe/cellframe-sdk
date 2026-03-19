@@ -215,10 +215,9 @@ int dap_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
         return -1;
     }
 
-    // Check if UTXO blocking is disabled
     if (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) {
-        log_it(L_WARNING, "UTXO blocking is disabled for token %s", a_token_item->ticker);
-        return -1;
+        log_it(L_INFO, "UTXO blocking is disabled for token %s — adding to blocklist (no effect until blocking is re-enabled)",
+               a_token_item->ticker);
     }
 
     // Check if blocklist is static
