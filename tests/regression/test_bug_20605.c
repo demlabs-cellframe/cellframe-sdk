@@ -33,6 +33,7 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_cs_none.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
 #include "test_token_fixtures.h"
