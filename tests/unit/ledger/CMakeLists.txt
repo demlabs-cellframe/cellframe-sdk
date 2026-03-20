@@ -11,15 +11,27 @@ add_executable(${PROJECT_NAME}
 
 # No explicit includes needed - all propagate via linked modules
 
-# Link modules - includes propagate automatically
 # On macOS, real symbols come from cellframe_sdk (shared, -flat_namespace -interposable)
-# and mock_interpose.c overrides them; linking OBJECT libs directly causes duplicate symbols.
+# and mock_interpose.c overrides them.  We must NOT link the mocked OBJECT library
+# directly (duplicate symbols), but we still need its transitive include dirs.
 if(APPLE)
     target_link_libraries(${PROJECT_NAME}
         dap_test          # Test framework
         dap_sdk           # DAP SDK
         cellframe_sdk     # Cellframe SDK (shared lib provides all implementations)
     )
+    foreach(_mod dap_chain_ledger dap_chain_datum dap_chain_tx_compose)
+        if(TARGET ${_mod})
+            get_target_property(_inc ${_mod} INCLUDE_DIRECTORIES)
+            if(_inc)
+                target_include_directories(${PROJECT_NAME} PRIVATE ${_inc})
+            endif()
+            get_target_property(_iinc ${_mod} INTERFACE_INCLUDE_DIRECTORIES)
+            if(_iinc)
+                target_include_directories(${PROJECT_NAME} PRIVATE ${_iinc})
+            endif()
+        endif()
+    endforeach()
 else()
     target_link_libraries(${PROJECT_NAME}
         dap_test          # Test framework
