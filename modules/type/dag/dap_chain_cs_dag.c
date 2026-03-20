@@ -284,7 +284,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     l_dag->is_single_line = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_single_line",false);
     l_dag->is_celled = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_celled",false);
-    l_dag->is_add_directly = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_add_directly",false);
+    
     l_dag->datum_add_hashes_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag","datum_add_hashes_count",1);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
 #ifndef DAP_LEDGER_TEST
@@ -629,7 +629,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     /* If datum passes thru rounds, let's check if it wasn't added before */
     dap_chain_hash_fast_t l_datum_hash;
     dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
-    if (!l_dag->is_add_directly) {
+    {
         bool l_dup_found = false;
         size_t l_objs_count = 0;
         dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_dag->gdb_group_events_round_new, &l_objs_count);
@@ -711,15 +711,6 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_hash_fast_t l_event_hash;
     dap_hash_fast(l_event, l_event_size, &l_event_hash);
     bool l_res = false;
-    if (l_dag->is_add_directly) {
-        dap_chain_atom_verify_res_t l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size, &l_event_hash, true);
-        DAP_DELETE(l_event);
-        if (l_verify_res != ATOM_ACCEPT) {
-            log_it(L_ERROR, "Can't add new event to the file, atom verification result %d", l_verify_res);
-            return false;
-        } else
-            return true;
-    }
     dap_chain_cs_dag_event_round_item_t l_round_item = { .round_info.datum_hash = l_datum_hash };
     char l_event_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
