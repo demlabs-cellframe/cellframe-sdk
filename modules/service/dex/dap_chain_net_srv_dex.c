@@ -4995,9 +4995,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         // Pick ONLY ONE net_fee OUT per TX (first one matching value == net_fee_req)
         if (is_net_fee && IS_ZERO_256(l_paid_net_fee) && compare256(o->value, l_net_fee_req) == 0) {
             SUM_256_256(l_paid_net_fee, o->value, &l_paid_net_fee);
-            // Skip further processing if not also service fee
-            if (!is_srv_fee)
-                continue;
+            continue;
         }
 
         // ORDER (l_in_cond_cnt==0): skip seller/buyer logic and service fee logic (no tickers, no sellers, no service fee)
