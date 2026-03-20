@@ -109,7 +109,7 @@ static dap_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t 
         l_downlinks_count = 0,
         l_links_count = 0,
         l_low_availability_count = 0;
-    dap_stream_node_addr_t
+    dap_cluster_node_addr_t
         *l_curr_addr = &dap_chain_net_get_my_node_info(a_net)->address,
         *l_links = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, false),
         *l_low_availability = dap_link_manager_get_ignored_addrs(&l_low_availability_count, a_net->pub.id.uint64);
@@ -118,7 +118,7 @@ static dap_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t 
         log_it(L_WARNING, "Error forming ignore list in net %s, please check, should be minimum self addr", a_net->pub.name);
         return NULL;
     }
-    l_size = sizeof(dap_net_links_t) + sizeof(dap_stream_node_addr_t) * (l_links_count + l_low_availability_count + 1);
+    l_size = sizeof(dap_net_links_t) + sizeof(dap_cluster_node_addr_t) * (l_links_count + l_low_availability_count + 1);
     // memory alloc
     dap_net_links_t *l_ret = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_net_links_t, l_size, NULL, l_links, l_low_availability);
     l_ret->count_node = l_links_count + l_low_availability_count + 1;
@@ -140,11 +140,11 @@ static dap_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, size_t 
         log_it(L_DEBUG, "%s", l_ignored_str);
     }
 // func work
-    byte_t *l_mempos = dap_mempcpy(l_ret->nodes_info, l_curr_addr, sizeof(dap_stream_node_addr_t));
+    byte_t *l_mempos = dap_mempcpy(l_ret->nodes_info, l_curr_addr, sizeof(dap_cluster_node_addr_t));
     if(l_links)
-        l_mempos = dap_mempcpy(l_mempos, l_links, l_links_count * sizeof(dap_stream_node_addr_t));
+        l_mempos = dap_mempcpy(l_mempos, l_links, l_links_count * sizeof(dap_cluster_node_addr_t));
     if(l_low_availability)
-        dap_mempcpy(l_mempos, l_low_availability, l_low_availability_count * sizeof(dap_stream_node_addr_t));
+        dap_mempcpy(l_mempos, l_low_availability, l_low_availability_count * sizeof(dap_cluster_node_addr_t));
     if (a_size)
         *a_size = l_size;
     DAP_DEL_MULTY(l_links, l_low_availability);
@@ -362,7 +362,7 @@ static dap_net_links_t *s_balancer_issue_link(const char *a_net_name, uint16_t a
         l_ignored_size = strlen(a_ignored_enc);
         l_ignored_dec = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_net_links_t, DAP_ENC_BASE64_DECODE_SIZE(l_ignored_size) + 1, NULL);
         dap_enc_base64_decode(a_ignored_enc, l_ignored_size, l_ignored_dec, DAP_ENC_DATA_TYPE_B64);
-        size_t l_check_size = sizeof(dap_net_links_t) + sizeof(dap_stream_node_addr_t) * l_ignored_dec->count_node;
+        size_t l_check_size = sizeof(dap_net_links_t) + sizeof(dap_cluster_node_addr_t) * l_ignored_dec->count_node;
         if (l_ignored_size < l_check_size) {
             log_it(L_ERROR, "Can't decode ignored node list in net %s, actual and expected sizes mismath: %zu < %zu",
                             a_net_name, l_ignored_size, l_check_size);

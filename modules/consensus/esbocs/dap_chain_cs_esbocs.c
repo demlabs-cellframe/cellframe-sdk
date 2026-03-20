@@ -700,7 +700,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it; it = it->next) {
-        dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
+        dap_cluster_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
         dap_chain_net_add_validator_to_clusters(a_chain, l_addr);
     }
     dap_chain_esbocs_session_t *l_session = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_esbocs_session_t, -8);
@@ -782,7 +782,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_global_db_role_t l_directives_cluster_role_default = DAP_GDB_MEMBER_ROLE_GUEST;
 #endif
     for (dap_list_t *it = l_validators; it; it = it->next) {
-        dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
+        dap_cluster_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
         dap_global_db_cluster_member_add(l_session->db_cluster, l_addr, l_directives_cluster_role_default);
     }
     dap_list_free_full(l_validators, NULL);
@@ -889,7 +889,7 @@ static int s_callback_start(dap_chain_t *a_chain)
     return 0;
 }
 
-bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr)
+bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_cluster_node_addr_t *a_validator_addr)
 {
     dap_return_val_if_fail(a_validator_addr, -1);
     dap_chain_esbocs_session_t *l_session;
@@ -904,7 +904,7 @@ bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap
     return NULL;
 }
 
-bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr)
+bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_cluster_node_addr_t *a_validator_addr)
 {
     dap_return_val_if_fail(a_validator_addr, -1);
     dap_chain_esbocs_session_t *l_session;
@@ -2458,7 +2458,7 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
 }
 
 struct esbocs_msg_args {
-    dap_stream_node_addr_t addr_from;
+    dap_cluster_node_addr_t addr_from;
     dap_chain_esbocs_session_t *session;
     size_t message_size;
     byte_t message[];
@@ -3711,7 +3711,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
 
         dap_json_t *l_json_obj_node_status = dap_json_object_new();
         dap_json_object_add_string(l_json_obj_node_status, "node_addr", 
-                                   dap_stream_node_addr_to_str_static(l_session->my_addr));
+                                   dap_cluster_node_addr_to_str(l_session->my_addr));
         dap_json_object_add_bool(l_json_obj_node_status, "in_nodelist", l_in_nodelist);
         if (!l_in_nodelist) {
             dap_json_object_add_string(l_json_obj_node_status, "warning", 

@@ -102,7 +102,7 @@
 #include "dap_chain_net_api.h" 
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
-#include "dap_stream_cluster.h"
+#include "dap_cluster.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_net.h"
 #include "dap_chain_cs.h"
@@ -156,7 +156,7 @@ struct block_reward {
 struct chain_sync_context {
     dap_time_t              stage_last_activity,
                             sync_idle_time;
-    dap_stream_node_addr_t  current_link;
+    dap_cluster_node_addr_t  current_link;
     dap_chain_t             *cur_chain;
     dap_chain_cell_t        *cur_cell;
     dap_hash_sha3_256_t         requested_atom_hash;
@@ -176,7 +176,7 @@ typedef struct dap_chain_net_pvt {
     dap_balancer_type_t balancer_type;
 
     uint16_t permanent_links_addrs_count;
-    dap_stream_node_addr_t *permanent_links_addrs;
+    dap_cluster_node_addr_t *permanent_links_addrs;
 
     uint16_t permanent_links_hosts_count;
     struct request_link_info **permanent_links_hosts;
@@ -413,13 +413,13 @@ bool dap_chain_net_is_my_node_authorized(dap_chain_net_t *a_net)
     return dap_cluster_member_find_role(PVT(a_net)->nodes_cluster->role_cluster, &g_node_addr) == DAP_GDB_MEMBER_ROLE_ROOT;
 }
 
-dap_stream_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_net, size_t *a_nodes_count)
+dap_cluster_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_net, size_t *a_nodes_count)
 {
     dap_return_val_if_fail(a_net, false);
     return dap_cluster_get_all_members_addrs(PVT(a_net)->nodes_cluster->role_cluster, a_nodes_count, DAP_GDB_MEMBER_ROLE_ROOT);
 }
 
-int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port)
+int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_cluster_node_addr_t *a_addr, const char *a_host, uint16_t a_port)
 {
     bool l_is_link_present = dap_link_manager_link_find(a_addr, a_net->pub.id.uint64);
     if (l_is_link_present || a_addr->uint64 == g_node_addr.uint64) {
@@ -470,7 +470,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
         log_it(L_ERROR, "Can't send accounting request for net %s and addr " NODE_ADDR_FP_STR, l_net->pub.name, NODE_ADDR_FP_ARGS_S(a_link->addr));
 }
 
-static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
+static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_cluster_node_addr_t a_addr)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; i++) {
@@ -2186,7 +2186,7 @@ static void *s_net_load(void *a_arg)
                                                                        dap_config_get_item_str(l_net->pub.config,
                                                                                                "general", "node-alias"));
         if (l_node_alias_str) {
-            dap_stream_node_addr_t *l_alias_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
+            dap_cluster_node_addr_t *l_alias_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
             if (!l_alias_addr)
                 dap_chain_node_alias_register(l_net, l_node_alias_str, &g_node_addr);
         } else
@@ -2272,14 +2272,14 @@ int dap_chain_net_add_auth_nodes_to_cluster(dap_chain_net_t *a_net, dap_global_d
     return 0;
 }
 
-bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr)
+bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_cluster_node_addr_t *a_addr)
 {
     bool l_ret = dap_global_db_cluster_member_add(dap_chain_net_get_mempool_cluster(a_chain), a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
     l_ret &= (bool)dap_global_db_cluster_member_add(PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
     return l_ret;
 }
 
-bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr)
+bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_cluster_node_addr_t *a_addr)
 {
     bool l_ret = !dap_global_db_cluster_member_delete(dap_chain_net_get_mempool_cluster(a_chain), a_addr);
     l_ret &= !dap_global_db_cluster_member_delete(PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr);
@@ -3080,14 +3080,14 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net)
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
 
     dap_cluster_t *l_cluster = dap_cluster_by_mnemonim(a_net->pub.name);
-    if (!dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
+    if (!dap_cluster_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
         dap_stream_ch_del_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
                                     DAP_STREAM_PKT_DIR_IN, s_ch_in_pkt_callback, a_net);
         dap_stream_ch_del_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
                                     DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback, a_net);
     }
     l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
-    if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
+    if (dap_cluster_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
         log_it(L_DEBUG, "No links in net %s cluster", a_net->pub.name);
         return -2;     // No links in cluster
     }

@@ -113,7 +113,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             l_uplinks_count = 0,
             l_downlinks_count = 0,
             l_info_size = 0;
-        dap_stream_node_addr_t *l_linked_node_addrs = NULL;
+        dap_cluster_node_addr_t *l_linked_node_addrs = NULL;
         if (dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE)
             l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
         l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
@@ -134,7 +134,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             memcpy( l_info->info_v1.links_addrs, l_linked_node_addrs,
                    (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t) );
         char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
-        const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->info_v1.address);
+        const char *l_node_addr_str = dap_cluster_node_addr_to_str(l_info->info_v1.address);
         dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
         DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
     }
@@ -181,10 +181,10 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
     }
     for (size_t i = 0; i < l_max_links; ++i) {
         char *l_upnlink_str = i < l_node_info->info_v1.uplinks_count 
-            ? dap_stream_node_addr_to_str(l_node_info->info_v1.links_addrs[i], false)
+            ? dap_cluster_node_addr_to_str_alloc(l_node_info->info_v1.links_addrs[i], false)
             : dap_strdup("\t\t");
         char *l_downlink_str = i < l_node_info->info_v1.downlinks_count 
-            ? dap_stream_node_addr_to_str(l_node_info->info_v1.links_addrs[i + l_node_info->info_v1.uplinks_count], false)
+            ? dap_cluster_node_addr_to_str_alloc(l_node_info->info_v1.links_addrs[i + l_node_info->info_v1.uplinks_count], false)
             : dap_strdup("\t\t");
         dap_string_append_printf(l_info_str, "|\t%s\t|\t%s\t|\n", l_upnlink_str, l_downlink_str);
         DAP_DEL_MULTY(l_upnlink_str, l_downlink_str);
@@ -197,10 +197,10 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
  * @brief get states info about current
  * @param a_arg - pointer to callback arg
  */
-dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
+dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_cluster_node_addr_t a_addr)
 {
     dap_string_t *l_ret = dap_string_new("");
-    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
+    const char *l_node_addr_str = dap_cluster_node_addr_to_str(a_addr.uint64 ? a_addr : g_node_addr);
     if(!a_net) {
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             s_states_info_to_str(l_net, l_node_addr_str, l_ret);
@@ -389,7 +389,7 @@ int dap_chain_node_info_save(dap_chain_net_t *a_net, dap_chain_node_info_t *a_no
     return !a_node_info || !a_node_info->address.uint64
         ? log_it(L_ERROR,"Can't save node info, %s", a_node_info ? "null arg" : "zero address"), -1
         : dap_global_db_set_sync( a_net->pub.gdb_nodes,
-                                 dap_stream_node_addr_to_str_static(a_node_info->address),
+                                 dap_cluster_node_addr_to_str(a_node_info->address),
                                  a_node_info,
                                  dap_chain_node_info_get_size(a_node_info), false );
 }
@@ -398,7 +398,7 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
     return !a_node_info || !a_node_info->address.uint64
         ? log_it(L_ERROR,"Can't delete node info, %s", a_node_info ? "null arg" : "zero address"), -1
         : dap_global_db_del_sync( a_net->pub.gdb_nodes,
-                                 dap_stream_node_addr_to_str_static(a_node_info->address) );
+                                 dap_cluster_node_addr_to_str(a_node_info->address) );
 }
 
 /**
@@ -406,7 +406,7 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
  */
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
-    const char *l_key = dap_stream_node_addr_to_str_static(*a_address);
+    const char *l_key = dap_cluster_node_addr_to_str(*a_address);
     size_t l_node_info_size = 0;
     dap_chain_node_info_t *l_node_info
         = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
@@ -849,10 +849,10 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                     log_it(L_WARNING, "Hardfork service state datum size %u less than minimum", l_datum->header.data_size);
                     continue;
                 }
-                dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
+                dap_cluster_node_addr_t l_addr = dap_cluster_node_addr_from_sign(l_objs[i].sign);
                 bool l_addr_match = false;
                 for (dap_list_t *it = l_states->trusted_addrs; it; it = it->next) {
-                    if (((dap_stream_node_addr_t *)it->data)->uint64 != l_addr.uint64)
+                    if (((dap_cluster_node_addr_t *)it->data)->uint64 != l_addr.uint64)
                         continue;
                     l_addr_match = true;
                     break;
@@ -1343,10 +1343,10 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 log_it(L_WARNING, "Mempool record %s datum is corrupted, can' process", l_objs[i].key);
                 m_ret(-15);
             }
-            dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
+            dap_cluster_node_addr_t l_addr = dap_cluster_node_addr_from_sign(l_objs[i].sign);
             bool l_addr_match = false;
             for (dap_list_t *it = a_chain->hardfork_data->trusted_addrs; it; it = it->next) {
-                if (((dap_stream_node_addr_t *)it->data)->uint64 != l_addr.uint64)
+                if (((dap_cluster_node_addr_t *)it->data)->uint64 != l_addr.uint64)
                     continue;
                 l_addr_match = true;
                 break;

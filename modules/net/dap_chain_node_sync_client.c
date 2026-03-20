@@ -38,7 +38,8 @@
 #include "dap_config.h"
 #include "dap_timerfd.h"
 #include "dap_client.h"
-#include "dap_client_pvt.h"
+#include "dap_client_fsm.h"
+#include "dap_client_esocket.h"
 #include "dap_stream_worker.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
@@ -158,7 +159,7 @@ static void s_add_channel_notifiers(dap_chain_node_sync_client_t *a_sync_client)
     if (!a_sync_client || !a_sync_client->client || !a_sync_client->client->active_channels)
         return;
     
-    dap_stream_node_addr_t *l_addr = (dap_stream_node_addr_t *)&a_sync_client->node_info->address;
+    dap_cluster_node_addr_t *l_addr = (dap_cluster_node_addr_t *)&a_sync_client->node_info->address;
     const char *l_channels = a_sync_client->client->active_channels;
     
     for (size_t i = 0; l_channels[i]; i++) {
@@ -180,7 +181,7 @@ static void s_del_channel_notifiers(dap_chain_node_sync_client_t *a_sync_client)
     if (!a_sync_client || !a_sync_client->client || !a_sync_client->client->active_channels)
         return;
     
-    dap_stream_node_addr_t *l_addr = (dap_stream_node_addr_t *)&a_sync_client->node_info->address;
+    dap_cluster_node_addr_t *l_addr = (dap_cluster_node_addr_t *)&a_sync_client->node_info->address;
     const char *l_channels = a_sync_client->client->active_channels;
     
     for (size_t i = 0; l_channels[i]; i++) {
@@ -202,8 +203,9 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     log_it(L_NOTICE, "Sync client connected to %s:%u",
            l_sync_client->node_info->ext_host, l_sync_client->node_info->ext_port);
     
-    l_sync_client->esocket_uuid = DAP_CLIENT_PVT(a_client)->stream_es->uuid;
-    l_sync_client->stream_worker = DAP_CLIENT_PVT(a_client)->stream_worker;
+    dap_client_esocket_t *l_es = DAP_CLIENT_ESOCKET(a_client);
+    l_sync_client->esocket_uuid = l_es && l_es->stream_es ? l_es->stream_es->uuid : 0;
+    l_sync_client->stream_worker = l_es ? l_es->stream_worker : NULL;
     
     // Add universal notifier for all active channels
     s_add_channel_notifiers(l_sync_client);
