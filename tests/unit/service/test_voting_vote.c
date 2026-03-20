@@ -42,7 +42,7 @@ DAP_MOCK_CUSTOM(uint256_t, dap_ledger_calc_balance,
 
 // Ledger tx_find mock
 DAP_MOCK_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
-    (dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash))
+    (dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash))
     UNUSED(a_ledger);
     UNUSED(a_tx_hash);
     return NULL;

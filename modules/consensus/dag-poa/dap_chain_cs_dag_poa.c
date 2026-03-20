@@ -641,7 +641,7 @@ static void s_round_changes_notify(dap_global_db_store_obj_t *a_obj, void *a_arg
     switch ( l_type ) {
     case DAP_GLOBAL_DB_OPTYPE_ADD:
         s_callback_event_round_sync(l_dag, l_type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len,
-                                    dap_stream_node_addr_from_sign(a_obj->sign).uint64 == g_node_addr.uint64);
+                                    dap_cluster_node_addr_from_sign(a_obj->sign).uint64 == g_node_addr.uint64);
     default:
         break;
     }

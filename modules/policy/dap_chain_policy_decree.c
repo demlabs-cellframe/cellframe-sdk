@@ -149,14 +149,14 @@ int dap_chain_policy_decree_hardfork_apply(dap_chain_datum_decree_t *a_decree, d
     dap_list_t *l_addrs = NULL;
     dap_list_t *l_addrs_tsd = dap_tsd_find_all(a_decree->data_n_signs, a_decree->header.data_size,
                                                 DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, 
-                                                sizeof(dap_stream_node_addr_t));
+                                                sizeof(dap_cluster_node_addr_t));
     for (dap_list_t *it = l_addrs_tsd; it; it = it->next) {
         dap_tsd_t *l_tsd = (dap_tsd_t *)it->data;
-        if (l_tsd->size != sizeof(dap_stream_node_addr_t)) {
+        if (l_tsd->size != sizeof(dap_cluster_node_addr_t)) {
             log_it(L_WARNING, "Invalid size of node addr tsd");
             continue;
         }
-        dap_stream_node_addr_t *l_addr = (dap_stream_node_addr_t *)l_tsd->data;
+        dap_cluster_node_addr_t *l_addr = (dap_cluster_node_addr_t *)l_tsd->data;
         l_addrs = dap_list_append(l_addrs, DAP_DUP(l_addr));
     }
     dap_list_free_full(l_addrs_tsd, NULL);

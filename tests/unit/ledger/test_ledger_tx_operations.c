@@ -43,14 +43,14 @@ DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_add, DAP_MOCK_CONFIG_DEFAULT);
 DAP_MOCK_DECLARE_CUSTOM(dap_ledger_tx_get_token_ticker_by_hash, DAP_MOCK_CONFIG_DEFAULT);
 
 DAP_MOCK_WRAPPER_CUSTOM(dap_chain_datum_tx_t*, dap_ledger_tx_find_by_hash,
-    (dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash)
+    (dap_ledger_t *a_ledger, const dap_hash_fast_t *a_tx_hash)
 ) {
     dap_mock_function_state_t *G_MOCK = g_mock_dap_ledger_tx_find_by_hash;
     dap_chain_datum_tx_t* l_result = NULL;
     if (a_tx_hash) {
         bool l_is_zero = true;
         for (size_t i = 0; i < sizeof(dap_hash_fast_t); i++) {
-            if (((uint8_t*)a_tx_hash)[i] != 0) {
+            if (((const uint8_t*)a_tx_hash)[i] != 0) {
                 l_is_zero = false;
                 break;
             }

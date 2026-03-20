@@ -142,7 +142,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
             char *l_err_str = (char *)l_ch_chain_net_pkt->data;
             log_it(L_WARNING, "Stream channel N for network communication got error on other side: %s", l_err_str);
             if (a_ch->stream->authorized) {
-                assert(!dap_stream_node_addr_is_blank(&a_ch->stream->node));
+                assert(!dap_cluster_node_addr_is_blank(&a_ch->stream->node));
                 dap_link_manager_accounting_link_in_net(l_net->pub.id.uint64, &a_ch->stream->node, false);
             }
             return false;
@@ -174,7 +174,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                                                   l_ch_chain_net_pkt->hdr.net_id, l_err_str, sizeof(l_err_str));
                 break;
             }
-            assert(!dap_stream_node_addr_is_blank(&a_ch->stream->node));
+            assert(!dap_cluster_node_addr_is_blank(&a_ch->stream->node));
             dap_link_manager_accounting_link_in_net(l_net->pub.id.uint64, &a_ch->stream->node, true);
             if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE)
                 dap_chain_net_ch_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE_ACK,

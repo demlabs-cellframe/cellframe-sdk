@@ -101,7 +101,7 @@ static void s_update_node_rpc_states_info(UNUSED_ARG void *a_arg)
     sysinfo((struct sysinfo *)((char *)l_info + offsetof(dap_chain_node_rpc_states_info_t, system_info)));
     // REMOVED: cmd statistics loop - moved to cmd module
     
-    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->address);
+    const char *l_node_addr_str = dap_cluster_node_addr_to_str(l_info->address);
     dap_global_db_set_sync(s_rpc_server_states_group, l_node_addr_str, l_info, sizeof(dap_chain_node_rpc_states_info_t), false);
     DAP_DELETE(l_info);
 }
@@ -126,7 +126,7 @@ static int s_rpc_node_cmp(dap_list_t *a_list1, dap_list_t *a_list2)
 static int s_cluters_init(dap_config_t *a_cfg)
 {
     if (!(s_rpc_node_list_cluster = dap_global_db_cluster_add(
-        dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
+        dap_global_db_instance_get_default(), DAP_CLUSTER_GLOBAL,
         *(dap_guuid_t *)&uint128_0, s_rpc_node_list_group,
         0,
         true, DAP_GDB_MEMBER_ROLE_GUEST, DAP_CLUSTER_TYPE_EMBEDDED)))
@@ -134,7 +134,7 @@ static int s_cluters_init(dap_config_t *a_cfg)
         log_it(L_ERROR, "Can't create rpc node list cluster");
         return -1;
     }
-    dap_stream_node_addr_t *l_authorized_nodes = NULL;
+    dap_cluster_node_addr_t *l_authorized_nodes = NULL;
     uint16_t l_authorized_nodes_count = 0;
     dap_net_common_parse_stream_addrs(a_cfg, "rpc", "authorized_nodes_addrs", &l_authorized_nodes, &l_authorized_nodes_count);
     for (uint16_t i = 0; i < l_authorized_nodes_count; ++i)
@@ -142,7 +142,7 @@ static int s_cluters_init(dap_config_t *a_cfg)
     DAP_DELETE(l_authorized_nodes);
 
     if (!(s_rpc_server_states_cluster = dap_global_db_cluster_add(
-        dap_global_db_instance_get_default(), DAP_STREAM_CLUSTER_GLOBAL,
+        dap_global_db_instance_get_default(), DAP_CLUSTER_GLOBAL,
         *(dap_guuid_t *)&uint128_0, s_rpc_server_states_group,
         0,
         true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_TYPE_EMBEDDED)))
@@ -209,7 +209,7 @@ void dap_chain_node_rpc_deinit()
  * @param a_addr - node addr to check
  * @return pointer to dap_string_t
  */
-dap_json_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
+dap_json_t *dap_chain_node_rpc_states_info_read(dap_cluster_node_addr_t a_addr)
 {
     dap_nanotime_t l_timestamp = 0;
     size_t l_data_size = 0;
@@ -222,7 +222,7 @@ dap_json_t *dap_chain_node_rpc_states_info_read(dap_stream_node_addr_t a_addr)
         dap_json_object_free(json_node_obj);
         return NULL;
     }
-    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
+    const char *l_node_addr_str = dap_cluster_node_addr_to_str(a_addr.uint64 ? a_addr : g_node_addr);
     dap_chain_node_rpc_states_info_t *l_node_info = (dap_chain_node_rpc_states_info_t *)dap_global_db_get_sync(s_rpc_server_states_group, l_node_addr_str, &l_data_size, NULL, &l_timestamp);
     if (!l_node_info) {
         log_it(L_ERROR, "Can't find state of rpc node %s", l_node_addr_str);
@@ -263,7 +263,7 @@ DAP_INLINE bool dap_chain_node_rpc_is_my_node_authorized()
 int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info, bool a_force)
 {
     dap_return_val_if_pass(!a_node_info || !a_node_info->address.uint64, -1);
-    const char *l_addr_str =  dap_stream_node_addr_to_str_static(a_node_info->address);
+    const char *l_addr_str =  dap_cluster_node_addr_to_str(a_node_info->address);
     dap_global_db_store_obj_t *l_obj = NULL;
     if (!a_force && (l_obj = dap_global_db_get_raw_sync(s_rpc_node_list_group, l_addr_str))) {
         log_it(L_ERROR, "Can't save node info to rpc node list, record already exist");
@@ -278,17 +278,17 @@ int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info, bool a_forc
  * @param node_info pointer to dap_chain_node_info_t
  * @return 0 if pass, other if error
  */
-int dap_chain_node_rpc_info_del(dap_stream_node_addr_t a_addr)
+int dap_chain_node_rpc_info_del(dap_cluster_node_addr_t a_addr)
 {
     dap_return_val_if_pass(!a_addr.uint64, -1);
-    const char *l_addr_str =  dap_stream_node_addr_to_str_static(a_addr);
+    const char *l_addr_str =  dap_cluster_node_addr_to_str(a_addr);
     dap_global_db_store_obj_t *l_obj = NULL;
     if (!(l_obj = dap_global_db_get_raw_sync(s_rpc_node_list_group, l_addr_str))) {
         log_it(L_ERROR, "Can't del node info from rpc node list, record not exist");
         return -2;
     }
     dap_global_db_store_obj_free_one(l_obj);
-    return dap_global_db_del_sync(s_rpc_node_list_group, dap_stream_node_addr_to_str_static(a_addr));
+    return dap_global_db_del_sync(s_rpc_node_list_group, dap_cluster_node_addr_to_str(a_addr));
 }
 
 /**
