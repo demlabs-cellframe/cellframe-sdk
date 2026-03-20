@@ -17,6 +17,8 @@ if(CMAKE_C_COMPILER MATCHES "clang")
     add_compile_options(-Wno-sign-compare)
 endif()
 
+option(DAP_MANAGE_CFLAGS "Let dap-sdk manage compiler and linker flags internally" ON)
+
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
