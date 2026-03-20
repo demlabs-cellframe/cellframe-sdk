@@ -982,6 +982,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
 
         s_service_substate_pay_service(l_usage);
+        if(!l_srv_session->usage_active)
+        {
+            log_it(L_WARNING, "Service usage deleted during payment processing");
+            break;
+        }
         size_t l_success_size;
         l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t) + DAP_CHAIN_HASH_FAST_STR_SIZE;
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t, l_success_size);
@@ -1188,7 +1193,6 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
     int ret = s_check_tx_params(a_usage);
     if (ret != 0){
         a_usage->last_err_code = ret;
-        s_service_substate_go_to_error(a_usage);
         return PAY_SERVICE_STATUS_TX_ERROR;
     }
 
@@ -1440,10 +1444,28 @@ static int s_check_tx_params(dap_chain_net_srv_usage_t *a_usage)
             return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_UNITS_ERROR;
         }
 
+        {
+            const char *l_coins_str_price = NULL, *l_coins_str_max = NULL;
+            const char *l_val_str_price = dap_uint256_to_char(l_price->value_datoshi, &l_coins_str_price);
+            const char *l_val_str_unit = dap_uint256_to_char(l_unit_price, NULL);
+            const char *l_val_str_max = dap_uint256_to_char(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str_max);
+            const char *l_val_str_cond = dap_uint256_to_char(l_tx_out_cond->header.value, NULL);
+            log_it(L_INFO, "tx_cond check: pricelist value=%s units=%"DAP_UINT64_FORMAT_U" unit_price=%s | "
+                   "tx_cond total=%s max_per_unit=%s (is_zero=%s) | tx_hash=%s",
+                   l_val_str_price, l_price->units, l_val_str_unit,
+                   l_val_str_cond, l_val_str_max,
+                   IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ? "yes" : "no",
+                   dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash));
+        }
+
         if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
             compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
         } else {
-            log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
+            const char *l_coins_str = NULL;
+            const char *l_val_unit = dap_uint256_to_char(l_unit_price, NULL);
+            const char *l_val_max = dap_uint256_to_char(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi, &l_coins_str);
+            log_it(L_WARNING, "Unit price in pricelist is greater than max allowable: "
+                   "unit_price=%s > max_datoshi=%s", l_val_unit, l_val_max);
             return DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_UNITS_ERROR;
         }
     } else  {
