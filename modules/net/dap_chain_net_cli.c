@@ -54,9 +54,13 @@
 #include "dap_dl.h"
 #include "dap_ht.h"
 
+#include "dap_global_db.h"
+#include "dap_ht.h"
+
 #define LOG_TAG "dap_chain_net_cli"
 
-// Forward declarations
+static const char *s_version_string = NULL;
+
 // Forward declarations for legacy static functions
 static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, int a_arg_start, int a_argc,
                                                                    dap_json_t *a_json_arr_reply, const char *a_cmd_name);
@@ -425,7 +429,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
             dap_chain_node_info_t* l_check_node_info = dap_chain_node_list_ip_check(l_node_info, l_net);
             if (l_check_node_info) {
                 log_it(L_INFO, "Replace existed node with same ip %s address %s -> %s", l_check_node_info->ext_host,
-                                         dap_stream_node_addr_to_str_static(l_check_node_info->address), dap_stream_node_addr_to_str_static(l_node_info->address));
+                                         dap_cluster_node_addr_to_str(l_check_node_info->address), dap_cluster_node_addr_to_str(l_node_info->address));
                 dap_chain_node_info_del(l_net, l_check_node_info);
             }
 
@@ -657,11 +661,7 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
 
         break;
         // make connect
-    case CMD_CONNECT:
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CONNECT_NOT_IMPLEMENTED_ERR,
-                                                                                        "Not implemented yet");
-         break;
-#if 0
+    case CMD_CONNECT: {
         // get address from alias if addr not defined
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_alias_find(l_net, alias_str);
@@ -674,9 +674,9 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
                 return -1;
             }
         }
-        // for auto mode
+        // TODO: migrate "node connect" to new 6.x APIs (dap_chain_node_client_t removed)
+#if 0
         int l_is_auto = 0;
-        // list of dap_chain_node_addr_t struct
         unsigned int l_nodes_count = 0;
         dap_list_t *l_node_list = NULL;
         dap_chain_node_addr_t *l_remote_node_addr = NULL;
@@ -842,10 +842,8 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
         dap_chain_node_client_close(l_node_client);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Node sync completed: Chains and gdb are synced");
         return 0;
-
-    }
 #endif
-        // make handshake
+    }
     case CMD_HANDSHAKE: {
         // get address from alias if addr not defined
         if (alias_str && !l_node_addr.uint64) {
@@ -1316,9 +1314,9 @@ static int s_cli_version(int argc, char **argv, dap_json_t *a_json_arr_reply, in
 #endif
 
     dap_json_array_add(a_json_arr_reply, l_jobj_return);
+
     return 0;
 }
-
 /**
  * @brief s_cli_print_log - Print log entries from the log file
  * @param argc argument count
@@ -4203,6 +4201,27 @@ int dap_chain_net_cli_init(void)
                            "\tPrepare policy deactivation draft\n\n"
                            "policy deactivate -net <net_name> -num <num1,num2,...> execute -certs <cert_names>\n"
                            "\tDeactivate policies with signing\n");
+
+    dap_cli_server_cmd_add("chain", s_cli_chain, NULL,
+                            "Chain operations",
+                            -1,
+                            "chain seed -net <net_name> -chain <chain_name> {on | off}\n"
+                            "\tEnable or disable seed mode for a specific chain.\n"
+                            "\tSeed mode allows creation of genesis blocks/events.\n\n");
+
+    dap_cli_server_cmd_add("node", com_node, NULL,
+                                "Work with node",
+                                -1,
+                                "node { add | del | link | alias | connect | list | dump | connections | balancer }\n"
+                                "\tnode add -net <net_name> -addr <node_addr> -port <port> [-alias <alias>]\n"
+                                "\tnode del -net <net_name> -addr <node_addr>\n"
+                                "\tnode link -net <net_name> { add | del } -addr <node_addr> -link <link_addr>\n"
+                                "\tnode alias -net <net_name> -addr <node_addr> -alias <alias>\n"
+                                "\tnode connect -net <net_name> -addr <node_addr>\n"
+                                "\tnode list -net <net_name>\n"
+                                "\tnode dump [-net <net_name>]\n"
+                                "\tnode connections -net <net_name>\n"
+                                "\tnode balancer -net <net_name>\n");
 
     s_initialized = true;
     log_it(L_NOTICE, "Net CLI commands registered (with error codes)");

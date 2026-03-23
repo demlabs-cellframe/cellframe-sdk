@@ -92,10 +92,10 @@ DAP_STATIC_INLINE const char *dap_chain_node_role_to_str(dap_chain_node_role_t a
     }
 }
 
-typedef dap_stream_node_addr_t dap_chain_node_addr_t;
-#define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
-#define dap_chain_node_addr_from_str dap_stream_node_addr_from_str
-#define dap_chain_node_addr_is_blank dap_stream_node_addr_is_blank
+typedef dap_cluster_node_addr_t dap_chain_node_addr_t;
+#define dap_chain_node_addr_str_check dap_cluster_node_addr_str_check
+#define dap_chain_node_addr_from_str dap_cluster_node_addr_from_str
+#define dap_chain_node_addr_is_blank dap_cluster_node_addr_is_blank
 
 typedef union dap_chain_net_id{
     uint64_t uint64;

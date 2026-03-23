@@ -700,7 +700,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it; it = it->next) {
-        dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
+        dap_cluster_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
         dap_chain_net_add_validator_to_clusters(a_chain, l_addr);
     }
     dap_chain_esbocs_session_t *l_session = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_esbocs_session_t, -8);
@@ -757,12 +757,12 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
 
-    // Check if this node is present in nodelist (non-fatal: GDB sync may populate it later)
+    // Check if this node is present in nodelist (non-fatal: nodelist may be populated later via 'node add' or auto-announce)
     dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_session->my_addr);
     if (!l_node_info) {
         log_it(L_WARNING, "This node address "NODE_ADDR_FP_STR" is not yet present in nodelist. "
-                        "Consensus will start once the node appears via GDB sync or 'node add'",
-                        NODE_ADDR_FP_ARGS_S(l_session->my_addr));
+                          "Consensus will start when node is added via 'node add' or auto-announce",
+                          NODE_ADDR_FP_ARGS_S(l_session->my_addr));
     } else {
         DAP_DELETE(l_node_info);
     }
@@ -782,7 +782,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_global_db_role_t l_directives_cluster_role_default = DAP_GDB_MEMBER_ROLE_GUEST;
 #endif
     for (dap_list_t *it = l_validators; it; it = it->next) {
-        dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
+        dap_cluster_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
         dap_global_db_cluster_member_add(l_session->db_cluster, l_addr, l_directives_cluster_role_default);
     }
     dap_list_free_full(l_validators, NULL);
@@ -815,8 +815,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_global_db_objs_delete(l_orders, l_orders_count);
 
     if (IS_ZERO_256(l_esbocs_pvt->minimum_fee)) {
-        log_it(L_ERROR, "No valid order found was signed by this validator delegated key. Switch off validator mode.");
-        return -4;
+        log_it(L_WARNING, "No valid order found signed by this validator key. "
+                          "Will accept zero-fee transactions until a valid order appears");
     }
     l_esbocs_pvt->emergency_mode = dap_config_get_item_bool_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "emergency_mode", false);
     if (l_esbocs_pvt->emergency_mode && !s_check_emergency_rights(l_esbocs, &l_my_signing_addr)) {
@@ -889,7 +889,7 @@ static int s_callback_start(dap_chain_t *a_chain)
     return 0;
 }
 
-bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr)
+bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_cluster_node_addr_t *a_validator_addr)
 {
     dap_return_val_if_fail(a_validator_addr, -1);
     dap_chain_esbocs_session_t *l_session;
@@ -904,7 +904,7 @@ bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap
     return NULL;
 }
 
-bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr)
+bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_cluster_node_addr_t *a_validator_addr)
 {
     dap_return_val_if_fail(a_validator_addr, -1);
     dap_chain_esbocs_session_t *l_session;
@@ -1485,12 +1485,10 @@ static bool s_session_round_new(void *a_arg)
         a_session->esbocs->hardfork_state = a_session->esbocs->hardfork_generation > a_session->chain->generation &&
                                     a_session->esbocs->hardfork_from && l_cur_atom_count >= a_session->esbocs->hardfork_from;
         if (a_session->esbocs->hardfork_state) {
-            // DISABLED: dap_chain_node_hardfork_prepare() is #if 0 in dap_chain_node.c
-            // dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
-            // int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
-            //                                          a_session->esbocs->hardfork_trusted_addrs,
-            //                                          a_session->esbocs->hardfork_changed_addrs);
-            int rc = -1; // Disabled: hardfork prepare not implemented
+            dap_time_t l_last_block_timestamp = dap_chain_get_blockhain_time(a_session->chain, c_dap_chain_cell_id_null);
+            int rc = dap_chain_node_hardfork_prepare(a_session->chain, l_last_block_timestamp,
+                                                     a_session->esbocs->hardfork_trusted_addrs,
+                                                     a_session->esbocs->hardfork_changed_addrs);
             if (rc) {
                 log_it(L_ERROR, "Can't start hardfork process with code %d, see log for more details", rc);
                 a_session->esbocs->hardfork_state = false;
@@ -2460,7 +2458,7 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
 }
 
 struct esbocs_msg_args {
-    dap_stream_node_addr_t addr_from;
+    dap_cluster_node_addr_t addr_from;
     dap_chain_esbocs_session_t *session;
     size_t message_size;
     byte_t message[];
@@ -3723,7 +3721,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
 
         dap_json_t *l_json_obj_node_status = dap_json_object_new();
         dap_json_object_add_string(l_json_obj_node_status, "node_addr", 
-                                   dap_stream_node_addr_to_str_static(l_session->my_addr));
+                                   dap_cluster_node_addr_to_str(l_session->my_addr));
         dap_json_object_add_bool(l_json_obj_node_status, "in_nodelist", l_in_nodelist);
         if (!l_in_nodelist) {
             dap_json_object_add_string(l_json_obj_node_status, "warning", 

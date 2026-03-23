@@ -2,7 +2,9 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Include DAP Mock AutoWrap module
-include(${CMAKE_SOURCE_DIR}/dap-sdk/module/test/mocks/DAPMockAutoWrap.cmake)
+# DAP_SDK_SOURCE_DIR is set by parent cellframe-sdk CMakeLists.txt
+# (either from dap_sdk target property or fallback to dap-sdk subdir)
+include(${DAP_SDK_SOURCE_DIR}/module/test/mocks/DAPMockAutoWrap.cmake)
 
 # Unit Test Fixtures (for unit tests with DAP SDK mocking)
 project(unit_test_fixtures)

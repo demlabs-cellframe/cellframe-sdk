@@ -40,6 +40,8 @@
 #include "dap_json.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_datum_service_state.h"
+#include "dap_chain_block.h"
+#include "dap_chain_type_blocks.h"
 #include "dap_dl.h"
 #include "dap_link_manager.h"
 
@@ -105,13 +107,15 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
 #define DAP_VERSION "0.9-15"
 #endif
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE || dap_chain_net_get_load_mode(l_net))
+        if (dap_chain_net_get_load_mode(l_net))
             continue;
         size_t
             l_uplinks_count = 0,
             l_downlinks_count = 0,
             l_info_size = 0;
-        dap_stream_node_addr_t *l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
+        dap_cluster_node_addr_t *l_linked_node_addrs = NULL;
+        if (dap_chain_net_get_state(l_net) != NET_STATE_OFFLINE)
+            l_linked_node_addrs = dap_link_manager_get_net_links_addrs(l_net->pub.id.uint64, &l_uplinks_count, &l_downlinks_count, true);
         l_info_size = sizeof(dap_chain_node_net_states_info_t) + (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t);
         dap_chain_node_net_states_info_t *l_info = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_chain_node_net_states_info_t, l_info_size, l_linked_node_addrs);
         l_info->version_info = DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION;
@@ -126,11 +130,11 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
         l_chain = l_chain ? l_chain->next : NULL;  // mainchain
         l_info->info_v1.atoms_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;
 
-        memcpy( l_info->info_v1.links_addrs, l_linked_node_addrs,
-               (l_info->info_v1.uplinks_count + l_info->info_v1.downlinks_count) * sizeof(dap_chain_node_addr_t) );
-        // DB write
+        if (l_linked_node_addrs && (l_uplinks_count + l_downlinks_count) > 0)
+            memcpy( l_info->info_v1.links_addrs, l_linked_node_addrs,
+                   (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t) );
         char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
-        const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->info_v1.address);
+        const char *l_node_addr_str = dap_cluster_node_addr_to_str(l_info->info_v1.address);
         dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
         DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
     }
@@ -177,10 +181,10 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
     }
     for (size_t i = 0; i < l_max_links; ++i) {
         char *l_upnlink_str = i < l_node_info->info_v1.uplinks_count 
-            ? dap_stream_node_addr_to_str(l_node_info->info_v1.links_addrs[i], false)
+            ? dap_cluster_node_addr_to_str_alloc(l_node_info->info_v1.links_addrs[i], false)
             : dap_strdup("\t\t");
         char *l_downlink_str = i < l_node_info->info_v1.downlinks_count 
-            ? dap_stream_node_addr_to_str(l_node_info->info_v1.links_addrs[i + l_node_info->info_v1.uplinks_count], false)
+            ? dap_cluster_node_addr_to_str_alloc(l_node_info->info_v1.links_addrs[i + l_node_info->info_v1.uplinks_count], false)
             : dap_strdup("\t\t");
         dap_string_append_printf(l_info_str, "|\t%s\t|\t%s\t|\n", l_upnlink_str, l_downlink_str);
         DAP_DEL_MULTY(l_upnlink_str, l_downlink_str);
@@ -193,10 +197,10 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
  * @brief get states info about current
  * @param a_arg - pointer to callback arg
  */
-dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
+dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_cluster_node_addr_t a_addr)
 {
     dap_string_t *l_ret = dap_string_new("");
-    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
+    const char *l_node_addr_str = dap_cluster_node_addr_to_str(a_addr.uint64 ? a_addr : g_node_addr);
     if(!a_net) {
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             s_states_info_to_str(l_net, l_node_addr_str, l_ret);
@@ -385,7 +389,7 @@ int dap_chain_node_info_save(dap_chain_net_t *a_net, dap_chain_node_info_t *a_no
     return !a_node_info || !a_node_info->address.uint64
         ? log_it(L_ERROR,"Can't save node info, %s", a_node_info ? "null arg" : "zero address"), -1
         : dap_global_db_set_sync( a_net->pub.gdb_nodes,
-                                 dap_stream_node_addr_to_str_static(a_node_info->address),
+                                 dap_cluster_node_addr_to_str(a_node_info->address),
                                  a_node_info,
                                  dap_chain_node_info_get_size(a_node_info), false );
 }
@@ -394,7 +398,7 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
     return !a_node_info || !a_node_info->address.uint64
         ? log_it(L_ERROR,"Can't delete node info, %s", a_node_info ? "null arg" : "zero address"), -1
         : dap_global_db_del_sync( a_net->pub.gdb_nodes,
-                                 dap_stream_node_addr_to_str_static(a_node_info->address) );
+                                 dap_cluster_node_addr_to_str(a_node_info->address) );
 }
 
 /**
@@ -402,7 +406,7 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
  */
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
-    const char *l_key = dap_stream_node_addr_to_str_static(*a_address);
+    const char *l_key = dap_cluster_node_addr_to_str(*a_address);
     size_t l_node_info_size = 0;
     dap_chain_node_info_t *l_node_info
         = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
@@ -475,8 +479,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     char *l_gdb_group_mempool = dap_chain_mempool_group_new(a_chain);
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
-    log_it(L_DEBUG, "mempool_process_all: chain=%s group=%s objs_count=%zu force=%d autoproc=%d",
-           a_chain->name, l_gdb_group_mempool, l_objs_count, a_force, l_net->pub.mempool_autoproc);
+    debug_if(g_dap_global_db_debug_more, L_INFO, "mempool_process_all: group '%s', force=%d, found %zu objects", l_gdb_group_mempool, a_force, l_objs_count);
     if (l_objs_count) {
         for (size_t i = 0; i < l_objs_count; i++) {
             if (l_objs[i].value_len < sizeof(dap_chain_datum_t)) {
@@ -489,20 +492,18 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                 log_it(L_DEBUG, "mempool_process_all: skip datum %s: datum_size=%" DAP_UINT64_FORMAT_U " != value_len=%zu",
                        l_objs[i].key, (uint64_t)dap_chain_datum_size(l_datum), l_objs[i].value_len);
                 continue;
-            }
             bool l_need = dap_chain_node_mempool_need_process(a_chain, l_datum);
-            log_it(L_DEBUG, "mempool_process_all: datum %s type=0x%x need_process=%d",
-                   l_objs[i].key, l_datum->header.type_id, l_need);
+            debug_if(g_dap_global_db_debug_more, L_INFO, "mempool_process_all: datum %s type 0x%02x need_process=%d autoproc_count=%u",
+                   l_objs[i].key, l_datum->header.type_id, l_need, a_chain->autoproc_datum_types_count);
             if (l_need) {
                 int l_ret = 0;
                 if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key, &l_ret)) {
-                    // Delete processed objects
-                    log_it(L_INFO, " ! Delete datum %s from mempool", l_objs[i].key);
+                    debug_if(g_dap_global_db_debug_more, L_INFO, " ! Delete datum %s from mempool (ret=%d)", l_objs[i].key, l_ret);
                     char* l_ret_str = dap_strdup_printf("%d", l_ret);
                     dap_global_db_del_ex(l_gdb_group_mempool, l_objs[i].key, l_ret_str, strlen(l_ret_str)+1 , NULL, NULL);
                     DAP_DELETE(l_ret_str);
                 } else {
-                    log_it(L_INFO, " ! Datum %s remains in mempool", l_objs[i].key);
+                    debug_if(g_dap_global_db_debug_more, L_INFO, " ! Datum %s remains in mempool (ret=%d)", l_objs[i].key, l_ret);
                 }
             }
         }
@@ -511,8 +512,6 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     DAP_DELETE(l_gdb_group_mempool);
 }
 
-// DISABLED: requires dap_chain_type_blocks.h (DAP_CHAIN_CANDIDATE_MAX_SIZE, dap_chain_block_t)
-#if 0
 static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_state_t *a_state, size_t *a_datums_count)
 {
     dap_chain_datum_t **ret = NULL;
@@ -544,10 +543,6 @@ static dap_chain_datum_t **s_service_state_datums_create(dap_chain_srv_hardfork_
         *a_datums_count = l_datums_count;
     return ret;
 }
-#endif // DISABLED: requires dap_chain_type_blocks.h
-
-// DISABLED: requires dap_chain_type_blocks_fees_aggregate
-#if 0
 
 int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_block_timestamp, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs)
 {
@@ -579,7 +574,7 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
         dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
         for (size_t i = 0; i < l_datums_count; i++)
             if (l_mp_cbs && l_mp_cbs->mempool_datum_add)
-                DAP_DELETE(l_mp_cbs->mempool_datum_add(l_datums[i], a_chain, "hex"));
+                DAP_DELETE(l_mp_cbs->mempool_datum_add(a_chain, l_datums[i], "hex"));
         dap_dl_delete(l_states->service_states, it);
         DAP_DELETE(it);
     }
@@ -589,7 +584,6 @@ int dap_chain_node_hardfork_prepare(dap_chain_t *a_chain, dap_time_t a_last_bloc
     l_states->main_iterator = l_states->anchors;
     return 0;
 }
-#endif // DISABLED: dap_chain_node_hardfork_prepare
 
 static int s_tx_trackers_add(dap_chain_datum_tx_t **a_tx, dap_list_t *a_trackers)
 {
@@ -810,7 +804,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
         for (dap_chain_srv_hardfork_state_t *it = l_states->main_iterator; it; it = it->next) {
             if (it->uid.uint64 >= (uint64_t)INT64_MIN)       // MSB is set
                 continue;
-#if 0 // DISABLED: calls s_service_state_datums_create which is disabled
             bool l_break = false;
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = s_service_state_datums_create(it, &l_datums_count);
@@ -818,7 +811,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                 if (!a_chain->callback_add_datums(a_chain, l_datums + i, 1)) {
                     log_it(L_NOTICE, "Hardfork processed to datum service_state with uid %" DAP_UINT64_FORMAT_x " and number %zu",
                                         it->uid.uint64, i);
-                    // save iterator to state machine
                     l_states->service_state_datum_iterator = i;
                     l_states->main_iterator = it;
                     l_break = true;
@@ -832,7 +824,6 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
             if (l_break)
                 return 0;
             l_states->service_state_datum_iterator = 0;
-#endif // DISABLED: s_service_state_datums_create usage
         }
         l_states->main_iterator = NULL;
         l_states->state_current = STATE_MEMPOOL;
@@ -863,10 +854,10 @@ int dap_chain_node_hardfork_process(dap_chain_t *a_chain)
                     log_it(L_WARNING, "Hardfork service state datum size %u less than minimum", l_datum->header.data_size);
                     continue;
                 }
-                dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
+                dap_cluster_node_addr_t l_addr = dap_cluster_node_addr_from_sign(l_objs[i].sign);
                 bool l_addr_match = false;
                 for (dap_list_t *it = l_states->trusted_addrs; it; it = it->next) {
-                    if (((dap_stream_node_addr_t *)it->data)->uint64 != l_addr.uint64)
+                    if (((dap_cluster_node_addr_t *)it->data)->uint64 != l_addr.uint64)
                         continue;
                     l_addr_match = true;
                     break;
@@ -1357,10 +1348,10 @@ int s_hardfork_check(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_
                 log_it(L_WARNING, "Mempool record %s datum is corrupted, can' process", l_objs[i].key);
                 m_ret(-15);
             }
-            dap_stream_node_addr_t l_addr = dap_stream_node_addr_from_sign(l_objs[i].sign);
+            dap_cluster_node_addr_t l_addr = dap_cluster_node_addr_from_sign(l_objs[i].sign);
             bool l_addr_match = false;
             for (dap_list_t *it = a_chain->hardfork_data->trusted_addrs; it; it = it->next) {
-                if (((dap_stream_node_addr_t *)it->data)->uint64 != l_addr.uint64)
+                if (((dap_cluster_node_addr_t *)it->data)->uint64 != l_addr.uint64)
                     continue;
                 l_addr_match = true;
                 break;

@@ -1,32 +1,37 @@
 # Unit tests for service modules
 cmake_minimum_required(VERSION 3.10)
 
-# ============================================================================
-# DISABLED: test_voting_vote
-# ============================================================================
-# This test is temporarily disabled due to:
-# 1. Linker --wrap limitation - cannot intercept internal library function calls
-# 2. Buffer overflow in test case with very long question string
-#
-# The mocking framework requires the SDK to be linked as OBJECT libraries
-# instead of SHARED library for --wrap to work correctly.
-# ============================================================================
+project(test_voting_vote)
 
-# project(test_voting_vote)
-# include(${CMAKE_SOURCE_DIR}/dap-sdk/module/test/mocks/DAPMockAutoWrap.cmake)
-# add_executable(${PROJECT_NAME}
-#     test_voting_vote.c
-#     $<TARGET_OBJECTS:unit_test_fixtures>
-# )
-# target_link_libraries(${PROJECT_NAME}
-#     dap_test
-#     dap_sdk
-#     cellframe_sdk
-#     dap_chain_net_srv_voting
-# )
-# dap_mock_autowrap(${PROJECT_NAME})
-# target_link_options(${PROJECT_NAME} PRIVATE
-#     "-Wl,--wrap=dap_ledger_calc_balance"
-#     "-Wl,--wrap=dap_ledger_tx_find_by_hash"
-# )
-# add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
+# Include DAP Mock AutoWrap module
+include(${DAP_SDK_SOURCE_DIR}/module/test/mocks/DAPMockAutoWrap.cmake)
+
+add_executable(${PROJECT_NAME}
+    test_voting_vote.c
+    $<TARGET_OBJECTS:unit_test_fixtures>
+)
+
+# Fixtures headers propagate via unit_test_fixtures OBJECT library
+# All other includes propagate via linked modules below
+
+# Link modules - includes propagate automatically
+target_link_libraries(${PROJECT_NAME}
+    dap_test                      # Test framework
+    dap_sdk                       # DAP SDK
+    cellframe_sdk                 # Cellframe SDK (provides all module headers)
+    dap_chain_net_srv_voting      # Voting service module
+)
+
+# Auto-generate --wrap flags from DAP_MOCK_DECLARE() calls (if any)
+dap_mock_autowrap(${PROJECT_NAME})
+
+# Add --wrap for DAP_MOCK_CUSTOM() mocks (not auto-detected by autowrap)
+# macOS uses mock_interpose.c + flat_namespace instead of GNU ld --wrap
+if(NOT APPLE)
+    target_link_options(${PROJECT_NAME} PRIVATE
+        "-Wl,--wrap=dap_ledger_calc_balance"
+        "-Wl,--wrap=dap_ledger_tx_find_by_hash"
+    )
+endif()
+
+add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})

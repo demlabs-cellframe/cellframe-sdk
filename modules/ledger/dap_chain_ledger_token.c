@@ -1929,39 +1929,6 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
     }
 }
 
-#if 0 /// No working code, ts_added is illegal timestamp
-/**
- * @brief Mark token emissions created after hardfork time
- * @param a_ledger Ledger instance
- * @param a_hardfork_time Hardfork timestamp
- * @return 0 on success, negative error code otherwise
- */
-int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t a_hardfork_time)
-{
-    if (!a_ledger) {
-        log_it(L_ERROR, "NULL ledger provided");
-        return -1;
-    }
-    
-    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
-    dap_ledger_token_item_t *l_token_item = NULL, *l_token_tmp = NULL;
-    dap_ht_foreach(PVT(a_ledger)->tokens, l_token_item, l_token_tmp) {
-        dap_ledger_token_emission_item_t *l_emission = NULL, *l_emission_tmp = NULL;
-        dap_ht_foreach(l_token_item->token_emissions, l_emission, l_emission_tmp) {
-            // Mark emissions created at or after hardfork time
-            // Convert nanotime to seconds for comparison
-            dap_time_t l_emission_time = (dap_time_t)(l_emission->ts_added / 1000000000ULL);
-            if (l_emission_time >= a_hardfork_time) {
-                l_emission->is_hardfork = true;
-            }
-        }
-    }
-    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-    
-    log_it(L_NOTICE, "Token emissions marked for hardfork at time %"DAP_UINT64_FORMAT_U, a_hardfork_time);
-    return 0;
-}
-#else
 /**
  * @brief Mark all token emissions created before hardfork time as spent
  * @details This function iterates through all tokens and their emissions, marking those
@@ -2031,4 +1998,3 @@ int dap_ledger_token_emissions_mark_hardfork(dap_ledger_t *a_ledger, dap_time_t 
     log_it(L_NOTICE, "Hardfork processing complete: marked %d emissions as spent", l_marked_count);
     return l_marked_count;
 }
-#endif

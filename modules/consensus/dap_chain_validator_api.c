@@ -147,7 +147,7 @@ void dap_chain_validator_api_hardfork_tx_update(dap_chain_net_t *a_net)
 /**
  * @brief Get node address from validator item
  */
-dap_stream_node_addr_t* dap_chain_validator_api_get_node_addr(dap_chain_validator_item_t a_item)
+dap_cluster_node_addr_t* dap_chain_validator_api_get_node_addr(dap_chain_validator_item_t a_item)
 {
     VALIDATOR_API_CALL(get_node_addr_from_item, NULL, a_item);
 }

@@ -26,10 +26,13 @@ extern dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net
 extern bool dap_chain_net_get_load_mode(dap_chain_net_t *a_net);
 
 // ============ NETWORK REGISTRY ============
-// These globals are defined in dap_chain_net.c and populated during net creation
-extern dap_chain_net_t *s_nets_by_name;
-extern dap_chain_net_t *s_nets_by_id;
+// Use the global registry owned by dap_chain_net.c (populated by s_net_new)
+extern dap_chain_net_t *s_nets_by_name, *s_nets_by_id;
 
+/**
+ * @brief Register network in global registry
+ * @param a_net Network to register (must have pub.name and pub.id set)
+ */
 void dap_chain_net_register(dap_chain_net_t *a_net)
 {
     if (!a_net)

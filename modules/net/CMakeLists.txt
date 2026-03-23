@@ -24,7 +24,8 @@ target_link_libraries(${PROJECT_NAME}
 # Net CLI needs srv HEADERS but not linking (to avoid cycle)
 target_include_directories(${PROJECT_NAME} PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/srv/base/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/tx/include)
+    ${CMAKE_CURRENT_SOURCE_DIR}/tx/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../type/blocks/include)
 # NO dap_chain_net_tx - would create cycle (net-tx depends on net)
 # dap_chain_ledger - normal dependency: net (high) → ledger (mid-level)
 # dap_chain_net_srv - unidirectional: net (high) → srv (lower), NO CYCLE

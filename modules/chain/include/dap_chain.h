@@ -107,6 +107,7 @@ typedef struct dap_chain {
 
     bool is_datum_pool_proc;
     bool is_mapped;
+    bool seed_mode;
     atomic_int load_progress; 
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;
@@ -123,7 +124,7 @@ typedef struct dap_chain {
     dap_chain_sync_state_t  state;
 
     uint16_t authorized_nodes_count;
-    dap_stream_node_addr_t *authorized_nodes_addrs;
+    dap_cluster_node_addr_t *authorized_nodes_addrs;
 
     // To hold it in double-linked lists
     struct dap_chain * next;

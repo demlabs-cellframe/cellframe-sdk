@@ -142,7 +142,7 @@ static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
 static dap_json_t *s_dap_chain_callback_atom_to_json(dap_json_t **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type, int a_version);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
-static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
+static bool s_debug_more = false, s_threshold_enabled = false;
 
 static int s_print_for_dag_list(dap_json_t *a_json_input, dap_json_t *a_json_output, char **a_cmd_param, int a_cmd_cnt)
 {
@@ -222,6 +222,14 @@ static int s_print_for_dag_list(dap_json_t *a_json_input, dap_json_t *a_json_out
  */
 void dap_chain_type_dag_cli_init(void)
 {
+    srand((unsigned int) time(NULL));
+    dap_chain_type_callbacks_t l_callbacks = { .callback_init = s_chain_cs_dag_new,
+                                                   .callback_delete = s_chain_cs_dag_delete,
+                                                   .callback_purge = s_chain_cs_dag_purge };
+    dap_chain_type_add("dag", l_callbacks);
+    s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
+    s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
+    debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
     dap_cli_server_cmd_add("dag", s_cli_dag, s_print_for_dag_list, "DAG commands", 0,
         "dag event sign -net <net_name> [-chain <chain_name>] -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
@@ -428,7 +436,7 @@ static int s_chain_cs_dag_purge(dap_chain_t *a_chain)
 {
     dap_chain_type_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_TYPE_DAG(a_chain));
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
-    dap_ht_clear(l_dag_pvt->datums);
+    dap_ht_clear_hh(hh_datums, l_dag_pvt->datums);
     dap_chain_type_dag_event_item_t *l_event_current, *l_event_tmp;
     // Clang bug at this, l_event_current should change at every loop cycle
     dap_ht_foreach(l_dag_pvt->events, l_event_current, l_event_tmp) {
@@ -735,6 +743,8 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
 {
     dap_return_val_if_fail(a_datum && a_chain, false);
     dap_chain_type_dag_t * l_dag = DAP_CHAIN_TYPE_DAG(a_chain);
+    debug_if(s_debug_more, L_INFO, "DAG datum_pool_proc: chain=%s, is_add_directly=%d, is_single_line=%d, seed_mode=%d",
+           a_chain->name, l_dag->is_add_directly, l_dag->is_single_line, a_chain->seed_mode);
     /* If datum passes thru rounds, let's check if it wasn't added before */
     dap_hash_sha3_256_t l_datum_hash;
     dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
@@ -777,7 +787,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     if (!dap_ht_count(PVT(l_dag)->events_lasts_unlinked)) {
         pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         log_it(L_INFO, "Nothing to link");
-        if (!s_seed_mode)
+        if (!a_chain->seed_mode)
             return false;
     } else {
         /* We'll use modification-safe iteration thru the additional hashtable thus the chosen events will not repeat */
@@ -796,7 +806,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
                 }
             }
         }
-        dap_ht_clear(l_tmp);
+        dap_ht_clear_hh(hh_select, l_tmp);
         if (l_hashes_linked < l_hashes_size) {
             log_it(L_ERROR, "No enough unlinked events present (only %zu of %zu), a dummy round?", l_hashes_linked, l_hashes_size);
             return false;
@@ -950,7 +960,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t *a_c
     pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
     // genesis or seed mode
     if ( !l_event->header.hash_count ) {
-        if ( s_seed_mode ) /* TODO: lock with mutex too. Is this yet used?...*/
+        if ( a_chain->seed_mode )
             return !PVT(l_dag)->events
                 ? log_it(L_NOTICE,"Treating event %s as genesis. Time to turn seed mode off!", dap_hash_sha3_256_to_str_static(a_atom_hash)), ATOM_ACCEPT
                 : ( log_it(L_ERROR, "Genesis event is already present! Turn off seed mode and try again!"), ATOM_REJECT );
@@ -1575,17 +1585,24 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
 
             // Check if its ready or not
             for (size_t i = 0; i< l_objs_size; i++ ){
+                bool l_key_done = false;
+                for (dap_list_t *l_el = l_list_to_del; l_el; l_el = l_el->next) {
+                    if (!strcmp((const char *)l_el->data, l_objs[i].key)) {
+                        l_key_done = true;
+                        break;
+                    }
+                }
+                if (l_key_done)
+                    continue;
                 dap_chain_type_dag_event_round_item_t *l_round_item = (dap_chain_type_dag_event_round_item_t *)l_objs[i].value;
                 dap_chain_type_dag_event_t *l_event = (dap_chain_type_dag_event_t *)l_round_item->event_n_signs;
                 dap_hash_sha3_256_t l_event_hash = {};
                 size_t l_event_size = l_round_item->event_size;
                 dap_hash_sha3_256(l_event, l_event_size, &l_event_hash);
                 int l_ret_event_verify;
-                if ( ( l_ret_event_verify = l_dag->callback_cs_verify(l_dag, l_event, &l_event_hash) ) !=0 ) {// if consensus accept the event
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR,"Error! Event %s is not passing consensus verification, ret code %d\n",
-                                              l_objs[i].key, l_ret_event_verify );
-                    ret = -DAP_CHAIN_NODE_CLI_COM_DAG_EVENT_ERR;
-                    break;
+                if ( ( l_ret_event_verify = l_dag->callback_cs_verify(l_dag, l_event, &l_event_hash) ) !=0 ) {
+                    log_it(L_DEBUG, "Event %s version doesn't pass verification (code %d), trying next", l_objs[i].key, l_ret_event_verify);
+                    continue;
                 }else {
                     snprintf(l_buf, 150, "Event %s verification passed", l_objs[i].key);
                     dap_json_object_add_object(json_obj_round,a_version == 1 ? "verification status" : "verification_status", dap_json_object_new_string(l_buf));
@@ -1809,10 +1826,8 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
                     size_t l_datum_size =  dap_chain_datum_size(l_datum);
 
-                    // Nested datum
                     const char *l_datum_type = NULL;
                     DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type)
-                    dap_json_object_add_object(json_obj_event,a_version == 1 ? "Datum" : "datum", dap_json_object_new_string("empty"));
                     dap_json_object_add_object(json_obj_event,"datum_size", dap_json_object_new_uint64(l_datum_size));
                     snprintf(l_buf, sizeof(l_buf), "0x%02hhX",l_datum->header.version_id);
                     dap_json_object_add_object(json_obj_event,"version", dap_json_object_new_string(l_buf));
@@ -2027,7 +2042,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
 
                     dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "net name" : "net_name", dap_json_object_new_string(l_net->pub.name));
                     dap_json_object_add_object(json_obj_event_list,"chain", dap_json_object_new_string(l_chain->name));
-                    dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "total events" : "total_events", dap_json_object_new_uint64(l_events_count));
+                    dap_json_object_add_object(json_obj_event_list, "total_events", dap_json_object_new_uint64(l_events_count));
 
                     dap_json_array_add(a_json_arr_reply, json_obj_event_list);
                 }else if (l_from_events_str && (strcmp(l_from_events_str,"threshold") == 0) ){
@@ -2058,7 +2073,7 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
                     dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "net name" : "net_name", dap_json_object_new_string(l_net->pub.name));
                     dap_json_object_add_object(json_obj_event_list,"chain", dap_json_object_new_string(l_chain->name));
-                    dap_json_object_add_object(json_obj_event_list,a_version == 1 ? "total events" : "total_events", dap_json_object_new_uint64(l_events_count));
+                    dap_json_object_add_object(json_obj_event_list, "total_events", dap_json_object_new_uint64(l_events_count));
 
                     dap_json_array_add(a_json_arr_reply, json_obj_event_list);
 
@@ -2093,8 +2108,8 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                 char l_buf[DAP_TIME_STR_SIZE];
                 if (l_last_item)
                     dap_time_to_str_rfc822(l_buf, DAP_TIME_STR_SIZE, l_last_item->ts_created);
-                dap_json_object_add_uint64(json_obj_out, a_version == 1 ? "Last event num" : "last_event_num", l_last_item ? l_last_item->event_number : 0);
-                dap_json_object_add_object(json_obj_out, a_version == 1 ? "Last event hash" : "last_event_hash", dap_json_object_new_string(l_last_item ?
+                dap_json_object_add_uint64(json_obj_out, "last_event_num", l_last_item ? l_last_item->event_number : 0);
+                dap_json_object_add_object(json_obj_out, "last_event_hash", dap_json_object_new_string(l_last_item ?
                                                                                 dap_hash_sha3_256_to_str_static(&l_last_item->hash) : "empty"));
                 dap_json_object_add_string(json_obj_out, "ts_created", l_last_item ? l_buf : "never");
 

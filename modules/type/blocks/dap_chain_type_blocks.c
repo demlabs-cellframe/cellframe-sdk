@@ -182,7 +182,6 @@ static uint64_t s_callback_count_txs(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
 
-static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
 static dap_list_t *s_fork_resolved_notificators = NULL;
@@ -277,7 +276,6 @@ int dap_chain_type_blocks_init()
     // Register blocks decree handlers (empty_blockgen)
     dap_chain_blocks_decree_init();
     
-    s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add("block", s_cli_blocks, s_print_for_block_list, "Create and explore blockchains", 0,
 
@@ -2194,7 +2192,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     // genesis or seed mode
     if (l_is_genesis) {
         if (!a_chain->generation && !l_generation) {
-            if (s_seed_mode)
+            if (a_chain->seed_mode)
                 log_it(L_NOTICE, "Accepting new genesis block %s", dap_hash_sha3_256_to_str_static(a_atom_hash));
             else if (dap_hash_sha3_256_compare(&l_block_hash, &PVT(l_blocks)->static_genesis_block_hash)
                     && !dap_hash_sha3_256_is_blank(&l_block_hash)) {

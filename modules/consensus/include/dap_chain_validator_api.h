@@ -120,7 +120,7 @@ typedef void (*dap_chain_validator_hardfork_update_func_t)(
  * @param a_item Validator item
  * @return Node address pointer
  */
-typedef dap_stream_node_addr_t* (*dap_chain_validator_get_node_addr_func_t)(
+typedef dap_cluster_node_addr_t* (*dap_chain_validator_get_node_addr_func_t)(
     dap_chain_validator_item_t a_item
 );
 
@@ -176,7 +176,7 @@ void dap_chain_validator_api_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey);
 uint256_t dap_chain_validator_api_get_allowed_min_value(dap_chain_net_id_t a_net_id);
 void dap_chain_validator_api_hardfork_tx_update(dap_chain_net_t *a_net);
-dap_stream_node_addr_t* dap_chain_validator_api_get_node_addr(dap_chain_validator_item_t a_item);
+dap_cluster_node_addr_t* dap_chain_validator_api_get_node_addr(dap_chain_validator_item_t a_item);
 uint256_t dap_chain_validator_api_get_value(dap_chain_validator_item_t a_item);
 
 #ifdef __cplusplus

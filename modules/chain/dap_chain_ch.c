@@ -55,7 +55,7 @@ struct sync_context {
     atomic_uint_fast64_t allowed_num;
     atomic_uint_fast16_t state;
     dap_chain_atom_iter_t *iter;
-    dap_stream_node_addr_t addr;
+    dap_cluster_node_addr_t addr;
     dap_chain_net_id_t net_id;
     dap_chain_id_t chain_id;
     dap_chain_cell_id_t cell_id;
@@ -95,7 +95,7 @@ static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, u
                                         uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size);
 
-static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, dap_stream_node_addr_t a_sender_addr);
+static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, dap_cluster_node_addr_t a_sender_addr);
 static bool s_chain_iter_callback(void *a_arg);
 static bool s_chain_iter_delete_callback(void *a_arg);
 static bool s_sync_timer_callback(void *a_arg);
@@ -196,7 +196,7 @@ static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg)
 }
 
 struct atom_processing_args {
-    dap_stream_node_addr_t addr;
+    dap_cluster_node_addr_t addr;
     bool ack_req;
     byte_t data[];
 };
@@ -268,7 +268,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
     return false;
 }
 
-static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, dap_stream_node_addr_t a_sender_addr)
+static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, dap_cluster_node_addr_t a_sender_addr)
 {
     assert(a_payload && a_payload_size);
     dap_chain_ch_pkt_t *l_chain_pkt = a_payload;

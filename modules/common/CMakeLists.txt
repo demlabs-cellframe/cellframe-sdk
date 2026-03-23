@@ -16,7 +16,11 @@ target_include_directories(${PROJECT_NAME} PUBLIC .)
 target_link_libraries(${PROJECT_NAME} dap_hash_table)
 
 # Only depends on DAP SDK for basic types
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_global_db dap_link_manager)
+if(DAP_WASM)
+    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_net_common)
+else()
+    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_global_db dap_link_manager)
+endif()
 
 if(INSTALL_SDK)
     INSTALL(FILES ${DAP_COMMON_HEADERS}

@@ -36,6 +36,12 @@ extern "C" {
  */
 
 /**
+ * @brief Set version string displayed by the "version" CLI command
+ * @param a_version_string Application version string (e.g. "CellframeNode, 6.0, ...")
+ */
+void dap_chain_net_cli_set_version_info(const char *a_version_string);
+
+/**
  * @brief Initialize net CLI commands
  * @return 0 on success, negative error code on failure
  */

@@ -51,6 +51,8 @@
 
 #define LOG_TAG "dap_ledger"
 
+static dap_ledger_t *s_ledger_registry = NULL;
+
 typedef struct dap_ledger_service_info {
     dap_chain_srv_uid_t service_uid;    // hash key
     char tag_str[32];   // tag string name
@@ -327,6 +329,7 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
 {
     if(!a_ledger)
         return;
+    dap_ht_del(s_ledger_registry, a_ledger);
     // Destroy Read/Write Lock
     pthread_rwlock_destroy(&PVT(a_ledger)->ledger_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->tokens_rwlock);
@@ -1009,6 +1012,8 @@ dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger)
 {
     return a_ledger ? a_ledger->net_id : (dap_chain_net_id_t){0};
 }
+
+// s_ledger_registry declared at file top
 
 /**
  * @brief Find ledger by name

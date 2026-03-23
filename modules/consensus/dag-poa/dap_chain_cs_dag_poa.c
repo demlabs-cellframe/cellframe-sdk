@@ -26,7 +26,6 @@
 #include "dap_common.h"
 #include "dap_link_manager.h"
 #include "dap_timerfd.h"
-#include "dap_interval_timer.h"
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_net.h"
@@ -67,7 +66,7 @@ typedef struct dap_chain_type_dag_poa_pvt {
     bool auto_confirmation, auto_round_complete;
     uint32_t confirmations_timeout, wait_sync_before_complete;
     dap_chain_type_dag_poa_presign_callback_t *callback_pre_sign;
-    dap_interval_timer_t mempool_timer;
+    dap_timerfd_t *mempool_timer;
 } dap_chain_type_dag_poa_pvt_t;
 
 #define PVT(a) ((dap_chain_type_dag_poa_pvt_t *) a->_pvt )
@@ -89,7 +88,6 @@ static void s_round_event_cs_done(dap_chain_type_dag_poa_round_item_t *a_event_i
 // CLI commands
 static int s_cli_dag_poa(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a_version);
 
-static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
 /**
@@ -108,7 +106,6 @@ int dap_chain_type_dag_poa_init()
     };
     dap_chain_cs_add("dag_poa", l_cs_callbacks);
     
-    s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",  0 ,  // Auto-assign ID
         "dag_poa event sign -net <net_name> [-chain <chain_name>] -event <event_hash> [-H {hex | base58(default)}]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
@@ -644,15 +641,16 @@ static void s_round_changes_notify(dap_global_db_store_obj_t *a_obj, void *a_arg
     switch ( l_type ) {
     case DAP_GLOBAL_DB_OPTYPE_ADD:
         s_callback_event_round_sync(l_dag, l_type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len,
-                                    dap_stream_node_addr_from_sign(a_obj->sign).uint64 == g_node_addr.uint64);
+                                    dap_cluster_node_addr_from_sign(a_obj->sign).uint64 == g_node_addr.uint64);
     default:
         break;
     }
 }
 
-static void s_timer_process_callback(void *a_arg)
+static bool s_timer_process_callback(void *a_arg)
 {
     dap_chain_node_mempool_process_all( (dap_chain_t*)a_arg, false );
+    return true;
 }
 
 /**
@@ -686,7 +684,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
     dap_chain_net_add_auth_nodes_to_cluster(l_net, l_dag_cluster);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_dag_cluster->links_cluster);
-    PVT(l_poa)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
+    PVT(l_poa)->mempool_timer = dap_timerfd_start(15000, s_timer_process_callback, a_chain);
 
     switch ( dap_chain_net_get_role(l_net).enums ) {
     case NODE_ROLE_ROOT_MASTER:
@@ -710,7 +708,9 @@ static void s_callback_delete(dap_chain_type_dag_t *a_dag)
     if ( l_poa->_pvt ) {
         dap_chain_type_dag_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
 
-        dap_interval_timer_delete(l_poa_pvt->mempool_timer);
+        if (l_poa_pvt->mempool_timer)
+            dap_timerfd_delete(l_poa_pvt->mempool_timer->worker,
+                               l_poa_pvt->mempool_timer->esocket_uuid);
 
         if ( l_poa_pvt->auth_certs )
             DAP_DELETE ( l_poa_pvt->auth_certs);
@@ -757,7 +757,7 @@ static dap_chain_type_dag_event_t * s_callback_event_create(dap_chain_type_dag_t
     dap_chain_type_dag_poa_t *l_poa = DAP_CHAIN_TYPE_DAG_POA(a_dag);
     if ( !PVT(l_poa)->events_sign_cert )
         log_it(L_ERROR, "Can't sign event with events_sign_cert in [dag-poa] section");
-    else if ( s_seed_mode || (a_hashes && a_hashes_count) ) {
+    else if ( a_dag->chain->seed_mode || (a_hashes && a_hashes_count) ) {
         if ( !PVT(l_poa)->callback_pre_sign || !PVT(l_poa)->callback_pre_sign->callback) {
             return dap_chain_type_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_datum,
                                               PVT(l_poa)->events_sign_cert->enc_key,

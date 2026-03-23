@@ -46,65 +46,28 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_ledger_cli.h"
 #include "dap_chain_ledger_cli_error_codes.h"
+#include "dap_chain_net_types.h"
 #include "dap_cli_error_codes.h"
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_tx_compose_api.h"
 
-// Forward declarations for types from higher-level modules
-typedef struct dap_chain_net dap_chain_net_t;
-typedef struct dap_chain_wallet dap_chain_wallet_t;
-
-// Forward declarations for functions from net/tx module (higher-level)
-// These are temporary - CLI should be refactored to use TX Compose API
-extern void dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_json);
-extern int dap_chain_net_tx_create_by_json(dap_json_t *a_json, dap_chain_net_t *a_net, 
-                                            dap_json_t *a_errors, dap_chain_datum_tx_t **a_tx,
-                                            size_t *a_items_count, size_t *a_items_ready);
-extern bool dap_chain_net_tx_get_fee(dap_chain_id_t a_chain_id, uint256_t *a_fee, dap_chain_addr_t *a_addr);
-extern char* dap_chain_mempool_datum_add(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
-
-// Forward declarations for problematic functions from net module
-// TODO: Remove after full CLI refactoring  
-typedef struct tx_check_args {
-    dap_chain_datum_tx_t *tx;
-    dap_hash_sha3_256_t tx_hash;
-} tx_check_args_t;
-
-typedef enum {
-    TX_SEARCH_TYPE_NET = 0
-} tx_search_type_t;
-
-extern int dap_chain_net_get_tx_all(dap_chain_net_t *a_net, tx_search_type_t a_search_type, 
-                                     bool (*a_filter_callback)(tx_check_args_t *), dap_list_t **a_list_out);
-extern bool s_tx_is_srv_pay_check(tx_check_args_t *a_args);
-
-// Forward declarations for net functions
-extern dap_chain_t* dap_chain_net_get_chain_by_name(dap_chain_net_t *a_net, const char *a_chain_name);
-extern dap_chain_t* dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_chain_type);
-extern dap_chain_net_t* dap_chain_net_by_name(const char *a_name);
-extern bool dap_chain_net_is_bridged(dap_chain_net_t *a_net);
-extern const char* dap_chain_net_verify_datum_err_code_to_str(int a_code);
-
-// Forward declarations for wallet functions
-extern const char* dap_chain_wallet_get_path(dap_chain_wallet_t *a_wallet);
-
-// Forward declarations for mempool functions
-extern char* dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_datum_tx_t *a_datum,
-                                               const char *a_hash_out_type);
-extern char* dap_chain_mempool_group_new(dap_chain_t *a_chain);
-
-// Forward declarations for global_db functions (legacy, will be removed)
-extern int dap_global_db_set(const char *a_group, const char *a_key, const void *a_value, 
-                             size_t a_value_size, bool a_is_pinned, void *a_arg);
-
-// JSON util function (legacy)
-extern const char* json_util_get_last_err(void);
-
-
+// Functions from higher-level modules used by com_ledger.
+// These are forward declarations to avoid circular #include dependencies.
+// TODO: refactor com_ledger to remove these cross-module calls.
+extern int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_json);
+extern char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
 
 #define LOG_TAG "chain_ledger_cli"
+
+#define DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_SIGN_FUNC        (-20)
+#define DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC  (-21)
+#define DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC    (-22)
+#define DAP_LEDGER_CLI_ERROR_MEMORY_ALLOC                  (-23)
+
+#define dap_cli_error_get_code(x) (x)
+#define dap_cli_error_get_str(x)  #x
 
 // Local helper structure for CLI output - tracks already printed transactions to avoid duplicates in single command output
 typedef struct dap_chain_tx_hash_processed_ht {
@@ -949,6 +912,7 @@ dap_json_t *dap_db_history_tx_all(dap_json_t *a_json_arr_reply, dap_chain_t *a_c
 					const char *a_srv, dap_chain_tx_tag_action_type_t a_action, bool a_head, int a_version)
 {
         log_it(L_DEBUG, "Start getting tx from chain");
+        dap_ledger_t *l_ledger = a_net->pub.ledger;
         size_t
             l_tx_ledger_accepted = 0,
             l_tx_ledger_rejected = 0,
@@ -1121,7 +1085,7 @@ static size_t dap_db_net_history_token_list(dap_json_t *a_json_arr_reply, dap_le
             dap_json_array_add(json_arr_obj_tx, json_obj_tx);
         l_token_num_total += l_token_num;
     }
-    dap_json_object_add_object(a_obj_out, a_version == 1 ? "TOKENS" : "tokens", json_arr_obj_tx);
+    dap_json_object_add_object(a_obj_out, a_version == 1 ? "TOKENS" : "token_list", json_arr_obj_tx);
     return l_token_num_total;
 }
 
@@ -2021,6 +1985,7 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
     int arg_index = 1;
     const char *l_net_str = NULL;
     dap_chain_net_t * l_net = NULL;
+    dap_ledger_t *l_ledger = NULL;
 
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -2086,6 +2051,10 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
         
         return DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
 
+    // command tx history — disabled: requires migration to new chain enumeration API
+    // (dap_chain_enum/dap_db_history_filter removed in 6.x, use dap_db_history_tx/dap_db_history_addr instead)
+#if 0
+    else if(l_cmd == CMD_TX) {
         tx_hash_processed_t *l_list_tx_hash_processd = NULL;
         enum { SUBCMD_TX_NONE, SUBCMD_TX_ALL, SUBCMD_TX_ADDR };
         // find subcommand
@@ -2227,8 +2196,8 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
             dap_json_rpc_error_add(a_json_arr_reply, -1, "not found parameter '-all', '-wallet' or '-addr'");
             return -1;
         }
-
     }
+#endif
 
     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN, "unknown command code %d", l_cmd);
     return -DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
@@ -3809,24 +3778,26 @@ int com_tx_cond_remove(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
     }
     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OTHER_ERROR, "Can't create new TX. Something went wrong.");
     return DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OTHER_ERROR;
+
+int dap_chain_ledger_cli_init(void)
+{
+    dap_cli_server_cmd_add("ledger", com_ledger, NULL,
+                           "Ledger information",
+                           -1,
+                           "ledger list { coins | threshold | addrs | balance } -net <net_name>\n"
+                           "ledger tx -all { -net <net_name> | -chain <chain_name> }\n"
+                           "ledger tx -hash <tx_hash> -net <net_name>\n");
+    dap_cli_server_cmd_add("token", com_token, NULL,
+                           "Token information",
+                           -1,
+                           "token { list | info | tx } -net <net_name>\n");
+    log_it(L_NOTICE, "Ledger CLI commands registered");
+    return 0;
 }
 
-typedef struct tx_check_args {
-    dap_chain_datum_tx_t *tx;
-    dap_hash_sha3_256_t tx_hash;
-} tx_check_args_t;
-
-void s_tx_is_srv_pay_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, void *a_arg)
+void dap_chain_ledger_cli_deinit(void)
 {
-    UNUSED(a_net);
-    dap_list_t **l_tx_list_ptr = a_arg;
-    if (dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , NULL)){
-        tx_check_args_t *l_arg = DAP_NEW_Z(tx_check_args_t);
-        l_arg->tx = a_tx;
-        l_arg->tx_hash = *a_tx_hash;
-        *l_tx_list_ptr = dap_list_append(*l_tx_list_ptr, l_arg);
-    }
-
+    log_it(L_INFO, "Ledger CLI commands unregistered");
 }
 
 int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_version)
