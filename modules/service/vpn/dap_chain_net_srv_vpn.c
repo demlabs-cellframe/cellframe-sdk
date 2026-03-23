@@ -1605,6 +1605,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                             &l_err, sizeof(l_err));
                         dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                         dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+                        return;
                     }
                     else
                     {
@@ -1632,6 +1633,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                             &l_err, sizeof(l_err));
                         dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                         dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+                        return;
                     }
                     else
                     {
