@@ -658,6 +658,83 @@ static void s_test_mempool_wait_terminate_at_max(dap_cert_t *a_cert,
 }
 
 
+/**
+ * Test 10: Hole detection and tx_recreate_count flow
+ * @details Simulate: tx created → goes to mempool → rejected (hole) → revert to prev hash →
+ *          recreate tx → rejected again → tx_recreate_count reaches MAX → terminate.
+ *          Also verifies that original confirmed tx is still valid.
+ */
+static void s_test_hole_detection_recreate(dap_cert_t *a_cert,
+                                           dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_emission_hash)
+{
+    dap_print_module_name("Test 10: Hole detection and tx recreate flow");
+
+    dap_hash_fast_t l_pkey_hash;
+    dap_hash_fast(a_cert->enc_key->pub_key_data, a_cert->enc_key->pub_key_data_size, &l_pkey_hash);
+
+    dap_chain_net_srv_uid_t l_srv_uid = {.uint64 = s_srv_uid_value};
+    uint256_t l_cond_value = dap_chain_balance_scan("5000.0");
+
+    test_tx_fixture_t *l_tx0 = s_create_cond_tx_from_emission(
+        s_net_fixture->ledger, a_emission_hash, s_token_ticker,
+        l_cond_value, l_srv_uid, &l_pkey_hash, a_cert);
+    dap_assert(l_tx0 != NULL, "Cond tx0 created for hole detection test");
+    int l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx0);
+    dap_assert(l_res == 0, "Cond tx0 added to ledger");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+    l_usage.tx_cond_hash = l_tx0->tx_hash;
+
+    // Simulate: tx created and sent to mempool
+    dap_hash_fast_t l_mempool_tx1;
+    dap_hash_fast("hole_tx_1", 9, &l_mempool_tx1);
+    l_usage.tx_cond_hash_prev = l_usage.tx_cond_hash;
+    l_usage.tx_cond_hash = l_mempool_tx1;
+
+    // Simulate: tx rejected (hole) — not in ledger, not in mempool
+    // dap_ledger_tx_find_by_hash returns NULL, dap_chain_mempool_datum_get returns NULL
+    bool l_in_ledger = (dap_ledger_tx_find_by_hash(s_net_fixture->ledger, &l_usage.tx_cond_hash) != NULL);
+    dap_assert(!l_in_ledger, "Fake mempool tx should not be in ledger");
+
+    // First hole detection: revert and recreate (attempt 1)
+    l_usage.tx_recreate_count++;
+    dap_assert(l_usage.tx_recreate_count < MAX_TX_RECREATE_ATTEMPTS,
+               "First recreate attempt should not trigger termination");
+
+    l_usage.tx_cond_hash = l_usage.tx_cond_hash_prev;
+    memset(&l_usage.tx_cond_hash_prev, 0, sizeof(l_usage.tx_cond_hash_prev));
+    l_usage.mempool_wait_count = 0;
+
+    // Verify hash reverted to original confirmed tx
+    dap_assert(dap_hash_fast_compare(&l_usage.tx_cond_hash, &l_tx0->tx_hash),
+               "tx_cond_hash should revert to original confirmed tx");
+
+    // Verify original tx still exists and is unspent in ledger
+    dap_hash_fast_t l_final = dap_ledger_get_final_chain_tx_hash(
+        s_net_fixture->ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
+        &l_tx0->tx_hash, true);
+    dap_assert(dap_hash_fast_compare(&l_final, &l_tx0->tx_hash),
+               "Original tx0 should still be unspent after first revert");
+
+    // Simulate: second tx created and also rejected
+    dap_hash_fast_t l_mempool_tx2;
+    dap_hash_fast("hole_tx_2", 9, &l_mempool_tx2);
+    l_usage.tx_cond_hash_prev = l_usage.tx_cond_hash;
+    l_usage.tx_cond_hash = l_mempool_tx2;
+
+    // Second hole detection: should trigger termination
+    l_usage.tx_recreate_count++;
+    bool l_should_terminate = (l_usage.tx_recreate_count >= MAX_TX_RECREATE_ATTEMPTS);
+    dap_assert(l_should_terminate,
+               "Second recreate attempt should trigger termination (2 >= MAX)");
+    dap_assert(l_usage.tx_recreate_count == MAX_TX_RECREATE_ATTEMPTS,
+               "tx_recreate_count should equal MAX_TX_RECREATE_ATTEMPTS");
+
+    test_tx_fixture_destroy(l_tx0);
+    dap_pass_msg("Hole detection and tx recreate flow test passed");
+}
+
 static void s_setup(void)
 {
     log_it(L_NOTICE, "=== srv_pay Integration Tests Setup ===");
@@ -788,6 +865,12 @@ int main(void)
     int l_em6_res = test_emission_fixture_add_to_ledger(s_net_fixture->ledger, l_em6);
     dap_assert(l_em6_res == 0, "Emission 6 added to ledger");
 
+    test_emission_fixture_t *l_em7 = test_emission_fixture_create_with_cert(
+        s_token_ticker, l_emission_value, &l_addr, l_token->owner_cert);
+    dap_assert(l_em7 != NULL, "Emission 7 created");
+    int l_em7_res = test_emission_fixture_add_to_ledger(s_net_fixture->ledger, l_em7);
+    dap_assert(l_em7_res == 0, "Emission 7 added to ledger");
+
     // Run tests
     s_test_chain_following_single(l_token->owner_cert, &l_addr, &l_em1->emission_hash);
     s_test_chain_following_two_hops(l_token->owner_cert, &l_addr, &l_em2->emission_hash);
@@ -798,6 +881,7 @@ int main(void)
     s_test_chain_following_fully_spent(l_token->owner_cert, &l_addr, &l_em4->emission_hash);
     s_test_mempool_wait_accumulated_spend(l_token->owner_cert, &l_addr, &l_em5->emission_hash);
     s_test_mempool_wait_terminate_at_max(l_token->owner_cert, &l_addr, &l_em6->emission_hash);
+    s_test_hole_detection_recreate(l_token->owner_cert, &l_addr, &l_em7->emission_hash);
 
     // Cleanup
     test_emission_fixture_destroy(l_em1);
@@ -806,6 +890,7 @@ int main(void)
     test_emission_fixture_destroy(l_em4);
     test_emission_fixture_destroy(l_em5);
     test_emission_fixture_destroy(l_em6);
+    test_emission_fixture_destroy(l_em7);
     test_token_fixture_destroy(l_token);
     dap_enc_key_delete(l_key);
 

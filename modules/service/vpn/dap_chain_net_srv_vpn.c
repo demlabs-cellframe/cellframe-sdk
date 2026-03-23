@@ -101,6 +101,7 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_chain_net_srv_vpn_cmd.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_mempool.h"
 #include "dap_events.h"
 
 #include "dap_http_simple.h"
@@ -1565,6 +1566,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                         a_usage->service, a_usage->price, NULL, 0, &a_usage->tx_cond_hash);
                 }
                 a_usage->mempool_wait_count = 0;
+                a_usage->tx_recreate_count = 0;
                 a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN;
                 a_usage->receipt_timeout_timer_start_callback(a_usage);
                 dap_stream_ch_pkt_write_unsafe(a_usage->client->ch,
@@ -1573,29 +1575,81 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             }
             else
             {
-                // Mempool tx still pending — extend limits and increment counter
-                a_usage->mempool_wait_count++;
-                if(a_usage->mempool_wait_count >= MAX_MEMPOOL_WAIT_CYCLES)
+                // Check if tx still exists in mempool or was rejected (hole)
+                dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_usage->net, CHAIN_TYPE_TX);
+                char *l_hash_str = dap_hash_fast_to_str_new(&a_usage->tx_cond_hash);
+                bool l_tx_in_mempool = false;
+                if(l_chain)
                 {
-                    log_it(L_ERROR, "Mempool tx %s not confirmed after %u cycles, terminating stream",
-                           dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash),
-                           a_usage->mempool_wait_count);
-                    dap_stream_ch_chain_net_srv_pkt_error_t l_err = {};
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
-                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED,
-                        &l_err, sizeof(l_err));
-                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
-                    dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+                    dap_chain_datum_t *l_datum = dap_chain_mempool_datum_get(l_chain, l_hash_str);
+                    if(l_datum)
+                    {
+                        l_tx_in_mempool = true;
+                        DAP_DEL_Z(l_datum);
+                    }
+                }
+                DAP_DELETE(l_hash_str);
+
+                if(l_tx_in_mempool)
+                {
+                    // Tx still in mempool, waiting for consensus
+                    a_usage->mempool_wait_count++;
+                    if(a_usage->mempool_wait_count >= MAX_MEMPOOL_WAIT_CYCLES)
+                    {
+                        log_it(L_ERROR, "Mempool tx %s not confirmed after %u cycles, terminating stream",
+                               dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash),
+                               a_usage->mempool_wait_count);
+                        dap_stream_ch_chain_net_srv_pkt_error_t l_err = {};
+                        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
+                        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED,
+                            &l_err, sizeof(l_err));
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
+                        dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+                    }
+                    else
+                    {
+                        log_it(L_NOTICE, "Mempool tx %s pending (cycle %u/%u), extending service limits",
+                               dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash),
+                               a_usage->mempool_wait_count, MAX_MEMPOOL_WAIT_CYCLES);
+                        if(a_usage->receipt && a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC)
+                            a_srv_session->limits_ts += (time_t)a_usage->price->units;
+                        else if(a_usage->receipt && a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B)
+                            a_srv_session->limits_bytes += (uintmax_t)a_usage->price->units;
+                    }
                 }
                 else
                 {
-                    log_it(L_NOTICE, "Mempool tx %s pending (cycle %u/%u), extending service limits",
-                           dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash),
-                           a_usage->mempool_wait_count, MAX_MEMPOOL_WAIT_CYCLES);
-                    if(a_usage->receipt && a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC)
-                        a_srv_session->limits_ts += (time_t)a_usage->price->units;
-                    else if(a_usage->receipt && a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B)
-                        a_srv_session->limits_bytes += (uintmax_t)a_usage->price->units;
+                    // Tx rejected (hole) or lost from mempool
+                    a_usage->tx_recreate_count++;
+                    if(a_usage->tx_recreate_count >= MAX_TX_RECREATE_ATTEMPTS)
+                    {
+                        log_it(L_ERROR, "Mempool tx %s rejected, %u/%u recreate attempts exhausted, terminating stream",
+                               dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash),
+                               a_usage->tx_recreate_count, MAX_TX_RECREATE_ATTEMPTS);
+                        dap_stream_ch_chain_net_srv_pkt_error_t l_err = {};
+                        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
+                        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED,
+                            &l_err, sizeof(l_err));
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
+                        dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+                    }
+                    else
+                    {
+                        log_it(L_WARNING, "Mempool tx %s rejected/lost, reverting to %s (recreate attempt %u/%u)",
+                               dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash),
+                               dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash_prev),
+                               a_usage->tx_recreate_count, MAX_TX_RECREATE_ATTEMPTS);
+                        a_usage->tx_cond_hash = a_usage->tx_cond_hash_prev;
+                        memset(&a_usage->tx_cond_hash_prev, 0, sizeof(a_usage->tx_cond_hash_prev));
+                        a_usage->mempool_wait_count = 0;
+                        a_usage->receipt_next = dap_chain_net_srv_issue_receipt(
+                            a_usage->service, a_usage->price, NULL, 0, &a_usage->tx_cond_hash);
+                        a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN;
+                        a_usage->receipt_timeout_timer_start_callback(a_usage);
+                        dap_stream_ch_pkt_write_unsafe(a_usage->client->ch,
+                            DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                            a_usage->receipt_next, a_usage->receipt_next->size);
+                    }
                 }
             }
         }

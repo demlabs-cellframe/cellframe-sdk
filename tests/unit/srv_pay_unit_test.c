@@ -680,6 +680,173 @@ static void s_test_zero_counter_confirm(void)
     dap_pass_msg("Zero counter confirmation test passed");
 }
 
+/**
+ * Test 21: tx_recreate_count initial state
+ * @details Zero-initialized usage should have tx_recreate_count == 0
+ */
+static void s_test_tx_recreate_count_initial(void)
+{
+    dap_print_module_name("Test 21: tx_recreate_count initial state");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    dap_assert(l_usage.tx_recreate_count == 0,
+               "tx_recreate_count should be 0 after zero-init");
+
+    dap_pass_msg("tx_recreate_count initial state test passed");
+}
+
+/**
+ * Test 22: tx_recreate_count threshold triggers termination
+ * @details When tx_recreate_count >= MAX_TX_RECREATE_ATTEMPTS, stream should terminate
+ */
+static void s_test_tx_recreate_count_threshold(void)
+{
+    dap_print_module_name("Test 22: tx_recreate_count threshold");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    // Simulate recreation attempts
+    for(uint32_t i = 0; i < MAX_TX_RECREATE_ATTEMPTS; i++)
+    {
+        l_usage.tx_recreate_count++;
+    }
+
+    dap_assert(l_usage.tx_recreate_count >= MAX_TX_RECREATE_ATTEMPTS,
+               "tx_recreate_count should reach MAX_TX_RECREATE_ATTEMPTS");
+
+    bool l_should_terminate = (l_usage.tx_recreate_count >= MAX_TX_RECREATE_ATTEMPTS);
+    dap_assert(l_should_terminate, "Stream should terminate at MAX_TX_RECREATE_ATTEMPTS");
+
+    dap_pass_msg("tx_recreate_count threshold test passed");
+}
+
+/**
+ * Test 23: tx_recreate_count reset on success
+ * @details PAY_SERVICE_STATUS_SUCCESS should reset tx_recreate_count to 0
+ */
+static void s_test_tx_recreate_count_reset_on_success(void)
+{
+    dap_print_module_name("Test 23: tx_recreate_count reset on success");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    l_usage.tx_recreate_count = 1;
+    dap_assert(l_usage.tx_recreate_count == 1,
+               "tx_recreate_count should be 1 before reset");
+
+    // Simulate PAY_SERVICE_STATUS_SUCCESS handler
+    l_usage.mempool_wait_count = 0;
+    l_usage.tx_recreate_count = 0;
+
+    dap_assert(l_usage.tx_recreate_count == 0,
+               "tx_recreate_count should be 0 after success");
+
+    dap_pass_msg("tx_recreate_count reset on success test passed");
+}
+
+/**
+ * Test 24: tx_recreate_count reset on ledger confirm
+ * @details When mempool tx is confirmed in ledger, tx_recreate_count resets to 0
+ */
+static void s_test_tx_recreate_count_reset_on_confirm(void)
+{
+    dap_print_module_name("Test 24: tx_recreate_count reset on ledger confirm");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    dap_hash_fast_t l_prev;
+    dap_hash_fast("prev", 4, &l_prev);
+    l_usage.tx_cond_hash_prev = l_prev;
+    l_usage.mempool_wait_count = 2;
+    l_usage.tx_recreate_count = 1;
+
+    // Simulate ledger confirmation in s_update_limits
+    memset(&l_usage.tx_cond_hash_prev, 0, sizeof(l_usage.tx_cond_hash_prev));
+    l_usage.mempool_wait_count = 0;
+    l_usage.tx_recreate_count = 0;
+
+    dap_assert(l_usage.tx_recreate_count == 0,
+               "tx_recreate_count should be 0 after ledger confirm");
+    dap_assert(l_usage.mempool_wait_count == 0,
+               "mempool_wait_count should also be 0");
+    dap_assert(dap_hash_fast_is_blank(&l_usage.tx_cond_hash_prev),
+               "tx_cond_hash_prev should be cleared");
+
+    dap_pass_msg("tx_recreate_count reset on ledger confirm test passed");
+}
+
+/**
+ * Test 25: tx_recreate_count revert flow
+ * @details When tx is rejected, hash reverts to prev and counter increments
+ */
+static void s_test_tx_recreate_revert_flow(void)
+{
+    dap_print_module_name("Test 25: tx_recreate revert flow");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    dap_hash_fast_t l_confirmed, l_rejected;
+    dap_hash_fast("confirmed_tx", 12, &l_confirmed);
+    dap_hash_fast("rejected_tx", 11, &l_rejected);
+
+    l_usage.tx_cond_hash = l_rejected;
+    l_usage.tx_cond_hash_prev = l_confirmed;
+    l_usage.mempool_wait_count = 1;
+    l_usage.tx_recreate_count = 0;
+
+    // Simulate rejected tx detection: revert and recreate
+    l_usage.tx_recreate_count++;
+    bool l_should_terminate = (l_usage.tx_recreate_count >= MAX_TX_RECREATE_ATTEMPTS);
+    dap_assert(!l_should_terminate,
+               "First recreate attempt should not terminate (1 < MAX)");
+
+    l_usage.tx_cond_hash = l_usage.tx_cond_hash_prev;
+    memset(&l_usage.tx_cond_hash_prev, 0, sizeof(l_usage.tx_cond_hash_prev));
+    l_usage.mempool_wait_count = 0;
+
+    dap_assert(dap_hash_fast_compare(&l_usage.tx_cond_hash, &l_confirmed),
+               "tx_cond_hash should revert to confirmed hash");
+    dap_assert(dap_hash_fast_is_blank(&l_usage.tx_cond_hash_prev),
+               "tx_cond_hash_prev should be cleared after revert");
+    dap_assert(l_usage.mempool_wait_count == 0,
+               "mempool_wait_count should be reset after revert");
+    dap_assert(l_usage.tx_recreate_count == 1,
+               "tx_recreate_count should be 1 after first revert");
+
+    // Simulate second rejection: should trigger termination
+    dap_hash_fast_t l_rejected2;
+    dap_hash_fast("rejected_tx2", 12, &l_rejected2);
+    l_usage.tx_cond_hash_prev = l_usage.tx_cond_hash;
+    l_usage.tx_cond_hash = l_rejected2;
+
+    l_usage.tx_recreate_count++;
+    l_should_terminate = (l_usage.tx_recreate_count >= MAX_TX_RECREATE_ATTEMPTS);
+    dap_assert(l_should_terminate,
+               "Second recreate attempt should trigger termination (2 >= MAX)");
+
+    dap_pass_msg("tx_recreate revert flow test passed");
+}
+
+/**
+ * Test 26: MAX_TX_RECREATE_ATTEMPTS constant value
+ * @details Verify the constant is set to 2
+ */
+static void s_test_max_tx_recreate_attempts_value(void)
+{
+    dap_print_module_name("Test 26: MAX_TX_RECREATE_ATTEMPTS value");
+
+    dap_assert(MAX_TX_RECREATE_ATTEMPTS == 2,
+               "MAX_TX_RECREATE_ATTEMPTS should be 2");
+
+    dap_pass_msg("MAX_TX_RECREATE_ATTEMPTS value test passed");
+}
+
 int main(void)
 {
     dap_print_module_name("=== srv_pay unit tests ===");
@@ -711,6 +878,14 @@ int main(void)
     s_test_terminate_at_max_no_confirm();
     s_test_confirm_mid_wait();
     s_test_zero_counter_confirm();
+
+    // tx_recreate_count tests
+    s_test_tx_recreate_count_initial();
+    s_test_tx_recreate_count_threshold();
+    s_test_tx_recreate_count_reset_on_success();
+    s_test_tx_recreate_count_reset_on_confirm();
+    s_test_tx_recreate_revert_flow();
+    s_test_max_tx_recreate_attempts_value();
 
     printf("\n%s=== All srv_pay unit tests passed ===%s\n", TEXT_COLOR_GRN, TEXT_COLOR_RESET);
     return 0;

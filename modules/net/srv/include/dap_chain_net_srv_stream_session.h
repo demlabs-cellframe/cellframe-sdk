@@ -36,6 +36,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define RECEIPT_SIGN_MAX_ATTEMPT 3
 #define MAX_MEMPOOL_WAIT_CYCLES 3
+#define MAX_TX_RECREATE_ATTEMPTS 2
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 typedef struct dap_chain_net_srv_client_remote dap_chain_net_srv_client_remote_t;
 typedef struct dap_chain_net_srv_price dap_chain_net_srv_price_t;
@@ -82,6 +83,7 @@ typedef struct dap_chain_net_srv_usage{
     void (*receipt_timeout_timer_start_callback)(struct dap_chain_net_srv_usage *a_usage);
     int receipt_sign_req_cnt;
     uint32_t mempool_wait_count; // Consecutive receipt cycles with unconfirmed mempool tx
+    uint32_t tx_recreate_count; // Number of tx recreation attempts after mempool rejection (hole)
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
     bool is_active;
