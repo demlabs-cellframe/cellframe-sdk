@@ -570,6 +570,15 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         l_specific_order_free = true;
     }
 
+    {
+        const char *l_coins_diag = NULL;
+        const char *l_datoshi_diag = dap_uint256_to_char(l_price->value_datoshi, &l_coins_diag);
+        log_it(L_WARNING, "DIAG: order price datoshi=%s coins=%s is_zero=%d allow_free=%d",
+               l_datoshi_diag ? l_datoshi_diag : "NULL",
+               l_coins_diag ? l_coins_diag : "NULL",
+               (int)l_specific_order_free, (int)l_srv->allow_free_srv);
+    }
+
     l_usage->price = l_price;
 
     if (!l_specific_order_free){
