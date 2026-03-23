@@ -302,6 +302,8 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
     a_node_client->client = dap_client_new(s_stage_status_error_callback, a_node_client);
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
+    if(a_node_client->desired_trans_type)
+        dap_client_set_trans_type(a_node_client->client, a_node_client->desired_trans_type);
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
     if (a_node_client->net && a_node_client->net->pub.config) {
         const char *l_auth_cert_name = dap_config_get_item_str(a_node_client->net->pub.config, "general", "auth_cert");
@@ -365,8 +367,20 @@ void s_close_on_worker_callback(void *a_arg)
 
 void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client)
 {
-    if (a_node_client->client)
-        dap_worker_exec_callback_on(DAP_CLIENT_FSM(a_node_client->client)->worker, s_close_on_worker_callback, a_node_client);
+    if(a_node_client->client)
+    {
+        dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_node_client->client);
+        if(l_fsm)
+        {
+            l_fsm->is_removing = true;
+            if(l_fsm->esocket)
+                l_fsm->esocket->is_removing = true;
+        }
+        if(l_fsm && l_fsm->worker)
+            dap_worker_exec_callback_on(l_fsm->worker, s_close_on_worker_callback, a_node_client);
+        else
+            dap_chain_node_client_close_unsafe(a_node_client);
+    }
     else
         dap_chain_node_client_close_unsafe(a_node_client);
 }

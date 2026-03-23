@@ -96,6 +96,7 @@ typedef struct dap_chain_node_client {
     dap_chain_node_addr_t remote_node_addr;
 
     bool is_connected;
+    dap_net_trans_type_t desired_trans_type; // If non-zero, overrides default transport in connect()
     dap_timerfd_t *sync_timer;
     dap_timerfd_t *reconnect_timer;
     // callbacks
