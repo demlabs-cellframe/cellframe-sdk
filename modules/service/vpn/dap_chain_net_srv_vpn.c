@@ -1530,17 +1530,89 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             }
         }
     }
-    // If issue new receipt
-    if ( l_issue_new_receipt && !dap_hash_fast_is_blank(&a_usage->tx_cond_hash)) {
+    if(l_issue_new_receipt && !dap_hash_fast_is_blank(&a_usage->tx_cond_hash))
+    {
+        if(!dap_hash_fast_is_blank(&a_usage->tx_cond_hash_prev))
+        {
+            // There is a pending mempool tx — check if it has been confirmed in ledger
+            dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(
+                a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
+            if(l_tx)
+            {
+                // Mempool tx confirmed in ledger
+                memset(&a_usage->tx_cond_hash_prev, 0, sizeof(a_usage->tx_cond_hash_prev));
+                if(a_usage->mempool_wait_count > 0)
+                {
+                    // Accumulated receipt: counter * value covers all extended periods
+                    uint256_t l_value = uint256_0;
+                    for(uint32_t i = 0; i < a_usage->mempool_wait_count; i++)
+                        SUM_256_256(l_value, a_usage->price->value_datoshi, &l_value);
+                    log_it(L_NOTICE, "Mempool tx %s confirmed after %u wait cycles, issuing accumulated receipt",
+                           dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash),
+                           a_usage->mempool_wait_count);
+                    a_usage->receipt_next = dap_chain_datum_tx_receipt_create(
+                        a_usage->service->uid, a_usage->price->units_uid,
+                        a_usage->price->units, l_value,
+                        NULL, 0, &a_usage->tx_cond_hash);
+                    a_usage->receipt_next = dap_chain_datum_tx_receipt_sign_add(
+                        a_usage->receipt_next, a_usage->price->receipt_sign_cert->enc_key);
+                }
+                else
+                {
+                    log_it(L_NOTICE, "Send next receipt to sign to user %s",
+                           dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash));
+                    a_usage->receipt_next = dap_chain_net_srv_issue_receipt(
+                        a_usage->service, a_usage->price, NULL, 0, &a_usage->tx_cond_hash);
+                }
+                a_usage->mempool_wait_count = 0;
+                a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN;
+                a_usage->receipt_timeout_timer_start_callback(a_usage);
+                dap_stream_ch_pkt_write_unsafe(a_usage->client->ch,
+                    DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                    a_usage->receipt_next, a_usage->receipt_next->size);
+            }
+            else
+            {
+                // Mempool tx still pending — extend limits and increment counter
+                a_usage->mempool_wait_count++;
+                if(a_usage->mempool_wait_count >= MAX_MEMPOOL_WAIT_CYCLES)
+                {
+                    log_it(L_ERROR, "Mempool tx %s not confirmed after %u cycles, terminating stream",
+                           dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash),
+                           a_usage->mempool_wait_count);
+                    dap_stream_ch_chain_net_srv_pkt_error_t l_err = {};
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
+                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED,
+                        &l_err, sizeof(l_err));
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
+                    dap_stream_ch_set_ready_to_read_unsafe(a_ch, false);
+                }
+                else
+                {
+                    log_it(L_NOTICE, "Mempool tx %s pending (cycle %u/%u), extending service limits",
+                           dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash),
+                           a_usage->mempool_wait_count, MAX_MEMPOOL_WAIT_CYCLES);
+                    if(a_usage->receipt && a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC)
+                        a_srv_session->limits_ts += (time_t)a_usage->price->units;
+                    else if(a_usage->receipt && a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B)
+                        a_srv_session->limits_bytes += (uintmax_t)a_usage->price->units;
+                }
+            }
+        }
+        else
+        {
+            // Normal flow: no pending mempool tx
             char *l_user_key = dap_chain_hash_fast_to_str_new(&a_usage->client_pkey_hash);
-            log_it( L_NOTICE, "Send next receipt to sign to user %s", l_user_key);
+            log_it(L_NOTICE, "Send next receipt to sign to user %s", l_user_key);
             DAP_DELETE(l_user_key);
-            a_usage->receipt_next = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0, &a_usage->tx_cond_hash);
+            a_usage->receipt_next = dap_chain_net_srv_issue_receipt(
+                a_usage->service, a_usage->price, NULL, 0, &a_usage->tx_cond_hash);
             a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEXT_RECEIPT_SIGN;
-            //start timeout timer
             a_usage->receipt_timeout_timer_start_callback(a_usage);
-            dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-                                           a_usage->receipt_next, a_usage->receipt_next->size);
+            dap_stream_ch_pkt_write_unsafe(a_usage->client->ch,
+                DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                a_usage->receipt_next, a_usage->receipt_next->size);
+        }
     }
 
 }

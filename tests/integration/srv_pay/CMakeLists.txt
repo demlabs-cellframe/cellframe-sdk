@@ -14,6 +14,7 @@ target_include_directories(srv_pay_integration_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../fixtures
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../modules/mempool/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../modules/channel/chain-net-srv/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../modules/net/srv/include
 )
 
 target_link_libraries(srv_pay_integration_test

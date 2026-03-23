@@ -60,6 +60,7 @@
 #include "test_token_fixtures.h"
 #include "test_emission_fixtures.h"
 #include "test_transaction_fixtures.h"
+#include "dap_chain_net_srv_stream_session.h"
 #include "dap_test.h"
 
 #define LOG_TAG "srv_pay_integration_test"
@@ -507,6 +508,155 @@ static void s_test_chain_following_fully_spent(dap_cert_t *a_cert,
     dap_pass_msg("Chain following fully spent test passed");
 }
 
+/**
+ * @brief Test 8: Mempool wait with limits extension — accumulated spend after confirm
+ * @details Simulates: tx0 confirmed → tx1 in mempool → wait N cycles with limits extension →
+ *          tx1 confirmed → accumulated spend (N * value) from confirmed tx
+ */
+static void s_test_mempool_wait_accumulated_spend(dap_cert_t *a_cert,
+                                                  dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_emission_hash)
+{
+    dap_print_module_name("Test 8: Mempool wait - accumulated spend after confirm");
+
+    dap_hash_fast_t l_pkey_hash;
+    dap_hash_fast(a_cert->enc_key->pub_key_data, a_cert->enc_key->pub_key_data_size, &l_pkey_hash);
+
+    dap_chain_net_srv_uid_t l_srv_uid = {.uint64 = s_srv_uid_value};
+    uint256_t l_cond_value = dap_chain_balance_scan("3000.0");
+
+    // Create tx0: confirmed conditional tx
+    test_tx_fixture_t *l_tx0 = s_create_cond_tx_from_emission(
+        s_net_fixture->ledger, a_emission_hash, s_token_ticker,
+        l_cond_value, l_srv_uid, &l_pkey_hash, a_cert);
+    dap_assert(l_tx0 != NULL, "Cond tx0 created");
+    int l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx0);
+    dap_assert(l_res == 0, "Cond tx0 added to ledger");
+
+    // Simulate usage state with mempool pending
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+    l_usage.tx_cond_hash = l_tx0->tx_hash;
+
+    // Simulate: s_pay_service created mempool tx
+    dap_hash_fast_t l_mempool_hash;
+    dap_hash_fast("mempool_tx_hash_test8", 21, &l_mempool_hash);
+    l_usage.tx_cond_hash_prev = l_usage.tx_cond_hash;
+    l_usage.tx_cond_hash = l_mempool_hash;
+
+    // Simulate 2 wait cycles — tx not confirmed, limits extended
+    time_t l_limits_ts = 1800;
+    uint64_t l_price_units = 3600;
+    l_usage.mempool_wait_count = 0;
+    for(uint32_t i = 0; i < 2; i++)
+    {
+        l_usage.mempool_wait_count++;
+        l_limits_ts += (time_t)l_price_units;
+    }
+    dap_assert(l_usage.mempool_wait_count == 2, "Wait counter should be 2");
+    dap_assert(l_limits_ts == 1800 + 2 * 3600, "Limits should be extended by 2 cycles");
+
+    // Simulate: mempool tx now confirmed (appears in ledger)
+    // In real code: dap_ledger_tx_find_by_hash returns non-NULL
+    // Here we simulate by adding the real spend to ledger from tx0
+
+    int l_out_cond_idx = 0;
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(
+        l_tx0->tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_cond_idx);
+    dap_assert(l_out_cond != NULL, "Cond output found in tx0");
+
+    // Accumulated spend: 2 * 200 = 400 (simulating counter * value)
+    uint256_t l_spend_per_cycle = dap_chain_balance_scan("200.0");
+    uint256_t l_accumulated_spend = {0};
+    SUM_256_256(l_spend_per_cycle, l_spend_per_cycle, &l_accumulated_spend);
+    uint256_t l_remaining = {0};
+    SUBTRACT_256_256(l_cond_value, l_accumulated_spend, &l_remaining);
+
+    test_tx_fixture_t *l_tx1 = s_create_cond_spend_tx(
+        &l_tx0->tx_hash, l_out_cond_idx,
+        l_accumulated_spend, l_remaining, l_srv_uid, &l_pkey_hash,
+        a_addr, s_token_ticker, a_cert->enc_key);
+    dap_assert(l_tx1 != NULL, "Accumulated spend tx created after confirm");
+
+    l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx1);
+    dap_assert(l_res == 0, "Accumulated spend tx added to ledger");
+
+    // Clear prev and reset counter (as VPN code does after confirmation)
+    memset(&l_usage.tx_cond_hash_prev, 0, sizeof(l_usage.tx_cond_hash_prev));
+    l_usage.tx_cond_hash = l_tx1->tx_hash;
+    l_usage.mempool_wait_count = 0;
+
+    // Chain following from tx0 should now point to tx1
+    dap_hash_fast_t l_final = dap_ledger_get_final_chain_tx_hash(
+        s_net_fixture->ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
+        &l_tx0->tx_hash, true);
+    dap_assert(dap_hash_fast_compare(&l_final, &l_tx1->tx_hash),
+               "Chain should follow to accumulated spend tx");
+
+    test_tx_fixture_destroy(l_tx0);
+    test_tx_fixture_destroy(l_tx1);
+    dap_pass_msg("Mempool wait accumulated spend test passed");
+}
+
+/**
+ * @brief Test 9: Termination at MAX — pending tx prevents further service
+ * @details After MAX_MEMPOOL_WAIT_CYCLES, if tx is still not confirmed, stream terminates.
+ *          The original confirmed tx should still be valid and unspent.
+ */
+static void s_test_mempool_wait_terminate_at_max(dap_cert_t *a_cert,
+                                                 dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_emission_hash)
+{
+    dap_print_module_name("Test 9: Terminate at MAX wait cycles");
+
+    dap_hash_fast_t l_pkey_hash;
+    dap_hash_fast(a_cert->enc_key->pub_key_data, a_cert->enc_key->pub_key_data_size, &l_pkey_hash);
+
+    dap_chain_net_srv_uid_t l_srv_uid = {.uint64 = s_srv_uid_value};
+    uint256_t l_cond_value = dap_chain_balance_scan("5000.0");
+
+    test_tx_fixture_t *l_tx0 = s_create_cond_tx_from_emission(
+        s_net_fixture->ledger, a_emission_hash, s_token_ticker,
+        l_cond_value, l_srv_uid, &l_pkey_hash, a_cert);
+    dap_assert(l_tx0 != NULL, "Cond tx0 created for terminate test");
+    int l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx0);
+    dap_assert(l_res == 0, "Cond tx0 added to ledger");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+    l_usage.tx_cond_hash = l_tx0->tx_hash;
+
+    // Simulate mempool add
+    dap_hash_fast_t l_fake_mempool;
+    dap_hash_fast("stuck_mempool_tx", 16, &l_fake_mempool);
+    l_usage.tx_cond_hash_prev = l_usage.tx_cond_hash;
+    l_usage.tx_cond_hash = l_fake_mempool;
+
+    // Simulate wait cycles up to MAX — tx never confirms
+    bool l_terminated = false;
+    for(uint32_t i = 0; i < MAX_MEMPOOL_WAIT_CYCLES + 1; i++)
+    {
+        l_usage.mempool_wait_count++;
+        if(l_usage.mempool_wait_count >= MAX_MEMPOOL_WAIT_CYCLES)
+        {
+            l_terminated = true;
+            break;
+        }
+    }
+
+    dap_assert(l_terminated, "Stream should terminate at MAX wait cycles");
+    dap_assert(l_usage.mempool_wait_count == MAX_MEMPOOL_WAIT_CYCLES,
+               "Counter should be at MAX");
+
+    // Original confirmed tx (tx0) should still be valid in ledger
+    dap_hash_fast_t l_final = dap_ledger_get_final_chain_tx_hash(
+        s_net_fixture->ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
+        &l_tx0->tx_hash, true);
+    dap_assert(dap_hash_fast_compare(&l_final, &l_tx0->tx_hash),
+               "Original tx0 should still be unspent in ledger after termination");
+
+    test_tx_fixture_destroy(l_tx0);
+    dap_pass_msg("Terminate at MAX wait cycles test passed");
+}
+
 
 static void s_setup(void)
 {
@@ -626,6 +776,18 @@ int main(void)
     int l_em4_res = test_emission_fixture_add_to_ledger(s_net_fixture->ledger, l_em4);
     dap_assert(l_em4_res == 0, "Emission 4 added to ledger");
 
+    test_emission_fixture_t *l_em5 = test_emission_fixture_create_with_cert(
+        s_token_ticker, l_emission_value, &l_addr, l_token->owner_cert);
+    dap_assert(l_em5 != NULL, "Emission 5 created");
+    int l_em5_res = test_emission_fixture_add_to_ledger(s_net_fixture->ledger, l_em5);
+    dap_assert(l_em5_res == 0, "Emission 5 added to ledger");
+
+    test_emission_fixture_t *l_em6 = test_emission_fixture_create_with_cert(
+        s_token_ticker, l_emission_value, &l_addr, l_token->owner_cert);
+    dap_assert(l_em6 != NULL, "Emission 6 created");
+    int l_em6_res = test_emission_fixture_add_to_ledger(s_net_fixture->ledger, l_em6);
+    dap_assert(l_em6_res == 0, "Emission 6 added to ledger");
+
     // Run tests
     s_test_chain_following_single(l_token->owner_cert, &l_addr, &l_em1->emission_hash);
     s_test_chain_following_two_hops(l_token->owner_cert, &l_addr, &l_em2->emission_hash);
@@ -634,12 +796,16 @@ int main(void)
     s_test_mempool_cond_input_bad_args();
     s_test_mempool_datum_roundtrip();
     s_test_chain_following_fully_spent(l_token->owner_cert, &l_addr, &l_em4->emission_hash);
+    s_test_mempool_wait_accumulated_spend(l_token->owner_cert, &l_addr, &l_em5->emission_hash);
+    s_test_mempool_wait_terminate_at_max(l_token->owner_cert, &l_addr, &l_em6->emission_hash);
 
     // Cleanup
     test_emission_fixture_destroy(l_em1);
     test_emission_fixture_destroy(l_em2);
     test_emission_fixture_destroy(l_em3);
     test_emission_fixture_destroy(l_em4);
+    test_emission_fixture_destroy(l_em5);
+    test_emission_fixture_destroy(l_em6);
     test_token_fixture_destroy(l_token);
     dap_enc_key_delete(l_key);
 

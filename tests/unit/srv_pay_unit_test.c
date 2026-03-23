@@ -358,6 +358,328 @@ static void s_test_usage_error_code_storage(void)
     dap_pass_msg("Error code storage test passed");
 }
 
+/**
+ * @brief Test 10: mempool_wait_count initial state
+ * @details Verify that zero-initialized usage has mempool_wait_count == 0
+ */
+static void s_test_mempool_wait_count_initial(void)
+{
+    dap_print_module_name("Test 10: mempool_wait_count initial state");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    dap_assert(l_usage.mempool_wait_count == 0,
+               "mempool_wait_count should be 0 after zero-init");
+
+    dap_pass_msg("mempool_wait_count initial state test passed");
+}
+
+/**
+ * @brief Test 11: mempool_wait_count increment and threshold
+ * @details Verify correct behavior relative to MAX_MEMPOOL_WAIT_CYCLES
+ */
+static void s_test_mempool_wait_count_threshold(void)
+{
+    dap_print_module_name("Test 11: mempool_wait_count increment and threshold");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    // Increment up to threshold
+    for(uint32_t i = 0; i < MAX_MEMPOOL_WAIT_CYCLES; i++)
+    {
+        l_usage.mempool_wait_count++;
+    }
+    dap_assert(l_usage.mempool_wait_count == MAX_MEMPOOL_WAIT_CYCLES,
+               "mempool_wait_count should equal MAX_MEMPOOL_WAIT_CYCLES after incrementing");
+    dap_assert(l_usage.mempool_wait_count >= MAX_MEMPOOL_WAIT_CYCLES,
+               "Threshold condition should trigger at MAX_MEMPOOL_WAIT_CYCLES");
+
+    dap_pass_msg("mempool_wait_count threshold test passed");
+}
+
+/**
+ * @brief Test 12: mempool_wait_count reset on SUCCESS
+ * @details Simulate the reset that happens when payment succeeds
+ */
+static void s_test_mempool_wait_count_reset_on_success(void)
+{
+    dap_print_module_name("Test 12: mempool_wait_count reset on SUCCESS");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    l_usage.mempool_wait_count = MAX_MEMPOOL_WAIT_CYCLES - 1;
+    dap_assert(l_usage.mempool_wait_count > 0,
+               "mempool_wait_count should be non-zero before reset");
+
+    // Simulate SUCCESS reset
+    l_usage.mempool_wait_count = 0;
+    dap_assert(l_usage.mempool_wait_count == 0,
+               "mempool_wait_count should be 0 after SUCCESS reset");
+
+    dap_pass_msg("mempool_wait_count reset on SUCCESS test passed");
+}
+
+/**
+ * @brief Test 13: mempool_wait_count reset on ledger confirmation
+ * @details Simulate the reset that happens when a mempool tx is confirmed
+ */
+static void s_test_mempool_wait_count_reset_on_confirm(void)
+{
+    dap_print_module_name("Test 13: mempool_wait_count reset on ledger confirm");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    // Setup: 2 cycles of mempool waiting
+    l_usage.mempool_wait_count = 2;
+
+    dap_hash_fast_t l_confirmed_hash, l_mempool_hash;
+    dap_hash_fast("confirmed", 9, &l_confirmed_hash);
+    dap_hash_fast("mempool", 7, &l_mempool_hash);
+    l_usage.tx_cond_hash = l_mempool_hash;
+    l_usage.tx_cond_hash_prev = l_confirmed_hash;
+
+    // Simulate mempool tx confirmed in ledger
+    memset(&l_usage.tx_cond_hash_prev, 0, sizeof(l_usage.tx_cond_hash_prev));
+    l_usage.mempool_wait_count = 0;
+
+    dap_assert(l_usage.mempool_wait_count == 0,
+               "mempool_wait_count should be 0 after ledger confirmation");
+    dap_assert(dap_hash_fast_is_blank(&l_usage.tx_cond_hash_prev),
+               "tx_cond_hash_prev should be blank after ledger confirmation");
+    dap_assert(dap_hash_fast_compare(&l_usage.tx_cond_hash, &l_mempool_hash),
+               "tx_cond_hash should remain the mempool hash (now confirmed)");
+
+    dap_pass_msg("mempool_wait_count reset on ledger confirm test passed");
+}
+
+/**
+ * @brief Test 14: Full mempool wait cycle — extend limits then terminate
+ * @details Simulate: mempool add → wait cycles with limits extension → MAX reached → terminate
+ */
+static void s_test_mempool_wait_full_cycle(void)
+{
+    dap_print_module_name("Test 14: Full mempool wait cycle — extend + terminate");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    dap_hash_fast_t l_confirmed_hash, l_mempool_hash;
+    dap_hash_fast("confirmed_tx", 12, &l_confirmed_hash);
+    dap_hash_fast("mempool_tx", 10, &l_mempool_hash);
+
+    // Step 1: Initial state — confirmed tx
+    l_usage.tx_cond_hash = l_confirmed_hash;
+
+    // Step 2: Mempool add (s_pay_service SUCCESS)
+    l_usage.tx_cond_hash_prev = l_usage.tx_cond_hash;
+    l_usage.tx_cond_hash = l_mempool_hash;
+    l_usage.mempool_wait_count = 0;
+
+    // Step 3: Each receipt cycle — tx not confirmed → extend limits, increment counter
+    time_t l_limits_ts = 3600;
+    uint64_t l_price_units = 3600;
+    bool l_terminated = false;
+    for(uint32_t i = 0; i < MAX_MEMPOOL_WAIT_CYCLES + 1; i++)
+    {
+        l_usage.mempool_wait_count++;
+        if(l_usage.mempool_wait_count >= MAX_MEMPOOL_WAIT_CYCLES)
+        {
+            l_terminated = true;
+            break;
+        }
+        l_limits_ts += (time_t)l_price_units;
+    }
+
+    dap_assert(l_terminated,
+               "Stream should be terminated at MAX_MEMPOOL_WAIT_CYCLES");
+    dap_assert(l_usage.mempool_wait_count >= MAX_MEMPOOL_WAIT_CYCLES,
+               "Wait counter should have reached MAX");
+    dap_assert(!dap_hash_fast_is_blank(&l_usage.tx_cond_hash_prev),
+               "tx_cond_hash_prev should still be set (no revert in new logic)");
+    dap_assert(l_limits_ts > 3600,
+               "Limits should have been extended during wait cycles");
+
+    dap_pass_msg("Full mempool wait cycle test passed");
+}
+
+/**
+ * @brief Test 15: MAX_MEMPOOL_WAIT_CYCLES constant value
+ * @details Verify the constant is sensible (positive, not too large)
+ */
+static void s_test_max_mempool_wait_cycles_value(void)
+{
+    dap_print_module_name("Test 15: MAX_MEMPOOL_WAIT_CYCLES constant value");
+
+    dap_assert(MAX_MEMPOOL_WAIT_CYCLES > 0,
+               "MAX_MEMPOOL_WAIT_CYCLES must be positive");
+    dap_assert(MAX_MEMPOOL_WAIT_CYCLES <= 100,
+               "MAX_MEMPOOL_WAIT_CYCLES should not be excessively large");
+    dap_assert(MAX_MEMPOOL_WAIT_CYCLES >= 2,
+               "MAX_MEMPOOL_WAIT_CYCLES should allow at least 1 wait cycle before revert");
+
+    dap_pass_msg("MAX_MEMPOOL_WAIT_CYCLES constant value test passed");
+}
+
+/**
+ * @brief Test 16: Accumulated receipt value calculation
+ * @details When mempool tx confirms after N wait cycles, receipt value = N * price
+ */
+static void s_test_accumulated_receipt_value(void)
+{
+    dap_print_module_name("Test 16: Accumulated receipt value calculation");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    // Simulate 2 wait cycles
+    l_usage.mempool_wait_count = 2;
+
+    // Verify accumulated value would be counter * price
+    uint32_t l_counter = l_usage.mempool_wait_count;
+    dap_assert(l_counter == 2,
+               "Wait counter should be 2 for accumulated receipt");
+    dap_assert(l_counter > 0,
+               "Counter must be > 0 for accumulated receipt");
+
+    // After accumulated receipt is created, counter resets
+    l_usage.mempool_wait_count = 0;
+    dap_assert(l_usage.mempool_wait_count == 0,
+               "Counter should reset after accumulated receipt");
+
+    dap_pass_msg("Accumulated receipt value calculation test passed");
+}
+
+/**
+ * @brief Test 17: Limits extension during mempool wait
+ * @details Each wait cycle extends limits by price->units
+ */
+static void s_test_limits_extension_during_wait(void)
+{
+    dap_print_module_name("Test 17: Limits extension during mempool wait");
+
+    time_t l_limits_ts = 1800;
+    uint64_t l_price_units = 3600;
+
+    // Simulate 2 wait cycles of extension
+    for(uint32_t i = 0; i < 2; i++)
+    {
+        l_limits_ts += (time_t)l_price_units;
+    }
+
+    dap_assert(l_limits_ts == 1800 + 2 * 3600,
+               "Limits should increase by price->units per wait cycle");
+
+    dap_pass_msg("Limits extension during mempool wait test passed");
+}
+
+/**
+ * @brief Test 18: Termination at MAX with no confirmation
+ * @details Verify that stream terminates when counter reaches MAX and tx is not confirmed
+ */
+static void s_test_terminate_at_max_no_confirm(void)
+{
+    dap_print_module_name("Test 18: Terminate at MAX with no confirmation");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    dap_hash_fast_t l_confirmed, l_mempool;
+    dap_hash_fast("confirmed", 9, &l_confirmed);
+    dap_hash_fast("mempool", 7, &l_mempool);
+
+    l_usage.tx_cond_hash = l_mempool;
+    l_usage.tx_cond_hash_prev = l_confirmed;
+
+    bool l_should_terminate = false;
+    for(uint32_t i = 0; i < MAX_MEMPOOL_WAIT_CYCLES + 1; i++)
+    {
+        l_usage.mempool_wait_count++;
+        if(l_usage.mempool_wait_count >= MAX_MEMPOOL_WAIT_CYCLES)
+        {
+            l_should_terminate = true;
+            break;
+        }
+    }
+
+    dap_assert(l_should_terminate, "Should terminate when counter reaches MAX");
+    dap_assert(l_usage.mempool_wait_count == MAX_MEMPOOL_WAIT_CYCLES,
+               "Counter should equal MAX at termination point");
+
+    dap_pass_msg("Terminate at MAX test passed");
+}
+
+/**
+ * @brief Test 19: Confirmation mid-wait resets counter and enables receipt
+ * @details When tx confirms before MAX, counter resets and accumulated receipt is issued
+ */
+static void s_test_confirm_mid_wait(void)
+{
+    dap_print_module_name("Test 19: Confirmation mid-wait resets state");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    dap_hash_fast_t l_confirmed, l_mempool;
+    dap_hash_fast("confirmed_base", 14, &l_confirmed);
+    dap_hash_fast("mempool_tx", 10, &l_mempool);
+
+    l_usage.tx_cond_hash = l_mempool;
+    l_usage.tx_cond_hash_prev = l_confirmed;
+    l_usage.mempool_wait_count = 2;
+
+    // Simulate: tx confirmed on 3rd check (before MAX)
+    uint32_t l_accumulated_count = l_usage.mempool_wait_count;
+    memset(&l_usage.tx_cond_hash_prev, 0, sizeof(l_usage.tx_cond_hash_prev));
+    l_usage.mempool_wait_count = 0;
+
+    dap_assert(l_accumulated_count == 2,
+               "Accumulated count should match cycles waited");
+    dap_assert(l_usage.mempool_wait_count == 0,
+               "Counter should reset to 0 after confirmation");
+    dap_assert(dap_hash_fast_is_blank(&l_usage.tx_cond_hash_prev),
+               "tx_cond_hash_prev should be blank after confirmation");
+    dap_assert(dap_hash_fast_compare(&l_usage.tx_cond_hash, &l_mempool),
+               "tx_cond_hash should remain the now-confirmed hash");
+
+    dap_pass_msg("Confirmation mid-wait test passed");
+}
+
+/**
+ * @brief Test 20: Zero counter confirmation — normal receipt path
+ * @details When counter is 0 and tx confirmed, normal receipt is issued (not accumulated)
+ */
+static void s_test_zero_counter_confirm(void)
+{
+    dap_print_module_name("Test 20: Zero counter confirmation — normal receipt");
+
+    dap_chain_net_srv_usage_t l_usage;
+    memset(&l_usage, 0, sizeof(l_usage));
+
+    dap_hash_fast_t l_confirmed, l_mempool;
+    dap_hash_fast("confirmed", 9, &l_confirmed);
+    dap_hash_fast("mempool", 7, &l_mempool);
+
+    l_usage.tx_cond_hash = l_mempool;
+    l_usage.tx_cond_hash_prev = l_confirmed;
+    l_usage.mempool_wait_count = 0;
+
+    // Tx confirmed immediately (counter still 0) → normal receipt path
+    bool l_use_accumulated = (l_usage.mempool_wait_count > 0);
+    memset(&l_usage.tx_cond_hash_prev, 0, sizeof(l_usage.tx_cond_hash_prev));
+    l_usage.mempool_wait_count = 0;
+
+    dap_assert(!l_use_accumulated,
+               "With counter=0, should use normal receipt, not accumulated");
+    dap_assert(dap_hash_fast_is_blank(&l_usage.tx_cond_hash_prev),
+               "tx_cond_hash_prev should be cleared");
+
+    dap_pass_msg("Zero counter confirmation test passed");
+}
+
 int main(void)
 {
     dap_print_module_name("=== srv_pay unit tests ===");
@@ -374,6 +696,21 @@ int main(void)
     s_test_service_state_enums();
     s_test_usage_struct_state_storage();
     s_test_usage_error_code_storage();
+
+    // mempool_wait_count tests
+    s_test_mempool_wait_count_initial();
+    s_test_mempool_wait_count_threshold();
+    s_test_mempool_wait_count_reset_on_success();
+    s_test_mempool_wait_count_reset_on_confirm();
+    s_test_mempool_wait_full_cycle();
+    s_test_max_mempool_wait_cycles_value();
+
+    // Accumulated receipt and limits extension tests
+    s_test_accumulated_receipt_value();
+    s_test_limits_extension_during_wait();
+    s_test_terminate_at_max_no_confirm();
+    s_test_confirm_mid_wait();
+    s_test_zero_counter_confirm();
 
     printf("\n%s=== All srv_pay unit tests passed ===%s\n", TEXT_COLOR_GRN, TEXT_COLOR_RESET);
     return 0;

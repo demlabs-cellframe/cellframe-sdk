@@ -799,6 +799,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
                 log_it(L_NOTICE, "Grace: mempool tx %s confirmed in ledger",
                        dap_chain_hash_fast_to_str_static(&l_usage->tx_cond_hash));
                 memset(&l_usage->tx_cond_hash_prev, 0, sizeof(l_usage->tx_cond_hash_prev));
+                l_usage->mempool_wait_count = 0;
                 l_tx = dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_usage->tx_cond_hash);
             }
             else if(dap_hash_fast_compare(&l_final_hash, &l_usage->tx_cond_hash_prev))
@@ -1326,6 +1327,7 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
                 log_it(L_NOTICE, "Mempool tx %s confirmed in ledger",
                        dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash));
                 memset(&a_usage->tx_cond_hash_prev, 0, sizeof(a_usage->tx_cond_hash_prev));
+                a_usage->mempool_wait_count = 0;
                 a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
             }
             else if(dap_hash_fast_compare(&l_final_hash, &a_usage->tx_cond_hash_prev))
@@ -1748,6 +1750,7 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
         int l_ret = s_pay_service(a_usage, l_receipt);
         switch (l_ret){
             case PAY_SERVICE_STATUS_SUCCESS:
+                a_usage->mempool_wait_count = 0;
                 // Store last receipt if any problems with transactions
                 dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_receipt, l_receipt->size, false, NULL, NULL);
                 if (a_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL)
@@ -1757,8 +1760,9 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                 return;
             break;
             case PAY_SERVICE_STATUS_TX_IN_MEMPOOL:
-                log_it(L_NOTICE, "Payment tx %s is pending in mempool, skipping payment until confirmed",
+                log_it(L_NOTICE, "Payment tx %s pending in mempool, will check on next receipt cycle",
                        dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash));
+                a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_NORMAL;
                 return;
             break;
             case PAY_SERVICE_STATUS_TX_CANT_FIND:
