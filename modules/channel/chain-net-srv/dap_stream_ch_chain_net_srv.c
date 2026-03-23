@@ -591,24 +591,55 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         l_usage->static_order_hash = a_request->hdr.order_hash;
 
         dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_usage->tx_cond_hash);
+
+        // If client's tx_cond is found but may be spent, follow the chain to the final unspent tx
+        if(l_tx)
+        {
+            dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
+                l_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
+                &l_usage->tx_cond_hash, true);
+            if(!dap_hash_fast_is_blank(&l_final_hash) &&
+               !dap_hash_fast_compare(&l_final_hash, &l_usage->tx_cond_hash))
+            {
+                char l_orig_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                char l_final_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(&l_usage->tx_cond_hash, l_orig_str, sizeof(l_orig_str));
+                dap_chain_hash_fast_to_str(&l_final_hash, l_final_str, sizeof(l_final_str));
+                log_it(L_NOTICE, "Client tx_cond %s is intermediate, followed chain to final tx %s",
+                       l_orig_str, l_final_str);
+                l_usage->tx_cond_hash = l_final_hash;
+                l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_usage->tx_cond_hash);
+            }
+            else if(dap_hash_fast_is_blank(&l_final_hash))
+            {
+                log_it(L_WARNING, "Client tx_cond %s found but has no unspent conditional output",
+                       dap_chain_hash_fast_to_str_static(&l_usage->tx_cond_hash));
+                l_tx = NULL;
+            }
+        }
+
         // Check tx
-        if (!l_tx){
+        if(!l_tx)
+        {
             // Start grace
             dap_time_t l_end_of_ban = s_check_client_is_banned(l_usage);
 
-            if (l_end_of_ban != 0) {   // client banned
+            if(l_end_of_ban != 0)
+            {   // client banned
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban);
                 log_it(L_DEBUG, "Client %s is banned till %s!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash), l_tmp_buf);
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH;
                 if(a_ch)
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-                if (l_usage->service && l_usage->service->callbacks.response_error)
+                if(l_usage->service && l_usage->service->callbacks.response_error)
                     l_usage->service->callbacks.response_error(l_usage->service, 0, NULL, &l_err, sizeof(l_err));
                 return false;
             }
             s_service_state_go_to_grace(l_usage);
-        } else {
+        }
+        else
+        {
             s_unban_client(l_usage);
             l_usage->tx_cond = l_tx;
             s_service_substate_pay_service(l_usage);
@@ -731,12 +762,41 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     HASH_DEL(l_srv->grace_hash_tab, a_grace_item);
     pthread_mutex_unlock(&l_srv->grace_mutex);
 
-    if (!dap_ledger_tx_find_by_hash(a_grace_item->grace->usage->net->pub.ledger, &a_grace_item->grace->usage->tx_cond_hash)){
+    dap_chain_net_srv_usage_t *l_usage = a_grace_item->grace->usage;
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_usage->tx_cond_hash);
+
+    // If exact hash found but may be spent, follow chain to final unspent tx
+    if(l_tx)
+    {
+        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
+            l_usage->net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
+            &l_usage->tx_cond_hash, true);
+        if(!dap_hash_fast_is_blank(&l_final_hash) &&
+           !dap_hash_fast_compare(&l_final_hash, &l_usage->tx_cond_hash))
+        {
+            log_it(L_NOTICE, "Grace: tx_cond chain followed to final tx %s",
+                   dap_chain_hash_fast_to_str_static(&l_final_hash));
+            l_usage->tx_cond_hash = l_final_hash;
+            l_tx = dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_usage->tx_cond_hash);
+        }
+        else if(dap_hash_fast_is_blank(&l_final_hash))
+        {
+            log_it(L_WARNING, "Grace: tx_cond found but no unspent conditional output");
+            l_tx = NULL;
+        }
+    }
+
+    if(!l_tx)
+    {
         log_it(L_ERROR, "Grace period is over. Can't find tx for paying.");
-        a_grace_item->grace->usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
-        s_service_substate_go_to_error(a_grace_item->grace->usage);
-    } else 
-        s_service_substate_pay_service(a_grace_item->grace->usage);
+        l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
+        s_service_substate_go_to_error(l_usage);
+    }
+    else
+    {
+        l_usage->tx_cond = l_tx;
+        s_service_substate_pay_service(l_usage);
+    }
 
     DAP_DEL_Z(a_grace_item->grace);
     DAP_DEL_Z(a_grace_item);
