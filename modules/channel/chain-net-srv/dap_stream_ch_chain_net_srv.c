@@ -1751,7 +1751,6 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
         switch (l_ret){
             case PAY_SERVICE_STATUS_SUCCESS:
                 a_usage->mempool_wait_count = 0;
-                a_usage->tx_recreate_count = 0;
                 // Store last receipt if any problems with transactions
                 dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, dap_chain_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_receipt, l_receipt->size, false, NULL, NULL);
                 if (a_usage->service_state != DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_NORMAL)

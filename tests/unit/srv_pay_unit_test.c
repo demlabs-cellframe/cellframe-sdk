@@ -724,28 +724,28 @@ static void s_test_tx_recreate_count_threshold(void)
 }
 
 /**
- * Test 23: tx_recreate_count reset on success
- * @details PAY_SERVICE_STATUS_SUCCESS should reset tx_recreate_count to 0
+ * Test 23: tx_recreate_count NOT reset on PAY_SERVICE_STATUS_SUCCESS
+ * @details PAY_SERVICE_STATUS_SUCCESS must NOT reset tx_recreate_count,
+ *          only ledger confirmation should reset it
  */
-static void s_test_tx_recreate_count_reset_on_success(void)
+static void s_test_tx_recreate_count_not_reset_on_success(void)
 {
-    dap_print_module_name("Test 23: tx_recreate_count reset on success");
+    dap_print_module_name("Test 23: tx_recreate_count preserved on success");
 
     dap_chain_net_srv_usage_t l_usage;
     memset(&l_usage, 0, sizeof(l_usage));
 
     l_usage.tx_recreate_count = 1;
     dap_assert(l_usage.tx_recreate_count == 1,
-               "tx_recreate_count should be 1 before reset");
+               "tx_recreate_count should be 1 before success");
 
-    // Simulate PAY_SERVICE_STATUS_SUCCESS handler
+    // Simulate PAY_SERVICE_STATUS_SUCCESS handler (only mempool_wait resets)
     l_usage.mempool_wait_count = 0;
-    l_usage.tx_recreate_count = 0;
 
-    dap_assert(l_usage.tx_recreate_count == 0,
-               "tx_recreate_count should be 0 after success");
+    dap_assert(l_usage.tx_recreate_count == 1,
+               "tx_recreate_count must stay 1 after success (only ledger confirm resets it)");
 
-    dap_pass_msg("tx_recreate_count reset on success test passed");
+    dap_pass_msg("tx_recreate_count preserved on success test passed");
 }
 
 /**
@@ -882,7 +882,7 @@ int main(void)
     // tx_recreate_count tests
     s_test_tx_recreate_count_initial();
     s_test_tx_recreate_count_threshold();
-    s_test_tx_recreate_count_reset_on_success();
+    s_test_tx_recreate_count_not_reset_on_success();
     s_test_tx_recreate_count_reset_on_confirm();
     s_test_tx_recreate_revert_flow();
     s_test_max_tx_recreate_attempts_value();
