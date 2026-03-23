@@ -1197,9 +1197,24 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     dap_chain_datum_t *l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_TX, l_tx, l_tx_size );
     dap_chain_datum_tx_delete(l_tx);
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    if(!l_chain)
+    {
+        log_it(L_ERROR, "Can't find default chain for TX type in net %s", a_net->pub.name);
+        DAP_DELETE(l_datum);
+        if(a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
+        return NULL;
+    }
     char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
-    if (a_ret_status)
+    if(!l_ret)
+    {
+        log_it(L_ERROR, "Failed to add cond input transaction to mempool");
+        if(a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
+        return NULL;
+    }
+    if(a_ret_status)
         *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_SUCCESS;
     return l_ret;
 }

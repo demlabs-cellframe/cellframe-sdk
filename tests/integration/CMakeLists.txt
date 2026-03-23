@@ -9,3 +9,6 @@ add_subdirectory(dex)
 
 # UTXO blocking integration tests
 add_subdirectory(utxo_blocking)
+
+# Service payment integration tests
+add_subdirectory(srv_pay)

@@ -39,6 +39,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_ch_chain_net_srv_pkt.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_stream_ch_proc.h"
+#include "dap_chain_mempool.h"
 
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
@@ -57,6 +58,7 @@ typedef enum {
     PAY_SERVICE_STATUS_TX_ERROR,
     PAY_SERVICE_STATUS_TX_CANT_FIND,
     PAY_SERVICE_STATUS_MEMALLOC_ERROR,
+    PAY_SERVICE_STATUS_TX_IN_MEMPOOL,
 } pay_service_status;
 
 
@@ -758,10 +760,6 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     dap_return_val_if_pass(!a_grace_item || !a_grace_item->grace, false);
 
     dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(a_grace_item->grace->usage->service->uid);
-    pthread_mutex_lock(&l_srv->grace_mutex);
-    HASH_DEL(l_srv->grace_hash_tab, a_grace_item);
-    pthread_mutex_unlock(&l_srv->grace_mutex);
-
     dap_chain_net_srv_usage_t *l_usage = a_grace_item->grace->usage;
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_usage->tx_cond_hash);
 
@@ -786,9 +784,76 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
         }
     }
 
+    // Fallback: check if tx_cond_hash points to a pending mempool tx
+    if(!l_tx && !dap_hash_fast_is_blank(&l_usage->tx_cond_hash_prev))
+    {
+        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
+            l_usage->net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
+            &l_usage->tx_cond_hash_prev, true);
+
+        if(!dap_hash_fast_is_blank(&l_final_hash))
+        {
+            if(dap_hash_fast_compare(&l_final_hash, &l_usage->tx_cond_hash))
+            {
+                // Mempool tx confirmed during grace
+                log_it(L_NOTICE, "Grace: mempool tx %s confirmed in ledger",
+                       dap_chain_hash_fast_to_str_static(&l_usage->tx_cond_hash));
+                memset(&l_usage->tx_cond_hash_prev, 0, sizeof(l_usage->tx_cond_hash_prev));
+                l_tx = dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_usage->tx_cond_hash);
+            }
+            else if(dap_hash_fast_compare(&l_final_hash, &l_usage->tx_cond_hash_prev))
+            {
+                // Previous tx still unspent — mempool tx pending, validate it
+                dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(l_usage->net, CHAIN_TYPE_TX);
+                char *l_hash_str = dap_hash_fast_to_str_new(&l_usage->tx_cond_hash);
+                bool l_tx_valid = false;
+                if(l_chain)
+                {
+                    dap_chain_datum_t *l_datum = dap_chain_mempool_datum_get(l_chain, l_hash_str);
+                    if(l_datum && l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
+                    {
+                        dap_chain_datum_tx_t *l_mempool_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                        size_t l_tx_size = dap_chain_datum_tx_get_size(l_mempool_tx);
+                        int l_check = dap_ledger_tx_add_check(l_usage->net->pub.ledger, l_mempool_tx, l_tx_size, &l_usage->tx_cond_hash);
+                        l_tx_valid = (l_check == 0);
+                    }
+                    DAP_DEL_Z(l_datum);
+                }
+                if(l_tx_valid)
+                {
+                    // Mempool tx is valid but still pending — extend grace
+                    log_it(L_NOTICE, "Grace: mempool tx %s still pending and valid, extending grace period", l_hash_str);
+                    DAP_DELETE(l_hash_str);
+                    return true; // Timer repeats, entry stays in grace_hash_tab
+                }
+                // Mempool tx invalid or lost — revert to previous confirmed hash
+                log_it(L_WARNING, "Grace: mempool tx %s invalid or lost, reverting to prev %s",
+                       l_hash_str, dap_chain_hash_fast_to_str_static(&l_usage->tx_cond_hash_prev));
+                DAP_DELETE(l_hash_str);
+                l_usage->tx_cond_hash = l_usage->tx_cond_hash_prev;
+                memset(&l_usage->tx_cond_hash_prev, 0, sizeof(l_usage->tx_cond_hash_prev));
+                l_tx = dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_usage->tx_cond_hash);
+            }
+            else
+            {
+                // Chain resolved to a different tx
+                log_it(L_NOTICE, "Grace: tx chain resolved from prev to %s",
+                       dap_chain_hash_fast_to_str_static(&l_final_hash));
+                l_usage->tx_cond_hash = l_final_hash;
+                memset(&l_usage->tx_cond_hash_prev, 0, sizeof(l_usage->tx_cond_hash_prev));
+                l_tx = dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_usage->tx_cond_hash);
+            }
+        }
+    }
+
+    pthread_mutex_lock(&l_srv->grace_mutex);
+    HASH_DEL(l_srv->grace_hash_tab, a_grace_item);
+    pthread_mutex_unlock(&l_srv->grace_mutex);
+
     if(!l_tx)
     {
-        log_it(L_ERROR, "Grace period is over. Can't find tx for paying.");
+        log_it(L_ERROR, "Grace period is over. Can't find tx %s for paying.",
+               dap_chain_hash_fast_to_str_static(&l_usage->tx_cond_hash));
         l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
         s_service_substate_go_to_error(l_usage);
     }
@@ -1246,7 +1311,84 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
 {
     a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
 
-    if (!a_usage->tx_cond){
+    if(!a_usage->tx_cond && !dap_hash_fast_is_blank(&a_usage->tx_cond_hash_prev))
+    {
+        // tx_cond_hash may point to a tx we created in mempool that's not in the ledger yet
+        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
+            a_usage->net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY,
+            &a_usage->tx_cond_hash_prev, true);
+
+        if(!dap_hash_fast_is_blank(&l_final_hash))
+        {
+            if(dap_hash_fast_compare(&l_final_hash, &a_usage->tx_cond_hash))
+            {
+                // Mempool tx was confirmed in ledger
+                log_it(L_NOTICE, "Mempool tx %s confirmed in ledger",
+                       dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash));
+                memset(&a_usage->tx_cond_hash_prev, 0, sizeof(a_usage->tx_cond_hash_prev));
+                a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
+            }
+            else if(dap_hash_fast_compare(&l_final_hash, &a_usage->tx_cond_hash_prev))
+            {
+                // Previous tx still unspent — mempool tx is pending
+                // Validate the mempool tx to ensure it's not stuck forever
+                dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_usage->net, CHAIN_TYPE_TX);
+                char *l_hash_str = dap_hash_fast_to_str_new(&a_usage->tx_cond_hash);
+                bool l_tx_valid = false;
+                if(l_chain)
+                {
+                    dap_chain_datum_t *l_datum = dap_chain_mempool_datum_get(l_chain, l_hash_str);
+                    if(l_datum && l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
+                    {
+                        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                        size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+                        int l_check = dap_ledger_tx_add_check(a_usage->net->pub.ledger, l_tx, l_tx_size, &a_usage->tx_cond_hash);
+                        if(l_check == 0)
+                        {
+                            l_tx_valid = true;
+                            log_it(L_INFO, "Mempool tx %s is valid, waiting for ledger confirmation", l_hash_str);
+                        }
+                        else
+                        {
+                            log_it(L_WARNING, "Mempool tx %s failed validation (code %d), reverting to previous tx",
+                                   l_hash_str, l_check);
+                        }
+                    }
+                    else if(!l_datum)
+                    {
+                        log_it(L_WARNING, "Mempool tx %s not found in mempool, reverting to previous tx", l_hash_str);
+                    }
+                    DAP_DEL_Z(l_datum);
+                }
+                DAP_DELETE(l_hash_str);
+                if(l_tx_valid)
+                {
+                    return PAY_SERVICE_STATUS_TX_IN_MEMPOOL;
+                }
+                // Mempool tx is invalid or lost — revert to previous confirmed hash
+                log_it(L_NOTICE, "Reverting tx_cond_hash to previous confirmed %s",
+                       dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash_prev));
+                a_usage->tx_cond_hash = a_usage->tx_cond_hash_prev;
+                memset(&a_usage->tx_cond_hash_prev, 0, sizeof(a_usage->tx_cond_hash_prev));
+                a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
+            }
+            else
+            {
+                // Chain resolved to a different tx — update
+                log_it(L_NOTICE, "Tx chain resolved from prev %s to %s",
+                       dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash_prev),
+                       dap_chain_hash_fast_to_str_static(&l_final_hash));
+                a_usage->tx_cond_hash = l_final_hash;
+                memset(&a_usage->tx_cond_hash_prev, 0, sizeof(a_usage->tx_cond_hash_prev));
+                a_usage->tx_cond = dap_ledger_tx_find_by_hash(a_usage->net->pub.ledger, &a_usage->tx_cond_hash);
+            }
+        }
+    }
+
+    if(!a_usage->tx_cond)
+    {
+        log_it(L_WARNING, "Can't find tx_cond by hash %s in ledger",
+               dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash));
         return PAY_SERVICE_STATUS_TX_CANT_FIND;
     }
 
@@ -1264,8 +1406,10 @@ static int s_pay_service(dap_chain_net_srv_usage_t *a_usage, dap_chain_datum_tx_
                                                                         a_usage->price->receipt_sign_cert->enc_key, a_receipt, "hex", &ret_status);
     switch (ret_status){
         case DAP_CHAIN_MEMPOOl_RET_STATUS_SUCCESS:
+            a_usage->tx_cond_hash_prev = a_usage->tx_cond_hash;
             dap_chain_hash_fast_from_str(l_tx_in_hash_str, &a_usage->tx_cond_hash);
-            log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
+            log_it(L_NOTICE, "Formed tx %s for input with active receipt, prev tx_cond %s",
+                   l_tx_in_hash_str, dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash_prev));
             DAP_DEL_Z(l_tx_in_hash_str);
             return PAY_SERVICE_STATUS_SUCCESS;
         case DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_FIND_FINAL_TX_HASH:
@@ -1610,6 +1754,11 @@ static void s_service_substate_pay_service(dap_chain_net_srv_usage_t *a_usage)
                     s_service_state_go_to_normal(a_usage);
                 else 
                     s_service_substate_go_to_normal(a_usage);
+                return;
+            break;
+            case PAY_SERVICE_STATUS_TX_IN_MEMPOOL:
+                log_it(L_NOTICE, "Payment tx %s is pending in mempool, skipping payment until confirmed",
+                       dap_chain_hash_fast_to_str_static(&a_usage->tx_cond_hash));
                 return;
             break;
             case PAY_SERVICE_STATUS_TX_CANT_FIND:
