@@ -37,6 +37,7 @@
 #include "dap_cert_file.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_node.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_test.h"
@@ -154,7 +155,7 @@ static void test_cli_delayed_block_future_timestamp(void)
     snprintf(l_cmd, sizeof(l_cmd),
              "token_update -net %s -chain %s -token DBLK -type CF20 -certs %s "
              "-utxo_blocked_add %s:0:%"DAP_UINT64_FORMAT_U,
-             s_net_fixture->net->pub.name, s_net_fixture->chain_zero->name,
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
              l_cert->name, l_tx_hash_str, l_future);
 
     log_it(L_INFO, "CLI command: %s", l_cmd);
@@ -165,6 +166,9 @@ static void test_cli_delayed_block_future_timestamp(void)
     char *l_reply = dap_cli_cmd_exec(l_json_req);
     log_it(L_INFO, "CLI reply: %s", l_reply ? l_reply : "(null)");
     DAP_DEL_Z(l_reply);
+
+    /* Process mempool to apply token_update to the ledger */
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
 
     /* Spend UTXO — should succeed because becomes_effective is in the future */
     dap_chain_datum_tx_t *l_tx_spend = dap_chain_datum_tx_create();
@@ -223,7 +227,7 @@ static void test_cli_delayed_unblock_future_timestamp(void)
     snprintf(l_cmd_block, sizeof(l_cmd_block),
              "token_update -net %s -chain %s -token DBLK2 -type CF20 -certs %s "
              "-utxo_blocked_add %s:0",
-             s_net_fixture->net->pub.name, s_net_fixture->chain_zero->name,
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
              l_cert->name, l_tx_hash_str);
 
     char l_json_req_block[8192];
@@ -232,13 +236,16 @@ static void test_cli_delayed_unblock_future_timestamp(void)
     log_it(L_INFO, "Block reply: %s", l_reply_block ? l_reply_block : "(null)");
     DAP_DEL_Z(l_reply_block);
 
+    /* Process mempool to apply immediate block */
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+
     /* Step 2: Unblock with future timestamp via CLI */
     dap_time_t l_future = dap_time_now() + 86400;
     char l_cmd_unblock[4096];
     snprintf(l_cmd_unblock, sizeof(l_cmd_unblock),
              "token_update -net %s -chain %s -token DBLK2 -type CF20 -certs %s "
              "-utxo_blocked_remove %s:0:%"DAP_UINT64_FORMAT_U,
-             s_net_fixture->net->pub.name, s_net_fixture->chain_zero->name,
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
              l_cert->name, l_tx_hash_str, l_future);
 
     log_it(L_INFO, "Unblock CLI command: %s", l_cmd_unblock);
@@ -248,6 +255,9 @@ static void test_cli_delayed_unblock_future_timestamp(void)
     char *l_reply_unblock = dap_cli_cmd_exec(l_json_req_unblock);
     log_it(L_INFO, "Unblock reply: %s", l_reply_unblock ? l_reply_unblock : "(null)");
     DAP_DEL_Z(l_reply_unblock);
+
+    /* Process mempool to apply the future-dated unblock */
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
 
     /* Spend UTXO — should FAIL because the unblock is scheduled for the future */
     dap_chain_datum_tx_t *l_tx_spend = dap_chain_datum_tx_create();

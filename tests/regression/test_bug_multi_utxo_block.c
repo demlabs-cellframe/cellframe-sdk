@@ -37,6 +37,7 @@
 #include "dap_cert_file.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_node.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_test.h"
@@ -152,7 +153,7 @@ static void test_cli_two_utxo_blocked_add(void)
     snprintf(l_cmd, sizeof(l_cmd),
              "token_update -net %s -chain %s -token MBLK -type CF20 -certs %s "
              "-utxo_blocked_add %s:0 -utxo_blocked_add %s:1",
-             s_net_fixture->net->pub.name, s_net_fixture->chain_zero->name,
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
              l_cert->name, l_tx_hash_str, l_tx_hash_str);
 
     log_it(L_INFO, "CLI command: %s", l_cmd);
@@ -162,6 +163,9 @@ static void test_cli_two_utxo_blocked_add(void)
     char *l_reply = dap_cli_cmd_exec(l_json_req);
     log_it(L_INFO, "CLI reply: %s", l_reply ? l_reply : "(null)");
     DAP_DEL_Z(l_reply);
+
+    /* Process mempool to apply token_update to the ledger */
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
 
     /* Verify output 0 is blocked */
     dap_chain_datum_tx_t *l_tx_spend0 = dap_chain_datum_tx_create();
