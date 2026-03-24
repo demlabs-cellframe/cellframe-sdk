@@ -214,6 +214,32 @@ json_object *dap_db_tx_history_to_json(json_object* a_json_arr_reply,
     return json_obj_datum;
 }
 
+static dap_chain_datum_t *s_tx_history_mempool_datum_get(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_tx_hash)
+{
+    dap_ret_val_if_any(NULL, !a_chain, !a_tx_hash);
+    dap_chain_datum_t *l_datum = dap_chain_mempool_datum_get(a_chain, dap_chain_hash_fast_to_str_static(a_tx_hash));
+    return l_datum ? l_datum : dap_chain_mempool_datum_get(a_chain, dap_enc_base58_encode_hash_to_str_static(a_tx_hash));
+}
+
+static json_object *s_tx_history_mempool_to_json(dap_chain_hash_fast_t *a_tx_hash, const char *a_hash_out_type)
+{
+    dap_ret_val_if_any(NULL, !a_tx_hash, !a_hash_out_type);
+    json_object *l_json_obj = json_object_new_object();
+    if (!l_json_obj)
+        return NULL;
+    const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                           ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
+                           : dap_chain_hash_fast_to_str_static(a_tx_hash);
+    json_object_object_add(l_json_obj, "status", json_object_new_string("pending"));
+    json_object_object_add(l_json_obj, "source", json_object_new_string("mempool"));
+    json_object_object_add(l_json_obj, "hash", json_object_new_string(l_hash_str));
+    json_object_object_add(l_json_obj, "ret_code", json_object_new_int(0));
+    json_object_object_add(l_json_obj, "ret_code_str", json_object_new_string("pending"));
+    json_object_object_add(l_json_obj, "action", json_object_new_string("UNKNOWN"));
+    json_object_object_add(l_json_obj, "comment", json_object_new_string("Transaction is found in mempool and has not been accepted yet"));
+    return l_json_obj;
+}
+
 json_object * dap_db_history_tx(json_object* a_json_arr_reply,
                       dap_chain_hash_fast_t* a_tx_hash, 
                       dap_chain_t * a_chain, 
@@ -238,10 +264,17 @@ json_object * dap_db_history_tx(json_object* a_json_arr_reply,
     if (l_tx) {
         return dap_db_tx_history_to_json(a_json_arr_reply, a_tx_hash, &l_atom_hash,l_tx, a_chain, a_hash_out_type, NULL, l_ret_code, &accepted_tx, false, a_version);
     } else {
+        dap_chain_datum_t *l_mempool_datum = s_tx_history_mempool_datum_get(a_chain, a_tx_hash);
+        if (l_mempool_datum) {
+            json_object *l_json_mempool = s_tx_history_mempool_to_json(a_tx_hash, a_hash_out_type);
+            DAP_DELETE(l_mempool_datum);
+            return l_json_mempool;
+        }
+        DAP_DELETE(l_mempool_datum);
         const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
                 : dap_chain_hash_fast_to_str_static(a_tx_hash);
-        dap_json_rpc_error_add(a_json_arr_reply, -1, "TX hash %s not founds in chains", l_tx_hash_str);
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "TX hash %s not found in chains and mempool", l_tx_hash_str);
         return NULL;
     }
 }
