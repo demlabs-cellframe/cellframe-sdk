@@ -330,7 +330,7 @@ dap_chain_net_srv_dex_cancel_all_by_seller(dap_chain_net_t *a_net, const dap_cha
  * @param a_params      TSD parameters (method, tokens, fees, etc.)
  * @param a_params_size Size of TSD data
  * @return 0 on success, negative on error
- * @note Methods: FEE_SET(1), PAIR_ADD(2), PAIR_REMOVE(3), PAIR_FEE_SET(4), PAIR_FEE_SET_ALL(5)
+ * @note Methods: FEE_SET(1), PAIR_ADD(2), PAIR_REMOVE(3), PAIR_FEE_SET(4), PAIR_FEE_SET_ALL(5, pairs touching a_ledger->net), PCT_DIVISOR_SET(6)
  */
 int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, dap_tsd_t *a_params, size_t a_params_size);
 
