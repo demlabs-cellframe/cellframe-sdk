@@ -56,7 +56,8 @@
 #include "dap_uuid.h"
 #include "dap_client.h"
 #include "dap_client_fsm.h"
-#include "dap_client_esocket.h"
+#include "dap_client_trans_ctx.h"
+#include "dap_net_trans_ctx.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net_srv.h"
@@ -154,8 +155,12 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
                     l_node_client->info->ext_host,
                     l_node_client->info->ext_port);
-        l_node_client->esocket_uuid = DAP_CLIENT_FSM(a_client) && DAP_CLIENT_FSM(a_client)->esocket
-                                     ? DAP_CLIENT_FSM(a_client)->esocket->stream_es->uuid : 0;
+        {
+            dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_client);
+            dap_net_trans_ctx_t *l_tc = l_fsm ? l_fsm->trans_ctx : NULL;
+            l_node_client->esocket_uuid = (l_tc && l_tc->stream && l_tc->stream->esocket)
+                ? l_tc->stream->esocket->uuid : 0;
+        }
         // set callbacks for R and N channels
         if (a_client->active_channels) {
             size_t l_channels_count = dap_strlen(a_client->active_channels);
@@ -379,8 +384,6 @@ void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client)
         if(l_fsm)
         {
             l_fsm->is_removing = true;
-            if(l_fsm->esocket)
-                l_fsm->esocket->is_removing = true;
         }
         if(l_fsm && l_fsm->worker)
             dap_worker_exec_callback_on(l_fsm->worker, s_close_on_worker_callback, a_node_client);

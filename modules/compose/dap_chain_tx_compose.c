@@ -42,7 +42,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_mempool.h"
 #include "dap_client_fsm.h"
-#include "dap_client_esocket.h"
+#include "dap_client_trans_ctx.h"
 #include "dap_chain_common.h"
 #include <json-c/json.h>
 #define LOG_TAG "dap_chain_tx_compose"
@@ -555,7 +555,7 @@ json_object *dap_enc_request_command_to_rpc(const char *a_request, const char *a
     //send request
     json_object * l_response = NULL;
     dap_client_fsm_t *l_client_fsm = DAP_CLIENT_FSM(l_node_client->client);
-    dap_json_rpc_request_send(l_client_fsm ? l_client_fsm->esocket : NULL, l_request, &l_response, a_cert_path);
+    dap_json_rpc_request_send(l_client_fsm ? l_client_fsm->client_trans_ctx : NULL, l_request, &l_response, a_cert_path);
 
     dap_json_rpc_request_free(l_request);
     dap_chain_node_client_close_mt(l_node_client);
