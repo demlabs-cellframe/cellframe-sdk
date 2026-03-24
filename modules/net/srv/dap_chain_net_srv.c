@@ -961,6 +961,17 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
         return NULL;
     }
 
+    {
+        const char *l_coins_diag = NULL;
+        const char *l_datoshi_diag = dap_uint256_to_char(l_order->price, &l_coins_diag);
+        log_it(L_WARNING, "DIAG get_price_from_order: order price datoshi=%s coins=%s units=%"DAP_UINT64_FORMAT_U" is_zero=%d allow_free=%d",
+               l_datoshi_diag ? l_datoshi_diag : "NULL",
+               l_coins_diag ? l_coins_diag : "NULL",
+               l_order->units,
+               (int)IS_ZERO_256(l_order->price),
+               (int)a_srv->allow_free_srv);
+    }
+
     dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
     if (!l_price) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);

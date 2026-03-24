@@ -402,7 +402,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     log_it(L_NOTICE,"Initialized DAG-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
     l_dag->chain->callback_created = s_callback_created;
 
-    if ( !l_dag->is_add_directly && l_poa_pvt->auto_round_complete ) {
+    if ( l_poa_pvt->auto_round_complete ) {
         switch ( dap_chain_net_get_role(dap_chain_net_by_id(a_chain->net_id)).enums ) {
             case NODE_ROLE_ROOT_MASTER:
             case NODE_ROLE_ROOT:
