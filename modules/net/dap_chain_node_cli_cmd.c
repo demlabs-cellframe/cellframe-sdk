@@ -8878,6 +8878,7 @@ int com_exit(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_ver
     UNUSED(a_argc);
     UNUSED(a_argv);
     UNUSED(a_str_reply);
+    log_it(L_ATT, "com_exit: shutting down via exit(0)");
     //dap_events_stop_all();
     exit(0);
     return 0;
