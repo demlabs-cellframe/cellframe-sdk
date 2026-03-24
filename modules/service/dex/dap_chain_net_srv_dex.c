@@ -362,6 +362,9 @@ static void s_ledger_tx_add_notify_dex(void *a_arg, dap_ledger_t *a_ledger, dap_
 /** @brief Resolve IN_COND to previous TX's SRV_DEX OUT_COND */
 static dap_chain_tx_out_cond_t *s_dex_get_prev_out_from_in_cond(dap_ledger_t *a_ledger, const dap_chain_tx_in_cond_t *a_in_cond,
                                                                 dap_chain_datum_tx_t **a_prev_tx, int *a_out_idx);
+/** @brief Ledger-only: SRV_DEX order root from TX at a_entry_hash (closing TX: step back via IN_COND). Returns 0 or -1 if ambiguous. */
+static int s_dex_ledger_resolve_order_root(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, const dap_hash_fast_t *a_entry_hash,
+                                           dap_hash_fast_t *a_out_root);
 /** @brief Classify TX type by structure: ORDER, EXCHANGE, UPDATE or INVALIDATE */
 static dex_tx_type_t s_dex_tx_classify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_in_cond_t **a_in_cond,
                                        dap_chain_tx_out_cond_t **a_out_cond, int *a_out_idx);
@@ -1196,6 +1199,45 @@ static int s_dex_resolve_order_tail(dap_chain_net_t *a_net, const dap_hash_fast_
     *a_out_tail = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX,
                                                      (dap_chain_hash_fast_t *)a_hash, false);
     return dap_hash_fast_is_blank(a_out_tail) ? -2 : 0;
+}
+
+static int s_dex_ledger_resolve_order_root(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, const dap_hash_fast_t *a_entry_hash,
+                                           dap_hash_fast_t *a_out_root)
+{
+    dap_ret_val_if_any(-1, !a_ledger, !a_tx, !a_entry_hash || dap_hash_fast_is_blank(a_entry_hash), !a_out_root);
+    *a_out_root = (dap_hash_fast_t){};
+    dap_chain_tx_out_cond_t *l_out = NULL;
+    dap_hash_fast_t l_chain_head_tx_hash = *a_entry_hash;
+    *a_out_root = dap_ledger_get_first_chain_tx_hash_ex(a_ledger, a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_out);
+    if (dap_hash_fast_is_blank(a_out_root) && !l_out) {
+        for (byte_t *l_in_it = NULL; (l_in_it = dap_chain_datum_tx_item_get(a_tx, NULL, l_in_it, TX_ITEM_TYPE_IN_COND, NULL));) {
+            dap_chain_tx_in_cond_t *l_ic = (dap_chain_tx_in_cond_t *)l_in_it;
+            if (dap_hash_fast_is_blank(&l_ic->header.tx_prev_hash))
+                continue;
+            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_ic->header.tx_prev_hash);
+            if (!l_prev_tx)
+                continue;
+            dap_chain_tx_out_cond_t *l_po = NULL;
+            dap_hash_fast_t lr =
+                dap_ledger_get_first_chain_tx_hash_ex(a_ledger, l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_po);
+            if (!dap_hash_fast_is_blank(&lr)) {
+                *a_out_root = lr;
+                l_out = l_po;
+                break;
+            }
+            if (l_po) {
+                l_out = l_po;
+                l_chain_head_tx_hash = l_ic->header.tx_prev_hash;
+                break;
+            }
+        }
+    }
+    if (dap_hash_fast_is_blank(a_out_root)) {
+        if (!l_out)
+            return -1;
+        *a_out_root = l_chain_head_tx_hash;
+    }
+    return 0;
 }
 
 /** @brief Build match table from explicit hash list with budget allocation. */
@@ -9673,19 +9715,11 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
             }
             if (!l_found) {
-                // Fallback: find root via ledger
                 dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_given_hash);
-                if (l_tx) {
-                    dap_chain_tx_out_cond_t *l_out = NULL;
-                    l_order_root =
-                        dap_ledger_get_first_chain_tx_hash_ex(l_net->pub.ledger, l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_out);
-                    if (dap_hash_fast_is_blank(&l_order_root)) {
-                        if (!l_out)
-                            return dap_json_rpc_error_add(*json_arr_reply, -2, "ambiguous order root for tx %s", l_order_hash_str), -2;
-                        l_order_root = l_given_hash; // OUT_COND with blank root => this tx is the root
-                    }
-                } else
+                if (!l_tx)
                     return dap_json_rpc_error_add(*json_arr_reply, -2, "order hash %s not found", l_order_hash_str), -2;
+                if (s_dex_ledger_resolve_order_root(l_net->pub.ledger, l_tx, &l_given_hash, &l_order_root))
+                    return dap_json_rpc_error_add(*json_arr_reply, -2, "ambiguous order root for tx %s", l_order_hash_str), -2;
             }
         }
         if (l_order_hash_str) {
@@ -10886,8 +10920,6 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         dap_chain_tx_out_cond_t *l_oc_d = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
         if (l_oc_d)
             l_dex_seed = l_order_hash;
-        else
-            l_dex_seed = dap_ledger_get_first_chain_tx_hash(l_net->pub.ledger, l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX);
         dex_match_criteria_t l_crit = {};
         l_crit.is_budget_buy = false;
         l_crit.buyer_addr = &l_addr;
@@ -10945,7 +10977,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             l_is_owner = dap_chain_addr_compare(&l_addr, &l_out_cond->subtype.srv_xchange.seller_addr);
             
         } else
-            return dap_json_rpc_error_add(*json_arr_reply, -2, "order not found %s", l_order_str), -2;
+            return dap_json_rpc_error_add(*json_arr_reply, -2,
+                "find_matches: tx %s is not an order-bearing tx (need SRV_DEX or resolvable XCHANGE output on-chain)",
+                l_order_str), -2;
 
         dex_pair_key_t l_key = {};
         uint8_t l_side = 0;
