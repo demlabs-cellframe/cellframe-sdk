@@ -17,6 +17,8 @@ if(CMAKE_C_COMPILER MATCHES "clang")
     add_compile_options(-Wno-sign-compare)
 endif()
 
+#set(BUILD_CELLFRAME_SDK_TESTS ON)
+
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
