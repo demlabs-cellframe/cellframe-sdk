@@ -167,3 +167,135 @@ set_tests_properties(regression_bug_20605 PROPERTIES
     LABELS "regression;arbitrage;mempool;bug_20605"
 )
 
+# Regression: Multiple UTXO blocking in single token_update
+add_executable(test_bug_multi_utxo_block
+    test_bug_multi_utxo_block.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
+)
+
+target_include_directories(test_bug_multi_utxo_block PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
+)
+
+target_link_libraries(test_bug_multi_utxo_block
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_net
+    dap_chain_common
+    dap_chain_wallet
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
+)
+
+add_test(NAME regression_multi_utxo_block COMMAND test_bug_multi_utxo_block)
+
+set_tests_properties(regression_multi_utxo_block PROPERTIES
+    TIMEOUT 120
+    LABELS "regression;utxo;blocking;multi_utxo"
+)
+
+# Regression: Delayed activation of UTXO blocking/unblocking
+add_executable(test_bug_delayed_block
+    test_bug_delayed_block.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
+)
+
+target_include_directories(test_bug_delayed_block PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
+)
+
+target_link_libraries(test_bug_delayed_block
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_net
+    dap_chain_common
+    dap_chain_wallet
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
+)
+
+add_test(NAME regression_delayed_block COMMAND test_bug_delayed_block)
+
+set_tests_properties(regression_delayed_block PROPERTIES
+    TIMEOUT 120
+    LABELS "regression;utxo;blocking;delayed"
+)
+
+# Regression: Address blocking (tx_sender_blocked / tx_receiver_blocked)
+add_executable(test_bug_addr_block
+    test_bug_addr_block.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
+)
+
+target_include_directories(test_bug_addr_block PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
+)
+
+target_link_libraries(test_bug_addr_block
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_net
+    dap_chain_common
+    dap_chain_wallet
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
+)
+
+add_test(NAME regression_addr_block COMMAND test_bug_addr_block)
+
+set_tests_properties(regression_addr_block PROPERTIES
+    TIMEOUT 120
+    LABELS "regression;address;blocking;sender;receiver"
+)
+
+# Regression: Arbitrage TX without wallet (cert-only)
+add_executable(test_bug_arb_no_wallet
+    test_bug_arb_no_wallet.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
+)
+
+target_include_directories(test_bug_arb_no_wallet PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
+)
+
+target_link_libraries(test_bug_arb_no_wallet
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_net
+    dap_chain_common
+    dap_chain_wallet
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
+)
+
+add_test(NAME regression_arb_no_wallet COMMAND test_bug_arb_no_wallet)
+
+set_tests_properties(regression_arb_no_wallet PROPERTIES
+    TIMEOUT 120
+    LABELS "regression;arbitrage;wallet;cert"
+)
+
