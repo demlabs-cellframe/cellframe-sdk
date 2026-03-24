@@ -108,15 +108,22 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
     if(!l_node_client)
         return;
 
+    const char *l_err_str = dap_client_get_error_str(a_client);
+    const char *l_stage_str = dap_client_get_stage_str(a_client);
+    snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
+             "%s at %s", l_err_str ? l_err_str : "unknown",
+             l_stage_str ? l_stage_str : "unknown");
+
     if (l_node_client->sync_timer) {
-        // Disable timer, it will be restarted with new connection
         dap_timerfd_delete_unsafe(l_node_client->sync_timer);
         l_node_client->sync_timer = NULL;
     }
 
-    // check for last attempt
     bool l_is_last_attempt = a_arg ? true : false;
     if (l_is_last_attempt) {
+        log_it(L_ERROR, "Connection to %s:%u failed after all attempts: %s",
+               a_client->link_info.uplink_addr, a_client->link_info.uplink_port,
+               l_node_client->last_error);
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
         pthread_cond_signal(&l_node_client->wait_cond);
@@ -124,13 +131,12 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 
         l_node_client->esocket_uuid = 0;
 
-        // dap_chain_net_sync_unlock(l_node_client->net, l_node_client);
         if (l_node_client->callbacks.disconnected) {
             l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
         }
         if (dap_client_get_stage(l_node_client->client) != STAGE_BEGIN)
             dap_client_go_stage(l_node_client->client, STAGE_BEGIN, NULL);
-    } else if(l_node_client->callbacks.error) // TODO make different error codes
+    } else if(l_node_client->callbacks.error)
         l_node_client->callbacks.error(l_node_client, EINVAL, l_node_client->callbacks_arg);
 }
 
