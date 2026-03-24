@@ -303,7 +303,11 @@ int dap_chain_net_init()
     dap_chain_net_ch_init();
     dap_chain_node_sync_client_init();
     dap_http_ban_list_client_init();
-    dap_link_manager_init(&s_link_manager_callbacks);
+    dap_link_manager_t *l_link_mgr = dap_link_manager_get_default();
+    if (l_link_mgr)
+        l_link_mgr->callbacks = s_link_manager_callbacks;
+    else
+        dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
     
     // NO MORE callback registration - datum_dump_json moved to ledger module
