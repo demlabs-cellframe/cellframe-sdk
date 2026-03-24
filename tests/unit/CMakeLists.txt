@@ -25,4 +25,29 @@ set_tests_properties(utxo_blocking_unit PROPERTIES
     LABELS "unit;utxo;blocking"
 )
 
-message(STATUS "Unit tests configured: utxo_blocking_unit_test, dex_basic_unit_test")
+# Service Payment Unit Tests (tx_cond_hash_prev state machine, state/substate enums)
+add_executable(srv_pay_unit_test
+    srv_pay_unit_test.c
+)
+
+target_include_directories(srv_pay_unit_test PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../modules/net/srv/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../modules/channel/chain-net-srv/include
+)
+
+target_link_libraries(srv_pay_unit_test
+    dap_test
+    dap_core
+    dap_crypto
+    dap_chain_common
+)
+
+add_test(NAME srv_pay_unit COMMAND srv_pay_unit_test)
+
+set_tests_properties(srv_pay_unit PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;srv_pay;vpn"
+)
+
+message(STATUS "Unit tests configured: utxo_blocking_unit_test, srv_pay_unit_test")
