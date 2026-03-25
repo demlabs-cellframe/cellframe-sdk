@@ -542,7 +542,7 @@ json_object *dap_enc_request_command_to_rpc(const char *a_request, const char *a
     int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
     if (l_res) {
         log_it(L_ERROR, "request failed, error code: %d", l_res);
-        dap_chain_node_client_close_unsafe(l_node_client);
+        dap_chain_node_client_close_mt(l_node_client);
         DAP_DELETE(node_info);
         return NULL;
     }
@@ -553,7 +553,7 @@ json_object *dap_enc_request_command_to_rpc(const char *a_request, const char *a
     dap_json_rpc_request_send(l_client_internal, l_request, &l_response, a_cert_path);
 
     dap_json_rpc_request_free(l_request);
-    dap_chain_node_client_close_unsafe(l_node_client);
+    dap_chain_node_client_close_mt(l_node_client);
     DAP_DELETE(node_info);
     
     return l_response;

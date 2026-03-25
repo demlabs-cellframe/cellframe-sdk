@@ -1336,7 +1336,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_ve
             return -8;
         }
         DAP_DELETE(node_info);
-        dap_chain_node_client_close_unsafe(l_client);
+        dap_chain_node_client_close_mt(l_client);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
     } break;
 
@@ -10575,7 +10575,7 @@ int com_exec_cmd(int argc, char **argv, void **reply, int a_version) {
     if (res) {
         log_it(L_ERROR, "No response from node");
         dap_json_rpc_error_add(*a_json_arr_reply, -8, "No reponse from node");
-        dap_chain_node_client_close_unsafe(l_node_client);
+        dap_chain_node_client_close_mt(l_node_client);
         DAP_DEL_Z(node_info);
         return -8;
     }
