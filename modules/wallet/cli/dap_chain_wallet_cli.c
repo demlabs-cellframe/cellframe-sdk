@@ -358,14 +358,14 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR;
             }
             if(l_wallet_name) {
-                if(!l_net) {
-                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
-                                           "Subcommand info requires parameter '-net'");
-                    dap_json_object_free(json_arr_out);
-                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
-                }
                 l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
-                l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
+                if (!l_net) {
+                    dap_chain_net_t *l_net_first = dap_chain_net_iter_start();
+                    if (l_net_first)
+                        l_net = l_net_first;
+                }
+                if (l_net)
+                    l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
             }
@@ -907,9 +907,24 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                         dap_json_object_add_string(json_obj_wall, a_version == 1 ? "Sign type" : "sig_type", l_sign_type_str);
                     dap_json_object_add_string(json_obj_wall, a_version == 1 ? "Status" : "status", a_version == 1 ? "successfully created" : "success");
 
-                    const char *l_addr_str = NULL;
-                    if ( l_net && (l_addr_str = dap_chain_addr_to_str_static(dap_chain_wallet_get_addr(l_wallet,l_net->pub.id))) ) {
-                        dap_json_object_add_object(json_obj_wall, a_version == 1 ? "new address" : "new_addr", dap_json_object_new_string(l_addr_str) );
+                    if (l_net) {
+                        const char *l_addr_str = dap_chain_addr_to_str_static(
+                            dap_chain_wallet_get_addr(l_wallet, l_net->pub.id));
+                        if (l_addr_str)
+                            dap_json_object_add_object(json_obj_wall,
+                                a_version == 1 ? "new address" : "addr",
+                                dap_json_object_new_string(l_addr_str));
+                    } else {
+                        dap_chain_net_t *l_net_cur = dap_chain_net_iter_start();
+                        while (l_net_cur) {
+                            const char *l_addr_str = dap_chain_addr_to_str_static(
+                                dap_chain_wallet_get_addr(l_wallet, l_net_cur->pub.id));
+                            if (l_addr_str)
+                                dap_json_object_add_object(json_obj_wall,
+                                    a_version == 1 ? "new address" : "addr",
+                                    dap_json_object_new_string(l_addr_str));
+                            l_net_cur = dap_chain_net_iter_next(l_net_cur);
+                        }
                     }
                     dap_json_array_add(json_arr_out, json_obj_wall);
                     dap_chain_wallet_close(l_wallet);
