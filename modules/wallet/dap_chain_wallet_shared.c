@@ -1444,27 +1444,22 @@ static int s_cli_history(int a_argc, char **a_argv, int a_arg_index, json_object
             json_object_object_add(l_jobj_op, "signer_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_signer_addr)));
         }
 
-        const char *l_coins, *l_datoshi = dap_uint256_to_char(l_value, &l_coins);
-        json_object_object_add(l_jobj_op, "value", json_object_new_string(l_coins));
-        json_object_object_add(l_jobj_op, "datoshi", json_object_new_string(l_datoshi));
+        if (l_is_first) {
+            const char *l_coins;
+            dap_uint256_to_char(l_value, &l_coins);
+            json_object_object_add(l_jobj_op, "value", json_object_new_string(l_coins));
+        } else {
+            uint256_t l_op_value;
+            if (compare256(l_value, l_prev_value) >= 0)
+                SUBTRACT_256_256(l_value, l_prev_value, &l_op_value);
+            else
+                SUBTRACT_256_256(l_prev_value, l_value, &l_op_value);
+            const char *l_op_coins;
+            dap_uint256_to_char(l_op_value, &l_op_coins);
+            json_object_object_add(l_jobj_op, "value", json_object_new_string(l_op_coins));
+        }
         if (l_ticker)
             json_object_object_add(l_jobj_op, "token", json_object_new_string(l_ticker));
-
-        if (!l_is_first) {
-            uint256_t l_diff;
-            const char *l_diff_frac;
-            if (compare256(l_value, l_prev_value) >= 0) {
-                SUBTRACT_256_256(l_value, l_prev_value, &l_diff);
-                dap_uint256_to_char(l_diff, &l_diff_frac);
-                json_object_object_add(l_jobj_op, "change", json_object_new_string(l_diff_frac));
-            } else {
-                SUBTRACT_256_256(l_prev_value, l_value, &l_diff);
-                dap_uint256_to_char(l_diff, &l_diff_frac);
-                char l_neg[128];
-                snprintf(l_neg, sizeof(l_neg), "-%s", l_diff_frac);
-                json_object_object_add(l_jobj_op, "change", json_object_new_string(l_neg));
-            }
-        }
 
         json_object_array_add(l_jobj_ops, l_jobj_op);
 
