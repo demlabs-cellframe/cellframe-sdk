@@ -211,11 +211,28 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_c
 {
     if(!a_addr || !a_pkey_hash)
         return;
-    a_addr->addr_ver = DAP_CHAIN_ADDR_VERSION_CURRENT;
+    a_addr->addr_type = DAP_CHAIN_ADDR_TYPE_REGULAR;
     a_addr->net_id.uint64 = a_net_id.uint64;
     a_addr->sig_type.raw = a_type.raw;
     memcpy(a_addr->data.hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t));
     // calc checksum
+    dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &a_addr->checksum);
+}
+
+/**
+ * @brief dap_chain_addr_fill_shared
+ * @param a_addr
+ * @param a_net_id
+ * @param a_hold_tx_hash hold transaction hash used as address payload
+ */
+void dap_chain_addr_fill_shared(dap_chain_addr_t *a_addr, dap_chain_net_id_t a_net_id, dap_chain_hash_fast_t *a_hold_tx_hash)
+{
+    if (!a_addr || !a_hold_tx_hash)
+        return;
+    a_addr->addr_type = DAP_CHAIN_ADDR_TYPE_SHARED;
+    a_addr->net_id.uint64 = a_net_id.uint64;
+    a_addr->sig_type.raw = SIG_TYPE_NULL;
+    memcpy(a_addr->data.hash, a_hold_tx_hash, sizeof(dap_chain_hash_fast_t));
     dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &a_addr->checksum);
 }
 

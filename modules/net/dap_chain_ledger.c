@@ -4841,6 +4841,12 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             continue;
         }
         if (!dap_chain_addr_is_blank(&l_tx_out_to)) {
+            if (l_tx_out_to.addr_type != DAP_CHAIN_ADDR_TYPE_REGULAR) {
+                log_it(L_WARNING, "[%s] Standard output targets non-regular address (addr_type=0x%02x)",
+                       dap_chain_hash_fast_to_str_static(a_tx_hash), l_tx_out_to.addr_type);
+                l_err_num = DAP_LEDGER_TX_CHECK_INVALID_ADDR_TYPE;
+                break;
+            }
             if (l_tx_out_to.net_id.uint64 != a_ledger->net->pub.id.uint64) {
                 if (!l_cross_network) {
                     l_cross_network = true;

@@ -125,7 +125,7 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
 
 json_object * dap_chain_tx_compose_wallet_shared_hold(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                                     uint16_t a_port, const char *a_enc_cert_path, dap_chain_addr_t *a_owner_addr, const char *a_token_str, const char *a_value_str, 
-                                                    const char *a_fee_str, const char *a_signs_min_str, const char *a_pkeys_str, 
+                                                    const char *a_fee_str, const char *a_signs_min_str, const char *a_owners_str, 
                                                     const char *a_tag_str);
 
 json_object *dap_chain_tx_compose_wallet_shared_refill(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
