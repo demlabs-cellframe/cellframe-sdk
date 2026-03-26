@@ -1963,13 +1963,19 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
             } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
+                if (!l_addr) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR,
+                                           "Invalid address '%s'", l_addr_str);
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR;
+                }
                 if (!l_net)
                     l_net = dap_chain_net_by_id(l_addr->net_id);
-                
-                if(!l_net) {
+                if (!l_net) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
-                                            "Can't get net from wallet addr");
+                                           "Can't get net from wallet addr");
                     json_object_put(json_arr_out);
+                    DAP_DELETE(l_addr);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
             }
