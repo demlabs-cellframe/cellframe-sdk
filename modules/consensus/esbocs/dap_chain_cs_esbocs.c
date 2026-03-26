@@ -742,8 +742,6 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_addr_fill_from_key(&l_my_signing_addr, l_esbocs_pvt->blocks_sign_key, a_chain->net_id);
     if (!l_esbocs_pvt->poa_mode) {
         if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
-            // Auto-delegation may have failed during callback_init because the stake
-            // service was not yet registered at that point. Re-delegate now.
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
             for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
                 dap_chain_esbocs_validator_t *l_validator = it->data;

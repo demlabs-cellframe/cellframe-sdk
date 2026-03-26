@@ -129,9 +129,11 @@ int cellframe_sdk_init(uint32_t a_modules)
     /* 8. Wallet cache (after CLI so wallet commands are registered) */
     CF_INIT(CF_MODULE_WALLET_CACHE, dap_chain_wallet_cache_init(), "wallet cache");
 
-    /* 9. Load networks, mempool, housekeeping */
-    if (l_modules & CF_MODULE_NETWORK)
-        dap_chain_net_load_all();
+    /* 9. Load networks, mempool, housekeeping
+     * NOTE: dap_chain_net_load_all() is NOT called here. The caller (cellframe-node)
+     * must call it explicitly after loading plugins, so that plugin-registered services
+     * are available during chain consensus initialization (e.g. ESBOCS stake delegation).
+     */
 
     if (l_modules & CF_MODULE_MEMPOOL) {
         dap_chain_net_srv_order_init();
@@ -139,7 +141,9 @@ int cellframe_sdk_init(uint32_t a_modules)
             log_it(L_ERROR, "dap_datum_mempool_init failed");
         dap_chain_node_list_clean_init();
         dap_global_db_clean_init();
-        dap_chain_node_mempool_autoproc_init();
+        /* NOTE: dap_chain_node_mempool_autoproc_init() is NOT called here.
+         * It must be called after dap_chain_net_load_all() since it iterates
+         * over loaded networks to set mempool_autoproc flags. */
     }
 
     s_initialized = true;
