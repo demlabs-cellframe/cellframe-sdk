@@ -9312,7 +9312,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
     } else if (l_addr && l_addr->addr_type == DAP_CHAIN_ADDR_TYPE_SHARED) {
         dap_hash_fast_t l_cur_hash = l_addr->data.hash_fast;
         json_obj_out = json_object_new_array();
-        for (int l_depth = 0; l_depth < 10000; l_depth++) {
+        for (;;) {
             dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_cur_hash);
             if (!l_tx)
                 break;

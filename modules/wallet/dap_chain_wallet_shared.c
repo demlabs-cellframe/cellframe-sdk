@@ -1409,7 +1409,7 @@ static int s_cli_history(int a_argc, char **a_argv, int a_arg_index, json_object
     uint256_t l_prev_value = {};
     bool l_is_first = true;
 
-    for (int l_depth = 0; l_depth < 10000; l_depth++) {
+    for (;;) {
         l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_cur_hash);
         if (!l_tx)
             break;
