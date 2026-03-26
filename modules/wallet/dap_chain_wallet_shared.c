@@ -1625,7 +1625,9 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         json_object *l_jobj_item = json_object_new_object();
         const char *l_cur_pkey_str = l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key;
         json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_cur_pkey_str));
-        json_object *l_jobj_nets_hashes = json_object_new_object();
+        json_object *l_jobj_tx_hashes = json_object_new_object();
+        json_object *l_jobj_shared_wallets = json_object_new_object();
+        bool l_addr_set = false;
         for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
             if (!dap_strcmp(l_item->data, s_wallet_shared_gdb_group))
                 continue;
@@ -1635,9 +1637,11 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
             if (l_hold_hashes_by_name) {
                 const char *l_cur_net_name = (char *)l_item->data + sizeof(s_wallet_shared_gdb_group);
                 dap_chain_net_t *l_cur_net = dap_chain_net_by_name(l_cur_net_name);
-                json_object *l_jobj_hold_txs = json_object_new_array();
-                bool l_addr_set = false;
+                json_object *l_jobj_old_arr = json_object_new_array();
+                json_object *l_jobj_new_arr = json_object_new_array();
                 for (size_t j = 0; j < l_hold_hashes_by_name->tx_count; j++) {
+                    json_object_array_add(l_jobj_old_arr, json_object_new_string(
+                        dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
                     if (l_hold_hashes_by_name->tx[j].role != TX_ROLE_CREATOR)
                         continue;
                     json_object *l_jobj_tx = json_object_new_object();
@@ -1646,18 +1650,16 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                     if (l_cur_net) {
                         dap_chain_datum_tx_t *l_hold_tx = dap_ledger_tx_find_by_hash(
                             l_cur_net->pub.ledger, &l_hold_hashes_by_name->tx[j].hash);
-                        if (l_hold_tx) {
-                            if (!l_addr_set) {
-                                dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_hold_tx, 0);
-                                if (l_sig) {
-                                    dap_hash_fast_t l_sig_pkey;
-                                    dap_sign_get_pkey_hash(l_sig, &l_sig_pkey);
-                                    dap_chain_addr_t l_creator_addr;
-                                    dap_chain_addr_fill(&l_creator_addr, l_sig->header.type, &l_sig_pkey, l_cur_net->pub.id);
-                                    json_object_object_add(l_jobj_item, "addr",
-                                        json_object_new_string(dap_chain_addr_to_str_static(&l_creator_addr)));
-                                    l_addr_set = true;
-                                }
+                        if (l_hold_tx && !l_addr_set) {
+                            dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_hold_tx, 0);
+                            if (l_sig) {
+                                dap_hash_fast_t l_sig_pkey;
+                                dap_sign_get_pkey_hash(l_sig, &l_sig_pkey);
+                                dap_chain_addr_t l_creator_addr;
+                                dap_chain_addr_fill(&l_creator_addr, l_sig->header.type, &l_sig_pkey, l_cur_net->pub.id);
+                                json_object_object_add(l_jobj_item, "addr",
+                                    json_object_new_string(dap_chain_addr_to_str_static(&l_creator_addr)));
+                                l_addr_set = true;
                             }
                         }
                         dap_chain_addr_t l_shared_addr;
@@ -1690,20 +1692,29 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                             }
                         }
                     }
-                    json_object_array_add(l_jobj_hold_txs, l_jobj_tx);
+                    json_object_array_add(l_jobj_new_arr, l_jobj_tx);
                 }
-                if (json_object_array_length(l_jobj_hold_txs) > 0)
-                    json_object_object_add(l_jobj_nets_hashes, l_cur_net_name, l_jobj_hold_txs);
+                if (json_object_array_length(l_jobj_old_arr) > 0)
+                    json_object_object_add(l_jobj_tx_hashes, l_cur_net_name, l_jobj_old_arr);
                 else
-                    json_object_put(l_jobj_hold_txs);
+                    json_object_put(l_jobj_old_arr);
+                if (json_object_array_length(l_jobj_new_arr) > 0)
+                    json_object_object_add(l_jobj_shared_wallets, l_cur_net_name, l_jobj_new_arr);
+                else
+                    json_object_put(l_jobj_new_arr);
                 DAP_DELETE(l_hold_hashes_by_name);
             }
         }
-        if (json_object_object_length(l_jobj_nets_hashes) > 0) {
-            json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_nets_hashes);
+        if (json_object_object_length(l_jobj_tx_hashes) > 0) {
+            json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_tx_hashes);
+            if (json_object_object_length(l_jobj_shared_wallets) > 0)
+                json_object_object_add(l_jobj_item, "shared_wallets", l_jobj_shared_wallets);
+            else
+                json_object_put(l_jobj_shared_wallets);
             json_object_array_add(*a_json_arr_reply, l_jobj_item);
         } else {
-            json_object_put(l_jobj_nets_hashes);
+            json_object_put(l_jobj_tx_hashes);
+            json_object_put(l_jobj_shared_wallets);
             json_object_put(l_jobj_item);
         }
     }
