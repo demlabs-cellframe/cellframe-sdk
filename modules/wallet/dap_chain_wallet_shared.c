@@ -1435,14 +1435,18 @@ static int s_cli_history(int a_argc, char **a_argv, int a_arg_index, json_object
         json_object_object_add(l_jobj_op, "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_cur_hash)));
         json_object_object_add(l_jobj_op, "type", json_object_new_string(l_type_str));
 
-        dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, 0);
-        if (l_sig) {
+        json_object *l_jobj_signers = json_object_new_array();
+        for (int l_sig_idx = 0; ; l_sig_idx++) {
+            dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, l_sig_idx);
+            if (!l_sig)
+                break;
             dap_hash_fast_t l_signer_pkey;
             dap_sign_get_pkey_hash(l_sig, &l_signer_pkey);
             dap_chain_addr_t l_signer_addr;
             dap_chain_addr_fill(&l_signer_addr, l_sig->header.type, &l_signer_pkey, a_net->pub.id);
-            json_object_object_add(l_jobj_op, "signer_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_signer_addr)));
+            json_object_array_add(l_jobj_signers, json_object_new_string(dap_chain_addr_to_str_static(&l_signer_addr)));
         }
+        json_object_object_add(l_jobj_op, "signers", l_jobj_signers);
 
         if (l_is_first) {
             const char *l_coins;
@@ -1825,7 +1829,7 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
     return 0;
 }
 
-json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name)
+static json_object *s_get_tx_hashes_by_role(dap_hash_fast_t *a_pkey_hash, const char *a_net_name, dap_chain_net_id_t a_net_id, tx_role_t a_role)
 {
     char *l_group = dap_strdup_printf("%s.%s", s_wallet_shared_gdb_group, a_net_name);
     hold_tx_hashes_t *l_item = (hold_tx_hashes_t *)dap_global_db_get_sync(l_group, dap_hash_fast_to_str_static(a_pkey_hash), NULL, NULL, false);
@@ -1834,12 +1838,31 @@ json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_
         return NULL;
     json_object *l_json_ret = json_object_new_array();
     for (size_t i = 0; i < l_item->tx_count; i++) {
-        if (l_item->tx[i].role == TX_ROLE_CREATOR) {
-            json_object_array_add(l_json_ret, json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx[i].hash)));
+        if (l_item->tx[i].role == a_role) {
+            json_object *l_jobj = json_object_new_object();
+            json_object_object_add(l_jobj, "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx[i].hash)));
+            dap_chain_addr_t l_shared_addr;
+            dap_chain_addr_fill_shared(&l_shared_addr, a_net_id, &l_item->tx[i].hash);
+            json_object_object_add(l_jobj, "addr", json_object_new_string(dap_chain_addr_to_str_static(&l_shared_addr)));
+            json_object_array_add(l_json_ret, l_jobj);
         }
     }
     DAP_DELETE(l_item);
+    if (!json_object_array_length(l_json_ret)) {
+        json_object_put(l_json_ret);
+        return NULL;
+    }
     return l_json_ret;
+}
+
+json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name, dap_chain_net_id_t a_net_id)
+{
+    return s_get_tx_hashes_by_role(a_pkey_hash, a_net_name, a_net_id, TX_ROLE_CREATOR);
+}
+
+json_object *dap_chain_wallet_shared_get_tx_hashes_owner_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name, dap_chain_net_id_t a_net_id)
+{
+    return s_get_tx_hashes_by_role(a_pkey_hash, a_net_name, a_net_id, TX_ROLE_OWNER);
 }
 
 static uint32_t s_wallet_shared_get_valid_signs(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx)

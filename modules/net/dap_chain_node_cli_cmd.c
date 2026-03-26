@@ -1916,11 +1916,14 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             } else if (!l_addr_tokens_size)
                 json_object_object_add(json_obj_wall, "balance", json_object_new_string("0"));
 
-            // add shared wallet tx hashes
-            json_object *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_addr->data.hash_fast, l_net->pub.name);
-            if (l_tx_hashes) {
+            // add shared wallet tx hashes (created by this wallet)
+            json_object *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_addr->data.hash_fast, l_net->pub.name, l_net->pub.id);
+            if (l_tx_hashes)
                 json_object_object_add(json_obj_wall, "wallet_shared_tx_hashes", l_tx_hashes);
-            }
+            // add shared wallet tx hashes (where this wallet is an owner)
+            json_object *l_tx_hashes_owner = dap_chain_wallet_shared_get_tx_hashes_owner_json(&l_addr->data.hash_fast, l_net->pub.name, l_net->pub.id);
+            if (l_tx_hashes_owner)
+                json_object_object_add(json_obj_wall, "wallet_shared_tx_hashes_owner", l_tx_hashes_owner);
 
             json_object_array_add(json_arr_out, json_obj_wall);
             DAP_DELETE(l_addr);
