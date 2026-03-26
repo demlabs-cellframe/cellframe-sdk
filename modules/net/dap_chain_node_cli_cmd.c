@@ -9309,6 +9309,29 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
                                     "something went wrong in tx_history");
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_TX_ERR;
         }
+    } else if (l_addr && l_addr->addr_type == DAP_CHAIN_ADDR_TYPE_SHARED) {
+        dap_hash_fast_t l_cur_hash = l_addr->data.hash_fast;
+        json_obj_out = json_object_new_array();
+        for (int l_depth = 0; l_depth < 10000; l_depth++) {
+            dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_cur_hash);
+            if (!l_tx)
+                break;
+            json_object *l_jobj_tx = dap_db_history_tx(*a_json_arr_reply, &l_cur_hash, l_chain, l_hash_out_type, l_net, a_version);
+            if (l_jobj_tx)
+                json_object_array_add(json_obj_out, l_jobj_tx);
+            int l_cond_idx = 0;
+            dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_cond_idx);
+            if (!l_cond)
+                break;
+            dap_hash_fast_t l_spender = {};
+            if (dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_cur_hash, l_cond_idx, &l_spender))
+                l_cur_hash = l_spender;
+            else
+                break;
+        }
+        json_object_array_add(*a_json_arr_reply, json_obj_out);
+        DAP_DELETE(l_addr);
+        return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     } else if (l_addr) {
         // history addr and wallet
         json_object * json_obj_summary = json_object_new_object();
