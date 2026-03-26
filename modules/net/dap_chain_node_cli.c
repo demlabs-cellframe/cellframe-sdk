@@ -361,13 +361,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, NULL, "Make transaction",
-            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> [-to_addr <addr>] [-arbitrage] [-lock_before <unlock_time>] "
-            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value> [-certs <certs>]\n"
+            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> [-to_addr <addr>] [-lock_before <unlock_time>] "
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n"
+            "tx_create -net <net_name> [-chain <chain_name>] -arbitrage -from_addr <addr> -token <token_ticker> -value <value> -certs <cert_names> -fee <fee>\n"
             "OPTIONS:\n"
             "  -arbitrage: Create arbitrage transaction (token owner operation, bypasses UTXO blocking)\n"
-            "              -from_wallet provides fee payment; blocked UTXOs are found at the wallet address\n"
-            "              -to_addr is optional and ignored; all outputs go to network fee address\n"
-            "              -certs is required for token owner authorization (comma-separated cert names)\n"
+            "              Requires -from_addr (target address to claim UTXOs from) and -certs (owner certificates).\n"
+            "              All outputs go to network fee address. Cannot be used with -from_wallet or -from_emission.\n"
             "  -wallet_fee: Wallet for fee payment when using -from_emission (not used with -from_wallet)\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, NULL, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );

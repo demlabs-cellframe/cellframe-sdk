@@ -77,10 +77,6 @@
 #define MEMPOOL_SEARCH_DELAY_MS 200          // Delay between mempool search attempts (milliseconds)
 #define MEMPOOL_SEARCH_MAX_ATTEMPTS 5         // Maximum number of attempts to find transaction in mempool
 #define ARBITRAGE_TX_VALUE "10000.0"         // Value for arbitrage transaction
-#define WALLET_FUNDING_VALUE "20000.0"       // Value to fund wallet for fee payment
-#define TESTCOIN_UTXO_VALUE "1000.0"         // Value for TestCoin UTXO creation
-#define TESTCOIN_TOTAL_SUPPLY "1000000.0"     // Total supply for TestCoin token
-#define TESTCOIN_EMISSION_VALUE "100000.0"   // Emission value for TestCoin token
 #define ARBITRAGE_FEE_MIN "0.000000000000000001"  // Minimal fee value for arbitrage transactions
 #define WALLET_SEED_SIZE 32                   // Size of wallet seed in bytes
 #define CLI_TIMEOUT_MS 30000                  // Timeout for CLI commands (30 seconds)
@@ -291,7 +287,6 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     dap_print_module_name("CLI Test 15: Arbitrage Transaction via CLI (Full Validation)");
     
     int l_res = 0;
-    test_token_fixture_t *l_testcoin = NULL; // For cleanup if TestCoin was created
     
     // ========== PHASE 1: Setup Network Fee Address ==========
     log_it(L_INFO, "PHASE 1: Setting up network fee address");
@@ -386,199 +381,18 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     
     log_it(L_INFO, "✓ UTXO %s:0 blocked via CLI", l_tx_hash_str);
     
-    // ========== PHASE 4: Create Wallet for Arbitrage TX ==========
-    log_it(L_INFO, "PHASE 4: Creating wallet for arbitrage TX");
+    // ========== PHASE 4: Create Arbitrage TX via CLI ==========
+    log_it(L_INFO, "PHASE 4: Creating arbitrage TX via CLI (tx_create -arbitrage -from_addr)");
     
-    // Create wallet via CLI (will be used for -from_wallet arbitrage transaction)
-    // Note: The wallet will use UTXO from l_tx transaction which is already in ledger
-    // The wallet needs to have the same key as l_owner_key to access l_tx's UTXO
-    // Since we can't restore full key via CLI, we'll create wallet programmatically with owner key
-    const char *l_wallet_name = "cli_test_wallet15_arbitrage";
-    const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
-    
-    dap_assert_PIF(l_wallets_path != NULL, "Wallets path configured");
-    log_it(L_INFO, "Wallets path: %s", l_wallets_path);
-    
-    // Create wallet programmatically using helper function
-    dap_sign_type_t l_sig_type = dap_sign_type_from_str("sig_dil");
-    dap_assert_PIF(l_sig_type.type != SIG_TYPE_NULL, "Signature type valid");
-    
-    dap_chain_wallet_t *l_wallet_prog = s_create_wallet_with_key_seed(
-        l_wallet_name, l_wallets_path, l_owner_key, &l_sig_type);
-    
-    if (!l_wallet_prog) {
-        // Fallback: create wallet via CLI (will have different key, but we'll handle it)
-        log_it(L_WARNING, "Failed to create wallet programmatically, using CLI");
-        
-        char l_cmd_wallet[2048];
-        snprintf(l_cmd_wallet, sizeof(l_cmd_wallet),
-                 "wallet new -w %s -net Snet -sign sig_dil",
-                 l_wallet_name);
-        
-        char l_json_req_wallet[4096];
-        char *l_json_req_wallet_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_wallet, "wallet", 
-                                                                             l_json_req_wallet, sizeof(l_json_req_wallet), 1);
-        dap_assert_PIF(l_json_req_wallet_ptr != NULL, "JSON-RPC request for wallet creation created");
-        
-        log_it(L_INFO, "Calling CLI: %s", l_cmd_wallet);
-        
-        char *l_reply_wallet = dap_cli_cmd_exec(l_json_req_wallet);
-        dap_assert_PIF(l_reply_wallet != NULL, "Wallet creation CLI command executed");
-        
-        log_it(L_INFO, "CLI reply: %s", l_reply_wallet);
-        
-        // Parse wallet creation response
-        json_object *l_json_wallet = json_tokener_parse(l_reply_wallet);
-        dap_assert_PIF(l_json_wallet != NULL, "JSON wallet reply parsed");
-        
-        // Check for errors
-        test_json_rpc_error_t l_error_wallet = {0};
-        bool l_has_error_wallet = test_json_rpc_parse_error(l_json_wallet, &l_error_wallet);
-        if (l_has_error_wallet) {
-            log_it(L_ERROR, "Wallet creation CLI command failed: code=%d, message=%s", 
-                   l_error_wallet.error_code, l_error_wallet.error_msg ? l_error_wallet.error_msg : "unknown");
-            json_object_put(l_json_wallet);
-            dap_assert_PIF(false, "Wallet creation CLI command succeeded");
-        }
-        
-        json_object_put(l_json_wallet);
-        log_it(L_INFO, "✓ Wallet created via CLI: %s", l_wallet_name);
-    } else {
-        log_it(L_INFO, "✓ Wallet created programmatically: %s", l_wallet_name);
-        dap_chain_wallet_close(l_wallet_prog);
-    }
-    
-    // Get wallet address for funding
-    dap_chain_wallet_t *l_wallet_for_addr = dap_chain_wallet_open(l_wallet_name, l_wallets_path, NULL);
-    dap_assert_PIF(l_wallet_for_addr != NULL, "Wallet opened for address retrieval");
-    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_wallet_for_addr, s_net_fixture->net->pub.id);
-    dap_assert_PIF(l_wallet_addr != NULL, "Wallet address retrieved");
-    const char *l_wallet_addr_str = dap_chain_addr_to_str_static(l_wallet_addr);
-    log_it(L_INFO, "Wallet address: %s", l_wallet_addr_str);
-    
-    // Send funds to wallet from owner address (for fee payment)
-    // Use UTXO from l_tx (output 1, which is change output) to send funds to wallet
-    // Note: l_tx has 2 outputs: output 0 (10000.0 to owner) and output 1 (change 40000.0 to owner)
-    // We'll use output 1 (change) to send funds to wallet
-    dap_chain_addr_t l_wallet_addr_copy = *l_wallet_addr; // Copy address for use in transaction
-    
-    // Create transaction from l_tx output 1 to wallet
-    dap_chain_datum_tx_t *l_funding_tx = dap_chain_datum_tx_create();
-    dap_assert_PIF(l_funding_tx != NULL, "Funding TX created");
-    
-    // Add input from l_tx output 1 (change output)
-    dap_chain_datum_tx_add_in_item(&l_funding_tx, &l_tx->tx_hash, 1);
-    
-    // Add output to wallet (for fee payment)
-    uint256_t l_funding_value = dap_chain_balance_scan(WALLET_FUNDING_VALUE);
-    dap_chain_datum_tx_add_out_ext_item(&l_funding_tx, &l_wallet_addr_copy, l_funding_value, "ARBCLI");
-    
-    // Add change output back to owner (remaining amount)
-    uint256_t l_change_value = dap_chain_balance_scan(WALLET_FUNDING_VALUE);
-    dap_chain_datum_tx_add_out_ext_item(&l_funding_tx, &l_owner_addr, l_change_value, "ARBCLI");
-    
-    // Sign transaction with owner cert
-    dap_chain_datum_tx_add_sign_item(&l_funding_tx, l_owner_cert->enc_key);
-    
-    // Calculate transaction hash
-    size_t l_funding_tx_size = dap_chain_datum_tx_get_size(l_funding_tx);
-    dap_chain_hash_fast_t l_funding_tx_hash = {0};
-    dap_hash_fast(l_funding_tx, l_funding_tx_size, &l_funding_tx_hash);
-    
-    // Add to ledger using direct API
-    int l_funding_res = dap_ledger_tx_add(
-        s_net_fixture->ledger,
-        l_funding_tx,
-        &l_funding_tx_hash,
-        false,  // a_from_threshold
-        NULL    // a_datum_index_data
-    );
-    dap_assert_PIF(l_funding_res == 0, "Funding TX added to ledger");
-    log_it(L_INFO, "✓ Sent %s ARBCLI to wallet for fee payment", WALLET_FUNDING_VALUE);
-    
-    // Create fixture for cleanup (tx is owned by ledger, don't delete it)
-    test_tx_fixture_t *l_funding_tx_fixture = DAP_NEW_Z(test_tx_fixture_t);
-    dap_assert_PIF(l_funding_tx_fixture != NULL, "Funding TX fixture allocated");
-    l_funding_tx_fixture->tx = NULL; // Don't own the tx, ledger owns it
-    l_funding_tx_fixture->tx_hash = l_funding_tx_hash;
-    
-    dap_chain_wallet_close(l_wallet_for_addr);
-    
-    // ========== PHASE 5: Create Arbitrage TX via CLI ==========
-    log_it(L_INFO, "PHASE 5: Creating arbitrage TX via CLI command tx_create -arbitrage -from_wallet");
-    
-    // For arbitrage with -from_wallet, we need wallet name and token owner cert for arbitrage auth
-    // CLI command: tx_create -net Snet -chain Snet_master -token ARBCLI -from_wallet <wallet> -to_addr <fee_addr> -value <ARBITRAGE_TX_VALUE> -fee <ARBITRAGE_FEE_MIN> -wallet_fee <owner_wallet> -arbitrage -certs <token_owner_cert>
-    // Note: -from_wallet creates full arbitrage transaction with TSD marker (unlike -from_emission)
-    // Note: fee cannot be exactly "0" for -from_wallet, so we use minimal value
-    // Note: -wallet_fee is used to pay fee from owner wallet (which should have TestCoin)
-    // Create owner wallet for fee payment using helper function
-    const char *l_owner_wallet_name = "cli_test_wallet15_owner_fee";
-    dap_sign_type_t l_sig_type_owner = dap_sign_type_from_str("sig_dil");
-    dap_assert_PIF(l_sig_type_owner.type != SIG_TYPE_NULL, "Owner signature type valid");
-    
-    dap_chain_wallet_t *l_owner_wallet = s_create_wallet_with_key_seed(
-        l_owner_wallet_name, l_wallets_path, l_owner_key, &l_sig_type_owner);
-    dap_assert_PIF(l_owner_wallet != NULL, "Owner wallet created for fee payment");
-    log_it(L_INFO, "✓ Owner wallet created for fee payment: %s", l_owner_wallet_name);
-    
-    // Get owner wallet address for TestCoin funding
-    dap_chain_addr_t *l_owner_wallet_addr = dap_chain_wallet_get_addr(l_owner_wallet, s_net_fixture->net->pub.id);
-    dap_assert_PIF(l_owner_wallet_addr != NULL, "Owner wallet address retrieved");
-    const char *l_owner_wallet_addr_str = dap_chain_addr_to_str_static(l_owner_wallet_addr);
-    log_it(L_INFO, "Owner wallet address: %s", l_owner_wallet_addr_str);
-    
-    // Create TestCoin token if it doesn't exist and send it to owner wallet for fee payment
-    // Check if TestCoin exists in ledger
-    dap_chain_hash_fast_t l_testcoin_emission_hash = {0};
-    bool l_testcoin_exists = dap_ledger_token_get_first_emission_hash(s_net_fixture->ledger, "TestCoin", &l_testcoin_emission_hash);
-    
-    if (!l_testcoin_exists) {
-        // Create TestCoin token with emission to owner wallet address
-        dap_chain_addr_t l_owner_wallet_addr_copy = *l_owner_wallet_addr;
-        l_testcoin = test_token_fixture_create_with_emission(
-            s_net_fixture->ledger, "TestCoin", TESTCOIN_TOTAL_SUPPLY, TESTCOIN_EMISSION_VALUE, 
-            &l_owner_wallet_addr_copy, l_owner_cert, &l_testcoin_emission_hash);
-        dap_assert_PIF(l_testcoin != NULL, "TestCoin token created");
-        log_it(L_INFO, "✓ TestCoin token created with emission to owner wallet");
-        
-        // Create transaction from TestCoin emission to owner wallet to create UTXO
-        // Emission creates balance but not UTXO - need to create TX from emission
-        dap_chain_addr_t l_owner_wallet_addr_copy2 = *l_owner_wallet_addr;
-        test_tx_fixture_t *l_testcoin_tx = test_tx_fixture_create_from_emission(
-            s_net_fixture->ledger, &l_testcoin_emission_hash, "TestCoin", TESTCOIN_UTXO_VALUE, 
-            &l_owner_wallet_addr_copy2, l_owner_cert);
-        if (l_testcoin_tx) {
-            int l_testcoin_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_testcoin_tx);
-            if (l_testcoin_res == 0) {
-                log_it(L_INFO, "✓ Created TestCoin UTXO for owner wallet (%s TestCoin)", TESTCOIN_UTXO_VALUE);
-            }
-            test_tx_fixture_destroy(l_testcoin_tx);
-        }
-        // Note: test_token_fixture_destroy will be called in cleanup if needed
-    } else {
-        // TestCoin exists, send some to owner wallet from emission
-        dap_chain_addr_t l_owner_wallet_addr_copy = *l_owner_wallet_addr;
-        test_tx_fixture_t *l_testcoin_tx = test_tx_fixture_create_from_emission(
-            s_net_fixture->ledger, &l_testcoin_emission_hash, "TestCoin", TESTCOIN_UTXO_VALUE, 
-            &l_owner_wallet_addr_copy, l_owner_cert);
-        if (l_testcoin_tx) {
-            int l_testcoin_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_testcoin_tx);
-            if (l_testcoin_res == 0) {
-                log_it(L_INFO, "✓ Sent %s TestCoin to owner wallet for fee payment", TESTCOIN_UTXO_VALUE);
-            }
-            test_tx_fixture_destroy(l_testcoin_tx);
-        }
-    }
-    
-    dap_chain_wallet_close(l_owner_wallet);
-    
+    // Arbitrage: claim UTXO at -from_addr (owner of the blocked output) using -certs; fee is taken from arbitrated funds.
+    // CLI: tx_create -net Snet -chain <chain> -arbitrage -from_addr <addr> -token ARBCLI -value <val> -certs <owner_cert> -fee <fee>
+    // Note: fee cannot be exactly "0", so we use minimal value (ARBITRAGE_FEE_MIN)
     const char *l_chain_name = s_net_fixture->chain_main ? s_net_fixture->chain_main->name : "Snet_master";
+    const char *l_owner_addr_str = dap_chain_addr_to_str_static(&l_owner_addr);
     char l_cmd_arbitrage[4096];
     snprintf(l_cmd_arbitrage, sizeof(l_cmd_arbitrage),
-             "tx_create -net Snet -chain %s -token ARBCLI -from_wallet %s -to_addr %s -value %s -fee %s -wallet_fee %s -arbitrage -certs %s",
-             l_chain_name, l_wallet_name, l_fee_addr_str, ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, 
-             l_owner_wallet_name, l_owner_cert->name);
+             "tx_create -net Snet -chain %s -arbitrage -from_addr %s -token ARBCLI -value %s -certs %s -fee %s",
+             l_chain_name, l_owner_addr_str, ARBITRAGE_TX_VALUE, l_owner_cert->name, ARBITRAGE_FEE_MIN);
     
     char l_json_req_arbitrage[8192];
     char *l_json_req_arbitrage_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_arbitrage, "tx_create", 
@@ -607,8 +421,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
         dap_assert_PIF(false, "Arbitrage TX CLI command succeeded");
     }
     
-    // Extract transaction hash from result[].hash
-    // For -from_wallet, CLI returns hash in "hash" field directly
+    // Extract transaction hash from result[].hash (CLI returns hash in "hash" field)
     json_object *l_result_array = NULL;
     if (!json_object_object_get_ex(l_json_arbitrage, "result", &l_result_array)) {
         log_it(L_ERROR, "No 'result' field in CLI response");
@@ -620,7 +433,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     json_object *l_first_result = json_object_array_get_idx(l_result_array, 0);
     dap_assert_PIF(l_first_result != NULL, "First result entry exists");
     
-    // Get hash from "hash" field (for -from_wallet)
+    // Get hash from "hash" field
     json_object *l_hash_obj = NULL;
     dap_assert_PIF(json_object_object_get_ex(l_first_result, "hash", &l_hash_obj), "Result has 'hash' field");
     char l_arb_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {0};
@@ -630,7 +443,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
 
     log_it(L_INFO, "✓ Arbitrage TX created via CLI: %s", l_arb_tx_hash_str);
     
-    // Check transfer status (for -from_wallet, status is in "transfer" field)
+    // Check transfer status (status is in "transfer" field)
     json_object *l_transfer_obj = NULL;
     dap_assert_PIF(json_object_object_get_ex(l_first_result, "transfer", &l_transfer_obj), "Result has 'transfer' field");
     const char *l_transfer_status = json_object_get_string(l_transfer_obj);
@@ -640,8 +453,8 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     
     json_object_put(l_json_arbitrage);
     
-    // ========== PHASE 6: Verify Transaction in Ledger ==========
-    log_it(L_INFO, "PHASE 6: Verifying arbitrage TX in ledger");
+    // ========== PHASE 5: Verify Transaction in Ledger ==========
+    log_it(L_INFO, "PHASE 5: Verifying arbitrage TX in ledger");
     
     // Parse hash string from CLI response (could be hex or base58)
     dap_chain_hash_fast_t l_arb_tx_hash = {0};
@@ -656,8 +469,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     }
     dap_assert_PIF(l_hash_parse_res == 0, "Arbitrage TX hash parsed from CLI response");
     
-    // Get transaction from ledger to verify it was created
-    // For -from_wallet, transaction is created in mempool and then added to ledger
+    // Get transaction from ledger to verify it was created (may start in mempool)
     // TX_SEARCH_TYPE_NET searches both ledger and mempool
     dap_chain_datum_tx_t *l_arb_tx_verify = dap_chain_net_get_tx_by_hash(s_net_fixture->net, &l_arb_tx_hash, TX_SEARCH_TYPE_NET);
     
@@ -693,8 +505,8 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     
     log_it(L_INFO, "✓ Arbitrage TX found in ledger/mempool");
     
-    // ========== PHASE 7: Verify Arbitrage TSD Marker ==========
-    log_it(L_INFO, "PHASE 7: Verifying arbitrage TSD marker in transaction");
+    // ========== PHASE 6: Verify Arbitrage TSD Marker ==========
+    log_it(L_INFO, "PHASE 6: Verifying arbitrage TSD marker in transaction");
     
     // Check if transaction has arbitrage TSD marker
     bool l_has_arbitrage_tsd = false;
@@ -738,8 +550,8 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     dap_assert_PIF(l_has_arbitrage_tsd, "Arbitrage TX contains TSD marker");
     log_it(L_INFO, "✓ Arbitrage TSD marker verified in transaction");
     
-    // ========== PHASE 8: Verify UTXO Block Bypass ==========
-    log_it(L_INFO, "PHASE 8: Verifying UTXO block bypass (balance check)");
+    // ========== PHASE 7: Verify UTXO Block Bypass ==========
+    log_it(L_INFO, "PHASE 7: Verifying UTXO block bypass (balance check)");
     
     // Check balance after arbitrage TX
     uint256_t l_fee_balance_after = dap_ledger_calc_balance(s_net_fixture->ledger, l_fee_addr, "ARBCLI");
@@ -762,28 +574,16 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     log_it(L_NOTICE, "  ✓ Phase 1: Network fee address configured");
     log_it(L_NOTICE, "  ✓ Phase 2: Token created with emission");
     log_it(L_NOTICE, "  ✓ Phase 3: UTXO blocked via CLI");
-    log_it(L_NOTICE, "  ✓ Phase 4: Wallet created via CLI");
-    log_it(L_NOTICE, "  ✓ Phase 5: Arbitrage TX created via CLI (tx_create -arbitrage -from_wallet)");
-    log_it(L_NOTICE, "  ✓ Phase 6: Transaction verified in ledger/mempool");
-    log_it(L_NOTICE, "  ✓ Phase 7: Arbitrage TSD marker verified");
-    log_it(L_NOTICE, "  ✓ Phase 8: UTXO block bypass verified (balance check)");
+    log_it(L_NOTICE, "  ✓ Phase 4: Arbitrage TX created via CLI (tx_create -arbitrage -from_addr)");
+    log_it(L_NOTICE, "  ✓ Phase 5: Transaction verified in ledger/mempool");
+    log_it(L_NOTICE, "  ✓ Phase 6: Arbitrage TSD marker verified");
+    log_it(L_NOTICE, "  ✓ Phase 7: UTXO block bypass verified (balance check)");
     log_it(L_NOTICE, "═══════════════════════════════════════════════════════════");
     log_it(L_NOTICE, " ");
     
     log_it(L_INFO, "✅ CLI Test 15 PASSED: Arbitrage transaction creation and validation via CLI (tx_create -arbitrage)");
     
 cleanup:
-    // Cleanup
-    if (l_funding_tx_fixture) {
-        // Note: l_funding_tx_fixture->tx is owned by ledger, don't delete it
-        // Just free the fixture structure itself
-        DAP_DELETE(l_funding_tx_fixture);
-    }
-    // Note: TestCoin is shared across tests, so we don't destroy it here
-    // It will be cleaned up when the test suite completes
-    // if (l_testcoin) {
-    //     test_token_fixture_destroy(l_testcoin);
-    // }
     test_tx_fixture_destroy(l_tx);
     test_token_fixture_destroy(l_token);
     dap_enc_key_delete(l_fee_key);
@@ -794,7 +594,6 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     dap_print_module_name("CLI Test 16: Multi-Signature Arbitrage Transaction with tx_sign");
     
     int l_res = 0;
-    test_token_fixture_t *l_testcoin = NULL;
     
     // ========== PHASE 1: Setup Network Fee Address ==========
     log_it(L_INFO, "PHASE 1: Setting up network fee address");
@@ -1286,190 +1085,13 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     // ========== PHASE 4: Create Arbitrage TX with Insufficient Signatures ==========
     log_it(L_INFO, "PHASE 4: Creating arbitrage TX with insufficient signatures (1 of 3)");
     
-    // Wallet was already created in PHASE 3, just reopen it
-    const char *l_wallet_name_phase4 = "cli_test_wallet16_arbitrage";
-    const char *l_wallets_path_phase4 = dap_chain_wallet_get_path(g_config);
-    dap_assert_PIF(l_wallets_path_phase4 != NULL, "Wallets path configured");
-    unsigned int l_wallet_stat = 0;
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name_phase4, l_wallets_path_phase4, &l_wallet_stat);
-    dap_assert_PIF(l_wallet != NULL, "Wallet reopened");
-    log_it(L_INFO, "✓ Wallet reopened - already has funds from l_tx");
-    
-    // Create owner wallet for fee payment
-    const char *l_owner_wallet_name = "cli_test_wallet16_owner_fee";
-    dap_chain_wallet_t *l_owner_wallet = s_create_wallet_with_key_seed(
-        l_owner_wallet_name, l_wallets_path, l_owner_key1, &l_sig_type);
-    dap_assert_PIF(l_owner_wallet != NULL, "Owner wallet created");
-    
-    // Fund owner wallet with TestCoin for fee payment
-    dap_chain_addr_t *l_owner_wallet_addr = dap_chain_wallet_get_addr(l_owner_wallet, s_net_fixture->net->pub.id);
-    dap_assert_PIF(l_owner_wallet_addr != NULL, "Owner wallet address retrieved");
-    
-    // Check if TestCoin exists from previous test (test 15)
-    dap_chain_hash_fast_t l_testcoin_emission_hash = {0};
-    bool l_testcoin_exists = dap_ledger_token_get_first_emission_hash(s_net_fixture->ledger, "TestCoin", &l_testcoin_emission_hash);
-    
-    if (!l_testcoin_exists) {
-        dap_chain_addr_t l_owner_wallet_addr_copy = *l_owner_wallet_addr;
-        l_testcoin = test_token_fixture_create_with_emission(
-            s_net_fixture->ledger, "TestCoin", TESTCOIN_TOTAL_SUPPLY, TESTCOIN_EMISSION_VALUE, 
-            &l_owner_wallet_addr_copy, l_owner_cert1, &l_testcoin_emission_hash);
-        dap_assert_PIF(l_testcoin != NULL, "TestCoin token created");
-        log_it(L_INFO, "✓ TestCoin token created with new emission");
-    } else {
-        log_it(L_INFO, "✓ TestCoin exists from previous test, creating new emission for test 16");
-    }
-    
-    // Create new emission for test 16 to avoid double spend
-    // (test 15 already used the first emission)
-    dap_chain_addr_t l_owner_wallet_addr_copy = *l_owner_wallet_addr;
-    uint256_t l_test16_emission_value = dap_chain_balance_scan("10000.0"); // Enough for 2 wallets
-    test_emission_fixture_t *l_test16_emission = test_emission_fixture_create_with_cert(
-        "TestCoin", l_test16_emission_value, &l_owner_wallet_addr_copy, l_owner_cert1);
-    dap_assert_PIF(l_test16_emission != NULL, "Test 16 emission created");
-    
-    int l_emission_add_res = test_emission_fixture_add_to_ledger(s_net_fixture->ledger, l_test16_emission);
-    dap_assert_PIF(l_emission_add_res == 0, "Test 16 emission added to ledger");
-    
-    // Wait for emission to be processed (retry logic)
-    dap_chain_hash_fast_t l_test16_emission_datum_hash = {0};
-    size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)l_test16_emission->emission);
-    dap_chain_datum_t *l_emission_datum_temp = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION, 
-                                                                        l_test16_emission->emission, l_emission_size);
-    dap_chain_datum_calc_hash(l_emission_datum_temp, &l_test16_emission_datum_hash);
-    DAP_DELETE(l_emission_datum_temp);
-    
-    // Wait for emission to be available in ledger (needed for IN_EMS TX)
-    bool l_test16_emission_found = false;
-    for (int l_attempt = 0; l_attempt < 20; l_attempt++) {
-        dap_chain_datum_token_emission_t *l_emission_check = dap_ledger_token_emission_find(
-            s_net_fixture->ledger, &l_test16_emission_datum_hash);
-        if (l_emission_check) {
-            l_test16_emission_found = true;
-            log_it(L_INFO, "✓ Test 16 emission found in ledger after %d attempts (datum hash: %s)", 
-                   l_attempt + 1, dap_hash_fast_to_str_static(&l_test16_emission_datum_hash));
-            
-            // Verify emission value is correct
-            log_it(L_INFO, "  Emission value: %s TestCoin", dap_uint256_to_char(l_emission_check->hdr.value, NULL));
-            break;
-        }
-        if (l_attempt == 0 || (l_attempt + 1) % 5 == 0) {
-            log_it(L_DEBUG, "Test 16 emission not found in ledger after %d attempts, hash: %s", 
-                   l_attempt + 1, dap_hash_fast_to_str_static(&l_test16_emission_datum_hash));
-        }
-        dap_usleep(200000); // 0.2 seconds
-        dap_chain_t *l_chain_tmp = NULL;
-        DL_FOREACH(s_net_fixture->net->pub.chains, l_chain_tmp) {
-            dap_chain_node_mempool_process_all(l_chain_tmp, true);
-        }
-    }
-    if (!l_test16_emission_found) {
-        log_it(L_ERROR, "Test 16 emission not found in ledger after 20 attempts");
-        log_it(L_ERROR, "Expected datum hash: %s", dap_hash_fast_to_str_static(&l_test16_emission_datum_hash));
-    }
-    dap_assert_PIF(l_test16_emission_found, "Test 16 emission processed into ledger");
-    
-    // Get arbitrage wallet address BEFORE creating TX (we need both addresses)
-    dap_chain_wallet_t *l_arbitrage_wallet = dap_chain_wallet_open(l_wallet_name_phase4, l_wallets_path, NULL);
-    dap_assert_PIF(l_arbitrage_wallet != NULL, "Arbitrage wallet opened for fee funding");
-    dap_chain_addr_t *l_arbitrage_wallet_addr = dap_chain_wallet_get_addr(l_arbitrage_wallet, s_net_fixture->net->pub.id);
-    dap_assert_PIF(l_arbitrage_wallet_addr != NULL, "Arbitrage wallet address retrieved");
-    dap_chain_addr_t l_arbitrage_wallet_addr_copy = *l_arbitrage_wallet_addr;
-    
-    // Create ONE TX from emission with TWO outputs (owner + arbitrage)
-    // This avoids double spend by using emission only once
-    dap_chain_datum_tx_t *l_funding_tx = dap_chain_datum_tx_create();
-    dap_assert_PIF(l_funding_tx != NULL, "Funding TX created");
-    
-    // Add IN_EMS (use datum hash, not emission hash)
-    // chain_id = 0 (like in test_tx_fixture_create_from_emission)
-    dap_chain_tx_in_ems_t l_in_ems = {
-        .header = {
-            .type = TX_ITEM_TYPE_IN_EMS,
-            .token_emission_chain_id = {.uint64 = 0},
-            .token_emission_hash = l_test16_emission_datum_hash
-        }
-    };
-    strncpy(l_in_ems.header.ticker, "TestCoin", DAP_CHAIN_TICKER_SIZE_MAX - 1);
-    l_in_ems.header.ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
-    dap_chain_datum_tx_add_item(&l_funding_tx, (const uint8_t*)&l_in_ems);
-    
-    // Output 1: to owner wallet (3000 TestCoin)
-    uint256_t l_owner_value = dap_chain_balance_scan("3000.0");
-    dap_chain_datum_tx_add_out_ext_item(&l_funding_tx, &l_owner_wallet_addr_copy, l_owner_value, "TestCoin");
-    
-    // Output 2: to arbitrage wallet (3000 TestCoin)
-    uint256_t l_arbitrage_value = dap_chain_balance_scan("3000.0");
-    dap_chain_datum_tx_add_out_ext_item(&l_funding_tx, &l_arbitrage_wallet_addr_copy, l_arbitrage_value, "TestCoin");
-    
-    // Output 3: change back to owner (remaining funds)
-    uint256_t l_change = {0};
-    uint256_t l_total_out = {0};
-    SUM_256_256(l_owner_value, l_arbitrage_value, &l_total_out);
-    SUBTRACT_256_256(l_test16_emission_value, l_total_out, &l_change);
-    if (!IS_ZERO_256(l_change)) {
-        dap_chain_datum_tx_add_out_ext_item(&l_funding_tx, &l_owner_wallet_addr_copy, l_change, "TestCoin");
-    }
-    
-    // Sign TX
-    dap_chain_datum_tx_add_sign_item(&l_funding_tx, l_owner_cert1->enc_key);
-    
-    // Create datum and add to mempool
-    size_t l_funding_tx_size = dap_chain_datum_tx_get_size(l_funding_tx);
-    dap_chain_datum_t *l_funding_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_funding_tx, l_funding_tx_size);
-    
-    dap_chain_hash_fast_t l_funding_tx_hash = {0};
-    dap_hash_fast(l_funding_tx, l_funding_tx_size, &l_funding_tx_hash);
-    
-    char *l_funding_hash_str = dap_chain_mempool_datum_add(l_funding_datum, s_net_fixture->chain_main, "hex");
-    if (l_funding_hash_str) {
-        log_it(L_INFO, "✓ Funding TX added to mempool: %s", l_funding_hash_str);
-    } else {
-        log_it(L_WARNING, "Failed to add funding TX to mempool");
-    }
-    DAP_DELETE(l_funding_datum);
-    
-    // Wait for funding TX to be processed using fixtures helper
-    dap_chain_datum_tx_t *l_funding_tx_check = test_wait_tx_mempool_to_ledger(
-        s_net_fixture, &l_funding_tx_hash, 20, 200, true);
-    
-    if (!l_funding_tx_check) {
-        log_it(L_ERROR, "Funding TX not found in ledger after processing");
-        dap_assert_PIF(false, "Funding TX must be processed before creating arbitrage TX");
-    }
-    
-    log_it(L_INFO, "✓ Funding TX processed and found in ledger");
-    
-    if (l_funding_hash_str) {
-        DAP_DELETE(l_funding_hash_str);
-    }
-    
-    log_it(L_INFO, "✓ Created funding TX with 2 outputs for owner and arbitrage wallets");
-    
-    // Cleanup (note: funding TX is now owned by ledger, don't free it)
-    if (l_test16_emission) {
-        // CRITICAL: Don't let fixture destroy our cert - we still need it for arbitrage TX
-        l_test16_emission->cert = NULL;
-        test_emission_fixture_destroy(l_test16_emission);
-    }
-    
-    // Close wallets (they're no longer needed)
-    if (l_owner_wallet) {
-        dap_chain_wallet_close(l_owner_wallet);
-    }
-    if (l_arbitrage_wallet) {
-        dap_chain_wallet_close(l_arbitrage_wallet);
-    }
-    
-    // Create arbitrage TX with only 1 owner certificate (insufficient for auth_signs_valid=3)
-    // This will create a TX with 2 signatures: 1 wallet + 1 owner cert
-    // We'll add the remaining 2 owner signatures via tx_sign to simulate distributed signing
+    // -from_addr is the holder of the blocked UTXO (PHASE 3 wallet address == key1)
+    const char *l_utxo_holder_addr_str = dap_chain_addr_to_str_static(&l_wallet_addr_copy);
     const char *l_chain_name = s_net_fixture->chain_main ? s_net_fixture->chain_main->name : "Snet_master";
     char l_cmd_arbitrage[4096];
     snprintf(l_cmd_arbitrage, sizeof(l_cmd_arbitrage),
-             "tx_create -net Snet -chain %s -token ARBMULTI -from_wallet %s -to_addr %s -value %s -fee %s -wallet_fee %s -arbitrage -certs %s",
-             l_chain_name, l_wallet_name_phase4, l_fee_addr_str, ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, 
-             l_owner_wallet_name, l_owner_cert1->name);
+             "tx_create -net Snet -chain %s -arbitrage -from_addr %s -token ARBMULTI -value %s -certs %s -fee %s",
+             l_chain_name, l_utxo_holder_addr_str, ARBITRAGE_TX_VALUE, l_owner_cert1->name, ARBITRAGE_FEE_MIN);
     
     char l_json_req_arbitrage[8192];
     char *l_json_req_arbitrage_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_arbitrage, "tx_create", 
@@ -1657,7 +1279,7 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     int l_sign_count_initial = 0;
     dap_list_t *l_list_tx_sign_initial = dap_chain_datum_tx_items_get(l_arb_tx_mempool, TX_ITEM_TYPE_SIG, &l_sign_count_initial);
     dap_list_free(l_list_tx_sign_initial);
-    dap_assert_PIF(l_sign_count_initial == 2, "Initial transaction has exactly 2 signatures (1 wallet + 1 owner cert)");
+    dap_assert_PIF(l_sign_count_initial == 1, "Initial transaction has exactly 1 signature (cert-only arbitrage, single cert)");
     log_it(L_INFO, "✓ Transaction has %d signature(s) (requires 3 owner signatures for arbitrage), stays in mempool", l_sign_count_initial);
     
     // Verify transaction is NOT in ledger (should be in mempool only)
@@ -1854,9 +1476,6 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     // Cleanup
     test_tx_fixture_destroy(l_tx);
     test_token_fixture_destroy(l_token);
-    if (l_testcoin) {
-        test_token_fixture_destroy(l_testcoin);
-    }
     dap_enc_key_delete(l_fee_key);
     // NOTE: Certificates were added via dap_cert_add() and will be auto-cleaned
     // Don't manually delete them to avoid double-free
@@ -1865,7 +1484,7 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
 
 /**
  * @brief Test: Arbitrage transaction with insufficient funds
- * @details Tests that arbitrage transaction fails gracefully when wallet has insufficient funds
+ * @details Tests that arbitrage transaction fails gracefully when -from_addr has insufficient token balance
  */
 static void s_test_cli_arbitrage_insufficient_funds(void)
 {
@@ -1885,7 +1504,6 @@ static void s_test_cli_arbitrage_insufficient_funds(void)
     
     const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
     dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(l_fee_addr);
     
     // Create token and owner
     dap_enc_key_t *l_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
@@ -1907,7 +1525,7 @@ static void s_test_cli_arbitrage_insufficient_funds(void)
         s_net_fixture->ledger, "ARBINSUF", "1000.0", "100.0", &l_owner_addr, l_owner_cert, &l_emission_hash);
     dap_assert_PIF(l_token != NULL, "Token ARBINSUF created");
     
-    // Create wallet with insufficient funds (only 50.0, need 10000.0)
+    // Create wallet / address with insufficient balance (only 50.0, need 10000.0 for arbitrage value)
     const char *l_wallet_name = "cli_test_wallet_insufficient";
     const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
     dap_sign_type_t l_sig_type = dap_sign_type_from_str("sig_dil");
@@ -1928,14 +1546,15 @@ static void s_test_cli_arbitrage_insufficient_funds(void)
         s_net_fixture->ledger, &l_emission_hash, "ARBINSUF", "50.0", &l_wallet_addr_copy, l_owner_cert);
     dap_assert_PIF(l_small_tx != NULL, "Small TX created");
     test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_small_tx);
+    const char *l_from_addr_str = dap_chain_addr_to_str_static(&l_wallet_addr_copy);
     dap_chain_wallet_close(l_wallet_for_addr);
     
-    // Try to create arbitrage TX with insufficient funds
+    // Try to create arbitrage TX with insufficient funds at -from_addr
     const char *l_chain_name = s_net_fixture->chain_main ? s_net_fixture->chain_main->name : "Snet_master";
     char l_cmd_arbitrage[4096];
     snprintf(l_cmd_arbitrage, sizeof(l_cmd_arbitrage),
-             "tx_create -net Snet -chain %s -token ARBINSUF -from_wallet %s -to_addr %s -value %s -fee %s -arbitrage -certs %s",
-             l_chain_name, l_wallet_name, l_fee_addr_str, ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, l_owner_cert->name);
+             "tx_create -net Snet -chain %s -arbitrage -from_addr %s -token ARBINSUF -value %s -certs %s -fee %s",
+             l_chain_name, l_from_addr_str, ARBITRAGE_TX_VALUE, l_owner_cert->name, ARBITRAGE_FEE_MIN);
     
     char l_json_req_arbitrage[8192];
     char *l_json_req_arbitrage_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_arbitrage, "tx_create", 
@@ -1985,7 +1604,6 @@ static void s_test_cli_arbitrage_disabled_flag(void)
     
     const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
     dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(l_fee_addr);
     
     // Create token and owner
     dap_enc_key_t *l_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
@@ -2057,13 +1675,14 @@ static void s_test_cli_arbitrage_disabled_flag(void)
         s_net_fixture->ledger, &l_emission_hash, "ARBDISABL", ARBITRAGE_TX_VALUE, &l_wallet_addr_copy, l_owner_cert);
     dap_assert_PIF(l_funding_tx != NULL, "Funding TX created");
     test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_funding_tx);
+    const char *l_from_addr_str = dap_chain_addr_to_str_static(&l_wallet_addr_copy);
     dap_chain_wallet_close(l_wallet);
     
     // Try arbitrage TX - should fail
     char l_cmd_arbitrage[4096];
     snprintf(l_cmd_arbitrage, sizeof(l_cmd_arbitrage),
-             "tx_create -net Snet -chain %s -token ARBDISABL -from_wallet %s -to_addr %s -value %s -fee %s -arbitrage -certs %s",
-             l_chain_name, l_wallet_name, l_fee_addr_str, ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, l_owner_cert->name);
+             "tx_create -net Snet -chain %s -arbitrage -from_addr %s -token ARBDISABL -value %s -certs %s -fee %s",
+             l_chain_name, l_from_addr_str, ARBITRAGE_TX_VALUE, l_owner_cert->name, ARBITRAGE_FEE_MIN);
     
     char l_json_req_arbitrage[8192];
     char *l_json_req_arbitrage_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_arbitrage, "tx_create", 
@@ -2093,25 +1712,23 @@ static void s_test_cli_arbitrage_disabled_flag(void)
 
 /**
  * @brief Regression test: Arbitrage transaction hang issue
- * @details Tests the scenario from logs where command hangs:
- *          tx_create -net foobar -token QACOIN -from_wallet foobar_root_0 -value 10.0 -fee 0.01 -arbitrage -certs foobar.root.pvt.0
- *          This test verifies that CLI commands fail gracefully with proper error messages
- *          instead of hanging when resources don't exist
+ * @details Tests the scenario from logs where command hangs (legacy used -from_wallet; now -from_addr).
+ *          Example: tx_create -net foobar -arbitrage -from_addr <addr> -token QACOIN -value 10.0 -certs ... -fee 0.01
+ *          Verifies CLI fails fast with errors instead of hanging when resources are missing or invalid.
  */
 static void s_test_cli_arbitrage_regression_hang(void)
 {
     dap_print_module_name("CLI Regression Test: Arbitrage Transaction Hang Prevention");
     
     log_it(L_INFO, "Testing scenario from logs: command with non-existent resources");
-    log_it(L_INFO, "Original command: tx_create -net foobar -token QACOIN -from_wallet foobar_root_0 -value 10.0 -fee 0.01 -arbitrage -certs foobar.root.pvt.0");
+    log_it(L_INFO, "Reference command: tx_create -net foobar -arbitrage -from_addr <addr> -token QACOIN -value 10.0 -certs foobar.root.pvt.0 -fee 0.01");
     
-    // Test 0: EXACT scenario from logs - ALL resources non-existent simultaneously
-    // This is the critical case that caused the hang in production
-    log_it(L_INFO, "Test 0: EXACT scenario from logs - all resources non-existent simultaneously");
-    log_it(L_INFO, "Command: tx_create -net foobar -token QACOIN -from_wallet foobar_root_0 -value 10.0 -fee 0.01 -arbitrage -certs foobar.root.pvt.0");
+    // Test 0: ALL resources non-existent / invalid simultaneously (critical hang case from production)
+    log_it(L_INFO, "Test 0: All resources non-existent or invalid simultaneously");
+    log_it(L_INFO, "Command: tx_create -net foobar -arbitrage -from_addr invalid_addr_xyz -token QACOIN -value 10.0 -certs foobar.root.pvt.0 -fee 0.01");
     char l_cmd_exact[4096];
     snprintf(l_cmd_exact, sizeof(l_cmd_exact),
-             "tx_create -net foobar -token QACOIN -from_wallet foobar_root_0 -value 10.0 -fee 0.01 -arbitrage -certs foobar.root.pvt.0");
+             "tx_create -net foobar -arbitrage -from_addr invalid_addr_xyz -token QACOIN -value 10.0 -certs foobar.root.pvt.0 -fee 0.01");
     
     char l_json_req_exact[8192];
     char *l_json_req_exact_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_exact, "tx_create", 
@@ -2142,7 +1759,7 @@ static void s_test_cli_arbitrage_regression_hang(void)
     log_it(L_INFO, "Test 1: Non-existent network 'foobar'");
     char l_cmd_nonexistent_net[4096];
     snprintf(l_cmd_nonexistent_net, sizeof(l_cmd_nonexistent_net),
-             "tx_create -net foobar -token QACOIN -from_wallet foobar_root_0 -value 10.0 -fee 0.01 -arbitrage -certs foobar.root.pvt.0");
+             "tx_create -net foobar -arbitrage -from_addr invalid_addr_xyz -token QACOIN -value 10.0 -certs foobar.root.pvt.0 -fee 0.01");
     
     char l_json_req_net[8192];
     char *l_json_req_net_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_nonexistent_net, "tx_create", 
@@ -2166,7 +1783,7 @@ static void s_test_cli_arbitrage_regression_hang(void)
     log_it(L_INFO, "Test 2: Non-existent token 'QACOIN'");
     char l_cmd_nonexistent_token[4096];
     snprintf(l_cmd_nonexistent_token, sizeof(l_cmd_nonexistent_token),
-             "tx_create -net Snet -token QACOIN -from_wallet test_wallet -value 10.0 -fee 0.01 -arbitrage -certs test_cert");
+             "tx_create -net Snet -chain Snet_master -arbitrage -from_addr not_a_valid_chain_address -token QACOIN -value 10.0 -certs test_cert -fee 0.01");
     
     char l_json_req_token[8192];
     char *l_json_req_token_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_nonexistent_token, "tx_create", 
@@ -2186,8 +1803,8 @@ static void s_test_cli_arbitrage_regression_hang(void)
         }
     }
     
-    // Test 3: Non-existent wallet
-    log_it(L_INFO, "Test 3: Non-existent wallet 'foobar_root_0'");
+    // Test 3: Invalid -from_addr (garbage address string)
+    log_it(L_INFO, "Test 3: Invalid -from_addr");
     // Create token first for this test
     dap_enc_key_t *l_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
     dap_chain_addr_t l_owner_addr = {0};
@@ -2210,16 +1827,14 @@ static void s_test_cli_arbitrage_regression_hang(void)
         uint256_t l_zero_fee = uint256_0;
         dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
     }
-    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(l_fee_addr);
     
-    char l_cmd_nonexistent_wallet[4096];
-    snprintf(l_cmd_nonexistent_wallet, sizeof(l_cmd_nonexistent_wallet),
-             "tx_create -net Snet -token QACOIN -from_wallet foobar_root_0 -value 10.0 -fee 0.01 -arbitrage -certs %s",
+    char l_cmd_invalid_from_addr[4096];
+    snprintf(l_cmd_invalid_from_addr, sizeof(l_cmd_invalid_from_addr),
+             "tx_create -net Snet -chain Snet_master -arbitrage -from_addr not_a_valid_chain_address -token QACOIN -value 10.0 -certs %s -fee 0.01",
              l_owner_cert->name);
     
     char l_json_req_wallet[8192];
-    char *l_json_req_wallet_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_nonexistent_wallet, "tx_create", 
+    char *l_json_req_wallet_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_invalid_from_addr, "tx_create", 
                                                                           l_json_req_wallet, sizeof(l_json_req_wallet), 1);
     if (l_json_req_wallet_ptr) {
         char *l_reply_wallet = dap_cli_cmd_exec(l_json_req_wallet);
@@ -2228,8 +1843,8 @@ static void s_test_cli_arbitrage_regression_hang(void)
             if (l_json_wallet) {
                 test_json_rpc_error_t l_error_wallet = {0};
                 bool l_has_error_wallet = test_json_rpc_parse_error(l_json_wallet, &l_error_wallet);
-                dap_assert_PIF(l_has_error_wallet, "Command should fail with error for non-existent wallet");
-                log_it(L_INFO, "✓ Non-existent wallet correctly rejected with error");
+                dap_assert_PIF(l_has_error_wallet, "Command should fail with error for invalid -from_addr");
+                log_it(L_INFO, "✓ Invalid -from_addr correctly rejected with error");
                 json_object_put(l_json_wallet);
             }
             DAP_DELETE(l_reply_wallet);
@@ -2251,12 +1866,14 @@ static void s_test_cli_arbitrage_regression_hang(void)
     test_tx_fixture_t *l_funding_tx = test_tx_fixture_create_from_emission(
         s_net_fixture->ledger, &l_emission_hash, "QACOIN", "10000.0", &l_wallet_addr_copy, l_owner_cert);
     test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_funding_tx);
+    const char *l_qacoin_holder_addr_str = dap_chain_addr_to_str_static(&l_wallet_addr_copy);
     dap_chain_wallet_close(l_wallet);
     
+    const char *l_chain_name_regr = s_net_fixture->chain_main ? s_net_fixture->chain_main->name : "Snet_master";
     char l_cmd_nonexistent_cert[4096];
     snprintf(l_cmd_nonexistent_cert, sizeof(l_cmd_nonexistent_cert),
-             "tx_create -net Snet -token QACOIN -from_wallet %s -value 10.0 -fee 0.01 -arbitrage -certs foobar.root.pvt.0",
-             l_wallet_name);
+             "tx_create -net Snet -chain %s -arbitrage -from_addr %s -token QACOIN -value 10.0 -certs foobar.root.pvt.0 -fee 0.01",
+             l_chain_name_regr, l_qacoin_holder_addr_str);
     
     char l_json_req_cert[8192];
     char *l_json_req_cert_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_nonexistent_cert, "tx_create", 

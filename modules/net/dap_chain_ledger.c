@@ -701,7 +701,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_tx_recv_allow = l_tmp;
             l_new_tx_recv_allow[l_new_tx_recv_allow_size++].addr = *l_add_addr;
-            l_new_tx_recv_allow[l_new_tx_recv_allow_size - 1].becomes_effective = dap_time_now();
+            l_new_tx_recv_allow[l_new_tx_recv_allow_size - 1].becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE: {
@@ -796,7 +796,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_tx_recv_block = l_tmp;
             l_new_tx_recv_block[l_new_tx_recv_block_size++].addr = *l_add_addr;
-            l_new_tx_recv_block[l_new_tx_recv_block_size - 1].becomes_effective = dap_time_now();
+            l_new_tx_recv_block[l_new_tx_recv_block_size - 1].becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE: {
@@ -891,7 +891,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_tx_send_allow = l_tmp;
             l_new_tx_send_allow[l_new_tx_send_allow_size++].addr = *l_add_addr;
-            l_new_tx_send_allow[l_new_tx_send_allow_size - 1].becomes_effective = dap_time_now();
+            l_new_tx_send_allow[l_new_tx_send_allow_size - 1].becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE: {
@@ -989,7 +989,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_tx_send_block = l_tmp;
             l_new_tx_send_block[l_new_tx_send_block_size++].addr = *l_add_addr;
-            l_new_tx_send_block[l_new_tx_send_block_size - 1].becomes_effective = dap_time_now();
+            l_new_tx_send_block[l_new_tx_send_block_size - 1].becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE: {
@@ -2271,6 +2271,12 @@ size_t dap_ledger_token_get_auth_signs_valid(dap_ledger_t *a_ledger, const char 
     if (!l_token_item)
         return 0;
     return l_token_item->auth_signs_valid;
+}
+
+uint32_t dap_ledger_token_get_flags(dap_ledger_t *a_ledger, const char *a_token_ticker)
+{
+    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token_ticker);
+    return l_token_item ? l_token_item->flags : 0;
 }
 
 /**
@@ -3993,14 +3999,14 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     dap_return_val_if_fail(a_ledger && a_tx && a_tx_hash, DAP_LEDGER_CHECK_INVALID_ARGS);
     
     // ARBITRAGE TRANSACTION CHECK
-    // Arbitrage TX (marked with TSD) bypass ALL blocking checks:
-    // - UTXO blocking
-    // - Conditional outputs
-    // - Address ban-lists (sender/receiver)
-    // This allows token owners to claim ANY output in emergency situations.
+    // Arbitrage TX (marked with TSD) bypass PER-TOKEN blocking checks:
+    // - UTXO blocking (for the arbitrage token only)
+    // - Address ban-lists sender/receiver (for the arbitrage token only)
+    // IN_COND verificator still runs; conditional outputs are NOT blanket-bypassed.
     bool l_is_arbitrage = dap_chain_arbitrage_tx_is_arbitrage(a_tx);
     bool l_arbitrage_auth_valid = false;  // Track if arbitrage authorization passed
-    
+    const char *l_arbitrage_token_ticker = NULL;  // Token for which arbitrage is authorized (per-token bypass)
+
     // SECURITY CRITICAL: For arbitrage TX, validate authorization BEFORE processing inputs
     // We must determine the arbitrage token from OUTPUTS (not inputs) to prevent:
     // 1. Order-dependent vulnerabilities (if fee token comes first in inputs)
@@ -4011,9 +4017,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                  dap_chain_hash_fast_to_str_static(a_tx_hash));
         
         // Determine arbitrage token from outputs (SECURITY CRITICAL)
-        const char *l_arbitrage_token_ticker = dap_chain_arbitrage_tx_get_token_ticker(a_ledger, a_tx);
+        l_arbitrage_token_ticker = dap_chain_arbitrage_tx_get_token_ticker(a_ledger, a_tx);
         if (!l_arbitrage_token_ticker) {
-            log_it(L_WARNING, "Arbitrage TX %s has no non-native token in outputs - rejecting",
+            log_it(L_WARNING, "Arbitrage TX %s: could not determine arbitrage token from outputs — rejecting",
                    dap_chain_hash_fast_to_str_static(a_tx_hash));
             return DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
         }
@@ -4494,10 +4500,12 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             // 3. Check if UTXO is blocked in token-specific blocklist (UTXO blocking mechanism)
             // This check is skipped if:
             // - UTXO_BLOCKING_DISABLED flag is set for this token
-            // - Transaction is an authorized arbitrage TX (bypasses all checks)
+            // - Transaction is an authorized arbitrage TX AND this input's token matches the arbitrage token
             dap_ledger_token_item_t *l_token_item_for_utxo_check = s_ledger_find_token(a_ledger, l_token);
-            if (!l_arbitrage_auth_valid &&  // Authorized arbitrage TX bypasses UTXO blocking
-                l_token_item_for_utxo_check && 
+            bool l_arb_bypass_for_this_input = l_arbitrage_auth_valid &&
+                l_arbitrage_token_ticker && !dap_strcmp(l_token, l_arbitrage_token_ticker);
+            if (!l_arb_bypass_for_this_input &&
+                l_token_item_for_utxo_check &&
                 !(l_token_item_for_utxo_check->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
                 !a_check_for_removing) {
                 // UTXO blocking is enabled (default behavior) - check if this UTXO is in blocklist
@@ -4510,7 +4518,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             }
             // Note: Arbitrage authorization is checked ONCE at the beginning of the function
             // (before processing inputs) to prevent order-dependent vulnerabilities and token confusion attacks.
-            // If l_arbitrage_auth_valid is true, we bypass all blocking checks for this input.
+            // Bypass is per-token: only inputs whose token matches l_arbitrage_token_ticker are exempted.
 
             // Get one 'out' item in previous transaction bound with current 'in' item
             l_tx_prev_out = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
@@ -4564,8 +4572,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_bound_item->in.addr_from = *l_addr_from;
                 dap_strncpy(l_bound_item->in.token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX);
                 // 4. compare public key hashes in the signature of the current transaction and in the 'out' item of the previous transaction
-                if (l_addr_from->net_id.uint64 != a_ledger->net->pub.id.uint64 ||
-                        !dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast)) {
+                // Arbitrage TX bypass: only for the specific arbitrage token (CRITICAL-2 fix: per-token bypass)
+                if (!l_arb_bypass_for_this_input &&
+                    (l_addr_from->net_id.uint64 != a_ledger->net->pub.id.uint64 ||
+                        !dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast))) {
                     l_err_num = DAP_LEDGER_TX_CHECK_PKEY_HASHES_DONT_MATCH;
                     break;
                 }
@@ -4582,7 +4592,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
                     break;
                 }
-                if (!l_arbitrage_auth_valid &&
+                if (!l_arb_bypass_for_this_input &&
                     s_ledger_addr_check(a_ledger, l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
                     debug_if(s_debug_more, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str_static(l_addr_from));
                     l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
@@ -4878,11 +4888,15 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_err_num = DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
             break;
         }
-        if (!l_arbitrage_auth_valid &&
-            s_ledger_addr_check(a_ledger, l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
-            debug_if(s_debug_more, L_WARNING, "[%s] No permission to receive for addr %s", dap_chain_hash_fast_to_str_static(a_tx_hash), dap_chain_addr_to_str_static(&l_tx_out_to));
-            l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
-            break;
+        {
+            bool l_arb_bypass_for_output = l_arbitrage_auth_valid &&
+                l_arbitrage_token_ticker && !dap_strcmp(l_token, l_arbitrage_token_ticker);
+            if (!l_arb_bypass_for_output &&
+                s_ledger_addr_check(a_ledger, l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+                debug_if(s_debug_more, L_WARNING, "[%s] No permission to receive for addr %s", dap_chain_hash_fast_to_str_static(a_tx_hash), dap_chain_addr_to_str_static(&l_tx_out_to));
+                l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+                break;
+            }
         }
         if (l_fee_check && dap_chain_addr_compare(&l_tx_out_to, &a_ledger->net->pub.fee_addr) &&
                 !dap_strcmp(l_value_cur->token_ticker, a_ledger->net->pub.native_ticker))

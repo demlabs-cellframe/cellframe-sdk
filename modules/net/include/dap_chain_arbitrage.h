@@ -42,15 +42,15 @@ bool dap_chain_arbitrage_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx);
 
 /**
  * @brief Get arbitrage token ticker from transaction outputs
- * @details For arbitrage TX, determine which token is being arbitraged by finding
- *          the first non-fee output token. Fee outputs are typically OUT_EXT or OUT_COND,
- *          while arbitrage outputs are OUT_STD. This is SECURITY CRITICAL - we must
- *          check authorization for the correct token, not just any token from inputs.
- *          Note: Arbitrage token can be ANY token including native token.
- * @param a_ledger Ledger containing network configuration
+ * @details Two-pass scan over OUT_STD/OUT_EXT outputs:
+ *          Pass 0 — return first non-native ticker (multi-channel: arb target != fee token).
+ *          Pass 1 — return any ticker (single-channel: arb token == native token).
+ *          This ensures we authorize against the real arbitrage target, not the fee leg.
+ * @param a_ledger Ledger containing network configuration (native_ticker)
  * @param a_tx Transaction to analyze
- * @return Token ticker string (static buffer) or NULL if not found
- * @note Returns pointer to static buffer - not thread-safe, but safe for single-threaded validation
+ * @return Token ticker string (thread-local buffer) or NULL if not found
+ * @note Returns pointer to thread-local storage — safe for concurrent validation
+ *       but callers must copy the value before the next call from the same thread.
  */
 const char *dap_chain_arbitrage_tx_get_token_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 

@@ -323,6 +323,7 @@ size_t dap_ledger_token_get_auth_signs_valid(dap_ledger_t *a_ledger, const char 
 size_t dap_ledger_token_get_auth_signs_total(dap_ledger_t *a_ledger, const char *a_token_ticker);
 dap_list_t *dap_ledger_token_get_auth_pkeys_hashes(dap_ledger_t *a_ledger, const char *a_token_ticker);
 uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char *a_token_ticker);
+uint32_t dap_ledger_token_get_flags(dap_ledger_t *a_ledger, const char *a_token_ticker);
 
 /**
  * Add token emission datum

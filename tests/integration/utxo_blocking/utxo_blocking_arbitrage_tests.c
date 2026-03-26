@@ -37,7 +37,10 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_tsd.h"
+#include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_token.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_arbitrage.h"
 #include "dap_chain_net_tx.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
@@ -91,6 +94,73 @@ static int s_create_token_with_auth(dap_ledger_t *a_ledger, const char *a_ticker
     l_res = test_emission_fixture_add_to_ledger(a_ledger, l_em);
     if (l_res != 0) return l_res;
     if (a_emission_hash_out) test_emission_fixture_get_hash(l_em, a_emission_hash_out);
+    return 0;
+}
+
+static int s_create_token_with_two_owner_auth(dap_ledger_t *a_ledger, const char *a_ticker,
+                                              const char *a_supply_str, const char *a_emission_str,
+                                              dap_chain_addr_t *a_emission_addr,
+                                              dap_cert_t *a_cert1, dap_cert_t *a_cert2,
+                                              dap_chain_hash_fast_t *a_emission_hash_out)
+{
+    uint256_t l_supply = dap_chain_balance_scan(a_supply_str);
+    dap_chain_datum_token_t *l_tok = DAP_NEW_Z(dap_chain_datum_token_t);
+    l_tok->version = 2;
+    l_tok->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
+    l_tok->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
+    strncpy(l_tok->ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    l_tok->signs_valid = 2;
+    l_tok->total_supply = l_supply;
+    l_tok->header_native_decl.decimals = 18;
+    l_tok->signs_total = 0;
+
+    dap_sign_t *l_sign1 = dap_cert_sign(a_cert1, l_tok, sizeof(dap_chain_datum_token_t));
+    if (!l_sign1) {
+        DAP_DELETE(l_tok);
+        return -1;
+    }
+    size_t l_s1z = dap_sign_get_size(l_sign1);
+    l_tok = DAP_REALLOC(l_tok, sizeof(dap_chain_datum_token_t) + l_s1z);
+    memcpy(l_tok->tsd_n_signs, l_sign1, l_s1z);
+    DAP_DELETE(l_sign1);
+
+    // Ledger verifies all token signatures with signs_total=0, so sign over same data
+    dap_sign_t *l_sign2 = dap_cert_sign(a_cert2, l_tok, sizeof(dap_chain_datum_token_t));
+    if (!l_sign2) {
+        DAP_DELETE(l_tok);
+        return -1;
+    }
+    size_t l_s2z = dap_sign_get_size(l_sign2);
+    l_tok = DAP_REALLOC(l_tok, sizeof(dap_chain_datum_token_t) + l_s1z + l_s2z);
+    memcpy(l_tok->tsd_n_signs + l_s1z, l_sign2, l_s2z);
+    DAP_DELETE(l_sign2);
+    l_tok->signs_total = 2;
+
+    size_t l_tok_size = sizeof(dap_chain_datum_token_t) + l_s1z + l_s2z;
+    int l_res = dap_ledger_token_add(a_ledger, (byte_t *)l_tok, l_tok_size, dap_time_now());
+    DAP_DELETE(l_tok);
+    if (l_res != 0)
+        return l_res;
+
+    dap_chain_datum_token_emission_t *l_em = dap_chain_datum_emission_create(
+        dap_chain_balance_scan(a_emission_str), a_ticker, a_emission_addr);
+    if (!l_em)
+        return -3;
+    l_em = dap_chain_datum_emission_add_sign(a_cert1->enc_key, l_em);
+    if (!l_em)
+        return -4;
+    l_em = dap_chain_datum_emission_add_sign(a_cert2->enc_key, l_em);
+    if (!l_em)
+        return -5;
+    size_t l_em_size = dap_chain_datum_emission_get_size((byte_t *)l_em);
+    dap_chain_hash_fast_t l_em_hash;
+    dap_hash_fast(l_em, l_em_size, &l_em_hash);
+    l_res = dap_ledger_token_emission_add(a_ledger, (byte_t *)l_em, l_em_size, &l_em_hash);
+    DAP_DELETE(l_em);
+    if (l_res != 0)
+        return l_res;
+    if (a_emission_hash_out)
+        *a_emission_hash_out = l_em_hash;
     return 0;
 }
 
@@ -877,53 +947,53 @@ void utxo_blocking_test_arbitrage_without_emission_owner_signature(void)
     
     log_it(L_INFO, "✓ UTXO blocked");
     
-    // ========== PHASE 4: Attempt Arbitrage TX — first signature (wallet) skipped, no owner auth ==========
-    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX (first sig skipped as wallet, should FAIL auth)");
-    
+    // ========== PHASE 4: Cert-only arbitrage — owner signs as first (and only) signature ==========
+    log_it(L_INFO, "PHASE 4: Attempting cert-only arbitrage TX (owner key as sole signer, should PASS)");
+
     dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
     dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
-    
+
     dap_chain_datum_tx_add_in_item(&l_arb_tx, &l_tx->tx_hash, 0);
     dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("5000.0"), "ARBNOEMS");
-    
+
     byte_t l_arb_data = 0;
     dap_chain_tx_tsd_t *l_tsd_arb = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
     dap_assert_PIF(l_tsd_arb != NULL, "Arbitrage TSD created");
     dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
     DAP_DELETE(l_tsd_arb);
-    
-    // Only one signature (owner's) — gets skipped as "wallet", leaving 0 owner sigs for auth
+
+    // Owner key is the sole signature — should be recognized as owner even in position 0
     dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_emission_owner_key);
-    
+
     dap_chain_hash_fast_t l_arb_hash;
     dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
-    
+
     l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
     log_it(L_INFO, "  Arbitrage TX result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS,
-                   "Arbitrage TX kept in mempool (missing owner authorization signature)");
-    
+    dap_assert_PIF(l_res == 0,
+                   "Cert-only arbitrage TX accepted (owner key recognized in position 0)");
+
     DAP_DELETE(l_arb_tx);
-    log_it(L_INFO, "✓ Arbitrage TX correctly REJECTED without emission owner signature");
-    
+    log_it(L_INFO, "✓ Cert-only arbitrage TX correctly ACCEPTED");
+
     // ========== Summary ==========
     log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "═══════════════════════════════════════════════════════════");
-    log_it(L_NOTICE, "Arbitrage Without Emission Owner Signature Test PASSED:");
+    log_it(L_NOTICE, "Cert-Only Arbitrage (Owner as Sole Signer) Test PASSED:");
     log_it(L_NOTICE, "  ✓ Phase 1: Network fee address configured");
     log_it(L_NOTICE, "  ✓ Phase 2: Token created with emission");
     log_it(L_NOTICE, "  ✓ Phase 3: UTXO blocked");
-    log_it(L_NOTICE, "  ✓ Phase 4: Arbitrage TX rejected (missing emission owner signature)");
+    log_it(L_NOTICE, "  ✓ Phase 4: Cert-only arbitrage TX accepted");
     log_it(L_NOTICE, "═══════════════════════════════════════════════════════════");
     log_it(L_NOTICE, " ");
-    
+
     // Cleanup
     test_tx_fixture_destroy(l_tx);
     l_emission_owner_cert->enc_key = NULL;
     dap_enc_key_delete(l_emission_owner_key);
     DAP_DELETE(l_emission_owner_cert);
-    
-    dap_pass_msg("✅ Arbitrage without emission owner signature test PASSED");
+
+    dap_pass_msg("✅ Cert-only arbitrage (owner as sole signer) test PASSED");
 }
 
 /**
@@ -996,33 +1066,38 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     
     log_it(L_INFO, "✓ UTXO blocked");
     
-    // ========== PHASE 4: Attempt Arbitrage TX — first signature (wallet) skipped, no owner auth ==========
-    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX (first sig skipped as wallet, should FAIL auth)");
-    
+    // ========== PHASE 4: Attempt Arbitrage TX — signed by non-owner, should FAIL auth ==========
+    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX (non-owner signature only, should FAIL auth)");
+
+    // Generate a random non-owner key to sign the TX
+    dap_enc_key_t *l_non_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_non_owner_key != NULL, "Non-owner key created");
+
     dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
     dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
-    
+
     dap_chain_datum_tx_add_in_item(&l_arb_tx, &l_tx->tx_hash, 0);
     dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("5000.0"), "ARBNOTOK");
-    
+
     byte_t l_arb_data = 0;
     dap_chain_tx_tsd_t *l_tsd_arb = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
     dap_assert_PIF(l_tsd_arb != NULL, "Arbitrage TSD created");
     dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
     DAP_DELETE(l_tsd_arb);
-    
-    // Only one signature (owner's) — gets skipped as "wallet", leaving 0 owner sigs for auth
-    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_emission_owner_key);
-    
+
+    // Sign with non-owner key only — no owner signature present
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_non_owner_key);
+
     dap_chain_hash_fast_t l_arb_hash;
     dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
-    
+
     l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
     log_it(L_INFO, "  Arbitrage TX result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
     dap_assert_PIF(l_res == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS,
-                   "Arbitrage TX kept in mempool (missing owner authorization signature)");
-    
+                   "Arbitrage TX kept in mempool (no owner signature)");
+
     DAP_DELETE(l_arb_tx);
+    dap_enc_key_delete(l_non_owner_key);
     log_it(L_INFO, "✓ Arbitrage TX correctly kept in mempool without token owner signature");
     
     // ========== Summary ==========
@@ -1278,5 +1353,725 @@ void utxo_blocking_test_arbitrage_without_tsd_marker(void)
     DAP_DELETE(l_owner_cert);
     
     dap_pass_msg("✅ Arbitrage without TSD marker test PASSED");
+}
+
+/**
+ * @brief Test 15 (security): Forged owner SIG item — pubkey matches owner, signature bytes invalid
+ * @details Expect REJECT; vulnerable code only verifies signature index 0.
+ */
+void utxo_blocking_test_arbitrage_forged_owner_signature(void)
+{
+    dap_print_module_name("Integration Test 15 (security): Arbitrage forged owner signature");
+
+    int l_res = 0;
+
+    dap_enc_key_t *l_fee_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_fee_key != NULL, "Fee key created");
+    dap_chain_addr_t l_fee_addr_setup = {0};
+    dap_chain_addr_fill_from_key(&l_fee_addr_setup, l_fee_key, s_net_fixture->net->pub.id);
+    if (dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr)) {
+        uint256_t l_zero_fee = uint256_0;
+        dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
+    }
+    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
+    dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
+    dap_enc_key_delete(l_fee_key);
+
+    dap_enc_key_t *l_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_owner_key != NULL, "Owner key created");
+    dap_chain_addr_t l_owner_addr;
+    dap_chain_addr_fill_from_key(&l_owner_addr, l_owner_key, s_net_fixture->net->pub.id);
+    dap_cert_t *l_owner_cert = DAP_NEW_Z(dap_cert_t);
+    dap_assert_PIF(l_owner_cert != NULL, "Owner certificate allocation");
+    l_owner_cert->enc_key = l_owner_key;
+    snprintf(l_owner_cert->name, sizeof(l_owner_cert->name), "arb_forg_owner");
+
+    dap_enc_key_t *l_wallet_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_wallet_key != NULL, "Wallet key created");
+
+    dap_chain_hash_fast_t l_emission_hash;
+    l_res = s_create_token_with_auth(s_net_fixture->ledger, "ARBFORG", "100000.0", "50000.0",
+                                     &l_owner_addr, l_owner_cert, &l_emission_hash);
+    dap_assert_PIF(l_res == 0, "Token ARBFORG created");
+
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "ARBFORG", "5000.0", &l_owner_addr, l_owner_cert);
+    dap_assert_PIF(l_tx != NULL, "TX fixture created");
+    l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
+    dap_assert_PIF(l_res == 0, "TX added to ledger");
+
+    size_t l_update_size = 0;
+    dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
+        "ARBFORG", &l_tx->tx_hash, 0, l_owner_cert, 0, &l_update_size);
+    dap_assert_PIF(l_block_update != NULL, "UTXO block update created");
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t *)l_block_update, l_update_size, dap_time_now());
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_OK, "UTXO blocked");
+    DAP_DELETE(l_block_update);
+
+    dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
+    dap_chain_datum_tx_add_in_item(&l_arb_tx, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("5000.0"), "ARBFORG");
+    byte_t l_arb_data = 0;
+    dap_chain_tx_tsd_t *l_tsd_arb = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_assert_PIF(l_tsd_arb != NULL, "Arbitrage TSD created");
+    dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
+    DAP_DELETE(l_tsd_arb);
+
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_wallet_key);
+
+    dap_sign_t *l_owner_sign = dap_chain_datum_tx_sign_create(l_owner_key, l_arb_tx);
+    dap_assert_PIF(l_owner_sign != NULL, "Owner sign structure created");
+    memset(l_owner_sign->pkey_n_sign + l_owner_sign->header.sign_pkey_size, 0xAA,
+           l_owner_sign->header.sign_size);
+    dap_chain_tx_sig_t *l_forged_sig = dap_chain_datum_tx_item_sign_create_from_sign(l_owner_sign);
+    DAP_DELETE(l_owner_sign);
+    dap_assert_PIF(l_forged_sig != NULL, "Forged SIG item created");
+    dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_forged_sig) == 1, "Forged SIG added");
+    DAP_DELETE(l_forged_sig);
+
+    dap_chain_hash_fast_t l_arb_hash;
+    dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
+    log_it(L_INFO, "  Arbitrage TX (forged owner SIG) result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
+    dap_assert_PIF(l_res != 0,
+                   "SECURITY: Arbitrage TX with forged owner signature must be REJECTED (CRITICAL-1)");
+
+    DAP_DELETE(l_arb_tx);
+    test_tx_fixture_destroy(l_tx);
+    l_owner_cert->enc_key = NULL;
+    dap_enc_key_delete(l_owner_key);
+    dap_enc_key_delete(l_wallet_key);
+    DAP_DELETE(l_owner_cert);
+
+    dap_pass_msg("✅ Security regression test 15 completed (forged owner signature)");
+}
+
+/**
+ * @brief Test 16 (security): Same owner key counted twice toward auth_signs_valid=2
+ * @details Expect REJECT; vulnerable code increments per matching SIG, not per unique owner.
+ */
+void utxo_blocking_test_arbitrage_duplicate_owner_key(void)
+{
+    dap_print_module_name("Integration Test 16 (security): Arbitrage duplicate owner key");
+
+    int l_res = 0;
+
+    dap_enc_key_t *l_fee_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_fee_key != NULL, "Fee key created");
+    dap_chain_addr_t l_fee_addr_setup = {0};
+    dap_chain_addr_fill_from_key(&l_fee_addr_setup, l_fee_key, s_net_fixture->net->pub.id);
+    if (dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr)) {
+        uint256_t l_zero_fee = uint256_0;
+        dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
+    }
+    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
+    dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
+    dap_enc_key_delete(l_fee_key);
+
+    dap_enc_key_t *l_owner1_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_enc_key_t *l_owner2_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_owner1_key && l_owner2_key, "Owner keys created");
+    dap_chain_addr_t l_owner1_addr;
+    dap_chain_addr_fill_from_key(&l_owner1_addr, l_owner1_key, s_net_fixture->net->pub.id);
+
+    dap_cert_t *l_owner1_cert = DAP_NEW_Z(dap_cert_t);
+    dap_cert_t *l_owner2_cert = DAP_NEW_Z(dap_cert_t);
+    dap_assert_PIF(l_owner1_cert && l_owner2_cert, "Owner certs allocated");
+    l_owner1_cert->enc_key = l_owner1_key;
+    l_owner2_cert->enc_key = l_owner2_key;
+    snprintf(l_owner1_cert->name, sizeof(l_owner1_cert->name), "arb_dup_o1");
+    snprintf(l_owner2_cert->name, sizeof(l_owner2_cert->name), "arb_dup_o2");
+
+    dap_chain_hash_fast_t l_emission_hash;
+    l_res = s_create_token_with_two_owner_auth(s_net_fixture->ledger, "ARBDUP", "100000.0", "50000.0",
+                                               &l_owner1_addr, l_owner1_cert, l_owner2_cert, &l_emission_hash);
+    dap_assert_PIF(l_res == 0, "Token ARBDUP created (auth_signs_valid=2)");
+
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "ARBDUP", "5000.0", &l_owner1_addr, l_owner1_cert);
+    dap_assert_PIF(l_tx != NULL, "TX fixture created");
+    l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
+    dap_assert_PIF(l_res == 0, "TX added to ledger");
+
+    // No UTXO blocking needed — we test arbitrage auth deduplication only
+    dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
+    dap_chain_datum_tx_add_in_item(&l_arb_tx, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("5000.0"), "ARBDUP");
+    byte_t l_arb_data = 0;
+    dap_chain_tx_tsd_t *l_tsd_arb = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_assert_PIF(l_tsd_arb != NULL, "Arbitrage TSD created");
+    dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
+    DAP_DELETE(l_tsd_arb);
+
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_owner1_key);
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_owner1_key);
+
+    dap_chain_hash_fast_t l_arb_hash;
+    dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
+    log_it(L_INFO, "  Arbitrage TX (duplicate owner SIG) result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
+    dap_assert_PIF(l_res != 0,
+                   "SECURITY: Arbitrage TX with duplicate owner key must be REJECTED (MEDIUM-2)");
+
+    DAP_DELETE(l_arb_tx);
+    test_tx_fixture_destroy(l_tx);
+    l_owner1_cert->enc_key = NULL;
+    l_owner2_cert->enc_key = NULL;
+    dap_enc_key_delete(l_owner1_key);
+    dap_enc_key_delete(l_owner2_key);
+    DAP_DELETE(l_owner1_cert);
+    DAP_DELETE(l_owner2_cert);
+
+    dap_pass_msg("✅ Security regression test 16 completed (duplicate owner key)");
+}
+
+/**
+ * @brief Test 17 (security): auth_signs_valid==0 — arbitrary wallet SIG must not authorize arbitrage
+ * @details Expect REJECT; vulnerable check uses (valid < 0).
+ */
+void utxo_blocking_test_arbitrage_zero_auth_signs_valid(void)
+{
+    dap_print_module_name("Integration Test 17 (security): Arbitrage with zero auth_signs_valid");
+
+    int l_res = 0;
+
+    dap_enc_key_t *l_fee_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_fee_key != NULL, "Fee key created");
+    dap_chain_addr_t l_fee_addr_setup = {0};
+    dap_chain_addr_fill_from_key(&l_fee_addr_setup, l_fee_key, s_net_fixture->net->pub.id);
+    if (dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr)) {
+        uint256_t l_zero_fee = uint256_0;
+        dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
+    }
+    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
+    dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
+    dap_enc_key_delete(l_fee_key);
+
+    dap_enc_key_t *l_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_owner_key != NULL, "Owner key created");
+    dap_chain_addr_t l_owner_addr;
+    dap_chain_addr_fill_from_key(&l_owner_addr, l_owner_key, s_net_fixture->net->pub.id);
+    dap_cert_t *l_owner_cert = DAP_NEW_Z(dap_cert_t);
+    dap_assert_PIF(l_owner_cert != NULL, "Owner certificate allocation");
+    l_owner_cert->enc_key = l_owner_key;
+    snprintf(l_owner_cert->name, sizeof(l_owner_cert->name), "arb_zero_owner");
+
+    dap_chain_hash_fast_t l_emission_hash;
+    test_token_fixture_t *l_token_fixture = test_token_fixture_create_with_emission(
+        s_net_fixture->ledger, "ARBZERO", "100000.0", "50000.0", &l_owner_addr, l_owner_cert, &l_emission_hash);
+    dap_assert_PIF(l_token_fixture != NULL, "Token ARBZERO created (signs_valid=0)");
+
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "ARBZERO", "5000.0", &l_owner_addr, l_owner_cert);
+    dap_assert_PIF(l_tx != NULL, "TX fixture created");
+    l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
+    dap_assert_PIF(l_res == 0, "TX added to ledger");
+
+    size_t l_update_size = 0;
+    dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
+        "ARBZERO", &l_tx->tx_hash, 0, l_owner_cert, 0, &l_update_size);
+    dap_assert_PIF(l_block_update != NULL, "UTXO block update created");
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t *)l_block_update, l_update_size, dap_time_now());
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_OK, "UTXO blocked");
+    DAP_DELETE(l_block_update);
+
+    dap_enc_key_t *l_random_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_random_key != NULL, "Random key created");
+
+    dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
+    dap_chain_datum_tx_add_in_item(&l_arb_tx, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("5000.0"), "ARBZERO");
+    byte_t l_arb_data = 0;
+    dap_chain_tx_tsd_t *l_tsd_arb = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_assert_PIF(l_tsd_arb != NULL, "Arbitrage TSD created");
+    dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
+    DAP_DELETE(l_tsd_arb);
+
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_random_key);
+
+    dap_chain_hash_fast_t l_arb_hash;
+    dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
+    log_it(L_INFO, "  Arbitrage TX (zero auth_signs_valid, random SIG) result: %d (%s)", l_res,
+           dap_ledger_check_error_str(l_res));
+    dap_assert_PIF(l_res != 0,
+                   "SECURITY: Arbitrage TX must be REJECTED when token auth_signs_valid is 0 (MEDIUM-1)");
+
+    DAP_DELETE(l_arb_tx);
+    dap_enc_key_delete(l_random_key);
+    test_tx_fixture_destroy(l_tx);
+    test_token_fixture_destroy(l_token_fixture);
+    l_owner_cert->enc_key = NULL;
+    dap_enc_key_delete(l_owner_key);
+    DAP_DELETE(l_owner_cert);
+
+    dap_pass_msg("✅ Security regression test 17 completed (zero auth_signs_valid)");
+}
+
+/**
+ * @brief Test 18 (security): Broken/unknown output item type must not validate as fee-only arbitrage
+ * @details Corrupting the OUT_EXT type byte yields no parsable outputs; fee-only check must not succeed.
+ */
+void utxo_blocking_test_arbitrage_unknown_output_type_rejected(void)
+{
+    dap_print_module_name("Integration Test 18 (security): Arbitrage unknown / corrupted output type");
+
+    int l_res = 0;
+
+    dap_enc_key_t *l_fee_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_fee_key != NULL, "Fee key created");
+    dap_chain_addr_t l_fee_addr_setup = {0};
+    dap_chain_addr_fill_from_key(&l_fee_addr_setup, l_fee_key, s_net_fixture->net->pub.id);
+    if (dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr)) {
+        uint256_t l_zero_fee = uint256_0;
+        dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
+    }
+    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
+    dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
+    dap_enc_key_delete(l_fee_key);
+
+    dap_enc_key_t *l_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_owner_key != NULL, "Owner key created");
+    dap_chain_addr_t l_owner_addr;
+    dap_chain_addr_fill_from_key(&l_owner_addr, l_owner_key, s_net_fixture->net->pub.id);
+    dap_cert_t *l_owner_cert = DAP_NEW_Z(dap_cert_t);
+    dap_assert_PIF(l_owner_cert != NULL, "Owner certificate allocation");
+    l_owner_cert->enc_key = l_owner_key;
+    snprintf(l_owner_cert->name, sizeof(l_owner_cert->name), "arb_unk_out");
+
+    dap_chain_hash_fast_t l_emission_hash;
+    l_res = s_create_token_with_auth(s_net_fixture->ledger, "ARBU18", "100000.0", "50000.0",
+                                     &l_owner_addr, l_owner_cert, &l_emission_hash);
+    dap_assert_PIF(l_res == 0, "Token ARBU18 created");
+
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "ARBU18", "5000.0", &l_owner_addr, l_owner_cert);
+    dap_assert_PIF(l_tx != NULL, "TX fixture created");
+    l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
+    dap_assert_PIF(l_res == 0, "TX added to ledger");
+
+    size_t l_update_size = 0;
+    dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
+        "ARBU18", &l_tx->tx_hash, 0, l_owner_cert, 0, &l_update_size);
+    dap_assert_PIF(l_block_update != NULL, "UTXO block update created");
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t *)l_block_update, l_update_size, dap_time_now());
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_OK, "UTXO blocked");
+    DAP_DELETE(l_block_update);
+
+    dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
+    dap_chain_datum_tx_add_in_item(&l_arb_tx, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("5000.0"), "ARBU18");
+    byte_t l_arb_data = 0;
+    dap_chain_tx_tsd_t *l_tsd_arb = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_assert_PIF(l_tsd_arb != NULL, "Arbitrage TSD created");
+    dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
+    DAP_DELETE(l_tsd_arb);
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_owner_key);
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_owner_cert->enc_key);
+
+    uint8_t *l_out_ptr = dap_chain_datum_tx_item_get_nth(l_arb_tx, TX_ITEM_TYPE_OUT_ALL, 0);
+    dap_assert_PIF(l_out_ptr != NULL, "Expected OUT item in arbitrage TX");
+
+    size_t l_tx_sz = dap_chain_datum_tx_get_size(l_arb_tx);
+    dap_chain_datum_tx_t *l_cow = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_tx_sz);
+    dap_assert_PIF(l_cow != NULL, "TX copy allocated");
+    memcpy(l_cow, l_arb_tx, l_tx_sz);
+    size_t l_out_off = (size_t)(l_out_ptr - l_arb_tx->tx_items);
+    l_cow->tx_items[l_out_off] = (byte_t)0x14;
+
+    dap_ledger_token_item_t l_stub_token = {0};
+    snprintf(l_stub_token.ticker, sizeof(l_stub_token.ticker), "ARBU18");
+
+    l_res = dap_chain_arbitrage_tx_check_outputs(s_net_fixture->ledger, l_cow, &l_stub_token);
+    log_it(L_INFO, "  dap_chain_arbitrage_tx_check_outputs(corrupted OUT type) result: %d", l_res);
+    dap_assert_PIF(l_res != 0,
+                   "SECURITY: Corrupted/unknown output must not pass fee-only arbitrage output check (MEDIUM-3)");
+
+    DAP_DELETE(l_cow);
+    DAP_DELETE(l_arb_tx);
+    test_tx_fixture_destroy(l_tx);
+    l_owner_cert->enc_key = NULL;
+    dap_enc_key_delete(l_owner_key);
+    DAP_DELETE(l_owner_cert);
+
+    dap_pass_msg("✅ Security regression test 18 completed (unknown/corrupted output type)");
+}
+
+/**
+ * @brief Test 19: Cross-token bypass prevention (CRITICAL-2 regression)
+ * @details An arbitrage TX authorized for token A must NOT bypass UTXO blocking of token B.
+ *          The per-token bypass ensures ledger checks are scoped to the correct token.
+ */
+void utxo_blocking_test_arbitrage_cross_token_bypass(void)
+{
+    dap_print_module_name("Integration Test 19: Cross-token bypass prevention (CRITICAL-2)");
+
+    int l_res = 0;
+
+    dap_enc_key_t *l_fee_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_fee_key != NULL, "Fee key created");
+    dap_chain_addr_t l_fee_addr_setup = {0};
+    dap_chain_addr_fill_from_key(&l_fee_addr_setup, l_fee_key, s_net_fixture->net->pub.id);
+    if (dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr)) {
+        uint256_t l_zero_fee = uint256_0;
+        dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
+    }
+    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
+    dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
+    dap_enc_key_delete(l_fee_key);
+
+    // Owner A controls token CRTOKA
+    dap_enc_key_t *l_ownerA_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_ownerA_key != NULL, "Owner A key created");
+    dap_chain_addr_t l_addrA;
+    dap_chain_addr_fill_from_key(&l_addrA, l_ownerA_key, s_net_fixture->net->pub.id);
+    dap_cert_t *l_certA = DAP_NEW_Z(dap_cert_t);
+    l_certA->enc_key = l_ownerA_key;
+    snprintf(l_certA->name, sizeof(l_certA->name), "cross_ownerA");
+
+    // Owner B controls token CRTOKB
+    dap_enc_key_t *l_ownerB_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_ownerB_key != NULL, "Owner B key created");
+    dap_chain_addr_t l_addrB;
+    dap_chain_addr_fill_from_key(&l_addrB, l_ownerB_key, s_net_fixture->net->pub.id);
+    dap_cert_t *l_certB = DAP_NEW_Z(dap_cert_t);
+    l_certB->enc_key = l_ownerB_key;
+    snprintf(l_certB->name, sizeof(l_certB->name), "cross_ownerB");
+
+    // Create token A with owner A
+    dap_chain_hash_fast_t l_emA_hash;
+    l_res = s_create_token_with_auth(s_net_fixture->ledger, "CRTOKA", "100000.0", "50000.0",
+                                     &l_addrA, l_certA, &l_emA_hash);
+    dap_assert_PIF(l_res == 0, "Token CRTOKA created (owner A)");
+
+    // Create token B with owner B, emit to address B
+    dap_chain_hash_fast_t l_emB_hash;
+    l_res = s_create_token_with_auth(s_net_fixture->ledger, "CRTOKB", "100000.0", "50000.0",
+                                     &l_addrB, l_certB, &l_emB_hash);
+    dap_assert_PIF(l_res == 0, "Token CRTOKB created (owner B)");
+
+    // Create UTXO for token B
+    test_tx_fixture_t *l_txB = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emB_hash, "CRTOKB", "5000.0", &l_addrB, l_certB);
+    dap_assert_PIF(l_txB != NULL, "TX fixture for CRTOKB created");
+    l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_txB);
+    dap_assert_PIF(l_res == 0, "CRTOKB TX added to ledger");
+
+    // Block the UTXO of token B
+    size_t l_update_size = 0;
+    dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
+        "CRTOKB", &l_txB->tx_hash, 0, l_certB, 0, &l_update_size);
+    dap_assert_PIF(l_block_update != NULL, "UTXO block update for CRTOKB created");
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t *)l_block_update, l_update_size, dap_time_now());
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_OK, "CRTOKB UTXO blocked");
+    DAP_DELETE(l_block_update);
+
+    // Build arbitrage TX: spend blocked UTXO of CRTOKB, output to fee_addr as CRTOKB,
+    // but signed by owner A (who controls CRTOKA, NOT CRTOKB)
+    dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx != NULL, "Cross-token arbitrage TX created");
+    dap_chain_datum_tx_add_in_item(&l_arb_tx, &l_txB->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("5000.0"), "CRTOKB");
+    byte_t l_arb_data = 0;
+    dap_chain_tx_tsd_t *l_tsd_arb = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_assert_PIF(l_tsd_arb != NULL, "Arbitrage TSD created");
+    dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added");
+    DAP_DELETE(l_tsd_arb);
+
+    // Sign with owner A's key (wrong token owner!)
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_ownerA_key);
+
+    dap_chain_hash_fast_t l_arb_hash;
+    dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
+    log_it(L_INFO, "  Cross-token arbitrage (owner A signs CRTOKB arb) result: %d (%s)",
+           l_res, dap_ledger_check_error_str(l_res));
+    dap_assert_PIF(l_res != 0,
+                   "SECURITY: Arbitrage authorized for token A must NOT bypass token B blocking (CRITICAL-2)");
+
+    DAP_DELETE(l_arb_tx);
+    test_tx_fixture_destroy(l_txB);
+    l_certA->enc_key = NULL;
+    l_certB->enc_key = NULL;
+    dap_enc_key_delete(l_ownerA_key);
+    dap_enc_key_delete(l_ownerB_key);
+    DAP_DELETE(l_certA);
+    DAP_DELETE(l_certB);
+
+    dap_pass_msg("✅ Test 19 completed (cross-token bypass prevention)");
+}
+
+/**
+ * @brief Test 20: 2-of-2 auth success and 1-of-2 failure
+ * @details With auth_signs_valid=2 and two distinct owners:
+ *          - Arbitrage signed by both owners → ACCEPTED
+ *          - Arbitrage signed by only one owner → NOT_ENOUGH_VALID_SIGNS (mempool)
+ */
+void utxo_blocking_test_arbitrage_two_of_two_auth(void)
+{
+    dap_print_module_name("Integration Test 20: 2-of-2 auth success + 1-of-2 failure");
+
+    int l_res = 0;
+
+    dap_enc_key_t *l_fee_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_fee_key != NULL, "Fee key created");
+    dap_chain_addr_t l_fee_addr_setup = {0};
+    dap_chain_addr_fill_from_key(&l_fee_addr_setup, l_fee_key, s_net_fixture->net->pub.id);
+    if (dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr)) {
+        uint256_t l_zero_fee = uint256_0;
+        dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
+    }
+    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
+    dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
+    dap_enc_key_delete(l_fee_key);
+
+    dap_enc_key_t *l_owner1_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_enc_key_t *l_owner2_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_owner1_key && l_owner2_key, "Owner keys created");
+    dap_chain_addr_t l_owner1_addr;
+    dap_chain_addr_fill_from_key(&l_owner1_addr, l_owner1_key, s_net_fixture->net->pub.id);
+
+    dap_cert_t *l_cert1 = DAP_NEW_Z(dap_cert_t);
+    dap_cert_t *l_cert2 = DAP_NEW_Z(dap_cert_t);
+    dap_assert_PIF(l_cert1 && l_cert2, "Owner certs allocated");
+    l_cert1->enc_key = l_owner1_key;
+    l_cert2->enc_key = l_owner2_key;
+    snprintf(l_cert1->name, sizeof(l_cert1->name), "2of2_owner1");
+    snprintf(l_cert2->name, sizeof(l_cert2->name), "2of2_owner2");
+
+    dap_chain_hash_fast_t l_emission_hash;
+    l_res = s_create_token_with_two_owner_auth(s_net_fixture->ledger, "ARB2OF2", "200000.0", "100000.0",
+                                               &l_owner1_addr, l_cert1, l_cert2, &l_emission_hash);
+    dap_assert_PIF(l_res == 0, "Token ARB2OF2 created (auth_signs_valid=2, two distinct owners)");
+
+    // PHASE A: Create UTXO #1, block it, arbitrage with BOTH owners → expect ACCEPTED
+    test_tx_fixture_t *l_tx1 = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "ARB2OF2", "5000.0", &l_owner1_addr, l_cert1);
+    dap_assert_PIF(l_tx1 != NULL, "TX fixture #1 created");
+    l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx1);
+    dap_assert_PIF(l_res == 0, "TX #1 added to ledger");
+
+    // Block the UTXO (both owners sign the token_update)
+    size_t l_update_size = 0;
+    dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
+        "ARB2OF2", &l_tx1->tx_hash, 0, l_cert1, 0, &l_update_size);
+    dap_assert_PIF(l_block_update != NULL, "UTXO block update created");
+
+    // Need both sigs for token update (signs_valid=2).
+    // The signing base is [header + TSD] with signs_total=0 (same data cert1 signed).
+    size_t l_tsd_size = l_block_update->header_native_update.tsd_total_size;
+    size_t l_sign_base_size = sizeof(dap_chain_datum_token_t) + l_tsd_size;
+
+    // Create temp copy with signs_total=0 for signing
+    dap_chain_datum_token_t *l_sign_base = DAP_DUP_SIZE(l_block_update, l_sign_base_size);
+    dap_assert_PIF(l_sign_base != NULL, "Sign base copy allocated");
+    l_sign_base->signs_total = 0;
+
+    dap_sign_t *l_sign2 = dap_cert_sign(l_cert2, l_sign_base, l_sign_base_size);
+    DAP_DELETE(l_sign_base);
+    dap_assert_PIF(l_sign2 != NULL, "Second owner signature for token_update created");
+    size_t l_s2z = dap_sign_get_size(l_sign2);
+    l_block_update = DAP_REALLOC(l_block_update, l_update_size + l_s2z);
+    memcpy((byte_t *)l_block_update + l_update_size, l_sign2, l_s2z);
+    l_block_update->signs_total = 2;
+    l_update_size += l_s2z;
+    DAP_DELETE(l_sign2);
+
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t *)l_block_update, l_update_size, dap_time_now());
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_OK, "UTXO #1 blocked (2-sig token_update)");
+    DAP_DELETE(l_block_update);
+
+    // Build arbitrage TX signed by BOTH owners
+    dap_chain_datum_tx_t *l_arb_tx1 = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx1 != NULL, "Arbitrage TX #1 created");
+    dap_chain_datum_tx_add_in_item(&l_arb_tx1, &l_tx1->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx1, l_fee_addr, dap_chain_balance_scan("5000.0"), "ARB2OF2");
+    byte_t l_arb_data = 0;
+    dap_chain_tx_tsd_t *l_tsd1 = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_chain_datum_tx_add_item(&l_arb_tx1, l_tsd1);
+    DAP_DELETE(l_tsd1);
+
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx1, l_owner1_key);
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx1, l_owner2_key);
+
+    dap_chain_hash_fast_t l_arb1_hash;
+    dap_hash_fast(l_arb_tx1, dap_chain_datum_tx_get_size(l_arb_tx1), &l_arb1_hash);
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx1, &l_arb1_hash, false, NULL);
+    log_it(L_INFO, "  Arbitrage TX (2-of-2, both owners) result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
+    dap_assert_PIF(l_res == 0, "Arbitrage TX with 2-of-2 distinct owner signatures ACCEPTED");
+    DAP_DELETE(l_arb_tx1);
+
+    // PHASE B: Use change UTXO from TX #1 (output index 1) for 1-of-2 failure test.
+    // TX #1 was created from emission of 100000.0, only 5000.0 was the primary output;
+    // the remaining 95000.0 is the change output at index 1.
+    dap_chain_datum_tx_t *l_arb_tx2 = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx2 != NULL, "Arbitrage TX #2 created");
+    dap_chain_datum_tx_add_in_item(&l_arb_tx2, &l_tx1->tx_hash, 1);
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx2, l_fee_addr, dap_chain_balance_scan("3000.0"), "ARB2OF2");
+    // Change from the 95000 UTXO goes back to fee_addr (all outputs to fee_addr for arbitrage)
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx2, l_fee_addr, dap_chain_balance_scan("92000.0"), "ARB2OF2");
+    dap_chain_tx_tsd_t *l_tsd2 = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_chain_datum_tx_add_item(&l_arb_tx2, l_tsd2);
+    DAP_DELETE(l_tsd2);
+
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx2, l_owner1_key);
+
+    dap_chain_hash_fast_t l_arb2_hash;
+    dap_hash_fast(l_arb_tx2, dap_chain_datum_tx_get_size(l_arb_tx2), &l_arb2_hash);
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx2, &l_arb2_hash, false, NULL);
+    log_it(L_INFO, "  Arbitrage TX (1-of-2, only owner1) result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS,
+                   "Arbitrage TX with only 1-of-2 owner signatures stays in mempool (NOT_ENOUGH_VALID_SIGNS)");
+
+    DAP_DELETE(l_arb_tx2);
+    test_tx_fixture_destroy(l_tx1);
+    l_cert1->enc_key = NULL;
+    l_cert2->enc_key = NULL;
+    dap_enc_key_delete(l_owner1_key);
+    dap_enc_key_delete(l_owner2_key);
+    DAP_DELETE(l_cert1);
+    DAP_DELETE(l_cert2);
+
+    dap_pass_msg("✅ Test 20 completed (2-of-2 auth success + 1-of-2 failure)");
+}
+
+/**
+ * @brief Test 21: Single-channel arbitrage (fee token == arbitrage token)
+ * @details When the arbitrage token IS the native token, the first signature
+ *          should NOT be auto-skipped as "wallet fee signer". This exercises
+ *          the l_fee_token_same_as_arbitrage == true path in check_auth.
+ *          Cert-only arbitrage with a single owner cert must succeed.
+ */
+void utxo_blocking_test_arbitrage_single_channel(void)
+{
+    dap_print_module_name("Integration Test 21: Single-channel arbitrage (fee == arbitrage token)");
+
+    int l_res = 0;
+
+    dap_enc_key_t *l_fee_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_fee_key != NULL, "Fee key created");
+    dap_chain_addr_t l_fee_addr_setup = {0};
+    dap_chain_addr_fill_from_key(&l_fee_addr_setup, l_fee_key, s_net_fixture->net->pub.id);
+    if (dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr)) {
+        uint256_t l_zero_fee = uint256_0;
+        dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
+    }
+    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
+    dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
+    dap_enc_key_delete(l_fee_key);
+
+    dap_enc_key_t *l_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_owner_key != NULL, "Owner key created");
+    dap_chain_addr_t l_owner_addr;
+    dap_chain_addr_fill_from_key(&l_owner_addr, l_owner_key, s_net_fixture->net->pub.id);
+    dap_cert_t *l_owner_cert = DAP_NEW_Z(dap_cert_t);
+    dap_assert_PIF(l_owner_cert != NULL, "Owner cert allocated");
+    l_owner_cert->enc_key = l_owner_key;
+    snprintf(l_owner_cert->name, sizeof(l_owner_cert->name), "sc_owner");
+
+    const char *l_ticker = "SCHAN";
+    const char *l_original_native = s_net_fixture->net->pub.native_ticker;
+    s_net_fixture->net->pub.native_ticker = l_ticker;
+
+    dap_chain_hash_fast_t l_emission_hash;
+    l_res = s_create_token_with_auth(s_net_fixture->ledger, l_ticker, "100000.0", "50000.0",
+                                     &l_owner_addr, l_owner_cert, &l_emission_hash);
+    dap_assert_PIF(l_res == 0, "Token SCHAN created (== native ticker)");
+
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, l_ticker, "5000.0", &l_owner_addr, l_owner_cert);
+    dap_assert_PIF(l_tx != NULL, "TX fixture created");
+    l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
+    dap_assert_PIF(l_res == 0, "TX added to ledger");
+
+    size_t l_update_size = 0;
+    dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
+        l_ticker, &l_tx->tx_hash, 0, l_owner_cert, 0, &l_update_size);
+    dap_assert_PIF(l_block_update != NULL, "UTXO block update created");
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t *)l_block_update, l_update_size, dap_time_now());
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_OK, "UTXO blocked");
+    DAP_DELETE(l_block_update);
+
+    dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
+    dap_chain_datum_tx_add_in_item(&l_arb_tx, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("5000.0"), l_ticker);
+    byte_t l_arb_data = 0;
+    dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd);
+    DAP_DELETE(l_tsd);
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_owner_key);
+
+    dap_chain_hash_fast_t l_arb_hash;
+    dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
+    log_it(L_INFO, "  Single-channel arbitrage (owner is sole signer, fee==arb token) result: %d (%s)",
+           l_res, dap_ledger_check_error_str(l_res));
+    dap_assert_PIF(l_res == 0,
+                   "Single-channel arbitrage: sole owner sig must NOT be skipped as wallet-fee signer");
+
+    DAP_DELETE(l_arb_tx);
+    test_tx_fixture_destroy(l_tx);
+
+    s_net_fixture->net->pub.native_ticker = l_original_native;
+    l_owner_cert->enc_key = NULL;
+    dap_enc_key_delete(l_owner_key);
+    DAP_DELETE(l_owner_cert);
+
+    dap_pass_msg("✅ Test 21 completed (single-channel arbitrage, fee == arbitrage token)");
+}
+
+/**
+ * @brief Test 22: auth_signs_total == 0 → arbitrage hard-rejected
+ * @details Calls dap_chain_arbitrage_tx_check_auth directly with a stub token
+ *          having auth_signs_total=0 (no auth keys). Arbitrage must be hard-rejected
+ *          (not kept in mempool), since there are no keys to ever satisfy.
+ */
+void utxo_blocking_test_arbitrage_no_auth_keys(void)
+{
+    dap_print_module_name("Integration Test 22: Arbitrage rejected when token has no auth keys");
+
+    dap_enc_key_t *l_fee_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_fee_key != NULL, "Fee key created");
+    dap_chain_addr_t l_fee_addr_setup = {0};
+    dap_chain_addr_fill_from_key(&l_fee_addr_setup, l_fee_key, s_net_fixture->net->pub.id);
+    if (dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr)) {
+        uint256_t l_zero_fee = uint256_0;
+        dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
+    }
+    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
+    dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
+    dap_enc_key_delete(l_fee_key);
+
+    dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("1000.0"), "NOAUTH");
+    byte_t l_arb_data = 0;
+    dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd);
+    DAP_DELETE(l_tsd);
+    dap_enc_key_t *l_rand_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_rand_key);
+    dap_enc_key_delete(l_rand_key);
+
+    dap_ledger_token_item_t l_stub_token = {0};
+    snprintf(l_stub_token.ticker, sizeof(l_stub_token.ticker), "NOAUTH");
+    l_stub_token.auth_signs_total = 0;
+    l_stub_token.auth_signs_valid = 0;
+    l_stub_token.auth_pkeys = NULL;
+    l_stub_token.flags = 0;
+
+    int l_res = dap_chain_arbitrage_tx_check_auth(s_net_fixture->ledger, l_arb_tx, &l_stub_token);
+    log_it(L_INFO, "  check_auth(auth_signs_total=0) result: %d", l_res);
+    dap_assert_PIF(l_res == -1,
+                   "Arbitrage must be HARD-REJECTED (not mempool) when token has no auth keys");
+
+    DAP_DELETE(l_arb_tx);
+
+    dap_pass_msg("✅ Test 22 completed (no auth keys → hard reject)");
 }
 

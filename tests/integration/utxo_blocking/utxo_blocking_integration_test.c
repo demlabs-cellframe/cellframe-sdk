@@ -166,6 +166,18 @@ int main(void)
     utxo_blocking_test_arbitrage_multiple_outputs_mixed_addresses(); l_test_count++; // Test 13: Arbitrage with multiple outputs (mixed)
     utxo_blocking_test_arbitrage_without_tsd_marker();              l_test_count++; // Test 14: Arbitrage without TSD marker
     
+    // Security regression tests (Tests 15-18)
+    utxo_blocking_test_arbitrage_forged_owner_signature();          l_test_count++; // Test 15: Forged owner signature
+    utxo_blocking_test_arbitrage_duplicate_owner_key();             l_test_count++; // Test 16: Duplicate owner key
+    utxo_blocking_test_arbitrage_zero_auth_signs_valid();           l_test_count++; // Test 17: Zero auth_signs_valid
+    utxo_blocking_test_arbitrage_unknown_output_type_rejected();    l_test_count++; // Test 18: Unknown output type
+    
+    // Coverage tests (Tests 19-22)
+    utxo_blocking_test_arbitrage_cross_token_bypass();              l_test_count++; // Test 19: Cross-token bypass prevention
+    utxo_blocking_test_arbitrage_two_of_two_auth();                 l_test_count++; // Test 20: 2-of-2 auth success + 1-of-2 failure
+    utxo_blocking_test_arbitrage_single_channel();                  l_test_count++; // Test 21: Single-channel (fee == arb token)
+    utxo_blocking_test_arbitrage_no_auth_keys();                    l_test_count++; // Test 22: No auth keys → hard reject
+    
     // Teardown
     s_teardown();
     

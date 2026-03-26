@@ -34,72 +34,29 @@
 #include <json.h>
 
 /**
- * @brief Create arbitrage transaction with multiple signatures
+ * @brief Create arbitrage TX with cert signatures (no wallet needed)
+ * @details Arbitrage allows token authority holders (arbitrators) to claim
+ *          UTXO from ANY address — including blocked — and send to fee address.
+ *          The arbitrator signs with their cert, not a wallet key.
  * @param a_chain Target chain
- * @param a_key_from Sender's private key (from wallet)
- * @param a_addr_from Sender's address
- * @param a_addr_to Recipient addresses (array)
- * @param a_token_ticker Token ticker
- * @param a_value Transfer values (array)
- * @param a_value_fee Fee value
- * @param a_hash_out_type Output hash type
- * @param a_tx_num Number of outputs
- * @param a_time_unlock Lock times (array, optional)
- * @param a_tsd_list List of TSD sections (must include arbitrage TSD)
- * @param a_arbitrage_certs Array of certificates for additional signatures
- * @param a_arbitrage_certs_count Number of certificates
- * @return Transaction hash string or NULL on error
+ * @param a_net Network
+ * @param a_addr_from Address whose UTXO to claim (victim/target address)
+ * @param a_token_ticker Token to arbitrate
+ * @param a_value Amount to claim
+ * @param a_value_fee Validator fee
+ * @param a_hash_out_type Hash output type
+ * @param a_certs_str Comma-separated arbitrator certificate names
+ * @param a_json_arr_reply JSON error output
+ * @return TX hash string or NULL on error
  */
-char *dap_chain_arbitrage_tx_create_with_signatures(
-    dap_chain_t *a_chain,
-    dap_enc_key_t *a_key_from,
-    const dap_chain_addr_t *a_addr_from,
-    const dap_chain_addr_t **a_addr_to,
-    const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-    uint256_t *a_value,
-    uint256_t a_value_fee,
-    const char *a_hash_out_type,
-    size_t a_tx_num,
-    dap_time_t *a_time_unlock,
-    dap_list_t *a_tsd_list,
-    dap_cert_t **a_arbitrage_certs,
-    size_t a_arbitrage_certs_count);
-
-/**
- * @brief Create arbitrage transaction via CLI
- * @details Handles the logic for creating arbitrage transactions from CLI command.
- *          This function processes the -arbitrage flag and all related parameters.
- * @param a_chain Target chain
- * @param a_net Network instance
- * @param a_wallet Wallet instance (will be closed by caller)
- * @param a_priv_key Private key from wallet
- * @param a_addr_from Sender's address
- * @param a_addr_to Recipient addresses (array)
- * @param a_token_ticker Token ticker
- * @param a_value Transfer values (array)
- * @param a_value_fee Fee value
- * @param a_hash_out_type Output hash type
- * @param a_addr_el_count Number of outputs
- * @param a_time_unlock Lock times (array, optional)
- * @param a_certs_str Comma-separated list of certificate names for arbitrage authorization
- * @param a_json_arr_reply JSON array for error responses
- * @param a_jobj_result JSON object for result
- * @return Transaction hash string or NULL on error
- */
-char *dap_chain_arbitrage_cli_create_tx(
+char *dap_chain_arbitrage_cli_create(
     dap_chain_t *a_chain,
     dap_chain_net_t *a_net,
-    dap_chain_wallet_t *a_wallet,
-    dap_enc_key_t *a_priv_key,
     const dap_chain_addr_t *a_addr_from,
-    dap_chain_addr_t **a_addr_to,
     const char *a_token_ticker,
-    uint256_t *a_value,
+    uint256_t a_value,
     uint256_t a_value_fee,
     const char *a_hash_out_type,
-    size_t a_addr_el_count,
-    dap_time_t *a_time_unlock,
     const char *a_certs_str,
-    json_object **a_json_arr_reply,
-    json_object *a_jobj_result);
+    json_object **a_json_arr_reply);
 

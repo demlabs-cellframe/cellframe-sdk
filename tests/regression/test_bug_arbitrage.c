@@ -379,28 +379,17 @@ static void test_bug_arbitrage_availability(void)
     DAP_DELETE(l_bal_token_str);
     DAP_DELETE(l_bal_fee_str);
     
-    // 3. Open wallet and load cache for arbitrage TX
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_avail", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-    
-    dap_enc_key_t *l_wallet_key_avail = dap_chain_wallet_get_key(l_wallet_opened, 0);
-    dap_chain_addr_t l_wallet_addr_avail = {0};
-    dap_chain_addr_fill_from_key(&l_wallet_addr_avail, l_wallet_key_avail, s_net_fixture->net->pub.id);
-    
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_avail, 50, 100);
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr, 50, 100);
     
-    // 4. Attempt to create arbitrage transaction immediately
+    // Attempt to create arbitrage transaction immediately (cert-only: -from_addr = UTXO holder)
     char l_cmd[2048];
 
-    // Command: tx_create -net ... -chain ... -from_wallet ... -token ... -value ... -arbitrage -certs ...
-    // Note: -to_addr is omitted for arbitrage (fee address is used automatically)
-    // NOTE: -certs parameter is REQUIRED for arbitrage transactions to provide token owner signature
-    
-    snprintf(l_cmd, sizeof(l_cmd), 
-             "tx_create -net %s -chain %s -from_wallet reg_wallet_avail -token %s -value %s -arbitrage -fee %s -certs %s",
+    snprintf(l_cmd, sizeof(l_cmd),
+             "tx_create -net %s -chain %s -arbitrage -from_addr %s -token %s -value %s -certs %s -fee %s",
              s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
-             "Avail", ARBITRAGE_TX_VALUE, ARBITRAGE_FEE, l_cert->name);
+             dap_chain_addr_to_str_static(&l_wallet_addr),
+             "Avail", ARBITRAGE_TX_VALUE, l_cert->name, ARBITRAGE_FEE);
     
     log_it(L_INFO, "Creating arbitrage TX with command: %s", l_cmd);
     
@@ -425,29 +414,20 @@ static void test_bug_arbitrage_availability(void)
     json_object *l_json = json_tokener_parse(l_reply);
     dap_assert_PIF(l_json != NULL, "JSON reply parsed");
     
-    // Get result field
-    json_object *l_json_result = NULL;
-    if (json_object_object_get_ex(l_json, "result", &l_json_result)) {
-        const char *l_result_str = json_object_get_string(l_json_result);
-        if (l_result_str && strstr(l_result_str, "0x")) {
-            log_it(L_INFO, "✓ Arbitrage transaction created successfully (immediate): %s", l_result_str);
-        } else {
-            log_it(L_ERROR, "✗ Arbitrage transaction failed: %s", l_result_str ? l_result_str : "NULL");
-            json_object_put(l_json);
-            DAP_DELETE(l_reply);
-            dap_assert_PIF(false, "Arbitrage TX created");
-        }
-    } else {
-        log_it(L_ERROR, "✗ No result field in JSON response");
-        json_object_put(l_json);
-        DAP_DELETE(l_reply);
-        dap_assert_PIF(false, "Arbitrage TX created");
-    }
+    json_object *l_result_array = NULL;
+    dap_assert_PIF(json_object_object_get_ex(l_json, "result", &l_result_array), "Result field in JSON response");
+    dap_assert_PIF(json_object_is_type(l_result_array, json_type_array), "Result is array");
+    json_object *l_first = json_object_array_get_idx(l_result_array, 0);
+    dap_assert_PIF(l_first != NULL, "First result element");
+    json_object *l_hash_obj = NULL;
+    dap_assert_PIF(json_object_object_get_ex(l_first, "hash", &l_hash_obj), "Arbitrage TX hash in result");
+    const char *l_hash_str = json_object_get_string(l_hash_obj);
+    dap_assert_PIF(l_hash_str && strlen(l_hash_str) > 0, "Arbitrage TX created (non-empty hash)");
+    log_it(L_INFO, "✓ Arbitrage transaction created successfully (immediate): %s", l_hash_str);
     
     json_object_put(l_json);
     DAP_DELETE(l_reply);
     dap_chain_wallet_close(l_wallet);
-    dap_chain_wallet_close(l_wallet_opened);
 }
 
 /**
@@ -566,9 +546,10 @@ static void test_bug_arbitrage_without_certs(void)
     log_it(L_INFO, "Attempting arbitrage WITHOUT -certs (MUST fail)...");
     
     char l_cmd_arb[2048];
-    snprintf(l_cmd_arb, sizeof(l_cmd_arb), 
-             "tx_create -net %s -chain %s -from_wallet reg_wallet_no_certs -token %s -value 100.0 -arbitrage -fee %s",
+    snprintf(l_cmd_arb, sizeof(l_cmd_arb),
+             "tx_create -net %s -chain %s -arbitrage -from_addr %s -token %s -value 100.0 -fee %s",
              s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             dap_chain_addr_to_str_static(&l_wallet_addr),
              l_custom_ticker, ARBITRAGE_FEE);
     
     char l_json_req_arb[4096];
@@ -606,12 +587,14 @@ static void test_bug_arbitrage_without_certs(void)
         const char *l_msg = json_object_get_string(l_error_msg);
         log_it(L_INFO, "✓ Error message: %s", l_msg);
         
-        // VERIFY proper error message content
-        bool l_mentions_certs = strstr(l_msg, "-certs") != NULL || strstr(l_msg, "certificate") != NULL;
-        bool l_mentions_token = strstr(l_msg, l_custom_ticker) != NULL || strstr(l_msg, "token") != NULL;
+        /* Cert-only path: e.g. "Arbitrage with -from_addr requires -certs parameter (arbitrator certificates)" */
+        bool l_mentions_certs = strstr(l_msg, "-certs") != NULL || strstr(l_msg, "certificate") != NULL
+            || strstr(l_msg, "arbitrator") != NULL;
+        bool l_context_ok = strstr(l_msg, "Arbitrage") != NULL || strstr(l_msg, l_custom_ticker) != NULL
+            || strstr(l_msg, "token") != NULL;
         
-        dap_assert_PIF(l_mentions_certs, "Error mentions -certs/certificate");
-        dap_assert_PIF(l_mentions_token, "Error mentions token");
+        dap_assert_PIF(l_mentions_certs, "Error mentions -certs / certificates / arbitrator");
+        dap_assert_PIF(l_context_ok, "Error mentions arbitrage context or token");
         
         log_it(L_NOTICE, "✓ BUG-001: Detailed error message validation works correctly");
     }
@@ -676,16 +659,8 @@ static void test_bug_arbitrage_arguments(void)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     
-    // 4. Open wallet and load cache for arbitrage TX
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_args", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-    
-    dap_enc_key_t *l_wallet_key_args = dap_chain_wallet_get_key(l_wallet_opened, 0);
-    dap_chain_addr_t l_wallet_addr_args = {0};
-    dap_chain_addr_fill_from_key(&l_wallet_addr_args, l_wallet_key_args, s_net_fixture->net->pub.id);
-    
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr_args, 50, 100);
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr, 50, 100);
     
     // 5. Create Arbitrage TX with specific VALUE
     // Use a specific weird value to check
@@ -693,10 +668,11 @@ static void test_bug_arbitrage_arguments(void)
     // Datoshi: 123456000000000000000
     
     char l_cmd[2048];
-    snprintf(l_cmd, sizeof(l_cmd), 
-             "tx_create -net %s -chain %s -from_wallet reg_wallet_args -token %s -value %s -arbitrage -fee %s -certs %s",
+    snprintf(l_cmd, sizeof(l_cmd),
+             "tx_create -net %s -chain %s -arbitrage -from_addr %s -token %s -value %s -certs %s -fee %s",
              s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
-             l_ticker, l_value_check, ARBITRAGE_FEE, l_cert->name);
+             dap_chain_addr_to_str_static(&l_wallet_addr),
+             l_ticker, l_value_check, l_cert->name, ARBITRAGE_FEE);
     
     // Convert to JSON-RPC format
     char l_json_req[4096];
@@ -713,115 +689,120 @@ static void test_bug_arbitrage_arguments(void)
     json_object *l_json = json_tokener_parse(l_reply);
     dap_assert_PIF(l_json != NULL, "JSON reply parsed");
     
-    // Get result field
-    json_object *l_json_result = NULL;
-    dap_assert_PIF(json_object_object_get_ex(l_json, "result", &l_json_result), "Result field exists");
+    json_object *l_result_array = NULL;
+    dap_assert_PIF(json_object_object_get_ex(l_json, "result", &l_result_array), "Result field exists");
+    dap_assert_PIF(json_object_is_type(l_result_array, json_type_array), "Result is array");
+    json_object *l_first = json_object_array_get_idx(l_result_array, 0);
+    dap_assert_PIF(l_first != NULL, "First result element");
+    json_object *l_hash_json = NULL;
+    dap_assert_PIF(json_object_object_get_ex(l_first, "hash", &l_hash_json), "Arbitrage TX hash in result");
+    const char *l_hash_cstr = json_object_get_string(l_hash_json);
+    dap_assert_PIF(l_hash_cstr && strlen(l_hash_cstr) > 0, "Arbitrage TX created");
     
-    const char *l_result_str = json_object_get_string(l_json_result);
-    dap_assert_PIF(l_result_str && strstr(l_result_str, "0x"), "Arbitrage TX created");
-    
-    // Extract hash (format is "Transaction successfully placed to mempool with hash 0x...")
-    char *l_hash_str = strstr(l_result_str, "0x");
-    if (l_hash_str) {
-        char l_hash_hex[67] = {0};
-        // Copy just the hash part (66 characters after 0x)
+    const char *l_hash_str = l_hash_cstr;
+    char l_hash_hex[67] = {0};
+    if (strncmp(l_hash_str, "0x", 2) == 0 || strncmp(l_hash_str, "0X", 2) == 0) {
         strncpy(l_hash_hex, l_hash_str, 66);
-        
-        // 3. Verify transaction details in mempool
-        dap_chain_hash_fast_t l_tx_hash;
-        dap_chain_hash_fast_from_str(l_hash_hex, &l_tx_hash);
-        
-        char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_hash);
-        dap_chain_datum_t *l_datum = dap_chain_mempool_datum_get(s_net_fixture->chain_main, l_tx_hash_str);
-        DAP_DELETE(l_tx_hash_str);
-        
-        dap_assert_PIF(l_datum != NULL, "Datum found in mempool");
-        dap_assert_PIF(l_datum->header.type_id == DAP_CHAIN_DATUM_TX, "Datum is a transaction");
-        
-        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-        dap_assert_PIF(l_tx != NULL, "Transaction found in mempool");
-        
-        // Check output value
-        dap_list_t *l_out_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
-        bool l_found_value = false;
-        
-        uint256_t l_val_expected = dap_chain_balance_scan(l_value_check);
-        
-        log_it(L_INFO, "Looking for output value: %s", l_value_check);
-        
-        // Get transaction items
-        dap_list_t *l_all_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_ANY, NULL);
-        for (dap_list_t *it = l_all_items; it; it = it->next) {
-            byte_t *l_item_ptr = (byte_t*)it->data;
-            byte_t l_type = *l_item_ptr;
-            
-            if (l_type == TX_ITEM_TYPE_OUT_STD) {
-                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t*)l_item_ptr;
-                const char *l_val_str_balance, *l_val_str = dap_uint256_to_char(l_out_std->value, &l_val_str_balance);
-                log_it(L_INFO, "Found OUT_STD: value=%s (%s), token=%s, address=%s", 
-                       l_val_str ? l_val_str : "NULL", 
-                       l_val_str_balance ? l_val_str_balance : "NULL",
-                       l_out_std->token,
-                       dap_chain_addr_to_str_static(&l_out_std->addr));
-            } else if (l_type == TX_ITEM_TYPE_OUT) {
-                dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)l_item_ptr;
-                const char *l_val_str_balance, *l_val_str = dap_uint256_to_char(l_out->header.value, &l_val_str_balance);
-                log_it(L_INFO, "Found OUT: value=%s (%s), address=%s", 
-                       l_val_str ? l_val_str : "NULL", 
-                       l_val_str_balance ? l_val_str_balance : "NULL",
-                       dap_chain_addr_to_str_static(&l_out->addr));
-            } else if (l_type == TX_ITEM_TYPE_OUT_EXT) {
-                dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)l_item_ptr;
-                const char *l_val_str_balance, *l_val_str = dap_uint256_to_char(l_out_ext->header.value, &l_val_str_balance);
-                log_it(L_INFO, "Found OUT_EXT: value=%s (%s), token=%s, address=%s", 
-                       l_val_str ? l_val_str : "NULL", 
-                       l_val_str_balance ? l_val_str_balance : "NULL",
-                       l_out_ext->token,
-                       dap_chain_addr_to_str_static(&l_out_ext->addr));
-            }
+    } else {
+        char *l_hex_conv = dap_enc_base58_to_hex_str_from_str(l_hash_str);
+        if (l_hex_conv) {
+            strncpy(l_hash_hex, l_hex_conv, sizeof(l_hash_hex) - 1);
+            DAP_DELETE(l_hex_conv);
         }
-        dap_list_free(l_all_items);
+    }
+    dap_assert_PIF(strlen(l_hash_hex) > 0, "Arbitrage TX hash usable for mempool lookup");
+    
+    // Verify transaction details in mempool
+    dap_chain_hash_fast_t l_tx_hash;
+    dap_chain_hash_fast_from_str(l_hash_hex, &l_tx_hash);
+    
+    char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_hash);
+    dap_chain_datum_t *l_datum = dap_chain_mempool_datum_get(s_net_fixture->chain_main, l_tx_hash_str);
+    DAP_DELETE(l_tx_hash_str);
+    
+    dap_assert_PIF(l_datum != NULL, "Datum found in mempool");
+    dap_assert_PIF(l_datum->header.type_id == DAP_CHAIN_DATUM_TX, "Datum is a transaction");
+    
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+    dap_assert_PIF(l_tx != NULL, "Transaction found in mempool");
+    
+    dap_list_t *l_out_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+    bool l_found_value = false;
+    
+    uint256_t l_val_expected = dap_chain_balance_scan(l_value_check);
+    
+    log_it(L_INFO, "Looking for output value: %s", l_value_check);
+    
+    dap_list_t *l_all_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_ANY, NULL);
+    for (dap_list_t *it = l_all_items; it; it = it->next) {
+        byte_t *l_item_ptr = (byte_t*)it->data;
+        byte_t l_type = *l_item_ptr;
         
-        for (dap_list_t *it = l_out_list; it; it = it->next) {
-            byte_t l_item_type = *(byte_t*)it->data;
-            uint256_t l_val_out = {};
-            const char *l_token_ticker = NULL;
-            
-            if (l_item_type == TX_ITEM_TYPE_OUT_STD) {
-                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t*)it->data;
-                l_val_out = l_out_std->value;
-                l_token_ticker = l_out_std->token;
-            } else if (l_item_type == TX_ITEM_TYPE_OUT) {
-                l_val_out = ((dap_chain_tx_out_t*)it->data)->header.value;
-                l_token_ticker = l_ticker;  // OUT doesn't store token, assume it's the arbitrage token
-            } else if (l_item_type == TX_ITEM_TYPE_OUT_EXT) {
-                dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)it->data;
-                l_val_out = l_out_ext->header.value;
-                l_token_ticker = l_out_ext->token;
-            }
-            
-            const char *l_val_str_balance, *l_val_str = dap_uint256_to_char(l_val_out, &l_val_str_balance);
-            log_it(L_INFO, "Checking output: value=%s (%s), token=%s", 
-                   l_val_str ? l_val_str : "NULL", 
+        if (l_type == TX_ITEM_TYPE_OUT_STD) {
+            dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t*)l_item_ptr;
+            const char *l_val_str_balance, *l_val_str = dap_uint256_to_char(l_out_std->value, &l_val_str_balance);
+            log_it(L_INFO, "Found OUT_STD: value=%s (%s), token=%s, address=%s",
+                   l_val_str ? l_val_str : "NULL",
                    l_val_str_balance ? l_val_str_balance : "NULL",
-                   l_token_ticker ? l_token_ticker : "unknown");
-            
-            // Check if this output is for Args token AND has the expected value
-            if (l_token_ticker && strcmp(l_token_ticker, l_ticker) == 0 && EQUAL_256(l_val_out, l_val_expected)) {
-                l_found_value = true;
-                break;
-            }
+                   l_out_std->token,
+                   dap_chain_addr_to_str_static(&l_out_std->addr));
+        } else if (l_type == TX_ITEM_TYPE_OUT) {
+            dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)l_item_ptr;
+            const char *l_val_str_balance, *l_val_str = dap_uint256_to_char(l_out->header.value, &l_val_str_balance);
+            log_it(L_INFO, "Found OUT: value=%s (%s), address=%s",
+                   l_val_str ? l_val_str : "NULL",
+                   l_val_str_balance ? l_val_str_balance : "NULL",
+                   dap_chain_addr_to_str_static(&l_out->addr));
+        } else if (l_type == TX_ITEM_TYPE_OUT_EXT) {
+            dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)l_item_ptr;
+            const char *l_val_str_balance, *l_val_str = dap_uint256_to_char(l_out_ext->header.value, &l_val_str_balance);
+            log_it(L_INFO, "Found OUT_EXT: value=%s (%s), token=%s, address=%s",
+                   l_val_str ? l_val_str : "NULL",
+                   l_val_str_balance ? l_val_str_balance : "NULL",
+                   l_out_ext->token,
+                   dap_chain_addr_to_str_static(&l_out_ext->addr));
         }
-        dap_list_free(l_out_list);
+    }
+    dap_list_free(l_all_items);
+    
+    for (dap_list_t *it = l_out_list; it; it = it->next) {
+        byte_t l_item_type = *(byte_t*)it->data;
+        uint256_t l_val_out = {};
+        const char *l_token_ticker = NULL;
         
-        if (l_found_value) {
-            log_it(L_INFO, "✓ Transaction output matches requested value %s", l_value_check);
-        } else {
-            log_it(L_ERROR, "✗ Transaction output does NOT match requested value %s", l_value_check);
-            json_object_put(l_json);
-            DAP_DELETE(l_reply);
-            dap_assert_PIF(false, "Value argument respected");
+        if (l_item_type == TX_ITEM_TYPE_OUT_STD) {
+            dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t*)it->data;
+            l_val_out = l_out_std->value;
+            l_token_ticker = l_out_std->token;
+        } else if (l_item_type == TX_ITEM_TYPE_OUT) {
+            l_val_out = ((dap_chain_tx_out_t*)it->data)->header.value;
+            l_token_ticker = l_ticker;
+        } else if (l_item_type == TX_ITEM_TYPE_OUT_EXT) {
+            dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)it->data;
+            l_val_out = l_out_ext->header.value;
+            l_token_ticker = l_out_ext->token;
         }
+        
+        const char *l_val_str_balance, *l_val_str = dap_uint256_to_char(l_val_out, &l_val_str_balance);
+        log_it(L_INFO, "Checking output: value=%s (%s), token=%s",
+               l_val_str ? l_val_str : "NULL",
+               l_val_str_balance ? l_val_str_balance : "NULL",
+               l_token_ticker ? l_token_ticker : "unknown");
+        
+        if (l_token_ticker && strcmp(l_token_ticker, l_ticker) == 0 && EQUAL_256(l_val_out, l_val_expected)) {
+            l_found_value = true;
+            break;
+        }
+    }
+    dap_list_free(l_out_list);
+    
+    if (l_found_value) {
+        log_it(L_INFO, "✓ Transaction output matches requested value %s", l_value_check);
+    } else {
+        log_it(L_ERROR, "✗ Transaction output does NOT match requested value %s", l_value_check);
+        json_object_put(l_json);
+        DAP_DELETE(l_reply);
+        dap_assert_PIF(false, "Value argument respected");
     }
     
     json_object_put(l_json);
@@ -982,8 +963,9 @@ static void test_arbitrage_without_fee_addr(void)
     
     char l_cmd_no_fee[2048];
     snprintf(l_cmd_no_fee, sizeof(l_cmd_no_fee),
-             "tx_create -net %s -chain %s -from_wallet reg_wallet_nofee -token %s -value 100.0 -arbitrage -fee 0.1 -certs %s",
+             "tx_create -net %s -chain %s -arbitrage -from_addr %s -token %s -value 100.0 -certs %s -fee 0.1",
              s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             dap_chain_addr_to_str_static(&l_wallet_addr),
              l_custom_ticker, l_cert->name);
     
     log_it(L_INFO, "Command (no fee_addr): %s", l_cmd_no_fee);
@@ -1183,9 +1165,10 @@ static void test_arbitrage_immediately_after_emission(void)
     
     char l_cmd_arbitrage[2048];
     snprintf(l_cmd_arbitrage, sizeof(l_cmd_arbitrage),
-             "tx_create -net %s -chain %s -from_wallet reg_wallet_imm -token %s -value 100.0 -arbitrage -fee %s -certs %s",
+             "tx_create -net %s -chain %s -arbitrage -from_addr %s -token %s -value 100.0 -certs %s -fee %s",
              s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
-             l_custom_ticker, ARBITRAGE_FEE, l_cert->name);
+             dap_chain_addr_to_str_static(&l_wallet_addr),
+             l_custom_ticker, l_cert->name, ARBITRAGE_FEE);
     
     log_it(L_INFO, "Command (immediate arbitrage): %s", l_cmd_arbitrage);
     
@@ -1207,11 +1190,17 @@ static void test_arbitrage_immediately_after_emission(void)
     json_object *l_result_item = json_object_array_get_idx(l_result_arb, 0);
     dap_assert_PIF(l_result_item != NULL, "Got first result item");
     
+    json_object *l_transfer_obj = NULL;
+    json_object_object_get_ex(l_result_item, "transfer", &l_transfer_obj);
+    const char *l_transfer_str = l_transfer_obj ? json_object_get_string(l_transfer_obj) : NULL;
+    dap_assert_PIF(l_transfer_str && !strcmp(l_transfer_str, "Ok"), "Arbitrage transfer Ok");
+    
     json_object *l_hash_obj = NULL;
     bool l_has_hash = json_object_object_get_ex(l_result_item, "hash", &l_hash_obj);
     dap_assert_PIF(l_has_hash, "Arbitrage TX created IMMEDIATELY after emission (SUCCESS!)");
     
     const char *l_tx_hash_str = json_object_get_string(l_hash_obj);
+    dap_assert_PIF(l_tx_hash_str && strlen(l_tx_hash_str) > 0, "Arbitrage TX hash non-empty");
     log_it(L_INFO, "Arbitrage TX hash: %s", l_tx_hash_str);
     
     log_it(L_NOTICE, "✓ Arbitrage available IMMEDIATELY after emission (no intermediate TX needed)");
@@ -1225,23 +1214,20 @@ static void test_arbitrage_immediately_after_emission(void)
 }
 
 /**
- * @brief Test Bug #3 (BUG-002): Arbitrage with/without -to_addr parameter
- * Tests that -to_addr is IGNORED for arbitrage transactions and tokens ALWAYS go to fee_addr
+ * @brief Test Bug #3 (BUG-002): Cert-only arbitrage routes all outputs to fee_addr
+ * @details -to_addr is not used for arbitrage; implementation sends everything to the network fee address.
  */
 static void test_arbitrage_to_addr_behavior(void)
 {
-    log_it(L_NOTICE, "=== TEST: BUG-002 - Arbitrage with/without -to_addr ===");
+    log_it(L_NOTICE, "=== TEST: BUG-002 - Cert-only arbitrage outputs → fee_addr ===");
     
-    // 1. Create certificate for token owner (signs token_decl and token_emit)
     dap_cert_t *l_cert = s_create_cert_with_seed("cert_toaddr", "test_seed_toaddr");
     dap_assert_PIF(l_cert != NULL, "Certificate created");
     
-    // 2. Get cert address (will be used as fee address)
     dap_chain_addr_t l_cert_addr = {0};
     dap_chain_addr_fill_from_key(&l_cert_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
     log_it(L_INFO, "Token owner cert address: %s", dap_chain_addr_to_str(&l_cert_addr));
     
-    // 3. Create wallet (for fee payment AND arbitrage tokens - all on wallet address)
     dap_mkdir_with_parents(s_wallets_dir);
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed("reg_wallet_toaddr", s_wallets_dir,
                                                                       (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM},
@@ -1251,210 +1237,90 @@ static void test_arbitrage_to_addr_behavior(void)
     dap_enc_key_t *l_wallet_key = dap_chain_wallet_get_key(l_wallet, 0);
     dap_chain_addr_t l_wallet_addr = {0};
     dap_chain_addr_fill_from_key(&l_wallet_addr, l_wallet_key, s_net_fixture->net->pub.id);
-    log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str(&l_wallet_addr));
+    log_it(L_INFO, "Wallet address (UTXO source): %s", dap_chain_addr_to_str(&l_wallet_addr));
     
-    // 4. Reset fee BEFORE creating tokens
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
     
-    // 5. Create fee token (emission to WALLET address)
     s_net_fixture->net->pub.native_ticker = "Fee2";
     bool l_fee_created = s_create_token_and_emission("Fee2", &l_wallet_addr, l_cert);
     dap_assert_PIF(l_fee_created, "Fee token Fee2 created with balance on wallet");
     
-    // 6. Create custom token (emission to WALLET address - same as fee token)
     const char *l_custom_ticker = "TOADDR2";
     bool l_token_created = s_create_token_and_emission(l_custom_ticker, &l_wallet_addr, l_cert);
     dap_assert_PIF(l_token_created, "Token TOADDR2 created with balance on wallet");
     
-    // 7. Set network fee (fee address = cert address)
     uint256_t l_fee_value = dap_chain_balance_scan(ARBITRAGE_FEE);
     dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee_value, l_cert_addr);
     
     dap_chain_addr_t l_fee_addr = s_net_fixture->net->pub.fee_addr;
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(&l_fee_addr);
-    log_it(L_INFO, "Network fee address: %s", l_fee_addr_str);
+    log_it(L_INFO, "Network fee address: %s", dap_chain_addr_to_str_static(&l_fee_addr));
     
-    // 9. Create DIFFERENT address for -to_addr (to test that it's ignored)
-    dap_chain_wallet_t *l_dummy_wallet = dap_chain_wallet_create_with_seed("dummy_wallet", s_wallets_dir, 
-                                                                            (dap_sign_type_t){.type = SIG_TYPE_DILITHIUM}, NULL, 0, NULL);
-    dap_enc_key_t *l_dummy_key = dap_chain_wallet_get_key(l_dummy_wallet, 0);
-    dap_chain_addr_t l_dummy_addr = {0};
-    dap_chain_addr_fill_from_key(&l_dummy_addr, l_dummy_key, s_net_fixture->net->pub.id);
-    const char *l_dummy_addr_str = dap_chain_addr_to_str_static(&l_dummy_addr);
-    log_it(L_INFO, "Dummy -to_addr: %s (should be IGNORED)", l_dummy_addr_str);
-    dap_chain_wallet_close(l_dummy_wallet);
-    
-    // === TEST 2.2: Arbitrage WITH -to_addr ===
-    log_it(L_NOTICE, "=== 2.2: Testing arbitrage WITH -to_addr (should be IGNORED) ===");
-    
-    // Open wallet and load cache (required for arbitrage TX)
-    dap_chain_wallet_t *l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
-    
-    // Load wallet cache and wait for completion
     dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
     test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr, 50, 100);
     
-    char l_cmd_with_toaddr[2048];
-    snprintf(l_cmd_with_toaddr, sizeof(l_cmd_with_toaddr), 
-             "tx_create -net %s -chain %s -from_wallet reg_wallet_toaddr -to_addr %s -token %s -value 100.0 -arbitrage -fee %s -certs %s",
+    char l_cmd[2048];
+    snprintf(l_cmd, sizeof(l_cmd),
+             "tx_create -net %s -chain %s -arbitrage -from_addr %s -token %s -value 100.0 -certs %s -fee %s",
              s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
-             l_dummy_addr_str,  // THIS SHOULD BE IGNORED!
-             l_custom_ticker, ARBITRAGE_FEE, l_cert->name);
+             dap_chain_addr_to_str_static(&l_wallet_addr),
+             l_custom_ticker, l_cert->name, ARBITRAGE_FEE);
     
-    log_it(L_INFO, "Command WITH -to_addr: %s", l_cmd_with_toaddr);
+    log_it(L_INFO, "Arbitrage command: %s", l_cmd);
     
-    char l_json_req_with[4096];
-    char *l_json_ptr_with = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_with_toaddr, "tx_create",
-                                                                     l_json_req_with, sizeof(l_json_req_with), 1);
-    dap_assert_PIF(l_json_ptr_with != NULL, "JSON-RPC request created (WITH -to_addr)");
+    char l_json_req[4096];
+    char *l_json_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd, "tx_create",
+                                                              l_json_req, sizeof(l_json_req), 1);
+    dap_assert_PIF(l_json_ptr != NULL, "JSON-RPC request created");
     
-    char *l_reply_with = dap_cli_cmd_exec(l_json_req_with);
-    dap_assert_PIF(l_reply_with != NULL, "Reply received (WITH -to_addr)");
-    log_it(L_INFO, "Reply WITH -to_addr: %s", l_reply_with);
+    char *l_reply = dap_cli_cmd_exec(l_json_req);
+    dap_assert_PIF(l_reply != NULL, "Reply received");
+    log_it(L_INFO, "Reply: %s", l_reply);
     
-    // Parse response and get TX hash
-    json_object *l_json_with = json_tokener_parse(l_reply_with);
-    dap_assert_PIF(l_json_with != NULL, "JSON parsed (WITH -to_addr)");
+    json_object *l_json = json_tokener_parse(l_reply);
+    dap_assert_PIF(l_json != NULL, "JSON parsed");
     
-    json_object *l_result_with = NULL;
-    bool l_has_result_with = json_object_object_get_ex(l_json_with, "result", &l_result_with);
-    dap_assert_PIF(l_has_result_with, "Response has result field (WITH -to_addr)");
+    json_object *l_result = NULL;
+    dap_assert_PIF(json_object_object_get_ex(l_json, "result", &l_result), "Response has result field");
+    dap_assert_PIF(json_object_is_type(l_result, json_type_array), "Result is array");
+    json_object *l_result_item = json_object_array_get_idx(l_result, 0);
+    dap_assert_PIF(l_result_item != NULL, "First result element");
     
-    // Result is array: [ { "transfer": "Ok", "hash": "0x..." } ]
-    dap_assert_PIF(json_object_is_type(l_result_with, json_type_array), "Result is array");
-    json_object *l_result_item_with = json_object_array_get_idx(l_result_with, 0);
-    dap_assert_PIF(l_result_item_with != NULL, "Got first result item");
+    json_object *l_hash_obj = NULL;
+    dap_assert_PIF(json_object_object_get_ex(l_result_item, "hash", &l_hash_obj), "TX hash in result");
+    const char *l_tx_hash_str = json_object_get_string(l_hash_obj);
+    dap_assert_PIF(l_tx_hash_str && strlen(l_tx_hash_str) > 0, "Non-empty TX hash");
+    log_it(L_INFO, "TX hash: %s", l_tx_hash_str);
     
-    json_object *l_hash_obj_with = NULL;
-    bool l_has_hash_with = json_object_object_get_ex(l_result_item_with, "hash", &l_hash_obj_with);
-    dap_assert_PIF(l_has_hash_with, "TX created successfully (WITH -to_addr)");
-    
-    const char *l_tx_hash_str_with = json_object_get_string(l_hash_obj_with);
-    log_it(L_INFO, "TX hash (WITH -to_addr): %s", l_tx_hash_str_with);
-    
-    // === Task 2.4: Verify ALL outputs go to fee_addr (NOT to dummy_addr) ===
-    // Get TX from mempool
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(s_net_fixture->chain_main);
     dap_assert_PIF(l_gdb_group_mempool != NULL, "Mempool group obtained");
     
-    // Convert hash to hex format for mempool lookup
     char *l_tx_hash_hex = NULL;
-    if (strncmp(l_tx_hash_str_with, "0x", 2) == 0 || strncmp(l_tx_hash_str_with, "0X", 2) == 0) {
-        l_tx_hash_hex = dap_strdup(l_tx_hash_str_with);
+    if (strncmp(l_tx_hash_str, "0x", 2) == 0 || strncmp(l_tx_hash_str, "0X", 2) == 0) {
+        l_tx_hash_hex = dap_strdup(l_tx_hash_str);
     } else {
-        l_tx_hash_hex = dap_enc_base58_to_hex_str_from_str(l_tx_hash_str_with);
+        l_tx_hash_hex = dap_enc_base58_to_hex_str_from_str(l_tx_hash_str);
     }
     dap_assert_PIF(l_tx_hash_hex != NULL, "TX hash converted to hex");
     
-    size_t l_datum_size_with = 0;
-    dap_chain_datum_t *l_datum_with = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group_mempool,
-                                                                                    l_tx_hash_hex, &l_datum_size_with, NULL, NULL);
-    dap_assert_PIF(l_datum_with != NULL, "TX found in mempool (WITH -to_addr)");
-    dap_assert_PIF(l_datum_with->header.type_id == DAP_CHAIN_DATUM_TX, "Datum is TX type");
+    size_t l_datum_size = 0;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group_mempool,
+                                                                               l_tx_hash_hex, &l_datum_size, NULL, NULL);
+    dap_assert_PIF(l_datum != NULL, "TX found in mempool");
+    dap_assert_PIF(l_datum->header.type_id == DAP_CHAIN_DATUM_TX, "Datum is TX type");
     
-    dap_chain_datum_tx_t *l_tx_with = (dap_chain_datum_tx_t *)l_datum_with->data;
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+    bool l_outputs_ok = s_verify_tx_outputs_go_to_addr(l_tx, &l_fee_addr, l_custom_ticker);
+    dap_assert_PIF(l_outputs_ok, "ALL outputs go to fee_addr");
     
-    // CRITICAL: Verify ALL outputs go to fee_addr, NOT to dummy_addr
-    bool l_outputs_correct_with = s_verify_tx_outputs_go_to_addr(l_tx_with, &l_fee_addr, l_custom_ticker);
-    dap_assert_PIF(l_outputs_correct_with, "ALL outputs go to fee_addr (WITH -to_addr case)");
+    log_it(L_NOTICE, "✓ Cert-only arbitrage: all outputs on fee_addr");
+    log_it(L_NOTICE, "=== BUG-002 TEST PASSED ===");
     
-    log_it(L_NOTICE, "✓ Arbitrage WITH -to_addr: -to_addr IGNORED, outputs go to fee_addr");
-    
-    DAP_DELETE(l_datum_with);
+    DAP_DELETE(l_datum);
     DAP_DELETE(l_tx_hash_hex);
-    
-    json_object_put(l_json_with);
-    DAP_DELETE(l_reply_with);
+    json_object_put(l_json);
+    DAP_DELETE(l_reply);
     DAP_DELETE(l_gdb_group_mempool);
-    
-    // Phase 2 TEST PASSED: -to_addr is IGNORED for arbitrage transactions
-    // All outputs go to fee_addr regardless of -to_addr parameter
-    log_it(L_NOTICE, "=== BUG-002 TEST PASSED: -to_addr ignored for arbitrage ===");
-    return;
-    
-    // === TEST 2.3: Arbitrage WITHOUT -to_addr ===
-    log_it(L_NOTICE, "=== 2.3: Testing arbitrage WITHOUT -to_addr ===");
-    
-    // Re-open wallet and reload cache for second arbitrage TX
-    l_wallet_opened = dap_chain_wallet_open("reg_wallet_toaddr", s_wallets_dir, NULL);
-    dap_assert_PIF(l_wallet_opened != NULL, "Wallet re-opened for second arbitrage TX");
-    
-    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
-    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_wallet_addr, 50, 100);
-    
-    char l_cmd_without_toaddr[2048];
-    snprintf(l_cmd_without_toaddr, sizeof(l_cmd_without_toaddr), 
-             "tx_create -net %s -chain %s -from_wallet reg_wallet_toaddr -token %s -value 100.0 -arbitrage -fee %s -certs %s",
-             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
-             l_custom_ticker, ARBITRAGE_FEE, l_cert->name);
-    
-    log_it(L_INFO, "Command WITHOUT -to_addr: %s", l_cmd_without_toaddr);
-    
-    char l_json_req_without[4096];
-    char *l_json_ptr_without = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_without_toaddr, "tx_create",
-                                                                        l_json_req_without, sizeof(l_json_req_without), 1);
-    dap_assert_PIF(l_json_ptr_without != NULL, "JSON-RPC request created (WITHOUT -to_addr)");
-    
-    char *l_reply_without = dap_cli_cmd_exec(l_json_req_without);
-    dap_assert_PIF(l_reply_without != NULL, "Reply received (WITHOUT -to_addr)");
-    log_it(L_INFO, "Reply WITHOUT -to_addr: %s", l_reply_without);
-    
-    // Parse response and get TX hash
-    json_object *l_json_without = json_tokener_parse(l_reply_without);
-    dap_assert_PIF(l_json_without != NULL, "JSON parsed (WITHOUT -to_addr)");
-    
-    json_object *l_result_without = NULL;
-    bool l_has_result_without = json_object_object_get_ex(l_json_without, "result", &l_result_without);
-    dap_assert_PIF(l_has_result_without, "Response has result field (WITHOUT -to_addr)");
-    
-    // Result is array: [ { "transfer": "Ok", "hash": "0x..." } ]
-    dap_assert_PIF(json_object_is_type(l_result_without, json_type_array), "Result is array");
-    json_object *l_result_item_without = json_object_array_get_idx(l_result_without, 0);
-    dap_assert_PIF(l_result_item_without != NULL, "Got first result item");
-    
-    json_object *l_hash_obj_without = NULL;
-    bool l_has_hash_without = json_object_object_get_ex(l_result_item_without, "hash", &l_hash_obj_without);
-    dap_assert_PIF(l_has_hash_without, "TX created successfully (WITHOUT -to_addr)");
-    
-    const char *l_tx_hash_str_without = json_object_get_string(l_hash_obj_without);
-    log_it(L_INFO, "TX hash (WITHOUT -to_addr): %s", l_tx_hash_str_without);
-    
-    // === Task 2.4: Verify ALL outputs go to fee_addr ===
-    // Convert hash to hex format
-    char *l_tx_hash_hex_without = NULL;
-    if (strncmp(l_tx_hash_str_without, "0x", 2) == 0 || strncmp(l_tx_hash_str_without, "0X", 2) == 0) {
-        l_tx_hash_hex_without = dap_strdup(l_tx_hash_str_without);
-    } else {
-        l_tx_hash_hex_without = dap_enc_base58_to_hex_str_from_str(l_tx_hash_str_without);
-    }
-    dap_assert_PIF(l_tx_hash_hex_without != NULL, "TX hash converted to hex");
-    
-    size_t l_datum_size_without = 0;
-    dap_chain_datum_t *l_datum_without = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group_mempool,
-                                                                                       l_tx_hash_hex_without, &l_datum_size_without, NULL, NULL);
-    dap_assert_PIF(l_datum_without != NULL, "TX found in mempool (WITHOUT -to_addr)");
-    dap_assert_PIF(l_datum_without->header.type_id == DAP_CHAIN_DATUM_TX, "Datum is TX type");
-    
-    dap_chain_datum_tx_t *l_tx_without = (dap_chain_datum_tx_t *)l_datum_without->data;
-    
-    // CRITICAL: Verify ALL outputs go to fee_addr
-    bool l_outputs_correct_without = s_verify_tx_outputs_go_to_addr(l_tx_without, &l_fee_addr, l_custom_ticker);
-    dap_assert_PIF(l_outputs_correct_without, "ALL outputs go to fee_addr (WITHOUT -to_addr case)");
-    
-    log_it(L_NOTICE, "✓ Arbitrage WITHOUT -to_addr: outputs go to fee_addr");
-    
-    DAP_DELETE(l_datum_without);
-    DAP_DELETE(l_tx_hash_hex_without);
-    
-    json_object_put(l_json_without);
-    DAP_DELETE(l_reply_without);
-    
-    // Cleanup
     dap_chain_wallet_close(l_wallet);
-    dap_chain_wallet_close(l_wallet_opened);  // Close wallet opened for arbitrage tests
-    
-    log_it(L_NOTICE, "=== BUG-002 TEST PASSED: Arbitrage with/without -to_addr works ===");
 }
 
 /**

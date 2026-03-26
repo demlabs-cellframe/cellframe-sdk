@@ -86,17 +86,22 @@ bool dap_chain_arbitrage_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
             l_found_tsd_item = true;
             dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)l_item;
             
-            // Check if TSD contains arbitrage marker
-            dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_tsd->tsd;
-            size_t l_tsd_offset = 0;
+            size_t l_tsd_payload_size = l_item_size > sizeof(dap_chain_tx_tsd_t)
+                                        ? l_item_size - sizeof(dap_chain_tx_tsd_t) : 0;
             size_t l_tsd_total_size = l_tsd->header.size;
+            if (l_tsd_total_size > l_tsd_payload_size)
+                l_tsd_total_size = l_tsd_payload_size;
             
-            while (l_tsd_offset < l_tsd_total_size) {
+            size_t l_tsd_offset = 0;
+            while (l_tsd_offset + sizeof(dap_tsd_t) <= l_tsd_total_size) {
+                dap_tsd_t *l_tsd_data = (dap_tsd_t *)(l_tsd->tsd + l_tsd_offset);
                 if (l_tsd_data->type == DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE) {
-                    return true;  // Found arbitrage marker
+                    return true;
                 }
-                l_tsd_offset += sizeof(dap_tsd_t) + l_tsd_data->size;
-                l_tsd_data = (dap_tsd_t *)(l_tsd->tsd + l_tsd_offset);
+                size_t l_next = l_tsd_offset + sizeof(dap_tsd_t) + l_tsd_data->size;
+                if (l_next <= l_tsd_offset)
+                    break;
+                l_tsd_offset = l_next;
             }
         }
         
@@ -113,15 +118,15 @@ bool dap_chain_arbitrage_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
 
 /**
  * @brief Get arbitrage token ticker from transaction outputs
- * @details For arbitrage TX, determine which token is being arbitraged by finding
- *          the first non-fee output token. Fee outputs are typically OUT_EXT or OUT_COND,
- *          while arbitrage outputs are OUT_STD. This is SECURITY CRITICAL - we must
- *          check authorization for the correct token, not just any token from inputs.
- *          Note: Arbitrage token can be ANY token including native token.
- * @param a_ledger Ledger containing network configuration
+ * @details Two-pass scan over OUT_STD/OUT_EXT outputs:
+ *          Pass 0 — return first non-native ticker (multi-channel: arb target != fee token).
+ *          Pass 1 — return any ticker (single-channel: arb token == native token).
+ *          This ensures we authorize against the real arbitrage target, not the fee leg.
+ * @param a_ledger Ledger containing network configuration (native_ticker)
  * @param a_tx Transaction to analyze
- * @return Token ticker string (static buffer) or NULL if not found
- * @note Returns pointer to static buffer - not thread-safe, but safe for single-threaded validation
+ * @return Token ticker string (thread-local buffer) or NULL if not found
+ * @note Returns pointer to thread-local storage — safe for concurrent validation
+ *       but callers must copy the value before the next call from the same thread.
  */
 const char *dap_chain_arbitrage_tx_get_token_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
@@ -129,66 +134,55 @@ const char *dap_chain_arbitrage_tx_get_token_ticker(dap_ledger_t *a_ledger, dap_
         return NULL;
     }
     
-    static char s_arbitrage_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    const dap_chain_addr_t *l_fee_addr = &a_ledger->net->pub.fee_addr;
+    static _Thread_local char s_arbitrage_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    const char *l_native_ticker = a_ledger->net->pub.native_ticker;
     
-    // Iterate through TX outputs to find first non-fee output
-    // Fee outputs go to fee_addr, arbitrage outputs also go to fee_addr but are OUT_STD type
+    // Two-pass scan: prefer non-native ticker (the real arbitrage target).
+    // If every output is native → single-channel arbitrage, return native.
+    const char *l_first_ticker = NULL;
     byte_t *l_tx_item = a_tx->tx_items;
-    size_t l_tx_items_pos = 0;
     size_t l_tx_items_size = a_tx->header.tx_items_size;
     
-    while (l_tx_items_pos < l_tx_items_size) {
-        uint8_t *l_item = l_tx_item + l_tx_items_pos;
-        size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item, l_tx_items_size - l_tx_items_pos);
-        
-        if (!l_item_size) {
-            break;
-        }
-        
-        dap_chain_tx_item_type_t l_type = *((uint8_t *)l_item);
-        const char *l_token = NULL;
-        dap_chain_addr_t l_out_addr = {};
-        
-        switch (l_type) {
-            case TX_ITEM_TYPE_OUT_STD: {
-                // OUT_STD outputs are typically arbitrage outputs (not fee outputs)
-                dap_chain_tx_out_std_t *l_out = (dap_chain_tx_out_std_t *)l_item;
-                l_token = l_out->token;
-                l_out_addr = l_out->addr;
+    for (int l_pass = 0; l_pass < 2; l_pass++) {
+        size_t l_pos = 0;
+        while (l_pos < l_tx_items_size) {
+            uint8_t *l_item = l_tx_item + l_pos;
+            size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item, l_tx_items_size - l_pos);
+            if (!l_item_size)
                 break;
+            
+            const char *l_token = NULL;
+            dap_chain_tx_item_type_t l_type = *((uint8_t *)l_item);
+            switch (l_type) {
+                case TX_ITEM_TYPE_OUT_STD:
+                    l_token = ((dap_chain_tx_out_std_t *)l_item)->token;
+                    break;
+                case TX_ITEM_TYPE_OUT_EXT:
+                    l_token = ((dap_chain_tx_out_ext_t *)l_item)->token;
+                    break;
+                default:
+                    break;
             }
-            case TX_ITEM_TYPE_OUT_EXT: {
-                // OUT_EXT can be fee output or arbitrage output - check address
-                dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_item;
-                l_token = l_out->token;
-                l_out_addr = l_out->addr;
-                // Skip if this is fee output (fee outputs use native ticker and go to fee_addr)
-                if (dap_chain_addr_compare(&l_out_addr, l_fee_addr)) {
-                    // This might be fee output - skip if native ticker
-                    const char *l_native_ticker = a_ledger->net->pub.native_ticker;
-                    if (l_native_ticker && l_token && strcmp(l_token, l_native_ticker) == 0) {
-                        // This is fee output - skip
-                        l_token = NULL;
-                    }
+            
+            if (l_token && l_token[0] != '\0') {
+                if (!l_first_ticker)
+                    l_first_ticker = l_token;
+                bool l_is_native = l_native_ticker && strcmp(l_token, l_native_ticker) == 0;
+                // Pass 0: return first non-native ticker (multi-channel arbitrage target)
+                // Pass 1: return any ticker (single-channel: all outputs are native)
+                if (l_pass == 1 || !l_is_native) {
+                    dap_strncpy(s_arbitrage_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+                    s_arbitrage_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+                    return s_arbitrage_ticker;
                 }
-                break;
             }
-            default:
-                break;
+            l_pos += l_item_size;
         }
-        
-        if (l_token && l_token[0] != '\0') {
-            // Found arbitrage token (can be native or non-native)
-            dap_strncpy(s_arbitrage_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
-            s_arbitrage_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
-            return s_arbitrage_ticker;
-        }
-        
-        l_tx_items_pos += l_item_size;
+        if (!l_first_ticker)
+            break;
     }
     
-    return NULL;  // No arbitrage token found in outputs
+    return NULL;
 }
 
 /**
@@ -226,9 +220,9 @@ int dap_chain_arbitrage_tx_check_outputs(dap_ledger_t *a_ledger,
     dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_out_count);
     
     if (!l_list_out || l_out_count == 0) {
-        // No outputs - shouldn't happen for valid TX, but not arbitrage-specific error
+        log_it(L_WARNING, "Arbitrage TX for token %s rejected: no recognizable outputs", a_token_item->ticker);
         dap_list_free(l_list_out);
-        return 0;
+        return -1;
     }
 
     // Check each output - ALL must go to fee address
@@ -267,8 +261,9 @@ int dap_chain_arbitrage_tx_check_outputs(dap_ledger_t *a_ledger,
             continue;
         }
         default:
-            log_it(L_WARNING, "Unknown output type 0x%02X in arbitrage TX", l_type);
-            continue;
+            log_it(L_WARNING, "Unknown output type 0x%02X in arbitrage TX — rejecting", l_type);
+            l_all_outputs_to_fee = false;
+            goto check_done;
         }
 
         if (!l_addr)
@@ -325,7 +320,7 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
     debug_if(s_arbitrage_debug_more(), L_DEBUG, "Arbitrage transactions allowed for token %s (flags=0x%08X)",
              a_token_item->ticker, a_token_item->flags);
 
-    // CRITICAL: Validate TX structure (outputs) BEFORE checking signatures.
+    // Validate TX structure (outputs) BEFORE checking signatures.
     // If the outputs are wrong, the TX is fundamentally broken — no amount of signatures will fix it.
     // If outputs are correct but signatures are missing, the TX should stay in mempool for tx_sign.
     if (dap_chain_arbitrage_tx_check_outputs(a_ledger, a_tx, a_token_item) != 0) {
@@ -333,6 +328,17 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
                a_token_item->ticker);
         return -1;
     }
+
+    // Reject arbitrage if token has no auth keys configured
+    if (a_token_item->auth_signs_total == 0) {
+        log_it(L_WARNING, "Arbitrage rejected for token %s: no auth keys (auth_signs_total=0)",
+               a_token_item->ticker);
+        return -1;
+    }
+    // When auth_signs_valid == 0, require at least 1 valid owner signature for arbitrage
+    size_t l_min_required = a_token_item->auth_signs_valid;
+    if (l_min_required == 0)
+        l_min_required = 1;
 
     // Get TX signatures
     int l_sign_count = 0;
@@ -354,6 +360,15 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
 
     size_t l_valid_owner_signs = 0;
     size_t l_sign_index = 0;
+    // Track unique owner pkey hashes to prevent counting same key multiple times (heap-allocated for safety)
+    dap_chain_hash_fast_t *l_counted_hashes = l_min_required
+        ? DAP_NEW_Z_COUNT(dap_chain_hash_fast_t, l_min_required) : NULL;
+    if (l_min_required && !l_counted_hashes) {
+        log_it(L_ERROR, "Memory allocation failed for owner key deduplication (%zu entries)", l_min_required);
+        dap_list_free(l_list_tx_sign);
+        return -1;
+    }
+    size_t l_counted_count = 0;
 
     for (dap_list_t *l_iter = l_list_tx_sign; l_iter; l_iter = l_iter->next, l_sign_index++) {
         dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t *)l_iter->data;
@@ -369,8 +384,11 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
             continue;
 
         dap_chain_hash_fast_t l_pkey_hash;
-        if (!dap_pkey_get_hash(l_pkey, &l_pkey_hash))
+        if (!dap_pkey_get_hash(l_pkey, &l_pkey_hash)) {
+            DAP_DELETE(l_pkey);
             continue;
+        }
+        DAP_DELETE(l_pkey);
 
         bool l_is_owner = false;
         for (uint16_t i = 0; i < a_token_item->auth_signs_total; i++) {
@@ -392,6 +410,30 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
         }
 
         if (l_is_owner) {
+            // Cryptographically verify this signature before counting it.
+            // Without this, an attacker can craft SIG items with victim's pubkey but garbage signature.
+            if (dap_chain_datum_tx_verify_sign(a_tx, (int)l_sign_index) != 0) {
+                log_it(L_WARNING, "Arbitrage TX: owner signature #%zu FAILED cryptographic verification — skipping",
+                       l_sign_index);
+                continue;
+            }
+
+            // Check this owner key hasn't been counted already (deduplication)
+            bool l_already_counted = false;
+            for (size_t k = 0; k < l_counted_count; k++) {
+                if (dap_hash_fast_compare(&l_pkey_hash, &l_counted_hashes[k])) {
+                    l_already_counted = true;
+                    break;
+                }
+            }
+            if (l_already_counted) {
+                debug_if(s_arbitrage_debug_more(), L_DEBUG,
+                         "Signature #%zu is duplicate owner key — not counting again", l_sign_index);
+                continue;
+            }
+            if (l_counted_count < l_min_required)
+                l_counted_hashes[l_counted_count++] = l_pkey_hash;
+
             l_valid_owner_signs++;
             debug_if(s_arbitrage_debug_more(), L_DEBUG, "Signature #%zu is from token owner (total valid: %zu)",
                      l_sign_index, l_valid_owner_signs);
@@ -399,12 +441,13 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
     }
 
     dap_list_free(l_list_tx_sign);
+    DAP_DEL_Z(l_counted_hashes);
 
     // Insufficient owner signatures: keep TX in mempool for distributed signing via tx_sign.
     // dap_chain_node_mempool_process() keeps TXs with DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS.
-    if (l_valid_owner_signs < a_token_item->auth_signs_valid) {
+    if (l_valid_owner_signs < l_min_required) {
         log_it(L_WARNING, "Arbitrage TX for token %s: %zu/%zu owner signatures — keeping in mempool for tx_sign",
-               a_token_item->ticker, l_valid_owner_signs, a_token_item->auth_signs_valid);
+               a_token_item->ticker, l_valid_owner_signs, l_min_required);
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
     }
 
