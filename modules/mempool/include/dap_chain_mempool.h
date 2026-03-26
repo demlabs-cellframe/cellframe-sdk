@@ -33,8 +33,6 @@
 #define DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT            -106
 #define DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_SIGN              -107
 
-
-
 // action
 enum {
     DAP_DATUM_MEMPOOL_NONE = 0, DAP_DATUM_MEMPOOL_ADD, DAP_DATUM_MEMPOOL_CHECK, DAP_DATUM_MEMPOOL_DEL
@@ -90,6 +88,10 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
 char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
         const dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_tx_sign, dap_chain_datum_tx_receipt_t *a_receipt, const char *a_hash_out_type, int *a_ret_status);
 
+// Refill conditional SRV_PAY transaction
+char *dap_chain_mempool_tx_cond_refill(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
+        dap_hash_fast_t *a_tx_cond_hash, uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type);
+
 int dap_chain_mempool_tx_create_massive(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
@@ -144,3 +146,12 @@ char *dap_chain_mempool_tx_create_event(dap_chain_t *a_chain,
                                       size_t a_event_data_size,
                                       uint256_t a_fee_value,
                                       const char *a_hash_out_type);
+
+char *dap_chain_mempool_tx_create_service_decree(dap_chain_t *a_chain,
+                                                 dap_enc_key_t *a_key_from,
+                                                 dap_enc_key_t *a_service_key,
+                                                 dap_chain_net_srv_uid_t a_srv_uid,
+                                                 const void *a_service_decree_data,
+                                                 size_t a_service_decree_data_size,
+                                                 uint256_t a_fee_value,
+                                                 const char *a_hash_out_type);

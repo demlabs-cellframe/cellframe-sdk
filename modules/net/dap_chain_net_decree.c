@@ -159,12 +159,14 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(a_net);
     if (!l_net_decree) {
         log_it(L_ERROR, "Decree module hasn't been initialized yet");
+        DAP_DELETE(l_unique_signs);
         return -404;
     }
 
     uint16_t l_min_signs = l_net_decree->min_num_of_owners;
     if (l_num_of_unique_signs < l_min_signs) {
         log_it(L_WARNING, "Not enough unique signatures, get %zu from %hu", l_num_of_unique_signs, l_min_signs);
+        DAP_DELETE(l_unique_signs);
         return -106;
     }
 
@@ -684,7 +686,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 break;
             int l_ret = dap_ledger_event_pkey_add(a_net->pub.ledger, &l_pkey_hash);
             if (l_ret != 0) {
-                log_it(l_ret == -2 ? L_INFO : L_ERROR, "Error adding event pkey to ledger: %d", l_ret);
+                log_it(L_INFO, "Error adding event pkey to ledger: %d", l_ret);
                 return -118;
             }
         } break;
@@ -709,7 +711,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 break;
             int l_ret = dap_ledger_event_pkey_rm(a_net->pub.ledger, &l_pkey_hash);
             if (l_ret != 0) {
-                log_it(l_ret == -2 ? L_INFO : L_ERROR, "Error removing event pkey from ledger: %d", l_ret);
+                log_it(L_ERROR, "Error removing event pkey from ledger: %d", l_ret);
                 return -118;
             }
         } break;

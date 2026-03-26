@@ -76,14 +76,13 @@ typedef struct dap_chain_wallet_file_hdr{
     uint32_t    version;
     uint8_t     type;                                                       /* See DAP_WALLET$K_TYPE_* constants */
     uint64_t    padding;
-    uint16_t    wallet_len;                                                 /* Length of the follows wallet's name string */
-    char        wallet_name[];
+    uint16_t    wallet_name_len;                                            /* Length of the wallet name that follows in the file */
 } DAP_ALIGN_PACKED dap_chain_wallet_file_hdr_t;
 
 typedef struct dap_chain_wallet_file                                        /* On-disk structure */
 {
     dap_chain_wallet_file_hdr_t header;
-    uint8_t data[];
+    byte_t name_n_data[];                                                     /* wallet_name_len bytes of name, then cert data */
 } DAP_ALIGN_PACKED dap_chain_wallet_file_t;
 
 typedef struct dap_chain_wallet_internal

@@ -35,7 +35,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <dirent.h>
-#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -45,7 +44,10 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain.h"
 #include "dap_common.h"
+#include "dap_time.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_ledger.h"
+#include "dap_chain_ledger_utxo.h"
 
 
 
@@ -113,6 +115,7 @@ static dap_s_wallets_cache_type_t s_wallets_cache_type = DAP_WALLET_CACHE_TYPE_L
 static dap_wallet_cache_t *s_wallets_cache = NULL;
 static pthread_rwlock_t s_wallet_cache_rwlock;
 static bool s_debug_more = false;
+static _Atomic int s_loading_threads_count = 0;
 
 static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx,
                                     dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_atom_hash, int a_ret_code, char* a_main_token_ticker,
@@ -123,6 +126,13 @@ static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_
                                     dap_chain_net_srv_uid_t a_uid);
 static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_datum_t *a_datum);
 static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg);
+static void *s_wallet_load(void *a_arg);
+
+typedef struct wallet_cache_load_args {
+    dap_chain_net_t *net;
+    dap_chain_addr_t addr;
+    dap_wallet_cache_t *wallet_item;
+} wallet_cache_load_args_t;
 
 static char * s_wallet_cache_type_to_str(dap_s_wallets_cache_type_t a_type)
 {
@@ -208,6 +218,112 @@ int dap_chain_wallet_cache_init()
 
 int dap_chain_wallet_cache_deinit()
 {
+    /* Wait for all background wallet-loading threads to finish before
+     * the caller proceeds to deinit GlobalDB / MDBX. Without this wait,
+     * a detached thread that is still writing to GlobalDB will crash
+     * (SEGFAULT / SIGABRT) when the MDBX environment is destroyed. */
+    const int l_timeout_ms = 5000;
+    const int l_poll_us   = 5000;
+    int l_waited_us = 0;
+    while (atomic_load(&s_loading_threads_count) > 0 &&
+           l_waited_us < l_timeout_ms * 1000) {
+        dap_usleep(l_poll_us);
+        l_waited_us += l_poll_us;
+    }
+    if (atomic_load(&s_loading_threads_count) > 0)
+        log_it(L_WARNING, "dap_chain_wallet_cache_deinit: %d loading thread(s) still running after %d ms timeout",
+               atomic_load(&s_loading_threads_count), l_timeout_ms);
+    return 0;
+}
+
+int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
+{
+    dap_return_val_if_fail(a_net, -1);
+
+    if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED) {
+        debug_if(s_debug_more, L_DEBUG, "Wallet cache is disabled, skipping load for net %s", a_net->pub.name);
+        return 0;
+    }
+
+    // Only load cache when network is ONLINE (not during LOADING)
+    // EXCEPTION: In test mode (DAP_LEDGER_TEST defined), allow cache load even in LOADING mode
+    // This is needed because test networks remain in LOADING mode but still need wallet cache for arbitrage TX
+#ifndef DAP_LEDGER_TEST
+    if (dap_chain_net_get_load_mode(a_net)) {
+        debug_if(s_debug_more, L_DEBUG, "Network %s is in LOADING mode, skipping wallet cache load", a_net->pub.name);
+        return 0;
+    }
+#else
+    if (dap_chain_net_get_load_mode(a_net)) {
+        debug_if(s_debug_more, L_DEBUG, "Network %s is in LOADING mode, but DAP_LEDGER_TEST is defined - loading cache anyway", a_net->pub.name);
+    }
+#endif
+
+    debug_if(s_debug_more, L_DEBUG, "Loading wallet cache for net %s", a_net->pub.name);
+
+    dap_list_t *l_local_addr_list = dap_chain_wallet_get_local_addr();
+    if (!l_local_addr_list) {
+        debug_if(s_debug_more, L_DEBUG, "No local wallets found for net %s", a_net->pub.name);
+        return 0;
+    }
+
+    int l_loaded_count = 0;
+    for (dap_list_t *it = l_local_addr_list; it; it = it->next) {
+        dap_chain_addr_t *l_addr = (dap_chain_addr_t *)it->data;
+        
+        // Check if address belongs to this network
+        if (l_addr->net_id.uint64 != a_net->pub.id.uint64) {
+            continue;
+        }
+
+        pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+        dap_wallet_cache_t *l_wallet_item = NULL;
+        HASH_FIND(hh, s_wallets_cache, l_addr, sizeof(dap_chain_addr_t), l_wallet_item);
+        
+        // Load cache if item doesn't exist or is empty (no transactions cached)
+        bool l_need_load = false;
+        if (!l_wallet_item) {
+            l_need_load = true;
+            l_wallet_item = DAP_NEW_Z(dap_wallet_cache_t);
+            memcpy(&l_wallet_item->wallet_addr, l_addr, sizeof(dap_chain_addr_t));
+            l_wallet_item->is_loading = true;
+            HASH_ADD(hh, s_wallets_cache, wallet_addr, sizeof(dap_chain_addr_t), l_wallet_item);
+            debug_if(s_debug_more, L_DEBUG, "Creating wallet cache entry for %s in net %s",
+                     dap_chain_addr_to_str_static(l_addr), a_net->pub.name);
+        } else if (!l_wallet_item->is_loading && !l_wallet_item->wallet_txs) {
+            // Wallet item exists but has no transactions - reload cache
+            l_need_load = true;
+            l_wallet_item->is_loading = true;
+            debug_if(s_debug_more, L_DEBUG, "Reloading empty wallet cache for %s in net %s",
+                     dap_chain_addr_to_str_static(l_addr), a_net->pub.name);
+        }
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+
+        if (l_need_load) {
+            wallet_cache_load_args_t *l_args = DAP_NEW_Z(wallet_cache_load_args_t);
+            if (l_args) {
+                l_args->net = a_net;
+                l_args->addr = *l_addr;
+                l_args->wallet_item = l_wallet_item;
+
+                pthread_t l_tid;
+                pthread_attr_t attr;
+                pthread_attr_init(&attr);
+                pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+                atomic_fetch_add(&s_loading_threads_count, 1);
+                pthread_create(&l_tid, &attr, s_wallet_load, l_args);
+                l_loaded_count++;
+            }
+        }
+    }
+
+    dap_list_free_full(l_local_addr_list, NULL);
+    
+    if (l_loaded_count > 0) {
+        log_it(L_INFO, "Started loading wallet cache for %d wallet(s) in net %s", l_loaded_count, a_net->pub.name);
+    } else {
+        debug_if(s_debug_more, L_DEBUG, "No wallets needed cache loading for net %s", a_net->pub.name);
+    }
 
     return 0;
 }
@@ -397,7 +513,8 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
 }
 
 int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
-                                                    dap_list_t **a_outs_list, uint256_t *a_value_transfer, bool a_mempool_check)
+                                                    dap_list_t **a_outs_list, uint256_t *a_value_transfer, bool a_mempool_check,
+                                                    bool a_skip_blocklist)
 {
 
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
@@ -485,23 +602,46 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
             if (a_mempool_check && dap_chain_mempool_out_is_used(a_net, &l_item_cur->key.tx_hash, l_item_cur->key.out_idx))
                 continue;
 
+            // CRITICAL: Check if UTXO is blocked in token-specific blocklist
+            // This check MUST be in wallet cache to prevent bypassing ledger blocking check
+            // Applies to all output types (OUT, OUT_EXT, OUT_STD, OUT_COND)
+            // Skip this check for arbitrage transactions (a_skip_blocklist = true)
+            if (!a_skip_blocklist &&
+                dap_ledger_utxo_is_blocked_by_ticker(a_net->pub.ledger, a_token_ticker,
+                                                      &l_item_cur->key.tx_hash, l_item_cur->key.out_idx)) {
+                debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] UTXO %s:%u is blocked for token %s - skipping",
+                        dap_hash_fast_to_str_static(&l_item_cur->key.tx_hash), l_item_cur->key.out_idx, a_token_ticker);
+                continue;
+            }
+
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_item_cur->key.tx_hash, (uint32_t)l_item_cur->key.out_idx, l_value};
             l_list_used_out = dap_list_append(l_list_used_out, l_item);
             SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
         } 
     }
-    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
 
     *a_outs_list = l_list_used_out;
     if (a_value_transfer)
         *a_value_transfer = l_value_transfer;
-   
+
+    // CRITICAL FIX: Check if cache was actually loaded
+    // If wallet_txs is NULL, cache was never populated - trigger fallback to ledger
+    // If wallet_txs exists but unspent_outputs is empty, wallet is genuinely empty - return success
+    if (!l_list_used_out && !l_wallet_item->wallet_txs) {
+        debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] Cache not loaded for %s (wallet_txs=NULL), falling back to ledger",
+                 dap_chain_addr_to_str_static(a_addr));
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        return -101;  // Return error to trigger fallback to ledger
+    }
+
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
     return 0;
 }
 
 int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
-                                                    dap_list_t **a_outs_list, uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check)
+                                                    dap_list_t **a_outs_list, uint256_t a_value_need, uint256_t *a_value_transfer, bool a_mempool_check,
+                                                    bool a_skip_blocklist)
 {
 
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
@@ -599,6 +739,18 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
             if (a_mempool_check && dap_chain_mempool_out_is_used(a_net, &l_item_cur->key.tx_hash, l_item_cur->key.out_idx))
                 continue;
 
+            // CRITICAL: Check if UTXO is blocked in token-specific blocklist
+            // This check MUST be in wallet cache to prevent bypassing ledger blocking check
+            // Applies to all output types (OUT, OUT_EXT, OUT_STD, OUT_COND)
+            // Skip this check for arbitrage transactions (a_skip_blocklist = true)
+            if (!a_skip_blocklist &&
+                dap_ledger_utxo_is_blocked_by_ticker(a_net->pub.ledger, a_token_ticker,
+                                                      &l_item_cur->key.tx_hash, l_item_cur->key.out_idx)) {
+                debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] UTXO %s:%u is blocked for token %s - skipping",
+                        dap_hash_fast_to_str_static(&l_item_cur->key.tx_hash), l_item_cur->key.out_idx, a_token_ticker);
+                continue;
+            }
+
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             *l_item = (dap_chain_tx_used_out_item_t) { l_item_cur->key.tx_hash, (uint32_t)l_item_cur->key.out_idx, l_value};
             l_list_used_out = dap_list_append(l_list_used_out, l_item);
@@ -608,6 +760,17 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
             break;
         }
     }
+
+    // CRITICAL FIX: Check if cache was actually loaded
+    // If wallet_txs is NULL, cache was never populated - trigger fallback to ledger
+    // If wallet_txs exists but unspent_outputs is empty, wallet is genuinely empty - return success
+    if (!l_list_used_out && !l_wallet_item->wallet_txs) {
+        debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] Cache not loaded for %s (wallet_txs=NULL), falling back to ledger",
+                 dap_chain_addr_to_str_static(a_addr));
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        return -101;  // Return error to trigger fallback to ledger
+    }
+
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
 
     if (compare256(l_value_transfer, a_value_need) >= 0 && l_list_used_out){
@@ -674,12 +837,6 @@ static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *
                              NULL, (dap_chain_net_srv_uid_t){ }, DAP_CHAIN_TX_TAG_ACTION_UNKNOWN, 'd');
 }
 
-typedef struct wallet_cache_load_args {
-    dap_chain_net_t *net;
-    dap_chain_addr_t addr;
-    dap_wallet_cache_t *wallet_item;
-} wallet_cache_load_args_t;
-
 static void *s_wallet_load(void *a_arg)
 {
     wallet_cache_load_args_t *l_args = (wallet_cache_load_args_t*)a_arg;
@@ -689,6 +846,7 @@ static void *s_wallet_load(void *a_arg)
     l_args->wallet_item->is_loading = false;
     DAP_DEL_Z(a_arg);
 
+    atomic_fetch_sub(&s_loading_threads_count, 1);
     return NULL;
 }
 
@@ -725,6 +883,7 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
         pthread_attr_t attr;
         pthread_attr_init(&attr);
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+        atomic_fetch_add(&s_loading_threads_count, 1);
         pthread_create(&l_tid, &attr, s_wallet_load, l_args);
         DAP_DELETE(l_addr);
         // s_save_cache_for_addr_in_net(l_net, l_addr); 
@@ -743,6 +902,9 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
 {
     int l_ret_val = 0, l_items_cnt = 0, l_out_idx = -1;
     bool l_multichannel = false;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ret_val_if_any(-EINVAL, !l_net || !l_net->pub.ledger);
+    dap_ledger_t *l_ledger = l_net->pub.ledger;
 #define m_check_addr(addr) (                                                                                    \
     !dap_chain_addr_is_blank(&addr) && (                                                                        \
         a_addr ? dap_chain_addr_compare(&addr, a_addr) :                                                        \
@@ -789,6 +951,20 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                 l_value = ((dap_chain_tx_out_std_t *)l_prev_item)->value;
                 l_addr = ((dap_chain_tx_out_std_t *)l_prev_item)->addr;
                 break;
+            case TX_ITEM_TYPE_OUT_COND: {
+                dap_chain_tx_out_cond_t *l_prev_cond = (dap_chain_tx_out_cond_t*)l_prev_item;
+                l_value = l_prev_cond->header.value;
+                switch (l_prev_cond->header.subtype) {
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX:
+                    l_addr = l_prev_cond->subtype.srv_dex.seller_addr;
+                    break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
+                    l_addr = l_prev_cond->subtype.srv_xchange.seller_addr;
+                    break;
+                default:
+                    continue;
+                }
+            } break;
             default:
                 continue;
             }
@@ -808,8 +984,17 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             l_multichannel = true;
             break;
         case TX_ITEM_TYPE_OUT_COND:
-        /* Make it explicit for possible future STAKE_LOCK adoption */
-        // TODO
+            l_value = ((dap_chain_tx_out_cond_t*)l_tx_item)->header.value;
+            switch (((dap_chain_tx_out_cond_t*)l_tx_item)->header.subtype) {
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX:
+                l_addr = ((dap_chain_tx_out_cond_t*)l_tx_item)->subtype.srv_dex.seller_addr;
+                break;
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
+                l_addr = ((dap_chain_tx_out_cond_t*)l_tx_item)->subtype.srv_xchange.seller_addr;
+                break;
+            default:
+                break;
+            }
             ++l_out_idx;
         default:
             continue;
@@ -886,9 +1071,22 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                         if ( !l_item ) {
                             l_item = DAP_NEW(dap_wallet_cache_unspent_outs_t);
                             *l_item = (dap_wallet_cache_unspent_outs_t) { .key = l_key, .output = l_out_item->data };
-                            dap_strncpy(l_item->token_ticker, *l_prev_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t*)l_prev_item)->token
-                                        : *l_tx_item == TX_ITEM_TYPE_OUT_STD ? ((dap_chain_tx_out_std_t*)l_tx_item)->token
-                                        : l_wallet_prev_tx_item->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                            const char *l_prev_ticker = NULL;
+                            switch (*l_prev_item) {
+                            case TX_ITEM_TYPE_OUT_EXT:
+                                l_prev_ticker = ((dap_chain_tx_out_ext_t*)l_prev_item)->token;
+                                break;
+                            case TX_ITEM_TYPE_OUT_STD:
+                                l_prev_ticker = ((dap_chain_tx_out_std_t*)l_prev_item)->token;
+                                break;
+                            case TX_ITEM_TYPE_OUT_COND:
+                                l_prev_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_prev_tx_hash);
+                                break;
+                            default:
+                                l_prev_ticker = l_wallet_prev_tx_item->token_ticker;
+                                break;
+                            }
+                            dap_strncpy(l_item->token_ticker, l_prev_ticker ? l_prev_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);
                             HASH_ADD(hh, l_wallet_item->unspent_outputs, key, sizeof(unspent_cache_hh_key), l_item);
                         }
                     }
@@ -918,9 +1116,22 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                     if ( !l_item ) {
                         l_item = DAP_NEW(dap_wallet_cache_unspent_outs_t);
                         *l_item = (dap_wallet_cache_unspent_outs_t) { .key = l_key, .output = l_out };
-                        dap_strncpy(l_item->token_ticker, *l_tx_item == TX_ITEM_TYPE_OUT_EXT ? ((dap_chain_tx_out_ext_t*)l_tx_item)->token
-                                : *l_tx_item == TX_ITEM_TYPE_OUT_STD ? ((dap_chain_tx_out_std_t*)l_tx_item)->token
-                                : a_main_token_ticker ? a_main_token_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);                   
+                        const char *l_out_ticker = NULL;
+                        switch (*l_tx_item) {
+                        case TX_ITEM_TYPE_OUT_EXT:
+                            l_out_ticker = ((dap_chain_tx_out_ext_t*)l_tx_item)->token;
+                            break;
+                        case TX_ITEM_TYPE_OUT_STD:
+                            l_out_ticker = ((dap_chain_tx_out_std_t*)l_tx_item)->token;
+                            break;
+                        case TX_ITEM_TYPE_OUT_COND:
+                            l_out_ticker = a_main_token_ticker;
+                            break;
+                        default:
+                            l_out_ticker = a_main_token_ticker;
+                            break;
+                        }
+                        dap_strncpy(l_item->token_ticker, l_out_ticker ? l_out_ticker : "0", DAP_CHAIN_TICKER_SIZE_MAX);
                         HASH_ADD(hh, l_wallet_item->unspent_outputs, key, sizeof(unspent_cache_hh_key), l_item);
                     }
                 }

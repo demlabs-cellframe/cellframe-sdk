@@ -405,6 +405,20 @@ bool dap_chain_policy_is_activated(dap_chain_net_id_t a_net_id, uint32_t a_polic
     return l_ret;
 }
 
+bool dap_chain_policy_get_ts_start(dap_chain_net_id_t a_net_id, uint32_t a_policy_num, dap_time_t *a_ts_start)
+{
+    if (!a_ts_start)
+        return false;
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
+    if (!l_net_item || s_policy_is_deactivated(l_net_item, a_policy_num))
+        return false;
+    dap_chain_policy_activate_t *l_policy_activate = s_policy_activate_find(a_net_id, a_policy_num);
+    if (!l_policy_activate)
+        return false;
+    *a_ts_start = l_policy_activate->ts_start;
+    return true;
+}
+
 /**
  * @brief return last policy num in enet
  * @param a_net_id net id to search

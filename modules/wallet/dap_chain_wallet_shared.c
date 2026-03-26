@@ -39,9 +39,19 @@
 #include "dap_tsd.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain.h"
+#include "dap_proc_thread.h"
 #include <dirent.h>
 
 static char s_wallet_shared_gdb_group[] = "local.wallet_shared";
+
+/**
+ * @brief Structure for passing chain and net context to datum notify callback
+ */
+typedef struct shared_wallet_notify_arg {
+    dap_chain_t *chain;
+    dap_chain_net_t *net;
+} shared_wallet_notify_arg_t;
 static char s_wallet_shared_gdb_pkeys[] = "local.wallet_shared_pkeys";
 
 typedef enum hash_file_type {
@@ -360,24 +370,23 @@ static int s_collect_wallet_pkey_hashes()
                 dap_hash_fast_t l_pkey_hash;
                 if (dap_chain_wallet_get_pkey_hash(l_wallet, &l_pkey_hash) != 0) {
                     log_it(L_WARNING, "Failed to get public key hash from wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
+                    dap_chain_wallet_close(l_wallet);
                     continue;
                 }
-                hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(hold_tx_hashes_t, sizeof(hold_tx_hashes_t), -1);
+                hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_RET_VAL_IF_FAIL(hold_tx_hashes_t, -1);
                 l_shared_hashes->type = HASH_FILE_TYPE_WALLET;
                 dap_strncpy(l_shared_hashes->name, l_dir_entry->d_name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_dir_entry->d_name) - 8));
                 log_it(L_DEBUG, "Added wallet '%s' hash: %s", l_dir_entry->d_name, dap_hash_fast_to_str_static(&l_pkey_hash));
                 int l_rc = dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
                     l_shared_hashes, sizeof(hold_tx_hashes_t), false);
-                if (l_rc != 0) {
-                    log_it(L_ERROR, "Failed to write wallet hash to group %s, error code: %d", s_wallet_shared_gdb_group, l_rc);
-                } else {
-                    log_it(L_DEBUG, "Successfully wrote wallet hash to group %s", s_wallet_shared_gdb_group);
-                }
+                DAP_DELETE(l_shared_hashes);
+                dap_chain_wallet_close(l_wallet);
             } else {
                 log_it(L_WARNING, "Cannot open wallet '%s/%s'", l_wallets_path, l_dir_entry->d_name);
             }
         }
     }
+    closedir(l_dir);
     return 0;
 }
 
@@ -420,6 +429,7 @@ static int s_collect_cert_pkey_hashes()
             log_it(L_DEBUG, "Successfully wrote cert hash to group %s", s_wallet_shared_gdb_group);
         }
         log_it(L_DEBUG, "Added certificate '%s' hash: %s", l_cert->name, dap_hash_fast_to_str_static(&l_pkey_hash));
+        DAP_DELETE(l_shared_hashes);
     }  
     dap_list_free(l_certs_list);
     return 0;
@@ -491,7 +501,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_refilling_tx_create(json_object *a
         m_tx_fail(ERROR_TX_MISMATCH, "Requested conditional transaction is already used out");
 
     // add 'in_cond' item
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, -1) != 1) {
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, DAP_CHAIN_TX_IN_COND_NO_RECEIPT) != 1) {
         log_it(L_ERROR, "Can't compose the transaction conditional input");
         m_tx_fail(ERROR_COMPOSE, "Cant add conditionsl input");
     }
@@ -637,7 +647,7 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_create(json_object *a_js
         m_tx_fail(ERROR_FUNDS, "Conditional output of requested TX have not enough funs");
 
     // add 'in_cond' item
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, -1) != 1) {
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_final_tx_hash, l_prev_cond_idx, DAP_CHAIN_TX_IN_COND_NO_RECEIPT) != 1) {
         log_it(L_ERROR, "Can't compose the transaction conditional input");
         m_tx_fail(ERROR_COMPOSE, "Cant add conditionsl input");
     }
@@ -814,6 +824,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
 
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey_hashes", &l_pkeys_str);
     if (!l_pkeys_str) {
+        dap_enc_key_delete(l_enc_key);
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -pkey_hashes");
         return ERROR_PARAM;
     }
@@ -1409,7 +1420,8 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
     if (!l_groups_list) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't get groups from GDB bymask %s", s_wallet_shared_gdb_group);
+        dap_store_obj_free(l_values, l_values_count);
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't get groups from GDB by mask %s", s_wallet_shared_gdb_group);
         return ERROR_VALUE;
     }
 
@@ -1434,13 +1446,14 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                         json_object_array_add(l_jobj_owned_tx, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
                 }
                 json_object_object_add(l_jobj_nets_hashes, (char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_jobj_owned_tx);
+                DAP_DELETE(l_hold_hashes_by_name);
             }
         }
         json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_nets_hashes);
         json_object_array_add(*a_json_arr_reply, l_jobj_item);
     }
     dap_store_obj_free(l_values, l_values_count);
-    DAP_DELETE(l_groups_list);
+    dap_list_free_full(l_groups_list, NULL);
     return DAP_NO_ERROR;
 }
 
@@ -1562,13 +1575,12 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
 
 json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name)
 {
-    json_object *l_json_ret = json_object_new_array();
     char *l_group = dap_strdup_printf("%s.%s", s_wallet_shared_gdb_group, a_net_name);
     hold_tx_hashes_t *l_item = (hold_tx_hashes_t *)dap_global_db_get_sync(l_group, dap_hash_fast_to_str_static(a_pkey_hash), NULL, NULL, false);
     DAP_DELETE(l_group);
-    if (!l_item) {
+    if (!l_item)
         return NULL;
-    }
+    json_object *l_json_ret = json_object_new_array();
     for (size_t i = 0; i < l_item->tx_count; i++) {
         if (l_item->tx[i].role == TX_ROLE_OWNER) {
             json_object_array_add(l_json_ret, json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx[i].hash)));
@@ -1762,18 +1774,136 @@ int dap_chain_wallet_shared_init()
         l_erased_count++;
     }
     log_it(L_INFO, "Wallet shared init: erased %zu groups", l_erased_count);
-    dap_list_free(l_groups_list);
+    dap_list_free_full(l_groups_list, NULL);
     s_collect_wallet_pkey_hashes();
     s_collect_cert_pkey_hashes();
     log_it(L_INFO, "Wallet shared init completed");
     return 0;
 }
 
+/**
+ * @brief Callback for datum index notification - handles all transactions including DECLINED
+ * @details This callback is called for every transaction added to the chain, regardless of its
+ *          verification status. It extracts wallet shared transactions and adds them to the index.
+ * @param a_arg Pointer to shared_wallet_notify_arg_t containing chain and net context
+ * @param a_datum_hash Hash of the datum (transaction)
+ * @param a_atom_hash Hash of the atom containing the datum
+ * @param a_datum Pointer to the datum data
+ * @param a_datum_size Size of the datum
+ * @param a_ret_code Verification result code (0 = success, non-zero = declined)
+ * @param a_action Action type
+ * @param a_uid Service UID
+ */
+static void s_callback_datum_index_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, 
+                                          dap_chain_hash_fast_t *a_atom_hash, void *a_datum, 
+                                          size_t a_datum_size, int a_ret_code, uint32_t a_action, 
+                                          dap_chain_net_srv_uid_t a_uid)
+{
+    UNUSED(a_atom_hash);
+    UNUSED(a_datum_size);
+    UNUSED(a_ret_code);
+    UNUSED(a_action);
+    UNUSED(a_uid);
+    
+    shared_wallet_notify_arg_t *l_arg = (shared_wallet_notify_arg_t *)a_arg;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_datum;
+    
+    if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+        return;
+    
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+    
+    // Check if this transaction has a wallet shared conditional output
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
+    if (!l_cond)
+        return;
+    
+    // Skip writeoff and refill transactions - we only index initial hold transactions
+    if (dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF) ||
+        dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL))
+        return;
+    
+    // Add transaction to wallet shared index (regardless of a_ret_code - includes DECLINED)
+    dap_chain_wallet_shared_hold_tx_add(l_tx, l_arg->net->pub.name);
+}
+
+/**
+ * @brief Scan existing transactions in chain and add wallet shared ones to index
+ * @param a_chain Chain to scan
+ * @param a_net Network containing the chain
+ */
+static void s_scan_existing_shared_txs(dap_chain_t *a_chain, dap_chain_net_t *a_net)
+{
+    if (!a_chain || !a_net || !a_chain->callback_datum_iter_create)
+        return;
+    
+    dap_chain_datum_iter_t *l_iter = a_chain->callback_datum_iter_create(a_chain);
+    if (!l_iter) {
+        log_it(L_WARNING, "Failed to create datum iterator for chain %s", a_chain->name);
+        return;
+    }
+    
+    size_t l_tx_count = 0;
+    for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_iter);
+         l_datum;
+         l_datum = a_chain->callback_datum_iter_get_next(l_iter)) {
+        
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+            continue;
+        
+        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+        
+        // Check if this transaction has a wallet shared conditional output
+        dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
+        if (!l_cond)
+            continue;
+        
+        // Skip writeoff and refill transactions - we only index initial hold transactions
+        if (dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_WALLET_SHARED_TSD_WRITEOFF) ||
+            dap_chain_datum_tx_item_get_tsd_by_type(l_tx, DAP_CHAIN_WALLET_SHARED_TSD_REFILL))
+            continue;
+        
+        // Add transaction to wallet shared index
+        dap_chain_wallet_shared_hold_tx_add(l_tx, a_net->pub.name);
+        l_tx_count++;
+    }
+    
+    a_chain->callback_datum_iter_delete(l_iter);
+    
+    if (l_tx_count > 0) {
+        log_it(L_INFO, "Indexed %zu wallet shared transactions from chain %s in net %s", 
+               l_tx_count, a_chain->name, a_net->pub.name);
+    }
+}
+
 int dap_chain_wallet_shared_notify_init() {
     dap_chain_net_t *l_net = dap_chain_net_iter_start();
     for (; l_net; l_net = dap_chain_net_iter_next(l_net)) {
         for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+            // Add mempool notify callback
             dap_chain_add_mempool_notify_callback(l_chain, s_shared_tx_mempool_notify, l_chain);
+            
+            // Process chains with TX support
+            for (int i = 0; i < l_chain->datum_types_count; i++) {
+                if (l_chain->datum_types[i] == CHAIN_TYPE_TX) {
+                    // Scan existing transactions in chain
+                    s_scan_existing_shared_txs(l_chain, l_net);
+                    
+                    // Add datum index notify callback for future transactions
+                    shared_wallet_notify_arg_t *l_arg = DAP_NEW_Z(shared_wallet_notify_arg_t);
+                    if (!l_arg) {
+                        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                        continue;
+                    }
+                    l_arg->chain = l_chain;
+                    l_arg->net = l_net;
+                    dap_proc_thread_t *l_pt = dap_proc_thread_get_auto();
+                    dap_chain_add_callback_datum_index_notify(l_chain, s_callback_datum_index_notify, l_pt, l_arg);
+                    log_it(L_DEBUG, "Added wallet shared datum notify callback for chain %s in net %s", 
+                           l_chain->name, l_net->pub.name);
+                    break;
+                }
+            }
         }
     }
     return 0;

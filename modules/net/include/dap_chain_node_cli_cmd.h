@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "dap_config.h"
 #include "dap_chain.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
@@ -213,6 +214,24 @@ typedef enum s_com_tx_cond_remove{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_CAN_FIND_DEFAULT_CHAIN_WITH_TX_FOR_NET,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_REMOVE_OTHER_ERROR
 }s_com_tx_cond_remove_t;
+typedef enum s_com_tx_cond_refill
+{
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_INVALID_PARAMETER_H = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_W,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_VALUE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_REQUIRES_PARAMETER_FEE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_NET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_OPEN_WALLET,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_FIND_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_VALUE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_RECOGNIZE_FEE,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_CREATE_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_CAN_NOT_PLACE_TX,
+    DAP_CHAIN_NODE_CLI_COM_TX_COND_REFILL_NOT_OWNER
+} s_com_tx_cond_refill_t;
 typedef enum s_com_tx_cond_unspent_find{
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_INVALID_PARAMETER_HEX = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
@@ -234,6 +253,27 @@ typedef enum s_com_tx_verify{
     DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH,
     DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_TX_NOT_VERIFY
 }s_com_tx_verify_t;
+typedef enum s_com_tx_sign_err{
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_H_PARAM_ERR = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_REQUIRE_TX_PARAM,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_REQUIRE_CERTS_PARAM,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_NET_UNDEFINED,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_CHAIN_NOT_FOUND,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_INVALID_CERTS,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_MEMPOOL_GROUP_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_TX_NOT_FOUND,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_WRONG_DATUM_TYPE,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_NOT_ARBITRAGE,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_NO_TOKEN,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_TOKEN_NOT_FOUND,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_CERTS_NOT_OWNERS,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_NO_SIGNS_ADDED,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_CREATE_DATUM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_ARBITRAGE_MARKER_LOST,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_CANT_REMOVE_OLD,
+    DAP_CHAIN_NODE_CLI_COM_TX_SIGN_CANT_ADD_NEW
+}s_com_tx_sign_err_t;
 typedef enum cmd_mempool_list_err{
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_READ_EMISSION,
@@ -248,6 +288,12 @@ typedef enum cmd_mempool_list_err{
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Initialize CLI commands module
+ * @param a_config Configuration object
+ */
+void dap_chain_node_cli_cmd_init(dap_config_t *a_config);
 
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(json_object* a_json_arr_reply, int *a_arg_index, int a_argc,
                                                            char **a_argv,
@@ -321,6 +367,11 @@ int com_token_update_sign(int argc, char ** argv, void **a_str_reply, int a_vers
 int com_token_emit (int a_argc,  char **a_argv, void **a_str_reply, int a_version);
 
 /**
+ * Token emission add sign
+ */
+int com_token_emit_sign (int a_argc,  char **a_argv, void **a_str_reply, int a_version);
+
+/**
  * com_tx_create command
  *
  * Wallet info
@@ -331,7 +382,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, int a_version);
 
 int com_tx_create_json(int a_argc, char **a_argv, void **reply, int a_version);
-int com_tx_cond_create(int a_argc, char **a_argv, void **reply, int a_version);
+int com_tx_cond(int a_argc, char **a_argv, void **reply, int a_version);
 
 typedef enum s_com_token_decl_err{
     DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK = 0,
@@ -421,9 +472,6 @@ typedef enum s_com_print_log_err{
     DAP_CHAIN_NODE_CLI_COM_PRINT_LOG_NO_LOGS
 }s_com_print_log_err_t;
 
-int com_tx_cond_remove(int a_argc, char **a_argv, void **reply, int a_version);
-int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply, int a_version);
-
 /**
  * tx_verify command
  *
@@ -431,6 +479,13 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, void **reply, int a_vers
  */
 
 int com_tx_verify(int a_argc, char ** a_argv, void **a_str_reply, int a_version);
+
+/**
+ * com_tx_sign command
+ *
+ * Add signatures to existing arbitrage transaction in mempool
+ */
+int com_tx_sign(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 
 

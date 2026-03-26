@@ -29,15 +29,21 @@
 #include "dap_chain_datum_tx.h"
 
 /**
- * @struct dap_chain_tx_item
- * @brief Sections belongs to heading tx section, with inputs, outputs and others tx relatated items
+ * @brief Special value for receipt_idx meaning "no receipt binding".
+ * Used when owner spends their own conditional output (refill/remove operations)
+ * where no receipt from service provider is required.
  */
+#define DAP_CHAIN_TX_IN_COND_NO_RECEIPT ((uint32_t)-1)
 
+/**
+ * @struct dap_chain_tx_in_cond
+ * @brief Conditional transaction input - references a previous OUT_COND to spend
+ */
 typedef struct dap_chain_tx_in_cond {
     struct {
-        dap_chain_tx_item_type_t type; /// @param    type            @brief Transaction item type
-        dap_chain_hash_fast_t tx_prev_hash; /// @param tx_prev_hash    @brief Hash of the previous transaction. 0 for generation TX
-        uint32_t tx_out_prev_idx DAP_ALIGNED(4); ///      @param   tx_prev_idx     @brief Previous tx_out index. 0 for generation TX
-        uint32_t receipt_idx DAP_ALIGNED(4);
+        dap_chain_tx_item_type_t type;           ///< Transaction item type (TX_ITEM_TYPE_IN_COND)
+        dap_chain_hash_fast_t tx_prev_hash;      ///< Hash of the previous transaction containing OUT_COND
+        uint32_t tx_out_prev_idx DAP_ALIGNED(4); ///< Index of OUT_COND item in previous tx (among TX_ITEM_TYPE_OUT_ALL)
+        uint32_t receipt_idx DAP_ALIGNED(4);     ///< Index of receipt in this tx, or DAP_CHAIN_TX_IN_COND_NO_RECEIPT for owner operations
     } DAP_PACKED header; /// Only header's hash is used for verification
 } DAP_PACKED dap_chain_tx_in_cond_t;

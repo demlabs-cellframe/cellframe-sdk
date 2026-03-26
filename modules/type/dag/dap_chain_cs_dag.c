@@ -435,12 +435,38 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
     unsigned l_hash_item_hashv;
     HASH_VALUE(&l_datum_hash, sizeof(l_datum_hash), l_hash_item_hashv);
     pthread_mutex_lock(&PVT(a_dag)->events_mutex);
+    // Count datums manually using hh_datums field (HASH_COUNT uses hardcoded 'hh' field)
+    size_t l_datums_count_before = 0;
+    for (dap_chain_cs_dag_event_item_t *ptr = PVT(a_dag)->datums; ptr != NULL; ptr = ptr->hh_datums.next)
+        l_datums_count_before++;
     dap_chain_cs_dag_event_item_t *l_datum_present = NULL;
     HASH_FIND_BYHASHVALUE(hh_datums, PVT(a_dag)->datums, &l_datum_hash, sizeof(l_datum_hash),
                           l_hash_item_hashv, l_datum_present);
-    if (!l_datum_present)
+    debug_if(s_debug_more, L_DEBUG, "[DATUMS] Checking datum hash %s in datums table (count before: %zu, found: %s, datums head: %p)",
+             dap_chain_hash_fast_to_str_static(&l_datum_hash), l_datums_count_before,
+             l_datum_present ? "YES" : "NO", (void*)PVT(a_dag)->datums);
+    if (!l_datum_present) {
         HASH_ADD_BYHASHVALUE(hh_datums, PVT(a_dag)->datums, datum_hash, sizeof(l_datum_hash),
                              l_hash_item_hashv, a_event_item);
+        // Count datums manually using hh_datums field after add
+        size_t l_datums_count_after = 0;
+        for (dap_chain_cs_dag_event_item_t *ptr = PVT(a_dag)->datums; ptr != NULL; ptr = ptr->hh_datums.next)
+            l_datums_count_after++;
+        debug_if(s_debug_more, L_DEBUG, "[DATUMS] Added datum hash %s to datums table (count after: %zu, event_item: %p, hh_datums.tbl: %p, hh.tbl: %p)",
+                 dap_chain_hash_fast_to_str_static(&l_datum_hash), l_datums_count_after,
+                 (void*)a_event_item,
+                 (void*)(a_event_item ? a_event_item->hh_datums.tbl : NULL),
+                 (void*)(a_event_item ? a_event_item->hh.tbl : NULL));
+        if (l_datums_count_after == l_datums_count_before) {
+            log_it(L_WARNING, "[DATUMS] CRITICAL: Datum hash %s was NOT added to datums table! Count unchanged: %zu -> %zu (hh_datums.tbl: %p, hh.tbl: %p)",
+                   dap_chain_hash_fast_to_str_static(&l_datum_hash), l_datums_count_before, l_datums_count_after,
+                   (void*)(a_event_item ? a_event_item->hh_datums.tbl : NULL),
+                   (void*)(a_event_item ? a_event_item->hh.tbl : NULL));
+        }
+    } else {
+        debug_if(s_debug_more, L_DEBUG, "[DATUMS] Datum hash %s already present in datums table, skipping add",
+                 dap_chain_hash_fast_to_str_static(&l_datum_hash));
+    }
     pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
     if (s_debug_more) {
         char l_buf_hash[DAP_CHAIN_HASH_FAST_STR_SIZE] = {'\0'};
@@ -531,6 +557,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     }
     case ATOM_ACCEPT: {
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_event->header.cell_id);
+        if (!l_cell) {
+            log_it(L_ERROR, "Cell 0x%016" DAP_UINT64_FORMAT_X " not found for accepted event", l_event->header.cell_id.uint64);
+            ret = ATOM_REJECT;
+            break;
+        }
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
             if ( dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_event_hash : NULL) < 0 ) {
                 log_it(L_ERROR, "Can't save atom to file");
@@ -690,7 +721,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         HASH_CLEAR(hh_select, l_tmp);
         pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         if (l_hashes_linked < l_hashes_size) {
-            log_it(L_ERROR, "No enough unlinked events present (only %lu of %lu), a dummy round?", l_hashes_linked, l_hashes_size);
+            log_it(L_ERROR, "No enough unlinked events present (only %zu of %zu), a dummy round?", l_hashes_linked, l_hashes_size);
             return false;
         }
     }
@@ -700,7 +731,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
      * or we have successfully chosen the hash(es) to link with.
      * No additional conditions required.
     */
-    uint64_t l_event_size = 0;
+    size_t l_event_size = 0;
     dap_chain_cs_dag_event_t * l_event = l_dag->callback_cs_event_create
             ? l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size)
             : NULL;
@@ -725,10 +756,10 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
     l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_hex_str, l_event, l_event_size, &l_round_item);
     DAP_DELETE(l_event);
-    log_it(l_res ? L_INFO : L_ERROR,
-           l_res ? "Event %s placed into new forming round"
-                 : "Can't add new event %s to new events round",
-           l_event_hash_hex_str);
+    if (l_res)
+        log_it(L_INFO, "Event %s placed into new forming round", l_event_hash_hex_str);
+    else
+        log_it(L_ERROR, "Can't add new event %s to new events round", l_event_hash_hex_str);
     return l_res;
 }
 
@@ -1399,6 +1430,10 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
             for (size_t i = 0; i< l_objs_size; i++ ){
                 if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key))
                     continue;
+                if (!l_objs[i].value || l_objs[i].value_len <= sizeof(dap_chain_cs_dag_event_round_item_t)) {
+                    log_it(L_WARNING, "Skipping round item with invalid value (key=%s, len=%zu)", l_objs[i].key, l_objs[i].value_len);
+                    continue;
+                }
                 dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
                 dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
                 dap_hash_fast_t l_event_hash = {};
@@ -1428,16 +1463,12 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                     }
                 }
             }
-            // write events to file and delete events from db
             if(l_list_to_del) {
-                if (dap_chain_cell_file_update(l_chain->cells) > 0) {
-                    // delete events from db
-                    dap_list_t *l_el;
-                    DL_FOREACH(l_list_to_del, l_el) {
-                        dap_global_db_del_sync(l_dag->gdb_group_events_round_new, (char*)l_el->data);
-                    }
+                dap_chain_cell_file_update(l_chain->cells);
+                dap_list_t *l_el;
+                DL_FOREACH(l_list_to_del, l_el) {
+                    dap_global_db_del_sync(l_dag->gdb_group_events_round_new, (char*)l_el->data);
                 }
-                dap_chain_cell_close(l_chain->cells);
                 dap_list_free(l_list_to_del);
             }
 

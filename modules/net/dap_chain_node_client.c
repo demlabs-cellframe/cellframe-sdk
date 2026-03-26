@@ -246,7 +246,10 @@ dap_chain_node_client_t *dap_chain_node_client_create_n_connect(dap_chain_net_t 
                                                                 void *a_callback_arg)
 {
     dap_chain_node_client_t *l_node_client = dap_chain_node_client_create(a_net, a_node_info, a_callbacks, a_callback_arg);
-    return dap_chain_node_client_connect(l_node_client, a_active_channels) ? l_node_client : ( DAP_DEL_MULTY(l_node_client->info, l_node_client), NULL );
+    if ( dap_chain_node_client_connect(l_node_client, a_active_channels) )
+        return l_node_client;
+    DAP_DEL_MULTY(l_node_client->info, l_node_client);
+    return NULL;
 }
 
 dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
@@ -321,10 +324,14 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
  */
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
-    log_it(L_INFO, "Closing node client to uplink "NODE_ADDR_FP_STR" [ %s : %u ]",
-                    NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),
-                    a_node_client->info->ext_host,
-                    a_node_client->info->ext_port);
+    if (a_node_client->info)
+        log_it(L_INFO, "Closing node client to uplink "NODE_ADDR_FP_STR" [ %s : %u ]",
+                        NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),
+                        a_node_client->info->ext_host,
+                        a_node_client->info->ext_port);
+    else
+        log_it(L_INFO, "Closing node client to uplink "NODE_ADDR_FP_STR,
+                        NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
 
     if (a_node_client->sync_timer)
         dap_timerfd_delete_unsafe(a_node_client->sync_timer);

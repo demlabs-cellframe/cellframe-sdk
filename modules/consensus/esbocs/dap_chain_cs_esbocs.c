@@ -52,6 +52,9 @@ enum s_esbocs_session_state {
 };
 
 #define ESBOCS_PENALTY_TTL ( 72 * 3600 ) // 3 days
+#define ESBOCS_PENALTY_HASH_VERSION 1
+#define ESBOCS_SESSION_DRAIN_WAIT_US 1000U
+#define ESBOCS_SESSION_DRAIN_WAIT_ATTEMPTS 30000U
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators);
 static void s_session_proc_state(void *a_arg);
@@ -59,7 +62,13 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
 static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg);
 static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain_node_addr_t *a_sender_node_addr, uint8_t *a_data, size_t a_data_size);
 static void s_session_round_clear(dap_chain_esbocs_session_t *a_session);
+static void s_session_send_startsync(void *a_arg);
+static bool s_session_send_startsync_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms);
+static void s_session_proc_state_timer(void *a_arg);
+static bool s_session_proc_state_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms);
 static bool s_session_round_new(void *a_session);
+static bool s_session_round_new_queued(void *a_arg);
+static bool s_session_round_new_schedule(dap_chain_esbocs_session_t *a_session);
 static bool s_session_candidate_to_chain(
             dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_candidate_hash,
                             dap_chain_block_t *a_candidate, size_t a_candidate_size);
@@ -70,7 +79,11 @@ static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session,
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store);
 
 static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_message_type, dap_hash_fast_t *a_block_hash,
-                                    const void *a_data, size_t a_data_size, dap_list_t *a_validators);
+                                    const void *a_data, size_t a_data_size, dap_list_t *a_validators,
+                                    uint16_t a_unknown_peer_version);
+static void s_message_send_single(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_validator_t *a_validator,
+                                  uint8_t a_message_type, uint16_t a_protocol_version, dap_hash_fast_t *a_block_hash,
+                                  const void *a_data, size_t a_data_size);
 static void s_message_chain_add(dap_chain_esbocs_session_t * a_session,
                                 dap_chain_esbocs_message_t * a_message,
                                 size_t a_message_size,
@@ -125,6 +138,109 @@ DAP_STATIC_INLINE size_t s_get_esbocs_message_size(dap_chain_esbocs_message_t *a
     return sizeof(*a_message) + a_message->hdr.sign_size + a_message->hdr.message_size;
 }
 
+static int s_penalty_key_compare(const void *a_key1, const void *a_key2)
+{
+    return strcmp(*(const char *const *)a_key1, *(const char *const *)a_key2);
+}
+
+static dap_global_db_driver_hash_t s_sync_hash_from_fast(const dap_hash_fast_t *a_fast_hash)
+{
+    dap_global_db_driver_hash_t l_hash = c_dap_global_db_driver_hash_blank;
+    byte_t *l_hash_bytes = (byte_t *)&l_hash;
+    const byte_t *l_fast_bytes = (const byte_t *)a_fast_hash;
+    for (size_t i = 0; i < sizeof(l_hash); i++)
+        l_hash_bytes[i] = l_fast_bytes[i] ^ l_fast_bytes[i + sizeof(l_hash)];
+    return l_hash;
+}
+
+static bool s_protocol_version_is_supported(uint16_t a_version)
+{
+    return a_version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY ||
+            a_version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT;
+}
+
+static uint16_t s_session_peer_version_get(dap_chain_esbocs_session_t *a_session, dap_chain_addr_t *a_signing_addr)
+{
+    dap_chain_esbocs_peer_version_item_t *l_item = NULL;
+    HASH_FIND(hh, a_session->peer_version_items, a_signing_addr, sizeof(*a_signing_addr), l_item);
+    return l_item ? l_item->version : 0;
+}
+
+static void s_session_peer_version_set(dap_chain_esbocs_session_t *a_session, dap_chain_addr_t *a_signing_addr, uint16_t a_version)
+{
+    if (!s_protocol_version_is_supported(a_version))
+        return;
+    if (dap_chain_addr_compare(a_signing_addr, &a_session->my_signing_addr))
+        a_version = DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT;
+    dap_chain_esbocs_peer_version_item_t *l_item = NULL;
+    HASH_FIND(hh, a_session->peer_version_items, a_signing_addr, sizeof(*a_signing_addr), l_item);
+    if (l_item && l_item->version >= a_version)
+        return;
+    if (!l_item) {
+        l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_esbocs_peer_version_item_t);
+        l_item->signing_addr = *a_signing_addr;
+        HASH_ADD(hh, a_session->peer_version_items, signing_addr, sizeof(*a_signing_addr), l_item);
+    }
+    l_item->version = a_version;
+}
+
+static uint16_t s_session_peer_version_resolve(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_validator_t *a_validator,
+                                               uint16_t a_unknown_peer_version)
+{
+    if (dap_chain_addr_compare(&a_validator->signing_addr, &a_session->my_signing_addr))
+        return DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT;
+    uint16_t l_version = s_session_peer_version_get(a_session, &a_validator->signing_addr);
+    if (s_protocol_version_is_supported(l_version))
+        return l_version;
+    return s_protocol_version_is_supported(a_unknown_peer_version) ?
+            a_unknown_peer_version : DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT;
+}
+
+static size_t s_session_peer_versions_count(dap_chain_esbocs_session_t *a_session)
+{
+    size_t l_count = 0;
+    for (dap_chain_esbocs_peer_version_item_t *l_item = a_session->peer_version_items; l_item; l_item = l_item->hh.next)
+        l_count++;
+    return l_count;
+}
+
+static void s_session_peer_versions_collect_stats(dap_chain_esbocs_session_t *a_session, dap_list_t *a_validators,
+                                                  size_t *a_total_count, size_t *a_v8_count,
+                                                  size_t *a_v9_count, size_t *a_unknown_count)
+{
+    size_t l_total_count = 0, l_v8_count = 0, l_v9_count = 0, l_unknown_count = 0;
+    for (dap_list_t *it = a_validators; it; it = it->next) {
+        dap_chain_esbocs_validator_t *l_validator = it->data;
+        uint16_t l_version = s_session_peer_version_get(a_session, &l_validator->signing_addr);
+        l_total_count++;
+        if (l_version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY)
+            l_v8_count++;
+        else if (l_version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT)
+            l_v9_count++;
+        else
+            l_unknown_count++;
+    }
+    if (a_total_count)
+        *a_total_count = l_total_count;
+    if (a_v8_count)
+        *a_v8_count = l_v8_count;
+    if (a_v9_count)
+        *a_v9_count = l_v9_count;
+    if (a_unknown_count)
+        *a_unknown_count = l_unknown_count;
+}
+
+static void s_session_peer_versions_cleanup(dap_chain_esbocs_session_t *a_session, dap_list_t *a_validators)
+{
+    dap_chain_esbocs_peer_version_item_t *l_item = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, a_session->peer_version_items, l_item, l_tmp) {
+        if (a_validators && s_validator_check(&l_item->signing_addr, a_validators))
+            continue;
+        HASH_DEL(a_session->peer_version_items, l_item);
+        DAP_DELETE(l_item);
+    }
+}
+
 static dap_pkey_t *s_get_pkey(dap_sign_t *a_sign, dap_chain_net_id_t a_net_id)
 {
     if (dap_sign_is_use_pkey_hash(a_sign)) {
@@ -136,6 +252,69 @@ static dap_pkey_t *s_get_pkey(dap_sign_t *a_sign, dap_chain_net_id_t a_net_id)
 }
 
 static dap_chain_esbocs_session_t *s_session_items;
+static pthread_rwlock_t s_session_items_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+typedef struct s_esbocs_atom_notifier_ctx {
+    atomic_uintptr_t session_ptr;
+} s_esbocs_atom_notifier_ctx_t;
+
+static bool s_atom_notifier_ctx_delete_queued(void *a_arg)
+{
+    DAP_DELETE(a_arg);
+    return false;
+}
+
+DAP_STATIC_INLINE dap_chain_esbocs_session_t *s_atom_notifier_session_get(s_esbocs_atom_notifier_ctx_t *a_ctx)
+{
+    return a_ctx ? (dap_chain_esbocs_session_t *)(uintptr_t)atomic_load_explicit(&a_ctx->session_ptr, memory_order_acquire) : NULL;
+}
+
+DAP_STATIC_INLINE void s_atom_notifier_session_set(s_esbocs_atom_notifier_ctx_t *a_ctx, dap_chain_esbocs_session_t *a_session)
+{
+    if (a_ctx)
+        atomic_store_explicit(&a_ctx->session_ptr, (uintptr_t)a_session, memory_order_release);
+}
+
+DAP_STATIC_INLINE dap_chain_esbocs_session_t *s_session_items_find_by_net_id_unsafe(dap_chain_net_id_t a_net_id)
+{
+    dap_chain_esbocs_session_t *l_session = NULL;
+    DL_FOREACH(s_session_items, l_session)
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
+            return l_session;
+    return NULL;
+}
+
+DAP_STATIC_INLINE dap_chain_esbocs_session_t *s_session_items_find_by_chain_name_unsafe(const char *a_chain_name)
+{
+    dap_chain_esbocs_session_t *l_session = NULL;
+    DL_FOREACH(s_session_items, l_session)
+        if (!dap_strcmp(a_chain_name, l_session->chain->name))
+            return l_session;
+    return NULL;
+}
+
+DAP_STATIC_INLINE bool s_session_try_acquire_for_callback(dap_chain_esbocs_session_t *a_session)
+{
+    if (!a_session || atomic_load_explicit(&a_session->stopping, memory_order_acquire))
+        return false;
+    atomic_fetch_add_explicit(&a_session->inflight_callbacks, 1, memory_order_acq_rel);
+    if (!atomic_load_explicit(&a_session->stopping, memory_order_acquire))
+        return true;
+    atomic_fetch_sub_explicit(&a_session->inflight_callbacks, 1, memory_order_acq_rel);
+    return false;
+}
+
+DAP_STATIC_INLINE void s_session_release_after_callback(dap_chain_esbocs_session_t *a_session)
+{
+    if (a_session)
+        atomic_fetch_sub_explicit(&a_session->inflight_callbacks, 1, memory_order_acq_rel);
+}
+
+DAP_STATIC_INLINE bool s_session_is_proc_thread(dap_chain_esbocs_session_t *a_session)
+{
+    return a_session && a_session->proc_thread && a_session->proc_thread->context &&
+           pthread_equal(pthread_self(), a_session->proc_thread->context->thread_id);
+}
 
 struct precached_key {
     uint64_t frequency;
@@ -153,6 +332,7 @@ typedef struct dap_chain_esbocs_pvt {
     uint16_t start_validators_min;
     // Debug flag
     bool debug;
+    bool debug_more;
     // Emergancy mode with signing by current online validators only
     bool emergency_mode;
     dap_list_t *emergency_validator_addrs;
@@ -224,7 +404,9 @@ void dap_chain_cs_esbocs_deinit(void)
 }
 
 void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable){
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);    
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    if (!l_blocks || !l_blocks->_inheritor)
+        return;
     dap_chain_esbocs_t *l_esbocs = l_blocks->_inheritor;
     dap_chain_esbocs_pvt_t * l_esbocs_pvt = PVT(l_esbocs);    
     l_esbocs_pvt->debug = a_enable;
@@ -242,17 +424,19 @@ int dap_chain_esbocs_set_custom_metadata_callback(dap_chain_net_id_t a_net_id,
                                                   dap_chain_esbocs_callback_set_custom_metadata_t a_callback)
 {
     dap_chain_esbocs_t *l_esbocs = NULL;
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session)
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
-            l_esbocs = l_session->esbocs;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session)
+        l_esbocs = l_session->esbocs;
     if (!l_esbocs) {
+        pthread_rwlock_unlock(&s_session_items_lock);
          log_it(L_ERROR, "ESBOCS consensus not initialized for net 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
         return -1;
     }
     l_esbocs->callback_set_custom_metadata = a_callback;  
     log_it(L_INFO, "Custom metadata callback %s for network %s", 
            a_callback ? "set" : "removed", l_esbocs->chain->net_name);
+    pthread_rwlock_unlock(&s_session_items_lock);
     return 0;
 }
 
@@ -268,17 +452,19 @@ int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
                                           dap_chain_esbocs_callback_presign_t a_callback)
 {
     dap_chain_esbocs_t *l_esbocs = NULL;
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session)
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
-            l_esbocs = l_session->esbocs;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session)
+        l_esbocs = l_session->esbocs;
     if (!l_esbocs) {
+        pthread_rwlock_unlock(&s_session_items_lock);
          log_it(L_ERROR, "ESBOCS consensus not initialized for net 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
         return -1;
     }
     l_esbocs->callback_presign = a_callback;
     log_it(L_INFO, "Presign callback %s for network %s", 
            a_callback ? "set" : "removed", l_esbocs->chain->net_name);
+    pthread_rwlock_unlock(&s_session_items_lock);
     return 0;
 }
 
@@ -311,6 +497,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->debug                    = false;
+    l_esbocs_pvt->debug_more               = true;//= dap_config_get_item_bool_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "debug_more", false);
     l_esbocs_pvt->poa_mode                 = dap_config_get_item_bool_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_start_sync_timeout", 15);
     l_esbocs_pvt->new_round_delay          = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "new_round_delay", 10);
@@ -506,7 +693,10 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
 static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id,
                                 dap_chain_hash_fast_t *a_atom_hash, void *a_atom, size_t a_atom_size, dap_time_t a_atom_time)
 {
-    dap_chain_esbocs_session_t *l_session = a_arg;
+    s_esbocs_atom_notifier_ctx_t *l_ctx = a_arg;
+    dap_chain_esbocs_session_t *l_session = s_atom_notifier_session_get(l_ctx);
+    if (!l_session || !s_session_try_acquire_for_callback(l_session))
+        return;
     assert(l_session->chain == a_chain);
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(l_session->chain, a_id, &l_last_block_hash);
@@ -515,8 +705,10 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
         l_session->new_round_enqueued = true;
         s_session_round_new(l_session);
     }
-    if (!PVT(l_session->esbocs)->collecting_addr)
+    if (!PVT(l_session->esbocs)->collecting_addr) {
+        s_session_release_after_callback(l_session);
         return;
+    }
     dap_chain_esbocs_block_collect_t l_block_collect_params = (dap_chain_esbocs_block_collect_t){
             .collecting_level = PVT(l_session->esbocs)->collecting_level,
             .minimum_fee = PVT(l_session->esbocs)->minimum_fee,
@@ -528,23 +720,21 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     };
     dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), a_atom_hash);
     dap_chain_esbocs_add_block_collect(l_block_cache, &l_block_collect_params, DAP_CHAIN_BLOCK_COLLECT_BOTH);
+    s_session_release_after_callback(l_session);
 }
 
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session) {
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
-            if (l_session->esbocs && l_session->esbocs->_pvt &&
-                    PVT(l_session->esbocs)->block_sign_pkey &&
-                    PVT(l_session->esbocs)->collecting_addr &&
-                    !dap_chain_addr_is_blank(PVT(l_session->esbocs)->collecting_addr))
-                return true;
-            else
-                return false;
-        }
-    }
-    return false;
+    bool l_ret = false;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session && l_session->esbocs && l_session->esbocs->_pvt &&
+            PVT(l_session->esbocs)->block_sign_pkey &&
+            PVT(l_session->esbocs)->collecting_addr &&
+            !dap_chain_addr_is_blank(PVT(l_session->esbocs)->collecting_addr))
+        l_ret = true;
+    pthread_rwlock_unlock(&s_session_items_lock);
+    return l_ret;
 }
 
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg)
@@ -565,8 +755,15 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->chain = a_chain;
     l_session->esbocs = l_esbocs;
     l_session->proc_thread = dap_proc_thread_get_auto();
+    s_esbocs_atom_notifier_ctx_t *l_atom_notifier_ctx = DAP_NEW_Z_RET_VAL_IF_FAIL(s_esbocs_atom_notifier_ctx_t, -9, l_session);
+    s_atom_notifier_session_set(l_atom_notifier_ctx, l_session);
+    l_session->atom_notifier_ctx = l_atom_notifier_ctx;
+    atomic_init(&l_session->stopping, false);
+    atomic_init(&l_session->inflight_callbacks, 0);
     l_esbocs->session = l_session;
+    pthread_rwlock_wrlock(&s_session_items_lock);
     DL_APPEND(s_session_items, l_session);
+    pthread_rwlock_unlock(&s_session_items_lock);
     log_it(L_INFO, "Init ESBOCS session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
 
     const char *l_sign_cert_str = NULL;
@@ -614,6 +811,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
+    s_session_peer_version_set(l_session, &l_session->my_signing_addr, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
 
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
@@ -621,7 +819,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
                                                       l_sync_group, ESBOCS_PENALTY_TTL, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
     dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
-    dap_global_db_erase_table_sync(l_sync_group);     // Drop table on stratup
+    if (dap_config_get_item_bool_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "penalty_clear_on_start", false))
+        dap_global_db_erase_table_sync(l_sync_group);
     DAP_DELETE(l_sync_group);
 
 #ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
@@ -671,11 +870,11 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
         return -5;
     }
-    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session->proc_thread, l_session);
+    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session->proc_thread, l_atom_notifier_ctx);
     //s_session_round_new(l_session);
-    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
+    s_session_round_new_schedule(l_session);
 
-    l_session->cs_timer = !dap_proc_thread_timer_add(l_session->proc_thread, s_session_proc_state, l_session, 1000);
+    l_session->cs_timer = s_session_proc_state_timer_schedule(l_session, 1000);
     debug_if(l_esbocs_pvt->debug && l_session->cs_timer, L_MSG, "Consensus main timer is started");
 
     DAP_CHAIN_PVT(a_chain)->cs_started = true;
@@ -684,86 +883,91 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
 bool dap_chain_esbocs_started(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session)
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
-            return DAP_CHAIN_PVT(l_session->chain)->cs_started;
-    return false;
+    bool l_ret = false;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session)
+        l_ret = DAP_CHAIN_PVT(l_session->chain)->cs_started;
+    pthread_rwlock_unlock(&s_session_items_lock);
+    return l_ret;
 }
 
 dap_pkey_t *dap_chain_esbocs_get_sign_pkey(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session) {
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64 &&
-                l_session->esbocs && l_session->esbocs->_pvt)
-            return PVT(l_session->esbocs)->block_sign_pkey;
-    }
-    return NULL;
+    dap_pkey_t *l_ret = NULL;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session && l_session->esbocs && l_session->esbocs->_pvt)
+        l_ret = PVT(l_session->esbocs)->block_sign_pkey;
+    pthread_rwlock_unlock(&s_session_items_lock);
+    return l_ret;
 }
 
 uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session) {
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64 &&
-                l_session->esbocs && l_session->esbocs->_pvt)
-            return PVT(l_session->esbocs)->minimum_fee;
-    }
-    return uint256_0;
+    uint256_t l_ret = uint256_0;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session && l_session->esbocs && l_session->esbocs->_pvt)
+        l_ret = PVT(l_session->esbocs)->minimum_fee;
+    pthread_rwlock_unlock(&s_session_items_lock);
+    return l_ret;
 }
 
 void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session) {
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64 &&
-            l_session->cs_timer) {
-            log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
-            l_session->cs_timer = false;
-        }
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session && l_session->cs_timer) {
+        log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
+        l_session->cs_timer = false;
     }
+    pthread_rwlock_unlock(&s_session_items_lock);
 }
 
 void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id)
 {
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session) {
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
-            log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
-            l_session->cs_timer = true;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session && !l_session->cs_timer) {
+        log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
+        l_session->cs_timer = true;
+        if (!s_session_proc_state_timer_schedule(l_session, 1000)) {
+            l_session->cs_timer = false;
+            log_it(L_WARNING, "Can't start consensus timer for net:%s, chain:%s", l_session->chain->net_name, l_session->chain->name);
         }
     }
+    pthread_rwlock_unlock(&s_session_items_lock);
 }
 
 bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr)
 {
     dap_return_val_if_fail(a_validator_addr, -1);
-    dap_chain_esbocs_session_t *l_session;
     bool l_ret = false;
-    DL_FOREACH(s_session_items, l_session)
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
-            l_ret = dap_chain_net_add_validator_to_clusters(l_session->chain, a_validator_addr);
-            if (l_session->db_cluster)
-                l_ret &= (bool)dap_global_db_cluster_member_add(l_session->db_cluster, a_validator_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-            return l_ret;
-        }
-    return NULL;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session) {
+        l_ret = dap_chain_net_add_validator_to_clusters(l_session->chain, a_validator_addr);
+        if (l_session->db_cluster)
+            l_ret &= (bool)dap_global_db_cluster_member_add(l_session->db_cluster, a_validator_addr, DAP_GDB_MEMBER_ROLE_ROOT);
+    }
+    pthread_rwlock_unlock(&s_session_items_lock);
+    return l_ret;
 }
 
 bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr)
 {
     dap_return_val_if_fail(a_validator_addr, -1);
-    dap_chain_esbocs_session_t *l_session;
     bool l_ret = false;
-    DL_FOREACH(s_session_items, l_session)
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
-            l_ret = dap_chain_net_remove_validator_from_clusters(l_session->chain, a_validator_addr);
-            if (l_session->db_cluster)
-                l_ret &= dap_global_db_cluster_member_delete(l_session->db_cluster, a_validator_addr);
-            return l_ret;
-        }
-    return NULL;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session) {
+        l_ret = dap_chain_net_remove_validator_from_clusters(l_session->chain, a_validator_addr);
+        if (l_session->db_cluster)
+            l_ret &= dap_global_db_cluster_member_delete(l_session->db_cluster, a_validator_addr);
+    }
+    pthread_rwlock_unlock(&s_session_items_lock);
+    return l_ret;
 }
 
 uint256_t dap_chain_esbocs_get_collecting_level(dap_chain_t *a_chain)
@@ -786,9 +990,31 @@ dap_enc_key_t *dap_chain_esbocs_get_sign_key(dap_chain_t *a_chain)
     return l_esbocs_pvt->blocks_sign_key;
 }
 
-int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value)
+typedef enum s_esbocs_setter_op {
+    ESBOCS_SETTER_OP_MIN_VALIDATORS = 0,
+    ESBOCS_SETTER_OP_SIGNS_STRUCT_CHECK,
+    ESBOCS_SETTER_OP_EMERGENCY_VALIDATOR,
+    ESBOCS_SETTER_OP_EMPTY_BLOCK_PERIOD
+} s_esbocs_setter_op_t;
+
+typedef struct s_esbocs_setter_call {
+    dap_chain_esbocs_session_t *session;
+    dap_chain_t *chain;
+    s_esbocs_setter_op_t op;
+    union {
+        uint16_t min_validators_count;
+        bool signs_check_enable;
+        struct {
+            bool add;
+            uint32_t sign_type;
+            dap_hash_fast_t validator_hash;
+        } emergency_validator;
+        uint16_t empty_block_period;
+    };
+} s_esbocs_setter_call_t;
+
+static int s_esbocs_set_min_validators_count_apply(dap_chain_t *a_chain, uint16_t a_new_value)
 {
-    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
@@ -808,18 +1034,8 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
     return 0;
 }
 
-uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
+static int s_esbocs_set_signs_struct_check_apply(dap_chain_t *a_chain, bool a_enable)
 {
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session)
-        if (l_session->chain->net_id.uint64 == a_net_id.uint64)
-            return PVT(l_session->esbocs)->min_validators_count;
-    return 0;
-}
-
-int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
-{
-    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
@@ -827,15 +1043,14 @@ int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
     return 0;
 }
 
-int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash)
+static int s_esbocs_set_emergency_validator_apply(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash)
 {
-    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     dap_chain_addr_t l_signing_addr;
     dap_sign_type_t l_type = { .type = a_sign_type };
-    dap_chain_addr_fill(&l_signing_addr, l_type , a_validator_hash, a_chain->net_id);
+    dap_chain_addr_fill(&l_signing_addr, l_type, a_validator_hash, a_chain->net_id);
     if (a_add) {
         if (s_check_emergency_rights(l_esbocs, &l_signing_addr))
             return -2;
@@ -857,17 +1072,199 @@ int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, u
     return 0;
 }
 
+static int s_esbocs_set_empty_block_period_apply(dap_chain_t *a_chain, uint16_t a_blockgen_period)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    l_esbocs_pvt->empty_block_every_times = a_blockgen_period;
+    return 0;
+}
+
+static int s_esbocs_setter_apply(s_esbocs_setter_call_t *a_call)
+{
+    switch (a_call->op) {
+    case ESBOCS_SETTER_OP_MIN_VALIDATORS:
+        return s_esbocs_set_min_validators_count_apply(a_call->chain, a_call->min_validators_count);
+    case ESBOCS_SETTER_OP_SIGNS_STRUCT_CHECK:
+        return s_esbocs_set_signs_struct_check_apply(a_call->chain, a_call->signs_check_enable);
+    case ESBOCS_SETTER_OP_EMERGENCY_VALIDATOR:
+        return s_esbocs_set_emergency_validator_apply(a_call->chain, a_call->emergency_validator.add,
+                                                      a_call->emergency_validator.sign_type,
+                                                      &a_call->emergency_validator.validator_hash);
+    case ESBOCS_SETTER_OP_EMPTY_BLOCK_PERIOD:
+        return s_esbocs_set_empty_block_period_apply(a_call->chain, a_call->empty_block_period);
+    default:
+        return -1;
+    }
+}
+
+static bool s_esbocs_setter_on_proc_thread(void *a_arg)
+{
+    s_esbocs_setter_call_t *l_call = a_arg;
+    int l_result = s_esbocs_setter_apply(l_call);
+    if (l_result)
+        log_it(L_WARNING, "Async setter op=%u failed in net:%s chain:%s, code=%d",
+               (unsigned)l_call->op, l_call->session->chain->net_name, l_call->session->chain->name, l_result);
+    s_session_release_after_callback(l_call->session);
+    DAP_DELETE(l_call);
+    return false;
+}
+
+static int s_esbocs_setter_call_exec(dap_chain_esbocs_session_t *a_session, s_esbocs_setter_call_t *a_call)
+{
+    dap_return_val_if_fail(a_session && a_session->proc_thread, -2);
+    if (atomic_load_explicit(&a_session->stopping, memory_order_acquire)) {
+        debug_if(a_session->esbocs && a_session->esbocs->_pvt && PVT(a_session->esbocs)->debug_more, L_DEBUG,
+                 "Skip setter op=%u for net:%s chain:%s because session is stopping",
+                 (unsigned)a_call->op, a_session->chain->net_name, a_session->chain->name);
+        return -3;
+    }
+    if (s_session_is_proc_thread(a_session))
+        return s_esbocs_setter_apply(a_call);
+    if (!s_session_try_acquire_for_callback(a_session)) {
+        debug_if(a_session->esbocs && a_session->esbocs->_pvt && PVT(a_session->esbocs)->debug_more, L_DEBUG,
+                 "Skip setter op=%u for net:%s chain:%s because callback acquire rejected",
+                 (unsigned)a_call->op, a_session->chain->net_name, a_session->chain->name);
+        return -5;
+    }
+    s_esbocs_setter_call_t *l_call_dup = DAP_DUP(a_call);
+    if (!l_call_dup) {
+        s_session_release_after_callback(a_session);
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        return -4;
+    }
+    if (dap_proc_thread_callback_add(a_session->proc_thread, s_esbocs_setter_on_proc_thread, l_call_dup)) {
+        s_session_release_after_callback(a_session);
+        DAP_DELETE(l_call_dup);
+        return -6;
+    }
+    return 0;
+}
+
+int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value)
+{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_return_val_if_fail(l_esbocs, -2);
+    if (!l_esbocs->session)
+        return s_esbocs_set_min_validators_count_apply(a_chain, a_new_value);
+    s_esbocs_setter_call_t l_call = {
+        .session = l_esbocs->session,
+        .chain = a_chain,
+        .op = ESBOCS_SETTER_OP_MIN_VALIDATORS,
+        .min_validators_count = a_new_value
+    };
+    return s_esbocs_setter_call_exec(l_esbocs->session, &l_call);
+}
+
+uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
+{
+    uint16_t l_ret = 0;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    dap_chain_esbocs_session_t *l_session = s_session_items_find_by_net_id_unsafe(a_net_id);
+    if (l_session)
+        l_ret = PVT(l_session->esbocs)->min_validators_count;
+    pthread_rwlock_unlock(&s_session_items_lock);
+    if (l_session)
+        return l_ret;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    for (dap_chain_t *it = l_net ? l_net->pub.chains : NULL; it; it = it->next)
+        if (!dap_strcmp(dap_chain_get_cs_type(it), DAP_CHAIN_ESBOCS_CS_TYPE_STR))
+            return PVT(DAP_CHAIN_ESBOCS(DAP_CHAIN_CS_BLOCKS(it)))->min_validators_count;
+    return 0;
+}
+
+int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
+{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_return_val_if_fail(l_esbocs, -2);
+    if (!l_esbocs->session)
+        return s_esbocs_set_signs_struct_check_apply(a_chain, a_enable);
+    s_esbocs_setter_call_t l_call = {
+        .session = l_esbocs->session,
+        .chain = a_chain,
+        .op = ESBOCS_SETTER_OP_SIGNS_STRUCT_CHECK,
+        .signs_check_enable = a_enable
+    };
+    return s_esbocs_setter_call_exec(l_esbocs->session, &l_call);
+}
+
+int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash)
+{
+    dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
+    dap_return_val_if_fail(a_validator_hash, -2);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_return_val_if_fail(l_esbocs, -3);
+    if (!l_esbocs->session)
+        return s_esbocs_set_emergency_validator_apply(a_chain, a_add, a_sign_type, a_validator_hash);
+    s_esbocs_setter_call_t l_call = {
+        .session = l_esbocs->session,
+        .chain = a_chain,
+        .op = ESBOCS_SETTER_OP_EMERGENCY_VALIDATOR,
+        .emergency_validator = {
+            .add = a_add,
+            .sign_type = a_sign_type,
+            .validator_hash = *a_validator_hash
+        }
+    };
+    return s_esbocs_setter_call_exec(l_esbocs->session, &l_call);
+}
+
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
-    dap_enc_key_delete(PVT(l_esbocs)->blocks_sign_key);
-    DAP_DEL_MULTY(PVT(l_esbocs)->block_sign_pkey, PVT(l_esbocs)->collecting_addr, l_esbocs->_pvt);
     dap_chain_esbocs_session_t *l_session = l_esbocs->session;
     if (!l_session) {
         log_it(L_INFO, "No session found");
+        dap_enc_key_delete(PVT(l_esbocs)->blocks_sign_key);
+        DAP_DEL_MULTY(PVT(l_esbocs)->block_sign_pkey, PVT(l_esbocs)->collecting_addr, l_esbocs->_pvt, a_blocks->_inheritor);
         return;
     }
+    l_session->cs_timer = false;
+    atomic_store_explicit(&l_session->stopping, true, memory_order_release);
+    s_esbocs_atom_notifier_ctx_t *l_atom_notifier_ctx = l_session->atom_notifier_ctx;
+    s_atom_notifier_session_set(l_atom_notifier_ctx, NULL);
+    l_esbocs->session = NULL;
+    pthread_rwlock_wrlock(&s_session_items_lock);
     DL_DELETE(s_session_items, l_session);
+    pthread_rwlock_unlock(&s_session_items_lock);
+    debug_if(PVT(l_esbocs)->debug_more, L_DEBUG,
+             "Session stop requested net:%s chain:%s, inflight callbacks=%u",
+             l_session->chain->net_name, l_session->chain->name,
+             (unsigned)atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire));
+    size_t l_retry = 0;
+    for (; atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire) &&
+           l_retry < ESBOCS_SESSION_DRAIN_WAIT_ATTEMPTS; l_retry++) {
+        if (l_retry && !(l_retry % 1000))
+            debug_if(PVT(l_esbocs)->debug_more, L_DEBUG,
+                     "Wait inflight callbacks drain net:%s chain:%s inflight=%u",
+                     l_session->chain->net_name, l_session->chain->name,
+                     (unsigned)atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire));
+        dap_usleep(ESBOCS_SESSION_DRAIN_WAIT_US);
+    }
+    uint32_t l_inflight_left = atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire);
+    if (l_inflight_left) {
+        log_it(L_ERROR, "Timeout waiting callbacks drain for net:%s chain:%s, inflight=%u, continue teardown",
+               l_session->chain->net_name, l_session->chain->name, l_inflight_left);
+    } else {
+        debug_if(PVT(l_esbocs)->debug_more, L_DEBUG,
+                 "Session callbacks drained net:%s chain:%s",
+                 l_session->chain->net_name, l_session->chain->name);
+    }
+    if (l_atom_notifier_ctx) {
+        if (!dap_proc_thread_callback_add_pri(l_session->proc_thread, s_atom_notifier_ctx_delete_queued,
+                                              l_atom_notifier_ctx, DAP_QUEUE_MSG_PRIORITY_LOW)) {
+            l_session->atom_notifier_ctx = NULL;
+        } else {
+            log_it(L_WARNING, "Can't enqueue atom notifier context release for net:%s chain:%s, will leak until process exit",
+                   l_session->chain->net_name, l_session->chain->name);
+        }
+    }
     s_session_round_clear(l_session);
     dap_chain_esbocs_sync_item_t *l_sync_item, *l_sync_tmp;
     HASH_ITER(hh, l_session->sync_items, l_sync_item, l_sync_tmp) {
@@ -880,6 +1277,11 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
         HASH_DEL(l_session->penalty, l_pen_item);
         DAP_DELETE(l_pen_item);
     }
+    debug_if(PVT(l_esbocs)->debug_more, L_DEBUG, "Cleanup ESBOCS peer version cache on session delete, entries=%zu",
+             s_session_peer_versions_count(l_session));
+    s_session_peer_versions_cleanup(l_session, NULL);
+    dap_enc_key_delete(PVT(l_esbocs)->blocks_sign_key);
+    DAP_DEL_MULTY(PVT(l_esbocs)->block_sign_pkey, PVT(l_esbocs)->collecting_addr, l_esbocs->_pvt);
     DAP_DEL_MULTY(l_session, a_blocks->_inheritor); // a_blocks->_inheritor - l_esbocs
 }
 
@@ -1039,12 +1441,19 @@ static dap_list_t *s_validator_check_synced(dap_chain_addr_t *a_addr, dap_list_t
 
 static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
 {
+    a_session->db_hash = c_dap_global_db_driver_hash_blank;
+    a_session->db_hash_legacy = c_dap_global_db_driver_hash_blank;
     dap_chain_addr_t l_addr_blank = c_dap_chain_addr_blank;
     l_addr_blank.net_id = a_session->chain->net_id;
     dap_chain_net_srv_stake_mark_validator_active(&l_addr_blank, true);  // Mark all validators active for now
     char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
     size_t l_penalties_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
+    char **l_penalty_keys = l_penalties_count ? DAP_NEW_Z_COUNT(char *, l_penalties_count) : NULL;
+    size_t l_penalty_keys_count = 0;
+    bool l_need_legacy_hash = l_penalties_count && !l_penalty_keys;
+    if (l_need_legacy_hash)
+        log_it(L_WARNING, "Not enough memory for canonical penalty hash, fallback to legacy hash");
     for (size_t i = 0; i < l_penalties_count; i++) {
         dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(l_objs[i].key);
         if (!l_validator_addr) {
@@ -1056,55 +1465,188 @@ static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
             log_it(L_ERROR, "Wrong destination net ID %" DAP_UINT64_FORMAT_x "session net ID %" DAP_UINT64_FORMAT_x,
                                                         l_validator_addr->net_id.uint64, a_session->chain->net_id.uint64);
             dap_global_db_del_sync(l_penalty_group, l_objs[i].key);
+            DAP_DELETE(l_validator_addr);
             continue;
         }
         if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, false)) {
             log_it(L_ERROR, "Validator with signing address %s not found in network %s",
                                                         l_objs[i].key, a_session->chain->net_name);
             dap_global_db_del_sync(l_penalty_group, l_objs[i].key);
+            DAP_DELETE(l_validator_addr);
             continue;
         }
+        if (!l_need_legacy_hash) {
+            char *l_key = dap_strdup(l_objs[i].key);
+            if (l_key)
+                l_penalty_keys[l_penalty_keys_count++] = l_key;
+            else
+                l_need_legacy_hash = true;
+        }
+        DAP_DELETE(l_validator_addr);
     }
     dap_global_db_objs_delete(l_objs, l_penalties_count);
     dap_store_obj_t *l_last_raw = dap_global_db_driver_read_last(l_penalty_group, false);
     if (l_last_raw) {
-        a_session->db_hash = dap_global_db_driver_hash_get(l_last_raw);
+        a_session->db_hash_legacy = dap_global_db_driver_hash_get(l_last_raw);
         dap_store_obj_free_one(l_last_raw);
     }
+    if (!l_need_legacy_hash) {
+        if (l_penalty_keys_count > 1)
+            qsort(l_penalty_keys, l_penalty_keys_count, sizeof(char *), s_penalty_key_compare);
+        uint32_t l_unique_count = 0;
+        size_t l_payload_size = sizeof(uint32_t) + sizeof(dap_chain_net_id_t) + sizeof(dap_chain_id_t) + sizeof(uint32_t);
+        for (size_t i = 0; i < l_penalty_keys_count; i++) {
+            if (i && !strcmp(l_penalty_keys[i], l_penalty_keys[i - 1]))
+                continue;
+            l_unique_count++;
+            l_payload_size += strlen(l_penalty_keys[i]) + 1;
+        }
+        byte_t *l_payload = DAP_NEW_Z_SIZE(byte_t, l_payload_size);
+        if (l_payload) {
+            byte_t *l_payload_pos = l_payload;
+            uint32_t l_hash_version = ESBOCS_PENALTY_HASH_VERSION;
+            memcpy(l_payload_pos, &l_hash_version, sizeof(l_hash_version));
+            l_payload_pos += sizeof(l_hash_version);
+            memcpy(l_payload_pos, &a_session->chain->net_id, sizeof(a_session->chain->net_id));
+            l_payload_pos += sizeof(a_session->chain->net_id);
+            memcpy(l_payload_pos, &a_session->chain->id, sizeof(a_session->chain->id));
+            l_payload_pos += sizeof(a_session->chain->id);
+            memcpy(l_payload_pos, &l_unique_count, sizeof(l_unique_count));
+            l_payload_pos += sizeof(l_unique_count);
+            for (size_t i = 0; i < l_penalty_keys_count; i++) {
+                if (i && !strcmp(l_penalty_keys[i], l_penalty_keys[i - 1]))
+                    continue;
+                size_t l_key_len = strlen(l_penalty_keys[i]) + 1;
+                memcpy(l_payload_pos, l_penalty_keys[i], l_key_len);
+                l_payload_pos += l_key_len;
+            }
+            dap_hash_fast_t l_penalty_hash = {};
+            if (dap_hash_fast(l_payload, l_payload_size, &l_penalty_hash))
+                a_session->db_hash = s_sync_hash_from_fast(&l_penalty_hash);
+            else {
+                debug_if(PVT(a_session->esbocs)->debug_more, L_WARNING,
+                         "Can't calculate canonical penalty hash, fallback to legacy hash");
+                l_need_legacy_hash = true;
+            }
+            DAP_DELETE(l_payload);
+        } else {
+            debug_if(PVT(a_session->esbocs)->debug_more, L_WARNING,
+                     "Can't allocate canonical penalty payload (%zu bytes), fallback to legacy hash", l_payload_size);
+            l_need_legacy_hash = true;
+        }
+    }
+    if (l_need_legacy_hash)
+        a_session->db_hash = a_session->db_hash_legacy;
+    for (size_t i = 0; i < l_penalty_keys_count; i++)
+        DAP_DELETE(l_penalty_keys[i]);
+    DAP_DELETE(l_penalty_keys);
     DAP_DELETE(l_penalty_group);
+    debug_if(PVT(a_session->esbocs)->debug_more, L_DEBUG,
+             "ESBOCS penalty hashes recalculated: canonical=%s legacy=%s mode=%s keys=%zu",
+             dap_global_db_driver_hash_print(a_session->db_hash),
+             dap_global_db_driver_hash_print(a_session->db_hash_legacy),
+             l_need_legacy_hash ? "legacy-fallback" : "canonical", l_penalty_keys_count);
     a_session->is_actual_hash = true;
 }
 
-static void s_session_send_startsync(void *a_arg)
+static void s_session_send_startsync_hash(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_last_block_hash,
+                                          dap_chain_esbocs_validator_t *a_validator, dap_global_db_driver_hash_t a_hash,
+                                          uint16_t a_peer_version)
 {
-    dap_chain_esbocs_session_t *a_session = (dap_chain_esbocs_session_t*)a_arg;
+    struct sync_params l_params = { .attempt = a_session->cur_round.sync_attempt, .db_hash = a_hash };
+    s_message_send_single(a_session, a_validator, DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC, a_peer_version,
+                          a_last_block_hash, &l_params, sizeof(l_params));
+}
+
+static void s_session_send_startsync_with_unknown_version(dap_chain_esbocs_session_t *a_session, uint16_t a_unknown_peer_version,
+                                                          dap_chain_addr_t *a_skip_signing_addr)
+{
     if (a_session->cur_round.sync_sent)
-        return;     // Sync message already was sent
+        return;
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(a_session->chain, c_dap_chain_cell_id_null, &l_last_block_hash);
     a_session->ts_round_sync_start = dap_time_now();
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash))
-        return;     // My last block hash has changed, skip sync message
+        return;
     if (!a_session->is_actual_hash)
         s_db_calc_sync_hash(a_session);
     if (PVT(a_session->esbocs)->debug) {
         dap_string_t *l_addr_list = dap_string_new("");
-        for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
+        for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next)
             dap_string_append_printf(l_addr_list, NODE_ADDR_FP_STR"; ",
                                      NODE_ADDR_FP_ARGS_S(((dap_chain_esbocs_validator_t *)it->data)->node_addr));
-        }
-        const char *l_sync_hash = dap_global_db_driver_hash_print(a_session->db_hash);
         log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
-                       " Sent START_SYNC pkt, sync attempt %"DAP_UINT64_FORMAT_U" current validators list: %s DB sync hash %s",
+                       " Sent START_SYNC pkt, sync attempt %"DAP_UINT64_FORMAT_U" current validators list: %s DB sync hash (canonical %s legacy %s)",
                             a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
-                                a_session->cur_round.sync_attempt, l_addr_list->str, l_sync_hash);
+                                a_session->cur_round.sync_attempt, l_addr_list->str,
+                                dap_global_db_driver_hash_print(a_session->db_hash),
+                                dap_global_db_driver_hash_print(a_session->db_hash_legacy));
         dap_string_free(l_addr_list, true);
     }
-    struct sync_params l_params = { .attempt = a_session->cur_round.sync_attempt, .db_hash = a_session->db_hash };
-    s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC, &l_last_block_hash,
-                   &l_params, sizeof(struct sync_params),
-                   a_session->cur_round.all_validators);
+    for (dap_list_t *it = a_session->cur_round.all_validators; it; it = it->next) {
+        dap_chain_esbocs_validator_t *l_validator = it->data;
+        if (a_skip_signing_addr && dap_chain_addr_compare(&l_validator->signing_addr, a_skip_signing_addr))
+            continue;
+        uint16_t l_cached_peer_version = s_session_peer_version_get(a_session, &l_validator->signing_addr);
+        uint16_t l_peer_version = s_session_peer_version_resolve(a_session, l_validator, a_unknown_peer_version);
+        dap_global_db_driver_hash_t l_hash = l_peer_version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY ?
+                a_session->db_hash_legacy : a_session->db_hash;
+        debug_if(PVT(a_session->esbocs)->debug_more, L_DEBUG,
+                 "Send START_SYNC to %s with v%hu (%s, cached=%hu fallback=%hu) hash=%s",
+                 dap_chain_hash_fast_to_str_static(&l_validator->signing_addr.data.hash_fast), l_peer_version,
+                 s_protocol_version_is_supported(l_cached_peer_version) ? "cached" : "fallback",
+                 l_cached_peer_version, a_unknown_peer_version, dap_global_db_driver_hash_print(l_hash));
+        s_session_send_startsync_hash(a_session, &l_last_block_hash, l_validator, l_hash, l_peer_version);
+    }
     a_session->cur_round.sync_sent = true;
+}
+
+static void s_session_send_startsync(void *a_arg)
+{
+    s_session_send_startsync_with_unknown_version((dap_chain_esbocs_session_t *)a_arg,
+                                                  DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY, NULL);
+}
+
+static void s_session_send_startsync_timer(void *a_arg)
+{
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    if (!atomic_load_explicit(&l_session->stopping, memory_order_acquire))
+        s_session_send_startsync(l_session);
+    s_session_release_after_callback(l_session);
+}
+
+static bool s_session_send_startsync_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms)
+{
+    dap_return_val_if_pass(!a_session || !a_timeout_ms, false);
+    if (!s_session_try_acquire_for_callback(a_session))
+        return false;
+    if (!dap_proc_thread_timer_add_pri(a_session->proc_thread, s_session_send_startsync_timer, a_session,
+                                       a_timeout_ms, true, DAP_QUEUE_MSG_PRIORITY_NORMAL))
+        return true;
+    s_session_release_after_callback(a_session);
+    return false;
+}
+
+static void s_session_proc_state_timer(void *a_arg)
+{
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    if (!atomic_load_explicit(&l_session->stopping, memory_order_acquire))
+        s_session_proc_state(l_session);
+    if (!atomic_load_explicit(&l_session->stopping, memory_order_acquire) && l_session->cs_timer)
+        s_session_proc_state_timer_schedule(l_session, 1000);
+    s_session_release_after_callback(l_session);
+}
+
+static bool s_session_proc_state_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms)
+{
+    dap_return_val_if_pass(!a_session || !a_timeout_ms, false);
+    if (!s_session_try_acquire_for_callback(a_session))
+        return false;
+    if (!dap_proc_thread_timer_add_pri(a_session->proc_thread, s_session_proc_state_timer, a_session,
+                                       a_timeout_ms, true, DAP_QUEUE_MSG_PRIORITY_NORMAL))
+        return true;
+    s_session_release_after_callback(a_session);
+    return false;
 }
 
 static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
@@ -1157,12 +1699,15 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
             .sync_attempt = a_session->cur_round.sync_attempt
     };
     a_session->db_hash = c_dap_global_db_driver_hash_blank;
+    a_session->db_hash_legacy = c_dap_global_db_driver_hash_blank;
     a_session->is_actual_hash = false;
 }
 
 static bool s_session_round_new(void *a_arg)
 {
     dap_chain_esbocs_session_t *a_session = (dap_chain_esbocs_session_t*)a_arg;
+    if (atomic_load_explicit(&a_session->stopping, memory_order_acquire))
+        return false;
     if (!a_session->round_fast_forward)
         s_session_update_penalty(a_session);
     s_session_round_clear(a_session);
@@ -1198,6 +1743,21 @@ static bool s_session_round_new(void *a_arg)
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false, NULL);
     a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
     dap_list_free_full(l_validators, NULL);
+    size_t l_peer_versions_count_before = s_session_peer_versions_count(a_session);
+    s_session_peer_versions_cleanup(a_session, a_session->cur_round.all_validators);
+    if (!a_session->cur_round.all_validators)
+        s_session_peer_versions_cleanup(a_session, NULL);
+    s_session_peer_version_set(a_session, &a_session->my_signing_addr, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
+    debug_if(PVT(a_session->esbocs)->debug_more, L_DEBUG,
+             "Round peer version cache cleanup: %zu -> %zu entries",
+             l_peer_versions_count_before, s_session_peer_versions_count(a_session));
+    if (PVT(a_session->esbocs)->debug_more) {
+        size_t l_total_count = 0, l_v8_count = 0, l_v9_count = 0, l_unknown_count = 0;
+        s_session_peer_versions_collect_stats(a_session, a_session->cur_round.all_validators,
+                                              &l_total_count, &l_v8_count, &l_v9_count, &l_unknown_count);
+        log_it(L_DEBUG, "Round peer versions summary: validators=%zu cache=%zu v8=%zu v9=%zu unknown=%zu",
+               l_total_count, s_session_peer_versions_count(a_session), l_v8_count, l_v9_count, l_unknown_count);
+    }
     bool l_round_already_started = a_session->round_fast_forward;
     dap_chain_esbocs_sync_item_t *l_item = NULL, *l_tmp;
     HASH_FIND(hh, a_session->sync_items, &a_session->cur_round.last_block_hash, sizeof(dap_hash_fast_t), l_item);
@@ -1226,7 +1786,7 @@ static bool s_session_round_new(void *a_arg)
         } else if (!l_round_already_started) {
             long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.prev_round_start_ts;
             if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay && a_session->esbocs->last_accepted_block_timestamp) {
-                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - *(uint16_t*)l_time_delta;
+                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - (uint16_t)l_time_delta;
             } else {
                 l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay;
             }
@@ -1236,16 +1796,43 @@ static bool s_session_round_new(void *a_arg)
                  "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" start. Syncing validators in %u seconds",
                     a_session->chain->net_name, a_session->chain->name,
                         a_session->cur_round.id, l_sync_send_delay);
-        if (l_sync_send_delay)
-            dap_proc_thread_timer_add_pri(a_session->proc_thread, s_session_send_startsync, a_session,
-                                          l_sync_send_delay * 1000, true, DAP_QUEUE_MSG_PRIORITY_NORMAL);
-        else
+        if (l_sync_send_delay) {
+            if (!s_session_send_startsync_timer_schedule(a_session, l_sync_send_delay * 1000))
+                log_it(L_WARNING, "Can't schedule START_SYNC timer for net:%s chain:%s",
+                       a_session->chain->net_name, a_session->chain->name);
+        } else
             s_session_send_startsync(a_session);
     }
     a_session->round_fast_forward = false;
     a_session->new_round_enqueued = false;
     a_session->sync_failed = false;
     a_session->listen_ensure = 0;
+    return false;
+}
+
+static bool s_session_round_new_queued(void *a_arg)
+{
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    bool l_ret = s_session_round_new(l_session);
+    s_session_release_after_callback(l_session);
+    return l_ret;
+}
+
+static bool s_session_round_new_schedule(dap_chain_esbocs_session_t *a_session)
+{
+    if (!a_session)
+        return false;
+    if (!s_session_try_acquire_for_callback(a_session)) {
+        debug_if(PVT(a_session->esbocs)->debug_more, L_DEBUG,
+                 "Skip round enqueue net:%s chain:%s because callback acquire rejected",
+                 a_session->chain->net_name, a_session->chain->name);
+        return false;
+    }
+    if (!dap_proc_thread_callback_add(a_session->proc_thread, s_session_round_new_queued, a_session))
+        return true;
+    s_session_release_after_callback(a_session);
+    log_it(L_WARNING, "Can't enqueue new round callback for net:%s chain:%s",
+           a_session->chain->net_name, a_session->chain->name);
     return false;
 }
 
@@ -1454,7 +2041,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 }
                 a_session->esbocs->last_directive_vote_timestamp = dap_time_now();
                 s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_DIRECTIVE, &l_directive_hash,
-                                    l_directive, l_directive->size, a_session->cur_round.all_validators);
+                                    l_directive, l_directive->size, a_session->cur_round.all_validators,
+                                    DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
                 DAP_DELETE(l_directive);
             } else
                 s_session_candidate_submit(a_session);
@@ -1544,7 +2132,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         // Send own PreCommit
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_PRE_COMMIT, &l_store->candidate_hash,
                             &l_store->precommit_candidate_hash, sizeof(dap_chain_hash_fast_t),
-                                a_session->cur_round.validators_list);
+                                a_session->cur_round.validators_list, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
     } break;
 
     case DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS: {
@@ -1554,7 +2142,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             log_it(L_ERROR, "No previous state registered, can't roll back");
             if (!a_session->new_round_enqueued) {
                 a_session->new_round_enqueued = true;
-                dap_proc_thread_callback_add(a_session->proc_thread, s_session_round_new, a_session);
+                if (!s_session_round_new_schedule(a_session))
+                    a_session->new_round_enqueued = false;
             }
         }
     }
@@ -1566,6 +2155,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
 static void s_session_proc_state(void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
+    if (atomic_load_explicit(&l_session->stopping, memory_order_acquire))
+        return;
     if (!l_session->cs_timer)
         return; // Timer is inactive
     bool l_cs_debug = PVT(l_session->esbocs)->debug;
@@ -1584,7 +2175,8 @@ static void s_session_proc_state(void *a_arg)
                                                                         l_session->cur_round.id);
                 if (!l_session->new_round_enqueued) {
                     l_session->new_round_enqueued = true;
-                    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
+                    if (!s_session_round_new_schedule(l_session))
+                        l_session->new_round_enqueued = false;
                 }
                 break;
             }
@@ -1606,7 +2198,8 @@ static void s_session_proc_state(void *a_arg)
                 l_session->sync_failed = !l_round_skip;
                 if (!l_session->new_round_enqueued) {
                     l_session->new_round_enqueued = true;
-                    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
+                    if (!s_session_round_new_schedule(l_session))
+                        l_session->new_round_enqueued = false;
                 }
             }
         }
@@ -1771,7 +2364,8 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                                     a_session->cur_round.id, a_session->cur_round.attempt_num);
     }
     s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT, &l_candidate_hash,
-                    l_candidate, l_candidate_size, a_session->cur_round.validators_list);
+                    l_candidate, l_candidate_size, a_session->cur_round.validators_list,
+                    DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
     //Save candidate_hash
     memcpy(&(PVT(a_session->esbocs)->candidate_hash), &l_candidate_hash, sizeof(dap_hash_fast_t));
     a_session->esbocs->last_submitted_candidate_timestamp = dap_time_now();
@@ -1802,7 +2396,8 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     if (l_verify_status == ATOM_ACCEPT || l_verify_status == ATOM_FORK) {
         // validation - OK, gen event Approve
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE, a_candidate_hash,
-                       NULL, 0, a_session->cur_round.validators_list);
+                       NULL, 0, a_session->cur_round.validators_list,
+                       DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
         if (PVT(a_session->esbocs)->debug) {
             const char *l_candidate_hash_str = dap_chain_hash_fast_to_str_static(a_candidate_hash);
             log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu Sent APPROVE candidate %s",
@@ -1813,7 +2408,8 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     } else {
         // validation - fail, gen event Reject
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_REJECT, a_candidate_hash,
-                       NULL, 0, a_session->cur_round.validators_list);
+                       NULL, 0, a_session->cur_round.validators_list,
+                       DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
         if (PVT(a_session->esbocs)->debug) {
             const char *l_candidate_hash_str = dap_chain_hash_fast_to_str_static(a_candidate_hash);
             log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu Sent REJECT candidate %s",
@@ -2113,7 +2709,8 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
     }
     // Send own vote
     uint8_t l_type = l_vote_for ? DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR : DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST;
-    s_message_send(a_session, l_type, a_directive_hash, NULL, 0, a_session->cur_round.all_validators);
+    s_message_send(a_session, l_type, a_directive_hash, NULL, 0, a_session->cur_round.all_validators,
+                   DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
 }
 
 static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, dap_hash_fast_t *a_directive_hash, dap_chain_esbocs_t* a_esbocs)
@@ -2180,7 +2777,6 @@ static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_ch
         if (dap_hash_fast_compare(&l_authorized_pkey->data.hash_fast, &a_signing_addr->data.hash_fast))
             return it;
     }
-    log_it(L_ERROR, "Emergency rights denied - address %s not in authorized list", dap_chain_addr_to_str_static(a_signing_addr));
     return NULL;
 }
 
@@ -2192,7 +2788,7 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
         log_it(L_ERROR, "Can't get block metadata for SYNC_ATTEMPT");
         return false;
     }
-    uint64_t l_sync_attempt = *(uint64_t *)l_sync_attempt_ptr;
+    uint64_t l_sync_attempt; memcpy(&l_sync_attempt, l_sync_attempt_ptr, sizeof(l_sync_attempt));
     uint8_t l_round_attempt = 0;
     if (a_first_sign) {
         uint8_t *l_round_attempt_ptr = dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT);
@@ -2246,7 +2842,13 @@ struct esbocs_msg_args {
 static bool s_process_incoming_message(void *a_arg)
 {
     struct esbocs_msg_args *l_args = a_arg;
-    s_session_packet_in(l_args->session, &l_args->addr_from, l_args->message, l_args->message_size);
+    if (!atomic_load_explicit(&l_args->session->stopping, memory_order_acquire))
+        s_session_packet_in(l_args->session, &l_args->addr_from, l_args->message, l_args->message_size);
+    else
+        debug_if(PVT(l_args->session->esbocs)->debug_more, L_DEBUG,
+                 "Drop queued message for net:%s chain:%s because session is stopping",
+                 l_args->session->chain->net_name, l_args->session->chain->name);
+    s_session_release_after_callback(l_args->session);
     DAP_DELETE(l_args);
     return false;
 }
@@ -2278,20 +2880,28 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         log_it(L_WARNING, "Wrong packet destination address" NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_message->hdr.recv_addr));
         return false;
     }
-    dap_chain_esbocs_session_t *l_session;
-    DL_FOREACH(s_session_items, l_session)
-        if (l_session->chain->net_id.uint64 == l_net->pub.id.uint64)
-            break;
+    dap_chain_esbocs_session_t *l_session = NULL;
+    bool l_callback_acquired = false;
+    pthread_rwlock_rdlock(&s_session_items_lock);
+    l_session = s_session_items_find_by_net_id_unsafe(l_net->pub.id);
+    if (l_session)
+        l_callback_acquired = s_session_try_acquire_for_callback(l_session);
+    pthread_rwlock_unlock(&s_session_items_lock);
     if (!l_session) {
         log_it(L_WARNING, "Session for net %s not found", l_net->pub.name);
         a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         return false;
     }
-    if (l_message->hdr.version != DAP_CHAIN_ESBOCS_PROTOCOL_VERSION) {
+    if (!l_callback_acquired) {
+        log_it(L_MSG, "Drop packet for net %s because ESBOCS session is stopping", l_net->pub.name);
+        return false;
+    }
+    if (!s_protocol_version_is_supported(l_message->hdr.version)) {
         debug_if(PVT(l_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
-                            " Message is rejected - different protocol version %hu (need %u)",
+                            " Message is rejected - unsupported protocol version %hu",
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
-                                    l_message->hdr.version, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION);
+                                    l_message->hdr.version);
+        s_session_release_after_callback(l_session);
         return false;
     }
     debug_if(PVT(l_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
@@ -2302,11 +2912,16 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args, sizeof(struct esbocs_msg_args) + l_message_size);
     if (!l_args) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        s_session_release_after_callback(l_session);
         return false;
     }
     *l_args = (struct esbocs_msg_args){ a_ch->stream->node, l_session, l_message_size };
     memcpy(l_args->message, l_message, l_message_size);
-    dap_proc_thread_callback_add(l_session->proc_thread, s_process_incoming_message, l_args);
+    if (dap_proc_thread_callback_add(l_session->proc_thread, s_process_incoming_message, l_args)) {
+        s_session_release_after_callback(l_session);
+        DAP_DELETE(l_args);
+        return false;
+    }
     return true;
 }
 
@@ -2334,6 +2949,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     dap_chain_addr_t l_signing_addr;
     char l_validator_addr_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {0};
     dap_chain_hash_fast_t l_data_hash = {};
+    uint16_t l_prev_peer_version = 0;
 
     dap_hash_fast(l_message, a_data_size, &l_data_hash);
 
@@ -2383,6 +2999,13 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         }
 
         dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
+        l_prev_peer_version = s_session_peer_version_get(l_session, &l_signing_addr);
+        s_session_peer_version_set(l_session, &l_signing_addr, l_message->hdr.version);
+        debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                 "Incoming %s from %s msg_v=%hu peer_version %hu -> %hu",
+                 s_voting_msg_type_to_str(l_message->hdr.type),
+                 dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_message->hdr.version,
+                 l_prev_peer_version, s_session_peer_version_get(l_session, &l_signing_addr));
         // check messages chain
         dap_chain_esbocs_message_item_t *l_chain_message, *l_chain_message_tmp;
         HASH_ITER(hh, l_round->message_items, l_chain_message, l_chain_message_tmp) {
@@ -2458,9 +3081,30 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                             l_validator_addr_str, l_sync_attempt);
         if (!l_session->is_actual_hash)
             s_db_calc_sync_hash(l_session);
-        dap_global_db_driver_hash_t l_msg_hash = ((struct sync_params *)l_message_data)->db_hash, l_session_hash = l_session->db_hash;
+        dap_global_db_driver_hash_t l_msg_hash = ((struct sync_params *)l_message_data)->db_hash;
+        dap_global_db_driver_hash_t l_session_hash = l_message->hdr.version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY ?
+                l_session->db_hash_legacy : l_session->db_hash;
         if (!PVT(l_session->esbocs)->emergency_mode &&
                 dap_global_db_driver_hash_compare(&l_msg_hash, &l_session_hash)) {
+            debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                     "START_SYNC hash mismatch from %s: msg_v=%hu msg_hash=%s local_hash=%s",
+                     dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_message->hdr.version,
+                     dap_global_db_driver_hash_print(l_msg_hash),
+                     dap_global_db_driver_hash_print(l_session_hash));
+            if (l_message->hdr.version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY &&
+                    !s_protocol_version_is_supported(l_prev_peer_version)) {
+                dap_list_t *l_all_validator_list = s_validator_check(&l_signing_addr, l_session->cur_round.all_validators);
+                if (l_all_validator_list) {
+                    dap_chain_esbocs_validator_t *l_sender_validator = l_all_validator_list->data;
+                    debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                             "Send START_SYNC probe v%u to %s after legacy mismatch",
+                             DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT,
+                             dap_chain_hash_fast_to_str_static(&l_sender_validator->signing_addr.data.hash_fast));
+                    s_session_send_startsync_hash(l_session, &l_session->cur_round.last_block_hash,
+                                                  l_sender_validator, l_session->db_hash,
+                                                  DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
+                }
+            }
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", sync_attempt %"DAP_UINT64_FORMAT_U
                                         " SYNC message is rejected cause DB hash mismatch",
                                            l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
@@ -2502,12 +3146,58 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                     l_session->cur_round.sync_attempt = l_sync_attempt - 1;
                     if (!l_session->new_round_enqueued) {
                         l_session->new_round_enqueued = true;
-                        dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
+                        if (!s_session_round_new_schedule(l_session))
+                            l_session->new_round_enqueued = false;
                     }
                 }
             }
-        } else // Send it immediatly, if was not sent yet
-            s_session_send_startsync(l_session);
+        } else if (!l_session->cur_round.sync_sent) { // Send it immediately, if was not sent yet
+            bool l_reply_probe_sent = false;
+            dap_list_t *l_all_validator_list = s_validator_check(&l_signing_addr, l_session->cur_round.all_validators);
+            if (!s_protocol_version_is_supported(l_prev_peer_version) && l_all_validator_list) {
+                dap_chain_esbocs_validator_t *l_sender_validator = l_all_validator_list->data;
+                debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                         "Reply START_SYNC probe v%u to %s (unknown peer version)",
+                         DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT,
+                         dap_chain_hash_fast_to_str_static(&l_sender_validator->signing_addr.data.hash_fast));
+                s_session_send_startsync_hash(l_session, &l_session->cur_round.last_block_hash,
+                                              l_sender_validator, l_session->db_hash,
+                                              DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
+                l_reply_probe_sent = true;
+            }
+            if (l_all_validator_list) {
+                dap_chain_esbocs_validator_t *l_sender_validator = l_all_validator_list->data;
+                if (!l_reply_probe_sent) {
+                    uint16_t l_reply_version = s_protocol_version_is_supported(l_prev_peer_version) ?
+                            s_session_peer_version_resolve(l_session, l_sender_validator, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY) :
+                            DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT;
+                    dap_global_db_driver_hash_t l_reply_hash = l_reply_version == DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY ?
+                            l_session->db_hash_legacy : l_session->db_hash;
+                    debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                             "Reply START_SYNC to %s with v%hu (prev_peer_v=%hu) hash=%s",
+                             dap_chain_hash_fast_to_str_static(&l_sender_validator->signing_addr.data.hash_fast),
+                             l_reply_version, l_prev_peer_version, dap_global_db_driver_hash_print(l_reply_hash));
+                    s_session_send_startsync_hash(l_session, &l_session->cur_round.last_block_hash,
+                                                  l_sender_validator, l_reply_hash, l_reply_version);
+                }
+            }
+            debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                     "Broadcast START_SYNC after reply, skip sender %s",
+                     dap_chain_hash_fast_to_str_static(&l_signing_addr.data.hash_fast));
+            s_session_send_startsync_with_unknown_version(l_session, DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY, &l_signing_addr);
+        } else if (!s_protocol_version_is_supported(l_prev_peer_version)) {
+            dap_list_t *l_all_validator_list = s_validator_check(&l_signing_addr, l_session->cur_round.all_validators);
+            if (l_all_validator_list) {
+                dap_chain_esbocs_validator_t *l_sender_validator = l_all_validator_list->data;
+                debug_if(PVT(l_session->esbocs)->debug_more, L_DEBUG,
+                         "Reply START_SYNC probe v%u to %s after sync_sent (unknown peer version)",
+                         DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT,
+                         dap_chain_hash_fast_to_str_static(&l_sender_validator->signing_addr.data.hash_fast));
+                s_session_send_startsync_hash(l_session, &l_session->cur_round.last_block_hash,
+                                              l_sender_validator, l_session->db_hash,
+                                              DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
+            }
+        }
 
         s_session_validator_mark_online(l_session, &l_signing_addr);
         dap_list_t *l_list = s_validator_check(&l_signing_addr, l_session->cur_round.validators_list);
@@ -2525,6 +3215,13 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                                 l_session->chain->net_name, l_session->chain->name,
                                                     l_session->cur_round.id, l_message->hdr.attempt_num,
                                                         l_round_skip ? "but round is skipped" : "wait to submit candidate");
+                if (PVT(l_session->esbocs)->debug_more) {
+                    size_t l_total_count = 0, l_v8_count = 0, l_v9_count = 0, l_unknown_count = 0;
+                    s_session_peer_versions_collect_stats(l_session, l_session->cur_round.validators_list,
+                                                          &l_total_count, &l_v8_count, &l_v9_count, &l_unknown_count);
+                    log_it(L_DEBUG, "Synced validators peer versions: validators=%zu cache=%zu v8=%zu v9=%zu unknown=%zu",
+                           l_total_count, s_session_peer_versions_count(l_session), l_v8_count, l_v9_count, l_unknown_count);
+                }
                 if (!l_round_skip)
                     s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
             }
@@ -2642,7 +3339,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                             l_store->candidate, l_offset + sizeof(l_store->candidate->hdr));
             size_t l_candidate_sign_size = dap_sign_get_size(l_candidate_sign);
             s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_COMMIT_SIGN, l_candidate_hash,
-                           l_candidate_sign, l_candidate_sign_size, l_session->cur_round.validators_list);
+                           l_candidate_sign, l_candidate_sign_size, l_session->cur_round.validators_list,
+                           DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT);
             DAP_DELETE(l_candidate_sign);
         }
         if (!l_approve && ++l_store->reject_count >= l_cs_level && !l_store->decide_reject &&
@@ -2677,11 +3375,15 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         HASH_FIND(hh, l_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
         if (!l_store) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_static(l_candidate_hash);
-            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                " Decline COMMIT_SIGN message for unknown candidate %s",
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                " Receive COMMIT_SIGN message for unknown candidate %s, process it later",
                                     l_session->chain->net_name, l_session->chain->name,
                                         l_session->cur_round.id, l_message->hdr.attempt_num,
                                             l_candidate_hash_str);
+            dap_chain_esbocs_message_item_t *l_unprocessed_item = NULL;
+            HASH_FIND(hh, l_round->message_items, &l_data_hash, sizeof(dap_chain_hash_fast_t), l_unprocessed_item);
+            if (l_unprocessed_item)
+                l_unprocessed_item->unprocessed = true;
             break;
         }
         dap_list_t *l_list = s_validator_check(&l_signing_addr, l_session->cur_round.validators_list);
@@ -2816,14 +3518,15 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
     }
 }
 
-static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_message_type, dap_hash_fast_t *a_block_hash,
-                                    const void *a_data, size_t a_data_size, dap_list_t *a_validators)
+static void s_message_send_single(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_validator_t *a_validator,
+                                  uint8_t a_message_type, uint16_t a_protocol_version, dap_hash_fast_t *a_block_hash,
+                                  const void *a_data, size_t a_data_size)
 {
     size_t l_message_size = sizeof(dap_chain_esbocs_message_hdr_t) + a_data_size;
     dap_chain_esbocs_message_t *l_message = DAP_NEW_Z_SIZE_RET_IF_FAIL(dap_chain_esbocs_message_t, l_message_size);
     *l_message = (dap_chain_esbocs_message_t) {
         .hdr = (dap_chain_esbocs_message_hdr_t) { 
-            .version = DAP_CHAIN_ESBOCS_PROTOCOL_VERSION,
+            .version = a_protocol_version,
             .type = a_message_type, 
             .attempt_num = a_session->cur_round.attempt_num, 
             .round_id = a_session->cur_round.id,
@@ -2836,41 +3539,67 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
     };
     if (a_data && a_data_size)
         memcpy(l_message->msg_n_sign, a_data, a_data_size);
+    l_message->hdr.recv_addr = a_validator->node_addr;
+    l_message->hdr.sign_size = 0;
+    dap_sign_t *l_sign = dap_sign_create(PVT(a_session->esbocs)->blocks_sign_key, l_message, l_message_size);
+    size_t l_sign_size = dap_sign_get_size(l_sign);
+    l_message->hdr.sign_size = l_sign_size;
+    dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC_RET_IF_FAIL(l_message, l_message_size + l_sign_size, l_sign, l_message);
+    l_message = l_message_signed;
+    memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
+    DAP_DELETE(l_sign);
+    if (a_validator->node_addr.uint64 != a_session->my_addr.uint64) {
+        dap_stream_ch_pkt_send_by_addr(&a_validator->node_addr, DAP_STREAM_CH_ESBOCS_ID,
+                                       a_message_type, l_message, l_message_size + l_sign_size);
+        DAP_DELETE(l_message);
+        return;
+    }
+    struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
+                                                  sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
+    if (!l_args) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        DAP_DELETE(l_message);
+        return;
+    }
+    l_args->addr_from = a_session->my_addr;
+    l_args->session = a_session;
+    l_args->message_size = l_message_size + l_sign_size;
+    memcpy(l_args->message, l_message, l_message_size + l_sign_size);
+    if (!s_session_try_acquire_for_callback(a_session)) {
+        debug_if(PVT(a_session->esbocs)->debug_more, L_DEBUG,
+                 "Drop local loopback message %s because session is stopping",
+                 s_voting_msg_type_to_str(a_message_type));
+        DAP_DELETE(l_args);
+        DAP_DELETE(l_message);
+        return;
+    }
+    if (dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args)) {
+        s_session_release_after_callback(a_session);
+        DAP_DELETE(l_args);
+    }
+    DAP_DELETE(l_message);
+}
 
+static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_message_type, dap_hash_fast_t *a_block_hash,
+                                    const void *a_data, size_t a_data_size, dap_list_t *a_validators,
+                                    uint16_t a_unknown_peer_version)
+{
     for (dap_list_t *it = a_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
         if ( l_validator->is_synced || a_message_type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC ) {
+            uint16_t l_cached_version = s_session_peer_version_get(a_session, &l_validator->signing_addr);
+            uint16_t l_protocol_version = s_session_peer_version_resolve(a_session, l_validator, a_unknown_peer_version);
             debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Send pkt type 0x%x to "NODE_ADDR_FP_STR, a_message_type,
                                                            NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
-            l_message->hdr.recv_addr = l_validator->node_addr;
-            l_message->hdr.sign_size = 0;
-            dap_sign_t *l_sign = dap_sign_create( PVT(a_session->esbocs)->blocks_sign_key, l_message, l_message_size);
-            size_t l_sign_size = dap_sign_get_size(l_sign);
-            l_message->hdr.sign_size = l_sign_size;
-            dap_chain_esbocs_message_t *l_message_signed = DAP_REALLOC_RET_IF_FAIL(l_message, l_message_size + l_sign_size, l_sign, l_message);
-            l_message = l_message_signed;
-            memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
-            DAP_DELETE(l_sign);
-            if (l_validator->node_addr.uint64 != a_session->my_addr.uint64) {
-                dap_stream_ch_pkt_send_by_addr(&l_validator->node_addr, DAP_STREAM_CH_ESBOCS_ID,
-                                               a_message_type, l_message, l_message_size + l_sign_size);
-                continue;
-            }
-            struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
-                                                          sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
-            if (!l_args) {
-                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                DAP_DELETE(l_message);
-                return;
-            }
-            l_args->addr_from = a_session->my_addr;
-            l_args->session = a_session;
-            l_args->message_size = l_message_size + l_sign_size;
-            memcpy(l_args->message, l_message, l_message_size + l_sign_size);
-            dap_proc_thread_callback_add(a_session->proc_thread, s_process_incoming_message, l_args);
+            debug_if(PVT(a_session->esbocs)->debug_more, L_DEBUG,
+                     "Send %s to %s with v%hu (%s, cached=%hu fallback=%hu)",
+                     s_voting_msg_type_to_str(a_message_type),
+                     dap_chain_hash_fast_to_str_static(&l_validator->signing_addr.data.hash_fast),
+                     l_protocol_version, s_protocol_version_is_supported(l_cached_version) ? "cached" : "fallback",
+                     l_cached_version, a_unknown_peer_version);
+            s_message_send_single(a_session, l_validator, a_message_type, l_protocol_version, a_block_hash, a_data, a_data_size);
         }
     }
-    DAP_DELETE(l_message);
 }
 
 
@@ -3390,20 +4119,19 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CANT_FIND_NET;
         }
 
-        dap_chain_esbocs_session_t *l_session;
+        dap_chain_esbocs_session_t *l_session = NULL;
+        pthread_rwlock_rdlock(&s_session_items_lock);
         if (l_chain_str) {
-            DL_FOREACH(s_session_items, l_session)
-                if (!dap_strcmp(l_chain_str, l_session->chain->name))
-                    break;
+            l_session = s_session_items_find_by_chain_name_unsafe(l_chain_str);
             if (!l_session) {
+                pthread_rwlock_unlock(&s_session_items_lock);
                 log_it(L_WARNING, "Session for net %s chain %s not found", l_net->pub.name, l_chain_str);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION;
             }
         } else {
-            DL_FOREACH(s_session_items, l_session)
-                if (l_session->chain->net_id.uint64 == l_net->pub.id.uint64)
-                    break;
+            l_session = s_session_items_find_by_net_id_unsafe(l_net->pub.id);
             if (!l_session) {
+                pthread_rwlock_unlock(&s_session_items_lock);
                 log_it(L_WARNING, "Session for net %s not found", l_net->pub.name);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_NO_SESSION;
             }
@@ -3460,7 +4188,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             char l_time_buf[DAP_TIME_STR_SIZE] = {'\0'};
             dap_time_to_str_rfc822(l_time_buf, DAP_TIME_STR_SIZE, l_session->esbocs->last_directive_vote_timestamp);
             json_object_object_add(l_json_obj_status, "last_directive_vote_timestamp", json_object_new_string(l_time_buf));
-        }            
+        }
+        pthread_rwlock_unlock(&s_session_items_lock);
     } break;
 
     default:
@@ -3473,9 +4202,15 @@ int dap_chain_esbocs_set_empty_block_every_times(dap_chain_t *a_chain, uint16_t 
 {
     dap_return_val_if_pass(!a_chain || !DAP_CHAIN_ESBOCS(a_chain), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_return_val_if_pass(!DAP_CHAIN_ESBOCS(l_blocks) || !PVT(DAP_CHAIN_ESBOCS(l_blocks)), -2);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    l_esbocs_pvt->empty_block_every_times = a_blockgen_period;
-    return 0;
+    dap_return_val_if_pass(!l_esbocs || !PVT(l_esbocs), -2);
+    if (!l_esbocs->session)
+        return s_esbocs_set_empty_block_period_apply(a_chain, a_blockgen_period);
+    s_esbocs_setter_call_t l_call = {
+        .session = l_esbocs->session,
+        .chain = a_chain,
+        .op = ESBOCS_SETTER_OP_EMPTY_BLOCK_PERIOD,
+        .empty_block_period = a_blockgen_period
+    };
+    return s_esbocs_setter_call_exec(l_esbocs->session, &l_call);
 }
