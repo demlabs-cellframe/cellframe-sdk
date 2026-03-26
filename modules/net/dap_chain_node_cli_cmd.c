@@ -1974,90 +1974,134 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
             }
 
-            const char* l_token_tiker = NULL;
+            const char *l_token_tiker = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_tiker);
-            if (!l_token_tiker){
+            if (!l_token_tiker) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
-                                           "Subcommand outputs requires parameter '-token'");
-                    json_object_put(json_arr_out);
-                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
-            }
-            json_object * json_obj_wall = json_object_new_object();
-            const char *l_value_str = NULL, *l_cond_type_str = NULL;
-            uint256_t l_value_datoshi = uint256_0, l_value_sum = uint256_0;
-            dap_chain_tx_out_cond_subtype_t l_cond_type = DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL;
-            bool l_cond_outs = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cond") != -1;
-            if (!l_cond_outs) {
-                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
-                if (l_value_str) {
-                    l_value_datoshi = dap_chain_balance_scan(l_value_str);
-                    if (IS_ZERO_256(l_value_datoshi)) {
-                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
-                                                   "Can't convert -value param to 256bit integer");
-                            json_object_put(json_arr_out);
-                            return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
-                    }
-                }
-            } else {
-                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-type", &l_cond_type_str);
-                if (l_cond_type_str) {
-                    l_cond_type = dap_chain_tx_out_cond_subtype_from_str_short(l_cond_type_str);
-                    if (l_cond_type == DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED) {
-                        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
-                                               "Invalid conditional output type '%s'. Available types: srv_pay, srv_xchange, srv_stake_pos_delegate, srv_stake_lock, fee", 
-                                                l_cond_type_str);
-                        json_object_put(json_arr_out);
-                        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
-                    }
-                }
+                                       "Subcommand outputs requires parameter '-token'");
+                json_object_put(json_arr_out);
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
             }
 
-            dap_list_t *l_outs_list = NULL;
-            bool l_check_mempool = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-mempool_check", NULL);
-            if (l_cond_outs)
-                l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, l_cond_type, l_token_tiker, l_addr);
-            else if (l_value_str) {
-                if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool, false)) {
-                    debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s (value needed)",
-                             dap_chain_addr_to_str_static(l_addr));
-                    l_outs_list = dap_ledger_get_list_tx_outs_with_val_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum, l_check_mempool); 
-                    if (l_outs_list) {
-                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
-                                 dap_list_length(l_outs_list));
-                    }
-                } 
-            } else {
-                if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool, false)) {
-                    debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s",
-                             dap_chain_addr_to_str_static(l_addr));
-                    l_outs_list = dap_ledger_get_list_tx_outs_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum, l_check_mempool);
-                    if (l_outs_list) {
-                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
-                                 dap_list_length(l_outs_list));
-                    }
-                }
-            }
+            json_object *json_obj_wall = json_object_new_object();
             json_object_object_add(json_obj_wall, "wallet_addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             struct json_object *l_json_outs_arr = json_object_new_array();
             if (!l_json_outs_arr)
                 return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
-            for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next) {
-                json_object *json_obj_item = json_object_new_object();
-                if (!json_obj_item)
-                    return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
-                dap_chain_tx_used_out_item_t *l_item = l_temp->data;
-                const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
-                json_object_object_add(json_obj_item,"item_type", json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
-                json_object_object_add(json_obj_item,"value_coins", json_object_new_string(l_out_value_coins_str));
-                json_object_object_add(json_obj_item,a_version == 1 ? "value_datosi" : "value_datoshi", json_object_new_string(l_out_value_str));
-                json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));
-                json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_int64(l_item->num_idx_out));
-                json_object_array_add(l_json_outs_arr, json_obj_item);
+            uint256_t l_value_sum = uint256_0;
+
+            if (l_addr->addr_type == DAP_CHAIN_ADDR_TYPE_SHARED) {
+                dap_hash_fast_t l_hold_hash = l_addr->data.hash_fast;
+                const char *l_shared_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_hold_hash);
+                if (!l_shared_ticker || dap_strcmp(l_shared_ticker, l_token_tiker)) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
+                                           "Token '%s' does not match shared wallet token '%s'",
+                                           l_token_tiker, l_shared_ticker ? l_shared_ticker : "unknown");
+                    json_object_put(json_obj_wall);
+                    json_object_put(l_json_outs_arr);
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
+                }
+                dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
+                    l_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_hold_hash, true);
+                if (!dap_hash_fast_is_blank(&l_final_hash)) {
+                    dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_final_hash);
+                    if (l_final_tx) {
+                        int l_cond_idx = 0;
+                        dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(
+                            l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_cond_idx);
+                        if (l_cond) {
+                            l_value_sum = l_cond->header.value;
+                            const char *l_coins_str, *l_datoshi_str = dap_uint256_to_char(l_cond->header.value, &l_coins_str);
+                            json_object *json_obj_item = json_object_new_object();
+                            json_object_object_add(json_obj_item, "item_type", json_object_new_string("unspent_cond_out"));
+                            json_object_object_add(json_obj_item, "value_coins", json_object_new_string(l_coins_str));
+                            json_object_object_add(json_obj_item, a_version == 1 ? "value_datosi" : "value_datoshi",
+                                                   json_object_new_string(l_datoshi_str));
+                            json_object_object_add(json_obj_item, "prev_hash",
+                                                   json_object_new_string(dap_hash_fast_to_str_static(&l_final_hash)));
+                            json_object_object_add(json_obj_item, "out_prev_idx", json_object_new_int64(l_cond_idx));
+                            json_object_array_add(l_json_outs_arr, json_obj_item);
+                        }
+                    }
+                }
+            } else {
+                const char *l_value_str = NULL, *l_cond_type_str = NULL;
+                uint256_t l_value_datoshi = uint256_0;
+                dap_chain_tx_out_cond_subtype_t l_cond_type = DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL;
+                bool l_cond_outs = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cond") != -1;
+                if (!l_cond_outs) {
+                    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
+                    if (l_value_str) {
+                        l_value_datoshi = dap_chain_balance_scan(l_value_str);
+                        if (IS_ZERO_256(l_value_datoshi)) {
+                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
+                                                   "Can't convert -value param to 256bit integer");
+                            json_object_put(json_obj_wall);
+                            json_object_put(l_json_outs_arr);
+                            json_object_put(json_arr_out);
+                            return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
+                        }
+                    }
+                } else {
+                    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-type", &l_cond_type_str);
+                    if (l_cond_type_str) {
+                        l_cond_type = dap_chain_tx_out_cond_subtype_from_str_short(l_cond_type_str);
+                        if (l_cond_type == DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED) {
+                            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
+                                                   "Invalid conditional output type '%s'. Available types: srv_pay, srv_xchange, srv_stake_pos_delegate, srv_stake_lock, fee",
+                                                   l_cond_type_str);
+                            json_object_put(json_obj_wall);
+                            json_object_put(l_json_outs_arr);
+                            json_object_put(json_arr_out);
+                            return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
+                        }
+                    }
+                }
+                dap_list_t *l_outs_list = NULL;
+                bool l_check_mempool = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-mempool_check", NULL);
                 if (l_cond_outs)
-                    SUM_256_256(l_value_sum, l_item->value, &l_value_sum);
+                    l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, l_cond_type, l_token_tiker, l_addr);
+                else if (l_value_str) {
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool, false)) {
+                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s (value needed)",
+                                 dap_chain_addr_to_str_static(l_addr));
+                        l_outs_list = dap_ledger_get_list_tx_outs_with_val_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum, l_check_mempool);
+                        if (l_outs_list) {
+                            debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
+                                     dap_list_length(l_outs_list));
+                        }
+                    }
+                } else {
+                    if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool, false)) {
+                        debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s",
+                                 dap_chain_addr_to_str_static(l_addr));
+                        l_outs_list = dap_ledger_get_list_tx_outs_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum, l_check_mempool);
+                        if (l_outs_list) {
+                            debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
+                                     dap_list_length(l_outs_list));
+                        }
+                    }
+                }
+                for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next) {
+                    json_object *json_obj_item = json_object_new_object();
+                    if (!json_obj_item)
+                        return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+                    dap_chain_tx_used_out_item_t *l_item = l_temp->data;
+                    const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
+                    json_object_object_add(json_obj_item, "item_type", json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
+                    json_object_object_add(json_obj_item, "value_coins", json_object_new_string(l_out_value_coins_str));
+                    json_object_object_add(json_obj_item, a_version == 1 ? "value_datosi" : "value_datoshi", json_object_new_string(l_out_value_str));
+                    json_object_object_add(json_obj_item, "prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));
+                    json_object_object_add(json_obj_item, "out_prev_idx", json_object_new_int64(l_item->num_idx_out));
+                    json_object_array_add(l_json_outs_arr, json_obj_item);
+                    if (l_cond_outs)
+                        SUM_256_256(l_value_sum, l_item->value, &l_value_sum);
+                }
+                dap_list_free_full(l_outs_list, NULL);
             }
-            dap_list_free_full(l_outs_list, NULL);
-            const char * l_out_total_value_coins_str, *l_out_total_value_str = dap_uint256_to_char(l_value_sum, &l_out_total_value_coins_str);
+
+            const char *l_out_total_value_coins_str, *l_out_total_value_str = dap_uint256_to_char(l_value_sum, &l_out_total_value_coins_str);
             json_object_object_add(json_obj_wall, "total_value_coins", json_object_new_string(l_out_total_value_coins_str));
             json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
             json_object_object_add(json_obj_wall, "outs", l_json_outs_arr);
