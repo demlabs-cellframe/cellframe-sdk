@@ -160,8 +160,15 @@ static void test_sender_blocked(void)
     char *l_reply = dap_cli_cmd_exec(l_json_req);
     log_it(L_INFO, "CLI reply: %s", l_reply ? l_reply : "(null)");
 
-    /* Check CLI reply for errors */
-    bool l_cli_ok = l_reply && strstr(l_reply, "error") == NULL;
+    dap_assert_PIF(l_reply != NULL, "CLI returned a reply");
+    json_object *l_jreply = json_tokener_parse(l_reply);
+    bool l_cli_ok = true;
+    if (l_jreply) {
+        json_object *l_jerr = NULL;
+        if (json_object_object_get_ex(l_jreply, "error", &l_jerr) && l_jerr)
+            l_cli_ok = false;
+        json_object_put(l_jreply);
+    }
     log_it(l_cli_ok ? L_INFO : L_ERROR, "  CLI result: %s", l_cli_ok ? "OK" : "ERROR in reply");
     DAP_DEL_Z(l_reply);
 

@@ -1961,6 +1961,12 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
             } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
+                if (!l_addr) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                            "Invalid wallet address: %s", l_addr_str);
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
+                }
                 if (!l_net)
                     l_net = dap_chain_net_by_id(l_addr->net_id);
                 
@@ -1974,9 +1980,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
             const char* l_token_tiker = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_tiker);
-            if (!l_token_tiker){
+            if (!l_token_tiker || !*l_token_tiker) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
-                                           "Subcommand outputs requires parameter '-token'");
+                                           "Subcommand outputs requires non-empty parameter '-token'");
                     json_object_put(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
             }
@@ -4727,26 +4733,26 @@ dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd
        return l_tsd_list;
     }
 
-    char ** l_str_wallet_addr = NULL;
-    l_str_wallet_addr = dap_strsplit(a_tx_address,",",0xffff);
+    char **l_str_wallet_addr = dap_strsplit(a_tx_address, ",", 0xffff);
 
-    if (!l_str_wallet_addr){
-       log_it(L_DEBUG,"Error in wallet addresses array parsing in tx_receiver_allowed parameter");
-       return l_tsd_list;
+    if (!l_str_wallet_addr) {
+        log_it(L_WARNING, "Error in wallet addresses array parsing");
+        return l_tsd_list;
     }
 
-    while (l_str_wallet_addr && *l_str_wallet_addr){
-        log_it(L_DEBUG,"Processing wallet address: %s", *l_str_wallet_addr);
-        dap_chain_addr_t *addr_to = dap_chain_addr_from_str(*l_str_wallet_addr);
-        if (addr_to){
-            dap_tsd_t * l_tsd = dap_tsd_create(flag, addr_to, sizeof(dap_chain_addr_t));
+    for (char **l_iter = l_str_wallet_addr; *l_iter; l_iter++) {
+        log_it(L_DEBUG, "Processing wallet address: %s", *l_iter);
+        dap_chain_addr_t *addr_to = dap_chain_addr_from_str(*l_iter);
+        if (addr_to) {
+            dap_tsd_t *l_tsd = dap_tsd_create(flag, addr_to, sizeof(dap_chain_addr_t));
             l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
             *l_tsd_total_size += dap_tsd_size(l_tsd);
-        }else{
-            log_it(L_DEBUG,"Error in wallet address parsing");
+            DAP_DELETE(addr_to);
+        } else {
+            log_it(L_WARNING, "Invalid wallet address '%s', skipped", *l_iter);
         }
-        l_str_wallet_addr++;
     }
+    dap_strfreev(l_str_wallet_addr);
 
     return l_tsd_list;
 }
@@ -5048,12 +5054,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                 l_tsd_total_size += dap_tsd_size(l_flag_unset_tsd);
             }
             
-            // For UTXO flags: need to get current flags and create new UTXO_FLAGS TSD without unset flags
-            // UTXO flags are set/unset by providing full new value in UTXO_FLAGS TSD
             if (l_utxo_flags != 0) {
-                // Get current flags using public API
-                uint32_t l_current_flags = 0;
-                // Check if token exists using dap_ledger_token_ticker_check
                 dap_chain_datum_token_t *l_token_check = dap_ledger_token_ticker_check(a_params->net->pub.ledger, a_params->ticker);
                 
                 if (!l_token_check) {
@@ -5062,8 +5063,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                     return -7;
                 }
                 
-                // Extract current UTXO flags using mask
-                uint32_t l_current_utxo_flags = l_current_flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK;
+                uint32_t l_current_utxo_flags = (uint32_t)l_token_check->header_native_decl.flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_MASK;
                 
                 // Remove flags that should be unset
                 uint32_t l_new_utxo_flags = l_current_utxo_flags & ~l_utxo_flags;
@@ -5155,7 +5155,17 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                 return -31;
             }
 
-            l_out_idx = (uint32_t)atoi(l_idx_str);
+            {
+                char *l_endptr = NULL;
+                unsigned long l_parsed = strtoul(l_idx_str, &l_endptr, 10);
+                if (!l_endptr || *l_endptr != '\0' || l_parsed > UINT32_MAX) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                           "Invalid output index in -utxo_blocked_add: %s", l_idx_str);
+                    DAP_DELETE(l_utxo_str_copy);
+                    return -31;
+                }
+                l_out_idx = (uint32_t)l_parsed;
+            }
             if (l_time_str)
                 l_timestamp = (dap_time_t)atoll(l_time_str);
 
@@ -5207,7 +5217,17 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
                 return -33;
             }
 
-            l_out_idx = (uint32_t)atoi(l_idx_str);
+            {
+                char *l_endptr = NULL;
+                unsigned long l_parsed = strtoul(l_idx_str, &l_endptr, 10);
+                if (!l_endptr || *l_endptr != '\0' || l_parsed > UINT32_MAX) {
+                    dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                           "Invalid output index in -utxo_blocked_remove: %s", l_idx_str);
+                    DAP_DELETE(l_utxo_str_copy);
+                    return -33;
+                }
+                l_out_idx = (uint32_t)l_parsed;
+            }
             if (l_time_str)
                 l_timestamp = (dap_time_t)atoll(l_time_str);
 
