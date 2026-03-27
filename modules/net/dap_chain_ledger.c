@@ -3056,9 +3056,8 @@ dap_ledger_check_error_t s_ledger_addr_check(dap_ledger_t *a_ledger, dap_ledger_
             if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_RECEIVER_ALLOWED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED) ||
-                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN) ||
-                a_token_item->tx_recv_block_size > 0) {
-            // Blacklist mode: reject if in blocked list
+                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN)) {
+            // Check we are in black list
             if (s_ledger_permissions_check(a_ledger,a_token_item, LEDGER_PERMISSION_RECEIVER_BLOCKED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         }
@@ -3069,9 +3068,8 @@ dap_ledger_check_error_t s_ledger_addr_check(dap_ledger_t *a_ledger, dap_ledger_
             if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_ALLOWED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED) ||
-                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN) ||
-                a_token_item->tx_send_block_size > 0) {
-            // Blacklist mode: reject if in blocked list
+                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN)) {
+            // Check we are in black list
             if (s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_BLOCKED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         }

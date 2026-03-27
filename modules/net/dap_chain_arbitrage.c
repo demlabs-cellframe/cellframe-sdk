@@ -401,11 +401,9 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
             }
         }
 
-        // First signature is typically the wallet key (for fee payment).
-        // Skip it for owner auth ONLY if it's not an owner key itself —
-        // otherwise cert-only arbitrage (no separate wallet) is impossible.
-        if (l_sign_index == 0 && !l_fee_token_same_as_arbitrage && !l_is_owner) {
-            debug_if(s_arbitrage_debug_more(), L_DEBUG, "Skipping first signature (wallet, non-owner) for arbitrage auth");
+        // Skip first signature (wallet for fee) unless fee token == arbitrage token
+        if (l_sign_index == 0 && !l_fee_token_same_as_arbitrage) {
+            debug_if(s_arbitrage_debug_more(), L_DEBUG, "Skipping first signature (wallet) for arbitrage auth");
             continue;
         }
 
