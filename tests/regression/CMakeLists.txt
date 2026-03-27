@@ -299,3 +299,36 @@ set_tests_properties(regression_arb_no_wallet PROPERTIES
     LABELS "regression;arbitrage;wallet;cert"
 )
 
+# Regression: Blocked UTXO visibility in listings
+add_executable(test_bug_blocked_utxo_visibility
+    test_bug_blocked_utxo_visibility.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking/utxo_blocking_test_helpers.c
+)
+
+target_include_directories(test_bug_blocked_utxo_visibility PRIVATE 
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+    ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
+)
+
+target_link_libraries(test_bug_blocked_utxo_visibility
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_net
+    dap_chain_common
+    dap_chain_wallet
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
+)
+
+add_test(NAME regression_blocked_utxo_visibility COMMAND test_bug_blocked_utxo_visibility)
+
+set_tests_properties(regression_blocked_utxo_visibility PROPERTIES
+    TIMEOUT 120
+    LABELS "regression;utxo;blocking;visibility;wallet"
+)
+
