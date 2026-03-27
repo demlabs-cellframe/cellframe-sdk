@@ -3,6 +3,7 @@ variables:
 
 stages:
     - build
+    - cppchecks
 
 .ci-polygon:
   tags:
