@@ -1641,8 +1641,12 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                 json_object *l_jobj_old_arr = json_object_new_array();
                 json_object *l_jobj_new_arr = json_object_new_array();
                 for (size_t j = 0; j < l_hold_hashes_by_name->tx_count; j++) {
-                    json_object_array_add(l_jobj_old_arr, json_object_new_string(
-                        dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
+                    bool l_dup = false;
+                    for (size_t k = 0; k < j && !l_dup; k++)
+                        l_dup = dap_hash_fast_compare(&l_hold_hashes_by_name->tx[j].hash, &l_hold_hashes_by_name->tx[k].hash);
+                    if (!l_dup)
+                        json_object_array_add(l_jobj_old_arr, json_object_new_string(
+                            dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
                     if (l_hold_hashes_by_name->tx[j].role != TX_ROLE_CREATOR)
                         continue;
                     json_object *l_jobj_tx = json_object_new_object();
