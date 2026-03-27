@@ -324,6 +324,136 @@ static void test_wallet_outputs_cli_shows_blocked_utxo(void)
     dap_pass_msg("CLI wallet outputs blocked UTXO visibility PASSED");
 }
 
+static void test_edge_duplicate_block(void)
+{
+    dap_print_module_name("Edge case: blocking already-blocked UTXO is idempotent");
+
+    dap_enc_key_t *l_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_addr_fill_from_key(&l_addr, l_key, s_net_fixture->net->pub.id);
+
+    dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("cert_dup_blk", DAP_ENC_KEY_TYPE_SIG_DILITHIUM,
+                                                          "dup_blk_seed_42", 15);
+    dap_cert_save_to_folder(l_cert, s_certs_dir);
+
+    dap_chain_hash_fast_t l_emission_hash;
+    test_token_fixture_t *l_token = test_token_fixture_create_with_emission(
+        s_net_fixture->ledger, "TDUP", "100000.0", "50000.0", &l_addr, l_cert, &l_emission_hash);
+    dap_assert_PIF(l_token != NULL, "Token with emission created");
+
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "TDUP", "1000.0", &l_addr, l_cert);
+    dap_assert_PIF(l_tx != NULL, "TX created");
+    dap_assert_PIF(test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx) == 0, "TX added");
+
+    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&l_tx->tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+
+    /* Block output 0 — first time */
+    char l_cmd[4096];
+    snprintf(l_cmd, sizeof(l_cmd),
+             "token_update -net %s -chain %s -token TDUP -type CF20 -certs %s "
+             "-utxo_blocked_add %s:0",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             l_cert->name, l_tx_hash_str);
+
+    char l_json_req[8192];
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd, "token_update", l_json_req, sizeof(l_json_req), 1);
+    char *l_reply = dap_cli_cmd_exec(l_json_req);
+    DAP_DEL_Z(l_reply);
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+
+    /* Block output 0 — second time (duplicate) */
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd, "token_update", l_json_req, sizeof(l_json_req), 2);
+    l_reply = dap_cli_cmd_exec(l_json_req);
+    log_it(L_INFO, "Duplicate block reply: %s", l_reply ? l_reply : "(null)");
+    DAP_DEL_Z(l_reply);
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+
+    /* Verify: UTXO is still blocked, ledger is consistent */
+    uint256_t l_val = {};
+    dap_list_t *l_list = dap_ledger_get_list_tx_outs_unspent_by_addr(
+        s_net_fixture->ledger, "TDUP", &l_addr, NULL, &l_val,
+        false, 0, false, false);
+    size_t l_count = l_list ? dap_list_length(l_list) : 0;
+    log_it(L_INFO, "  After duplicate block, normal listing: %zu items (expected 1 — change only)", l_count);
+    dap_assert_PIF(l_count == 1, "Duplicate block: output 0 still blocked, only change visible");
+    dap_list_free_full(l_list, NULL);
+
+    uint256_t l_val2 = {};
+    dap_list_t *l_list2 = dap_ledger_get_list_tx_outs_unspent_by_addr(
+        s_net_fixture->ledger, "TDUP", &l_addr, NULL, &l_val2,
+        false, 0, false, true);
+    size_t l_count2 = l_list2 ? dap_list_length(l_list2) : 0;
+    dap_assert_PIF(l_count2 == 2, "Duplicate block: skip_blocklist still returns both outputs");
+    dap_list_free_full(l_list2, NULL);
+
+    test_tx_fixture_destroy(l_tx);
+    test_token_fixture_destroy(l_token);
+    dap_cert_delete(l_cert);
+    dap_enc_key_delete(l_key);
+
+    dap_pass_msg("Duplicate UTXO block is idempotent PASSED");
+}
+
+static void test_edge_unblock_not_blocked(void)
+{
+    dap_print_module_name("Edge case: unblocking a non-blocked UTXO");
+
+    dap_enc_key_t *l_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_addr_fill_from_key(&l_addr, l_key, s_net_fixture->net->pub.id);
+
+    dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("cert_unblk", DAP_ENC_KEY_TYPE_SIG_DILITHIUM,
+                                                          "unblk_seed_42", 13);
+    dap_cert_save_to_folder(l_cert, s_certs_dir);
+
+    dap_chain_hash_fast_t l_emission_hash;
+    test_token_fixture_t *l_token = test_token_fixture_create_with_emission(
+        s_net_fixture->ledger, "TUNB", "100000.0", "50000.0", &l_addr, l_cert, &l_emission_hash);
+    dap_assert_PIF(l_token != NULL, "Token created");
+
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "TUNB", "1000.0", &l_addr, l_cert);
+    dap_assert_PIF(l_tx != NULL, "TX created");
+    dap_assert_PIF(test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx) == 0, "TX added");
+
+    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&l_tx->tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+
+    /* Try to unblock output 0 that was never blocked */
+    char l_cmd[4096];
+    snprintf(l_cmd, sizeof(l_cmd),
+             "token_update -net %s -chain %s -token TUNB -type CF20 -certs %s "
+             "-utxo_blocked_remove %s:0",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             l_cert->name, l_tx_hash_str);
+
+    char l_json_req[8192];
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd, "token_update", l_json_req, sizeof(l_json_req), 1);
+    char *l_reply = dap_cli_cmd_exec(l_json_req);
+    log_it(L_INFO, "Unblock non-blocked reply: %s", l_reply ? l_reply : "(null)");
+    DAP_DEL_Z(l_reply);
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+
+    /* Verify: all UTXOs still accessible (nothing broken) */
+    uint256_t l_val = {};
+    dap_list_t *l_list = dap_ledger_get_list_tx_outs_unspent_by_addr(
+        s_net_fixture->ledger, "TUNB", &l_addr, NULL, &l_val,
+        false, 0, false, false);
+    size_t l_count = l_list ? dap_list_length(l_list) : 0;
+    log_it(L_INFO, "  After unblock-not-blocked, normal listing: %zu items (expected 2)", l_count);
+    dap_assert_PIF(l_count == 2, "Unblock non-blocked: all outputs still accessible");
+    dap_list_free_full(l_list, NULL);
+
+    test_tx_fixture_destroy(l_tx);
+    test_token_fixture_destroy(l_token);
+    dap_cert_delete(l_cert);
+    dap_enc_key_delete(l_key);
+
+    dap_pass_msg("Unblock non-blocked UTXO is safe PASSED");
+}
+
 int main(int argc, char **argv)
 {
     UNUSED(argc); UNUSED(argv);
@@ -333,6 +463,8 @@ int main(int argc, char **argv)
     s_setup();
     test_blocked_utxo_visible_with_skip_blocklist();
     test_wallet_outputs_cli_shows_blocked_utxo();
+    test_edge_duplicate_block();
+    test_edge_unblock_not_blocked();
     s_teardown();
     log_it(L_NOTICE, "=== Blocked UTXO visibility regression test COMPLETE ===");
     return 0;

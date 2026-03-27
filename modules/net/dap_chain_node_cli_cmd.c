@@ -2047,13 +2047,20 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             }
             json_object_object_add(json_obj_wall, "wallet_addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             struct json_object *l_json_outs_arr = json_object_new_array();
-            if (!l_json_outs_arr)
-                return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+            if (!l_json_outs_arr) {
+                json_object_put(json_obj_wall);
+                json_object_put(json_arr_out);
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+            }
             uint256_t l_available_sum = uint256_0, l_blocked_sum = uint256_0;
             for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next) {
                 json_object *json_obj_item = json_object_new_object();
-                if (!json_obj_item)
-                    return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+                if (!json_obj_item) {
+                    json_object_put(l_json_outs_arr);
+                    json_object_put(json_obj_wall);
+                    json_object_put(json_arr_out);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+                }
                 dap_chain_tx_used_out_item_t *l_item = l_temp->data;
                 const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
                 bool l_is_blocked = !l_cond_outs &&
@@ -2079,7 +2086,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             const char * l_out_total_value_coins_str, *l_out_total_value_str = dap_uint256_to_char(l_value_sum, &l_out_total_value_coins_str);
             json_object_object_add(json_obj_wall, "total_value_coins", json_object_new_string(l_out_total_value_coins_str));
             json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
-            if (!l_cond_outs && !IS_ZERO_256(l_blocked_sum)) {
+            if (!l_cond_outs) {
                 const char *l_avail_coins_str, *l_avail_str = dap_uint256_to_char(l_available_sum, &l_avail_coins_str);
                 const char *l_block_coins_str, *l_block_str = dap_uint256_to_char(l_blocked_sum, &l_block_coins_str);
                 json_object_object_add(json_obj_wall, "available_value_coins", json_object_new_string(l_avail_coins_str));
@@ -4923,26 +4930,25 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
     char ** l_str_flags = NULL;
 
     if (!a_update_token) {
-        if (a_params->ext.flags){   // Flags
-            l_str_flags = dap_strsplit(a_params->ext.flags,",",0xffff );
-            while (l_str_flags && *l_str_flags){
-                // Try parsing as regular flag first
-                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                
-                // If not a regular flag, try parsing as UTXO flag
+        if (a_params->ext.flags) {
+            l_str_flags = dap_strsplit(a_params->ext.flags, ",", 0xffff);
+            for (char **l_iter = l_str_flags; l_iter && *l_iter; l_iter++) {
+                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_iter);
                 if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
-                    uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_str_flags);
+                    uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_iter);
                     if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                                   "Flag can't be \"%s\"",*l_str_flags);
+                                   "Flag can't be \"%s\"", *l_iter);
+                        dap_strfreev(l_str_flags);
                         return -20;
                     }
-                    l_utxo_flags |= l_utxo_flag;  // UTXO flag
+                    l_utxo_flags |= l_utxo_flag;
                 } else {
-                    l_flags |= l_flag;  // Regular flag
+                    l_flags |= l_flag;
                 }
-                l_str_flags++;
             }
+            dap_strfreev(l_str_flags);
+            l_str_flags = NULL;
         }
         
         // Create TSD section for UTXO flags if any were set
@@ -4961,25 +4967,24 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         debug_if(s_debug_more, L_DEBUG, "Found flags: -flag_set='%s', -flag_unset='%s'", 
                l_set_flags ? l_set_flags : "NULL", l_unset_flags ? l_unset_flags : "NULL");
         if (l_set_flags) {
-            l_str_flags = dap_strsplit(l_set_flags,",",0xffff );
-            while (l_str_flags && *l_str_flags){
-                // Try parsing as regular flag first
-                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                
-                // If not a regular flag, try parsing as UTXO flag
+            l_str_flags = dap_strsplit(l_set_flags, ",", 0xffff);
+            for (char **l_iter = l_str_flags; l_iter && *l_iter; l_iter++) {
+                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_iter);
                 if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
-                    uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_str_flags);
+                    uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_iter);
                     if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                                   "Flag can't be \"%s\"",*l_str_flags);
+                                   "Flag can't be \"%s\"", *l_iter);
+                        dap_strfreev(l_str_flags);
                         return -20;
                     }
-                    l_utxo_flags |= l_utxo_flag;  // UTXO flag
+                    l_utxo_flags |= l_utxo_flag;
                 } else {
-                    l_flags |= l_flag;  // Regular flag
+                    l_flags |= l_flag;
                 }
-                l_str_flags++;
             }
+            dap_strfreev(l_str_flags);
+            l_str_flags = NULL;
             
             // Create TSD for regular flags if any were set
             if (l_flags != 0) {
@@ -5000,51 +5005,40 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         }
         if (l_unset_flags) {
             debug_if(s_debug_more, L_DEBUG, "Processing -flag_unset with flags: '%s'", l_unset_flags);
-            l_str_flags = dap_strsplit(l_unset_flags,",",0xffff );
-            while (l_str_flags && *l_str_flags){
-                // Try parsing as regular flag first
-                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                debug_if(s_debug_more, L_DEBUG, "Parsing flag: '%s' -> regular flag=0x%04X (UNDEFINED=0x%04X)", 
-                       *l_str_flags, l_flag, DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED);
-                
-                // If not a regular flag, try parsing as UTXO flag
+            l_str_flags = dap_strsplit(l_unset_flags, ",", 0xffff);
+            for (char **l_iter = l_str_flags; l_iter && *l_iter; l_iter++) {
+                uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_iter);
+                debug_if(s_debug_more, L_DEBUG, "Parsing flag: '%s' -> regular flag=0x%04X (UNDEFINED=0x%04X)",
+                       *l_iter, l_flag, DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED);
                 if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
-                    uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_str_flags);
-                    debug_if(s_debug_more, L_DEBUG, "Parsing UTXO flag: '%s' -> 0x%08X", *l_str_flags, l_utxo_flag);
-                    
+                    uint32_t l_utxo_flag = dap_chain_datum_token_utxo_flag_from_str(*l_iter);
+                    debug_if(s_debug_more, L_DEBUG, "Parsing UTXO flag: '%s' -> 0x%08X", *l_iter, l_utxo_flag);
                     if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED) {
                         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                                   "Flag can't be \"%s\"",*l_str_flags);
+                                   "Flag can't be \"%s\"", *l_iter);
+                        dap_strfreev(l_str_flags);
                         return -20;
                     }
-                    
-                    // Check if this UTXO flag is irreversible
-                    // Irreversible flags cannot be unset once they are set
-                    // This check prevents unsetting: ARBITRAGE_TX_DISABLED, DISABLE_ADDRESS_SENDER_BLOCKING, DISABLE_ADDRESS_RECEIVER_BLOCKING
-                    uint32_t l_irreversible_mask = DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK;
-                    debug_if(s_debug_more, L_DEBUG, "Checking irreversible: flag=0x%08X, mask=0x%08X, result=0x%08X", 
-                           l_utxo_flag, l_irreversible_mask, l_utxo_flag & l_irreversible_mask);
-                    
                     if (l_utxo_flag & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_IRREVERSIBLE_MASK) {
-                        log_it(L_WARNING, "Attempt to unset irreversible UTXO flag 0x%08X (flag: %s) via -flag_unset is not allowed", 
-                               l_utxo_flag, *l_str_flags);
-                        // Provide specific error message for ARBITRAGE_TX_DISABLED
+                        log_it(L_WARNING, "Attempt to unset irreversible UTXO flag 0x%08X (flag: %s) via -flag_unset is not allowed",
+                               l_utxo_flag, *l_iter);
                         if (l_utxo_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_ARBITRAGE_TX_DISABLED) {
-                        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
                                        "Cannot unset UTXO_ARBITRAGE_TX_DISABLED flag. This flag can only be SET (via -flag_set), never unset. Once set, arbitrage transactions are permanently disabled for this token.");
                         } else {
                             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
                                        "Cannot unset irreversible UTXO flags (ARBITRAGE_TX_DISABLED, DISABLE_ADDRESS_SENDER_BLOCKING, DISABLE_ADDRESS_RECEIVER_BLOCKING). These flags can only be SET, never unset.");
                         }
+                        dap_strfreev(l_str_flags);
                         return -21;
                     }
-                    
-                    l_utxo_flags |= l_utxo_flag;  // UTXO flag (only reversible ones allowed here)
+                    l_utxo_flags |= l_utxo_flag;
                 } else {
-                    l_flags |= l_flag;  // Regular flag
+                    l_flags |= l_flag;
                 }
-                l_str_flags++;
             }
+            dap_strfreev(l_str_flags);
+            l_str_flags = NULL;
             
             // Create TSD for regular flags if any were set
             if (l_flags != 0) {
@@ -5140,8 +5134,9 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
             char *l_hash_str = strtok_r(l_utxo_str_copy, ":", &l_saveptr);
             char *l_idx_str = l_hash_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
             char *l_time_str = l_idx_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
+            char *l_extra = l_time_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
 
-            if (!l_hash_str || !l_idx_str) {
+            if (!l_hash_str || !l_idx_str || l_extra) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
                                        "Invalid UTXO format for -utxo_blocked_add. Expected: tx_hash:out_idx[:timestamp]");
                 DAP_DELETE(l_utxo_str_copy);
@@ -5202,8 +5197,9 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
             char *l_hash_str = strtok_r(l_utxo_str_copy, ":", &l_saveptr);
             char *l_idx_str = l_hash_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
             char *l_time_str = l_idx_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
+            char *l_extra = l_time_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
 
-            if (!l_hash_str || !l_idx_str) {
+            if (!l_hash_str || !l_idx_str || l_extra) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
                                        "Invalid UTXO format for -utxo_blocked_remove. Expected: tx_hash:out_idx[:timestamp]");
                 DAP_DELETE(l_utxo_str_copy);

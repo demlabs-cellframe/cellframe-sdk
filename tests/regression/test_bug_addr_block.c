@@ -274,6 +274,66 @@ static void test_receiver_blocked(void)
     dap_pass_msg("CLI receiver block test PASSED");
 }
 
+static void test_invalid_address_in_sender_blocked(void)
+{
+    dap_print_module_name("Edge case: invalid address in -tx_sender_blocked is logged as warning");
+
+    dap_enc_key_t *l_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_addr_fill_from_key(&l_addr, l_key, s_net_fixture->net->pub.id);
+
+    dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("cert_inv_addr", DAP_ENC_KEY_TYPE_SIG_DILITHIUM,
+                                                          "inv_addr_seed_42", 16);
+    dap_cert_save_to_folder(l_cert, s_certs_dir);
+
+    dap_chain_hash_fast_t l_emission_hash;
+    test_token_fixture_t *l_token = test_token_fixture_create_with_emission(
+        s_net_fixture->ledger, "TINV", "100000.0", "50000.0", &l_addr, l_cert, &l_emission_hash);
+    dap_assert_PIF(l_token != NULL, "Token created");
+
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "TINV", "1000.0", &l_addr, l_cert);
+    dap_assert_PIF(l_tx != NULL, "TX created");
+    dap_assert_PIF(test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx) == 0, "TX added");
+
+    /* Send invalid address in -tx_sender_blocked */
+    char l_cmd[4096];
+    snprintf(l_cmd, sizeof(l_cmd),
+             "token_update -net %s -chain %s -token TINV -type CF20 -certs %s "
+             "-tx_sender_blocked INVALID_ADDRESS_GARBAGE",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             l_cert->name);
+
+    char l_json_req[8192];
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd, "token_update", l_json_req, sizeof(l_json_req), 1);
+    char *l_reply = dap_cli_cmd_exec(l_json_req);
+    log_it(L_INFO, "Invalid addr block reply: %s", l_reply ? l_reply : "(null)");
+    DAP_DEL_Z(l_reply);
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+
+    /* Verify: TX from the address should still succeed (blocking was not applied) */
+    dap_chain_datum_tx_t *l_tx_spend = dap_chain_datum_tx_create();
+    dap_chain_datum_tx_add_in_item(&l_tx_spend, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_tx_spend, &l_addr, dap_chain_balance_scan("1000.0"), "TINV");
+    dap_chain_datum_tx_add_sign_item(&l_tx_spend, l_key);
+
+    dap_chain_hash_fast_t l_spend_hash;
+    dap_hash_fast(l_tx_spend, dap_chain_datum_tx_get_size(l_tx_spend), &l_spend_hash);
+
+    int l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_tx_spend, &l_spend_hash, false, NULL);
+    log_it(L_INFO, "  Spend after invalid block result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
+    dap_assert_PIF(l_res == 0,
+                   "Invalid address in -tx_sender_blocked should not affect spending");
+
+    DAP_DELETE(l_tx_spend);
+    test_tx_fixture_destroy(l_tx);
+    test_token_fixture_destroy(l_token);
+    dap_cert_delete(l_cert);
+    dap_enc_key_delete(l_key);
+
+    dap_pass_msg("Invalid address in sender block is harmless PASSED");
+}
+
 int main(int argc, char **argv)
 {
     UNUSED(argc); UNUSED(argv);
@@ -283,6 +343,7 @@ int main(int argc, char **argv)
     s_setup();
     test_sender_blocked();
     test_receiver_blocked();
+    test_invalid_address_in_sender_blocked();
     s_teardown();
     log_it(L_NOTICE, "=== Address block CLI regression test COMPLETE ===");
     return 0;
