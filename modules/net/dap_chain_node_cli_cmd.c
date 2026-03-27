@@ -2015,20 +2015,24 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             if (l_cond_outs)
                 l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, l_cond_type, l_token_tiker, l_addr);
             else if (l_value_str) {
-                if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool, false)) {
-                    debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s (value needed)",
-                             dap_chain_addr_to_str_static(l_addr));
-                    l_outs_list = dap_ledger_get_list_tx_outs_with_val_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum, l_check_mempool);
+                if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool, true)
+                        || !l_outs_list) {
+                    debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache %s, using ledger fallback for %s (value needed)",
+                             l_outs_list ? "returned empty" : "failed", dap_chain_addr_to_str_static(l_addr));
+                    l_outs_list = dap_ledger_get_list_tx_outs_with_val_skip_blocklist(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
                     if (l_outs_list) {
                         debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
                                  dap_list_length(l_outs_list));
                     }
                 }
             } else {
-                if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool, false)) {
-                    debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s",
-                             dap_chain_addr_to_str_static(l_addr));
-                    l_outs_list = dap_ledger_get_list_tx_outs_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum, l_check_mempool);
+                if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool, true)
+                        || !l_outs_list) {
+                    debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache %s, using ledger fallback for %s",
+                             l_outs_list ? "returned empty" : "failed", dap_chain_addr_to_str_static(l_addr));
+                    l_outs_list = dap_ledger_get_list_tx_outs_unspent_by_addr(
+                        l_net->pub.ledger, l_token_tiker, l_addr, NULL, &l_value_sum,
+                        false, 0, false, true);
                     if (l_outs_list) {
                         debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
                                  dap_list_length(l_outs_list));
@@ -2039,25 +2043,44 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             struct json_object *l_json_outs_arr = json_object_new_array();
             if (!l_json_outs_arr)
                 return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+            uint256_t l_available_sum = uint256_0, l_blocked_sum = uint256_0;
             for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next) {
                 json_object *json_obj_item = json_object_new_object();
                 if (!json_obj_item)
                     return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
                 dap_chain_tx_used_out_item_t *l_item = l_temp->data;
                 const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
+                bool l_is_blocked = !l_cond_outs &&
+                    dap_ledger_utxo_is_blocked_by_ticker(l_net->pub.ledger, l_token_tiker,
+                                                         &l_item->tx_hash_fast, l_item->num_idx_out);
                 json_object_object_add(json_obj_item,"item_type", json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
+                json_object_object_add(json_obj_item,"status", json_object_new_string(l_is_blocked ? "blocked" : "available"));
                 json_object_object_add(json_obj_item,"value_coins", json_object_new_string(l_out_value_coins_str));
                 json_object_object_add(json_obj_item,a_version == 1 ? "value_datosi" : "value_datoshi", json_object_new_string(l_out_value_str));
                 json_object_object_add(json_obj_item,"prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));
                 json_object_object_add(json_obj_item,"out_prev_idx", json_object_new_int64(l_item->num_idx_out));
                 json_object_array_add(l_json_outs_arr, json_obj_item);
+                if (l_is_blocked)
+                    SUM_256_256(l_blocked_sum, l_item->value, &l_blocked_sum);
+                else
+                    SUM_256_256(l_available_sum, l_item->value, &l_available_sum);
                 if (l_cond_outs)
                     SUM_256_256(l_value_sum, l_item->value, &l_value_sum);
             }
             dap_list_free_full(l_outs_list, NULL);
+            if (!l_cond_outs)
+                SUM_256_256(l_available_sum, l_blocked_sum, &l_value_sum);
             const char * l_out_total_value_coins_str, *l_out_total_value_str = dap_uint256_to_char(l_value_sum, &l_out_total_value_coins_str);
             json_object_object_add(json_obj_wall, "total_value_coins", json_object_new_string(l_out_total_value_coins_str));
             json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
+            if (!l_cond_outs && !IS_ZERO_256(l_blocked_sum)) {
+                const char *l_avail_coins_str, *l_avail_str = dap_uint256_to_char(l_available_sum, &l_avail_coins_str);
+                const char *l_block_coins_str, *l_block_str = dap_uint256_to_char(l_blocked_sum, &l_block_coins_str);
+                json_object_object_add(json_obj_wall, "available_value_coins", json_object_new_string(l_avail_coins_str));
+                json_object_object_add(json_obj_wall, "available_value_datoshi", json_object_new_string(l_avail_str));
+                json_object_object_add(json_obj_wall, "blocked_value_coins", json_object_new_string(l_block_coins_str));
+                json_object_object_add(json_obj_wall, "blocked_value_datoshi", json_object_new_string(l_block_str));
+            }
             json_object_object_add(json_obj_wall, "outs", l_json_outs_arr);
             json_object_array_add(json_arr_out, json_obj_wall);
         } break;
