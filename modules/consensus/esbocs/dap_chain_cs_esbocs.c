@@ -419,7 +419,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
         log_it(L_MSG, "add validator addr "NODE_ADDR_FP_STR", signing addr %s", NODE_ADDR_FP_ARGS_S(l_signer_node_addr), dap_chain_addr_to_str_static(&l_signing_addr));
 
-        if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
+        if (!l_esbocs_pvt->poa_mode) {
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, NULL, NULL,
                                                  l_weight, &l_signer_node_addr, l_validator->pkey);
@@ -697,147 +697,41 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_esbocs_pvt->collecting_level = dap_chain_balance_coins_scan(dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "collecting_level",
                                                                                                 dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "set_collect_fee", "10.0")));
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_net_cfg, "esbocs", "consensus_debug", false);
+    l_esbocs_pvt->emergency_mode = dap_config_get_item_bool_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "emergency_mode", false);
 
-    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
-    for (dap_list_t *it = l_validators; it; it = it->next) {
-        dap_cluster_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
-        dap_chain_net_add_validator_to_clusters(a_chain, l_addr);
-    }
     dap_chain_esbocs_session_t *l_session = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_esbocs_session_t, -8);
     l_session->chain = a_chain;
     l_session->esbocs = l_esbocs;
     l_session->proc_thread = dap_proc_thread_get_auto();
     l_esbocs->session = l_session;
     dap_dl_append(s_session_items, l_session);
-    log_it(L_INFO, "Init ESBOCS session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
 
     const char *l_sign_cert_str = NULL;
     if( (l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "blocks-sign-cert")) ) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
-            dap_list_free_full(l_validators, NULL);
             return -1;
         } else if (l_sign_cert->enc_key->priv_key_data) {
             l_esbocs_pvt->blocks_sign_key = l_sign_cert->enc_key;
             log_it(L_INFO, "Loaded \"%s\" certificate for net %s to sign ESBOCS blocks", l_sign_cert_str, a_chain->net_name);
         } else {
             log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
-            dap_list_free_full(l_validators, NULL);
             return -2;
         }
     } else {
         log_it(L_NOTICE, "No sign certificate provided for net %s, can't sign any blocks. This node can't be a consensus validator", a_chain->net_name);
-        dap_list_free_full(l_validators, NULL);
         return -3;
     }
     dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if (l_role.enums > NODE_ROLE_MASTER) {
         log_it(L_NOTICE, "Node role is lower than master role, so this node can't be a consensus validator");
-        dap_list_free_full(l_validators, NULL);
         return -5;
     }
-    dap_chain_addr_t l_my_signing_addr;
-    dap_chain_addr_fill_from_key(&l_my_signing_addr, l_esbocs_pvt->blocks_sign_key, a_chain->net_id);
-    if (!l_esbocs_pvt->poa_mode) {
-        if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
-            uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
-            for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
-                dap_chain_esbocs_validator_t *l_validator = it->data;
-                dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, NULL, NULL,
-                                                     l_weight, &l_validator->node_addr, l_validator->pkey);
-            }
-        }
-        if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
-            log_it(L_WARNING, "Signing key is not delegated by stake service. Switch off validator mode");
-            dap_list_free_full(l_validators, NULL);
-            return -6;
-        }
-    } else {
-        if (!s_validator_check(&l_my_signing_addr, l_esbocs_pvt->poa_validators)) {
-            log_it(L_WARNING, "Signing key is not present in PoA certs list. Switch off validator mode");
-            dap_list_free_full(l_validators, NULL);
-            return -7;
-        }
-    }
 
-    l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-    l_session->my_signing_addr = l_my_signing_addr;
-
-    // Check if this node is present in nodelist (non-fatal: nodelist may be populated later via 'node add' or auto-announce)
-    dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_session->my_addr);
-    if (!l_node_info) {
-        log_it(L_WARNING, "This node address "NODE_ADDR_FP_STR" is not yet present in nodelist. "
-                          "Consensus will start when node is added via 'node add' or auto-announce",
-                          NODE_ADDR_FP_ARGS_S(l_session->my_addr));
-    } else {
-        DAP_DELETE(l_node_info);
-    }
-
-    char *l_sync_group = s_get_penalty_group(l_net->pub.id);
-    l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
-                                                      dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
-                                                      l_sync_group, ESBOCS_PENALTY_TTL, true,
-                                                      DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
-    dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
-    dap_global_db_erase_table_sync(l_sync_group);     // Drop table on stratup
-    DAP_DELETE(l_sync_group);
-
-#ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
-    dap_global_db_role_t l_directives_cluster_role_default = DAP_GDB_MEMBER_ROLE_ROOT;
-#else
-    dap_global_db_role_t l_directives_cluster_role_default = DAP_GDB_MEMBER_ROLE_GUEST;
-#endif
-    for (dap_list_t *it = l_validators; it; it = it->next) {
-        dap_cluster_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
-        dap_global_db_cluster_member_add(l_session->db_cluster, l_addr, l_directives_cluster_role_default);
-    }
-    dap_list_free_full(l_validators, NULL);
-
-    //Find order minimum fee
     l_esbocs_pvt->block_sign_pkey = dap_pkey_from_enc_key(l_esbocs_pvt->blocks_sign_key);
-    char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
-    size_t l_orders_count = 0;
-    dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
-    DAP_DELETE(l_gdb_group_str);
-    const dap_chain_net_srv_order_t *l_order_service = NULL;
-    for (size_t i = 0; i < l_orders_count; i++) {
-        const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
-        if (!l_order) {
-            log_it(L_WARNING, "Unreadable order %s", l_orders[i].key);
-            continue;
-        }
-        if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
-            continue;
-        dap_sign_t *l_order_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
-        if (!dap_pkey_compare_with_sign(l_esbocs_pvt->block_sign_pkey, l_order_sign))
-            continue;
-        if (!l_order_service)
-            l_order_service = l_order;
-        else if (l_order_service->ts_created < l_order->ts_created)
-            l_order_service = l_order;
-    }
-    if (l_order_service)
-        l_esbocs_pvt->minimum_fee = l_order_service->price;
-    dap_global_db_objs_delete(l_orders, l_orders_count);
-
-    if (IS_ZERO_256(l_esbocs_pvt->minimum_fee)) {
-        log_it(L_WARNING, "No valid order found signed by this validator key. "
-                          "Will accept zero-fee transactions until a valid order appears");
-    }
-    l_esbocs_pvt->emergency_mode = dap_config_get_item_bool_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "emergency_mode", false);
-    if (l_esbocs_pvt->emergency_mode && !s_check_emergency_rights(l_esbocs, &l_my_signing_addr)) {
-        log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
-        return -5;
-    }
-    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session->proc_thread, l_session);
-    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
-
-    l_session->cs_timer = !dap_proc_thread_timer_add(l_session->proc_thread, s_session_proc_state, l_session, 1000);
-    debug_if(l_esbocs_pvt->debug && l_session->cs_timer, L_MSG, "Consensus main timer is started");
-
-    DAP_CHAIN_PVT(a_chain)->cs_started = true;
+    log_it(L_INFO, "Init ESBOCS session for net:%s, chain:%s (full start deferred to NET_STATE_ONLINE)", a_chain->net_name, a_chain->name);
     return 0;
 }
 
@@ -887,13 +781,139 @@ static int s_callback_stop(dap_chain_t *a_chain)
 
 static int s_callback_start(dap_chain_t *a_chain)
 {
-    dap_chain_esbocs_session_t *l_session;
-    dap_dl_foreach(s_session_items, l_session) {
-        if (l_session->chain == a_chain) {
-            log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_api_by_id(a_chain->net_id)->pub.name, l_session->chain->name);
-            l_session->cs_timer = true;
+    dap_chain_esbocs_session_t *l_session = NULL;
+    dap_chain_esbocs_session_t *l_it;
+    dap_dl_foreach(s_session_items, l_it) {
+        if (l_it->chain == a_chain) {
+            l_session = l_it;
+            break;
         }
     }
+    if (!l_session) {
+        log_it(L_WARNING, "No ESBOCS session found for chain %s, skipping start", a_chain->name);
+        return 0;
+    }
+
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt_check = PVT(l_session->esbocs);
+    if (!l_esbocs_pvt_check->blocks_sign_key) {
+        log_it(L_WARNING, "No signing key loaded for chain %s, this node cannot be a validator", a_chain->name);
+        return 0;
+    }
+
+    if (DAP_CHAIN_PVT(a_chain)->cs_started) {
+        log_it(L_INFO, "Resume consensus timer for net: %s, chain: %s",
+               dap_chain_net_api_by_id(a_chain->net_id)->pub.name, a_chain->name);
+        l_session->cs_timer = true;
+        return 0;
+    }
+
+    dap_chain_esbocs_t *l_esbocs = l_session->esbocs;
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
+
+    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
+    for (dap_list_t *it = l_validators; it; it = it->next) {
+        dap_cluster_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
+        dap_chain_net_add_validator_to_clusters(a_chain, l_addr);
+    }
+
+    dap_chain_addr_t l_my_signing_addr;
+    dap_chain_addr_fill_from_key(&l_my_signing_addr, l_esbocs_pvt->blocks_sign_key, a_chain->net_id);
+    if (!l_esbocs_pvt->poa_mode) {
+        if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
+            uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
+            for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
+                dap_chain_esbocs_validator_t *l_validator = it->data;
+                dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, NULL, NULL,
+                                                     l_weight, &l_validator->node_addr, l_validator->pkey);
+            }
+        }
+        if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
+            log_it(L_WARNING, "Signing key is not delegated by stake service. Switch off validator mode");
+            dap_list_free_full(l_validators, NULL);
+            return -6;
+        }
+    } else {
+        if (!s_validator_check(&l_my_signing_addr, l_esbocs_pvt->poa_validators)) {
+            log_it(L_WARNING, "Signing key is not present in PoA certs list. Switch off validator mode");
+            dap_list_free_full(l_validators, NULL);
+            return -7;
+        }
+    }
+
+    l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+    l_session->my_signing_addr = l_my_signing_addr;
+
+    dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_session->my_addr);
+    if (!l_node_info) {
+        log_it(L_WARNING, "This node address "NODE_ADDR_FP_STR" is not yet present in nodelist. "
+                          "Consensus will start when node is added via 'node add' or auto-announce",
+                          NODE_ADDR_FP_ARGS_S(l_session->my_addr));
+    } else {
+        DAP_DELETE(l_node_info);
+    }
+
+    char *l_sync_group = s_get_penalty_group(l_net->pub.id);
+    l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
+                                                      dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
+                                                      l_sync_group, ESBOCS_PENALTY_TTL, true,
+                                                      DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
+    dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
+    dap_global_db_erase_table_sync(l_sync_group);
+    DAP_DELETE(l_sync_group);
+
+#ifdef DAP_CHAIN_CS_ESBOCS_DIRECTIVE_SUPPORT
+    dap_global_db_role_t l_directives_cluster_role_default = DAP_GDB_MEMBER_ROLE_ROOT;
+#else
+    dap_global_db_role_t l_directives_cluster_role_default = DAP_GDB_MEMBER_ROLE_GUEST;
+#endif
+    for (dap_list_t *it = l_validators; it; it = it->next) {
+        dap_cluster_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
+        dap_global_db_cluster_member_add(l_session->db_cluster, l_addr, l_directives_cluster_role_default);
+    }
+    dap_list_free_full(l_validators, NULL);
+
+    char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
+    size_t l_orders_count = 0;
+    dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+    DAP_DELETE(l_gdb_group_str);
+    const dap_chain_net_srv_order_t *l_order_service = NULL;
+    for (size_t i = 0; i < l_orders_count; i++) {
+        const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
+        if (!l_order) {
+            log_it(L_WARNING, "Unreadable order %s", l_orders[i].key);
+            continue;
+        }
+        if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
+            continue;
+        dap_sign_t *l_order_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
+        if (!dap_pkey_compare_with_sign(l_esbocs_pvt->block_sign_pkey, l_order_sign))
+            continue;
+        if (!l_order_service)
+            l_order_service = l_order;
+        else if (l_order_service->ts_created < l_order->ts_created)
+            l_order_service = l_order;
+    }
+    if (l_order_service)
+        l_esbocs_pvt->minimum_fee = l_order_service->price;
+    dap_global_db_objs_delete(l_orders, l_orders_count);
+
+    if (IS_ZERO_256(l_esbocs_pvt->minimum_fee)) {
+        log_it(L_WARNING, "No valid order found signed by this validator key. "
+                          "Will accept zero-fee transactions until a valid order appears");
+    }
+    if (l_esbocs_pvt->emergency_mode && !s_check_emergency_rights(l_esbocs, &l_my_signing_addr)) {
+        log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
+        return -5;
+    }
+    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session->proc_thread, l_session);
+    dap_proc_thread_callback_add(l_session->proc_thread, s_session_round_new, l_session);
+
+    l_session->cs_timer = !dap_proc_thread_timer_add(l_session->proc_thread, s_session_proc_state, l_session, 1000);
+    debug_if(l_esbocs_pvt->debug && l_session->cs_timer, L_MSG, "Consensus main timer is started");
+
+    DAP_CHAIN_PVT(a_chain)->cs_started = true;
+    log_it(L_NOTICE, "ESBOCS consensus fully started for net:%s, chain:%s", a_chain->net_name, a_chain->name);
     return 0;
 }
 

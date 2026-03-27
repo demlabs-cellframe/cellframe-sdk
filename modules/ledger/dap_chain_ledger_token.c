@@ -862,11 +862,12 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     }
     char *ptr = l_token->ticker;
     while (*ptr) {
-        if (!dap_ascii_isalnum(*ptr++)) {
+        if (!dap_ascii_isalnum(*ptr) && *ptr != '_') {
             log_it(L_WARNING, "Token ticker is not alpha-numeric");
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_PARSE_ERROR;
         }
+        ptr++;
     }
     if (!l_token->signs_total) {
         log_it(L_WARNING, "No auth signs in token '%s' datum!", l_token->ticker);

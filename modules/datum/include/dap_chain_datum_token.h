@@ -416,7 +416,7 @@ DAP_STATIC_INLINE bool dap_chain_datum_token_check_ticker(const char *a_ticker)
     if (l_len < 3 || l_len > 10)
         return false;
     for (size_t i = 0; i < l_len; i++)
-        if (!isalnum(a_ticker[i]))
+        if (!isalnum(a_ticker[i]) && a_ticker[i] != '_')
             return false;
     return true;
 }
