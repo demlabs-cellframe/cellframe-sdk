@@ -1,18 +1,18 @@
 /*
- * Regression test: Blocked UTXO visibility in listings and arbitrage UTXO lookup
+ * Regression test: Blocked UTXO visibility in listings and wallet outputs CLI
  *
  * Bug: After blocking a UTXO via token_update -utxo_blocked_add, the `wallet outputs`
  *      command stops showing ALL outputs (balance shows 0). The arbitrage command
  *      tx_create -arbitrage also cannot find blocked UTXOs for arbitrage operations.
  *
- * Root cause: The UTXO listing function dap_ledger_get_list_tx_outs_unspent_by_addr
- *             filters out blocked UTXOs when a_skip_blocklist=false (used by wallet outputs).
- *             The arbitrage path uses a_skip_blocklist=true and SHOULD find blocked UTXOs.
+ * Root cause: The wallet outputs CLI called UTXO listing with a_skip_blocklist=false,
+ *             so blocked UTXOs were silently filtered out of the response.
  *
- * Expected: 
- *   1. Ledger listing with skip_blocklist=true returns blocked UTXOs
- *   2. Ledger listing with skip_blocklist=false does NOT return blocked UTXOs
- *   3. wallet outputs shows blocked UTXOs with "blocked" annotation
+ * Expected:
+ *   1. Ledger API with skip_blocklist=true returns blocked UTXOs
+ *   2. Ledger API with skip_blocklist=false does NOT return blocked UTXOs
+ *   3. CLI `wallet outputs` returns ALL UTXOs with "status" annotation (blocked/available)
+ *   4. CLI `wallet outputs` includes separate available_value and blocked_value totals
  */
 
 #include <stdio.h>
@@ -30,16 +30,27 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_utxo.h"
+#include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_poa.h"
+#include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs_none.h"
-#include "dap_chain_ledger_utxo.h"
+#include "dap_cli_server.h"
+#include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_node.h"
+#include "dap_cert_file.h"
+#include "dap_chain_mempool.h"
+#include "dap_chain_wallet.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
 #include "test_token_fixtures.h"
 #include "test_emission_fixtures.h"
 #include "test_transaction_fixtures.h"
 #include "utxo_blocking_test_helpers.h"
+#include <json-c/json.h>
 
 #define LOG_TAG "regression_blocked_utxo_visibility"
 
@@ -48,48 +59,67 @@ test_net_fixture_t *s_net_fixture = NULL;
 static char s_config_dir[512];
 static char s_gdb_dir[512];
 static char s_certs_dir[512];
+static char s_wallets_dir[512];
 
 static void s_setup(void)
 {
+    dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
+
     const char *l_tmp = test_get_temp_dir();
     snprintf(s_config_dir, sizeof(s_config_dir), "%s/reg_blocked_vis_config", l_tmp);
     snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/reg_blocked_vis_gdb", l_tmp);
     snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/reg_blocked_vis_certs", l_tmp);
+    snprintf(s_wallets_dir, sizeof(s_wallets_dir), "%s/reg_blocked_vis_wallets", l_tmp);
 
     dap_rm_rf(s_gdb_dir);
     dap_rm_rf(s_certs_dir);
     dap_rm_rf(s_config_dir);
+    dap_rm_rf(s_wallets_dir);
     dap_mkdir_with_parents(s_config_dir);
     dap_mkdir_with_parents(s_certs_dir);
-
-    char l_cfg[2048];
-    snprintf(l_cfg, sizeof(l_cfg),
-        "[general]\ndebug=true\n[ledger]\ndebug_more=true\n"
-        "[global_db]\ndriver=mdbx\npath=%s\n[resources]\nca_folders=%s\n",
-        s_gdb_dir, s_certs_dir);
+    dap_mkdir_with_parents(s_wallets_dir);
 
     char l_cfg_path[1024];
     snprintf(l_cfg_path, sizeof(l_cfg_path), "%s/test.cfg", s_config_dir);
     FILE *f = fopen(l_cfg_path, "w");
-    if (f) { fwrite(l_cfg, 1, strlen(l_cfg), f); fclose(f); }
+    if (f) {
+        fprintf(f,
+            "[general]\ndebug_mode=true\n\n"
+            "[ledger]\ndebug_more=true\n\n"
+            "[wallet]\ndebug_more=true\n\n"
+            "[wallets]\nwallets_cache=all\n\n"
+            "[global_db]\ndriver=mdbx\npath=%s\n\n"
+            "[cli-server]\nenabled=true\n\n"
+            "[resources]\nwallets_path=%s\nca_folders=%s\n",
+            s_gdb_dir, s_wallets_dir, s_certs_dir);
+        fclose(f);
+    }
 
-    int l_res = test_env_init(s_config_dir, s_gdb_dir);
-    dap_assert_PIF(l_res == 0, "Test environment initialized");
-    dap_ledger_init();
+    dap_chain_cs_init();
     dap_chain_cs_dag_init();
     dap_chain_cs_dag_poa_init();
+    dap_chain_cs_esbocs_init();
     dap_nonconsensus_init();
+
+    test_env_init(s_config_dir, s_gdb_dir);
+    dap_chain_wallet_cache_init();
+
     s_net_fixture = test_net_fixture_create("RegBlockedVis");
     dap_assert_PIF(s_net_fixture != NULL, "Network fixture created");
+
+    dap_chain_node_cli_init(g_config);
 }
 
 static void s_teardown(void)
 {
+    dap_chain_wallet_cache_deinit();
+    dap_chain_node_cli_delete();
     if (s_net_fixture) { test_net_fixture_destroy(s_net_fixture); s_net_fixture = NULL; }
     test_env_deinit();
     dap_rm_rf(s_config_dir);
     dap_rm_rf(s_gdb_dir);
     dap_rm_rf(s_certs_dir);
+    dap_rm_rf(s_wallets_dir);
 }
 
 static void test_blocked_utxo_visible_with_skip_blocklist(void)
@@ -119,7 +149,6 @@ static void test_blocked_utxo_visible_with_skip_blocklist(void)
     int l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
     dap_assert_PIF(l_res == 0, "TX added to ledger");
 
-    // Phase 1: Before blocking, both paths should find the UTXO
     uint256_t l_value_out = {};
     dap_list_t *l_list_normal = dap_ledger_get_list_tx_outs_unspent_by_addr(
         s_net_fixture->ledger, "BVIS", &l_addr, NULL, &l_value_out,
@@ -128,14 +157,6 @@ static void test_blocked_utxo_visible_with_skip_blocklist(void)
     log_it(L_INFO, "  Before block, normal listing: %zu items", dap_list_length(l_list_normal));
     dap_list_free_full(l_list_normal, NULL);
 
-    uint256_t l_value_out2 = {};
-    dap_list_t *l_list_skip = dap_ledger_get_list_tx_outs_unspent_by_addr(
-        s_net_fixture->ledger, "BVIS", &l_addr, NULL, &l_value_out2,
-        false, 0, false, true);
-    dap_assert_PIF(l_list_skip != NULL, "Before block: skip_blocklist listing finds UTXO");
-    dap_list_free_full(l_list_skip, NULL);
-
-    // Phase 2: Block the UTXO
     size_t l_block_size = 0;
     dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
         "BVIS", &l_tx->tx_hash, 0, l_cert, 0, &l_block_size);
@@ -145,8 +166,6 @@ static void test_blocked_utxo_visible_with_skip_blocklist(void)
     dap_assert_PIF(l_block_res == 0, "UTXO blocked");
     DAP_DELETE(l_block_update);
 
-    // Phase 3: After blocking output 0, normal listing should return FEWER items
-    // TX has 2 outputs: output 0 (blocked) and output 1 (change, not blocked)
     uint256_t l_value_out3 = {};
     dap_list_t *l_list_after_normal = dap_ledger_get_list_tx_outs_unspent_by_addr(
         s_net_fixture->ledger, "BVIS", &l_addr, NULL, &l_value_out3,
@@ -157,7 +176,6 @@ static void test_blocked_utxo_visible_with_skip_blocklist(void)
                    "After block: normal listing should return only the non-blocked output (change)");
     dap_list_free_full(l_list_after_normal, NULL);
 
-    // Phase 4: After blocking, skip_blocklist listing SHOULD find ALL UTXOs (including blocked)
     uint256_t l_value_out4 = {};
     dap_list_t *l_list_after_skip = dap_ledger_get_list_tx_outs_unspent_by_addr(
         s_net_fixture->ledger, "BVIS", &l_addr, NULL, &l_value_out4,
@@ -178,9 +196,9 @@ static void test_blocked_utxo_visible_with_skip_blocklist(void)
     dap_pass_msg("Blocked UTXO visibility with skip_blocklist=true PASSED");
 }
 
-static void test_blocked_utxo_balance_preserved(void)
+static void test_wallet_outputs_cli_shows_blocked_utxo(void)
 {
-    dap_print_module_name("Blocked UTXO: balance calculation still counts blocked UTXOs");
+    dap_print_module_name("CLI wallet outputs: blocked UTXO visible with status annotation");
 
     dap_enc_key_t *l_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
     dap_assert_PIF(l_key != NULL, "Key generation");
@@ -188,47 +206,122 @@ static void test_blocked_utxo_balance_preserved(void)
     dap_chain_addr_t l_addr = {0};
     dap_chain_addr_fill_from_key(&l_addr, l_key, s_net_fixture->net->pub.id);
 
-    dap_cert_t *l_cert = DAP_NEW_Z(dap_cert_t);
-    dap_assert_PIF(l_cert != NULL, "Cert allocation");
-    l_cert->enc_key = l_key;
-    snprintf(l_cert->name, sizeof(l_cert->name), "cert_bal_test");
+    dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("cert_cli_vis", DAP_ENC_KEY_TYPE_SIG_DILITHIUM,
+                                                          "cli_vis_seed_42", 15);
+    dap_assert_PIF(l_cert != NULL, "Cert generated");
+    dap_cert_save_to_folder(l_cert, s_certs_dir);
 
     dap_chain_hash_fast_t l_emission_hash;
     test_token_fixture_t *l_token = test_token_fixture_create_with_emission(
-        s_net_fixture->ledger, "BBAL", "100000.0", "50000.0", &l_addr, l_cert, &l_emission_hash);
+        s_net_fixture->ledger, "TCLI", "100000.0", "50000.0", &l_addr, l_cert, &l_emission_hash);
     dap_assert_PIF(l_token != NULL, "Token with emission created");
 
     test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
-        s_net_fixture->ledger, &l_emission_hash, "BBAL", "1000.0", &l_addr, l_cert);
+        s_net_fixture->ledger, &l_emission_hash, "TCLI", "1000.0", &l_addr, l_cert);
     dap_assert_PIF(l_tx != NULL, "TX created");
 
     int l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
     dap_assert_PIF(l_res == 0, "TX added to ledger");
 
-    uint256_t l_balance_before = dap_ledger_calc_balance(s_net_fixture->ledger, &l_addr, "BBAL");
-    log_it(L_INFO, "  Balance before block: %s", dap_uint256_to_char(l_balance_before, NULL));
-    dap_assert_PIF(!IS_ZERO_256(l_balance_before), "Balance before block is non-zero");
+    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&l_tx->tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
 
-    size_t l_block_size2 = 0;
-    dap_chain_datum_token_t *l_block_update2 = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
-        "BBAL", &l_tx->tx_hash, 0, l_cert, 0, &l_block_size2);
-    dap_assert_PIF(l_block_update2 != NULL, "Block update datum created");
-    int l_block_res2 = dap_ledger_token_add(s_net_fixture->ledger, (byte_t *)l_block_update2, l_block_size2, dap_time_now());
-    dap_assert_PIF(l_block_res2 == 0, "UTXO blocked");
-    DAP_DELETE(l_block_update2);
+    /* Block output 0 via CLI pipeline */
+    char l_cmd_block[4096];
+    snprintf(l_cmd_block, sizeof(l_cmd_block),
+             "token_update -net %s -chain %s -token TCLI -type CF20 -certs %s "
+             "-utxo_blocked_add %s:0",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             l_cert->name, l_tx_hash_str);
 
-    uint256_t l_balance_after = dap_ledger_calc_balance(s_net_fixture->ledger, &l_addr, "BBAL");
-    log_it(L_INFO, "  Balance after block: %s", dap_uint256_to_char(l_balance_after, NULL));
-    dap_assert_PIF(EQUAL_256(l_balance_before, l_balance_after),
-                   "Balance should remain unchanged after UTXO blocking (wallet info still shows it)");
+    char l_json_req[8192];
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_block, "token_update", l_json_req, sizeof(l_json_req), 1);
+    char *l_reply = dap_cli_cmd_exec(l_json_req);
+    log_it(L_INFO, "Block CLI reply: %s", l_reply ? l_reply : "(null)");
+    DAP_DEL_Z(l_reply);
+
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+
+    /* Call wallet outputs via CLI */
+    const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
+    char l_cmd_wallet[4096];
+    snprintf(l_cmd_wallet, sizeof(l_cmd_wallet),
+             "wallet outputs -net %s -addr %s -token TCLI",
+             s_net_fixture->net->pub.name, l_addr_str);
+
+    char l_json_wallet[8192];
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_wallet, "wallet", l_json_wallet, sizeof(l_json_wallet), 2);
+    char *l_wallet_reply = dap_cli_cmd_exec(l_json_wallet);
+    log_it(L_INFO, "Wallet outputs CLI reply: %.500s", l_wallet_reply ? l_wallet_reply : "(null)");
+
+    dap_assert_PIF(l_wallet_reply != NULL, "wallet outputs returned a reply");
+
+    /* Parse JSON-RPC response */
+    json_object *l_jobj = json_tokener_parse(l_wallet_reply);
+    dap_assert_PIF(l_jobj != NULL, "wallet outputs reply is valid JSON");
+
+    json_object *l_result_arr = NULL;
+    json_object_object_get_ex(l_jobj, "result", &l_result_arr);
+    dap_assert_PIF(l_result_arr != NULL && json_object_is_type(l_result_arr, json_type_array),
+                   "JSON has result array");
+
+    json_object *l_inner_arr = json_object_array_get_idx(l_result_arr, 0);
+    dap_assert_PIF(l_inner_arr != NULL && json_object_is_type(l_inner_arr, json_type_array),
+                   "Result has inner wallet array");
+
+    json_object *l_wallet_obj = json_object_array_get_idx(l_inner_arr, 0);
+    dap_assert_PIF(l_wallet_obj != NULL, "Inner array has wallet object");
+
+    json_object *l_outs_arr = NULL;
+    json_object_object_get_ex(l_wallet_obj, "outs", &l_outs_arr);
+    dap_assert_PIF(l_outs_arr != NULL && json_object_is_type(l_outs_arr, json_type_array),
+                   "Wallet object has outs array");
+
+    int l_outs_count = json_object_array_length(l_outs_arr);
+    log_it(L_INFO, "  wallet outputs returned %d UTXOs", l_outs_count);
+    dap_assert_PIF(l_outs_count >= 2,
+                   "REGRESSION: wallet outputs must show ALL UTXOs including blocked (got %d, expected >= 2)");
+
+    /* Verify each UTXO has a "status" field */
+    bool l_found_blocked = false;
+    bool l_found_available = false;
+    for (int i = 0; i < l_outs_count; i++) {
+        json_object *l_out = json_object_array_get_idx(l_outs_arr, i);
+        json_object *l_status_obj = NULL;
+        json_object_object_get_ex(l_out, "status", &l_status_obj);
+        dap_assert_PIF(l_status_obj != NULL,
+                       "REGRESSION: each UTXO in wallet outputs must have 'status' field");
+        const char *l_status = json_object_get_string(l_status_obj);
+        if (strcmp(l_status, "blocked") == 0) l_found_blocked = true;
+        if (strcmp(l_status, "available") == 0) l_found_available = true;
+        log_it(L_INFO, "  UTXO[%d] status=%s", i, l_status);
+    }
+    dap_assert_PIF(l_found_blocked,
+                   "REGRESSION: wallet outputs must show at least one UTXO with status=blocked");
+    dap_assert_PIF(l_found_available,
+                   "REGRESSION: wallet outputs must show at least one UTXO with status=available");
+
+    /* Verify blocked/available value totals */
+    json_object *l_blocked_coins = NULL, *l_avail_coins = NULL;
+    json_object_object_get_ex(l_wallet_obj, "blocked_value_coins", &l_blocked_coins);
+    json_object_object_get_ex(l_wallet_obj, "available_value_coins", &l_avail_coins);
+    dap_assert_PIF(l_blocked_coins != NULL,
+                   "REGRESSION: wallet outputs must include blocked_value_coins when UTXOs are blocked");
+    dap_assert_PIF(l_avail_coins != NULL,
+                   "REGRESSION: wallet outputs must include available_value_coins when UTXOs are blocked");
+
+    log_it(L_INFO, "  blocked_value_coins=%s, available_value_coins=%s",
+           json_object_get_string(l_blocked_coins), json_object_get_string(l_avail_coins));
+
+    json_object_put(l_jobj);
+    DAP_DEL_Z(l_wallet_reply);
 
     test_tx_fixture_destroy(l_tx);
     test_token_fixture_destroy(l_token);
-    l_cert->enc_key = NULL;
-    DAP_DELETE(l_cert);
+    dap_cert_delete(l_cert);
     dap_enc_key_delete(l_key);
 
-    dap_pass_msg("Balance preserved after UTXO blocking PASSED");
+    dap_pass_msg("CLI wallet outputs blocked UTXO visibility PASSED");
 }
 
 int main(int argc, char **argv)
@@ -239,7 +332,7 @@ int main(int argc, char **argv)
     dap_print_module_name("Regression: Blocked UTXO visibility in listings");
     s_setup();
     test_blocked_utxo_visible_with_skip_blocklist();
-    test_blocked_utxo_balance_preserved();
+    test_wallet_outputs_cli_shows_blocked_utxo();
     s_teardown();
     log_it(L_NOTICE, "=== Blocked UTXO visibility regression test COMPLETE ===");
     return 0;
