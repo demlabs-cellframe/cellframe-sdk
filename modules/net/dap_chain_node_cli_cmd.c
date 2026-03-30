@@ -3176,7 +3176,8 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
 
                 // Get information from ledger
                 int l_ledger_rc = DAP_LEDGER_CHECK_INVALID_ARGS;
-                const char *l_main_ticker = dap_ledger_tx_calculate_main_ticker(a_net->pub.ledger, l_tx, &l_ledger_rc);
+                dap_chain_token_ticker_str_t l_main_ticker_str = dap_ledger_tx_calculate_main_ticker_(a_net->pub.ledger, l_tx, &l_ledger_rc);
+                const char *l_main_ticker = l_main_ticker_str.s;
                 const char *l_ledger_rc_str = dap_ledger_check_error_str(l_ledger_rc);
 
                 // Create JSON objects for main_ticker and ledger_rc
@@ -8428,7 +8429,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUS
 
     // Add transaction to mempool
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
-    char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    dap_hash_str_t l_tx_hash_str_tmp = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size);
+    char *l_tx_hash_str = l_tx_hash_str_tmp.s;
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DEL_Z(l_datum_tx);
@@ -8573,7 +8575,8 @@ int com_mempool_add(int a_argc, char ** a_argv, void **a_json_arr_reply, UNUSED_
 
     // Add transaction to mempool
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
-    char *l_tx_hash_str = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    dap_hash_str_t l_tx_hash_str_tmp = dap_get_data_hash_str(l_datum_tx->data, l_datum_tx->header.data_size);
+    char *l_tx_hash_str = l_tx_hash_str_tmp.s;
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DEL_Z(l_datum_tx);
