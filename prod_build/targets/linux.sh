@@ -19,8 +19,24 @@ RDIR=$( dirname "$SOURCE" )
 DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
 HERE="$DIR"
 
-CMAKE=(cmake)
-MAKE=(make)
+if [ "$CROSS_ARCH" = "arm64" ]; then
+    echo "Cross-compiling cellframe-sdk for ARM64"
+    CMAKE=(cmake-arm64)
+    MAKE=(make)
+    export OPENSSL_ROOT_DIR="/opt/openssl-arm64"
+    export OPENSSL_LIBS="${OPENSSL_ROOT_DIR}/lib/libssl.a ${OPENSSL_ROOT_DIR}/lib/libcrypto.a -ldl"
+    export OPENSSL_INCLUDES="${OPENSSL_ROOT_DIR}/include/"
+elif [ "$CROSS_ARCH" = "arm32" ]; then
+    echo "Cross-compiling cellframe-sdk for ARM32"
+    CMAKE=(cmake-arm32)
+    MAKE=(make)
+    export OPENSSL_ROOT_DIR="/opt/openssl-arm32"
+    export OPENSSL_LIBS="${OPENSSL_ROOT_DIR}/lib/libssl.a ${OPENSSL_ROOT_DIR}/lib/libcrypto.a -ldl"
+    export OPENSSL_INCLUDES="${OPENSSL_ROOT_DIR}/include/"
+else
+    CMAKE=(cmake)
+    MAKE=(make)
+fi
 
 echo "Linux target"
 echo "CMAKE=${CMAKE[@]}"
