@@ -1825,7 +1825,6 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
             }
             json_object * json_obj_wall = json_object_new_object();
-            const char *l_l_addr_str = dap_chain_addr_to_str_static((dap_chain_addr_t*) l_addr);
             if(l_wallet)
             {
                 json_object_object_add(json_obj_wall, "sign", json_object_new_string(
@@ -1833,7 +1832,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                                                   dap_chain_wallet_check_sign(l_wallet) : "correct"));
                 json_object_object_add(json_obj_wall, "wallet", json_object_new_string(l_wallet->name));
             }
-            json_object_object_add(json_obj_wall, "addr", l_l_addr_str ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
+            json_object_object_add(json_obj_wall, "addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             
             json_object_object_add(json_obj_wall, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_addr->data.hash_fast)));
             json_object_object_add(json_obj_wall, "network", l_net_name? json_object_new_string(l_net_name) : json_object_new_string("-"));
@@ -2359,9 +2358,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         json_object_object_add(json_obj_wall, a_version == 1 ? "Sign type" : "sig_type", json_object_new_string(l_sign_type_str));
                     json_object_object_add(json_obj_wall, a_version == 1 ? "Status" : "status", json_object_new_string(a_version == 1 ? "successfully created" : "success"));
 
-                    const char *l_addr_str = NULL;
-                    if ( l_net && (l_addr_str = dap_chain_addr_to_str_static(dap_chain_wallet_get_addr(l_wallet,l_net->pub.id))) ) {
-                        json_object_object_add(json_obj_wall, a_version == 1 ? "new address" : "new_addr", json_object_new_string(l_addr_str) );
+                    if ( l_net ) {
+                        json_object_object_add(json_obj_wall, a_version == 1 ? "new address" : "new_addr", json_object_new_string(dap_chain_addr_to_str_static(dap_chain_wallet_get_addr(l_wallet,l_net->pub.id))) );
                     }
                     json_object_array_add(json_arr_out, json_obj_wall);
                     dap_chain_wallet_close(l_wallet);
@@ -2908,9 +2906,9 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 l_datum_size = dap_chain_datum_size(l_datum);
                 dap_chain_hash_fast_t l_key_hash = { };
                 dap_hash_fast(l_datum->data, l_token_size, &l_key_hash);
-                const char  *l_key_str = dap_chain_hash_fast_to_str_static(&l_key_hash),
-                            *l_key_str_base58 = dap_enc_base58_encode_hash_to_str_static(&l_key_hash),
-                            *l_key_out_str = dap_strcmp(l_hash_out_type, "hex") ? l_key_str_base58 : l_key_str;
+                char    *l_key_str = strdup(dap_chain_hash_fast_to_str_static(&l_key_hash)),
+                        *l_key_str_base58 = strdup(dap_enc_base58_encode_hash_to_str_static(&l_key_hash)),
+                        *l_key_out_str = dap_strcmp(l_hash_out_type, "hex") ? l_key_str_base58 : l_key_str;
                 int rc = 0;
                 // Add datum to mempool with datum_token hash as a key
                 if( dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, dap_chain_datum_size(l_datum), false) == 0) {
@@ -2941,7 +2939,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                             l_key_out_str, l_datum_hash_out_str);
                     rc = -DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_CANT_BE_PL_MEMPOOL_ERR;
                 }
-                DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str, l_datum, l_gdb_group_mempool);
+                DAP_DEL_MULTY(l_datum_hash_hex_str, l_datum_hash_base58_str, l_datum, l_gdb_group_mempool, l_key_str, l_key_str_base58);
                 return rc;
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_WRONG_DATUM_TYPE_ERR,
@@ -5910,8 +5908,6 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
     dap_chain_hash_fast_t l_key_hash;
     dap_chain_datum_calc_hash(l_datum, &l_key_hash);
     char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
-                           dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
 
     // Add datum to mempool with datum_token hash as a key
     char *l_gdb_group_mempool = l_chain
@@ -5934,10 +5930,12 @@ int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply, int a_version
     if (a_version == 1) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_OK,
                      "Datum %s with token %s is%s placed in datum pool",
-                                      l_key_str_out, l_ticker, l_placed ? "" : " not");
+                        dap_strcmp(l_hash_out_type, "hex") ?
+                        dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str, l_ticker, l_placed ? "" : " not");
     } else {
         char *l_str_reply_tmp = dap_strdup_printf("Datum %s with token %s is%s placed in datum pool",
-                                      l_key_str_out, l_ticker, l_placed ? "" : " not");
+            dap_strcmp(l_hash_out_type, "hex") ?
+            dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str, l_ticker, l_placed ? "" : " not");
 
         json_object* json_obj_out = json_object_new_object();
         json_object_object_add(json_obj_out, "status", json_object_new_string(l_str_reply_tmp));
@@ -6126,8 +6124,6 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_versi
     dap_chain_hash_fast_t l_key_hash;
     dap_chain_datum_calc_hash(l_datum, &l_key_hash);
     char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
-                           dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
 
     // Add datum to mempool with datum_token hash as a key
     char *l_gdb_group_mempool = l_chain
@@ -6144,10 +6140,12 @@ int com_token_update(int a_argc, char ** a_argv, void **a_str_reply, int a_versi
     if (a_version == 1) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_UPDATE_OK,
                            "Datum %s with token update for ticker %s is%s placed in datum pool",
-                                                                 l_key_str_out, l_ticker, l_placed ? "" : " not");
+                           dap_strcmp(l_hash_out_type, "hex") ?
+                           dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str, l_ticker, l_placed ? "" : " not");
     } else {
         char *l_str_reply_tmp = dap_strdup_printf("Datum %s with token update for ticker %s is%s placed in datum pool",
-                                                                 l_key_str_out, l_ticker, l_placed ? "" : " not");
+            dap_strcmp(l_hash_out_type, "hex") ?
+            dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str, l_ticker, l_placed ? "" : " not");
 
         json_object* json_obj_out = json_object_new_object();
         json_object_object_add(json_obj_out, "status", json_object_new_string(l_str_reply_tmp));

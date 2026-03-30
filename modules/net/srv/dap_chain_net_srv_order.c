@@ -87,7 +87,6 @@ int dap_chain_srv_order_pin_init() {
     dap_cert_t *l_cert = dap_cert_find_by_name("node-addr");
     if (!l_cert)
         return -1;
-    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(dap_stream_node_addr_from_cert(l_cert));
     
     for (dap_list_t *l_list = l_group_list; l_list && dap_global_db_group_match_mask((char*)l_list->data, "*pinned"); l_list = dap_list_next(l_list)) {
         size_t l_ret_count;
@@ -101,8 +100,7 @@ int dap_chain_srv_order_pin_init() {
             const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_ret[i].key, l_ret[i].value, l_ret[i].value_len);
             if (!l_order)
                 continue;
-            const char * l_addr_str = dap_stream_node_addr_to_str_static(l_order->node_addr);
-            if (!dap_strcmp(l_node_addr_str, l_addr_str)) {
+            if (!dap_strcmp(dap_stream_node_addr_to_str_static(dap_stream_node_addr_from_cert(l_cert)), dap_stream_node_addr_to_str_static(l_order->node_addr))) {
                 dap_global_db_pin_sync(l_ret[i].group, l_ret[i].key);
                 log_it(L_DEBUG, "Pin *.service.orders obj %s group, %s key", l_ret[i].group, l_ret[i].key);
             }
@@ -534,11 +532,10 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
     if (a_order && a_str_out ){
         dap_chain_hash_fast_t l_hash;
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
-        const char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
-                : dap_chain_hash_fast_to_str_static(&l_hash);
 
-        dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
+        dap_string_append_printf(a_str_out, "== Order %s ==\n", dap_strcmp(a_hash_out_type,"hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
+            : dap_chain_hash_fast_to_str_static(&l_hash));
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
 
         switch ( a_order->direction) {
@@ -568,10 +565,9 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
         dap_string_append_printf(a_str_out, "  node_location:    %s - %s\n", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
         DAP_DELETE(l_region);
 
-        l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
-                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);
-        dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
+        dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", dap_strcmp(a_hash_out_type, "hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
+            : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash) );
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
         if(l_ext_out) {
             dap_bin2hex(l_ext_out, a_order->ext_n_sign, a_order->ext_size);
@@ -582,8 +578,7 @@ void dap_chain_net_srv_order_dump_to_string(const dap_chain_net_srv_order_t *a_o
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
-        const char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
-        dap_string_append_printf(a_str_out, "  pkey:             %s\n", l_sign_pkey_hash_str);
+        dap_string_append_printf(a_str_out, "  pkey:             %s\n", dap_hash_fast_to_str_static(&l_sign_pkey));
         DAP_DELETE(l_ext_out);
     }
 }
@@ -599,11 +594,10 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
     if (a_order && a_json_obj_out ){
         dap_chain_hash_fast_t l_hash;
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
-        const char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
-                : dap_chain_hash_fast_to_str_static(&l_hash);
 
-        json_object_object_add(a_json_obj_out, "order", json_object_new_string(l_hash_str));
+        json_object_object_add(a_json_obj_out, "order", json_object_new_string(dap_strcmp(a_hash_out_type,"hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
+            : dap_chain_hash_fast_to_str_static(&l_hash)));
         json_object_object_add(a_json_obj_out, "version", json_object_new_uint64(a_order->version));
 
         switch ( a_order->direction) {
@@ -652,16 +646,14 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         DAP_DELETE(l_region);
 
         if (!dap_hash_fast_is_blank(&a_order->tx_cond_hash)){
-            l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+            json_object_object_add(a_json_obj_out, "tx_cond_hash", json_object_new_string(dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
-                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);      
-            json_object_object_add(a_json_obj_out, "tx_cond_hash", json_object_new_string(l_hash_str));
+                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash)));
         }
         json_object_object_add(a_json_obj_out, "ext_size", json_object_new_uint64(a_order->ext_size));
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
-        const char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
-        json_object_object_add(a_json_obj_out, "pkey", json_object_new_string(l_sign_pkey_hash_str));
+        json_object_object_add(a_json_obj_out, "pkey", json_object_new_string(dap_hash_fast_to_str_static(&l_sign_pkey)));
     }
 }
