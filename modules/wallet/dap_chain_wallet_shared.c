@@ -90,10 +90,76 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_wallet_shared"
 
+/**
+ * @brief Count owner entries in TSD (TSD_HASH entries only, as the authoritative owner count)
+ * @param a_tsd TSD blob pointer
+ * @param a_tsd_size TSD blob size
+ * @return Number of TSD_HASH owner entries
+ */
+static size_t s_count_tsd_owners(const uint8_t *a_tsd, uint32_t a_tsd_size)
+{
+    size_t l_count = 0;
+    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t))
+            l_count++;
+    }
+    return l_count;
+}
+
+/**
+ * @brief Validate partial bijection between TSD_HASH and TSD_ADDR entries.
+ *        If TSD_ADDR entries are present, their count must not exceed TSD_HASH count,
+ *        and for each non-blank address ADDR[i].data.hash_fast must equal HASH[i].
+ * @return 0 on success, negative error code on failure
+ */
+static int s_validate_tsd_bijection(const uint8_t *a_tsd, uint32_t a_tsd_size)
+{
+    size_t l_hash_count = 0, l_addr_count = 0;
+    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t))
+            l_hash_count++;
+        else if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_ADDR && l_tsd->size == sizeof(dap_chain_addr_t))
+            l_addr_count++;
+    }
+    if (!l_addr_count)
+        return 0;
+    if (l_addr_count > l_hash_count) {
+        log_it(L_ERROR, "TSD bijection violated: %zu TSD_ADDR exceeds %zu TSD_HASH entries", l_addr_count, l_hash_count);
+        return -12;
+    }
+    size_t l_idx = 0;
+    dap_hash_fast_t l_hashes[l_hash_count];
+    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t))
+            l_hashes[l_idx++] = *(dap_hash_fast_t *)l_tsd->data;
+    }
+    l_idx = 0;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_ADDR && l_tsd->size == sizeof(dap_chain_addr_t)) {
+            dap_chain_addr_t *l_addr = (dap_chain_addr_t *)l_tsd->data;
+            if (l_addr->addr_type != 0 &&
+                    !dap_hash_fast_compare(&l_hashes[l_idx], &l_addr->data.hash_fast)) {
+                log_it(L_ERROR, "TSD bijection violated: HASH[%zu] != ADDR[%zu].data.hash_fast", l_idx, l_idx);
+                return -13;
+            }
+            l_idx++;
+        }
+    }
+    return 0;
+}
 
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner, bool a_check_for_apply)
 {
-    size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
+    size_t l_tsd_hashes_count = s_count_tsd_owners(a_cond->tsd, a_cond->tsd_size);
+    if (!l_tsd_hashes_count) {
+        log_it(L_ERROR, "No owner pkey hashes found in conditional output TSD");
+        return -14;
+    }
+    int l_bijection_rc = s_validate_tsd_bijection(a_cond->tsd, a_cond->tsd_size);
+    if (l_bijection_rc)
+        return l_bijection_rc;
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];
     uint32_t l_signs_counter = 0, l_signs_verified = 0;
     uint256_t l_writeoff_value = uint256_0;
@@ -244,7 +310,10 @@ static char *s_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain, const ch
 
 static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
                                                   const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
-                                                  uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str)
+                                                  uint32_t a_signs_min,
+                                                  dap_chain_addr_t *a_owner_addrs, size_t a_addrs_count,
+                                                  dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count,
+                                                  const char *a_tag_str)
 {
     const char *l_native_ticker = a_net->pub.native_ticker;
     bool l_share_native = !dap_strcmp(l_native_ticker, a_token_ticker);
@@ -293,8 +362,8 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
 
     // add 'out_cond' & 'out_ext' items
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
-    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_wallet_shared(
-                                                l_uid, a_value, a_signs_min, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
+    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(
+                                                l_uid, a_value, a_signs_min, a_owner_addrs, a_addrs_count, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
     if (!l_tx_out)
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction conditional output");
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
@@ -719,8 +788,8 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json
     byte_t *l_my_pkey = dap_enc_key_serialize_pub_key(a_enc_key, &l_my_pkey_size);
     if (!l_my_pkey)
         m_sign_fail(ERROR_COMPOSE, "Can't serialize sign public key");
-    size_t l_tsd_hashes_count = l_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
-    size_t l_signs_limit = l_tsd_hashes_count * 2;
+    size_t l_tsd_owners_count = s_count_tsd_owners(l_cond->tsd, l_cond->tsd_size);
+    size_t l_signs_limit = l_tsd_owners_count * 2;
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         if (*l_item != TX_ITEM_TYPE_SIG)
@@ -857,58 +926,34 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
     const char *l_addrs_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey_hashes", &l_owners_str);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-addrs", &l_addrs_str);
-    if (l_owners_str && l_addrs_str) {
-        dap_enc_key_delete(l_enc_key);
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Use either -pkey_hashes or -addrs, not both");
-        return ERROR_PARAM;
-    }
     if (!l_owners_str && !l_addrs_str) {
         dap_enc_key_delete(l_enc_key);
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -pkey_hashes or -addrs");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -pkey_hashes and/or -addrs");
         return ERROR_PARAM;
     }
 
     size_t l_hashes_count = 0;
     dap_chain_hash_fast_t *l_pkey_hashes = NULL;
+    dap_chain_addr_t *l_owner_addrs = NULL;
+    size_t l_addrs_count = 0;
 
     if (l_addrs_str) {
         dap_chain_addr_t *l_addrs_array = NULL;
-        size_t l_addrs_count = dap_chain_addr_from_str_array(l_addrs_str, &l_addrs_array);
+        l_addrs_count = dap_chain_addr_from_str_array(l_addrs_str, &l_addrs_array);
         if (!l_addrs_count || !l_addrs_array) {
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't parse addresses from -addrs parameter");
             DAP_DELETE(l_enc_key);
             return ERROR_VALUE;
         }
-        l_pkey_hashes = DAP_NEW_Z_COUNT(dap_chain_hash_fast_t, l_addrs_count);
-        if (!l_pkey_hashes) {
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, c_error_memory_alloc);
-            DAP_DEL_MULTY(l_enc_key, l_addrs_array);
-            return ERROR_MEMORY;
-        }
-        for (size_t i = 0; i < l_addrs_count; i++) {
-            if (l_addrs_array[i].addr_type != DAP_CHAIN_ADDR_TYPE_REGULAR) {
-                dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Address %zu is not a regular address, can't extract pkey hash", i + 1);
-                DAP_DEL_MULTY(l_enc_key, l_pkey_hashes, l_addrs_array);
-                return ERROR_VALUE;
-            }
-            l_pkey_hashes[i] = l_addrs_array[i].data.hash_fast;
-            for (size_t j = 0; j < i; ++j) {
-                if (!memcmp(l_pkey_hashes + j, l_pkey_hashes + i, sizeof(dap_chain_hash_fast_t))) {
-                    dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Duplicate address found at position %zu", i + 1);
-                    DAP_DEL_MULTY(l_enc_key, l_pkey_hashes, l_addrs_array);
-                    return ERROR_VALUE;
-                }
-            }
-        }
-        l_hashes_count = l_addrs_count;
-        DAP_DELETE(l_addrs_array);
-    } else {
+        l_owner_addrs = l_addrs_array;
+    }
+    if (l_owners_str) {
         size_t l_owners_str_size = strlen(l_owners_str);
         size_t l_hashes_count_max = l_owners_str_size / DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_hash_fast_t));
         l_pkey_hashes = DAP_NEW_Z_COUNT(dap_chain_hash_fast_t, l_hashes_count_max);
         if (!l_pkey_hashes) {
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, c_error_memory_alloc);
-            DAP_DELETE(l_enc_key);
+            DAP_DEL_MULTY(l_enc_key, l_owner_addrs);
             return ERROR_MEMORY;
         }
         char l_hash_str_buf[DAP_HASH_FAST_STR_SIZE+1];
@@ -920,13 +965,13 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
             dap_strncpy(l_hash_str_buf, l_token_ptr, dap_min(DAP_HASH_FAST_STR_SIZE, l_cur_ptr - l_token_ptr));
             if (dap_chain_hash_fast_from_str(l_hash_str_buf, l_pkey_hashes + i)) {
                 dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
-                DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+                DAP_DEL_MULTY(l_enc_key, l_pkey_hashes, l_owner_addrs);
                 return ERROR_VALUE;
             }
             for (size_t j = 0; j < i; ++j) {
                 if (!memcmp(l_pkey_hashes + j, l_pkey_hashes + i, sizeof(dap_chain_hash_fast_t))) {
                     dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Find pkey hash %s dublicate", l_hash_str_buf);
-                    DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+                    DAP_DEL_MULTY(l_enc_key, l_pkey_hashes, l_owner_addrs);
                     return ERROR_VALUE;
                 }
             }
@@ -938,18 +983,18 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
         }
         if (!l_hashes_count) {
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't parse any pkey hashes from -pkey_hashes parameter");
-            DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+            DAP_DEL_MULTY(l_enc_key, l_pkey_hashes, l_owner_addrs);
             return ERROR_VALUE;
         }
     }
-    if (l_hashes_count < l_signs_min) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Quantity of pkey_hashes %zu should not be less than signs_minimum (%zu)", l_hashes_count, l_signs_min);
-        DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+    size_t l_total_owners = l_addrs_count + l_hashes_count;
+    if (l_total_owners < l_signs_min) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Quantity of owners %zu should not be less than signs_minimum (%zu)", l_total_owners, l_signs_min);
+        DAP_DEL_MULTY(l_enc_key, l_pkey_hashes, l_owner_addrs);
         return ERROR_VALUE;
     }
-    // Create conditional transaction for shared fundss
-    dap_chain_datum_tx_t *l_tx = s_emitting_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_token_str, l_value, l_fee, l_signs_min, l_pkey_hashes, l_hashes_count, l_tag_str);
-    DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+    dap_chain_datum_tx_t *l_tx = s_emitting_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_token_str, l_value, l_fee, l_signs_min, l_owner_addrs, l_addrs_count, l_pkey_hashes, l_hashes_count, l_tag_str);
+    DAP_DEL_MULTY(l_enc_key, l_pkey_hashes, l_owner_addrs);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for shared funds");
         return ERROR_CREATE;
@@ -1331,16 +1376,28 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_jobj_balance, "datoshi", json_object_new_string(l_balance_datoshi));
     // verify block
     json_object_object_add(l_jobj_take_verify, "signs_minimum", json_object_new_uint64(l_cond->subtype.wallet_shared.signers_minimum));
+    json_object *l_jobj_owner_addrs = json_object_new_array();
     dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data) : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
+        }
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_ADDR && l_tsd->size == sizeof(dap_chain_addr_t)) {
+            dap_chain_addr_t *l_addr = (dap_chain_addr_t *)l_tsd->data;
+            if (l_addr->addr_type != 0)
+                json_object_array_add(l_jobj_owner_addrs, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+            else
+                json_object_array_add(l_jobj_owner_addrs, json_object_new_null());
         }
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR) {
             json_object_array_add(l_jobj_tags, json_object_new_string((char*)(l_tsd->data)));
         }
     }
     json_object_object_add(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
+    if (json_object_array_length(l_jobj_owner_addrs) > 0)
+        json_object_object_add(l_jobj_take_verify, "owner_addrs", l_jobj_owner_addrs);
+    else
+        json_object_put(l_jobj_owner_addrs);
 
     dap_chain_addr_t l_shared_addr;
     dap_chain_addr_fill_shared(&l_shared_addr, a_net->pub.id, &l_tx_hash);
@@ -1701,14 +1758,26 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
                                     json_object_object_add(l_jobj_tx, "signs_minimum",
                                         json_object_new_uint64(l_cond->subtype.wallet_shared.signers_minimum));
                                     json_object *l_jobj_owners = json_object_new_array();
+                                    json_object *l_jobj_owner_addrs_list = json_object_new_array();
                                     dap_tsd_t *l_tsd2 = NULL; size_t l_tsd_size2 = 0;
                                     dap_tsd_iter(l_tsd2, l_tsd_size2, l_cond->tsd, l_cond->tsd_size) {
                                         if (l_tsd2->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd2->size == sizeof(dap_hash_fast_t))
                                             json_object_array_add(l_jobj_owners, json_object_new_string(
                                                 l_is_base58 ? dap_enc_base58_encode_hash_to_str_static((const dap_chain_hash_fast_t *)l_tsd2->data)
                                                             : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd2->data)));
+                                        if (l_tsd2->type == DAP_CHAIN_TX_OUT_COND_TSD_ADDR && l_tsd2->size == sizeof(dap_chain_addr_t)) {
+                                            dap_chain_addr_t *l_oa = (dap_chain_addr_t *)l_tsd2->data;
+                                            if (l_oa->addr_type != 0)
+                                                json_object_array_add(l_jobj_owner_addrs_list, json_object_new_string(dap_chain_addr_to_str_static(l_oa)));
+                                            else
+                                                json_object_array_add(l_jobj_owner_addrs_list, json_object_new_null());
+                                        }
                                     }
                                     json_object_object_add(l_jobj_tx, "owner_hashes", l_jobj_owners);
+                                    if (json_object_array_length(l_jobj_owner_addrs_list) > 0)
+                                        json_object_object_add(l_jobj_tx, "owner_addrs", l_jobj_owner_addrs_list);
+                                    else
+                                        json_object_put(l_jobj_owner_addrs_list);
                                 }
                             }
                             if (l_verbose) {
@@ -1934,7 +2003,7 @@ static uint32_t s_wallet_shared_get_valid_signs(dap_chain_tx_out_cond_t *a_cond,
 {
     if (!a_cond || !a_tx || !a_cond->tsd_size)
         return 0;
-    size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
+    size_t l_tsd_hashes_count = s_count_tsd_owners(a_cond->tsd, a_cond->tsd_size);
     if (!l_tsd_hashes_count)
         return 0;
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];
