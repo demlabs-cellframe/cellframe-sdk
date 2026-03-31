@@ -572,6 +572,22 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_e
             return NULL;
         }
     }
+    for (size_t i = 1; i < a_addrs_count; i++) {
+        for (size_t j = 0; j < i; j++) {
+            if (dap_hash_fast_compare(&a_owner_addrs[i].data.hash_fast, &a_owner_addrs[j].data.hash_fast)) {
+                log_it(L_ERROR, "Duplicate address: addr[%zu] matches addr[%zu]", i, j);
+                return NULL;
+            }
+        }
+    }
+    for (size_t i = 1; i < a_pkey_hashes_count; i++) {
+        for (size_t j = 0; j < i; j++) {
+            if (dap_hash_fast_compare(a_pkey_hashes + i, a_pkey_hashes + j)) {
+                log_it(L_ERROR, "Duplicate pkey hash: pkey_hash[%zu] matches pkey_hash[%zu]", i, j);
+                return NULL;
+            }
+        }
+    }
     for (size_t i = 0; i < a_addrs_count; i++) {
         dap_hash_fast_t *l_addr_hash = &a_owner_addrs[i].data.hash_fast;
         for (size_t j = 0; j < a_pkey_hashes_count; j++) {

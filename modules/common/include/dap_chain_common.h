@@ -244,6 +244,8 @@ int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, 
 void dap_chain_addr_fill_shared(dap_chain_addr_t *a_addr, dap_chain_net_id_t a_net_id, dap_chain_hash_fast_t *a_hold_tx_hash);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
+int dap_chain_addr_resolve_hold_tx_hash(const char *a_str, dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_tx_hash);
+size_t dap_chain_hash_fast_from_str_array(const char *a_str, dap_hash_fast_t **a_hashes);
 void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count, bool a_last);
 
 DAP_STATIC_INLINE bool dap_chain_addr_compare(const dap_chain_addr_t *a_addr1, const dap_chain_addr_t *a_addr2)

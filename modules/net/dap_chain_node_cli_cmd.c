@@ -1986,14 +1986,21 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
                                        "Subcommand outputs requires parameter '-token'");
                 json_object_put(json_arr_out);
+                DAP_DELETE(l_addr);
+                if (l_wallet) dap_chain_wallet_close(l_wallet);
                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
             }
 
             json_object *json_obj_wall = json_object_new_object();
             json_object_object_add(json_obj_wall, "wallet_addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             struct json_object *l_json_outs_arr = json_object_new_array();
-            if (!l_json_outs_arr)
-                return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+            if (!l_json_outs_arr) {
+                json_object_put(json_obj_wall);
+                json_object_put(json_arr_out);
+                DAP_DELETE(l_addr);
+                if (l_wallet) dap_chain_wallet_close(l_wallet);
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+            }
             uint256_t l_value_sum = uint256_0;
 
             if (l_addr->addr_type == DAP_CHAIN_ADDR_TYPE_SHARED) {
@@ -2006,6 +2013,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     json_object_put(json_obj_wall);
                     json_object_put(l_json_outs_arr);
                     json_object_put(json_arr_out);
+                    DAP_DELETE(l_addr);
+                    if (l_wallet) dap_chain_wallet_close(l_wallet);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
                 }
                 dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
@@ -2046,6 +2055,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             json_object_put(json_obj_wall);
                             json_object_put(l_json_outs_arr);
                             json_object_put(json_arr_out);
+                            DAP_DELETE(l_addr);
+                            if (l_wallet) dap_chain_wallet_close(l_wallet);
                             return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
                         }
                     }
@@ -2060,6 +2071,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             json_object_put(json_obj_wall);
                             json_object_put(l_json_outs_arr);
                             json_object_put(json_arr_out);
+                            DAP_DELETE(l_addr);
+                            if (l_wallet) dap_chain_wallet_close(l_wallet);
                             return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
                         }
                     }
@@ -2091,8 +2104,15 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
                 for (dap_list_t *l_temp = l_outs_list; l_temp; l_temp = l_temp->next) {
                     json_object *json_obj_item = json_object_new_object();
-                    if (!json_obj_item)
-                        return json_object_put(json_arr_out), DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+                    if (!json_obj_item) {
+                        dap_list_free_full(l_outs_list, NULL);
+                        json_object_put(json_obj_wall);
+                        json_object_put(l_json_outs_arr);
+                        json_object_put(json_arr_out);
+                        DAP_DELETE(l_addr);
+                        if (l_wallet) dap_chain_wallet_close(l_wallet);
+                        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+                    }
                     dap_chain_tx_used_out_item_t *l_item = l_temp->data;
                     const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
                     json_object_object_add(json_obj_item, "item_type", json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
@@ -2112,6 +2132,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
             json_object_object_add(json_obj_wall, "outs", l_json_outs_arr);
             json_object_array_add(json_arr_out, json_obj_wall);
+            DAP_DELETE(l_addr);
+            if (l_wallet) dap_chain_wallet_close(l_wallet);
         } break;
         case CMD_WALLET_FIND: {
             if (l_addr_str) {
@@ -2121,8 +2143,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         s_wallet_list(l_file_path, json_arr_out, l_addr, a_version);
                     else 
                         s_wallet_list(c_wallets_path, json_arr_out, l_addr, a_version);
-                }                    
-                else {
+                    DAP_DELETE(l_addr);
+                } else {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR,
                         "addr not recognized");
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_ERR;
