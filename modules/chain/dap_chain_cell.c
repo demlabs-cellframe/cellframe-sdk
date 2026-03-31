@@ -292,7 +292,8 @@ int dap_chain_cell_truncate(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
             log_it(L_ERROR, "NtExtendSection() failed, status %lx", (unsigned long)err);
     } else
 #endif
-    ftruncate(fileno(l_cell->file_storage), l_pos);
+    if (ftruncate(fileno(l_cell->file_storage), l_pos) != 0)
+        log_it(L_ERROR, "ftruncate() failed: %s", strerror(errno));
     dap_chain_cell_remit(a_chain);
     return 0;
 }
@@ -453,7 +454,8 @@ DAP_STATIC_INLINE int s_cell_load_from_file(dap_chain_cell_t *a_cell)
                 log_it(L_ERROR, "NtExtendSection() failed, status %lx", (unsigned long)err);
         } else
 #endif
-            ftruncate(fileno(a_cell->file_storage), l_pos);
+        if (ftruncate(fileno(a_cell->file_storage), l_pos) != 0)
+            log_it(L_ERROR, "ftruncate() failed: %s", strerror(errno));
     }
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     if ( a_cell->chain->callback_atoms_prefetched_add )
@@ -505,7 +507,8 @@ DAP_STATIC_INLINE int s_cell_open(dap_chain_t *a_chain, const char *a_filepath, 
             m_ret_err(errno, "Cell \"%s : %s / \"%s\" cannot be loaded, code %d",
                              a_chain->net_name, a_chain->name, a_filename, l_load_res);
         // Otherwise, rewrite the file from scratch
-        ftruncate(fileno(l_cell->file_storage), 0);
+        if (ftruncate(fileno(l_cell->file_storage), 0) != 0)
+            log_it(L_ERROR, "ftruncate() failed: %s", strerror(errno));
         *mode = 'w';
     }
     case 'w': {

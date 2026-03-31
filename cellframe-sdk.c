@@ -46,6 +46,7 @@
 #include "dap_chain_ledger_cli.h"
 #include "dap_chain_net_tx_cli.h"
 #include "dap_chain_wallet_cli.h"
+#include "dap_cert_cli.h"
 #endif
 
 #define LOG_TAG "cellframe_sdk"
@@ -123,6 +124,7 @@ int cellframe_sdk_init(uint32_t a_modules)
         dap_chain_mempool_cli_init();
         dap_chain_ledger_cli_init();
         dap_chain_net_tx_cli_init();
+        dap_cert_cli_init();
     }
 #endif
 

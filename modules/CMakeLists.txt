@@ -3,6 +3,9 @@ if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(common)
 endif()
 
+# Certificate CLI (available for all builds with CLI support)
+add_subdirectory(cert)
+
 # Chains
 if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(datum)
