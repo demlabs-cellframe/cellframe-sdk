@@ -1614,14 +1614,13 @@ static void s_service_substate_go_to_waiting_prev_tx(dap_chain_net_srv_usage_t *
     l_item->tx_cond_hash = a_usage->tx_cond_hash;
 
     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_TX_FOR_PAYING;
-    char *l_user_key = dap_chain_hash_fast_to_str_static(&l_grace->usage->client_pkey_hash);
 
     pthread_mutex_lock(&a_usage->service->grace_mutex);
     HASH_ADD(hh, a_usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
     pthread_mutex_unlock(&a_usage->service->grace_mutex);
     l_grace->timer = dap_timerfd_start_on_worker(l_grace->stream_worker->worker, l_grace->usage->service->grace_period * 1000,
                                                            (dap_timerfd_callback_t)s_grace_period_finish, l_item);
-    log_it(L_INFO, "Start grace timer %s for user %s.", l_grace->timer ? "successfuly." : "failed.", l_user_key);
+    log_it(L_INFO, "Start grace timer %s for user %s.", l_grace->timer ? "successfuly." : "failed.", dap_hash_fast_to_str_static(&l_grace->usage->client_pkey_hash));
 }
 
 static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a_usage)
@@ -1650,7 +1649,6 @@ static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a
     l_item->tx_cond_hash = a_usage->tx_cond_hash;
 
     a_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_FROM_CLIENT;
-    char *l_user_key = dap_chain_hash_fast_to_str_static(&l_grace->usage->client_pkey_hash);
 
     pthread_mutex_lock(&a_usage->service->grace_mutex);
     HASH_ADD(hh, a_usage->service->grace_hash_tab, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
@@ -1658,7 +1656,7 @@ static void s_service_substate_go_to_waiting_new_tx(dap_chain_net_srv_usage_t *a
     l_grace->timer = dap_timerfd_start_on_worker(l_grace->stream_worker->worker, l_grace->usage->service->grace_period * 1000,
                                                            (dap_timerfd_callback_t)s_grace_period_finish, l_item);
     
-    log_it(L_INFO, "Start grace timer %s for user %s.", l_grace->timer ? "successfuly." : "failed.", l_user_key);
+    log_it(L_INFO, "Start grace timer %s for user %s.", l_grace->timer ? "successfuly." : "failed.", dap_hash_fast_to_str_static(&l_grace->usage->client_pkey_hash));
     dap_stream_ch_chain_net_srv_pkt_error_t l_err;
     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
     dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));

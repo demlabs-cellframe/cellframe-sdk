@@ -1690,12 +1690,11 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         }
                         dap_chain_hash_fast_t l_pkey_hash;
                         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                        const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                            : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
 
                         json_object_object_add(json_obj_event, a_version ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
-                        json_object_object_add(json_obj_event,"sig_pkey_hash", json_object_new_string(l_hash_str));
+                        json_object_object_add(json_obj_event,"sig_pkey_hash", json_object_new_string(dap_strcmp(l_hash_out_type, "hex")
+                            ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
+                            : dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
 
                         l_offset += l_sign_size;
                     }
@@ -2043,10 +2042,10 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         if ( l_event_size_new ) {
                             dap_chain_hash_fast_t l_event_new_hash;
                             dap_chain_cs_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
-                            const char *l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_static(&l_event_new_hash);
-                            const char *l_event_new_hash_base58_str = NULL;
+                            char *l_event_new_hash_hex_str = strdup(dap_chain_hash_fast_to_str_static(&l_event_new_hash));
+                            char *l_event_new_hash_base58_str = NULL;
                             if (dap_strcmp(l_hash_out_type, "hex"))
-                                l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
+                                l_event_new_hash_base58_str = strdup(dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash));
 
                             if (dap_chain_cs_dag_event_gdb_set(l_dag, l_event_new_hash_hex_str, l_event,
                                                                l_event_size_new, l_round_item)) {
@@ -2066,7 +2065,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                                                        l_event_new_hash_base58_str ? l_event_new_hash_base58_str : l_event_new_hash_hex_str);
                                 ret = -DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR;
                             }
-                            DAP_DELETE(l_event);
+                            DAP_DEL_MULTY(l_event, l_event_new_hash_hex_str, l_event_new_hash_base58_str);
                         } else {
                             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_SIGN_ERR,"Can't sign event %s in round.new\n",
                                                    l_event_hash_str);
@@ -2202,10 +2201,9 @@ static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, d
     json_object *l_jobj_hash_links = json_object_new_array();
     for (uint16_t i=0; i < l_event->header.hash_count; i++){
         dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs + i*sizeof (dap_chain_hash_fast_t));
-        const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
-                                 dap_enc_base58_encode_hash_to_str_static(l_hash) :
-                                 dap_hash_fast_to_str_static(l_hash);
-        json_object_array_add(l_jobj_hash_links, json_object_new_string(l_hash_str));
+        json_object_array_add(l_jobj_hash_links, json_object_new_string(!dap_strcmp(a_hash_out_type, "base58")
+            ? dap_enc_base58_encode_hash_to_str_static(l_hash)
+            : dap_hash_fast_to_str_static(l_hash)));
     }
     json_object_object_add(l_jobj, "hash_links", l_jobj_hash_links);
     size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
@@ -2228,11 +2226,10 @@ static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, d
         }
         dap_chain_hash_fast_t l_pkey_hash;
         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
         json_object_object_add(l_jobj_signature, a_version == 1 ? "type" : "pkey_type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
-        json_object_object_add(l_jobj_signature,"pkey_hash", json_object_new_string(l_hash_str));
+        json_object_object_add(l_jobj_signature,"pkey_hash", json_object_new_string(dap_strcmp(a_hash_out_type, "hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
+            : dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
         json_object_array_add(l_jobj_signatures, l_jobj_signature);
         l_offset += l_sign_size;
     }

@@ -955,6 +955,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
     uint8_t		current_month;
     int			current_year;
     const char 	*month_str, *year_str;
+    char *ret;
 
     if (!time || !month_count)
         return NULL;
@@ -977,17 +978,18 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
     }
 
     month_str	= s_give_month_str_from_month_count(current_month);
-    year_str	= dap_itoa(current_year);
+    year_str	= strdup(dap_itoa(current_year));
 
     if (*month_str
     &&	*year_str
     &&	dap_strlen(year_str) == 2) {
         memcpy(&time[MONTH_INDEX],	month_str,	3);	// 3 == len month in time RFC822 format
         memcpy(&time[YEAR_INDEX],	year_str,	2);	// 2 == len year in time RFC822 format
+        ret = time;
     } else
-        return NULL;
-
-    return time;
+        ret = NULL;
+    DAP_DELETE(year_str);
+    return ret;
 }
 
 /**

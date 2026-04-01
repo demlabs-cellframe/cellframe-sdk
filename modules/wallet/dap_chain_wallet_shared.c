@@ -1257,7 +1257,11 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
-            json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data) : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
+            json_object_array_add(l_jobj_pkey_hashes, json_object_new_string(
+                l_is_base_hash_type 
+                ? dap_enc_base58_encode_hash_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data) 
+                : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data))
+            );
         }
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR) {
             json_object_array_add(l_jobj_tags, json_object_new_string((char*)(l_tsd->data)));
