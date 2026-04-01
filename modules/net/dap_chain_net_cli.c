@@ -61,6 +61,11 @@
 
 static const char *s_version_string = NULL;
 
+void dap_chain_net_cli_set_version_info(const char *a_version_string)
+{
+    s_version_string = a_version_string;
+}
+
 // Forward declarations for legacy static functions
 static dap_tsd_t *s_chain_node_cli_com_node_create_tsd_addr_json(char **a_argv, int a_arg_start, int a_argc,
                                                                    dap_json_t *a_json_arr_reply, const char *a_cmd_name);
@@ -4201,13 +4206,6 @@ int dap_chain_net_cli_init(void)
                            "\tPrepare policy deactivation draft\n\n"
                            "policy deactivate -net <net_name> -num <num1,num2,...> execute -certs <cert_names>\n"
                            "\tDeactivate policies with signing\n");
-
-    dap_cli_server_cmd_add("chain", s_cli_chain, NULL,
-                            "Chain operations",
-                            -1,
-                            "chain seed -net <net_name> -chain <chain_name> {on | off}\n"
-                            "\tEnable or disable seed mode for a specific chain.\n"
-                            "\tSeed mode allows creation of genesis blocks/events.\n\n");
 
     dap_cli_server_cmd_add("node", com_node, NULL,
                                 "Work with node",

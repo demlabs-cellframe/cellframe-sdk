@@ -63,9 +63,6 @@ typedef struct dap_ledger_service_info {
 static dap_ledger_service_info_t *s_services;
 static pthread_rwlock_t s_services_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
-// Global ledger registry for find functions
-static dap_ledger_t *s_ledger_registry = NULL; // Using uthash
-
 bool g_debug_ledger = true;
 
 static void s_threshold_txs_free(dap_ledger_t *a_ledger);

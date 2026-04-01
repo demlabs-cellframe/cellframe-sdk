@@ -492,6 +492,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                 log_it(L_DEBUG, "mempool_process_all: skip datum %s: datum_size=%" DAP_UINT64_FORMAT_U " != value_len=%zu",
                        l_objs[i].key, (uint64_t)dap_chain_datum_size(l_datum), l_objs[i].value_len);
                 continue;
+            }
             bool l_need = dap_chain_node_mempool_need_process(a_chain, l_datum);
             debug_if(g_dap_global_db_debug_more, L_INFO, "mempool_process_all: datum %s type 0x%02x need_process=%d autoproc_count=%u",
                    l_objs[i].key, l_datum->header.type_id, l_need, a_chain->autoproc_datum_types_count);

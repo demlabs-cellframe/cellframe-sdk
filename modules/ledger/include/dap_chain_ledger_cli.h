@@ -60,7 +60,7 @@ dap_json_t *dap_db_history_addr(dap_json_t *a_json_arr_reply,
 
 dap_json_t *dap_db_history_tx_all(dap_json_t *a_json_arr_reply,
                                   dap_chain_t *a_chain,
-                                  dap_chain_net_t *a_net,
+                                  dap_ledger_t *a_ledger,
                                   const char *a_hash_out_type,
                                   dap_json_t *a_json_obj_summary,
                                   size_t a_limit, size_t a_offset,

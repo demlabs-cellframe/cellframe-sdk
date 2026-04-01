@@ -17,7 +17,6 @@ file(GLOB DAP_CHAIN_LEDGER_SRCS
     # dap_chain_ledger_decree.c  # DISABLED - moved to governance module
     dap_chain_ledger_cli_error_codes.c
     # dap_chain_ledger_cli.c - DISABLED, needs major refactoring. Using new modular CLI in cli/
-    dap_chain_ledger_cli.c
 )
 file(GLOB DAP_CHAIN_LEDGER_HEADERS include/*.h)
 

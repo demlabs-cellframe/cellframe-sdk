@@ -47,6 +47,11 @@
 #include "dap_chain_ledger_cli.h"
 #include "dap_chain_ledger_cli_error_codes.h"
 #include "dap_chain_net_types.h"
+#include "dap_chain_net_core.h"
+#include "dap_chain_net.h"
+#include "dap_chain_net_utils.h"
+#include "dap_chain_mempool.h"
+#include "dap_global_db.h"
 #include "dap_cli_error_codes.h"
 #include "dap_math_convert.h"
 #include "dap_json_rpc_errors.h"
@@ -3143,7 +3148,7 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
 
     // Select chain network
     if (!l_addr_base58 && l_net_str) {
-        l_net = dap_ledger_find_by_name(l_net_str);
+        l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) { // Can't find such network
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_NET_PARAM_ERR,
                                     "tx_history requires parameter '-net' to be valid chain network name");
@@ -3175,25 +3180,24 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
             l_net = dap_chain_net_by_id(l_addr->net_id);
     }
     if (l_wallet_name) {
-        // Check wallet using callback
-        if (!a_ledger->wallet_check_sign_callback) {
+        dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+        if (!l_ledger || !l_ledger->wallet_check_sign_callback) {
             dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC),
                 "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC));
             if (l_addr) DAP_DELETE(l_addr);
             return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_CHECK_SIGN_FUNC);
         }
-        const char *l_sign_str = a_ledger->wallet_check_sign_callback(l_wallet_name);
-        //TODO add warning about deprecated signs
-        
-        // Get addr from wallet using callback
-        if (!a_ledger->wallet_get_addr_callback) {
+        l_ledger->wallet_check_sign_callback(l_wallet_name);
+
+        if (!l_ledger->wallet_get_addr_callback) {
             dap_json_rpc_error_add(a_json_arr_reply, dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC),
                 "%s", dap_cli_error_get_str(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC));
             if (l_addr) DAP_DELETE(l_addr);
             return dap_cli_error_get_code(DAP_LEDGER_CLI_ERROR_TX_NO_WALLET_GET_ADDR_FUNC);
         }
-        dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *)a_ledger->wallet_get_addr_callback(l_wallet_name, a_ledger->net_id);
-        if (l_addr) {
+        dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *)l_ledger->wallet_get_addr_callback(l_wallet_name, l_ledger->net_id);
+        if (l_addr_tmp) {
+            if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_ADDR_WALLET_DIF_ERR,
                                             "Address with '-addr' param and address with '-w' param are different");
@@ -3202,13 +3206,13 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
                     return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_ADDR_WALLET_DIF_ERR;
                 }
                 DAP_DELETE(l_addr_tmp);
-            } else
+            } else {
                 l_addr = l_addr_tmp;
-            // Wallet callback - no need to close wallet
+            }
         } else {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_WALLET_ERR,
                                     "The wallet %s is not activated or it doesn't exist", l_wallet_name);
-            DAP_DELETE(l_addr);
+            if (l_addr) DAP_DELETE(l_addr);
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_WALLET_ERR;
         }
     }
@@ -3233,7 +3237,7 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
     dap_json_t *json_obj_out = NULL;
     if (l_tx_hash_str) {
          // history tx hash
-        json_obj_out = dap_db_history_tx(a_json_arr_reply, &l_tx_hash, l_chain, l_hash_out_type, l_net, a_version);
+        json_obj_out = dap_db_history_tx(a_json_arr_reply, &l_tx_hash, l_chain, l_hash_out_type, l_net->pub.ledger, a_version);
         if (!json_obj_out) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_TX_ERR,
                                     "something went wrong in tx_history");
@@ -3245,7 +3249,7 @@ int com_tx_history(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
-        json_obj_out = dap_db_history_addr(a_json_arr_reply, l_addr, l_chain, l_hash_out_type, dap_chain_addr_to_str_static(l_addr), json_obj_summary, l_limit, l_offset, l_brief, l_tx_srv_str, l_action, l_head, a_version);
+        json_obj_out = dap_db_history_addr(a_json_arr_reply, l_addr, l_chain, l_net->pub.ledger, l_hash_out_type, dap_chain_addr_to_str_static(l_addr), json_obj_summary, l_limit, l_offset, l_brief, l_tx_srv_str, l_action, l_head, a_version);
         if (!json_obj_out) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR,
                                     "something went wrong in tx_history");

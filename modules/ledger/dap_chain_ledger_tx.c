@@ -2689,7 +2689,7 @@ int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype,
     pthread_rwlock_unlock(&s_verificators_rwlock);
     if (!l_new_verificator) {
         l_new_verificator = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_ledger_verificator_t, -1);
-    else {
+    } else {
         log_it(L_WARNING, "Verificator subtype %d already used, callbacks addresses will be replaced", a_subtype);
         l_already_exists = true;
     }
