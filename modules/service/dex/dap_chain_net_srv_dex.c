@@ -10955,8 +10955,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 return dap_json_rpc_error_add(*json_arr_reply, -2, "order closed"), -2;
             l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tail);
             if (!l_tx)
-                return dap_json_rpc_error_add(*json_arr_reply, -2, "order tail not found %s",
-                                              dap_hash_fast_to_str_static(&l_tail)),
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "order tail not found %s", dap_hash_fast_to_str_static(&l_tail)),
                        -2;
             l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_out_idx);
             if (!l_out_cond)
@@ -11576,14 +11575,6 @@ static void s_tx_json_collect_fees(json_object *a_arr, dap_chain_datum_tx_t *a_t
     }
 }
 
-/* Format address with (DEX) suffix into static buffer */
-static const char *s_addr_dex_str(const dap_chain_addr_t *a_addr)
-{
-    static _Thread_local char s_buf[128];
-    snprintf(s_buf, sizeof(s_buf), "%s (DEX)", dap_chain_addr_to_str_static(a_addr));
-    return s_buf;
-}
-
 /* Emit exchange recv/send entries for one trade leg */
 static void s_tx_json_exchange_leg(json_object *a_arr, bool a_is_buyer, uint8_t a_side,
                                    uint256_t a_base, uint256_t a_quote, const char *a_token_base, const char *a_token_quote,
@@ -11595,7 +11586,8 @@ static void s_tx_json_exchange_leg(json_object *a_arr, bool a_is_buyer, uint8_t 
     uint256_t l_sell_amt   = (a_side == DEX_SIDE_ASK) ? a_base  : a_quote;
     uint256_t l_buy_amt    = (a_side == DEX_SIDE_ASK) ? a_quote : a_base;
     const dap_chain_addr_t *l_counterparty = a_is_buyer ? a_seller : a_buyer;
-    const char *l_cp_str = s_addr_dex_str(l_counterparty);
+    char l_cp_str[128];
+    snprintf(l_cp_str, sizeof(l_cp_str), "%s (DEX)", dap_chain_addr_to_str_static(l_counterparty));
     if (a_is_buyer) {
         s_tx_json_recv(a_arr, l_sell_amt, l_sell_tok, l_cp_str);
         s_tx_json_send(a_arr, l_buy_amt,  l_buy_tok,  l_cp_str);

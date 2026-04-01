@@ -274,10 +274,9 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             }
             dap_hash_fast_t *l_stake_tx = /*{ };
             _dap_tsd_get_scalar(l_tsd, &l_stake_tx);*/ _dap_tsd_get_object(l_tsd, dap_hash_fast_t);
-            const char *l_stake_tx_hash = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str_static(l_stake_tx)
-                    : dap_chain_hash_fast_to_str_static(l_stake_tx);
-            json_object_object_add(a_json_out, a_version == 1 ? "Stake tx" : "stake_tx", json_object_new_string(l_stake_tx_hash));
+            json_object_object_add(a_json_out, a_version == 1 ? "Stake tx" : "stake_tx", json_object_new_string(dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str_static(l_stake_tx)
+                : dap_chain_hash_fast_to_str_static(l_stake_tx)));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE:
             if (l_tsd->size > sizeof(uint256_t)){
@@ -298,10 +297,9 @@ void dap_chain_datum_decree_dump_json(json_object *a_json_out, dap_chain_datum_d
             _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
             json_object_object_add(a_json_out, a_version == 1 ? "Signing addr" : "sig_addr", json_object_new_string(dap_chain_addr_to_str_static(l_stake_addr_signing)));
             dap_chain_hash_fast_t l_pkey_signing = l_stake_addr_signing->data.hash_fast;
-            const char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
-                    : dap_chain_hash_fast_to_str_static(&l_pkey_signing);
-            json_object_object_add(a_json_out, a_version == 1 ? "Signing pkey fingerprint" : "sig_pkey_hash", json_object_new_string(l_pkey_signing_str));
+            json_object_object_add(a_json_out, a_version == 1 ? "Signing pkey fingerprint" : "sig_pkey_hash", json_object_new_string(dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_signing)
+                : dap_chain_hash_fast_to_str_static(&l_pkey_signing)));
             break;
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
             if(l_tsd->size > sizeof(dap_chain_node_addr_t)){
@@ -417,11 +415,10 @@ void dap_chain_datum_decree_certs_dump_json(json_object * a_json_out, byte_t * a
             continue;
         }
 
-        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
         json_object_object_add(json_obj_sign, a_version == 1 ? "sign #" : "sig_num", json_object_new_uint64(i));
-        json_object_object_add(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", json_object_new_string(l_hash_str));
+        json_object_object_add(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", json_object_new_string(dap_strcmp(a_hash_out_type, "hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
+            : dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
         json_object_object_add(json_obj_sign, a_version == 1 ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
         json_object_object_add(json_obj_sign, a_version == 1 ? "sign size" : "sig_size", json_object_new_uint64(l_sign->header.sign_size));
         json_object_array_add(json_arr_certs_out, json_obj_sign);        
