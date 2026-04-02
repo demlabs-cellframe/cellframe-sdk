@@ -69,11 +69,12 @@ static dap_json_t *s_db_chain_history_token_list(dap_json_t *a_json_arr_reply,
     }
     
     size_t l_token_num = 0;
+    size_t l_datum_count = 0;
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
     
     for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_datum_iter);
             l_datum; l_datum = a_chain->callback_datum_iter_get_next(l_datum_iter)) {
-        
+        l_datum_count++;
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN)
             continue;
             
@@ -132,6 +133,8 @@ static dap_json_t *s_db_chain_history_token_list(dap_json_t *a_json_arr_reply,
     }
     
     a_chain->callback_datum_iter_delete(l_datum_iter);
+    log_it(L_INFO, "s_db_chain_history_token_list: chain '%s' iterated %zu datums, %zu tokens matched", 
+           a_chain->name, l_datum_count, l_token_num);
     
     if (a_token_num)
         *a_token_num = l_token_num;
@@ -160,19 +163,27 @@ static size_t s_db_net_history_token_list(dap_json_t *a_json_arr_reply,
     dap_json_t *json_arr_obj_tx = dap_json_array_new();
     
     // Iterate through registered chains in ledger
+    size_t l_chain_count = 0;
     dap_chain_info_t *l_chain_info, *l_tmp;
     dap_ht_foreach(a_ledger->chains_registry, l_chain_info, l_tmp) {
+        l_chain_count++;
         dap_chain_t *l_chain_cur = (dap_chain_t *)l_chain_info->chain_ptr;
-        if (!l_chain_cur) continue;
+        if (!l_chain_cur) {
+            log_it(L_WARNING, "s_db_net_history_token_list: chain '%s' has NULL chain_ptr", l_chain_info->chain_name);
+            continue;
+        }
         
         size_t l_token_num = 0;
         dap_json_t *json_obj_tx = s_db_chain_history_token_list(a_json_arr_reply, l_chain_cur, 
                                                                  a_ledger, a_token_name, 
                                                                  a_hash_out_type, &l_token_num, a_version);
+        log_it(L_INFO, "s_db_net_history_token_list: chain '%s' found %zu tokens (filter='%s')", 
+               l_chain_info->chain_name, l_token_num, a_token_name ? a_token_name : "ALL");
         if (json_obj_tx)
             dap_json_array_add(json_arr_obj_tx, json_obj_tx);
         l_token_num_total += l_token_num;
     }
+    log_it(L_INFO, "s_db_net_history_token_list: iterated %zu chains, total tokens found: %zu", l_chain_count, l_token_num_total);
     
     dap_json_object_add_object(a_obj_out, a_version == 1 ? "TOKENS" : "tokens", json_arr_obj_tx);
     return l_token_num_total;
@@ -215,10 +226,12 @@ int com_token(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ver
     // Get ledger by net name
     l_ledger = dap_ledger_find_by_name(l_net_str);
     if (l_ledger == NULL) {
+        log_it(L_ERROR, "com_token: dap_ledger_find_by_name('%s') returned NULL", l_net_str);
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR,
                                "command requires parameter '-net' to be valid chain network name");
         return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
     }
+    log_it(L_INFO, "com_token: ledger '%s' found, chains_registry=%p", l_net_str, (void*)l_ledger->chains_registry);
 
     // Determine subcommand
     int l_cmd = CMD_NONE;
@@ -249,10 +262,13 @@ int com_token(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ver
             return -DAP_CHAIN_NODE_CLI_COM_TOKEN_PARAM_ERR;
         }
         dap_json_t *json_obj_tx = dap_json_object_new();
-        if (!s_db_net_history_token_list(a_json_arr_reply, l_ledger, l_token_name_str, 
-                                          l_hash_out_type, json_obj_tx, a_version)) {
+        size_t l_found = s_db_net_history_token_list(a_json_arr_reply, l_ledger, l_token_name_str, 
+                                          l_hash_out_type, json_obj_tx, a_version);
+        log_it(L_INFO, "com_token info: s_db_net_history_token_list returned %zu for token '%s'", l_found, l_token_name_str);
+        if (!l_found) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_FOUND_ERR, 
                                    "token '%s' not found\n", l_token_name_str);
+            dap_json_object_free(json_obj_tx);
             return -DAP_CHAIN_NODE_CLI_COM_TOKEN_UNKNOWN;
         }
         dap_json_array_add(a_json_arr_reply, json_obj_tx);

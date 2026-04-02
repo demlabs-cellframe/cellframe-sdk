@@ -742,6 +742,21 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_addr_fill_from_key(&l_my_signing_addr, l_esbocs_pvt->blocks_sign_key, a_chain->net_id);
     if (!l_esbocs_pvt->poa_mode) {
         if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
+            log_it(L_INFO, "Stake key not yet delegated, retrying auth cert delegation (stake service may have initialized after chain)");
+            uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
+            for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
+                dap_chain_esbocs_validator_t *l_validator = it->data;
+                dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, NULL, NULL,
+                                                     l_weight, &l_validator->node_addr, l_validator->pkey);
+            }
+            dap_list_t *l_retried_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
+            for (dap_list_t *it = l_retried_validators; it; it = it->next) {
+                dap_cluster_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
+                dap_chain_net_add_validator_to_clusters(a_chain, l_addr);
+            }
+            dap_list_free_full(l_retried_validators, NULL);
+        }
+        if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
             log_it(L_WARNING, "Signing key is not delegated by stake service. Switch off validator mode");
             dap_list_free_full(l_validators, NULL);
             return -6;
