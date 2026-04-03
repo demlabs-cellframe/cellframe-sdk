@@ -47,6 +47,7 @@
 #include <json-c/json.h>
 #define LOG_TAG "dap_chain_tx_compose"
 static bool s_debug_more = false;
+json_object *(*g_dap_compose_http_callback)(const char *, uint16_t, const char *, size_t) = NULL;
 
 #ifdef DAP_CHAIN_TX_COMPOSE_TEST
 #include "rand/dap_rand.h"
@@ -576,6 +577,18 @@ typedef enum {
 static json_object* s_request_command_to_rpc(const char *a_request, compose_config_t *a_config) {
     dap_return_val_if_pass(!a_request || !a_config, NULL);
     debug_if_fl(s_debug_more, L_DEBUG, "a_request: %s, a_config: %p", a_request, a_config);
+
+    if(g_dap_compose_http_callback)
+    {
+        json_object *l_response = g_dap_compose_http_callback(a_config->url_str, a_config->port,
+                                                              a_request, strlen(a_request));
+        if(!l_response)
+        {
+            log_it(L_ERROR, "HTTP callback returned NULL");
+            s_json_compose_error_add(a_config->response_handler, DAP_COMPOSE_ERROR_REQUEST_FAILED, "HTTP callback returned NULL");
+        }
+        return l_response;
+    }
 
     json_object *l_response = NULL;
     size_t l_response_size = 0;
