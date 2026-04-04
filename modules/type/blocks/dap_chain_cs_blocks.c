@@ -990,18 +990,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
 
-            /**
-             * Validate mutually exclusive flag groups usage
-             * Groups: {-limit/-offset/-head}, {-from_date/-to_date}, {-from_hash/-to_hash}
-             * Only one group can be used at a time, same as in s_cli_dag
-             */
-            bool l_has_loh = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
             bool l_has_dates = (l_from_date_str != NULL) || (l_to_date_str != NULL);
             bool l_has_hashes = (l_from_hash_str != NULL) || (l_to_hash_str != NULL);
-            int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_dates ? 1 : 0) + (l_has_hashes ? 1 : 0);
-            if (l_groups_cnt > 1) {
+            if (l_has_dates && l_has_hashes) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
-                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-from_date/-to_date} or {-from_hash/-to_hash}");
+                    "Invalid flags combination: cannot mix {-from_date/-to_date} with {-from_hash/-to_hash}");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
 
@@ -1104,15 +1097,16 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 l_block_cache = HASH_LAST(l_block_cache);             
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
-                // Time window filtering aligned with DAG logic and traversal direction
                 if (l_head) {
-                    // Oldest -> newest
-                    if ((l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time))
+                    if (l_to_time && l_ts < l_to_time)
                         continue;
+                    if (l_from_time && l_ts > l_from_time)
+                        break;
                 } else {
-                    // Newest -> oldest
-                    if ((l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time))
+                    if (l_to_time && l_ts > l_to_time)
                         continue;
+                    if (l_from_time && l_ts < l_from_time)
+                        break;
                 }
                 // Hash range start boundary depends on traversal direction (align with DAG)
                 if (!l_hash_flag) {                    
@@ -1172,7 +1166,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                             continue;
                     }
                 }
-                if (i_tmp < l_start_arr || i_tmp >= l_arr_end) {
+                if (i_tmp >= l_arr_end)
+                    break;
+                if (i_tmp < l_start_arr) {
                     i_tmp++;
                     continue;
                 }
