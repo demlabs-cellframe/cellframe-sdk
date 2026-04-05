@@ -1979,6 +1979,7 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
                 ? (uint16_t)l_chain->default_datum_types[0] : 0;
             dap_ledger_register_chain(a_net->pub.ledger, l_chain->id, l_chain->name, l_primary_type, l_chain);
         }
+        dap_ledger_set_poa_keys(a_net->pub.ledger, a_net->pub.keys, a_net->pub.keys_min_count);
     }
     
     return l_res;
