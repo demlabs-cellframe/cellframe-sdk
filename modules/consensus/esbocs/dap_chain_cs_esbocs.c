@@ -39,6 +39,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_ledger.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_sign.h"
+#include "dap_time.h"
+#include <stdint.h>
+#include <stdlib.h>
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 
@@ -54,7 +57,7 @@ enum s_esbocs_session_state {
 #define ESBOCS_PENALTY_TTL ( 72 * 3600 ) // 3 days
 #define ESBOCS_PENALTY_HASH_VERSION 1
 #define ESBOCS_SESSION_DRAIN_WAIT_US 1000U
-#define ESBOCS_SESSION_DRAIN_WAIT_ATTEMPTS 30000U
+#define ESBOCS_DRAIN_CAP_MS_MAX (UINT64_MAX / (uint64_t)DAP_NSEC_PER_MSEC)
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators);
 static void s_session_proc_state(void *a_arg);
@@ -64,8 +67,10 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
 static void s_session_round_clear(dap_chain_esbocs_session_t *a_session);
 static void s_session_send_startsync(void *a_arg);
 static bool s_session_send_startsync_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms);
-static void s_session_proc_state_timer(void *a_arg);
-static bool s_session_proc_state_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms);
+static void s_session_proc_deadline_fire(void *a_arg);
+static bool s_session_proc_deadline_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_delay_ms);
+static bool s_session_proc_deadline_touch(dap_chain_esbocs_session_t *a_session);
+static uint64_t s_session_proc_deadline_delay_ms(dap_chain_esbocs_session_t *a_session);
 static bool s_session_round_new(void *a_session);
 static bool s_session_round_new_queued(void *a_arg);
 static bool s_session_round_new_schedule(dap_chain_esbocs_session_t *a_session);
@@ -367,6 +372,24 @@ struct sync_params {
 DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *a_session)
 {
     return PVT(a_session->esbocs)->round_attempt_timeout * 6 * PVT(a_session->esbocs)->round_attempts_max;
+}
+
+static uint64_t s_esbocs_drain_cap_ms(dap_chain_esbocs_t *a_esbocs)
+{
+    dap_chain_esbocs_pvt_t *l_p = PVT(a_esbocs);
+    uint64_t l_ra = l_p->round_attempt_timeout, l_rm = l_p->round_attempts_max;
+    uint64_t l_skip_s = l_ra * 6u * l_rm;
+    uint64_t l_ms = ((uint64_t)l_p->round_start_sync_timeout + l_skip_s) * 1000u;
+    uint64_t l_x = l_ra * 4u * 1000u;
+    if (l_x > l_ms) l_ms = l_x;
+    l_x = l_ra * 2u * 1000u;
+    if (l_x > l_ms) l_ms = l_x;
+    l_x = l_skip_s * 1000u;
+    if (l_x > l_ms) l_ms = l_x;
+    if (l_ms > UINT64_MAX - 120000u)
+        return ESBOCS_DRAIN_CAP_MS_MAX;
+    l_ms += 120000u;
+    return l_ms > ESBOCS_DRAIN_CAP_MS_MAX ? ESBOCS_DRAIN_CAP_MS_MAX : l_ms;
 }
 
 int dap_chain_cs_esbocs_init()
@@ -760,6 +783,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->atom_notifier_ctx = l_atom_notifier_ctx;
     atomic_init(&l_session->stopping, false);
     atomic_init(&l_session->inflight_callbacks, 0);
+    atomic_init(&l_session->proc_deadline_seq, 0);
     l_esbocs->session = l_session;
     pthread_rwlock_wrlock(&s_session_items_lock);
     DL_APPEND(s_session_items, l_session);
@@ -874,8 +898,10 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     //s_session_round_new(l_session);
     s_session_round_new_schedule(l_session);
 
-    l_session->cs_timer = s_session_proc_state_timer_schedule(l_session, 1000);
-    debug_if(l_esbocs_pvt->debug && l_session->cs_timer, L_MSG, "Consensus main timer is started");
+    l_session->cs_timer = true;
+    if (!s_session_proc_deadline_touch(l_session))
+        l_session->cs_timer = false;
+    debug_if(l_esbocs_pvt->debug && l_session->cs_timer, L_MSG, "Consensus deadline timer is started");
 
     DAP_CHAIN_PVT(a_chain)->cs_started = true;
     return 0;
@@ -921,6 +947,7 @@ void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id)
     if (l_session && l_session->cs_timer) {
         log_it(L_INFO, "Stop consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
         l_session->cs_timer = false;
+        atomic_fetch_add_explicit(&l_session->proc_deadline_seq, 1, memory_order_release);
     }
     pthread_rwlock_unlock(&s_session_items_lock);
 }
@@ -932,9 +959,9 @@ void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id)
     if (l_session && !l_session->cs_timer) {
         log_it(L_INFO, "Start consensus timer for net: %s, chain: %s", dap_chain_net_by_id(a_net_id)->pub.name, l_session->chain->name);
         l_session->cs_timer = true;
-        if (!s_session_proc_state_timer_schedule(l_session, 1000)) {
+        if (!s_session_proc_deadline_touch(l_session)) {
             l_session->cs_timer = false;
-            log_it(L_WARNING, "Can't start consensus timer for net:%s, chain:%s", l_session->chain->net_name, l_session->chain->name);
+            log_it(L_WARNING, "Can't start consensus deadline for net:%s, chain:%s", l_session->chain->net_name, l_session->chain->name);
         }
     }
     pthread_rwlock_unlock(&s_session_items_lock);
@@ -1226,6 +1253,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
         return;
     }
     l_session->cs_timer = false;
+    atomic_fetch_add_explicit(&l_session->proc_deadline_seq, 1, memory_order_release);
     atomic_store_explicit(&l_session->stopping, true, memory_order_release);
     s_esbocs_atom_notifier_ctx_t *l_atom_notifier_ctx = l_session->atom_notifier_ctx;
     s_atom_notifier_session_set(l_atom_notifier_ctx, NULL);
@@ -1237,25 +1265,29 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
              "Session stop requested net:%s chain:%s, inflight callbacks=%u",
              l_session->chain->net_name, l_session->chain->name,
              (unsigned)atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire));
-    size_t l_retry = 0;
-    for (; atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire) &&
-           l_retry < ESBOCS_SESSION_DRAIN_WAIT_ATTEMPTS; l_retry++) {
-        if (l_retry && !(l_retry % 1000))
-            debug_if(PVT(l_esbocs)->debug_more, L_DEBUG,
-                     "Wait inflight callbacks drain net:%s chain:%s inflight=%u",
-                     l_session->chain->net_name, l_session->chain->name,
-                     (unsigned)atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire));
-        dap_usleep(ESBOCS_SESSION_DRAIN_WAIT_US);
+    {
+        uint64_t l_cap_ms = s_esbocs_drain_cap_ms(l_esbocs);
+        dap_nanotime_t l_drain_start_ns = dap_nanotime_monotonic_now();
+        dap_nanotime_t l_cap_ns = dap_millitime_to_nanotime(l_cap_ms);
+        for (size_t l_retry = 0; atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire); l_retry++) {
+            if (dap_nanotime_monotonic_now() - l_drain_start_ns >= l_cap_ns) {
+                log_it(L_CRITICAL,
+                       "ESBOCS inflight drain exceeded cap (%" DAP_UINT64_FORMAT_U " ms); proc thread or timer path likely stalled. net:%s chain:%s inflight=%u",
+                       l_cap_ms, l_session->chain->net_name, l_session->chain->name,
+                       (unsigned)atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire));
+                abort();
+            }
+            if (l_retry && !(l_retry % 1000))
+                debug_if(PVT(l_esbocs)->debug_more, L_DEBUG,
+                         "Wait inflight callbacks drain net:%s chain:%s inflight=%u",
+                         l_session->chain->net_name, l_session->chain->name,
+                         (unsigned)atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire));
+            dap_usleep(ESBOCS_SESSION_DRAIN_WAIT_US);
+        }
     }
-    uint32_t l_inflight_left = atomic_load_explicit(&l_session->inflight_callbacks, memory_order_acquire);
-    if (l_inflight_left) {
-        log_it(L_ERROR, "Timeout waiting callbacks drain for net:%s chain:%s, inflight=%u, continue teardown",
-               l_session->chain->net_name, l_session->chain->name, l_inflight_left);
-    } else {
-        debug_if(PVT(l_esbocs)->debug_more, L_DEBUG,
-                 "Session callbacks drained net:%s chain:%s",
-                 l_session->chain->net_name, l_session->chain->name);
-    }
+    debug_if(PVT(l_esbocs)->debug_more, L_DEBUG,
+             "Session callbacks drained net:%s chain:%s",
+             l_session->chain->net_name, l_session->chain->name);
     if (l_atom_notifier_ctx) {
         if (!dap_proc_thread_callback_add_pri(l_session->proc_thread, s_atom_notifier_ctx_delete_queued,
                                               l_atom_notifier_ctx, DAP_QUEUE_MSG_PRIORITY_LOW)) {
@@ -1599,6 +1631,8 @@ static void s_session_send_startsync_with_unknown_version(dap_chain_esbocs_sessi
         s_session_send_startsync_hash(a_session, &l_last_block_hash, l_validator, l_hash, l_peer_version);
     }
     a_session->cur_round.sync_sent = true;
+    if (a_session->cs_timer)
+        s_session_proc_deadline_touch(a_session);
 }
 
 static void s_session_send_startsync(void *a_arg)
@@ -1627,26 +1661,93 @@ static bool s_session_send_startsync_timer_schedule(dap_chain_esbocs_session_t *
     return false;
 }
 
-static void s_session_proc_state_timer(void *a_arg)
+typedef struct s_esbocs_deadline_ctx {
+    dap_chain_esbocs_session_t *session;
+    uint64_t seq;
+} s_esbocs_deadline_ctx_t;
+
+static uint64_t s_session_proc_deadline_delay_ms(dap_chain_esbocs_session_t *a_session)
 {
-    dap_chain_esbocs_session_t *l_session = a_arg;
-    if (!atomic_load_explicit(&l_session->stopping, memory_order_acquire))
-        s_session_proc_state(l_session);
-    if (!atomic_load_explicit(&l_session->stopping, memory_order_acquire) && l_session->cs_timer)
-        s_session_proc_state_timer_schedule(l_session, 1000);
-    s_session_release_after_callback(l_session);
+    dap_time_t l_now = dap_time_now();
+    dap_chain_esbocs_pvt_t *l_pvt = PVT(a_session->esbocs);
+    switch (a_session->state) {
+    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START:
+        if (!a_session->ts_round_sync_start)
+            return 0;
+        { bool l_skip = l_pvt->emergency_mode ? false
+                : !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
+          dap_time_t l_deadline = a_session->ts_round_sync_start + (dap_time_t)l_pvt->round_start_sync_timeout
+                + (l_skip ? (dap_time_t)s_get_round_skip_timeout(a_session) : 0);
+          int64_t l_rem = (int64_t)l_deadline - (int64_t)l_now;
+          return l_rem <= 0 ? 1 : (uint64_t)l_rem * 1000ULL;
+        }
+    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC: {
+        unsigned l_le = a_session->listen_ensure ? a_session->listen_ensure : 1u;
+        int64_t l_rem = (int64_t)a_session->ts_stage_entry
+                + (int64_t)l_pvt->round_attempt_timeout * (int64_t)l_le - (int64_t)l_now;
+        return l_rem <= 0 ? 1 : (uint64_t)l_rem * 1000ULL;
+    }
+    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS: {
+        int64_t l_rem = (int64_t)a_session->ts_stage_entry + (int64_t)l_pvt->round_attempt_timeout - (int64_t)l_now;
+        return l_rem <= 0 ? 1 : (uint64_t)l_rem * 1000ULL;
+    }
+    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH:
+    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING: {
+        int64_t l_rem = (int64_t)a_session->ts_stage_entry + (int64_t)l_pvt->round_attempt_timeout * 2 - (int64_t)l_now;
+        return l_rem <= 0 ? 1 : (uint64_t)l_rem * 1000ULL;
+    }
+    default:
+        return 0;
+    }
 }
 
-static bool s_session_proc_state_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms)
+static bool s_session_proc_deadline_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_delay_ms)
 {
-    dap_return_val_if_pass(!a_session || !a_timeout_ms, false);
-    if (!s_session_try_acquire_for_callback(a_session))
+    dap_return_val_if_pass(!a_session || !a_delay_ms, false);
+    s_esbocs_deadline_ctx_t *l_ctx = DAP_NEW_Z(s_esbocs_deadline_ctx_t);
+    dap_return_val_if_pass(!l_ctx, false);
+    if (!s_session_try_acquire_for_callback(a_session)) {
+        DAP_DELETE(l_ctx);
         return false;
-    if (!dap_proc_thread_timer_add_pri(a_session->proc_thread, s_session_proc_state_timer, a_session,
-                                       a_timeout_ms, true, DAP_QUEUE_MSG_PRIORITY_NORMAL))
+    }
+    l_ctx->session = a_session;
+    l_ctx->seq = atomic_fetch_add_explicit(&a_session->proc_deadline_seq, 1, memory_order_acq_rel) + 1;
+    if (dap_proc_thread_timer_add_pri(a_session->proc_thread, s_session_proc_deadline_fire, l_ctx, a_delay_ms,
+                                       true, DAP_QUEUE_MSG_PRIORITY_NORMAL)) {
+        DAP_DELETE(l_ctx);
+        s_session_release_after_callback(a_session);
+        return false;
+    }
+    return true;
+}
+
+static bool s_session_proc_deadline_touch(dap_chain_esbocs_session_t *a_session)
+{
+    if (!a_session->cs_timer || atomic_load_explicit(&a_session->stopping, memory_order_acquire))
+        return false;
+    uint64_t l_delay = s_session_proc_deadline_delay_ms(a_session);
+    if (!l_delay)
         return true;
-    s_session_release_after_callback(a_session);
-    return false;
+    return s_session_proc_deadline_schedule(a_session, l_delay);
+}
+
+static void s_session_proc_deadline_fire(void *a_arg)
+{
+    s_esbocs_deadline_ctx_t *l_ctx = a_arg;
+    dap_chain_esbocs_session_t *l_s = l_ctx->session;
+    uint64_t l_armed = l_ctx->seq;
+    DAP_DELETE(l_ctx);
+    if (atomic_load_explicit(&l_s->stopping, memory_order_acquire)) {
+        s_session_release_after_callback(l_s);
+        return;
+    }
+    if (atomic_load_explicit(&l_s->proc_deadline_seq, memory_order_acquire) != l_armed || !l_s->cs_timer) {
+        s_session_release_after_callback(l_s);
+        return;
+    }
+    s_session_proc_state(l_s);
+    s_session_proc_deadline_touch(l_s);
+    s_session_release_after_callback(l_s);
 }
 
 static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
@@ -1840,6 +1941,8 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
     a_session->ts_stage_entry = dap_time_now();
     if (++a_session->cur_round.attempt_num > PVT(a_session->esbocs)->round_attempts_max) {
         a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
+        if (a_session->cs_timer)
+            s_session_proc_deadline_touch(a_session);
         return;
     }
     for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
@@ -1859,6 +1962,8 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
                                                             a_session->cur_round.id);
     a_session->cur_round.attempt_num = PVT(a_session->esbocs)->round_attempts_max + 1;
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
+    if (a_session->cs_timer)
+        s_session_proc_deadline_touch(a_session);
 }
 
 static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_session)
@@ -1997,6 +2102,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
     switch (a_new_state) {
 
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC: {
+        if (!a_session->listen_ensure)
+            a_session->listen_ensure = 1;
         dap_chain_esbocs_validator_t *l_validator = NULL;
         if (!a_session->cur_round.validators_list && PVT(a_session->esbocs)->emergency_mode) {
             for (dap_list_t *it = a_session->cur_round.all_validators; it; it = it->next) {
@@ -2147,6 +2254,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
     default:
         break;
     }
+    s_session_proc_deadline_touch(a_session);
 }
 
 static void s_session_proc_state(void *a_arg)
@@ -3203,6 +3311,22 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                 }
                 if (!l_round_skip)
                     s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
+            } else if (l_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START) {
+                uint16_t l_min_synced = PVT(l_session->esbocs)->emergency_mode ?
+                            l_session->cur_round.total_validators_synced : l_session->cur_round.validators_synced_count;
+                bool l_round_skip_min = PVT(l_session->esbocs)->emergency_mode ?
+                            false : !s_validator_check(&l_session->my_signing_addr, l_session->cur_round.validators_list);
+                if (l_min_synced >= PVT(l_session->esbocs)->min_validators_count && !l_round_skip_min) {
+                    l_session->cur_round.id = s_session_calc_current_round_id(l_session);
+                    if (PVT(l_session->esbocs)->debug_more) {
+                        size_t l_total_count = 0, l_v8_count = 0, l_v9_count = 0, l_unknown_count = 0;
+                        s_session_peer_versions_collect_stats(l_session, l_session->cur_round.validators_list,
+                                                              &l_total_count, &l_v8_count, &l_v9_count, &l_unknown_count);
+                        log_it(L_DEBUG, "Synced validators peer versions: validators=%zu cache=%zu v8=%zu v9=%zu unknown=%zu",
+                               l_total_count, s_session_peer_versions_count(l_session), l_v8_count, l_v9_count, l_unknown_count);
+                    }
+                    s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
+                }
             }
         }
     } break;
@@ -3389,6 +3513,10 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                               " Candidate %s collected signs of all synced validators",
                                     l_session->chain->net_name, l_session->chain->name, l_round->id,
                                         l_message->hdr.attempt_num, dap_chain_hash_fast_to_str_static(l_candidate_hash));
+            s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH, dap_time_now());
+        } else if (dap_list_length(l_store->candidate_signs) >= PVT(l_session->esbocs)->min_validators_count &&
+                   l_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS &&
+                   dap_hash_fast_compare(&l_session->cur_round.attempt_candidate_hash, l_candidate_hash)) {
             s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH, dap_time_now());
         }
     } break;

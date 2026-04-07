@@ -229,6 +229,7 @@ typedef struct dap_chain_esbocs_session {
     unsigned int listen_ensure;
     dap_chain_node_addr_t my_addr;
     uint8_t state, old_state;
+    atomic_uint_fast64_t proc_deadline_seq;
     bool cs_timer, round_fast_forward, sync_failed, new_round_enqueued, is_actual_hash;
     atomic_bool stopping;
     atomic_uint_fast32_t inflight_callbacks;

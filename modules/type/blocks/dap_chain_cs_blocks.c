@@ -1620,10 +1620,9 @@ static void s_callback_delete(dap_chain_t * a_chain)
 {
     s_callback_cs_blocks_purge(a_chain);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+    /* Do not hold rwlock: consensus delete (e.g. ESBOCS) may wait for inflight work that locks it. */
     if(l_blocks->callback_delete )
         l_blocks->callback_delete(l_blocks);
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->datums_rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->forked_branches_rwlock);
