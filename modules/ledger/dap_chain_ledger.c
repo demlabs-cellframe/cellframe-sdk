@@ -2092,29 +2092,43 @@ dap_list_t *dap_ledger_get_utxo_for_value(
         
         dap_chain_datum_tx_t *l_tx = l_tx_item->tx;
         
-        // Iterate through all outputs in the transaction
         byte_t *l_tx_item_ptr = NULL;
         size_t l_tx_item_size = 0;
+        int l_out_idx = -1;
         TX_ITEM_ITER_TX(l_tx_item_ptr, l_tx_item_size, l_tx) {
-            if (*l_tx_item_ptr != TX_ITEM_TYPE_OUT && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_EXT) {
+            dap_chain_tx_item_type_t l_type = *l_tx_item_ptr;
+            bool l_is_out = (l_type == TX_ITEM_TYPE_OUT || l_type == TX_ITEM_TYPE_OUT_EXT
+                          || l_type == TX_ITEM_TYPE_OUT_STD || l_type == TX_ITEM_TYPE_OUT_COND
+                          || l_type == TX_ITEM_TYPE_OUT_OLD);
+            if (!l_is_out)
                 continue;
-            }
+            l_out_idx++;
+            if (l_type == TX_ITEM_TYPE_OUT_COND || l_type == TX_ITEM_TYPE_OUT_OLD)
+                continue;
+            if (l_tx_item->cache_data.n_outs_used
+                    && (uint32_t)l_out_idx < l_tx_item->cache_data.n_outs
+                    && !dap_hash_sha3_256_is_blank(&l_tx_item->out_metadata[l_out_idx].tx_spent_hash_fast))
+                continue;
             
-            // Get output address and value
             dap_chain_addr_t l_out_addr = {};
             uint256_t l_out_value = {};
             const char *l_out_token = NULL;
             
-            if (*l_tx_item_ptr == TX_ITEM_TYPE_OUT) {
+            if (l_type == TX_ITEM_TYPE_OUT) {
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_tx_item_ptr;
                 l_out_addr = l_out->addr;
                 l_out_value = l_out->header.value;
                 l_out_token = l_tx_item->cache_data.token_ticker;
-            } else { // TX_ITEM_TYPE_OUT_EXT
+            } else if (l_type == TX_ITEM_TYPE_OUT_EXT) {
                 dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_tx_item_ptr;
                 l_out_addr = l_out_ext->addr;
                 l_out_value = l_out_ext->header.value;
                 l_out_token = l_out_ext->token;
+            } else { // TX_ITEM_TYPE_OUT_STD
+                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)l_tx_item_ptr;
+                l_out_addr = l_out_std->addr;
+                l_out_value = l_out_std->value;
+                l_out_token = l_out_std->token;
             }
             
             // Check if output matches our criteria
@@ -2134,7 +2148,7 @@ dap_list_t *dap_ledger_get_utxo_for_value(
             }
             
             l_used_out->tx_prev_hash = l_tx_item->tx_hash_fast;
-            l_used_out->tx_out_prev_idx = (l_tx_item_ptr - (byte_t *)l_tx) / sizeof(void *); // Simplified index calculation
+            l_used_out->tx_out_prev_idx = l_out_idx;
             l_used_out->value = l_out_value;
             l_used_out->addr = l_out_addr;
             

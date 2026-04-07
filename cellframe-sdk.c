@@ -133,6 +133,10 @@ int cellframe_sdk_init(uint32_t a_modules)
     if (l_modules & CF_MODULE_NETWORK)
         dap_chain_net_load_all();
 
+    /* 9a. Register wallet cache chain callbacks (after chains are loaded) */
+    if (l_modules & CF_MODULE_WALLET_CACHE)
+        dap_chain_wallet_cache_chains_init();
+
     if (l_modules & CF_MODULE_MEMPOOL) {
         dap_chain_net_srv_order_init();
         if (dap_datum_mempool_init() != 0)

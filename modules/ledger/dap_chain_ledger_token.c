@@ -914,19 +914,22 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     }
     // Check TSD
     size_t l_size_tsd_section = 0;
+    log_it(L_WARNING, "Token '%s' check: type=0x%04hX subtype=0x%04hX update=%d token_size=%zu a_token_size=%zu",
+           l_token->ticker, l_token->type, l_token->subtype, l_update_token, l_token_size, a_token_size);
     if (l_update_token) {
         switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
             l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC:
+            l_size_tsd_section = 0; break;
         default:
-            /* Bogdanoff, unknown token subtype update. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' update! "
                               "Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
                               l_token->type, l_token->ticker, dap_uint256_to_const_char(l_token->total_supply, NULL),
                               l_token->signs_valid, l_token->signs_total);
-            /* Dump it right now */
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_PARSE_ERROR;
         }
@@ -936,13 +939,14 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC:
+            l_size_tsd_section = 0; break;
         default:
-            /* Bogdanoff, unknown token subtype declaration. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' declaration! "
                               "Ticker: %s, total_supply: %s, signs_valid: %hu, signs_total: %hu",
                               l_token->type, l_token->ticker, dap_uint256_to_const_char(l_token->total_supply, NULL),
                               l_token->signs_valid, l_token->signs_total);
-            /* Dump it right now */
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_PARSE_ERROR;
         }
@@ -1042,6 +1046,8 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
             return ret;
         }
     }
+    log_it(L_WARNING, "Token '%s' check PASSED: tsd_section=%zu signs_size=%"DAP_UINT64_FORMAT_U" signs_approve=%zu signs_need=%zu whitelisted=%d",
+           l_token->ticker, l_size_tsd_section, l_signs_size, l_signs_approve, l_signs_need, l_is_whitelisted);
     if (a_token_item)
         *a_token_item = l_token_item;
     if (a_token_out)
@@ -1277,6 +1283,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
                                 l_type_str, l_token_item->ticker, l_declare_update_str,
                                 l_balance_dbg, l_token_item->auth_signs_valid, l_token_item->auth_signs_total);
     s_ledger_token_cache_update(a_ledger, l_token_item);
+    log_it(L_WARNING, "Token '%s' successfully added/updated in ledger (ret=%d)", l_token_item->ticker, ret);
     return ret;
 }
 

@@ -110,6 +110,11 @@ const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr){
     return l_tmp ? l_tmp->name : NULL;
 }
 
+void dap_chain_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name){
+    if (!dap_chain_wallet_addr_cache_get_name(a_addr))
+        s_wallet_addr_cache_add(a_addr, a_wallet_name);
+}
+
 
 dap_list_t* dap_chain_wallet_get_local_addr(){
 
@@ -1091,15 +1096,6 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
     //Added wallet and address wallet in cache
     if (l_wallet) {
-        // MOVED_TO_WALLET_CACHE: This loop was moved to wallet-cache module
-        // MOVED_TO_WALLET_CACHE: Cache registration should be done by wallet-cache module via callback
-        // MOVED_TO_WALLET_CACHE: for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-        // MOVED_TO_WALLET_CACHE:     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-        // MOVED_TO_WALLET_CACHE:     if (!dap_chain_wallet_addr_cache_get_name(l_addr))
-        // MOVED_TO_WALLET_CACHE:         s_wallet_addr_cache_add(l_addr, l_wallet->name);
-        // MOVED_TO_WALLET_CACHE:     DAP_DELETE(l_addr);
-        // MOVED_TO_WALLET_CACHE: }
-
         for (dap_list_t *l_tmp = s_wallet_open_notificators; l_tmp; l_tmp=l_tmp->next){
             dap_chain_wallet_notificator_t *l_notificator = (dap_chain_wallet_notificator_t*)l_tmp->data;
             if (l_notificator->callback)

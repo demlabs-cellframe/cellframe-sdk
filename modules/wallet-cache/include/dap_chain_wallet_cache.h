@@ -51,6 +51,7 @@ extern "C" {
 #endif
 
 int dap_chain_wallet_cache_init();
+int dap_chain_wallet_cache_chains_init();
 int dap_chain_wallet_cache_deinit();
 
 /**

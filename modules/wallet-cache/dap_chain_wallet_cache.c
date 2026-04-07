@@ -678,8 +678,8 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
     for(dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net=dap_chain_net_iter_next(l_net)){
         if (dap_chain_net_get_load_mode(l_net))
             continue;
-        // get wallet addr in current net
         dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, l_net->pub.id);
+        dap_chain_wallet_addr_cache_add(l_addr, a_wallet->name);
         pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
         dap_wallet_cache_t *l_wallet_item = NULL;
         dap_ht_find(s_wallets_cache, l_addr, sizeof(dap_chain_addr_t), l_wallet_item);
@@ -706,7 +706,6 @@ static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
         pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
         pthread_create(&l_tid, &attr, s_wallet_load, l_args);
         DAP_DELETE(l_addr);
-        // s_save_cache_for_addr_in_net(l_net, l_addr); 
     }
 }
 
@@ -1070,5 +1069,17 @@ int dap_chain_wallet_cache_register_chain(dap_chain_t *a_chain, void *a_net)
     dap_chain_add_callback_datum_removed_from_index_notify(a_chain, s_callback_datum_removed_notify, l_pt, l_arg);
     
     log_it(L_INFO, "Wallet cache callbacks registered for chain %s", a_chain->name);
+    return 0;
+}
+
+int dap_chain_wallet_cache_chains_init(void)
+{
+    if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED)
+        return 0;
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+            dap_chain_wallet_cache_register_chain(l_chain, l_net);
+        }
+    }
     return 0;
 }

@@ -2782,8 +2782,11 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             }
             return dap_ledger_anchor_load(l_net->pub.ledger, l_anchor, a_chain->id, a_datum_hash);
         }
-        case DAP_CHAIN_DATUM_TOKEN:
-            return dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum->header.ts_create);
+        case DAP_CHAIN_DATUM_TOKEN: {
+            int l_token_ret = dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum->header.ts_create);
+            log_it(L_WARNING, "dap_chain_datum_add: token load returned %d, data_size=%u", l_token_ret, a_datum->header.data_size);
+            return l_token_ret;
+        }
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
             return dap_ledger_token_emission_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
