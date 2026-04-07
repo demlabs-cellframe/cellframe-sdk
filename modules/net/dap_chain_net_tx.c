@@ -1253,8 +1253,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
             uint8_t l_min_fill_combined = (l_min_fill_pct8 & 0x7F) | (l_min_from_origin ? 0x80 : 0);
             uint8_t l_type = 1; // DEX_TX_TYPE_ORDER
             json_object *l_tx_type_obj = NULL;
-            if (json_object_object_get_ex(a_json_item_obj, "tx_type", &l_tx_type_obj) &&
-                json_object_is_type(l_tx_type_obj, json_type_int))
+            if (json_object_object_get_ex(a_json_item_obj, "tx_type", &l_tx_type_obj))
                 l_type = (uint8_t)json_object_get_int(l_tx_type_obj);
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_dex(
                 l_srv_uid, l_sell_net_id, l_value, l_buy_net_id, l_token_buy, l_value_rate, l_seller_addr,
@@ -2198,8 +2197,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 uint8_t l_min_fill_combined = (l_min_fill_pct8 & 0x7F) | (l_min_from_origin ? 0x80 : 0);
                 uint8_t l_type = 1; // DEX_TX_TYPE_ORDER
                 json_object *l_tx_type_obj = NULL;
-                if (json_object_object_get_ex(l_json_item_obj, "tx_type", &l_tx_type_obj) &&
-                    json_object_is_type(l_tx_type_obj, json_type_int))
+                if (json_object_object_get_ex(l_json_item_obj, "tx_type", &l_tx_type_obj))
                     l_type = (uint8_t)json_object_get_int(l_tx_type_obj);
                 dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_dex(
                     l_srv_uid, l_sell_net_id, l_value, l_buy_net_id, l_token_buy, l_value_rate, l_seller_addr,
@@ -2802,7 +2800,6 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
     return DAP_CHAIN_NET_TX_CREATE_JSON_OK;
 }
 
-
 int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net, json_object *a_jobj_arr_errors, 
         dap_chain_datum_tx_t** a_out_tx, size_t* a_items_count, size_t *a_items_ready)
 {
@@ -2937,10 +2934,14 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
             // Add item to transaction
             const char *l_hash_str = dap_json_rpc_get_text(l_json_item_obj, "item_hash");
             if (l_hash_str) {
-                char *l_hash_str_current = dap_hash_fast_str_new(l_item, dap_chain_datum_item_tx_get_size(l_item, 0));
+                size_t l_item_sz = dap_chain_datum_item_tx_get_size(l_item, 0);
+                char *l_hash_str_current = dap_hash_fast_str_new(l_item, l_item_sz);
                 if (l_hash_str_current && strcmp(l_hash_str, l_hash_str_current)) {
-                    log_it(L_ERROR, "Item %zu type '%s' has invalid hash '%s'", i + 1, l_item_type_str, l_hash_str_current);
-                    dap_json_rpc_error_add(a_jobj_arr_errors,DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,"Item %zu can't created, exit from creator!", i);
+                    log_it(L_ERROR, "Item %zu type '%s' item_hash: JSON has '%s', import rebuild '%s', size %zu — "
+                                    "mismatch means to_json vs from_json produce different item bytes (SDK skew, import bug, or hex case)",
+                             i + 1, l_item_type_str, l_hash_str, l_hash_str_current, l_item_sz);
+                    dap_json_rpc_error_add(a_jobj_arr_errors, DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR,
+                        "Item %zu item_hash mismatch: expected '%s' recomputed '%s' size %zu", i, l_hash_str, l_hash_str_current, l_item_sz);
                     DAP_DEL_MULTY(l_tx, l_item, l_hash_str_current);
                     return DAP_CHAIN_NET_TX_CREATE_JSON_CANT_CREATED_ITEM_ERR;
                 }
