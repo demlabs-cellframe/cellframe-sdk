@@ -272,7 +272,10 @@ if (WIN32)
 endif()
 
 if (DARWIN)
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2
+        "-framework CoreFoundation"
+        "-framework SystemConfiguration"
+    )
 endif()
 
 # Link libraries
