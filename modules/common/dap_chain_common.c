@@ -215,8 +215,10 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_c
     a_addr->net_id.uint64 = a_net_id.uint64;
     a_addr->sig_type.raw = a_type.raw;
     memcpy(a_addr->data.hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t));
-    // calc checksum
-    dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &a_addr->checksum);
+    // Aligned temporary avoids SIGBUS on ARM32: &a_addr->checksum is misaligned in packed struct
+    dap_chain_hash_fast_t l_checksum;
+    dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &l_checksum);
+    memcpy(&a_addr->checksum, &l_checksum, sizeof(dap_chain_hash_fast_t));
 }
 
 /**
