@@ -485,13 +485,12 @@ int com_tx_sign(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_
     size_t l_new_datum_size = dap_chain_datum_size(l_new_datum);
     dap_chain_hash_fast_t l_new_hash;
     dap_chain_datum_calc_hash(l_new_datum, &l_new_hash);
-    char *l_new_hash_str = dap_chain_hash_fast_to_str_new(&l_new_hash);
-    const char *l_new_hash_base58 = dap_enc_base58_encode_hash_to_str_static(&l_new_hash);
-    const char *l_new_hash_out_str = dap_strcmp(l_hash_out_type, "hex") ? l_new_hash_base58 : l_new_hash_str;
+    const char *l_new_hash_out_str = dap_strcmp(l_hash_out_type, "hex")
+        ? dap_enc_base58_encode_hash_to_str(&l_new_hash) : dap_chain_hash_fast_to_str_new(&l_new_hash);
 
     // Add new transaction to mempool
     int l_rc = 0;
-    if (dap_global_db_set_sync(l_gdb_group_mempool, l_new_hash_str, l_new_datum,
+    if (dap_global_db_set_sync(l_gdb_group_mempool, dap_chain_hash_fast_to_str_static(&l_new_hash), l_new_datum,
                                 l_new_datum_size, false) == 0) {
         // Remove old transaction from mempool
         if (dap_global_db_del_sync(l_gdb_group_mempool, l_tx_hash_hex_str) == 0) {
@@ -518,7 +517,7 @@ int com_tx_sign(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_
 
     DAP_DELETE(l_new_datum);
     DAP_DELETE(l_gdb_group_mempool);
-    DAP_DELETE(l_new_hash_str);
+    DAP_DELETE(l_new_hash_out_str);
     DAP_DEL_MULTY(l_tx_hash_hex_str, l_tx_hash_base58_str, l_certs);
     return l_rc;
 }

@@ -158,6 +158,40 @@ typedef struct dex_pair_index {
 } dex_pair_index_t;
 static dex_pair_index_t *s_dex_pair_index = NULL;
 
+typedef struct dex_net_fee_cache {
+    dap_chain_net_id_t net_id;
+    uint256_t native_fee_amount;
+    dap_chain_addr_t service_fee_addr;
+    uint16_t pct_divisor; // 0 = use DEX_PCT_DIV_DEFAULT (1000)
+    UT_hash_handle hh;
+} dex_net_fee_cache_t;
+static dex_net_fee_cache_t *s_dex_net_fee_tbl = NULL;
+
+#define DEX_PCT_DIV_DEFAULT 1000U
+
+/** @brief FEE_SET / pct_divisor state for one network. Caller must hold s_dex_cache_rwlock. */
+static inline dex_net_fee_cache_t *s_dex_get_srv_fee(dap_chain_net_id_t a_net_id)
+{
+    dex_net_fee_cache_t *l_e = NULL;
+    HASH_FIND(hh, s_dex_net_fee_tbl, &a_net_id, sizeof(dap_chain_net_id_t), l_e);
+    return l_e;
+}
+
+/** @brief Effective percent fee divisor for a_net_id. Caller must hold s_dex_cache_rwlock. */
+static inline uint16_t s_dex_get_pct_div(dap_chain_net_id_t a_net_id)
+{
+    dex_net_fee_cache_t *l_nf = s_dex_get_srv_fee(a_net_id);
+    return (l_nf && l_nf->pct_divisor) ? l_nf->pct_divisor : DEX_PCT_DIV_DEFAULT;
+}
+
+static uint16_t s_dex_get_pct_div_s(dap_chain_net_id_t a_net_id)
+{
+    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+    uint16_t l_r = s_dex_get_pct_div(a_net_id);
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    return l_r;
+}
+
 typedef struct dex_seller_index {
     dap_chain_addr_t seller_addr;
     dex_order_cache_entry_t *entries; // head keyed by hh_seller_bucket
@@ -328,6 +362,9 @@ static void s_ledger_tx_add_notify_dex(void *a_arg, dap_ledger_t *a_ledger, dap_
 /** @brief Resolve IN_COND to previous TX's SRV_DEX OUT_COND */
 static dap_chain_tx_out_cond_t *s_dex_get_prev_out_from_in_cond(dap_ledger_t *a_ledger, const dap_chain_tx_in_cond_t *a_in_cond,
                                                                 dap_chain_datum_tx_t **a_prev_tx, int *a_out_idx);
+/** @brief Ledger-only: SRV_DEX order root from TX at a_entry_hash (closing TX: step back via IN_COND). Returns 0 or -1 if ambiguous. */
+static int s_dex_ledger_resolve_order_root(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, const dap_hash_fast_t *a_entry_hash,
+                                           dap_hash_fast_t *a_out_root);
 /** @brief Classify TX type by structure: ORDER, EXCHANGE, UPDATE or INVALIDATE */
 static dex_tx_type_t s_dex_tx_classify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_in_cond_t **a_in_cond,
                                        dap_chain_tx_out_cond_t **a_out_cond, int *a_out_idx);
@@ -548,10 +585,6 @@ static const char *const s_cancel_all_error_str[] = {
     [DEX_CANCEL_ALL_ERROR_COMPOSE_TX] = "TX compose failed",
 };
 
-// Per-pair service fee configuration (uses s_dex_cache_rwlock for synchronization)
-static uint256_t s_dex_native_fee_amount;
-static dap_chain_addr_t s_dex_service_fee_addr;
-static _Atomic(uint16_t) s_dex_pct_divisor = 1000; // percent fee divisor: fee = input * value / divisor (default 0.1% step)
 
 /* History cache (OHLCV) switches */
 static bool s_dex_history_enabled = false;                  // enabled via config
@@ -570,16 +603,16 @@ static inline uint256_t s_calc_pct(const uint256_t a, const uint64_t b, const ui
     return l_ret;
 }
 
-/** @brief Percent-mode divisor for fee calculation: fee = input * value / divisor */
-static inline uint16_t s_dex_pct_div(void) { return s_dex_pct_divisor; }
-
 /** @brief Calculate native service fee from fee_config (must hold s_dex_cache_rwlock) */
-static inline uint256_t s_dex_get_srv_fee(uint8_t a_fee_config)
+static inline uint256_t s_dex_get_srv_fee_val(uint8_t a_fee_config, dap_chain_net_id_t a_net_id)
 {
     if (a_fee_config & 0x80)
         return uint256_0; // % mode has no fixed service fee
     uint8_t l_mult = a_fee_config & 0x7F;
-    return l_mult > 0 ? GET_256_FROM_64((uint64_t)l_mult * DAP_DEX_FEE_UNIT_NATIVE) : s_dex_native_fee_amount;
+    if (l_mult > 0)
+        return GET_256_FROM_64((uint64_t)l_mult * DAP_DEX_FEE_UNIT_NATIVE);
+    dex_net_fee_cache_t *l_nf = s_dex_get_srv_fee(a_net_id);
+    return l_nf ? l_nf->native_fee_amount : uint256_0;
 }
 
 /**
@@ -636,7 +669,8 @@ static void s_adjust_exec_for_dust_refund(dap_chain_datum_tx_t *a_tx, const dap_
  * @param a_fixed_native Fixed native fees total (validator + network + native service fee if applicable)
  */
 static uint256_t s_dex_calc_dust_threshold(const char *a_sell_ticker, const char *a_buy_ticker, const char *a_native_ticker,
-                                           uint8_t a_fee_cfg, uint256_t a_rate, bool a_is_bid, uint256_t a_fixed_native)
+                                           uint8_t a_fee_cfg, uint256_t a_rate, bool a_is_bid, uint256_t a_fixed_native,
+                                           uint16_t a_pct_div)
 {
     dap_ret_val_if_any(uint256_0, !a_sell_ticker, !a_buy_ticker, !a_native_ticker, IS_ZERO_256(a_fixed_native));
 
@@ -657,7 +691,7 @@ static uint256_t s_dex_calc_dust_threshold(const char *a_sell_ticker, const char
         if (!l_pct)
             return l_fixed_sell;
         uint256_t l_num = uint256_0;
-        uint16_t l_div = s_dex_pct_div();
+        uint16_t l_div = a_pct_div;
         MULT_256_256(l_fixed_sell, GET_256_FROM_64(l_div), &l_num);
         DIV_256(l_num, GET_256_FROM_64(l_div - l_pct), &l_fixed_sell);
     }
@@ -778,18 +812,20 @@ static const char *s_dex_op_flags_to_str(uint8_t a_flags)
         return DEX_STR_UNDEF;
 }
 
-/** @brief Extract fee value from fee_config byte as uint256_t (display/logging). */
-static inline uint256_t s_dex_fee_config_to_val(uint8_t a_fee_config)
+/** @brief Extract fee value from fee_config byte as uint256_t (display/logging). Caller must hold s_dex_cache_rwlock if a_net_id used for native fallback. */
+static inline uint256_t s_dex_fee_config_to_val(uint8_t a_fee_config, dap_chain_net_id_t a_net_id)
 {
     uint8_t l_val = a_fee_config & 0x7F;
     if (a_fee_config & 0x80) {
         uint256_t l_result = uint256_0;
         MULT_256_256(GET_256_FROM_64(l_val), GET_256_FROM_64(DAP_DEX_POW18), &l_result);
-        DIV_256(l_result, GET_256_FROM_64(s_dex_pct_div() / 100), &l_result);
+        DIV_256(l_result, GET_256_FROM_64(s_dex_get_pct_div(a_net_id) / 100), &l_result);
         return l_result;
     }
-    return l_val ? GET_256_FROM_64((uint64_t)l_val * DAP_DEX_FEE_UNIT_NATIVE)
-                 : s_dex_native_fee_amount;
+    if (l_val)
+        return GET_256_FROM_64((uint64_t)l_val * DAP_DEX_FEE_UNIT_NATIVE);
+    dex_net_fee_cache_t *l_nf = s_dex_get_srv_fee(a_net_id);
+    return l_nf ? l_nf->native_fee_amount : uint256_0;
 }
 
 // Classify trade: market (at best price or better) or targeted (off-market)
@@ -1163,6 +1199,45 @@ static int s_dex_resolve_order_tail(dap_chain_net_t *a_net, const dap_hash_fast_
     *a_out_tail = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX,
                                                      (dap_chain_hash_fast_t *)a_hash, false);
     return dap_hash_fast_is_blank(a_out_tail) ? -2 : 0;
+}
+
+static int s_dex_ledger_resolve_order_root(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, const dap_hash_fast_t *a_entry_hash,
+                                           dap_hash_fast_t *a_out_root)
+{
+    dap_ret_val_if_any(-1, !a_ledger, !a_tx, !a_entry_hash || dap_hash_fast_is_blank(a_entry_hash), !a_out_root);
+    *a_out_root = (dap_hash_fast_t){};
+    dap_chain_tx_out_cond_t *l_out = NULL;
+    dap_hash_fast_t l_chain_head_tx_hash = *a_entry_hash;
+    *a_out_root = dap_ledger_get_first_chain_tx_hash_ex(a_ledger, a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_out);
+    if (dap_hash_fast_is_blank(a_out_root) && !l_out) {
+        for (byte_t *l_in_it = NULL; (l_in_it = dap_chain_datum_tx_item_get(a_tx, NULL, l_in_it, TX_ITEM_TYPE_IN_COND, NULL));) {
+            dap_chain_tx_in_cond_t *l_ic = (dap_chain_tx_in_cond_t *)l_in_it;
+            if (dap_hash_fast_is_blank(&l_ic->header.tx_prev_hash))
+                continue;
+            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_ic->header.tx_prev_hash);
+            if (!l_prev_tx)
+                continue;
+            dap_chain_tx_out_cond_t *l_po = NULL;
+            dap_hash_fast_t lr =
+                dap_ledger_get_first_chain_tx_hash_ex(a_ledger, l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_po);
+            if (!dap_hash_fast_is_blank(&lr)) {
+                *a_out_root = lr;
+                l_out = l_po;
+                break;
+            }
+            if (l_po) {
+                l_out = l_po;
+                l_chain_head_tx_hash = l_ic->header.tx_prev_hash;
+                break;
+            }
+        }
+    }
+    if (dap_hash_fast_is_blank(a_out_root)) {
+        if (!l_out)
+            return -1;
+        *a_out_root = l_chain_head_tx_hash;
+    }
+    return 0;
 }
 
 /** @brief Build match table from explicit hash list with budget allocation. */
@@ -2200,7 +2275,7 @@ static int s_dex_add_seller_payouts(dap_chain_datum_tx_t **a_tx, dex_match_table
 
 /** @brief Compute TX requirements (fees, payouts, UTXO needs) from match table. */
 static int s_dex_requirements_build(dap_chain_net_t *a_net, dex_match_table_entry_t *a_matches, uint256_t a_validator_fee,
-                                    const dap_chain_addr_t *a_buyer_addr, dex_match_table_entry_t *a_partial_match,
+                                    const dap_chain_addr_t *a_buyer_addr, dex_match_table_entry_t *a_partial_match, uint16_t a_pct_div,
                                     dex_tx_requirements_t *a_out_reqs)
 {
     // Extract pair and direction from first match (all matches share same pair/side)
@@ -2215,7 +2290,10 @@ static int s_dex_requirements_build(dap_chain_net_t *a_net, dex_match_table_entr
         .side = (l_first->side_version & 0x1) };
     // Get service address first (needed for seller participation check in aggregation loop)
     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-    dap_chain_addr_t l_service_addr = s_dex_service_fee_addr;
+    dap_chain_addr_t l_service_addr = {};
+    dex_net_fee_cache_t *l_nf_req = s_dex_get_srv_fee(a_net->pub.id);
+    if (l_nf_req)
+        l_service_addr = l_nf_req->service_fee_addr;
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
     // bool l_seller_is_service = false;
 
@@ -2268,7 +2346,7 @@ static int s_dex_requirements_build(dap_chain_net_t *a_net, dex_match_table_entr
                                                          : a_out_reqs->exec_sell_base;           // BID: buyer spends BASE
             uint256_t l_pct_256 = GET_256_FROM_64(l_pct);
             MULT_256_256(l_pct_256, l_input, &a_out_reqs->fee_srv);
-            DIV_256(a_out_reqs->fee_srv, GET_256_FROM_64(s_dex_pct_div()), &a_out_reqs->fee_srv);
+            DIV_256(a_out_reqs->fee_srv, GET_256_FROM_64(a_pct_div), &a_out_reqs->fee_srv);
         }
     } else {
         // NATIVE fee: per-pair or global fallback (0.01 token step)
@@ -2277,9 +2355,10 @@ static int s_dex_requirements_build(dap_chain_net_t *a_net, dex_match_table_entr
             // Per-pair: multiplier × 0.01 native token
             a_out_reqs->fee_srv = GET_256_FROM_64((uint64_t)l_mult * DAP_DEX_FEE_UNIT_NATIVE);
         } else {
-            // Global fallback
+            // Global fallback (per-net FEE_SET)
             pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-            a_out_reqs->fee_srv = s_dex_native_fee_amount;
+            dex_net_fee_cache_t *l_nf_fb = s_dex_get_srv_fee(a_net->pub.id);
+            a_out_reqs->fee_srv = l_nf_fb ? l_nf_fb->native_fee_amount : uint256_0;
             pthread_rwlock_unlock(&s_dex_cache_rwlock);
         }
         // Check for blank service address (would burn tokens!)
@@ -2404,6 +2483,7 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
     dex_pair_key_t *l_key0 = l_match0->pair_key;
     // pair_key is CANONICAL: token_base < token_quote lexicographically (from s_pair_normalize)
     const char *l_token_quote = l_key0->token_quote, *l_token_base = l_key0->token_base;
+    uint16_t l_pct_div = s_dex_get_pct_div_s(a_net->pub.id);
 
     // Detect partial match and best rate (needed for UPDATE ordering and leftover)
     // After both aggregator functions, table is guaranteed sorted by price (best→worse)
@@ -2445,7 +2525,7 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
 
     // Build requirements (includes fee waiver check internally)
     dex_tx_requirements_t l_reqs;
-    if (s_dex_requirements_build(a_net, a_matches, a_fee, a_buyer_addr, l_partial_match, &l_reqs))
+    if (s_dex_requirements_build(a_net, a_matches, a_fee, a_buyer_addr, l_partial_match, l_pct_div, &l_reqs))
         ret_log_it(NULL, L_ERROR, "Failed to build requirements");
 
     dap_chain_addr_t *l_payer_addr = a_wallet ? dap_chain_wallet_get_addr(a_wallet, a_net->pub.id) : (dap_chain_addr_t*)a_buyer_addr;
@@ -2519,7 +2599,8 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
         const char *l_leftover_buy_ticker = (l_reqs.side == DEX_SIDE_ASK) ? l_token_base : l_token_quote;
         bool l_leftover_is_bid = (l_reqs.side == DEX_SIDE_ASK);
         uint256_t l_leftover_thr = s_dex_calc_dust_threshold(l_leftover_sell_ticker, l_leftover_buy_ticker, l_reqs.ticker_native,
-                                                             l_fee_cfg_eff, l_leftover_rate, l_leftover_is_bid, l_fixed_native);
+                                                             l_fee_cfg_eff, l_leftover_rate, l_leftover_is_bid, l_fixed_native,
+                                                             l_pct_div);
         if (!IS_ZERO_256(l_leftover_thr) && compare256(l_leftover_sell_amount, l_leftover_thr) <= 0) {
             debug_if_f(s_debug_more, L_DEBUG, "Buyer-leftover %s %s below dust threshold %s, skipping",
                                               dap_uint256_to_char_ex(l_leftover_sell_amount).frac, l_leftover_sell_ticker,
@@ -2730,7 +2811,7 @@ static dap_chain_datum_tx_t *s_dex_compose_from_match_table(dap_chain_net_t *a_n
             const char *l_buy_ticker = (l_reqs.side == DEX_SIDE_ASK) ? l_token_quote : l_token_base;
             bool l_is_bid = (l_reqs.side == DEX_SIDE_BID);
             uint256_t l_dust_thr = s_dex_calc_dust_threshold(l_residual_ticker, l_buy_ticker, l_reqs.ticker_native, l_fee_cfg_eff,
-                                                             l_partial_match->match.rate, l_is_bid, l_fixed_native);
+                                                             l_partial_match->match.rate, l_is_bid, l_fixed_native, l_pct_div);
             if (!IS_ZERO_256(l_dust_thr) && compare256(l_residual, l_dust_thr) <= 0) {
                 if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_partial_match->seller_addr, l_residual, l_residual_ticker) != 1)
                     RET_ERR;
@@ -4289,6 +4370,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
 {
     // a_tx_out_cond may be NULL for ORDER (new OUT_COND creation, not consumption)
     dap_ret_val_if_any(DEXV_INVALID_PARAMS, !a_tx_in);
+    uint16_t l_pct_div_net = s_dex_get_pct_div_s(a_ledger->net->pub.id);
 
     struct dex_seller_info {
         dap_chain_addr_t addr;
@@ -4522,7 +4604,8 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 l_pair_idx = s_dex_pair_index_get(&l_check_key);
                 if (l_pair_idx) {
                     l_fee_cfg = l_pair_idx->key.fee_config;
-                    l_native_fee_cached = s_dex_native_fee_amount;
+                    dex_net_fee_cache_t *l_nf_v = s_dex_get_srv_fee(a_ledger->net->pub.id);
+                    l_native_fee_cached = l_nf_v ? l_nf_v->native_fee_amount : uint256_0;
                 }
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
                 l_pair_missing = !l_pair_idx;
@@ -4745,7 +4828,8 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                     l_pair_idx = s_dex_pair_index_get(&l_order_pair);
                     if (l_pair_idx) {
                         l_fee_cfg = l_pair_idx->key.fee_config;
-                        l_native_fee_cached = s_dex_native_fee_amount;
+                        dex_net_fee_cache_t *l_nf_o = s_dex_get_srv_fee(a_ledger->net->pub.id);
+                        l_native_fee_cached = l_nf_o ? l_nf_o->native_fee_amount : uint256_0;
                     }
                     pthread_rwlock_unlock(&s_dex_cache_rwlock);
 
@@ -4815,8 +4899,12 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
          l_srv_addr_blank = false;
 
     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-    l_srv_addr = s_dex_service_fee_addr;
-    l_srv_addr_blank = dap_chain_addr_is_blank(&s_dex_service_fee_addr);
+    dex_net_fee_cache_t *l_nf_srv = s_dex_get_srv_fee(a_ledger->net->pub.id);
+    if (l_nf_srv) {
+        l_srv_addr = l_nf_srv->service_fee_addr;
+        l_srv_addr_blank = dap_chain_addr_is_blank(&l_nf_srv->service_fee_addr);
+    } else
+        l_srv_addr_blank = true;
     if ((l_fee_cfg & 0x80) == 0) { // Native mode: compute fixed fee now
         uint8_t l_mult = l_fee_cfg & 0x7F;
         l_srv_fee_req = l_mult > 0 ? GET_256_FROM_64((uint64_t)l_mult * DAP_DEX_FEE_UNIT_NATIVE) : l_native_fee_cached;
@@ -4898,7 +4986,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
         }
         bool l_is_bid = (l_baseline_side == DEX_SIDE_BID);
         uint256_t l_dust_thr = s_dex_calc_dust_threshold(l_sell_ticker, l_buy_ticker, l_native_ticker, l_fee_cfg_eff,
-                                                         l_prev_outs[0]->subtype.srv_dex.rate, l_is_bid, l_fixed_native);
+                                                         l_prev_outs[0]->subtype.srv_dex.rate, l_is_bid, l_fixed_native, l_pct_div_net);
 
         if (!IS_ZERO_256(l_seller_sell_total)) {
             l_dust_refund = l_seller_sell_total;
@@ -4964,7 +5052,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                 SUM_256_256(l_input_amount, l_sellers[j].expected_buy, &l_input_amount);
             uint256_t l_pct_256 = GET_256_FROM_64(l_pct);
             MULT_256_256(l_pct_256, l_input_amount, &l_srv_fee_req);
-            DIV_256(l_srv_fee_req, GET_256_FROM_64(s_dex_pct_div()), &l_srv_fee_req);
+            DIV_256(l_srv_fee_req, GET_256_FROM_64(l_pct_div_net), &l_srv_fee_req);
             l_srv_used = true;
         }
     }
@@ -5422,7 +5510,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
 
                     uint256_t l_pct_256 = GET_256_FROM_64(l_pct);
                     MULT_256_256(l_pct_256, l_input_amount_canon, &l_srv_fee_req_canon);
-                    DIV_256(l_srv_fee_req_canon, GET_256_FROM_64(s_dex_pct_div()), &l_srv_fee_req_canon);
+                    DIV_256(l_srv_fee_req_canon, GET_256_FROM_64(l_pct_div_net), &l_srv_fee_req_canon);
                 }
             } else {
                 // Native absolute fee: per-pair multiplier or global fallback
@@ -5637,7 +5725,8 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
             }
             bool l_leftover_is_bid = (l_baseline_side == DEX_SIDE_ASK);
             uint256_t l_leftover_thr = s_dex_calc_dust_threshold(l_buy_ticker, l_sell_ticker, l_native_ticker, l_fee_cfg_eff,
-                                                                 l_out_cond->subtype.srv_dex.rate, l_leftover_is_bid, l_fixed_native);
+                                                                 l_out_cond->subtype.srv_dex.rate, l_leftover_is_bid, l_fixed_native,
+                                                                 l_pct_div_net);
             if (!IS_ZERO_256(l_leftover_thr) && compare256(l_out_cond->header.value, l_leftover_thr) <= 0)
                 RET_ERR(DEXV_INVALID_RESIDUAL);
             // Buyer-leftover: no unexpected buy_token payouts (only sellers and service fee)
@@ -5823,11 +5912,21 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
                            l_tsd_net_quote);
         if (a_apply) {
             pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-            memcpy(&s_dex_native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
-            memcpy(&s_dex_service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
+            dex_net_fee_cache_t *l_nf = s_dex_get_srv_fee(a_ledger->net->pub.id);
+            if (!l_nf) {
+                l_nf = DAP_NEW_Z(dex_net_fee_cache_t);
+                if (l_nf) {
+                    l_nf->net_id = a_ledger->net->pub.id;
+                    HASH_ADD(hh, s_dex_net_fee_tbl, net_id, sizeof(dap_chain_net_id_t), l_nf);
+                }
+            }
+            if (l_nf) {
+                memcpy(&l_nf->native_fee_amount, l_tsd_fee_amount->data, sizeof(uint256_t));
+                memcpy(&l_nf->service_fee_addr, l_tsd_fee_addr->data, sizeof(dap_chain_addr_t));
+                log_it_f(L_NOTICE, "Service fee set: %s %s to %s", a_ledger->net->pub.native_ticker,
+                       dap_uint256_to_char_ex(l_nf->native_fee_amount).frac, dap_chain_addr_to_str_static(&l_nf->service_fee_addr));
+            }
             pthread_rwlock_unlock(&s_dex_cache_rwlock);
-            log_it_f(L_NOTICE, "Service fee set: %s %s to %s", a_ledger->net->pub.native_ticker,
-                   dap_uint256_to_char_ex(s_dex_native_fee_amount).frac, dap_chain_addr_to_str_static(&s_dex_service_fee_addr));
         }
         return 0;
 
@@ -5840,14 +5939,17 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
             pthread_rwlock_wrlock(&s_dex_cache_rwlock);
             dex_pair_index_t *l_it, *l_tmp;
             int l_count = 0;
+            dap_chain_net_id_t l_decree_net = a_ledger->net->pub.id;
             HASH_ITER(hh, s_dex_pair_index, l_it, l_tmp)
             {
+                if (l_it->key.net_id_base.uint64 != l_decree_net.uint64 && l_it->key.net_id_quote.uint64 != l_decree_net.uint64)
+                    continue;
                 l_it->key.fee_config = l_new_cfg;
                 l_count++;
             }
             pthread_rwlock_unlock(&s_dex_cache_rwlock);
             l_ret = l_count ? 0 : -3;
-            log_it_f(L_NOTICE, "Updated fee for %d pairs: 0x%02x", l_count, l_new_cfg);
+            log_it_f(L_NOTICE, "Updated fee for %d pairs in net %" DAP_UINT64_FORMAT_U ": 0x%02x", l_count, l_decree_net.uint64, l_new_cfg);
         }
         return l_ret;
     } break;
@@ -5859,8 +5961,20 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
         if (l_new_div < 200 || l_new_div % 100 != 0)
             return log_it_f(L_ERROR, "Invalid pct_divisor %u (must be >= 200, multiple of 100)", l_new_div), -2;
         if (a_apply) {
-            s_dex_pct_divisor = l_new_div;
-            log_it_f(L_NOTICE, "Percent fee divisor set to %u (step %.4f%%)", l_new_div, 100.0 / l_new_div);
+            pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+            dex_net_fee_cache_t *l_nf = s_dex_get_srv_fee(a_ledger->net->pub.id);
+            if (!l_nf) {
+                l_nf = DAP_NEW_Z(dex_net_fee_cache_t);
+                if (l_nf) {
+                    l_nf->net_id = a_ledger->net->pub.id;
+                    HASH_ADD(hh, s_dex_net_fee_tbl, net_id, sizeof(dap_chain_net_id_t), l_nf);
+                }
+            }
+            if (l_nf)
+                l_nf->pct_divisor = l_new_div;
+            pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            log_it_f(L_NOTICE, "Percent fee divisor for net %" DAP_UINT64_FORMAT_U " set to %u (step %.4f%%)",
+                     a_ledger->net->pub.id.uint64, l_new_div, 100.0 / l_new_div);
         }
         return 0;
     }
@@ -5886,7 +6000,7 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
             if (a_apply) {
                 pthread_rwlock_wrlock(&s_dex_cache_rwlock);
                 l_ret = s_dex_pair_index_add(&l_key);
-                uint256_t l_srv_fee = s_dex_fee_config_to_val(l_key.fee_config);
+                uint256_t l_srv_fee = s_dex_fee_config_to_val(l_key.fee_config, a_ledger->net->pub.id);
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
                 switch (l_ret) {
                 case 0:
@@ -5922,7 +6036,7 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
             if (a_apply) {
                 uint8_t l_fee_cfg = dap_tsd_get_scalar(l_tsd_fee_config, uint8_t);
                 pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-                uint256_t l_srv_fee = s_dex_fee_config_to_val(l_fee_cfg);
+                uint256_t l_srv_fee = s_dex_fee_config_to_val(l_fee_cfg, a_ledger->net->pub.id);
                 dex_pair_index_t *l_pair = s_dex_pair_index_get(&l_key);
                 if (l_pair)
                     l_pair->key.fee_config = l_fee_cfg;
@@ -6080,6 +6194,14 @@ int dap_chain_net_srv_dex_init()
 void dap_chain_net_srv_dex_deinit()
 {
     pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+
+    dex_net_fee_cache_t *l_nf_it, *l_nf_tmp;
+    HASH_ITER(hh, s_dex_net_fee_tbl, l_nf_it, l_nf_tmp)
+    {
+        HASH_DELETE(hh, s_dex_net_fee_tbl, l_nf_it);
+        DAP_DELETE(l_nf_it);
+    }
+    s_dex_net_fee_tbl = NULL;
 
     // Free orders cache (also cleans up pair/seller indices via back-pointers)
     s_dex_pair_index_remove(NULL);
@@ -6505,12 +6627,16 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                             if (!l_out_cond && l_in_idx == 0 && e->seller_addr_ptr) {
                                 uint256_t l_srv_fee_req = uint256_0;
                                 const dap_chain_addr_t *l_srv_addr_ptr = NULL;
+                                dap_chain_addr_t l_srv_fee_local = {};
+                                dex_net_fee_cache_t *l_nf_d = s_dex_get_srv_fee(a_ledger->net->pub.id);
+                                if (l_nf_d)
+                                    l_srv_fee_local = l_nf_d->service_fee_addr;
                                 if (l_sell_tok && !dap_strcmp(l_sell_tok, a_ledger->net->pub.native_ticker) &&
-                                    dap_chain_addr_compare(e->seller_addr_ptr, &s_dex_service_fee_addr)) {
-                                    l_srv_fee_req = s_dex_get_srv_fee(e->pair_key_ptr->fee_config);
-                                    if (!IS_ZERO_256(l_srv_fee_req))
-                                        l_srv_addr_ptr = &s_dex_service_fee_addr;
+                                    dap_chain_addr_compare(e->seller_addr_ptr, &l_srv_fee_local)) {
+                                    l_srv_fee_req = s_dex_get_srv_fee_val(e->pair_key_ptr->fee_config, a_ledger->net->pub.id);
                                 }
+                                if (!IS_ZERO_256(l_srv_fee_req))
+                                    l_srv_addr_ptr = &l_srv_fee_local;
                                 s_adjust_exec_for_dust_refund(a_tx, e->seller_addr_ptr, l_sell_tok, l_srv_addr_ptr, l_srv_fee_req,
                                                               &l_executed_i);
                             }
@@ -6620,12 +6746,16 @@ static void s_ledger_tx_add_notify_dex(void *UNUSED_ARG a_arg, dap_ledger_t *a_l
                             if (!l_out_cond && l_in_idx == 0) {
                                 uint256_t l_srv_fee_req = uint256_0;
                                 const dap_chain_addr_t *l_srv_addr_ptr = NULL;
+                                dap_chain_addr_t l_srv_fee_local = {};
+                                dex_net_fee_cache_t *l_nf_d = s_dex_get_srv_fee(a_ledger->net->pub.id);
+                                if (l_nf_d)
+                                    l_srv_fee_local = l_nf_d->service_fee_addr;
                                 if (l_pi && !dap_strcmp(l_sell_ticker, a_ledger->net->pub.native_ticker) &&
-                                    dap_chain_addr_compare(&l_prev_cond_i->subtype.srv_dex.seller_addr, &s_dex_service_fee_addr)) {
-                                    l_srv_fee_req = s_dex_get_srv_fee(l_pi->key.fee_config);
-                                    if (!IS_ZERO_256(l_srv_fee_req))
-                                        l_srv_addr_ptr = &s_dex_service_fee_addr;
+                                    dap_chain_addr_compare(&l_prev_cond_i->subtype.srv_dex.seller_addr, &l_srv_fee_local)) {
+                                    l_srv_fee_req = s_dex_get_srv_fee_val(l_pi->key.fee_config, a_ledger->net->pub.id);
                                 }
+                                if (!IS_ZERO_256(l_srv_fee_req))
+                                    l_srv_addr_ptr = &l_srv_fee_local;
                                 s_adjust_exec_for_dust_refund(a_tx, &l_prev_cond_i->subtype.srv_dex.seller_addr, l_sell_ticker,
                                                               l_srv_addr_ptr, l_srv_fee_req, &executed_i);
                             }
@@ -8111,7 +8241,8 @@ static inline void s_consume_sell_pair_quote(uint256_t *a_budget, uint256_t a_ra
 }
 
 /** @brief Parse fee config from CLI arguments (-fee_pct/-fee_native/-fee_config). */
-static int s_parse_fee_config_cli(int a_argc, char **a_argv, int a_arg_idx, uint8_t *a_out_cfg, const char **a_err_msg)
+static int s_parse_fee_config_cli(int a_argc, char **a_argv, int a_arg_idx, uint8_t *a_out_cfg, const char **a_err_msg,
+                                  dap_chain_net_id_t a_net_id)
 {
     const char *l_pct_str = NULL, *l_native_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_idx, a_argc, "-fee_pct", &l_pct_str);
@@ -8126,7 +8257,7 @@ static int s_parse_fee_config_cli(int a_argc, char **a_argv, int a_arg_idx, uint
             *a_err_msg = "invalid -fee_pct value; expected decimal like '2.0' for 2%";
             return -1;
         }
-        uint64_t l_step = DAP_DEX_POW18 / (s_dex_pct_div() / 100);
+        uint64_t l_step = DAP_DEX_POW18 / (s_dex_get_pct_div_s(a_net_id) / 100);
         uint256_t l_mult = uint256_0;
         DIV_256(l_pct, GET_256_FROM_64(l_step), &l_mult);
         if (IS_ZERO_256(l_mult)) {
@@ -9584,19 +9715,11 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
             }
             if (!l_found) {
-                // Fallback: find root via ledger
                 dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_given_hash);
-                if (l_tx) {
-                    dap_chain_tx_out_cond_t *l_out = NULL;
-                    l_order_root =
-                        dap_ledger_get_first_chain_tx_hash_ex(l_net->pub.ledger, l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, &l_out);
-                    if (dap_hash_fast_is_blank(&l_order_root)) {
-                        if (!l_out)
-                            return dap_json_rpc_error_add(*json_arr_reply, -2, "ambiguous order root for tx %s", l_order_hash_str), -2;
-                        l_order_root = l_given_hash; // OUT_COND with blank root => this tx is the root
-                    }
-                } else
+                if (!l_tx)
                     return dap_json_rpc_error_add(*json_arr_reply, -2, "order hash %s not found", l_order_hash_str), -2;
+                if (s_dex_ledger_resolve_order_root(l_net->pub.ledger, l_tx, &l_given_hash, &l_order_root))
+                    return dap_json_rpc_error_add(*json_arr_reply, -2, "ambiguous order root for tx %s", l_order_hash_str), -2;
             }
         }
         if (l_order_hash_str) {
@@ -9821,15 +9944,20 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                             // Dust refund adjustment for full execution
                             uint256_t l_srv_fee_req = uint256_0;
                             const dap_chain_addr_t *l_srv_addr_ptr = NULL;
-                            if (!dap_strcmp(l_sell_tok, l_net->pub.native_ticker) &&
-                                dap_chain_addr_compare(&l_prev_out->subtype.srv_dex.seller_addr, &s_dex_service_fee_addr)) {
+                            dap_chain_addr_t l_srv_fee_local = {};
+                            if (!dap_strcmp(l_sell_tok, l_net->pub.native_ticker)) {
                                 pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-                                dex_pair_index_t *l_pi_fee = s_dex_pair_index_get(&l_key);
-                                uint8_t l_fee_cfg = l_pi_fee ? l_pi_fee->key.fee_config : 0;
-                                l_srv_fee_req = s_dex_get_srv_fee(l_fee_cfg);
+                                dex_net_fee_cache_t *l_nf_d = s_dex_get_srv_fee(l_net->pub.id);
+                                if (l_nf_d)
+                                    l_srv_fee_local = l_nf_d->service_fee_addr;
+                                if (dap_chain_addr_compare(&l_prev_out->subtype.srv_dex.seller_addr, &l_srv_fee_local)) {
+                                    dex_pair_index_t *l_pi_fee = s_dex_pair_index_get(&l_key);
+                                    uint8_t l_fee_cfg = l_pi_fee ? l_pi_fee->key.fee_config : 0;
+                                    l_srv_fee_req = s_dex_get_srv_fee_val(l_fee_cfg, l_net->pub.id);
+                                }
                                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
                                 if (!IS_ZERO_256(l_srv_fee_req))
-                                    l_srv_addr_ptr = &s_dex_service_fee_addr;
+                                    l_srv_addr_ptr = &l_srv_fee_local;
                             }
                             s_adjust_exec_for_dust_refund(l_tx, &l_prev_out->subtype.srv_dex.seller_addr, l_sell_tok, l_srv_addr_ptr,
                                                             l_srv_fee_req, &l_executed);
@@ -9954,15 +10082,20 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         if (!l_out_cond && l_dex_in_i == 0 && l_sell_tok && *l_sell_tok) {
                             uint256_t l_srv_fee_req = uint256_0;
                             const dap_chain_addr_t *l_srv_addr_ptr = NULL;
-                            if (!dap_strcmp(l_sell_tok, l_net->pub.native_ticker) &&
-                                dap_chain_addr_compare(&l_prev->subtype.srv_dex.seller_addr, &s_dex_service_fee_addr)) {
+                            dap_chain_addr_t l_srv_fee_local = {};
+                            if (!dap_strcmp(l_sell_tok, l_net->pub.native_ticker)) {
                                 pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-                                dex_pair_index_t *l_pi_fee = s_dex_pair_index_get(&l_key);
-                                uint8_t l_fee_cfg = l_pi_fee ? l_pi_fee->key.fee_config : 0;
-                                l_srv_fee_req = s_dex_get_srv_fee(l_fee_cfg);
+                                dex_net_fee_cache_t *l_nf_d = s_dex_get_srv_fee(l_net->pub.id);
+                                if (l_nf_d)
+                                    l_srv_fee_local = l_nf_d->service_fee_addr;
+                                if (dap_chain_addr_compare(&l_prev->subtype.srv_dex.seller_addr, &l_srv_fee_local)) {
+                                    dex_pair_index_t *l_pi_fee = s_dex_pair_index_get(&l_key);
+                                    uint8_t l_fee_cfg = l_pi_fee ? l_pi_fee->key.fee_config : 0;
+                                    l_srv_fee_req = s_dex_get_srv_fee_val(l_fee_cfg, l_net->pub.id);
+                                }
                                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
                                 if (!IS_ZERO_256(l_srv_fee_req))
-                                    l_srv_addr_ptr = &s_dex_service_fee_addr;
+                                    l_srv_addr_ptr = &l_srv_fee_local;
                             }
                             s_adjust_exec_for_dust_refund(l_tx, &l_prev->subtype.srv_dex.seller_addr, l_sell_tok, l_srv_addr_ptr,
                                                           l_srv_fee_req, &l_executed_i);
@@ -10787,8 +10920,6 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         dap_chain_tx_out_cond_t *l_oc_d = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
         if (l_oc_d)
             l_dex_seed = l_order_hash;
-        else
-            l_dex_seed = dap_ledger_get_first_chain_tx_hash(l_net->pub.ledger, l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX);
         dex_match_criteria_t l_crit = {};
         l_crit.is_budget_buy = false;
         l_crit.buyer_addr = &l_addr;
@@ -10824,8 +10955,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 return dap_json_rpc_error_add(*json_arr_reply, -2, "order closed"), -2;
             l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tail);
             if (!l_tx)
-                return dap_json_rpc_error_add(*json_arr_reply, -2, "order tail not found %s",
-                                              dap_hash_fast_to_str_static(&l_tail)),
+                return dap_json_rpc_error_add(*json_arr_reply, -2, "order tail not found %s", dap_hash_fast_to_str_static(&l_tail)),
                        -2;
             l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_out_idx);
             if (!l_out_cond)
@@ -10846,7 +10976,9 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             l_is_owner = dap_chain_addr_compare(&l_addr, &l_out_cond->subtype.srv_xchange.seller_addr);
             
         } else
-            return dap_json_rpc_error_add(*json_arr_reply, -2, "order not found %s", l_order_str), -2;
+            return dap_json_rpc_error_add(*json_arr_reply, -2,
+                "find_matches: tx %s is not an order-bearing tx (need SRV_DEX or resolvable XCHANGE output on-chain)",
+                l_order_str), -2;
 
         dex_pair_key_t l_key = {};
         uint8_t l_side = 0;
@@ -10971,12 +11103,12 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             json_object *l_fee_obj = json_object_new_object();
             uint8_t l_fc = l_pair->key.fee_config;
             uint8_t l_val = l_fc & 0x7F;
-            uint256_t l_fee_val = s_dex_fee_config_to_val(l_fc);
+            uint256_t l_fee_val = s_dex_fee_config_to_val(l_fc, l_net->pub.id);
             json_object_object_add(l_fee_obj, "config", json_object_new_int((int)l_fc));
             json_object_object_add(l_fee_obj, "value", json_object_new_string(dap_uint256_to_char_ex(l_fee_val).frac));
             if (l_fc & 0x80) {
                 json_object_object_add(l_fee_obj, "type", json_object_new_string(l_val ? "input_pct" : "disabled"));
-                json_object_object_add(l_fee_obj, "pct_divisor", json_object_new_int(s_dex_pct_div()));
+                json_object_object_add(l_fee_obj, "pct_divisor", json_object_new_int((int)s_dex_get_pct_div(l_net->pub.id)));
             } else {
                 // Native mode: value × 0.01 native or global fallback
                 json_object_object_add(l_fee_obj, "type", json_object_new_string("native"));
@@ -10986,8 +11118,13 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
 
             json_object_array_add(l_pairs_arr, l_pair_obj);
         }
-        dap_chain_addr_t l_srv_addr = s_dex_service_fee_addr;
-        uint256_t l_srv_fee = s_dex_native_fee_amount;
+        dex_net_fee_cache_t *l_nf_pairs = s_dex_get_srv_fee(l_net->pub.id);
+        dap_chain_addr_t l_srv_addr = {};
+        uint256_t l_srv_fee = uint256_0;
+        if (l_nf_pairs) {
+            l_srv_addr = l_nf_pairs->service_fee_addr;
+            l_srv_fee = l_nf_pairs->native_fee_amount;
+        }
         pthread_rwlock_unlock(&s_dex_cache_rwlock);
         if (!dap_chain_addr_is_blank(&l_srv_addr))
             json_object_object_add(l_json_reply, "fee_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_srv_addr)));
@@ -11076,7 +11213,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
 
             uint8_t l_fee_config = 0;
             const char *l_err_msg = NULL;
-            int l_parsed = s_parse_fee_config_cli(a_argc, a_argv, l_arg_index, &l_fee_config, &l_err_msg);
+            int l_parsed = s_parse_fee_config_cli(a_argc, a_argv, l_arg_index, &l_fee_config, &l_err_msg, l_net->pub.id);
             if (l_parsed < 0)
                 return dap_json_rpc_error_add(*json_arr_reply, -2, "%s", l_err_msg), -2;
             if (l_parsed == 0) {
@@ -11130,7 +11267,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             // Handle fee config (human-readable or raw)
             uint8_t l_fee_config = 0;
             const char *l_err_msg = NULL;
-            int l_parsed = s_parse_fee_config_cli(a_argc, a_argv, l_arg_index, &l_fee_config, &l_err_msg);
+            int l_parsed = s_parse_fee_config_cli(a_argc, a_argv, l_arg_index, &l_fee_config, &l_err_msg, l_net->pub.id);
             if (l_parsed < 0)
                 return dap_json_rpc_error_add(*json_arr_reply, -2, "%s", l_err_msg), -2;
             if (l_parsed == 0) {
@@ -11438,14 +11575,6 @@ static void s_tx_json_collect_fees(json_object *a_arr, dap_chain_datum_tx_t *a_t
     }
 }
 
-/* Format address with (DEX) suffix into static buffer */
-static const char *s_addr_dex_str(const dap_chain_addr_t *a_addr)
-{
-    static _Thread_local char s_buf[128];
-    snprintf(s_buf, sizeof(s_buf), "%s (DEX)", dap_chain_addr_to_str_static(a_addr));
-    return s_buf;
-}
-
 /* Emit exchange recv/send entries for one trade leg */
 static void s_tx_json_exchange_leg(json_object *a_arr, bool a_is_buyer, uint8_t a_side,
                                    uint256_t a_base, uint256_t a_quote, const char *a_token_base, const char *a_token_quote,
@@ -11457,7 +11586,8 @@ static void s_tx_json_exchange_leg(json_object *a_arr, bool a_is_buyer, uint8_t 
     uint256_t l_sell_amt   = (a_side == DEX_SIDE_ASK) ? a_base  : a_quote;
     uint256_t l_buy_amt    = (a_side == DEX_SIDE_ASK) ? a_quote : a_base;
     const dap_chain_addr_t *l_counterparty = a_is_buyer ? a_seller : a_buyer;
-    const char *l_cp_str = s_addr_dex_str(l_counterparty);
+    char l_cp_str[128];
+    snprintf(l_cp_str, sizeof(l_cp_str), "%s (DEX)", dap_chain_addr_to_str_static(l_counterparty));
     if (a_is_buyer) {
         s_tx_json_recv(a_arr, l_sell_amt, l_sell_tok, l_cp_str);
         s_tx_json_send(a_arr, l_buy_amt,  l_buy_tok,  l_cp_str);
@@ -11485,7 +11615,9 @@ static json_object *s_dex_tx_to_json(dap_ledger_t *a_ledger, dap_chain_datum_tx_
     (void)a_hash_out_type;
     dap_chain_addr_t l_srv_fee_addr = {};
     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-    l_srv_fee_addr = s_dex_service_fee_addr;
+    dex_net_fee_cache_t *l_nf_json = s_dex_get_srv_fee(l_net->pub.id);
+    if (l_nf_json)
+        l_srv_fee_addr = l_nf_json->service_fee_addr;
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
 
     // Classify TX
@@ -11658,7 +11790,7 @@ static json_object *s_dex_tx_to_json(dap_ledger_t *a_ledger, dap_chain_datum_tx_
                         pthread_rwlock_rdlock(&s_dex_cache_rwlock);
                         dex_pair_index_t *l_pi = s_dex_pair_index_get(&l_pk);
                         uint8_t l_fee_cfg = l_pi ? l_pi->key.fee_config : 0;
-                        l_srv_fee = s_dex_get_srv_fee(l_fee_cfg);
+                        l_srv_fee = s_dex_get_srv_fee_val(l_fee_cfg, l_net->pub.id);
                         pthread_rwlock_unlock(&s_dex_cache_rwlock);
                         if (!IS_ZERO_256(l_srv_fee))
                             l_srv_addr = &l_srv_fee_addr;

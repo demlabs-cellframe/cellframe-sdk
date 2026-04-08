@@ -542,7 +542,7 @@ json_object *dap_enc_request_command_to_rpc(const char *a_request, const char *a
     int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
     if (l_res) {
         log_it(L_ERROR, "request failed, error code: %d", l_res);
-        dap_chain_node_client_close_unsafe(l_node_client);
+        dap_chain_node_client_close_mt(l_node_client);
         DAP_DELETE(node_info);
         return NULL;
     }
@@ -553,7 +553,7 @@ json_object *dap_enc_request_command_to_rpc(const char *a_request, const char *a
     dap_json_rpc_request_send(l_client_internal, l_request, &l_response, a_cert_path);
 
     dap_json_rpc_request_free(l_request);
-    dap_chain_node_client_close_unsafe(l_node_client);
+    dap_chain_node_client_close_mt(l_node_client);
     DAP_DELETE(node_info);
     
     return l_response;
@@ -3137,10 +3137,9 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
                               uint64_t a_option_idx, compose_config_t *a_config) {
     dap_return_val_if_pass(!a_config, NULL);
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST   
-    const char * l_hash_str = dap_chain_hash_fast_to_str_static(&a_hash);
 
     json_object *l_json_voting = s_request_command_to_rpc_with_params(a_config, "poll", "dump;-need_vote_list;-net;%s;-hash;%s", 
-                                                                      a_config->net_name, l_hash_str);
+                                                                      a_config->net_name, dap_chain_hash_fast_to_str_static(&a_hash));
     if (!l_json_voting) {
         log_it(L_ERROR, "can't get voting info");
         s_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info\n");
@@ -3571,7 +3570,6 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
                 return s_compose_config_return_response_handler(l_config);
             }
         }
-        const char *l_addr_str = dap_chain_addr_to_str_static(&l_signing_addr);
 
         json_object *l_json_coins = s_request_command_to_rpc_with_params(l_config, "srv_stake", "list;keys;-net;%s", l_config->net_name);
         if (!l_json_coins) {
@@ -3585,7 +3583,7 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
         for (int i = 0; i < items_count; i++) {
             json_object *item = json_object_array_get_idx(l_json_coins, i);
             const char *node_addr_str = json_object_get_string(json_object_object_get(item, "node_addr"));
-            if (node_addr_str && !dap_strcmp(l_addr_str, node_addr_str)) {
+            if (node_addr_str && !dap_strcmp(dap_chain_addr_to_str_static(&l_signing_addr), node_addr_str)) {
                 const char *tx_hash_str = json_object_get_string(json_object_object_get(item, "tx_hash"));
                 if (dap_chain_hash_fast_from_str(tx_hash_str, &l_tx_hash)) {
                     log_it(L_ERROR, "invalid transaction hash format");
@@ -3606,7 +3604,6 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
     }
 
     if (a_tx_hash_str) {
-        const char *l_tx_hash_str_tmp = a_tx_hash_str ? a_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash);
         json_object *l_json_answer = s_request_command_to_rpc_with_params(l_config, "srv_stake", "list;keys;-net;%s", l_config->net_name);
         if (!l_json_answer) {
             log_it(L_ERROR, "failed to get rpc answer");
@@ -3626,7 +3623,7 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
         for (int i = 0; i < tx_count; i++) {
             json_object *tx_item = json_object_array_get_idx(l_json_coins, i);
             const char *tx_hash = json_object_get_string(json_object_object_get(tx_item, "tx_hash"));
-            if (tx_hash && strcmp(tx_hash, l_tx_hash_str_tmp) == 0) {
+            if (tx_hash && strcmp(tx_hash, a_tx_hash_str ? a_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash)) == 0) {
                 const char *l_pkey_hash_str = json_object_get_string(json_object_object_get(tx_item, "pkey_hash"));
                 log_it(L_ERROR, "Transaction %s has active delegated key %s, need to revoke it first", tx_hash, l_pkey_hash_str);
                 json_object_put(l_json_answer);
@@ -5969,9 +5966,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
 
     json_object *l_json_shared_info = s_request_command_to_rpc_with_params(a_config, "wallet", "shared;info;-tx;%s;-net;%s", dap_hash_fast_to_str_static(a_tx_in_hash), a_config->net_name);
     if (!l_json_shared_info) {
-        const char *l_hash_str = dap_hash_fast_to_str_static(a_tx_in_hash);
-        s_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_TX_COMPOSE, "Can't get shared info by hash %s", l_hash_str);
-        log_it(L_ERROR, "Can't get shared info by hash %s", l_hash_str);
+        s_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_TX_COMPOSE, "Can't get shared info by hash %s", dap_hash_fast_to_str_static(a_tx_in_hash));
+        log_it(L_ERROR, "Can't get shared info by hash %s", dap_hash_fast_to_str_static(a_tx_in_hash));
         return NULL;
     }
 
@@ -7027,7 +7023,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
         if (!l_hash)
             continue;
 
-        const char *l_input_hash_str = dap_hash_fast_to_str_static(l_hash);
+        char l_input_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(l_hash, l_input_hash_str, sizeof(l_input_hash_str));
         json_object *l_found_tx_item = NULL;
 
         // Find matching TX in list response (match by tx_first OR tx_last)

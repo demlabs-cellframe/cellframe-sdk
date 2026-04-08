@@ -1004,12 +1004,19 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_dex(dap_cha
     if (!a_token_buy || !a_seller_addr || IS_ZERO_256(a_value_sell) || IS_ZERO_256(a_rate))
         return NULL;
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
-    *l_item = (dap_chain_tx_out_cond_t){
-        .header = { .item_type = TX_ITEM_TYPE_OUT_COND, .value = a_value_sell, .subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, .srv_uid = a_srv_uid },
-        .subtype = { .srv_dex = {
-            .sell_net_id = a_sell_net_id, .buy_net_id = a_buy_net_id, .rate = a_rate, .buy_token = { 0 }, .seller_addr = *a_seller_addr,
-            .min_fill = a_min_fill_pct, .version = a_version, .flags = a_flags, .tx_type = a_type } },
-        .tsd_size = a_params_size };
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX;
+    l_item->header.value = a_value_sell;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_dex.sell_net_id = a_sell_net_id;
+    l_item->subtype.srv_dex.buy_net_id = a_buy_net_id;
+    l_item->subtype.srv_dex.rate = a_rate;
+    l_item->subtype.srv_dex.seller_addr = *a_seller_addr;
+    l_item->subtype.srv_dex.min_fill = a_min_fill_pct;
+    l_item->subtype.srv_dex.version = a_version;
+    l_item->subtype.srv_dex.flags = a_flags;
+    l_item->subtype.srv_dex.tx_type = a_type;
+    l_item->tsd_size = a_params_size;
     strncpy(l_item->subtype.srv_dex.buy_token, a_token_buy, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     if (a_order_root_hash)
         l_item->subtype.srv_dex.order_root_hash = *a_order_root_hash;
@@ -1064,12 +1071,12 @@ int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event
     json_object_object_add(l_object, "srv_uid", json_object_new_uint64(a_event->srv_uid.uint64));
     json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     json_object_object_add(l_object, "event_group", json_object_new_string(a_event->group_name));
-    const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->tx_hash)
-                                                                   : dap_chain_hash_fast_to_str_static(&a_event->tx_hash);
-    json_object_object_add(l_object, "tx_hash", json_object_new_string(l_tx_hash_str));
-    const char *l_pkey_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->pkey_hash)
-                                                                     : dap_hash_fast_to_str_static(&a_event->pkey_hash);
-    json_object_object_add(l_object, "pkey_hash", json_object_new_string(l_pkey_hash_str));
+    json_object_object_add(l_object, "tx_hash", json_object_new_string(dap_strcmp(a_hash_out_type, "hex")
+        ? dap_enc_base58_encode_hash_to_str_static(&a_event->tx_hash)
+        : dap_chain_hash_fast_to_str_static(&a_event->tx_hash)));
+    json_object_object_add(l_object, "pkey_hash", json_object_new_string(
+        dap_strcmp(a_hash_out_type, "hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&a_event->pkey_hash) : dap_hash_fast_to_str_static(&a_event->pkey_hash)));
     json_object_object_add(l_object, "data_size", json_object_new_int64(a_event->event_data_size));
     if (a_event->event_data && a_event->event_data_size > 0) {
         const size_t l_print_size_max = 32;
