@@ -184,6 +184,8 @@ int tun_device_create(char *dev)
     return l_tun_fd;
 lb_err:
     return l_errno;
+#else
+    return -1;
 #endif
 }
 
