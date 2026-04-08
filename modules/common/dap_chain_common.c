@@ -308,7 +308,7 @@ size_t dap_chain_hash_fast_from_str_array(const char *a_str, dap_hash_fast_t **a
         const char *l_sep = strchr(l_ptr, ',');
         if (!l_sep)
             l_sep = a_str + l_str_size;
-        dap_strncpy(l_buf, l_ptr, dap_min(DAP_HASH_FAST_STR_SIZE, (size_t)(l_sep - l_ptr)));
+        dap_strncpy(l_buf, l_ptr, dap_min((size_t)DAP_HASH_FAST_STR_SIZE, (size_t)(l_sep - l_ptr)));
         if (dap_chain_hash_fast_from_str(l_buf, l_out + i)) {
             DAP_DELETE(l_out);
             return 0;
