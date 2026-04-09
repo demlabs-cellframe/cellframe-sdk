@@ -338,9 +338,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             return false;
         }
+        dap_stream_ch_t *l_stream_ch = DAP_STREAM_CH(l_ch_chain);
+        const char *l_remote_addr = (l_stream_ch && l_stream_ch->stream && l_stream_ch->stream->esocket)
+                ? l_stream_ch->stream->esocket->remote_addr_str : "unknown";
         log_it(L_WARNING, "In: from remote addr %s chain id 0x%016" DAP_UINT64_FORMAT_x " got error on his side: '%s'",
-               DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str,
-               l_chain_pkt->hdr.chain_id.uint64, (char *)l_chain_pkt->data);
+               l_remote_addr, l_chain_pkt->hdr.chain_id.uint64, (char *)l_chain_pkt->data);
         s_ch_chain_go_idle(l_ch_chain);
     } break;
 
