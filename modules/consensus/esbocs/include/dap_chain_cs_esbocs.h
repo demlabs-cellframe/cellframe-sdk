@@ -229,10 +229,16 @@ typedef struct dap_chain_esbocs_session {
     unsigned int listen_ensure;
     dap_chain_node_addr_t my_addr;
     uint8_t state, old_state;
+    uint8_t sync_backoff_level;
+    atomic_uint_fast64_t proc_deadline_seq;
     bool cs_timer, round_fast_forward, sync_failed, new_round_enqueued, is_actual_hash;
     atomic_bool stopping;
     atomic_uint_fast32_t inflight_callbacks;
+    atomic_uint_fast32_t pending_mempool_count;
+    atomic_bool mempool_wakeup_enqueued;
     void *atom_notifier_ctx;
+    void *mempool_notifier_ctx;
+    char *mempool_gdb_group;
     dap_global_db_driver_hash_t db_hash;
     dap_global_db_driver_hash_t db_hash_legacy;
     dap_chain_esbocs_peer_version_item_t *peer_version_items;

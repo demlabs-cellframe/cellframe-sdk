@@ -540,6 +540,10 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                                    l_tx_fee_str, l_min_fee_str, l_objs[i].key);
                             DAP_DELETE(l_tx_fee_str);
                             DAP_DELETE(l_min_fee_str);
+                            log_it(L_INFO, " ! Delete datum %s from mempool", l_objs[i].key);
+                            char *l_ret_str = dap_strdup_printf("%d", DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE);
+                            dap_global_db_del_ex(l_gdb_group_mempool, l_objs[i].key, l_ret_str, strlen(l_ret_str) + 1, NULL, NULL);
+                            DAP_DELETE(l_ret_str);
                             continue;
                         }
                     }
