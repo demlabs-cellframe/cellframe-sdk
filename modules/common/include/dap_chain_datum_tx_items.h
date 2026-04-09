@@ -300,6 +300,16 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(d
                                                                                uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
                                                                                size_t a_pkey_hashes_count, const char *a_tag_str);
 
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_by_addrs(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                               uint32_t a_signs_min, dap_chain_addr_t *a_owner_addrs,
+                                                                               size_t a_addrs_count, const char *a_tag_str);
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                               uint32_t a_signs_min,
+                                                                               dap_chain_addr_t *a_owner_addrs, size_t a_addrs_count,
+                                                                               dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count,
+                                                                               const char *a_tag_str);
+
 /**
  * Create item dap_chain_tx_sig_t
  *

@@ -90,10 +90,76 @@ enum emit_delegation_error {
 
 #define LOG_TAG "dap_chain_wallet_shared"
 
+/**
+ * @brief Count owner entries in TSD (TSD_HASH entries only, as the authoritative owner count)
+ * @param a_tsd TSD blob pointer
+ * @param a_tsd_size TSD blob size
+ * @return Number of TSD_HASH owner entries
+ */
+static size_t s_count_tsd_owners(const uint8_t *a_tsd, uint32_t a_tsd_size)
+{
+    size_t l_count = 0;
+    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t))
+            l_count++;
+    }
+    return l_count;
+}
+
+/**
+ * @brief Validate partial bijection between TSD_HASH and TSD_ADDR entries.
+ *        If TSD_ADDR entries are present, their count must not exceed TSD_HASH count,
+ *        and for each non-blank address ADDR[i].data.hash_fast must equal HASH[i].
+ * @return 0 on success, negative error code on failure
+ */
+static int s_validate_tsd_bijection(const uint8_t *a_tsd, uint32_t a_tsd_size)
+{
+    size_t l_hash_count = 0, l_addr_count = 0;
+    dap_tsd_t *l_tsd; size_t l_tsd_size;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t))
+            l_hash_count++;
+        else if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_ADDR && l_tsd->size == sizeof(dap_chain_addr_t))
+            l_addr_count++;
+    }
+    if (!l_addr_count)
+        return 0;
+    if (l_addr_count > l_hash_count) {
+        log_it(L_ERROR, "TSD bijection violated: %zu TSD_ADDR exceeds %zu TSD_HASH entries", l_addr_count, l_hash_count);
+        return -12;
+    }
+    size_t l_idx = 0;
+    dap_hash_fast_t l_hashes[l_hash_count];
+    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t))
+            l_hashes[l_idx++] = *(dap_hash_fast_t *)l_tsd->data;
+    }
+    l_idx = 0;
+    dap_tsd_iter(l_tsd, l_tsd_size, a_tsd, a_tsd_size) {
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_ADDR && l_tsd->size == sizeof(dap_chain_addr_t)) {
+            dap_chain_addr_t *l_addr = (dap_chain_addr_t *)l_tsd->data;
+            if (l_addr->addr_type != 0 &&
+                    !dap_hash_fast_compare(&l_hashes[l_idx], &l_addr->data.hash_fast)) {
+                log_it(L_ERROR, "TSD bijection violated: HASH[%zu] != ADDR[%zu].data.hash_fast", l_idx, l_idx);
+                return -13;
+            }
+            l_idx++;
+        }
+    }
+    return 0;
+}
 
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner, bool a_check_for_apply)
 {
-    size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
+    size_t l_tsd_hashes_count = s_count_tsd_owners(a_cond->tsd, a_cond->tsd_size);
+    if (!l_tsd_hashes_count) {
+        log_it(L_ERROR, "No owner pkey hashes found in conditional output TSD");
+        return -14;
+    }
+    int l_bijection_rc = s_validate_tsd_bijection(a_cond->tsd, a_cond->tsd_size);
+    if (l_bijection_rc)
+        return l_bijection_rc;
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];
     uint32_t l_signs_counter = 0, l_signs_verified = 0;
     uint256_t l_writeoff_value = uint256_0;
@@ -244,7 +310,10 @@ static char *s_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain, const ch
 
 static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
                                                   const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
-                                                  uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str)
+                                                  uint32_t a_signs_min,
+                                                  dap_chain_addr_t *a_owner_addrs, size_t a_addrs_count,
+                                                  dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count,
+                                                  const char *a_tag_str)
 {
     const char *l_native_ticker = a_net->pub.native_ticker;
     bool l_share_native = !dap_strcmp(l_native_ticker, a_token_ticker);
@@ -293,8 +362,8 @@ static dap_chain_datum_tx_t *s_emitting_tx_create(json_object *a_json_arr_reply,
 
     // add 'out_cond' & 'out_ext' items
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
-    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_wallet_shared(
-                                                l_uid, a_value, a_signs_min, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
+    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(
+                                                l_uid, a_value, a_signs_min, a_owner_addrs, a_addrs_count, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
     if (!l_tx_out)
         m_tx_fail(ERROR_COMPOSE, "Can't compose the transaction conditional output");
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out);
@@ -719,8 +788,8 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json
     byte_t *l_my_pkey = dap_enc_key_serialize_pub_key(a_enc_key, &l_my_pkey_size);
     if (!l_my_pkey)
         m_sign_fail(ERROR_COMPOSE, "Can't serialize sign public key");
-    size_t l_tsd_hashes_count = l_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
-    size_t l_signs_limit = l_tsd_hashes_count * 2;
+    size_t l_tsd_owners_count = s_count_tsd_owners(l_cond->tsd, l_cond->tsd_size);
+    size_t l_signs_limit = l_tsd_owners_count * 2;
     byte_t *l_item; size_t l_tx_item_size;
     TX_ITEM_ITER_TX(l_item, l_tx_item_size, a_tx_in) {
         if (*l_item != TX_ITEM_TYPE_SIG)
@@ -744,6 +813,43 @@ dap_chain_datum_tx_t *dap_chain_wallet_shared_taking_tx_sign(json_object *a_json
 
 #undef m_sign_fail
 
+/**
+ * @brief Parse hold TX hash from either -tx or -addr CLI parameter
+ * @param[out] a_tx_hash result hold TX hash
+ * @return 0 on success, error code otherwise
+ */
+static int s_parse_hold_tx_hash(int a_argc, char **a_argv, int a_arg_index,
+                                json_object **a_json_arr_reply, dap_chain_net_id_t a_net_id,
+                                dap_hash_fast_t *a_tx_hash)
+{
+    const char *l_tx_hash_str = NULL, *l_addr_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_hash_str);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-addr", &l_addr_str);
+    if (l_tx_hash_str && l_addr_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Use either -tx or -addr, not both");
+        return ERROR_PARAM;
+    }
+    const char *l_input_str = l_addr_str ? l_addr_str : l_tx_hash_str;
+    if (!l_input_str) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Parameter -tx or -addr is required");
+        return ERROR_PARAM;
+    }
+    int l_rc = dap_chain_addr_resolve_hold_tx_hash(l_input_str, a_net_id, a_tx_hash);
+    switch (l_rc) {
+    case 0:
+        return DAP_NO_ERROR;
+    case -2:
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Address %s is not a shared address", l_input_str);
+        return ERROR_VALUE;
+    case -3:
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Address network ID mismatch");
+        return ERROR_VALUE;
+    default:
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a shared address or hash", l_input_str);
+        return ERROR_VALUE;
+    }
+}
+
 static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
     const char *l_token_str = NULL, 
@@ -751,7 +857,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
                 *l_wallet_str = NULL, 
                 *l_fee_str = NULL, 
                 *l_signs_min_str = NULL, 
-                *l_pkeys_str = NULL,
+                *l_owners_str = NULL,
                 *l_tag_str = NULL;
 
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-token", &l_token_str);
@@ -807,59 +913,54 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
     dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
     dap_chain_wallet_close(l_wallet);
 
-    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey_hashes", &l_pkeys_str);
-    if (!l_pkeys_str) {
+    const char *l_addrs_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-pkey_hashes", &l_owners_str);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-addrs", &l_addrs_str);
+    if (!l_owners_str && !l_addrs_str) {
         dap_enc_key_delete(l_enc_key);
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -pkey_hashes");
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation holding requires parameter -pkey_hashes and/or -addrs");
         return ERROR_PARAM;
     }
-    size_t l_pkeys_str_size = strlen(l_pkeys_str);
-    size_t l_hashes_count_max = l_pkeys_str_size / DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_hash_fast_t)),
-           l_hashes_count = 0;
-    dap_chain_hash_fast_t *l_pkey_hashes = DAP_NEW_Z_COUNT(dap_chain_hash_fast_t, l_hashes_count_max);
-    if (!l_pkey_hashes) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_MEMORY, c_error_memory_alloc);
-        DAP_DELETE(l_enc_key);
-        return ERROR_MEMORY;
-    }
-    char l_hash_str_buf[DAP_HASH_FAST_STR_SIZE+1];
-    const char *l_token_ptr = l_pkeys_str;
-    for (size_t i = 0; i < l_hashes_count_max; i++) {
-        const char *l_cur_ptr = strchr(l_token_ptr, ',');
-        if (!l_cur_ptr)
-            l_cur_ptr = l_pkeys_str + l_pkeys_str_size;
-        dap_strncpy(l_hash_str_buf, l_token_ptr, dap_min(DAP_HASH_FAST_STR_SIZE, l_cur_ptr - l_token_ptr));
-        if (dap_chain_hash_fast_from_str(l_hash_str_buf, l_pkey_hashes + i)) {
-            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
-            DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+
+    size_t l_hashes_count = 0;
+    dap_chain_hash_fast_t *l_pkey_hashes = NULL;
+    dap_chain_addr_t *l_owner_addrs = NULL;
+    size_t l_addrs_count = 0;
+
+    if (l_addrs_str) {
+        dap_chain_addr_t *l_addrs_array = NULL;
+        l_addrs_count = dap_chain_addr_from_str_array(l_addrs_str, &l_addrs_array);
+        if (!l_addrs_count || !l_addrs_array) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't parse addresses from -addrs parameter");
+            DAP_DELETE(l_enc_key);
             return ERROR_VALUE;
         }
-        for (size_t j = 0; j < i; ++j) {
-            if (!memcmp(l_pkey_hashes + j, l_pkey_hashes + i, sizeof(dap_chain_hash_fast_t))){
-                dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Find pkey hash %s dublicate", l_hash_str_buf);
-                DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+        for (size_t i = 0; i < l_addrs_count; i++) {
+            if (l_addrs_array[i].addr_type != DAP_CHAIN_ADDR_TYPE_REGULAR) {
+                dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE,
+                    "Address at position %zu is not a regular address (type 0x%02x)", i, l_addrs_array[i].addr_type);
+                DAP_DEL_MULTY(l_enc_key, l_addrs_array);
                 return ERROR_VALUE;
             }
         }
-        if (*l_cur_ptr == 0) {
-            l_hashes_count = i + 1;
-            break;
+        l_owner_addrs = l_addrs_array;
+    }
+    if (l_owners_str) {
+        l_hashes_count = dap_chain_hash_fast_from_str_array(l_owners_str, &l_pkey_hashes);
+        if (!l_hashes_count) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't parse pkey hashes from -pkey_hashes parameter (invalid format or duplicates)");
+            DAP_DEL_MULTY(l_enc_key, l_owner_addrs);
+            return ERROR_VALUE;
         }
-        l_token_ptr = l_cur_ptr + 1;
     }
-    if (!l_hashes_count) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
-        DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+    size_t l_total_owners = l_addrs_count + l_hashes_count;
+    if (l_total_owners < l_signs_min) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Quantity of owners %zu should not be less than signs_minimum (%zu)", l_total_owners, l_signs_min);
+        DAP_DEL_MULTY(l_enc_key, l_pkey_hashes, l_owner_addrs);
         return ERROR_VALUE;
     }
-    if (l_hashes_count < l_signs_min) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Quantity of pkey_hashes %zu should not be less than signs_minimum (%zu)", l_hashes_count, l_signs_min);
-        DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
-        return ERROR_VALUE;
-    }
-    // Create conditional transaction for shared fundss
-    dap_chain_datum_tx_t *l_tx = s_emitting_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_token_str, l_value, l_fee, l_signs_min, l_pkey_hashes, l_hashes_count, l_tag_str);
-    DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
+    dap_chain_datum_tx_t *l_tx = s_emitting_tx_create(*a_json_arr_reply, a_net, l_enc_key, l_token_str, l_value, l_fee, l_signs_min, l_owner_addrs, l_addrs_count, l_pkey_hashes, l_hashes_count, l_tag_str);
+    DAP_DEL_MULTY(l_enc_key, l_pkey_hashes, l_owner_addrs);
     if (!l_tx) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for shared funds");
         return ERROR_CREATE;
@@ -870,11 +971,17 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PLACE, "Can't place transaction for shared funds in mempool");
         return ERROR_PLACE;
     }
+    dap_hash_fast_t l_hold_hash;
+    dap_chain_hash_fast_from_str(l_tx_hash_str, &l_hold_hash);
+    dap_chain_addr_t l_shared_addr;
+    dap_chain_addr_fill_shared(&l_shared_addr, a_net->pub.id, &l_hold_hash);
+
     json_object * l_json_obj_create_val = json_object_new_object();
     json_object_object_add(l_json_obj_create_val, "status", json_object_new_string("success"));
     if (dap_strcmp(l_sign_str, ""))
         json_object_object_add(l_json_obj_create_val, "sign", json_object_new_string(l_sign_str));
     json_object_object_add(l_json_obj_create_val, "tx_hash", json_object_new_string(l_tx_hash_str));
+    json_object_object_add(l_json_obj_create_val, "addr", json_object_new_string(dap_chain_addr_to_str_static(&l_shared_addr)));
     json_object_array_add(*a_json_arr_reply, l_json_obj_create_val);
     DAP_DELETE(l_tx_hash_str);
     return DAP_NO_ERROR;
@@ -882,7 +989,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, json_object **
 
 static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
-    const char *l_token_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL, *l_tx_in_hash_str = NULL;
+    const char *l_token_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-value", &l_value_str);
     if (!l_value_str) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Refill command requires parameter -value");
@@ -910,21 +1017,14 @@ static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object 
         return ERROR_PARAM;
     }
 
-    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_in_hash_str);
-    if (!l_tx_in_hash_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Refill command requires parameter -tx");
-        return ERROR_PARAM;
-    }
     dap_hash_fast_t l_tx_in_hash;
-    if (dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_tx_in_hash)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_in_hash_str);
-        return ERROR_VALUE;
-    }
+    int l_parse_err = s_parse_hold_tx_hash(a_argc, a_argv, a_arg_index, a_json_arr_reply, a_net->pub.id, &l_tx_in_hash);
+    if (l_parse_err)
+        return l_parse_err;
     if (!dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_in_hash)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "TX %s not found in ledger", l_tx_in_hash_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "TX %s not found in ledger", dap_hash_fast_to_str_static(&l_tx_in_hash));
         return ERROR_VALUE;
     }
-
 
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
     if (!l_wallet) {
@@ -960,27 +1060,21 @@ static int s_cli_refill(int a_argc, char **a_argv, int a_arg_index, json_object 
 
 static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
-    const char *l_tx_in_hash_str = NULL, *l_addr_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
-    
+    const char *l_addr_str = NULL, *l_value_str = NULL, *l_wallet_str = NULL, *l_fee_str = NULL;
+
     uint256_t *l_value = NULL;
     dap_chain_addr_t *l_to_addr = NULL;
     uint32_t
-        l_addr_el_count = 0,  // not change type! use in batching TSD section
+        l_addr_el_count = 0,
         l_value_el_count = 0;
     dap_list_t *l_tsd_list = NULL;
-    
-    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_in_hash_str);
-    if (!l_tx_in_hash_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -tx");
-        return ERROR_PARAM;
-    }
+
     dap_hash_fast_t l_tx_in_hash;
-    if (dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_tx_in_hash)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_in_hash_str);
-        return ERROR_VALUE;
-    }
+    int l_parse_err = s_parse_hold_tx_hash(a_argc, a_argv, a_arg_index, a_json_arr_reply, a_net->pub.id, &l_tx_in_hash);
+    if (l_parse_err)
+        return l_parse_err;
     if (!dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_in_hash)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "TX %s not found in ledger", l_tx_in_hash_str);
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "TX %s not found in ledger", dap_hash_fast_to_str_static(&l_tx_in_hash));
         return ERROR_VALUE;
     }
 
@@ -1205,17 +1299,11 @@ int dap_chain_shared_tx_find_in_mempool(dap_chain_t *a_chain, dap_hash_fast_t *a
 
 static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
 {
-    const char *l_tx_hash_str = NULL, *l_wallet_str = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_hash_str);
-    if (!l_tx_hash_str) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_PARAM, "Emitting delegation taking requires parameter -tx");
-        return ERROR_PARAM;
-    }
+    const char *l_wallet_str = NULL;
     dap_hash_fast_t l_tx_hash;
-    if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_tx_hash_str);
-        return ERROR_VALUE;
-    }
+    int l_parse_err = s_parse_hold_tx_hash(a_argc, a_argv, a_arg_index, a_json_arr_reply, a_net->pub.id, &l_tx_hash);
+    if (l_parse_err)
+        return l_parse_err;
     dap_hash_fast_t l_final_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_tx_hash, false);
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_final_tx_hash);
     if (!l_tx) {
@@ -1254,6 +1342,7 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
     json_object_object_add(l_jobj_balance, "datoshi", json_object_new_string(l_balance_datoshi));
     // verify block
     json_object_object_add(l_jobj_take_verify, "signs_minimum", json_object_new_uint64(l_cond->subtype.wallet_shared.signers_minimum));
+    json_object *l_jobj_owner_addrs = json_object_new_array();
     dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
@@ -1263,26 +1352,161 @@ static int s_cli_info(int a_argc, char **a_argv, int a_arg_index, json_object **
                 : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data))
             );
         }
+        if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_ADDR && l_tsd->size == sizeof(dap_chain_addr_t)) {
+            dap_chain_addr_t *l_addr = (dap_chain_addr_t *)l_tsd->data;
+            if (l_addr->addr_type != 0)
+                json_object_array_add(l_jobj_owner_addrs, json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
+            else
+                json_object_array_add(l_jobj_owner_addrs, json_object_new_null());
+        }
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR) {
             json_object_array_add(l_jobj_tags, json_object_new_string((char*)(l_tsd->data)));
         }
     }
     json_object_object_add(l_jobj_take_verify, "owner_hashes", l_jobj_pkey_hashes);
-    // result block
+    if (json_object_array_length(l_jobj_owner_addrs) > 0)
+        json_object_object_add(l_jobj_take_verify, "owner_addrs", l_jobj_owner_addrs);
+    else
+        json_object_put(l_jobj_owner_addrs);
+
+    dap_chain_addr_t l_shared_addr;
+    dap_chain_addr_fill_shared(&l_shared_addr, a_net->pub.id, &l_tx_hash);
+
+    dap_chain_datum_tx_t *l_hold_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_tx_hash);
     dap_hash_fast_t l_creator_hash = {0};
-    dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, 0);
-    dap_sign_get_pkey_hash(l_sig, &l_creator_hash);
+    dap_sign_type_t l_creator_sig_type = {0};
+    if (l_hold_tx) {
+        dap_sign_t *l_hold_sig = dap_chain_datum_tx_get_sign(l_hold_tx, 0);
+        if (l_hold_sig) {
+            dap_sign_get_pkey_hash(l_hold_sig, &l_creator_hash);
+            l_creator_sig_type = l_hold_sig->header.type;
+        }
+    }
+
+    // result block
+    json_object_object_add(l_json_jobj_info, "addr", json_object_new_string(dap_chain_addr_to_str_static(&l_shared_addr)));
     json_object_object_add(l_json_jobj_info, "tx_hash", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_tx_hash) : dap_hash_fast_to_str_static(&l_tx_hash)));
     json_object_object_add(l_json_jobj_info, "tx_hash_final", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_final_tx_hash) : dap_hash_fast_to_str_static(&l_final_tx_hash)));
     json_object_object_add(l_json_jobj_info, "tags", l_jobj_tags);
     json_object_object_add(l_json_jobj_info, "balance", l_jobj_balance);
     json_object_object_add(l_json_jobj_info, "token", l_jobj_token);
     json_object_object_add(l_json_jobj_info, "creator", json_object_new_string(l_is_base_hash_type ? dap_enc_base58_encode_hash_to_str_static(&l_creator_hash) : dap_hash_fast_to_str_static(&l_creator_hash)));
+    if (l_creator_sig_type.raw) {
+        dap_chain_addr_t l_creator_addr;
+        dap_chain_addr_fill(&l_creator_addr, l_creator_sig_type, &l_creator_hash, a_net->pub.id);
+        json_object_object_add(l_json_jobj_info, "creator_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_creator_addr)));
+    }
     json_object_object_add(l_json_jobj_info, "take_verify", l_jobj_take_verify);
     json_object_object_add(l_json_jobj_info, "waiting_operations_count", json_object_new_int(l_waiting_operations_count));
     json_object_object_add(l_json_jobj_info, "waiting_operations_hashes", l_jobj_waiting_operations_hashes);
     
     json_object_array_add(*a_json_arr_reply, l_json_jobj_info);
+    return DAP_NO_ERROR;
+}
+
+/**
+ * @brief s_cli_history - Show full chain of operations for a shared wallet
+ * @param a_net network
+ * @param a_chain chain
+ * @param a_hash_out_type hex or base58
+ * @return 0 on success
+ */
+static int s_cli_history(int a_argc, char **a_argv, int a_arg_index, json_object **a_json_arr_reply, dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_hash_out_type)
+{
+    dap_hash_fast_t l_hold_tx_hash;
+    int l_parse_err = s_parse_hold_tx_hash(a_argc, a_argv, a_arg_index, a_json_arr_reply, a_net->pub.id, &l_hold_tx_hash);
+    if (l_parse_err)
+        return l_parse_err;
+
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_hold_tx_hash);
+    if (!l_tx) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_TX_MISMATCH, "Can't find hold transaction %s", dap_hash_fast_to_str_static(&l_hold_tx_hash));
+        return ERROR_TX_MISMATCH;
+    }
+
+    dap_chain_addr_t l_shared_addr;
+    dap_chain_addr_fill_shared(&l_shared_addr, a_net->pub.id, &l_hold_tx_hash);
+
+    json_object *l_jobj_result = json_object_new_object();
+    json_object_object_add(l_jobj_result, "hold_tx", json_object_new_string(dap_hash_fast_to_str_static(&l_hold_tx_hash)));
+    json_object_object_add(l_jobj_result, "addr", json_object_new_string(dap_chain_addr_to_str_static(&l_shared_addr)));
+
+    json_object *l_jobj_ops = json_object_new_array();
+    dap_hash_fast_t l_cur_hash = l_hold_tx_hash;
+    uint256_t l_prev_value = {};
+    bool l_is_first = true;
+
+    for (;;) {
+        l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_cur_hash);
+        if (!l_tx)
+            break;
+
+        int l_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, &l_cond_idx);
+        if (!l_cond)
+            break;
+
+        const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_cur_hash);
+        uint256_t l_value = l_cond->header.value;
+
+        const char *l_type_str;
+        if (l_is_first) {
+            l_type_str = "hold";
+        } else if (compare256(l_value, l_prev_value) > 0) {
+            l_type_str = "refill";
+        } else {
+            l_type_str = "take";
+        }
+
+        json_object *l_jobj_op = json_object_new_object();
+        json_object_object_add(l_jobj_op, "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_cur_hash)));
+        json_object_object_add(l_jobj_op, "type", json_object_new_string(l_type_str));
+
+        json_object *l_jobj_signers = json_object_new_array();
+        for (int l_sig_idx = 0; ; l_sig_idx++) {
+            dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_tx, l_sig_idx);
+            if (!l_sig)
+                break;
+            dap_hash_fast_t l_signer_pkey;
+            dap_sign_get_pkey_hash(l_sig, &l_signer_pkey);
+            dap_chain_addr_t l_signer_addr;
+            dap_chain_addr_fill(&l_signer_addr, l_sig->header.type, &l_signer_pkey, a_net->pub.id);
+            json_object_array_add(l_jobj_signers, json_object_new_string(dap_chain_addr_to_str_static(&l_signer_addr)));
+        }
+        json_object_object_add(l_jobj_op, "signers", l_jobj_signers);
+
+        if (l_is_first) {
+            const char *l_coins;
+            dap_uint256_to_char(l_value, &l_coins);
+            json_object_object_add(l_jobj_op, "value", json_object_new_string(l_coins));
+        } else {
+            uint256_t l_op_value;
+            if (compare256(l_value, l_prev_value) >= 0)
+                SUBTRACT_256_256(l_value, l_prev_value, &l_op_value);
+            else
+                SUBTRACT_256_256(l_prev_value, l_value, &l_op_value);
+            const char *l_op_coins;
+            dap_uint256_to_char(l_op_value, &l_op_coins);
+            json_object_object_add(l_jobj_op, "value", json_object_new_string(l_op_coins));
+        }
+        if (l_ticker)
+            json_object_object_add(l_jobj_op, "token", json_object_new_string(l_ticker));
+
+        json_object_array_add(l_jobj_ops, l_jobj_op);
+
+        l_prev_value = l_value;
+        l_is_first = false;
+
+        dap_hash_fast_t l_spender = {};
+        if (l_cond_idx >= 0 && dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_cur_hash, l_cond_idx, &l_spender)) {
+            l_cur_hash = l_spender;
+        } else {
+            break;
+        }
+    }
+
+    json_object_object_add(l_jobj_result, "operations", l_jobj_ops);
+    json_object_array_add(*a_json_arr_reply, l_jobj_result);
     return DAP_NO_ERROR;
 }
 
@@ -1315,6 +1539,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_name);
     dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_name);
     bool l_local = dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-local", NULL);
+    bool l_verbose = dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-verbose", NULL);
 
     // Check for mutually exclusive parameters
     int l_filter_count = (bool)l_pkey_hash_str + (bool)l_addr_str + (bool)l_wallet_name + (bool)l_cert_name;
@@ -1340,15 +1565,25 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
             return ERROR_VALUE;
         }
     } else if (l_addr_str) {
-        // Convert address to public key hash
         dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
         if (!l_addr) {
             dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
                 "Can't parse address %s", l_addr_str);
             return ERROR_VALUE;
         }
-        // Extract public key hash from address
-        memcpy(&l_pkey_hash, &l_addr->data.hash, sizeof(dap_hash_fast_t));
+        if (l_addr->addr_type == DAP_CHAIN_ADDR_TYPE_REGULAR) {
+            memcpy(&l_pkey_hash, &l_addr->data.hash, sizeof(dap_hash_fast_t));
+        } else if (l_addr->addr_type == DAP_CHAIN_ADDR_TYPE_SHARED) {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE,
+                "Use a regular wallet address for -addr filter, not a shared address");
+            DAP_DELETE(l_addr);
+            return ERROR_VALUE;
+        } else {
+            dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE,
+                "Unknown address type 0x%02x", l_addr->addr_type);
+            DAP_DELETE(l_addr);
+            return ERROR_VALUE;
+        }
         DAP_DELETE(l_addr);
     } else if (l_wallet_name) {
         // Get public key hash from wallet
@@ -1416,33 +1651,204 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
 
     for (size_t i = 0; i < l_values_count; i++) {
         json_object *l_jobj_item = json_object_new_object();
-        if (!l_filter_count) {
-            json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_values[i].key));
+        dap_hash_fast_t l_cur_pkey_hash;
+        if (l_filter_count) {
+            l_cur_pkey_hash = l_pkey_hash;
         } else {
-            json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_pkey_hash)));
+            dap_chain_hash_fast_from_str(l_values[i].key, &l_cur_pkey_hash);
         }
-        json_object *l_jobj_nets_hashes = json_object_new_object();
+        const char *l_cur_pkey_str = l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key;
+        json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_cur_pkey_str));
+        json_object *l_jobj_tx_hashes = json_object_new_object();
+        json_object *l_jobj_shared_wallets = json_object_new_object();
+        json_object *l_jobj_member_of = json_object_new_object();
+        bool l_addr_set = false;
         for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
             if (!dap_strcmp(l_item->data, s_wallet_shared_gdb_group))
                 continue;
             if (l_net && dap_strcmp((char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_net_name))
                 continue;
-            hold_tx_hashes_t *l_hold_hashes_by_name = (hold_tx_hashes_t *)dap_global_db_get_sync(l_item->data, l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key, NULL, NULL, NULL);
+            hold_tx_hashes_t *l_hold_hashes_by_name = (hold_tx_hashes_t *)dap_global_db_get_sync(l_item->data, l_cur_pkey_str, NULL, NULL, NULL);
             if (l_hold_hashes_by_name) {
-                json_object *l_jobj_owned_tx = json_object_new_array();
+                const char *l_cur_net_name = (char *)l_item->data + sizeof(s_wallet_shared_gdb_group);
+                dap_chain_net_t *l_cur_net = dap_chain_net_by_name(l_cur_net_name);
+                json_object *l_jobj_old_arr = json_object_new_array();
+                json_object *l_jobj_new_arr = json_object_new_array();
+                json_object *l_jobj_member_arr = json_object_new_array();
                 for (size_t j = 0; j < l_hold_hashes_by_name->tx_count; j++) {
-                    if (l_hold_hashes_by_name->tx[j].role == TX_ROLE_OWNER)
-                        json_object_array_add(l_jobj_owned_tx, json_object_new_string(dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
+                    bool l_dup = false;
+                    for (size_t k = 0; k < j && !l_dup; k++)
+                        l_dup = dap_hash_fast_compare(&l_hold_hashes_by_name->tx[j].hash, &l_hold_hashes_by_name->tx[k].hash);
+                    if (!l_dup)
+                        json_object_array_add(l_jobj_old_arr, json_object_new_string(
+                            dap_hash_fast_to_str_static(&l_hold_hashes_by_name->tx[j].hash)));
+                    bool l_is_creator = (l_hold_hashes_by_name->tx[j].role == TX_ROLE_CREATOR);
+                    json_object *l_jobj_tx = json_object_new_object();
+                    bool l_is_base58 = dap_strcmp(a_hash_out_type, "hex");
+                    dap_hash_fast_t *l_hold_hash = &l_hold_hashes_by_name->tx[j].hash;
+                    json_object_object_add(l_jobj_tx, "tx_hash", json_object_new_string(
+                        dap_hash_fast_to_str_static(l_hold_hash)));
+                    if (l_cur_net) {
+                        dap_chain_datum_tx_t *l_hold_tx = dap_ledger_tx_find_by_hash(
+                            l_cur_net->pub.ledger, l_hold_hash);
+                        if (l_hold_tx && !l_addr_set && l_is_creator) {
+                            dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(l_hold_tx, 0);
+                            if (l_sig) {
+                                dap_hash_fast_t l_sig_pkey;
+                                dap_sign_get_pkey_hash(l_sig, &l_sig_pkey);
+                                dap_chain_addr_t l_creator_addr;
+                                dap_chain_addr_fill(&l_creator_addr, l_sig->header.type, &l_sig_pkey, l_cur_net->pub.id);
+                                json_object_object_add(l_jobj_item, "addr",
+                                    json_object_new_string(dap_chain_addr_to_str_static(&l_creator_addr)));
+                                l_addr_set = true;
+                            }
+                        }
+                        dap_chain_addr_t l_shared_addr;
+                        dap_chain_addr_fill_shared(&l_shared_addr, l_cur_net->pub.id, l_hold_hash);
+                        json_object_object_add(l_jobj_tx, "addr", json_object_new_string(
+                            dap_chain_addr_to_str_static(&l_shared_addr)));
+                        dap_hash_fast_t l_final_hash = dap_ledger_get_final_chain_tx_hash(
+                            l_cur_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED,
+                            l_hold_hash, false);
+                        dap_chain_datum_tx_t *l_final_tx = dap_ledger_tx_find_by_hash(l_cur_net->pub.ledger, &l_final_hash);
+                        if (l_final_tx) {
+                            const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_cur_net->pub.ledger, &l_final_hash);
+                            if (l_ticker)
+                                json_object_object_add(l_jobj_tx, "token", json_object_new_string(l_ticker));
+                            dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(
+                                l_final_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, NULL);
+                            if (l_cond) {
+                                const char *l_coins, *l_datoshi = dap_uint256_to_char(l_cond->header.value, &l_coins);
+                                json_object_object_add(l_jobj_tx, "balance", json_object_new_string(l_coins));
+                                json_object *l_jobj_tags = json_object_new_array();
+                                json_object *l_jobj_owners = l_verbose ? json_object_new_array() : NULL;
+                                json_object *l_jobj_owner_addrs_list = l_verbose ? json_object_new_array() : NULL;
+                                bool l_need_addr_lookup = !l_addr_set && !l_is_creator;
+                                size_t l_hash_idx = 0, l_addr_idx = 0, l_target_hash_idx = SIZE_MAX;
+                                dap_chain_addr_t *l_matched_addr = NULL;
+                                dap_tsd_t *l_tsd = NULL; size_t l_tsd_size = 0;
+                                dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
+                                    if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_STR)
+                                        json_object_array_add(l_jobj_tags, json_object_new_string((char *)l_tsd->data));
+                                    if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
+                                        if (l_need_addr_lookup && l_target_hash_idx == SIZE_MAX &&
+                                                dap_hash_fast_compare((dap_hash_fast_t *)l_tsd->data, &l_cur_pkey_hash))
+                                            l_target_hash_idx = l_hash_idx;
+                                        l_hash_idx++;
+                                        if (l_verbose)
+                                            json_object_array_add(l_jobj_owners, json_object_new_string(
+                                                l_is_base58 ? dap_enc_base58_encode_hash_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)
+                                                            : dap_hash_fast_to_str_static((const dap_chain_hash_fast_t *)l_tsd->data)));
+                                    }
+                                    if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_ADDR && l_tsd->size == sizeof(dap_chain_addr_t)) {
+                                        dap_chain_addr_t *l_oa = (dap_chain_addr_t *)l_tsd->data;
+                                        if (l_need_addr_lookup && l_addr_idx == l_target_hash_idx && !l_matched_addr)
+                                            l_matched_addr = l_oa;
+                                        l_addr_idx++;
+                                        if (l_verbose) {
+                                            if (l_oa->addr_type != 0)
+                                                json_object_array_add(l_jobj_owner_addrs_list, json_object_new_string(dap_chain_addr_to_str_static(l_oa)));
+                                            else
+                                                json_object_array_add(l_jobj_owner_addrs_list, json_object_new_null());
+                                        }
+                                    }
+                                }
+                                if (json_object_array_length(l_jobj_tags))
+                                    json_object_object_add(l_jobj_tx, "tags", l_jobj_tags);
+                                else
+                                    json_object_put(l_jobj_tags);
+                                if (l_matched_addr && l_matched_addr->addr_type != 0) {
+                                    json_object_object_add(l_jobj_item, "addr",
+                                        json_object_new_string(dap_chain_addr_to_str_static(l_matched_addr)));
+                                    l_addr_set = true;
+                                }
+                                if (l_verbose) {
+                                    json_object_object_add(l_jobj_tx, "balance_datoshi", json_object_new_string(l_datoshi));
+                                    json_object_object_add(l_jobj_tx, "signs_minimum",
+                                        json_object_new_uint64(l_cond->subtype.wallet_shared.signers_minimum));
+                                    json_object_object_add(l_jobj_tx, "owner_hashes", l_jobj_owners);
+                                    if (json_object_array_length(l_jobj_owner_addrs_list) > 0)
+                                        json_object_object_add(l_jobj_tx, "owner_addrs", l_jobj_owner_addrs_list);
+                                    else
+                                        json_object_put(l_jobj_owner_addrs_list);
+                                }
+                            }
+                            if (l_verbose) {
+                                json_object_object_add(l_jobj_tx, "tx_hash_final", json_object_new_string(
+                                    l_is_base58 ? dap_enc_base58_encode_hash_to_str_static(&l_final_hash)
+                                                : dap_hash_fast_to_str_static(&l_final_hash)));
+                                if (l_ticker) {
+                                    const char *l_desc = dap_ledger_get_description_by_ticker(l_cur_net->pub.ledger, l_ticker);
+                                    if (l_desc)
+                                        json_object_object_add(l_jobj_tx, "token_description", json_object_new_string(l_desc));
+                                }
+                            }
+                        }
+                        if (l_verbose) {
+                            if (l_hold_tx) {
+                                dap_sign_t *l_csig = dap_chain_datum_tx_get_sign(l_hold_tx, 0);
+                                if (l_csig) {
+                                    dap_hash_fast_t l_creator_pkey;
+                                    dap_sign_get_pkey_hash(l_csig, &l_creator_pkey);
+                                    json_object_object_add(l_jobj_tx, "creator", json_object_new_string(
+                                        l_is_base58 ? dap_enc_base58_encode_hash_to_str_static(&l_creator_pkey)
+                                                    : dap_hash_fast_to_str_static(&l_creator_pkey)));
+                                    dap_chain_addr_t l_cr_addr;
+                                    dap_chain_addr_fill(&l_cr_addr, l_csig->header.type, &l_creator_pkey, l_cur_net->pub.id);
+                                    json_object_object_add(l_jobj_tx, "creator_addr",
+                                        json_object_new_string(dap_chain_addr_to_str_static(&l_cr_addr)));
+                                }
+                            }
+                            dap_chain_t *l_cur_chain = dap_chain_net_get_default_chain_by_chain_type(l_cur_net, CHAIN_TYPE_TX);
+                            if (l_cur_chain) {
+                                json_object *l_jobj_waiting = json_object_new_array();
+                                int l_wait_count = dap_chain_shared_tx_find_in_mempool(l_cur_chain, &l_final_hash, l_jobj_waiting);
+                                json_object_object_add(l_jobj_tx, "waiting_operations_count", json_object_new_int(l_wait_count));
+                                json_object_object_add(l_jobj_tx, "waiting_operations_hashes", l_jobj_waiting);
+                            }
+                        }
+                    }
+                    json_object_array_add(l_is_creator ? l_jobj_new_arr : l_jobj_member_arr, l_jobj_tx);
                 }
-                json_object_object_add(l_jobj_nets_hashes, (char *)l_item->data + sizeof(s_wallet_shared_gdb_group), l_jobj_owned_tx);
+                if (json_object_array_length(l_jobj_old_arr) > 0)
+                    json_object_object_add(l_jobj_tx_hashes, l_cur_net_name, l_jobj_old_arr);
+                else
+                    json_object_put(l_jobj_old_arr);
+                if (json_object_array_length(l_jobj_new_arr) > 0)
+                    json_object_object_add(l_jobj_shared_wallets, l_cur_net_name, l_jobj_new_arr);
+                else
+                    json_object_put(l_jobj_new_arr);
+                if (json_object_array_length(l_jobj_member_arr) > 0)
+                    json_object_object_add(l_jobj_member_of, l_cur_net_name, l_jobj_member_arr);
+                else
+                    json_object_put(l_jobj_member_arr);
                 DAP_DELETE(l_hold_hashes_by_name);
             }
         }
-        json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_nets_hashes);
-        json_object_array_add(*a_json_arr_reply, l_jobj_item);
+        if (json_object_object_length(l_jobj_tx_hashes) > 0) {
+            json_object_object_add(l_jobj_item, "tx_hashes", l_jobj_tx_hashes);
+            if (json_object_object_length(l_jobj_shared_wallets) > 0)
+                json_object_object_add(l_jobj_item, "shared_wallets", l_jobj_shared_wallets);
+            else
+                json_object_put(l_jobj_shared_wallets);
+            if (json_object_object_length(l_jobj_member_of) > 0)
+                json_object_object_add(l_jobj_item, "member_of", l_jobj_member_of);
+            else
+                json_object_put(l_jobj_member_of);
+            json_object_array_add(*a_json_arr_reply, l_jobj_item);
+        } else {
+            json_object_put(l_jobj_tx_hashes);
+            json_object_put(l_jobj_shared_wallets);
+            json_object_put(l_jobj_member_of);
+            json_object_put(l_jobj_item);
+        }
     }
     dap_store_obj_free(l_values, l_values_count);
     dap_list_free_full(l_groups_list, NULL);
+    if (!json_object_array_length(*a_json_arr_reply)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "No shared wallet transactions found");
+        return ERROR_VALUE;
+    }
     return DAP_NO_ERROR;
 }
 
@@ -1473,9 +1879,22 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, U
     if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "list", NULL))
         return s_cli_list(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, NULL, NULL, l_hash_out_type);
 
-    int l_err_net_chain = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TX);
-    if (l_err_net_chain)
-        return l_err_net_chain;
+    const char *l_addr_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
+    if (l_addr_str) {
+        dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
+        if (l_addr) {
+            l_net = dap_chain_net_by_id(l_addr->net_id);
+            if (l_net)
+                l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        }
+        DAP_DEL_Z(l_addr);
+    }
+    if (!l_net) {
+        int l_err_net_chain = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(*a_json_arr_reply, &l_arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TX);
+        if (l_err_net_chain)
+            return l_err_net_chain;
+    }
 
     if (dap_chain_net_get_load_mode(l_net)) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_NETWORK, "Can't apply command while network in load mode");
@@ -1492,6 +1911,8 @@ int dap_chain_wallet_shared_cli(int a_argc, char **a_argv, void **a_str_reply, U
         return s_cli_sign(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "info", NULL))
         return s_cli_info(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "history", NULL))
+        return s_cli_history(a_argc, a_argv, l_arg_index + 1, a_json_arr_reply, l_net, l_chain, l_hash_out_type);
     else {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_SUBCOMMAND, "Subcommand %s not recognized", a_argv[l_arg_index]);
         return ERROR_SUBCOMMAND;
@@ -1531,10 +1952,9 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
 
     dap_sign_t *l_sig = dap_chain_datum_tx_get_sign(a_tx, 0);
     dap_hash_fast_t l_hash = {0};
-    //  add creator hash
     dap_sign_get_pkey_hash(l_sig, &l_hash);
     s_hold_tx_add(a_tx, l_group, &l_hash, TX_ROLE_CREATOR);
-    //  add owner hashes
+    dap_global_db_set_sync(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static(&l_hash), NULL, 0, false);
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             s_hold_tx_add(a_tx, l_group, (dap_hash_fast_t *)l_tsd->data, TX_ROLE_OWNER);
@@ -1545,7 +1965,7 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
     return 0;
 }
 
-json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name)
+static json_object *s_get_tx_hashes_by_role(dap_hash_fast_t *a_pkey_hash, const char *a_net_name, dap_chain_net_id_t a_net_id, tx_role_t a_role)
 {
     char *l_group = dap_strdup_printf("%s.%s", s_wallet_shared_gdb_group, a_net_name);
     hold_tx_hashes_t *l_item = (hold_tx_hashes_t *)dap_global_db_get_sync(l_group, dap_hash_fast_to_str_static(a_pkey_hash), NULL, NULL, false);
@@ -1554,19 +1974,38 @@ json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_
         return NULL;
     json_object *l_json_ret = json_object_new_array();
     for (size_t i = 0; i < l_item->tx_count; i++) {
-        if (l_item->tx[i].role == TX_ROLE_OWNER) {
-            json_object_array_add(l_json_ret, json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx[i].hash)));
+        if (l_item->tx[i].role == a_role) {
+            json_object *l_jobj = json_object_new_object();
+            json_object_object_add(l_jobj, "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx[i].hash)));
+            dap_chain_addr_t l_shared_addr;
+            dap_chain_addr_fill_shared(&l_shared_addr, a_net_id, &l_item->tx[i].hash);
+            json_object_object_add(l_jobj, "addr", json_object_new_string(dap_chain_addr_to_str_static(&l_shared_addr)));
+            json_object_array_add(l_json_ret, l_jobj);
         }
     }
     DAP_DELETE(l_item);
+    if (!json_object_array_length(l_json_ret)) {
+        json_object_put(l_json_ret);
+        return NULL;
+    }
     return l_json_ret;
+}
+
+json_object *dap_chain_wallet_shared_get_tx_hashes_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name, dap_chain_net_id_t a_net_id)
+{
+    return s_get_tx_hashes_by_role(a_pkey_hash, a_net_name, a_net_id, TX_ROLE_CREATOR);
+}
+
+json_object *dap_chain_wallet_shared_get_tx_hashes_owner_json(dap_hash_fast_t *a_pkey_hash, const char *a_net_name, dap_chain_net_id_t a_net_id)
+{
+    return s_get_tx_hashes_by_role(a_pkey_hash, a_net_name, a_net_id, TX_ROLE_OWNER);
 }
 
 static uint32_t s_wallet_shared_get_valid_signs(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx)
 {
     if (!a_cond || !a_tx || !a_cond->tsd_size)
         return 0;
-    size_t l_tsd_hashes_count = a_cond->tsd_size / (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
+    size_t l_tsd_hashes_count = s_count_tsd_owners(a_cond->tsd, a_cond->tsd_size);
     if (!l_tsd_hashes_count)
         return 0;
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];
