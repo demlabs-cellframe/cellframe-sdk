@@ -211,11 +211,28 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_c
 {
     if(!a_addr || !a_pkey_hash)
         return;
-    a_addr->addr_ver = DAP_CHAIN_ADDR_VERSION_CURRENT;
+    a_addr->addr_type = DAP_CHAIN_ADDR_TYPE_REGULAR;
     a_addr->net_id.uint64 = a_net_id.uint64;
     a_addr->sig_type.raw = a_type.raw;
     memcpy(a_addr->data.hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t));
     // calc checksum
+    dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &a_addr->checksum);
+}
+
+/**
+ * @brief dap_chain_addr_fill_shared
+ * @param a_addr
+ * @param a_net_id
+ * @param a_hold_tx_hash hold transaction hash used as address payload
+ */
+void dap_chain_addr_fill_shared(dap_chain_addr_t *a_addr, dap_chain_net_id_t a_net_id, dap_chain_hash_fast_t *a_hold_tx_hash)
+{
+    if (!a_addr || !a_hold_tx_hash)
+        return;
+    a_addr->addr_type = DAP_CHAIN_ADDR_TYPE_SHARED;
+    a_addr->net_id.uint64 = a_net_id.uint64;
+    a_addr->sig_type.raw = SIG_TYPE_NULL;
+    memcpy(a_addr->data.hash, a_hold_tx_hash, sizeof(dap_chain_hash_fast_t));
     dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &a_addr->checksum);
 }
 
@@ -234,6 +251,86 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     // calc checksum
     dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &l_checksum);
     return memcmp(a_addr->checksum.raw, l_checksum.raw, sizeof(l_checksum.raw));
+}
+
+/**
+ * @brief Resolve hold TX hash from a shared address string or a hex/base58 hash string
+ * @param a_str input string
+ * @param a_net_id expected network ID for shared address validation
+ * @param[out] a_tx_hash resulting hold TX hash
+ * @return 0 success, -1 null args, -2 addr parsed but not shared type, -3 net_id mismatch, -4 hash parse failed
+ */
+int dap_chain_addr_resolve_hold_tx_hash(const char *a_str, dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_tx_hash)
+{
+    if (!a_str || !a_tx_hash)
+        return -1;
+    dap_chain_addr_t *l_addr = dap_chain_addr_from_str(a_str);
+    if (l_addr) {
+        if (l_addr->addr_type != DAP_CHAIN_ADDR_TYPE_SHARED) {
+            DAP_DELETE(l_addr);
+            return -2;
+        }
+        if (l_addr->net_id.uint64 != a_net_id.uint64) {
+            DAP_DELETE(l_addr);
+            return -3;
+        }
+        *a_tx_hash = l_addr->data.hash_fast;
+        DAP_DELETE(l_addr);
+        return 0;
+    }
+    return dap_chain_hash_fast_from_str(a_str, a_tx_hash) ? -4 : 0;
+}
+
+/**
+ * @brief Parse comma-separated hash strings (hex or base58) into an array with deduplication
+ * @param a_str comma-separated hash string
+ * @param[out] a_hashes allocated array of parsed hashes (caller must DAP_DELETE)
+ * @return number of parsed hashes, 0 on error (a_hashes set to NULL)
+ */
+size_t dap_chain_hash_fast_from_str_array(const char *a_str, dap_hash_fast_t **a_hashes)
+{
+    if (!a_str || !a_hashes)
+        return 0;
+    *a_hashes = NULL;
+    size_t l_str_size = strlen(a_str);
+    if (!l_str_size)
+        return 0;
+    size_t l_max_count = l_str_size / DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_hash_fast_t));
+    if (!l_max_count)
+        l_max_count = 1;
+    dap_hash_fast_t *l_out = DAP_NEW_Z_COUNT(dap_hash_fast_t, l_max_count);
+    if (!l_out)
+        return 0;
+    char l_buf[DAP_HASH_FAST_STR_SIZE + 1];
+    const char *l_ptr = a_str;
+    size_t l_count = 0;
+    for (size_t i = 0; i < l_max_count; i++) {
+        const char *l_sep = strchr(l_ptr, ',');
+        if (!l_sep)
+            l_sep = a_str + l_str_size;
+        dap_strncpy(l_buf, l_ptr, dap_min((size_t)DAP_HASH_FAST_STR_SIZE, (size_t)(l_sep - l_ptr)));
+        if (dap_chain_hash_fast_from_str(l_buf, l_out + i)) {
+            DAP_DELETE(l_out);
+            return 0;
+        }
+        for (size_t j = 0; j < i; j++) {
+            if (dap_hash_fast_compare(l_out + j, l_out + i)) {
+                DAP_DELETE(l_out);
+                return 0;
+            }
+        }
+        if (*l_sep == '\0') {
+            l_count = i + 1;
+            break;
+        }
+        l_ptr = l_sep + 1;
+    }
+    if (!l_count) {
+        DAP_DELETE(l_out);
+        return 0;
+    }
+    *a_hashes = l_out;
+    return l_count;
 }
 
 void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count, bool a_last)
