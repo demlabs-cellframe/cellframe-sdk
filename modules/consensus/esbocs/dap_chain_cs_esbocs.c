@@ -55,6 +55,7 @@ enum s_esbocs_session_state {
 #define ESBOCS_PENALTY_HASH_VERSION 1
 #define ESBOCS_SESSION_DRAIN_WAIT_US 1000U
 #define ESBOCS_SESSION_DRAIN_WAIT_ATTEMPTS 30000U
+#define ESBOCS_ROUND_SKIP_TIMEOUT_CAP_DEFAULT 30U
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators);
 static void s_session_proc_state(void *a_arg);
@@ -63,7 +64,6 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg);
 static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain_node_addr_t *a_sender_node_addr, uint8_t *a_data, size_t a_data_size);
 static void s_session_round_clear(dap_chain_esbocs_session_t *a_session);
 static void s_session_send_startsync(void *a_arg);
-static bool s_session_send_startsync_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms);
 static void s_session_proc_state_timer(void *a_arg);
 static bool s_session_proc_state_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms);
 static bool s_session_round_new(void *a_session);
@@ -77,6 +77,9 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
                                        size_t a_candidate_size, dap_hash_fast_t *a_candidate_hash);
 static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message);
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store);
+static void s_session_mempool_cleanup_by_block(dap_chain_esbocs_session_t *a_session, dap_chain_block_t *a_block, size_t a_block_size);
+static void s_mempool_notifier(dap_store_obj_t *a_obj, void *a_arg);
+static bool s_session_mempool_wakeup_queued(void *a_arg);
 
 static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_message_type, dap_hash_fast_t *a_block_hash,
                                     const void *a_data, size_t a_data_size, dap_list_t *a_validators,
@@ -258,7 +261,17 @@ typedef struct s_esbocs_atom_notifier_ctx {
     atomic_uintptr_t session_ptr;
 } s_esbocs_atom_notifier_ctx_t;
 
+typedef struct s_esbocs_mempool_notifier_ctx {
+    atomic_uintptr_t session_ptr;
+} s_esbocs_mempool_notifier_ctx_t;
+
 static bool s_atom_notifier_ctx_delete_queued(void *a_arg)
+{
+    DAP_DELETE(a_arg);
+    return false;
+}
+
+static bool s_mempool_notifier_ctx_delete_queued(void *a_arg)
 {
     DAP_DELETE(a_arg);
     return false;
@@ -270,6 +283,17 @@ DAP_STATIC_INLINE dap_chain_esbocs_session_t *s_atom_notifier_session_get(s_esbo
 }
 
 DAP_STATIC_INLINE void s_atom_notifier_session_set(s_esbocs_atom_notifier_ctx_t *a_ctx, dap_chain_esbocs_session_t *a_session)
+{
+    if (a_ctx)
+        atomic_store_explicit(&a_ctx->session_ptr, (uintptr_t)a_session, memory_order_release);
+}
+
+DAP_STATIC_INLINE dap_chain_esbocs_session_t *s_mempool_notifier_session_get(s_esbocs_mempool_notifier_ctx_t *a_ctx)
+{
+    return a_ctx ? (dap_chain_esbocs_session_t *)(uintptr_t)atomic_load_explicit(&a_ctx->session_ptr, memory_order_acquire) : NULL;
+}
+
+DAP_STATIC_INLINE void s_mempool_notifier_session_set(s_esbocs_mempool_notifier_ctx_t *a_ctx, dap_chain_esbocs_session_t *a_session)
 {
     if (a_ctx)
         atomic_store_explicit(&a_ctx->session_ptr, (uintptr_t)a_session, memory_order_release);
@@ -314,6 +338,19 @@ DAP_STATIC_INLINE bool s_session_is_proc_thread(dap_chain_esbocs_session_t *a_se
 {
     return a_session && a_session->proc_thread && a_session->proc_thread->context &&
            pthread_equal(pthread_self(), a_session->proc_thread->context->thread_id);
+}
+
+DAP_STATIC_INLINE void s_session_pending_mempool_dec(dap_chain_esbocs_session_t *a_session, uint_fast32_t a_count)
+{
+    if (!a_session || !a_count)
+        return;
+    uint_fast32_t l_cur = atomic_load_explicit(&a_session->pending_mempool_count, memory_order_acquire);
+    while (l_cur) {
+        uint_fast32_t l_next = l_cur > a_count ? l_cur - a_count : 0;
+        if (atomic_compare_exchange_weak_explicit(&a_session->pending_mempool_count, &l_cur, l_next,
+                                                  memory_order_acq_rel, memory_order_acquire))
+            return;
+    }
 }
 
 struct precached_key {
@@ -367,6 +404,77 @@ struct sync_params {
 DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *a_session)
 {
     return PVT(a_session->esbocs)->round_attempt_timeout * 6 * PVT(a_session->esbocs)->round_attempts_max;
+}
+
+DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout_capped(dap_chain_esbocs_session_t *a_session)
+{
+    uint16_t l_timeout = s_get_round_skip_timeout(a_session);
+    return l_timeout > ESBOCS_ROUND_SKIP_TIMEOUT_CAP_DEFAULT ? ESBOCS_ROUND_SKIP_TIMEOUT_CAP_DEFAULT : l_timeout;
+}
+
+DAP_STATIC_INLINE uint16_t s_session_sync_backoff_delay(dap_chain_esbocs_session_t *a_session)
+{
+    dap_return_val_if_pass(!a_session, 0);
+    uint8_t l_level = a_session->sync_backoff_level;
+    if (!l_level)
+        return 0;
+    uint32_t l_delay = PVT(a_session->esbocs)->round_attempt_timeout;
+    if (!l_delay)
+        l_delay = 1;
+    uint32_t l_cap = s_get_round_skip_timeout_capped(a_session);
+    for (uint8_t i = 1; i < l_level && l_delay < l_cap; i++) {
+        if (l_delay > UINT32_MAX / 2) {
+            l_delay = l_cap;
+            break;
+        }
+        l_delay *= 2;
+    }
+    if (l_delay > l_cap)
+        l_delay = l_cap;
+    return (uint16_t)l_delay;
+}
+
+DAP_STATIC_INLINE void s_session_sync_backoff_increase(dap_chain_esbocs_session_t *a_session, const char *a_reason)
+{
+    dap_return_if_pass(!a_session);
+    if (a_session->sync_backoff_level < UINT8_MAX)
+        a_session->sync_backoff_level++;
+    debug_if(PVT(a_session->esbocs)->debug, L_MSG,
+             "net:%s, chain:%s increase sync backoff to level %u (delay %u sec), reason: %s",
+             a_session->chain->net_name, a_session->chain->name, a_session->sync_backoff_level,
+             s_session_sync_backoff_delay(a_session), a_reason ? a_reason : "unspecified");
+}
+
+DAP_STATIC_INLINE void s_session_sync_backoff_decrease(dap_chain_esbocs_session_t *a_session, const char *a_reason)
+{
+    dap_return_if_pass(!a_session);
+    if (!a_session->sync_backoff_level)
+        return;
+    a_session->sync_backoff_level--;
+    debug_if(PVT(a_session->esbocs)->debug, L_MSG,
+             "net:%s, chain:%s decrease sync backoff to level %u (delay %u sec), reason: %s",
+             a_session->chain->net_name, a_session->chain->name, a_session->sync_backoff_level,
+             s_session_sync_backoff_delay(a_session), a_reason ? a_reason : "unspecified");
+}
+
+DAP_STATIC_INLINE void s_session_sync_backoff_reset(dap_chain_esbocs_session_t *a_session, const char *a_reason)
+{
+    dap_return_if_pass(!a_session);
+    if (!a_session->sync_backoff_level)
+        return;
+    debug_if(PVT(a_session->esbocs)->debug, L_MSG,
+             "net:%s, chain:%s reset sync backoff level %u -> 0, reason: %s",
+             a_session->chain->net_name, a_session->chain->name, a_session->sync_backoff_level,
+             a_reason ? a_reason : "unspecified");
+    a_session->sync_backoff_level = 0;
+}
+
+DAP_STATIC_INLINE void s_session_try_round_new(dap_chain_esbocs_session_t *a_session)
+{
+    if (a_session && !a_session->new_round_enqueued) {
+        a_session->new_round_enqueued = true;
+        s_session_round_new(a_session);
+    }
 }
 
 int dap_chain_cs_esbocs_init()
@@ -700,11 +808,8 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     assert(l_session->chain == a_chain);
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(l_session->chain, a_id, &l_last_block_hash);
-    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash) &&
-            !l_session->new_round_enqueued) {
-        l_session->new_round_enqueued = true;
-        s_session_round_new(l_session);
-    }
+    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash))
+        s_session_try_round_new(l_session);
     if (!PVT(l_session->esbocs)->collecting_addr) {
         s_session_release_after_callback(l_session);
         return;
@@ -721,6 +826,57 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), a_atom_hash);
     dap_chain_esbocs_add_block_collect(l_block_cache, &l_block_collect_params, DAP_CHAIN_BLOCK_COLLECT_BOTH);
     s_session_release_after_callback(l_session);
+}
+
+static bool s_session_mempool_wakeup_queued(void *a_arg)
+{
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    atomic_store_explicit(&l_session->mempool_wakeup_enqueued, false, memory_order_release);
+    if (atomic_load_explicit(&l_session->stopping, memory_order_acquire)) {
+        s_session_release_after_callback(l_session);
+        return false;
+    }
+    uint32_t l_pending = atomic_load_explicit(&l_session->pending_mempool_count, memory_order_acquire);
+    if (l_pending && !l_session->sync_backoff_level && l_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START &&
+            !l_session->cur_round.sync_sent) {
+        debug_if(PVT(l_session->esbocs)->debug, L_MSG,
+                 "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" send START_SYNC immediately because mempool has %u pending datums",
+                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id, l_pending);
+        s_session_send_startsync(l_session);
+    }
+    s_session_release_after_callback(l_session);
+    return false;
+}
+
+static void s_mempool_notifier(dap_store_obj_t *a_obj, void *a_arg)
+{
+    dap_return_if_fail(a_obj && a_arg);
+    s_esbocs_mempool_notifier_ctx_t *l_ctx = a_arg;
+    dap_chain_esbocs_session_t *l_session = s_mempool_notifier_session_get(l_ctx);
+    if (!l_session)
+        return;
+    dap_global_db_optype_t l_optype = dap_store_obj_get_type(a_obj);
+    if (l_optype == DAP_GLOBAL_DB_OPTYPE_DEL) {
+        s_session_pending_mempool_dec(l_session, 1);
+        return;
+    }
+    if (l_optype != DAP_GLOBAL_DB_OPTYPE_ADD)
+        return;
+    atomic_fetch_add_explicit(&l_session->pending_mempool_count, 1, memory_order_acq_rel);
+    if (atomic_load_explicit(&l_session->stopping, memory_order_acquire))
+        return;
+    if (atomic_exchange_explicit(&l_session->mempool_wakeup_enqueued, true, memory_order_acq_rel))
+        return;
+    if (!s_session_try_acquire_for_callback(l_session)) {
+        atomic_store_explicit(&l_session->mempool_wakeup_enqueued, false, memory_order_release);
+        return;
+    }
+    if (!dap_proc_thread_callback_add(l_session->proc_thread, s_session_mempool_wakeup_queued, l_session))
+        return;
+    atomic_store_explicit(&l_session->mempool_wakeup_enqueued, false, memory_order_release);
+    s_session_release_after_callback(l_session);
+    log_it(L_WARNING, "Can't enqueue mempool wakeup callback for net:%s chain:%s",
+           l_session->chain->net_name, l_session->chain->name);
 }
 
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id)
@@ -756,10 +912,20 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->esbocs = l_esbocs;
     l_session->proc_thread = dap_proc_thread_get_auto();
     s_esbocs_atom_notifier_ctx_t *l_atom_notifier_ctx = DAP_NEW_Z_RET_VAL_IF_FAIL(s_esbocs_atom_notifier_ctx_t, -9, l_session);
+    s_esbocs_mempool_notifier_ctx_t *l_mempool_notifier_ctx = DAP_NEW_Z(s_esbocs_mempool_notifier_ctx_t);
+    if (!l_mempool_notifier_ctx) {
+        dap_list_free_full(l_validators, NULL);
+        DAP_DEL_MULTY(l_atom_notifier_ctx, l_session);
+        return -10;
+    }
     s_atom_notifier_session_set(l_atom_notifier_ctx, l_session);
+    s_mempool_notifier_session_set(l_mempool_notifier_ctx, l_session);
     l_session->atom_notifier_ctx = l_atom_notifier_ctx;
+    l_session->mempool_notifier_ctx = l_mempool_notifier_ctx;
     atomic_init(&l_session->stopping, false);
     atomic_init(&l_session->inflight_callbacks, 0);
+    atomic_init(&l_session->pending_mempool_count, 0);
+    atomic_init(&l_session->mempool_wakeup_enqueued, false);
     l_esbocs->session = l_session;
     pthread_rwlock_wrlock(&s_session_items_lock);
     DL_APPEND(s_session_items, l_session);
@@ -870,7 +1036,23 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
         return -5;
     }
+    l_session->mempool_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    if (!l_session->mempool_gdb_group) {
+        log_it(L_ERROR, "Can't get mempool group for net:%s chain:%s",
+               l_session->chain->net_name, l_session->chain->name);
+        return -11;
+    }
     dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session->proc_thread, l_atom_notifier_ctx);
+    dap_chain_add_mempool_notify_callback(a_chain, s_mempool_notifier, l_mempool_notifier_ctx);
+    size_t l_mempool_objs_size = dap_global_db_driver_count(l_session->mempool_gdb_group,
+                                                            c_dap_global_db_driver_hash_blank, false);
+    uint_fast32_t l_pending_bootstrap = l_mempool_objs_size > UINT32_MAX ? UINT32_MAX : (uint_fast32_t)l_mempool_objs_size;
+    if (l_pending_bootstrap)
+        atomic_fetch_add_explicit(&l_session->pending_mempool_count, l_pending_bootstrap, memory_order_acq_rel);
+    debug_if(PVT(l_session->esbocs)->debug, L_MSG,
+             "net:%s, chain:%s bootstrap pending mempool count=%u",
+             l_session->chain->net_name, l_session->chain->name,
+             (unsigned)atomic_load_explicit(&l_session->pending_mempool_count, memory_order_acquire));
     //s_session_round_new(l_session);
     s_session_round_new_schedule(l_session);
 
@@ -1228,7 +1410,9 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     l_session->cs_timer = false;
     atomic_store_explicit(&l_session->stopping, true, memory_order_release);
     s_esbocs_atom_notifier_ctx_t *l_atom_notifier_ctx = l_session->atom_notifier_ctx;
+    s_esbocs_mempool_notifier_ctx_t *l_mempool_notifier_ctx = l_session->mempool_notifier_ctx;
     s_atom_notifier_session_set(l_atom_notifier_ctx, NULL);
+    s_mempool_notifier_session_set(l_mempool_notifier_ctx, NULL);
     l_esbocs->session = NULL;
     pthread_rwlock_wrlock(&s_session_items_lock);
     DL_DELETE(s_session_items, l_session);
@@ -1265,6 +1449,15 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
                    l_session->chain->net_name, l_session->chain->name);
         }
     }
+    if (l_mempool_notifier_ctx) {
+        if (!dap_proc_thread_callback_add_pri(l_session->proc_thread, s_mempool_notifier_ctx_delete_queued,
+                                              l_mempool_notifier_ctx, DAP_QUEUE_MSG_PRIORITY_LOW)) {
+            l_session->mempool_notifier_ctx = NULL;
+        } else {
+            log_it(L_WARNING, "Can't enqueue mempool notifier context release for net:%s chain:%s, will leak until process exit",
+                   l_session->chain->net_name, l_session->chain->name);
+        }
+    }
     s_session_round_clear(l_session);
     dap_chain_esbocs_sync_item_t *l_sync_item, *l_sync_tmp;
     HASH_ITER(hh, l_session->sync_items, l_sync_item, l_sync_tmp) {
@@ -1280,6 +1473,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     debug_if(PVT(l_esbocs)->debug_more, L_DEBUG, "Cleanup ESBOCS peer version cache on session delete, entries=%zu",
              s_session_peer_versions_count(l_session));
     s_session_peer_versions_cleanup(l_session, NULL);
+    DAP_DELETE(l_session->mempool_gdb_group);
     dap_enc_key_delete(PVT(l_esbocs)->blocks_sign_key);
     DAP_DEL_MULTY(PVT(l_esbocs)->block_sign_pkey, PVT(l_esbocs)->collecting_addr, l_esbocs->_pvt);
     DAP_DEL_MULTY(l_session, a_blocks->_inheritor); // a_blocks->_inheritor - l_esbocs
@@ -1565,7 +1759,8 @@ static void s_session_send_startsync_with_unknown_version(dap_chain_esbocs_sessi
         return;
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(a_session->chain, c_dap_chain_cell_id_null, &l_last_block_hash);
-    a_session->ts_round_sync_start = dap_time_now();
+    if (!a_session->ts_round_sync_start)
+        a_session->ts_round_sync_start = dap_time_now();
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash))
         return;
     if (!a_session->is_actual_hash)
@@ -1605,26 +1800,6 @@ static void s_session_send_startsync(void *a_arg)
 {
     s_session_send_startsync_with_unknown_version((dap_chain_esbocs_session_t *)a_arg,
                                                   DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY, NULL);
-}
-
-static void s_session_send_startsync_timer(void *a_arg)
-{
-    dap_chain_esbocs_session_t *l_session = a_arg;
-    if (!atomic_load_explicit(&l_session->stopping, memory_order_acquire))
-        s_session_send_startsync(l_session);
-    s_session_release_after_callback(l_session);
-}
-
-static bool s_session_send_startsync_timer_schedule(dap_chain_esbocs_session_t *a_session, uint64_t a_timeout_ms)
-{
-    dap_return_val_if_pass(!a_session || !a_timeout_ms, false);
-    if (!s_session_try_acquire_for_callback(a_session))
-        return false;
-    if (!dap_proc_thread_timer_add_pri(a_session->proc_thread, s_session_send_startsync_timer, a_session,
-                                       a_timeout_ms, true, DAP_QUEUE_MSG_PRIORITY_NORMAL))
-        return true;
-    s_session_release_after_callback(a_session);
-    return false;
 }
 
 static void s_session_proc_state_timer(void *a_arg)
@@ -1709,10 +1884,11 @@ static bool s_session_round_new(void *a_arg)
         return false;
     if (!a_session->round_fast_forward)
         s_session_update_penalty(a_session);
+    dap_time_t l_prev_round_start_ts = a_session->cur_round.round_start_ts;
     s_session_round_clear(a_session);
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
-    a_session->cur_round.prev_round_start_ts = a_session->cur_round.round_start_ts;
+    a_session->cur_round.prev_round_start_ts = l_prev_round_start_ts;
     a_session->cur_round.round_start_ts = dap_time_now();
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
@@ -1735,6 +1911,7 @@ static bool s_session_round_new(void *a_arg)
         if (!a_session->cur_round.validators_list) {
             log_it(L_WARNING, "Minimum active validators not found");
             a_session->ts_round_sync_start = dap_time_now();
+            s_session_sync_backoff_increase(a_session, "minimum_active_validators_not_found");
             a_session->sync_failed = true;
             return false;
         }
@@ -1779,15 +1956,22 @@ static bool s_session_round_new(void *a_arg)
 
     if (!a_session->cur_round.sync_sent) {
         uint16_t l_sync_send_delay = 0;
-        
-        if (!l_round_already_started && a_session->sync_failed) {
-            l_sync_send_delay = s_get_round_skip_timeout(a_session);
-        } else if (!l_round_already_started) {
-            long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.prev_round_start_ts;
-            if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay && a_session->esbocs->last_accepted_block_timestamp) {
-                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - (uint16_t)l_time_delta;
-            } else {
-                l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay;
+        if (!l_round_already_started) {
+            if (a_session->sync_failed)
+                l_sync_send_delay = s_session_sync_backoff_delay(a_session);
+            else {
+                long long l_time_delta = a_session->esbocs->last_accepted_block_timestamp - a_session->cur_round.prev_round_start_ts;
+                if (l_time_delta >= 0 && l_time_delta < PVT(a_session->esbocs)->new_round_delay && a_session->esbocs->last_accepted_block_timestamp)
+                    l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay - (uint16_t)l_time_delta;
+                else
+                    l_sync_send_delay = PVT(a_session->esbocs)->new_round_delay;
+            }
+            uint32_t l_pending_count = atomic_load_explicit(&a_session->pending_mempool_count, memory_order_acquire);
+            if (l_pending_count && !a_session->sync_backoff_level) {
+                debug_if(PVT(a_session->esbocs)->debug, L_MSG,
+                         "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" set START_SYNC delay to 0 because mempool has %u pending datums",
+                         a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id, l_pending_count);
+                l_sync_send_delay = 0;
             }
             a_session->cur_round.round_start_ts = dap_time_now() + l_sync_send_delay;
         }
@@ -1795,11 +1979,7 @@ static bool s_session_round_new(void *a_arg)
                  "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" start. Syncing validators in %u seconds",
                     a_session->chain->net_name, a_session->chain->name,
                         a_session->cur_round.id, l_sync_send_delay);
-        if (l_sync_send_delay) {
-            if (!s_session_send_startsync_timer_schedule(a_session, l_sync_send_delay * 1000))
-                log_it(L_WARNING, "Can't schedule START_SYNC timer for net:%s chain:%s",
-                       a_session->chain->net_name, a_session->chain->name);
-        } else
+        if (!l_sync_send_delay)
             s_session_send_startsync(a_session);
     }
     a_session->round_fast_forward = false;
@@ -1988,11 +2168,15 @@ static dap_chain_esbocs_directive_t* s_session_directive_compose(dap_chain_esboc
 
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time)
 {
+    bool l_sync_backoff_reset = a_new_state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC &&
+                                a_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     if (a_new_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS)
         a_session->old_state = a_session->state;
 
     a_session->state = a_new_state;
     a_session->ts_stage_entry = a_time;
+    if (l_sync_backoff_reset)
+        s_session_sync_backoff_reset(a_session, "sync_quorum_reached");
 
     switch (a_new_state) {
 
@@ -2137,11 +2321,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             s_session_state_change(a_session, a_session->old_state, a_time);
         else {
             log_it(L_ERROR, "No previous state registered, can't roll back");
-            if (!a_session->new_round_enqueued) {
-                a_session->new_round_enqueued = true;
-                if (!s_session_round_new_schedule(a_session))
-                    a_session->new_round_enqueued = false;
-            }
+            s_session_try_round_new(a_session);
         }
     }
     default:
@@ -2161,20 +2341,18 @@ static void s_session_proc_state(void *a_arg)
     switch (l_session->state) {
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START: {
         l_session->listen_ensure = 1;
+        if (!l_session->cur_round.sync_sent && l_session->cur_round.round_start_ts && l_time >= l_session->cur_round.round_start_ts)
+            s_session_send_startsync(l_session);
         bool l_round_skip = PVT(l_session->esbocs)->emergency_mode ?
                     false : !s_validator_check(&l_session->my_signing_addr, l_session->cur_round.validators_list);
         if (l_session->ts_round_sync_start && l_time - l_session->ts_round_sync_start >=
-                (dap_time_t)PVT(l_session->esbocs)->round_start_sync_timeout + (l_round_skip ? s_get_round_skip_timeout(l_session) : 0)) {
+                (dap_time_t)PVT(l_session->esbocs)->round_start_sync_timeout + (l_round_skip ? s_get_round_skip_timeout_capped(l_session) : 0)) {
             if (l_session->cur_round.attempt_num > PVT(l_session->esbocs)->round_attempts_max ) {
                 debug_if(PVT(l_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
                                                                 " Round finished by reason: attempts is out",
                                                                     l_session->chain->net_name, l_session->chain->name,
                                                                         l_session->cur_round.id);
-                if (!l_session->new_round_enqueued) {
-                    l_session->new_round_enqueued = true;
-                    if (!s_session_round_new_schedule(l_session))
-                        l_session->new_round_enqueued = false;
-                }
+                s_session_try_round_new(l_session);
                 break;
             }
             uint16_t l_min_validators_synced = PVT(l_session->esbocs)->emergency_mode ?
@@ -2193,11 +2371,9 @@ static void s_session_proc_state(void *a_arg)
                                                     l_session->cur_round.id, l_session->cur_round.attempt_num,
                                                         l_round_skip ? "skipped" : "can't synchronize minimum number of validators");
                 l_session->sync_failed = !l_round_skip;
-                if (!l_session->new_round_enqueued) {
-                    l_session->new_round_enqueued = true;
-                    if (!s_session_round_new_schedule(l_session))
-                        l_session->new_round_enqueued = false;
-                }
+                if (l_session->sync_failed)
+                    s_session_sync_backoff_increase(l_session, "sync_timeout");
+                s_session_try_round_new(l_session);
             }
         }
     } break;
@@ -2481,6 +2657,8 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
     case ATOM_ACCEPT:
         log_it(L_INFO, "block %s added in chain successfully", dap_chain_hash_fast_to_str_static(a_candidate_hash));
         a_session->esbocs->last_accepted_block_timestamp = dap_time_now();
+        s_session_sync_backoff_reset(a_session, "block_accepted");
+        s_session_mempool_cleanup_by_block(a_session, a_candidate, a_candidate_size);
         res = true;
         break;
     case ATOM_MOVE_TO_THRESHOLD:
@@ -2499,6 +2677,25 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
          log_it(L_CRITICAL, "Wtf is this ret code ? Atom hash %s code %d", dap_chain_hash_fast_to_str_static(a_candidate_hash), l_res);
     }
     return res;
+}
+
+static void s_session_mempool_cleanup_by_block(dap_chain_esbocs_session_t *a_session, dap_chain_block_t *a_block, size_t a_block_size)
+{
+    dap_return_if_fail(a_session && a_session->chain && a_session->mempool_gdb_group && a_block && a_block_size);
+    const char *l_gdb_group_mempool = a_session->mempool_gdb_group;
+    size_t l_datums_count = 0;
+    dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
+    for (size_t i = 0; i < l_datums_count; i++) {
+        if (!l_datums[i])
+            continue;
+        dap_hash_fast_t l_datum_hash = {};
+        dap_chain_datum_calc_hash(l_datums[i], &l_datum_hash);
+        char l_datum_hash_str[DAP_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, sizeof(l_datum_hash_str));
+        if (dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_str) == 0)
+            log_it(L_INFO, " ! Delete datum %s from mempool", l_datum_hash_str);
+    }
+    DAP_DELETE(l_datums);
 }
 
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store)
@@ -3118,16 +3315,13 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                                 " current round sync attempt %"DAP_UINT64_FORMAT_U" so fast-forward this round",
                                                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                        l_sync_attempt, l_session->cur_round.sync_attempt);
+                    s_session_sync_backoff_decrease(l_session, "fast_forward_sync_attempt");
                     // Process this message in new round, it will increment current sync attempt
                     s_session_sync_queue_add(l_session, l_message, a_data_size);
                     l_session->round_fast_forward = true;
                     l_session->cur_round.id = l_message->hdr.round_id - 1;
                     l_session->cur_round.sync_attempt = l_sync_attempt - 1;
-                    if (!l_session->new_round_enqueued) {
-                        l_session->new_round_enqueued = true;
-                        if (!s_session_round_new_schedule(l_session))
-                            l_session->new_round_enqueued = false;
-                    }
+                    s_session_try_round_new(l_session);
                 }
             }
         } else if (!l_session->cur_round.sync_sent) { // Send it immediately, if was not sent yet
@@ -3185,6 +3379,7 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         dap_chain_esbocs_validator_t *l_validator = l_list->data;
         if (!l_validator->is_synced) {
             l_validator->is_synced = true;
+            s_session_sync_backoff_decrease(l_session, "start_sync_validator_synced");
             if (++l_session->cur_round.validators_synced_count == dap_list_length(l_session->cur_round.validators_list)) {
                 l_session->cur_round.id = s_session_calc_current_round_id(l_session);
                 bool l_round_skip = PVT(l_session->esbocs)->emergency_mode ?
@@ -4119,8 +4314,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             json_object_object_add(l_ban_validator, "node_addr", json_object_new_string(dap_stream_node_addr_to_str_static(l_node_info->address)));
             json_object_array_add(l_json_arr_banlist, l_ban_validator);
         }
+        dap_global_db_objs_delete(l_objs, l_penalties_count);
         if (!json_object_array_length(l_json_arr_banlist)) {
             json_object_object_add(l_json_obj_banlist, a_version == 1 ? "BANLIST" : "banlist", json_object_new_string("empty"));
+            json_object_put(l_json_arr_banlist);
         } else {
             json_object_object_add(l_json_obj_banlist, a_version == 1 ? "BANLIST" : "banlist", l_json_arr_banlist);
         }
