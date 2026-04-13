@@ -121,6 +121,7 @@ int dap_chain_wallet_get_pkey_hash(dap_chain_wallet_t *a_wallet, dap_hash_sha3_2
 
 void* dap_chain_wallet_get_addr_by_name(const char *a_wallet_name, dap_chain_net_id_t a_net_id);
 const char* dap_chain_wallet_check_sign_by_name(const char *a_wallet_name);
+dap_sign_t* dap_chain_wallet_sign_data_by_name(const char *a_wallet_name, const void *a_data, size_t a_data_size, uint32_t a_key_idx);
 char *dap_chain_wallet_get_pkey_str(dap_chain_wallet_t *a_wallet, const char *a_str_type);
 
 dap_list_t* dap_chain_wallet_get_local_addr();

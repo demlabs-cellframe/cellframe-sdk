@@ -336,22 +336,24 @@ int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx,
 }
 
 /**
- * Get data that needs to be signed
- * Returns pointer to transaction data for signing
- * 
- * return pointer to data, NULL on error
+ * Get data that needs to be signed.
+ * Returns an allocated copy with tx_items_size zeroed, matching
+ * the format expected by dap_chain_datum_tx_verify_sign().
+ * Caller must free the returned pointer with DAP_DELETE.
+ *
+ * return pointer to allocated data, NULL on error
  */
-const void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, size_t *a_sign_data_size)
+void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, size_t *a_sign_data_size)
 {
-    if (!a_tx || !a_sign_data_size) {
-        log_it(L_ERROR, "Invalid parameters for datum_tx_get_sign_data");
-        return NULL;
-    }
-    
-    // Sign everything except the header's reserved bytes
-    // This is the standard cellframe signing approach
-    *a_sign_data_size = dap_chain_datum_tx_get_size(a_tx);
-    return (const void *)a_tx;
+    dap_return_val_if_fail(a_tx && a_sign_data_size, NULL);
+    uint8_t *l_tx_sig_present = dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+    size_t l_tx_size = sizeof(dap_chain_datum_tx_t) +
+                                  (l_tx_sig_present ? (size_t)(l_tx_sig_present - a_tx->tx_items)
+                                                    : a_tx->header.tx_items_size);
+    dap_chain_datum_tx_t *l_tx = DAP_DUP_SIZE_RET_VAL_IF_FAIL((dap_chain_datum_tx_t *)a_tx, l_tx_size, NULL);
+    l_tx->header.tx_items_size = 0;
+    *a_sign_data_size = l_tx_size;
+    return l_tx;
 }
 
 /**

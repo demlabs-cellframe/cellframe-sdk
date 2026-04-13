@@ -1989,13 +1989,12 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
         // Set ledger callbacks and context
         a_net->pub.ledger->load_mode = true;
         
-        // Register wallet callbacks with ledger for tx create and other wallet operations
         dap_ledger_set_wallet_callbacks(a_net->pub.ledger,
-            NULL,  // sign callback - not needed for basic operations
-            NULL,  // get_pkey_hash callback
-            NULL,  // get_pkey callback
-            dap_chain_wallet_get_addr_by_name,  // get_addr callback
-            dap_chain_wallet_check_sign_by_name  // check_sign callback
+            dap_chain_wallet_sign_data_by_name,
+            NULL,
+            NULL,
+            dap_chain_wallet_get_addr_by_name,
+            dap_chain_wallet_check_sign_by_name
         );
         log_it(L_INFO, "Registered wallet callbacks for ledger %s", a_net->pub.name);
         

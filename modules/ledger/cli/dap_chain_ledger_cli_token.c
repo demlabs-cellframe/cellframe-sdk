@@ -293,11 +293,14 @@ int com_token(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a_ver
 int dap_chain_ledger_cli_token_init(void)
 {
     log_it(L_INFO, "Initializing token CLI commands module");
-    
-    // Note: The "token" command is registered directly with CLI server
-    // because it has its own subcommand structure (list, info, tx)
-    // This is different from tx subcommands which use the registry
-    
+
+    dap_cli_server_cmd_add("token", com_token, NULL,
+        "Token information", -1,
+        "token list -net <net_name> [-full] [-h]\n"
+        "\tLists all tokens in specified network. Use -full for detailed information.\n\n"
+        "token info -net <net_name> -name <token_ticker> [-h]\n"
+        "\tDisplays detailed token information\n");
+
     log_it(L_NOTICE, "Token CLI commands module initialized");
     return 0;
 }

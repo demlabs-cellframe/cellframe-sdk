@@ -246,7 +246,7 @@ int dap_chain_datum_tx_add_event_item(dap_chain_datum_tx_t **a_tx,
  * 
  * return pointer to data, NULL on error
  */
-const void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, size_t *a_sign_data_size);
+void *dap_chain_datum_tx_get_sign_data(const dap_chain_datum_tx_t *a_tx, size_t *a_sign_data_size);
 
 dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num);
 

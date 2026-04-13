@@ -673,7 +673,7 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
 
     // 4. Get sign data
     size_t l_sign_data_size = 0;
-    const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
+    void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
     if (!l_sign_data) {
         log_it(L_ERROR, "Failed to get signing data");
         dap_chain_datum_tx_delete(l_tx);
@@ -683,6 +683,7 @@ static dap_chain_datum_t* s_xchange_order_create_compose_cb(
     // 5. Sign via ledger
     dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
                                               l_sign_data, l_sign_data_size, 0);
+    DAP_DELETE(l_sign_data);
     if (!l_sign) {
         log_it(L_ERROR, "Failed to sign xchange order TX");
         dap_chain_datum_tx_delete(l_tx);
@@ -778,7 +779,7 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
 
     // 4. Get sign data
     size_t l_sign_data_size = 0;
-    const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
+    void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
     if (!l_sign_data) {
         log_it(L_ERROR, "Failed to get signing data");
         dap_chain_datum_tx_delete(l_tx);
@@ -788,6 +789,7 @@ static dap_chain_datum_t* s_xchange_order_invalidate_compose_cb(
     // 5. Sign via ledger
     dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
                                               l_sign_data, l_sign_data_size, 0);
+    DAP_DELETE(l_sign_data);
     if (!l_sign) {
         log_it(L_ERROR, "Failed to sign xchange invalidate TX");
         dap_chain_datum_tx_delete(l_tx);
@@ -885,7 +887,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
 
     // 4. Get sign data
     size_t l_sign_data_size = 0;
-    const void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
+    void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
     if (!l_sign_data) {
         log_it(L_ERROR, "Failed to get signing data");
         dap_chain_datum_tx_delete(l_tx);
@@ -895,6 +897,7 @@ static dap_chain_datum_t* s_xchange_purchase_compose_cb(
     // 5. Sign via ledger
     dap_sign_t *l_sign = dap_ledger_sign_data(a_ledger, l_params->wallet_name,
                                               l_sign_data, l_sign_data_size, 0);
+    DAP_DELETE(l_sign_data);
     if (!l_sign) {
         log_it(L_ERROR, "Failed to sign xchange purchase TX");
         dap_chain_datum_tx_delete(l_tx);

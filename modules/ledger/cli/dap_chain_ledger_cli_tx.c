@@ -17,6 +17,10 @@
 #include "dap_cli_server.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_utxo.h"
+#include "dap_chain_tx_sign.h"
 #include "dap_cert.h"
 #include "dap_hash.h"
 #include "dap_chain_net.h"
@@ -41,12 +45,14 @@ extern int dap_chain_net_tx_create_by_json(dap_json_t *a_json, dap_chain_net_t *
 #define DAP_CHAIN_NET_TX_CREATE_JSON_INVALID_ITEMS                   -7
 #define DAP_CHAIN_NET_TX_CREATE_JSON_CAN_NOT_ADD_TRANSACTION_TO_MEMPOOL -8
 
-// Forward declaration for wallet TX params (defined in wallet module)
-typedef struct dap_chain_wallet_tx_transfer_params {
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+// Must match wallet_transfer_params_t layout in dap_chain_wallet_tx.c
+typedef struct {
+    const dap_chain_addr_t *addr_to;
+    const char *ticker;
     uint256_t value;
-    dap_chain_addr_t *addr_to;
-} dap_chain_wallet_tx_transfer_params_t;
+    uint256_t fee;
+    const char *wallet_name;
+} cli_wallet_transfer_params_t;
 
 
 
@@ -213,30 +219,125 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
         return -1;
     }
 
-    uint256_t l_total_needed = {};
-    SUM_256_256(l_value, l_fee, &l_total_needed);
-
-    uint256_t l_value_found = {};
-    dap_list_t *l_list_outs = dap_ledger_get_utxo_for_value(
-        l_ledger, l_token_ticker, l_addr_from, l_total_needed, &l_value_found);
-
-    if (!l_list_outs) {
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if (!l_net) {
         DAP_DELETE(l_addr_to);
-        dap_json_rpc_error_add(a_json_arr_reply, -1, "Insufficient funds");
+        dap_json_rpc_error_add(a_json_arr_reply, -1, "Network '%s' not found", l_net_name);
         return -1;
     }
 
-    dap_chain_wallet_tx_transfer_params_t l_params = {
-        .token_ticker = {0},
-        .value = l_value,
-        .addr_to = l_addr_to
-    };
-    strncpy(l_params.token_ticker, l_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    bool l_cross_token = !IS_ZERO_256(l_fee) &&
+                         strcmp(l_token_ticker, l_net->pub.native_ticker) != 0;
 
-    dap_chain_datum_t *l_datum = dap_chain_tx_compose_create(
-        "transfer", l_ledger, l_list_outs, &l_params);
+    dap_chain_datum_t *l_datum = NULL;
 
-    dap_list_free_full(l_list_outs, NULL);
+    if (l_cross_token) {
+        // Cross-token transfer: custom token value + native token fee
+        // Must use separate UTXO sets and OUT_EXT items with explicit tickers
+        uint256_t l_token_found = {};
+        dap_list_t *l_token_outs = dap_ledger_get_utxo_for_value(
+            l_ledger, l_token_ticker, l_addr_from, l_value, &l_token_found);
+        if (!l_token_outs) {
+            DAP_DELETE(l_addr_to);
+            dap_json_rpc_error_add(a_json_arr_reply, -1, "Insufficient funds for token transfer");
+            return -1;
+        }
+
+        uint256_t l_fee_found = {};
+        dap_list_t *l_fee_outs = dap_ledger_get_utxo_for_value(
+            l_ledger, l_net->pub.native_ticker, l_addr_from, l_fee, &l_fee_found);
+        if (!l_fee_outs) {
+            dap_list_free_full(l_token_outs, NULL);
+            DAP_DELETE(l_addr_to);
+            dap_json_rpc_error_add(a_json_arr_reply, -1, "Insufficient funds for fee");
+            return -1;
+        }
+
+        dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+        for (dap_list_t *it = l_token_outs; it; it = it->next) {
+            dap_chain_tx_used_out_t *u = it->data;
+            dap_chain_datum_tx_add_in_item(&l_tx, &u->tx_prev_hash, u->tx_out_prev_idx);
+        }
+        for (dap_list_t *it = l_fee_outs; it; it = it->next) {
+            dap_chain_tx_used_out_t *u = it->data;
+            dap_chain_datum_tx_add_in_item(&l_tx, &u->tx_prev_hash, u->tx_out_prev_idx);
+        }
+
+        dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_to, l_value, l_token_ticker);
+
+        uint256_t l_token_change = {};
+        SUBTRACT_256_256(l_token_found, l_value, &l_token_change);
+        if (!IS_ZERO_256(l_token_change))
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_token_change, l_token_ticker);
+
+        dap_chain_datum_tx_add_fee_item(&l_tx, l_fee);
+
+        uint256_t l_fee_change = {};
+        SUBTRACT_256_256(l_fee_found, l_fee, &l_fee_change);
+        if (!IS_ZERO_256(l_fee_change))
+            dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_fee_change, l_net->pub.native_ticker);
+
+        size_t l_sign_data_size = 0;
+        void *l_sign_data = dap_chain_tx_get_signing_data(l_tx, &l_sign_data_size);
+        if (!l_sign_data) {
+            dap_chain_datum_tx_delete(l_tx);
+            dap_list_free_full(l_token_outs, NULL);
+            dap_list_free_full(l_fee_outs, NULL);
+            DAP_DELETE(l_addr_to);
+            dap_json_rpc_error_add(a_json_arr_reply, -1, "Failed to get signing data");
+            return -1;
+        }
+
+        dap_sign_t *l_sign = dap_ledger_sign_data(l_ledger, l_from_wallet,
+                                                    l_sign_data, l_sign_data_size, 0);
+        DAP_DELETE(l_sign_data);
+        if (!l_sign) {
+            dap_chain_datum_tx_delete(l_tx);
+            dap_list_free_full(l_token_outs, NULL);
+            dap_list_free_full(l_fee_outs, NULL);
+            DAP_DELETE(l_addr_to);
+            dap_json_rpc_error_add(a_json_arr_reply, -1, "Failed to sign transaction");
+            return -1;
+        }
+
+        dap_chain_tx_sign_add(&l_tx, l_sign);
+        DAP_DELETE(l_sign);
+
+        l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx,
+                                          dap_chain_datum_tx_get_size(l_tx));
+        dap_chain_datum_tx_delete(l_tx);
+        dap_list_free_full(l_token_outs, NULL);
+        dap_list_free_full(l_fee_outs, NULL);
+    } else {
+        // Same-token transfer: value and fee use the same token
+        uint256_t l_total_needed = {};
+        SUM_256_256(l_value, l_fee, &l_total_needed);
+
+        uint256_t l_value_found = {};
+        dap_list_t *l_list_outs = dap_ledger_get_utxo_for_value(
+            l_ledger, l_token_ticker, l_addr_from, l_total_needed, &l_value_found);
+
+        if (!l_list_outs) {
+            DAP_DELETE(l_addr_to);
+            dap_json_rpc_error_add(a_json_arr_reply, -1, "Insufficient funds");
+            return -1;
+        }
+
+        cli_wallet_transfer_params_t l_params = {
+            .addr_to = l_addr_to,
+            .ticker = l_token_ticker,
+            .value = l_value,
+            .fee = l_fee,
+            .wallet_name = l_from_wallet
+        };
+
+        l_datum = dap_chain_tx_compose_create(
+            "transfer", l_ledger, l_list_outs, &l_params);
+
+        dap_list_free_full(l_list_outs, NULL);
+    }
+
     DAP_DELETE(l_addr_to);
 
     if (!l_datum) {
@@ -244,10 +345,9 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
         return -1;
     }
 
-    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
-    dap_chain_t *l_chain = l_net
-        ? dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX)
-        : NULL;
+    dap_chain_t *l_chain = l_chain_name
+        ? dap_chain_net_get_chain_by_name(l_net, l_chain_name)
+        : dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
 
     if (!l_chain) {
         DAP_DELETE(l_datum);
@@ -255,13 +355,7 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
         return -1;
     }
 
-    if (!l_ledger->mempool_add_datum_callback) {
-        DAP_DELETE(l_datum);
-        dap_json_rpc_error_add(a_json_arr_reply, -1, "Mempool callback not set");
-        return -1;
-    }
-
-    char *l_hash_str = l_ledger->mempool_add_datum_callback(l_datum, l_chain, l_hash_out_type);
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
     DAP_DELETE(l_datum);
 
     if (!l_hash_str) {

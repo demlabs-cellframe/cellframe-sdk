@@ -63,7 +63,7 @@ int dap_chain_tx_sign_add(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign);
  * @param a_sign_data_size Output: size of sign data
  * @return Pointer to data that should be signed, or NULL on error
  */
-const void *dap_chain_tx_get_signing_data(
+void *dap_chain_tx_get_signing_data(
     const dap_chain_datum_tx_t *a_tx,
     size_t *a_sign_data_size
 );

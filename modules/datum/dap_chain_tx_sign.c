@@ -51,9 +51,10 @@ int dap_chain_tx_sign_add(dap_chain_datum_tx_t **a_tx, dap_sign_t *a_sign)
 }
 
 /**
- * @brief Get data that needs to be signed
+ * @brief Get data that needs to be signed.
+ * Returns an allocated buffer; caller must free with DAP_DELETE.
  */
-const void *dap_chain_tx_get_signing_data(
+void *dap_chain_tx_get_signing_data(
     const dap_chain_datum_tx_t *a_tx,
     size_t *a_sign_data_size
 )
@@ -63,8 +64,7 @@ const void *dap_chain_tx_get_signing_data(
         return NULL;
     }
     
-    // Use existing function to get sign data
-    const void *l_sign_data = dap_chain_datum_tx_get_sign_data(a_tx, a_sign_data_size);
+    void *l_sign_data = dap_chain_datum_tx_get_sign_data(a_tx, a_sign_data_size);
     
     if (!l_sign_data) {
         log_it(L_ERROR, "Failed to get signing data from transaction");

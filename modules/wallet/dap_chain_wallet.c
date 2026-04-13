@@ -615,6 +615,35 @@ const char* dap_chain_wallet_check_sign_by_name(const char *a_wallet_name)
     return l_sign_str;
 }
 
+dap_sign_t* dap_chain_wallet_sign_data_by_name(const char *a_wallet_name, const void *a_data, size_t a_data_size, uint32_t a_key_idx)
+{
+    if (!a_wallet_name || !a_wallet_name[0] || !a_data || !a_data_size)
+        return NULL;
+
+    const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
+    if (!l_wallets_path)
+        return NULL;
+
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(a_wallet_name, l_wallets_path, NULL);
+    if (!l_wallet) {
+        log_it(L_WARNING, "Cannot open wallet '%s' for signing", a_wallet_name);
+        return NULL;
+    }
+
+    dap_enc_key_t *l_key = dap_chain_wallet_get_key(l_wallet, a_key_idx);
+    if (!l_key) {
+        log_it(L_WARNING, "No key at index %u in wallet '%s'", a_key_idx, a_wallet_name);
+        dap_chain_wallet_close(l_wallet);
+        return NULL;
+    }
+
+    dap_sign_t *l_sign = dap_sign_create(l_key, a_data, a_data_size);
+    dap_enc_key_delete(l_key);
+    dap_chain_wallet_close(l_wallet);
+
+    return l_sign;
+}
+
 /**
  * @brief dap_cert_to_addr
  * @param a_cert
