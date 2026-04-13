@@ -186,6 +186,7 @@ typedef struct dap_chain_esbocs_round {
     uint16_t votes_for_count;
     uint16_t votes_against_count;
     uint16_t validators_synced_count;
+    uint16_t validators_rejected_count;
     uint16_t total_validators_synced;
 
     bool directive_applied;
@@ -193,11 +194,17 @@ typedef struct dap_chain_esbocs_round {
     uint8_t attempt_num;
 } dap_chain_esbocs_round_t;
 
+typedef enum {
+    DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_NONE = 0,
+    DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK,
+    DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_REJECTED
+} dap_chain_esbocs_validator_sync_status_t;
+
 typedef struct dap_chain_esbocs_validator {
     dap_chain_node_addr_t node_addr;
     dap_chain_addr_t signing_addr;
     uint256_t weight;
-    bool is_synced;
+    dap_chain_esbocs_validator_sync_status_t sync_status;
     bool is_chosen;
 } dap_chain_esbocs_validator_t;
 
