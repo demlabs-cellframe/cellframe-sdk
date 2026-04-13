@@ -980,6 +980,10 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     }
     if (l_order->node_addr.uint64 != g_node_addr.uint64 &&
         l_order->srv_uid.uint64 != a_srv->uid.uint64) {
+        log_it(L_ERROR, "Order mismatch: order_node=0x%"DAP_UINT64_FORMAT_x" local_node=0x%"DAP_UINT64_FORMAT_x
+               " order_srv_uid=0x%"DAP_UINT64_FORMAT_x" local_srv_uid=0x%"DAP_UINT64_FORMAT_x,
+               l_order->node_addr.uint64, g_node_addr.uint64,
+               l_order->srv_uid.uint64, a_srv->uid.uint64);
         DAP_DELETE(l_price);
         DAP_DEL_Z(l_order);
         return NULL;
