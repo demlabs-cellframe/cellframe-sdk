@@ -1846,9 +1846,10 @@ static void s_session_check_sync_complete(dap_chain_esbocs_session_t *a_session)
                              PVT(a_session->esbocs)->min_validators_count,
                              a_session->cur_round.validators_rejected_count,
                              l_round_skip ? ", round skipped" : "");
-            a_session->sync_failed = !l_round_skip;
-            if (a_session->sync_failed)
-                s_session_sync_backoff_increase(a_session, "all_decided_not_enough_synced");
+            if (l_round_skip)
+                return;
+            a_session->sync_failed = true;
+            s_session_sync_backoff_increase(a_session, "all_decided_not_enough_synced");
             s_session_try_round_new(a_session);
         }
         return;
@@ -2443,15 +2444,15 @@ static void s_session_proc_state(void *a_arg)
                                                 l_session->chain->net_name, l_session->chain->name,
                                                     l_session->cur_round.id, l_session->cur_round.attempt_num);
                 s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, l_time);
+            } else if (l_round_skip) {
+                break;
             } else { // timeout start sync
                 debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                            " Round finished by reason: %s",
+                                            " Round finished by reason: can't synchronize minimum number of validators",
                                                 l_session->chain->net_name, l_session->chain->name,
-                                                    l_session->cur_round.id, l_session->cur_round.attempt_num,
-                                                        l_round_skip ? "skipped" : "can't synchronize minimum number of validators");
-                l_session->sync_failed = !l_round_skip;
-                if (l_session->sync_failed)
-                    s_session_sync_backoff_increase(l_session, "sync_timeout");
+                                                    l_session->cur_round.id, l_session->cur_round.attempt_num);
+                l_session->sync_failed = true;
+                s_session_sync_backoff_increase(l_session, "sync_timeout");
                 s_session_try_round_new(l_session);
             }
         }
@@ -3396,6 +3397,12 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                     debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
                                                 " SYNC message is rejected - round already in fast-forward state",
                                                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id);
+                    break;
+                } else if (l_session->state != DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START) {
+                    debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                                " SYNC fast-forward skipped, round in active state %d",
+                                                   l_session->chain->net_name, l_session->chain->name,
+                                                       l_session->cur_round.id, l_session->state);
                     break;
                 } else {
                     debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
