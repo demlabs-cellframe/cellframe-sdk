@@ -1819,6 +1819,8 @@ static void s_session_check_sync_complete(dap_chain_esbocs_session_t *a_session)
                 || dap_link_manager_link_is_established(&l_validator->node_addr))
             l_expected++;
     }
+    uint16_t l_total = dap_list_length(a_session->cur_round.validators_list);
+    l_expected = dap_max(l_expected, dap_min(PVT(a_session->esbocs)->min_validators_count, l_total));
     if (l_decided >= l_expected) {
         bool l_round_skip = PVT(a_session->esbocs)->emergency_mode ?
                     false : !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
