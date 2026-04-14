@@ -227,7 +227,7 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_block_t *processing_candidate;
     dap_chain_t *chain;
     dap_chain_esbocs_t *esbocs;
-    dap_time_t ts_round_sync_start, ts_stage_entry;
+    dap_time_t ts_round_sync_start, ts_stage_entry, ts_fast_path_ready;
     dap_chain_esbocs_sync_item_t *sync_items;
     dap_chain_esbocs_penalty_item_t *penalty;
     dap_global_db_cluster_t *db_cluster;

@@ -36,6 +36,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_link_manager.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_sign.h"
@@ -53,6 +54,7 @@ enum s_esbocs_session_state {
 
 #define ESBOCS_PENALTY_TTL ( 72 * 3600 ) // 3 days
 #define ESBOCS_PENALTY_HASH_VERSION 1
+#define ESBOCS_FAST_PATH_GRACE_SEC 3
 #define ESBOCS_SESSION_DRAIN_WAIT_US 1000U
 #define ESBOCS_SESSION_DRAIN_WAIT_ATTEMPTS 30000U
 #define ESBOCS_ROUND_SKIP_TIMEOUT_CAP_DEFAULT 30U
@@ -1810,37 +1812,58 @@ static void s_session_check_sync_complete(dap_chain_esbocs_session_t *a_session)
         return;
     uint16_t l_decided = a_session->cur_round.validators_synced_count
                        + a_session->cur_round.validators_rejected_count;
-    uint16_t l_total = dap_list_length(a_session->cur_round.validators_list);
-    if (l_decided < l_total)
+    uint16_t l_expected = 0;
+    for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
+        dap_chain_esbocs_validator_t *l_validator = it->data;
+        if (l_validator->sync_status != DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_NONE
+                || dap_link_manager_link_is_established(&l_validator->node_addr))
+            l_expected++;
+    }
+    if (l_decided >= l_expected) {
+        bool l_round_skip = PVT(a_session->esbocs)->emergency_mode ?
+                    false : !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
+        if (a_session->cur_round.validators_synced_count >= PVT(a_session->esbocs)->min_validators_count
+                && !l_round_skip) {
+            a_session->cur_round.id = s_session_calc_current_round_id(a_session);
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG,
+                     "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                     " All reachable validators decided (%hu synced, %hu rejected of %hu expected),"
+                     " wait to submit candidate",
+                         a_session->chain->net_name, a_session->chain->name,
+                             a_session->cur_round.id, a_session->cur_round.attempt_num,
+                             a_session->cur_round.validators_synced_count,
+                             a_session->cur_round.validators_rejected_count, l_expected);
+            s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
+        } else {
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG,
+                     "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                     " All reachable validators decided but not enough synced (%hu/%hu, %hu rejected)%s",
+                         a_session->chain->net_name, a_session->chain->name,
+                             a_session->cur_round.id, a_session->cur_round.attempt_num,
+                             a_session->cur_round.validators_synced_count,
+                             PVT(a_session->esbocs)->min_validators_count,
+                             a_session->cur_round.validators_rejected_count,
+                             l_round_skip ? ", round skipped" : "");
+            a_session->sync_failed = !l_round_skip;
+            if (a_session->sync_failed)
+                s_session_sync_backoff_increase(a_session, "all_decided_not_enough_synced");
+            s_session_try_round_new(a_session);
+        }
         return;
-    bool l_round_skip = PVT(a_session->esbocs)->emergency_mode ?
-                false : !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
-    if (a_session->cur_round.validators_synced_count >= PVT(a_session->esbocs)->min_validators_count
-            && !l_round_skip) {
-        a_session->cur_round.id = s_session_calc_current_round_id(a_session);
+    }
+    if (!a_session->ts_fast_path_ready
+            && a_session->cur_round.validators_synced_count >= PVT(a_session->esbocs)->min_validators_count
+            && !(PVT(a_session->esbocs)->emergency_mode ? false
+                    : !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list))) {
+        a_session->ts_fast_path_ready = dap_time_now();
         debug_if(PVT(a_session->esbocs)->debug, L_MSG,
                  "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                 " All validators decided (%hu synced, %hu rejected), %s",
-                     a_session->chain->net_name, a_session->chain->name,
-                         a_session->cur_round.id, a_session->cur_round.attempt_num,
-                         a_session->cur_round.validators_synced_count,
-                         a_session->cur_round.validators_rejected_count,
-                         l_round_skip ? "but round is skipped" : "wait to submit candidate");
-        s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
-    } else {
-        debug_if(PVT(a_session->esbocs)->debug, L_MSG,
-                 "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                 " All validators decided but not enough synced (%hu/%hu, %hu rejected)%s",
+                 " Minimum validators synced (%hu/%hu), grace period started (%hu expected, %hu decided)",
                      a_session->chain->net_name, a_session->chain->name,
                          a_session->cur_round.id, a_session->cur_round.attempt_num,
                          a_session->cur_round.validators_synced_count,
                          PVT(a_session->esbocs)->min_validators_count,
-                         a_session->cur_round.validators_rejected_count,
-                         l_round_skip ? ", round skipped" : "");
-        a_session->sync_failed = !l_round_skip;
-        if (a_session->sync_failed)
-            s_session_sync_backoff_increase(a_session, "all_decided_not_enough_synced");
-        s_session_try_round_new(a_session);
+                         l_expected, l_decided);
     }
 }
 
@@ -1934,6 +1957,7 @@ static bool s_session_round_new(void *a_arg)
     a_session->cur_round.round_start_ts = dap_time_now();
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
+    a_session->ts_fast_path_ready = 0;
     a_session->ts_stage_entry = a_session->cur_round.round_start_ts;
 
     dap_hash_fast_t l_last_block_hash;
@@ -2385,6 +2409,17 @@ static void s_session_proc_state(void *a_arg)
         l_session->listen_ensure = 1;
         if (!l_session->cur_round.sync_sent && l_session->cur_round.round_start_ts && l_time >= l_session->cur_round.round_start_ts)
             s_session_send_startsync(l_session);
+        if (l_session->ts_fast_path_ready
+                && l_time - l_session->ts_fast_path_ready >= ESBOCS_FAST_PATH_GRACE_SEC) {
+            l_session->cur_round.id = s_session_calc_current_round_id(l_session);
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                        " Fast path: grace period elapsed, %hu validators synced",
+                                            l_session->chain->net_name, l_session->chain->name,
+                                                l_session->cur_round.id, l_session->cur_round.attempt_num,
+                                                l_session->cur_round.validators_synced_count);
+            s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, l_time);
+            break;
+        }
         bool l_round_skip = PVT(l_session->esbocs)->emergency_mode ?
                     false : !s_validator_check(&l_session->my_signing_addr, l_session->cur_round.validators_list);
         if (l_session->ts_round_sync_start && l_time - l_session->ts_round_sync_start >=
