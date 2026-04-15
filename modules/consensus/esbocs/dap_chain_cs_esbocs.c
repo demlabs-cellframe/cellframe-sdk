@@ -2077,6 +2077,7 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
 {
     a_session->ts_stage_entry = dap_time_now();
     if (++a_session->cur_round.attempt_num > PVT(a_session->esbocs)->round_attempts_max) {
+        a_session->ts_fast_path_ready = 0;
         a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
         return;
     }
@@ -2096,6 +2097,7 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
                                                         a_session->chain->net_name, a_session->chain->name,
                                                             a_session->cur_round.id);
     a_session->cur_round.attempt_num = PVT(a_session->esbocs)->round_attempts_max + 1;
+    a_session->ts_fast_path_ready = 0;
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
 }
 
