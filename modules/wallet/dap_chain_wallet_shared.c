@@ -1657,7 +1657,12 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
         } else {
             dap_chain_hash_fast_from_str(l_values[i].key, &l_cur_pkey_hash);
         }
-        const char *l_cur_pkey_str = l_filter_count ? dap_hash_fast_to_str_static(&l_pkey_hash) : l_values[i].key;
+        dap_hash_str_t l_cur_pkey_hash_str = {0};
+        const char *l_cur_pkey_str = l_values[i].key;
+        if (l_filter_count) {
+            l_cur_pkey_hash_str = dap_chain_hash_fast_to_hash_str(&l_pkey_hash);
+            l_cur_pkey_str = l_cur_pkey_hash_str.s;
+        }
         json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_cur_pkey_str));
         json_object *l_jobj_tx_hashes = json_object_new_object();
         json_object *l_jobj_shared_wallets = json_object_new_object();
