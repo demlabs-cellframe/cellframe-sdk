@@ -3398,12 +3398,6 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                                 " SYNC message is rejected - round already in fast-forward state",
                                                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id);
                     break;
-                } else if (l_session->state != DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START) {
-                    debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
-                                                " SYNC fast-forward skipped, round in active state %d",
-                                                   l_session->chain->net_name, l_session->chain->name,
-                                                       l_session->cur_round.id, l_session->state);
-                    break;
                 } else {
                     debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
                                                 " SYNC message sync attempt %"DAP_UINT64_FORMAT_U" is greater than"
