@@ -400,6 +400,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
     
     l_chain->config = a_cfg;
     l_chain->load_priority = dap_config_get_item_uint16_default(a_cfg, "chain", "load_priority", 100);
+    l_chain->seed_mode = dap_config_get_item_bool_default(g_config, "general", "seed_mode", false);
 
     uint16_t l_datum_types_count = 0, l_default_datum_types_count = 0, i, j;
     const char  **l_datum_types = dap_config_get_array_str(a_cfg, "chain", "datum_types", &l_datum_types_count),

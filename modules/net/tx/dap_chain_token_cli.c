@@ -347,7 +347,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
         return DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_CANT_REMOVE_OLD_DATUM_ERR;
     }
 
-    dap_json_object_add_bool(l_jobj_reply, "status_placed", true);
+    dap_json_object_set_bool(l_jobj_reply, "status_placed", true);
     dap_json_object_add_string(l_jobj_reply, "old_hash", l_datum_hash_str);
     dap_json_object_add_string(l_jobj_reply, "new_hash", l_out_hash_str);
     log_it(L_NOTICE, "Datum was replaced in datum pool:\n\tOld: %s\n\tNew: %s", l_datum_hash_str, l_out_hash_str);   
@@ -1461,7 +1461,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
 
-    dap_json_object_add_bool(json_obj_out, "status_placed", true);
+    dap_json_object_set_bool(json_obj_out, "status_placed", true);
     if (!l_add_sign)
         dap_json_object_add_string(json_obj_out, "emission_hash", l_emission_hash_str);
     else {
