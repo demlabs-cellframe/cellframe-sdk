@@ -21,7 +21,6 @@
 */
 #pragma once
 
-#include "dap_chain_srv.h"
 #include "dap_chain_datum.h"
 #include "dap_serialize.h"
 #include <stddef.h>
