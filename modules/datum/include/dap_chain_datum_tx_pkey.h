@@ -49,7 +49,7 @@ _Static_assert(DAP_CHAIN_TX_PKEY_HDR_WIRE_SIZE == 9, "dap_chain_tx_pkey_t fixed-
 typedef struct dap_chain_tx_pkey_hdr_mem {
     dap_chain_tx_item_type_t type;
     uint8_t pkey_type_le[sizeof(uint16_t)];
-    uint8_t wire_pad_before_size[1];
+    uint8_t wire_pad_before_size[2];
     uint32_t pkey_size;
 } dap_chain_tx_pkey_hdr_mem_t;
 
