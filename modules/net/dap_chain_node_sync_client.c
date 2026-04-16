@@ -160,12 +160,12 @@ static void s_add_channel_notifiers(dap_chain_node_sync_client_t *a_sync_client)
     if (!a_sync_client || !a_sync_client->client || !a_sync_client->client->active_channels)
         return;
     
-    dap_cluster_node_addr_t *l_addr = (dap_cluster_node_addr_t *)&a_sync_client->node_info->address;
+    dap_cluster_node_addr_t l_addr = a_sync_client->node_info->address;
     const char *l_channels = a_sync_client->client->active_channels;
     
     for (size_t i = 0; l_channels[i]; i++) {
         uint8_t l_ch_id = l_channels[i];
-        int l_ret = dap_stream_ch_add_notifier(l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
+        int l_ret = dap_stream_ch_add_notifier(&l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
                                                s_universal_packet_in_callback, a_sync_client);
         if (l_ret == 0)
             log_it(L_DEBUG, "Added sync notifier for channel '%c'", l_ch_id);
@@ -182,12 +182,12 @@ static void s_del_channel_notifiers(dap_chain_node_sync_client_t *a_sync_client)
     if (!a_sync_client || !a_sync_client->client || !a_sync_client->client->active_channels)
         return;
     
-    dap_cluster_node_addr_t *l_addr = (dap_cluster_node_addr_t *)&a_sync_client->node_info->address;
+    dap_cluster_node_addr_t l_addr = a_sync_client->node_info->address;
     const char *l_channels = a_sync_client->client->active_channels;
     
     for (size_t i = 0; l_channels[i]; i++) {
         uint8_t l_ch_id = l_channels[i];
-        dap_stream_ch_del_notifier(l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
+        dap_stream_ch_del_notifier(&l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
                                    s_universal_packet_in_callback, a_sync_client);
     }
 }
@@ -328,8 +328,9 @@ dap_chain_node_sync_client_t *dap_chain_node_sync_client_connect(
         dap_client_set_auth_cert(l_sync_client->client, l_auth_cert_name);
     
     // Setup uplink and start connection
+    dap_cluster_node_addr_t l_uplink_addr = a_node_info->address;
     dap_client_set_uplink_unsafe(l_sync_client->client, 
-                                  &a_node_info->address,
+                                  &l_uplink_addr,
                                   a_node_info->ext_host, 
                                   a_node_info->ext_port);
     

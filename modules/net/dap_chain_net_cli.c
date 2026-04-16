@@ -151,7 +151,10 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
     size_t l_count = 0;  // Counter for matched nodes
     for (size_t i = 0; i < l_nodes_count; i++) {
         dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
-        if (!l_node_info || dap_chain_node_addr_is_blank(&l_node_info->address))
+        if (!l_node_info)
+            continue;
+        dap_cluster_node_addr_t l_addr = l_node_info->address;
+        if (dap_chain_node_addr_is_blank(&l_addr))
             continue;
 
         // Filter by address if specified
@@ -298,11 +301,13 @@ int com_node(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ver
     //TODO need to rework with new node info / alias /links concept
 
     if (l_addr_str) {
-        if (dap_chain_node_addr_from_str(&l_node_info->address, l_addr_str)) {
+        dap_cluster_node_addr_t l_addr = {};
+        if (dap_chain_node_addr_from_str(&l_addr, l_addr_str)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_NODE_ADDR_ERR,
                 "Can't parse node address %s", l_addr_str);
             return -DAP_CHAIN_NODE_CLI_COM_NODE_CANT_PARSE_NODE_ADDR_ERR;
         }
+        l_node_info->address = l_addr;
     }
     if (l_port_str) {
         dap_digit_from_string(l_port_str, &l_node_info->ext_port, sizeof(uint16_t));
