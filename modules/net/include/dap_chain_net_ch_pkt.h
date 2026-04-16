@@ -28,6 +28,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
+#include "dap_serialize.h"
 #include "dap_stream_ch.h"
 
 #define DAP_STREAM_CH_CHAIN_NET_PKT_VERSION                             1
@@ -59,6 +60,44 @@ typedef struct dap_chain_net_ch_pkt{
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_chain_net_ch_pkt_t;
 
+#define DAP_CHAIN_NET_CH_PKT_HDR_WIRE_SIZE sizeof(dap_chain_net_ch_pkt_hdr_t)
+_Static_assert(sizeof(dap_chain_net_ch_pkt_t) == DAP_CHAIN_NET_CH_PKT_HDR_WIRE_SIZE,
+               "dap_chain_net_ch_pkt_t header wire size");
+
+/**
+ * Aligned in-memory version of chain-net channel packet header (fixed part before FAM).
+ */
+typedef struct dap_chain_net_ch_pkt_hdr_mem {
+    uint8_t version;
+    uint8_t padding;
+    uint16_t data_size;
+    uint8_t net_id[DAP_CHAIN_NET_ID_SIZE];
+} dap_chain_net_ch_pkt_hdr_mem_t;
+
+_Static_assert(sizeof(dap_chain_net_ch_pkt_hdr_mem_t) == sizeof(dap_chain_net_ch_pkt_hdr_t),
+               "dap_chain_net_ch_pkt_hdr_mem_t matches wire header layout");
+
+extern const dap_serialize_field_t g_dap_chain_net_ch_pkt_hdr_fields[];
+extern const dap_serialize_schema_t g_dap_chain_net_ch_pkt_hdr_schema;
+#define DAP_CHAIN_NET_CH_PKT_HDR_MAGIC 0xCF5FEED3U
+
+static inline int dap_chain_net_ch_pkt_hdr_pack(const dap_chain_net_ch_pkt_hdr_mem_t *a_mem,
+                                                uint8_t *a_wire, size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_NET_CH_PKT_HDR_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_net_ch_pkt_hdr_schema, a_mem, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+
+static inline int dap_chain_net_ch_pkt_hdr_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                  dap_chain_net_ch_pkt_hdr_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_NET_CH_PKT_HDR_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_net_ch_pkt_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
+    return r.error_code;
+}
 
 #ifdef __cplusplus
 extern "C" {

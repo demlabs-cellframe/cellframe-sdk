@@ -23,8 +23,10 @@
 */
 #pragma once
 
+#include <stddef.h>
 #include "dap_common.h"
 #include "dap_chain_common.h"
+#include "dap_serialize.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_datum_tx_event.h"
 #include "dap_chain_wallet_cache.h"
@@ -68,6 +70,66 @@ typedef struct dap_chain_tx_event_data_ended {
     uint8_t winners_cnt;
     uint32_t winners_ids[];
 } DAP_ALIGN_PACKED dap_chain_tx_event_data_ended_t;
+
+#define DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_STARTED_FIXED_WIRE_SIZE \
+    offsetof(dap_chain_tx_event_data_stake_ext_started_t, position_ids)
+typedef struct dap_chain_tx_event_data_stake_ext_started_fixed_mem {
+    uint32_t multiplier;
+    uint8_t duration[sizeof(dap_time_t)];
+    uint8_t time_unit;
+    uint8_t calculation_rule_id[sizeof(uint32_t)];
+    uint8_t total_positions;
+} dap_chain_tx_event_data_stake_ext_started_fixed_mem_t;
+_Static_assert(sizeof(dap_chain_tx_event_data_stake_ext_started_fixed_mem_t) ==
+                   DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_STARTED_FIXED_WIRE_SIZE,
+               "stake_ext_started fixed mem matches wire layout");
+#define DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_STARTED_FIXED_MAGIC 0xCF5FF025U
+extern const dap_serialize_field_t g_dap_chain_tx_event_data_stake_ext_started_fixed_fields[];
+extern const dap_serialize_schema_t g_dap_chain_tx_event_data_stake_ext_started_fixed_schema;
+static inline int dap_chain_tx_event_data_stake_ext_started_fixed_pack(
+    const dap_chain_tx_event_data_stake_ext_started_fixed_mem_t *a_mem, uint8_t *a_wire, size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_STARTED_FIXED_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_tx_event_data_stake_ext_started_fixed_schema, a_mem, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_tx_event_data_stake_ext_started_fixed_unpack(
+    const uint8_t *a_wire, size_t a_wire_size, dap_chain_tx_event_data_stake_ext_started_fixed_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_STARTED_FIXED_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_tx_event_data_stake_ext_started_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
+    return r.error_code;
+}
+
+#define DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_ENDED_FIXED_WIRE_SIZE offsetof(dap_chain_tx_event_data_ended_t, winners_ids)
+typedef struct dap_chain_tx_event_data_stake_ext_ended_fixed_mem {
+    uint8_t end_time[sizeof(dap_time_t)];
+    uint8_t winners_cnt;
+} dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t;
+_Static_assert(sizeof(dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t) ==
+                   DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_ENDED_FIXED_WIRE_SIZE,
+               "stake_ext ended fixed mem matches wire layout");
+#define DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_ENDED_FIXED_MAGIC 0xCF5FF026U
+extern const dap_serialize_field_t g_dap_chain_tx_event_data_stake_ext_ended_fixed_fields[];
+extern const dap_serialize_schema_t g_dap_chain_tx_event_data_stake_ext_ended_fixed_schema;
+static inline int dap_chain_tx_event_data_stake_ext_ended_fixed_pack(
+    const dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t *a_mem, uint8_t *a_wire, size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_ENDED_FIXED_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_tx_event_data_stake_ext_ended_fixed_schema, a_mem, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_tx_event_data_stake_ext_ended_fixed_unpack(
+    const uint8_t *a_wire, size_t a_wire_size, dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_ENDED_FIXED_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_tx_event_data_stake_ext_ended_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
+    return r.error_code;
+}
 
 // Stake_ext status enumeration
 typedef enum {

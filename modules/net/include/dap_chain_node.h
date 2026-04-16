@@ -22,11 +22,14 @@
 #pragma once
 
 #include <limits.h>
+#include <stddef.h>
+#include <stdint.h>
 #include "dap_common.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_chain.h"
 #include "dap_net.h"
+#include "dap_serialize.h"
 
 typedef struct dap_chain_net dap_chain_net_t;
 
@@ -53,6 +56,48 @@ typedef struct dap_chain_node_info {
     uint8_t ext_host_len;
     char ext_host[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
+
+/** Wire size of @ref dap_chain_node_info_t fixed part before @c ext_host (packed). */
+#define DAP_CHAIN_NODE_INFO_FIXED_WIRE_SIZE offsetof(dap_chain_node_info_t, ext_host)
+
+/**
+ * @brief Naturally compact in-memory view of @ref dap_chain_node_info_t fixed header (matches packed wire).
+ */
+typedef struct dap_chain_node_info_fixed_mem {
+    uint8_t address[sizeof(dap_chain_node_addr_t)];
+    uint8_t cell_id[DAP_CHAIN_SHARD_ID_SIZE];
+    uint8_t alias[64];
+    uint16_t ext_port;
+    uint8_t ext_host_len;
+} dap_chain_node_info_fixed_mem_t;
+
+_Static_assert(sizeof(dap_chain_node_info_fixed_mem_t) == DAP_CHAIN_NODE_INFO_FIXED_WIRE_SIZE,
+               "dap_chain_node_info_fixed_mem_t wire size");
+
+extern const dap_serialize_field_t g_dap_chain_node_info_fixed_fields[];
+extern const dap_serialize_schema_t g_dap_chain_node_info_fixed_schema;
+#define DAP_CHAIN_NODE_INFO_FIXED_SERIALIZE_MAGIC 0xCF5FF012U
+
+static inline int dap_chain_node_info_fixed_pack(const dap_chain_node_info_fixed_mem_t *a_mem, uint8_t *a_wire,
+                                                 size_t a_wire_size)
+{
+    if (!a_mem || !a_wire || a_wire_size < DAP_CHAIN_NODE_INFO_FIXED_WIRE_SIZE)
+        return -1;
+    dap_serialize_result_t l_r =
+        dap_serialize_to_buffer_raw(&g_dap_chain_node_info_fixed_schema, a_mem, a_wire, a_wire_size, NULL);
+    return l_r.error_code;
+}
+
+static inline int dap_chain_node_info_fixed_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                   dap_chain_node_info_fixed_mem_t *a_mem)
+{
+    if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_NODE_INFO_FIXED_WIRE_SIZE)
+        return -1;
+    dap_deserialize_result_t l_r =
+        dap_deserialize_from_buffer_raw(&g_dap_chain_node_info_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
+    return l_r.error_code;
+}
+
 // using to easy sorting and formin in balancer
 typedef struct dap_chain_node_states_info {
     dap_link_info_t link_info;

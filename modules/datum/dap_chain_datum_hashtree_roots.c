@@ -25,5 +25,37 @@
 
 #include "dap_common.h"
 #include "dap_chain_datum_hashtree_roots.h"
+#include "dap_serialize.h"
+#include <stddef.h>
 
 #define LOG_TAG "dap_chain_datum_hashtree_roots"
+
+const dap_serialize_field_t g_dap_chain_datum_hashtree_roots_v2_fields[] = {
+    {
+        .name = "main",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_hashtree_roots_v2_mem_t, main),
+        .size = sizeof(((dap_chain_datum_hashtree_roots_v2_mem_t *)0)->main),
+    },
+    {
+        .name = "txs",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_hashtree_roots_v2_mem_t, txs),
+        .size = sizeof(((dap_chain_datum_hashtree_roots_v2_mem_t *)0)->txs),
+    },
+};
+
+const size_t g_dap_chain_datum_hashtree_roots_v2_field_count =
+    sizeof(g_dap_chain_datum_hashtree_roots_v2_fields) / sizeof(g_dap_chain_datum_hashtree_roots_v2_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_datum_hashtree_roots_v2_schema = {
+    .name = "chain_datum_hashtree_roots_v2",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_datum_hashtree_roots_v2_mem_t),
+    .field_count = sizeof(g_dap_chain_datum_hashtree_roots_v2_fields) / sizeof(g_dap_chain_datum_hashtree_roots_v2_fields[0]),
+    .fields = g_dap_chain_datum_hashtree_roots_v2_fields,
+    .magic = DAP_CHAIN_DATUM_HASHTREE_ROOTS_V2_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};

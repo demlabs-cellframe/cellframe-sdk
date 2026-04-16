@@ -17,8 +17,50 @@
 #include <dap_stream_pkt.h>
 #include <dap_stream_ch_pkt.h>
 #include "dap_chain_net_ch_pkt.h"
+#include "dap_serialize.h"
 
 #define LOG_TAG "dap_chain_net_ch_pkt"
+
+const dap_serialize_field_t g_dap_chain_net_ch_pkt_hdr_fields[] = {
+    {
+        .name = "version",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_net_ch_pkt_hdr_mem_t, version),
+        .size = sizeof(uint8_t),
+    },
+    {
+        .name = "padding",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_net_ch_pkt_hdr_mem_t, padding),
+        .size = sizeof(uint8_t),
+    },
+    {
+        .name = "data_size",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_net_ch_pkt_hdr_mem_t, data_size),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "net_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_net_ch_pkt_hdr_mem_t, net_id),
+        .size = DAP_CHAIN_NET_ID_SIZE,
+    },
+};
+
+const dap_serialize_schema_t g_dap_chain_net_ch_pkt_hdr_schema = {
+    .name = "chain_net_ch_pkt_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_net_ch_pkt_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_net_ch_pkt_hdr_fields) / sizeof(g_dap_chain_net_ch_pkt_hdr_fields[0]),
+    .fields = g_dap_chain_net_ch_pkt_hdr_fields,
+    .magic = DAP_CHAIN_NET_CH_PKT_HDR_MAGIC,
+    .validate_func = NULL,
+};
 
 /**
  * @brief dap_stream_ch_net_pkt_write

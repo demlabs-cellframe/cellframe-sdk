@@ -44,6 +44,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_sign.h"
 #include "dap_link_manager.h"
 #include "dap_chain_node.h"
+#include "dap_serialize.h"
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 
@@ -3814,3 +3815,43 @@ int dap_chain_esbocs_set_empty_block_every_times(dap_chain_t *a_chain, uint16_t 
     l_esbocs_pvt->empty_block_every_times = a_blockgen_period;
     return 0;
 }
+
+const dap_serialize_field_t g_dap_chain_esbocs_message_hdr_fields[] = {
+    { .name = "hdr", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_esbocs_message_hdr_mem_t, bytes), .size = DAP_CHAIN_ESBOCS_MESSAGE_HDR_WIRE_SIZE },
+};
+
+const dap_serialize_schema_t g_dap_chain_esbocs_message_hdr_schema = {
+    .name = "chain_esbocs_message_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_esbocs_message_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_esbocs_message_hdr_fields) /
+                   sizeof(g_dap_chain_esbocs_message_hdr_fields[0]),
+    .fields = g_dap_chain_esbocs_message_hdr_fields,
+    .magic = DAP_CHAIN_ESBOCS_MESSAGE_HDR_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_esbocs_directive_fixed_fields[] = {
+    { .name = "version", .type = DAP_SERIALIZE_TYPE_UINT8, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_esbocs_directive_fixed_mem_t, version), .size = sizeof(uint8_t) },
+    { .name = "type", .type = DAP_SERIALIZE_TYPE_UINT8, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_esbocs_directive_fixed_mem_t, type), .size = sizeof(uint8_t) },
+    { .name = "pad", .type = DAP_SERIALIZE_TYPE_UINT16, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_esbocs_directive_fixed_mem_t, pad), .size = sizeof(uint16_t) },
+    { .name = "size", .type = DAP_SERIALIZE_TYPE_UINT32, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_esbocs_directive_fixed_mem_t, size), .size = sizeof(uint32_t) },
+    { .name = "timestamp", .type = DAP_SERIALIZE_TYPE_UINT64, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_esbocs_directive_fixed_mem_t, timestamp), .size = sizeof(uint64_t) },
+};
+
+const dap_serialize_schema_t g_dap_chain_esbocs_directive_fixed_schema = {
+    .name = "chain_esbocs_directive_fixed",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_esbocs_directive_fixed_mem_t),
+    .field_count = sizeof(g_dap_chain_esbocs_directive_fixed_fields) /
+                   sizeof(g_dap_chain_esbocs_directive_fixed_fields[0]),
+    .fields = g_dap_chain_esbocs_directive_fixed_fields,
+    .magic = DAP_CHAIN_ESBOCS_DIRECTIVE_FIXED_MAGIC,
+    .validate_func = NULL,
+};

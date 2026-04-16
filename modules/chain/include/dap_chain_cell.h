@@ -23,14 +23,74 @@
 */
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <pthread.h>
 #include "dap_ht.h"
 #include "dap_chain.h"
 #include "dap_chain_common.h"
+#include "dap_serialize.h"
 
 #define DAP_CHAIN_CELL_MAX_COUNT    32
 #define DAP_CHAIN_CELL_FILE_EXT     "dchaincell"
+
+/**
+ * @brief On-disk / mmap header at the start of a chain cell file.
+ */
+typedef struct dap_chain_cell_file_header {
+    uint64_t signature;
+    uint32_t version;
+    uint8_t type;
+    dap_chain_id_t chain_id;
+    dap_chain_net_id_t chain_net_id;
+    dap_chain_cell_id_t cell_id;
+} DAP_ALIGN_PACKED dap_chain_cell_file_header_t;
+_Static_assert(sizeof(dap_chain_cell_file_header_t) == 8u + 4u + 1u + 8u + 8u + 8u,
+               "dap_chain_cell_file_header_t wire size");
+
+/** Wire size of @ref dap_chain_cell_file_header_t (packed). */
+#define DAP_CHAIN_CELL_FILE_HEADER_WIRE_SIZE sizeof(dap_chain_cell_file_header_t)
+
+/**
+ * @brief Naturally aligned in-memory view of @ref dap_chain_cell_file_header_t (matches wire layout).
+ */
+typedef struct dap_chain_cell_file_header_mem {
+    uint64_t signature;
+    uint32_t version;
+    uint8_t type;
+    uint8_t chain_id[DAP_CHAIN_ID_SIZE];
+    uint8_t chain_net_id[DAP_CHAIN_NET_ID_SIZE];
+    uint8_t cell_id[DAP_CHAIN_SHARD_ID_SIZE];
+} dap_chain_cell_file_header_mem_t;
+
+_Static_assert(sizeof(dap_chain_cell_file_header_mem_t) == DAP_CHAIN_CELL_FILE_HEADER_WIRE_SIZE,
+               "dap_chain_cell_file_header_mem_t matches cell file header wire layout");
+_Static_assert(sizeof(dap_chain_cell_file_header_mem_t) == sizeof(dap_chain_cell_file_header_t),
+               "dap_chain_cell_file_header_mem_t matches packed header");
+
+extern const dap_serialize_field_t g_dap_chain_cell_file_header_fields[];
+extern const dap_serialize_schema_t g_dap_chain_cell_file_header_schema;
+#define DAP_CHAIN_CELL_FILE_HEADER_SERIALIZE_MAGIC 0xCF5FF010U
+
+static inline int dap_chain_cell_file_header_pack(const dap_chain_cell_file_header_mem_t *a_mem, uint8_t *a_wire,
+                                                  size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_CELL_FILE_HEADER_WIRE_SIZE)
+        return -1;
+    dap_serialize_result_t l_r =
+        dap_serialize_to_buffer_raw(&g_dap_chain_cell_file_header_schema, a_mem, a_wire, a_wire_size, NULL);
+    return l_r.error_code;
+}
+
+static inline int dap_chain_cell_file_header_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                    dap_chain_cell_file_header_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_CELL_FILE_HEADER_WIRE_SIZE)
+        return -1;
+    dap_deserialize_result_t l_r =
+        dap_deserialize_from_buffer_raw(&g_dap_chain_cell_file_header_schema, a_wire, a_wire_size, a_mem, NULL);
+    return l_r.error_code;
+}
 
 typedef struct dap_chain_cell_mmap_data dap_chain_cell_mmap_data_t;
 
@@ -60,6 +120,8 @@ typedef struct dap_chain_cell_delc_req {
         char str[DAP_CHAIN_CELL_DECL_REQ_SIGN_SIZE];
     } info;
 } DAP_ALIGN_PACKED dap_chain_cell_decl_req_t;
+_Static_assert(sizeof(dap_chain_cell_decl_req_t) == (1u + 8u + 4u + 32u + 32u) + 8u + 32u,
+               "dap_chain_cell_decl_req_t wire size");
 
 /**
   * @struct dap_chain_cell_decl
@@ -76,6 +138,8 @@ typedef struct dap_chain_cell_decl{
         char str[DAP_CHAIN_CELL_DECL_ACCEPT_INFO_SIZE];
     } accept_info;
 } DAP_ALIGN_PACKED dap_chain_cell_decl_t;
+_Static_assert(sizeof(dap_chain_cell_decl_t) == sizeof(dap_chain_cell_decl_req_t) + 8u + 8u + 32u,
+               "dap_chain_cell_decl_t wire size");
 
 
 int dap_chain_cell_init(void);

@@ -28,8 +28,44 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_list.h"
 #include "dap_ht.h"
 #include "dap_json.h"
+#include "dap_serialize.h"
+#include <stddef.h>
 
 #define LOG_TAG "dap_chain_policy"
+
+const dap_serialize_field_t g_dap_chain_policy_fixed_fields[] = {
+    {
+        .name = "version",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_policy_fixed_mem_t, version),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "flags",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_policy_fixed_mem_t, flags_wire),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "data_size",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_policy_fixed_mem_t, data_size_wire),
+        .size = sizeof(uint64_t),
+    },
+};
+
+const dap_serialize_schema_t g_dap_chain_policy_fixed_schema = {
+    .name = "chain_policy_fixed",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_policy_fixed_mem_t),
+    .field_count = sizeof(g_dap_chain_policy_fixed_fields) / sizeof(g_dap_chain_policy_fixed_fields[0]),
+    .fields = g_dap_chain_policy_fixed_fields,
+    .magic = DAP_CHAIN_POLICY_FIXED_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
 
 #define DAP_CHAIN_POLICY_VERSION                1
 

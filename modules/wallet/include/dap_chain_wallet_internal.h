@@ -24,10 +24,12 @@
 
 #pragma once
 
+#include <stddef.h>
 #include "dap_cert.h"
 #include "dap_cert_file.h"
 #include "dap_chain_common.h"
 #include "dap_chain_wallet.h"
+#include "dap_serialize.h"
 
 #define DAP_CHAIN_WALLETS_FILE_SIGNATURE (uint64_t)0x1a167bef15feea18
 
@@ -87,6 +89,32 @@ typedef struct dap_chain_wallet_file_hdr{
  *
  * Access data via: (uint8_t*)hdr + sizeof(*hdr) + hdr->wallet_len
  */
+
+#define DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE offsetof(dap_chain_wallet_file_hdr_t, wallet_name)
+typedef struct dap_chain_wallet_file_hdr_fixed_mem {
+    uint8_t bytes[DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE];
+} dap_chain_wallet_file_hdr_fixed_mem_t;
+_Static_assert(sizeof(dap_chain_wallet_file_hdr_fixed_mem_t) == DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE,
+               "dap_chain_wallet_file_hdr_fixed_mem_t matches fixed wire layout");
+#define DAP_CHAIN_WALLET_FILE_HDR_FIXED_MAGIC 0xCF5FF028U
+extern const dap_serialize_field_t g_dap_chain_wallet_file_hdr_fixed_fields[];
+extern const dap_serialize_schema_t g_dap_chain_wallet_file_hdr_fixed_schema;
+static inline int dap_chain_wallet_file_hdr_fixed_pack(const dap_chain_wallet_file_hdr_fixed_mem_t *a_mem,
+                                                       uint8_t *a_wire, size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_wallet_file_hdr_fixed_schema, a_mem, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_wallet_file_hdr_fixed_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                         dap_chain_wallet_file_hdr_fixed_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_wallet_file_hdr_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
+    return r.error_code;
+}
 
 typedef struct dap_chain_wallet_internal
 {

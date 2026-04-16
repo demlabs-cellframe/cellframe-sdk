@@ -24,7 +24,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 #include "dap_common.h"
+#include "dap_serialize.h"
 #include "dap_chain_common.h"
 
 /**
@@ -40,3 +42,45 @@ typedef struct dap_chain_tx_in_cond {
         int32_t receipt_idx DAP_ALIGNED(4);
     } DAP_PACKED header; /// Only header's hash is used for verification
 } DAP_PACKED dap_chain_tx_in_cond_t;
+
+/** Wire size of @ref dap_chain_tx_in_cond_t::header (packed). */
+#define DAP_CHAIN_TX_IN_COND_HDR_WIRE_SIZE sizeof(((dap_chain_tx_in_cond_t *)0)->header)
+_Static_assert(sizeof(dap_chain_tx_in_cond_t) == 44u, "dap_chain_tx_in_cond_t wire size");
+_Static_assert(DAP_CHAIN_TX_IN_COND_HDR_WIRE_SIZE == 44, "dap_chain_tx_in_cond_t header wire layout");
+
+#define DAP_CHAIN_TX_IN_COND_SERIALIZE_MAGIC 0xCF5FEEDEU
+
+/**
+ * @brief Naturally aligned layout matching the on-wire @ref dap_chain_tx_in_cond_t::header field sequence.
+ */
+typedef struct dap_chain_tx_in_cond_mem {
+    dap_chain_tx_item_type_t type;
+    uint8_t tx_prev_hash[sizeof(dap_hash_sha3_256_t)];
+    uint8_t wire_pad_before_tx_out_prev_idx[3];
+    uint32_t tx_out_prev_idx;
+    int32_t receipt_idx;
+} dap_chain_tx_in_cond_mem_t;
+
+_Static_assert(sizeof(dap_chain_tx_in_cond_mem_t) == DAP_CHAIN_TX_IN_COND_HDR_WIRE_SIZE, "dap_chain_tx_in_cond_mem_t wire size");
+
+extern const dap_serialize_field_t g_dap_chain_tx_in_cond_fields[];
+extern const size_t g_dap_chain_tx_in_cond_field_count;
+extern const dap_serialize_schema_t g_dap_chain_tx_in_cond_schema;
+
+static inline int dap_chain_tx_in_cond_pack(const dap_chain_tx_in_cond_mem_t *a_mem, uint8_t *a_wire, size_t a_wire_size)
+{
+    if (!a_mem || !a_wire || a_wire_size < DAP_CHAIN_TX_IN_COND_HDR_WIRE_SIZE)
+        return -1;
+    dap_serialize_result_t l_r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_tx_in_cond_schema, a_mem, a_wire, a_wire_size, NULL);
+    return l_r.error_code;
+}
+
+static inline int dap_chain_tx_in_cond_unpack(const uint8_t *a_wire, size_t a_wire_size, dap_chain_tx_in_cond_mem_t *a_mem)
+{
+    if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_TX_IN_COND_HDR_WIRE_SIZE)
+        return -1;
+    dap_deserialize_result_t l_r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_tx_in_cond_schema, a_wire, a_wire_size, a_mem, NULL);
+    return l_r.error_code;
+}

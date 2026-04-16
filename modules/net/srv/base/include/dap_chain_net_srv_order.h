@@ -23,12 +23,14 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #pragma once
+#include <stddef.h>
 #include "dap_chain_net.h"
 #include "dap_json.h"
 #include "dap_common.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
+#include "dap_serialize.h"
 
 
 typedef struct dap_chain_net_srv_order {
@@ -49,6 +51,46 @@ typedef struct dap_chain_net_srv_order {
     byte_t free_space[120];  // for future changes
     uint8_t ext_n_sign[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
+
+#define DAP_CHAIN_NET_SRV_ORDER_FIXED_WIRE_SIZE offsetof(dap_chain_net_srv_order_t, ext_n_sign)
+typedef struct dap_chain_net_srv_order_fixed_mem {
+    uint16_t version;
+    uint8_t srv_uid[DAP_CHAIN_NET_SRV_UID_SIZE];
+    uint8_t padding[8];
+    uint8_t direction;
+    uint8_t padding_dir[3];
+    uint8_t node_addr[sizeof(dap_chain_node_addr_t)];
+    uint8_t tx_cond_hash[DAP_HASH_SHA3_256_SIZE];
+    uint8_t price_unit[sizeof(dap_chain_net_srv_price_unit_uid_t)];
+    uint8_t ts_created[sizeof(dap_time_t)];
+    uint8_t ts_expires[sizeof(dap_time_t)];
+    uint8_t price[sizeof(uint256_t)];
+    char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint32_t ext_size;
+    uint64_t units;
+    uint8_t free_space[120];
+} dap_chain_net_srv_order_fixed_mem_t;
+_Static_assert(sizeof(dap_chain_net_srv_order_fixed_mem_t) == DAP_CHAIN_NET_SRV_ORDER_FIXED_WIRE_SIZE,
+               "dap_chain_net_srv_order_fixed_mem_t matches fixed wire layout");
+#define DAP_CHAIN_NET_SRV_ORDER_FIXED_MAGIC 0xCF5FF024U
+extern const dap_serialize_field_t g_dap_chain_net_srv_order_fixed_fields[];
+extern const dap_serialize_schema_t g_dap_chain_net_srv_order_fixed_schema;
+static inline int dap_chain_net_srv_order_fixed_pack(const dap_chain_net_srv_order_fixed_mem_t *a_mem,
+                                                     uint8_t *a_wire, size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_NET_SRV_ORDER_FIXED_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_net_srv_order_fixed_schema, a_mem, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_net_srv_order_fixed_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                       dap_chain_net_srv_order_fixed_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_NET_SRV_ORDER_FIXED_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_net_srv_order_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
+    return r.error_code;
+}
 
 #ifdef __cplusplus
 extern "C" {

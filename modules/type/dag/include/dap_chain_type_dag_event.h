@@ -23,12 +23,16 @@
 */
 #pragma once
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "dap_chain_net.h"
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
+#include "dap_serialize.h"
 
 typedef struct dap_chain_type_dag dap_chain_type_dag_t;
 
@@ -41,6 +45,51 @@ typedef struct dap_chain_class_dag_event_hdr {
         uint16_t hash_count; // Number of hashes
         uint16_t signs_count; // Number of signs nested with event
 } DAP_ALIGN_PACKED dap_chain_class_dag_event_hdr_t;
+
+/** Wire size of @ref dap_chain_class_dag_event_hdr_t (packed) / fixed part of @ref dap_chain_type_dag_event_t. */
+#define DAP_CHAIN_CLASS_DAG_EVENT_HDR_WIRE_SIZE sizeof(dap_chain_class_dag_event_hdr_t)
+
+/**
+ * @brief Naturally compact in-memory view of @ref dap_chain_class_dag_event_hdr_t (matches packed wire).
+ */
+typedef struct dap_chain_class_dag_event_hdr_mem {
+    uint16_t version;
+    uint8_t round_id_wire[sizeof(uint64_t)];
+    uint8_t ts_created_wire[sizeof(dap_time_t)];
+    uint8_t chain_id[DAP_CHAIN_ID_SIZE];
+    uint8_t cell_id[DAP_CHAIN_SHARD_ID_SIZE];
+    uint16_t hash_count;
+    uint16_t signs_count;
+} dap_chain_class_dag_event_hdr_mem_t;
+
+_Static_assert(sizeof(dap_chain_class_dag_event_hdr_mem_t) == DAP_CHAIN_CLASS_DAG_EVENT_HDR_WIRE_SIZE,
+               "dap_chain_class_dag_event_hdr_mem_t matches dag event header wire layout");
+_Static_assert(sizeof(dap_chain_class_dag_event_hdr_mem_t) == sizeof(dap_chain_class_dag_event_hdr_t),
+               "dag event hdr mem matches packed hdr");
+
+extern const dap_serialize_field_t g_dap_chain_class_dag_event_hdr_fields[];
+extern const dap_serialize_schema_t g_dap_chain_class_dag_event_hdr_schema;
+#define DAP_CHAIN_CLASS_DAG_EVENT_HDR_SERIALIZE_MAGIC 0xCF5FF014U
+
+static inline int dap_chain_class_dag_event_hdr_pack(const dap_chain_class_dag_event_hdr_mem_t *a_mem, uint8_t *a_wire,
+                                                     size_t a_wire_size)
+{
+    if (!a_mem || !a_wire || a_wire_size < DAP_CHAIN_CLASS_DAG_EVENT_HDR_WIRE_SIZE)
+        return -1;
+    dap_serialize_result_t l_r =
+        dap_serialize_to_buffer_raw(&g_dap_chain_class_dag_event_hdr_schema, a_mem, a_wire, a_wire_size, NULL);
+    return l_r.error_code;
+}
+
+static inline int dap_chain_class_dag_event_hdr_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                       dap_chain_class_dag_event_hdr_mem_t *a_mem)
+{
+    if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_CLASS_DAG_EVENT_HDR_WIRE_SIZE)
+        return -1;
+    dap_deserialize_result_t l_r =
+        dap_deserialize_from_buffer_raw(&g_dap_chain_class_dag_event_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
+    return l_r.error_code;
+}
 
 typedef struct dap_chain_type_dag_event {
     dap_chain_class_dag_event_hdr_t header;

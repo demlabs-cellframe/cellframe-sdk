@@ -20,6 +20,8 @@
  */
 
  #include "dap_common.h"
+#include <stddef.h>
+#include "dap_serialize.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_hash.h"
@@ -46,6 +48,54 @@
 #include "dap_link_manager.h"
 
 #define LOG_TAG "dap_chain_node"
+
+const dap_serialize_field_t g_dap_chain_node_info_fixed_fields[] = {
+    {
+        .name = "address",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_node_info_fixed_mem_t, address),
+        .size = sizeof(dap_chain_node_addr_t),
+    },
+    {
+        .name = "cell_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_node_info_fixed_mem_t, cell_id),
+        .size = DAP_CHAIN_SHARD_ID_SIZE,
+    },
+    {
+        .name = "alias",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_node_info_fixed_mem_t, alias),
+        .size = 64,
+    },
+    {
+        .name = "ext_port",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_node_info_fixed_mem_t, ext_port),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "ext_host_len",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_node_info_fixed_mem_t, ext_host_len),
+        .size = sizeof(uint8_t),
+    },
+};
+
+const dap_serialize_schema_t g_dap_chain_node_info_fixed_schema = {
+    .name = "chain_node_info_fixed",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_node_info_fixed_mem_t),
+    .field_count = sizeof(g_dap_chain_node_info_fixed_fields) / sizeof(g_dap_chain_node_info_fixed_fields[0]),
+    .fields = g_dap_chain_node_info_fixed_fields,
+    .magic = DAP_CHAIN_NODE_INFO_FIXED_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
 
 #define DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION 2
 

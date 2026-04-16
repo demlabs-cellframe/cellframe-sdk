@@ -30,8 +30,73 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_type_dag.h"
 #include "dap_timerfd.h"
+#include "dap_serialize.h"
+#include <stddef.h>
+#include <stdint.h>
 
 #define LOG_TAG "dap_chain_type_dag_event"
+
+const dap_serialize_field_t g_dap_chain_class_dag_event_hdr_fields[] = {
+    {
+        .name = "version",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_class_dag_event_hdr_mem_t, version),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "round_id",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_class_dag_event_hdr_mem_t, round_id_wire),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "ts_created",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_class_dag_event_hdr_mem_t, ts_created_wire),
+        .size = sizeof(dap_time_t),
+    },
+    {
+        .name = "chain_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_class_dag_event_hdr_mem_t, chain_id),
+        .size = DAP_CHAIN_ID_SIZE,
+    },
+    {
+        .name = "cell_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_class_dag_event_hdr_mem_t, cell_id),
+        .size = DAP_CHAIN_SHARD_ID_SIZE,
+    },
+    {
+        .name = "hash_count",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_class_dag_event_hdr_mem_t, hash_count),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "signs_count",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_class_dag_event_hdr_mem_t, signs_count),
+        .size = sizeof(uint16_t),
+    },
+};
+
+const dap_serialize_schema_t g_dap_chain_class_dag_event_hdr_schema = {
+    .name = "chain_class_dag_event_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_class_dag_event_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_class_dag_event_hdr_fields) / sizeof(g_dap_chain_class_dag_event_hdr_fields[0]),
+    .fields = g_dap_chain_class_dag_event_hdr_fields,
+    .magic = DAP_CHAIN_CLASS_DAG_EVENT_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
 
 /**
  * @brief dap_chain_type_dag_event_new

@@ -28,6 +28,7 @@
 
 
 #include "dap_common.h"
+#include "dap_serialize.h"
 #include "dap_enc_base58.h"
 #include "dap_math_ops.h"
 #include "dap_math_convert.h"
@@ -58,12 +59,14 @@ typedef union dap_chain_id {
     uint8_t raw[DAP_CHAIN_ID_SIZE];
     uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_id_t;
+_Static_assert(sizeof(dap_chain_id_t) == DAP_CHAIN_ID_SIZE, "dap_chain_id_t wire size");
 
 // Shard ID
 typedef union dap_chain_cell_id {
     uint8_t raw[DAP_CHAIN_SHARD_ID_SIZE];
     uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_cell_id_t;
+_Static_assert(sizeof(dap_chain_cell_id_t) == DAP_CHAIN_SHARD_ID_SIZE, "dap_chain_cell_id_t wire size");
 
 enum {
     NODE_ROLE_ROOT_MASTER=0x00,
@@ -77,7 +80,8 @@ enum {
 typedef union dap_chain_node_role{
     uint32_t enums;
     uint8_t raw[DAP_CHAIN_NODE_ROLE_SIZE];
-} DAP_ALIGN_PACKED dap_chain_node_role_t;
+} dap_chain_node_role_t;
+_Static_assert(sizeof(dap_chain_node_role_t) == DAP_CHAIN_NODE_ROLE_SIZE, "dap_chain_node_role_t wire size");
 
 DAP_STATIC_INLINE const char *dap_chain_node_role_to_str(dap_chain_node_role_t a_node_role)
 {
@@ -102,6 +106,7 @@ typedef union dap_chain_net_id{
     uint64_t uint64;
     uint8_t raw[DAP_CHAIN_NET_ID_SIZE];
 } DAP_ALIGN_PACKED dap_chain_net_id_t;
+_Static_assert(sizeof(dap_chain_net_id_t) == DAP_CHAIN_NET_ID_SIZE, "dap_chain_net_id_t wire size");
 
 typedef union dap_chain_hash_slow{
     uint8_t raw[DAP_CHAIN_HASH_SLOW_SIZE];
@@ -127,6 +132,42 @@ typedef struct dap_chain_addr{
     } DAP_ALIGN_PACKED data;
     dap_hash_sha3_256_t checksum;
 } DAP_ALIGN_PACKED dap_chain_addr_t;
+_Static_assert(sizeof(dap_chain_addr_t) == 1u + 8u + 4u + 32u + 32u, "dap_chain_addr_t wire size");
+
+#define DAP_CHAIN_ADDR_WIRE_SIZE sizeof(dap_chain_addr_t)
+
+/**
+ * @brief Naturally aligned storage for @ref dap_chain_addr_t wire image (packed union on the wire).
+ */
+typedef struct dap_chain_addr_mem {
+    uint8_t bytes[DAP_CHAIN_ADDR_WIRE_SIZE];
+} dap_chain_addr_mem_t;
+
+_Static_assert(sizeof(dap_chain_addr_mem_t) == sizeof(dap_chain_addr_t), "dap_chain_addr_mem_t wire size");
+
+#define DAP_CHAIN_ADDR_SERIALIZE_MAGIC 0xCF5FEED1U
+
+extern const dap_serialize_field_t g_dap_chain_addr_fields[];
+extern const size_t g_dap_chain_addr_field_count;
+extern const dap_serialize_schema_t g_dap_chain_addr_schema;
+
+static inline int dap_chain_addr_pack(const dap_chain_addr_mem_t *a_mem, uint8_t *a_wire, size_t a_wire_size)
+{
+    if (!a_mem || !a_wire || a_wire_size < DAP_CHAIN_ADDR_WIRE_SIZE)
+        return -1;
+    dap_serialize_result_t l_r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_addr_schema, a_mem, a_wire, a_wire_size, NULL);
+    return l_r.error_code;
+}
+
+static inline int dap_chain_addr_unpack(const uint8_t *a_wire, size_t a_wire_size, dap_chain_addr_mem_t *a_mem)
+{
+    if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_ADDR_WIRE_SIZE)
+        return -1;
+    dap_deserialize_result_t l_r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_addr_schema, a_wire, a_wire_size, a_mem, NULL);
+    return l_r.error_code;
+}
 
 typedef union dap_chain_addr_str {
     const char s[DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t))];
@@ -143,6 +184,7 @@ typedef union {
     uint64_t raw_ui64;
     uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_srv_uid_t;
+_Static_assert(sizeof(dap_chain_srv_uid_t) == DAP_CHAIN_NET_SRV_UID_SIZE, "dap_chain_srv_uid_t wire size");
 
 extern const dap_chain_srv_uid_t c_dap_chain_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
@@ -185,6 +227,7 @@ typedef union {
     uint32_t uint32;
     dap_chain_srv_unit_enum_t enm;
 } DAP_ALIGN_PACKED dap_chain_net_srv_price_unit_uid_t;
+_Static_assert(sizeof(dap_chain_net_srv_price_unit_uid_t) == 4, "dap_chain_net_srv_price_unit_uid_t wire size");
 
 enum dap_chain_tx_item_type {
     /// @brief Transaction: inputs

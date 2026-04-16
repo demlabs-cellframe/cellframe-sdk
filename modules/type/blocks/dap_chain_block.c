@@ -21,13 +21,91 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <stddef.h>
+#include <stdint.h>
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_hash.h"
 #include "dap_uuid.h"
 #include "dap_chain_block.h"
+#include "dap_serialize.h"
 
 #define LOG_TAG "dap_chain_block"
+
+const dap_serialize_field_t g_dap_chain_block_hdr_fields[] = {
+    {
+        .name = "signature",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_block_hdr_mem_t, signature),
+        .size = sizeof(uint32_t),
+    },
+    {
+        .name = "version",
+        .type = DAP_SERIALIZE_TYPE_INT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_block_hdr_mem_t, version),
+        .size = sizeof(int32_t),
+    },
+    {
+        .name = "cell_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_block_hdr_mem_t, cell_id),
+        .size = DAP_CHAIN_SHARD_ID_SIZE,
+    },
+    {
+        .name = "chain_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_block_hdr_mem_t, chain_id),
+        .size = DAP_CHAIN_ID_SIZE,
+    },
+    {
+        .name = "ts_created",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_block_hdr_mem_t, ts_created_wire),
+        .size = sizeof(dap_time_t),
+    },
+    {
+        .name = "meta_count",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_block_hdr_mem_t, meta_count),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "datum_count",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_block_hdr_mem_t, datum_count),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "merkle",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_block_hdr_mem_t, merkle),
+        .size = DAP_CHAIN_HASH_SLOW_SIZE,
+    },
+    {
+        .name = "meta_n_datum_n_signs_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_block_hdr_mem_t, meta_n_datum_n_signs_size),
+        .size = sizeof(uint32_t),
+    },
+};
+
+const dap_serialize_schema_t g_dap_chain_block_hdr_schema = {
+    .name = "chain_block_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_block_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_block_hdr_fields) / sizeof(g_dap_chain_block_hdr_fields[0]),
+    .fields = g_dap_chain_block_hdr_fields,
+    .magic = DAP_CHAIN_BLOCK_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
 
 bool s_dap_block_debug_more = false;
 

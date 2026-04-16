@@ -29,6 +29,7 @@
 #include "dap_config.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
+#include "dap_serialize.h"
 #include <stdint.h>
 #ifdef DAP_OS_WINDOWS
 #include <winternl.h>
@@ -44,18 +45,60 @@
 #define DAP_MAPPED_VOLUME_LIMIT ( 1 << 28 ) // 256 MB for now, may be should be configurable?
 #define DAP_LOCAL_STAT_GROUP_NAME "local.stat"
 
-/**
-  * @struct dap_chain_cell_file_header
-  */
-typedef struct dap_chain_cell_file_header
-{
-    uint64_t signature;
-    uint32_t version;
-    uint8_t type;
-    dap_chain_id_t chain_id;
-    dap_chain_net_id_t chain_net_id;
-    dap_chain_cell_id_t cell_id;
-} DAP_ALIGN_PACKED dap_chain_cell_file_header_t;
+const dap_serialize_field_t g_dap_chain_cell_file_header_fields[] = {
+    {
+        .name = "signature",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_cell_file_header_mem_t, signature),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "version",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_cell_file_header_mem_t, version),
+        .size = sizeof(uint32_t),
+    },
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_cell_file_header_mem_t, type),
+        .size = sizeof(uint8_t),
+    },
+    {
+        .name = "chain_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_cell_file_header_mem_t, chain_id),
+        .size = DAP_CHAIN_ID_SIZE,
+    },
+    {
+        .name = "chain_net_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_cell_file_header_mem_t, chain_net_id),
+        .size = DAP_CHAIN_NET_ID_SIZE,
+    },
+    {
+        .name = "cell_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_cell_file_header_mem_t, cell_id),
+        .size = DAP_CHAIN_SHARD_ID_SIZE,
+    },
+};
+
+const dap_serialize_schema_t g_dap_chain_cell_file_header_schema = {
+    .name = "chain_cell_file_header",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_cell_file_header_mem_t),
+    .field_count = sizeof(g_dap_chain_cell_file_header_fields) / sizeof(g_dap_chain_cell_file_header_fields[0]),
+    .fields = g_dap_chain_cell_file_header_fields,
+    .magic = DAP_CHAIN_CELL_FILE_HEADER_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
 
 typedef struct dap_chain_cell_mmap_volume {
 #ifdef DAP_OS_DARWIN

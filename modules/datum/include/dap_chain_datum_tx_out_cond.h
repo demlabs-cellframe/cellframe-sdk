@@ -25,7 +25,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
 #include "dap_common.h"
+#include "dap_serialize.h"
 #include "dap_time.h"
 #include "dap_chain_common.h"
 
@@ -136,6 +138,51 @@ typedef struct dap_chain_tx_out_cond {
     uint8_t tsd[]; // condition parameters, pkey, hash or smth like this
 } DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;
 
+/** Wire size of @ref dap_chain_tx_out_cond_t::header (packed; subtypes not included). */
+#define DAP_CHAIN_TX_OUT_COND_HDR_WIRE_SIZE sizeof(((dap_chain_tx_out_cond_t *)0)->header)
+_Static_assert(DAP_CHAIN_TX_OUT_COND_HDR_WIRE_SIZE == 64, "dap_chain_tx_out_cond_t header wire layout");
+
+#define DAP_CHAIN_TX_OUT_COND_HDR_SERIALIZE_MAGIC 0xCF5FEEDBU
+
+/**
+ * @brief Naturally aligned layout matching the on-wire @ref dap_chain_tx_out_cond_t::header field sequence.
+ */
+typedef struct dap_chain_tx_out_cond_hdr_mem {
+    dap_chain_tx_item_type_t item_type;
+    dap_chain_tx_out_cond_subtype_t subtype;
+    uint8_t value[sizeof(uint256_t)];
+    uint8_t paddding_ext[6];
+    dap_time_t ts_expires;
+    uint64_t srv_uid_le;
+    uint8_t padding[8];
+} dap_chain_tx_out_cond_hdr_mem_t;
+
+_Static_assert(sizeof(dap_chain_tx_out_cond_hdr_mem_t) == DAP_CHAIN_TX_OUT_COND_HDR_WIRE_SIZE,
+               "dap_chain_tx_out_cond_hdr_mem_t wire size");
+
+extern const dap_serialize_field_t g_dap_chain_tx_out_cond_hdr_fields[];
+extern const size_t g_dap_chain_tx_out_cond_hdr_field_count;
+extern const dap_serialize_schema_t g_dap_chain_tx_out_cond_hdr_schema;
+
+static inline int dap_chain_tx_out_cond_hdr_pack(const dap_chain_tx_out_cond_hdr_mem_t *a_mem, uint8_t *a_wire,
+                                                   size_t a_wire_size)
+{
+    if (!a_mem || !a_wire || a_wire_size < DAP_CHAIN_TX_OUT_COND_HDR_WIRE_SIZE)
+        return -1;
+    dap_serialize_result_t l_r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_tx_out_cond_hdr_schema, a_mem, a_wire, a_wire_size, NULL);
+    return l_r.error_code;
+}
+
+static inline int dap_chain_tx_out_cond_hdr_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                   dap_chain_tx_out_cond_hdr_mem_t *a_mem)
+{
+    if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_TX_OUT_COND_HDR_WIRE_SIZE)
+        return -1;
+    dap_deserialize_result_t l_r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_tx_out_cond_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
+    return l_r.error_code;
+}
 
 #ifdef __cplusplus
 extern "C" {

@@ -23,10 +23,12 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
+#include <stddef.h>
 #include "dap_chain.h"
 #include "dap_json.h"
 #include "dap_chain_type_blocks.h"
 #include "dap_chain_block_collect.h"  // Common block collection types (moved here to break cycles)
+#include "dap_serialize.h"
 
 // Forward declarations
 typedef struct dap_global_db_cluster dap_global_db_cluster_t;
@@ -113,6 +115,32 @@ typedef struct dap_chain_esbocs_message {
     uint8_t msg_n_sign[];
 } DAP_ALIGN_PACKED dap_chain_esbocs_message_t;
 
+#define DAP_CHAIN_ESBOCS_MESSAGE_HDR_WIRE_SIZE sizeof(dap_chain_esbocs_message_hdr_t)
+typedef struct dap_chain_esbocs_message_hdr_mem {
+    uint8_t bytes[DAP_CHAIN_ESBOCS_MESSAGE_HDR_WIRE_SIZE];
+} dap_chain_esbocs_message_hdr_mem_t;
+_Static_assert(sizeof(dap_chain_esbocs_message_hdr_mem_t) == DAP_CHAIN_ESBOCS_MESSAGE_HDR_WIRE_SIZE,
+               "dap_chain_esbocs_message_hdr_mem_t matches wire layout");
+#define DAP_CHAIN_ESBOCS_MESSAGE_HDR_MAGIC 0xCF5FF02AU
+extern const dap_serialize_field_t g_dap_chain_esbocs_message_hdr_fields[];
+extern const dap_serialize_schema_t g_dap_chain_esbocs_message_hdr_schema;
+static inline int dap_chain_esbocs_message_hdr_pack(const dap_chain_esbocs_message_hdr_mem_t *a_mem,
+                                                    uint8_t *a_wire, size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_ESBOCS_MESSAGE_HDR_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_esbocs_message_hdr_schema, a_mem, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_esbocs_message_hdr_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                      dap_chain_esbocs_message_hdr_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_ESBOCS_MESSAGE_HDR_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_esbocs_message_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
+    return r.error_code;
+}
+
 typedef struct dap_chain_esbocs_message_item {
     dap_hash_sha3_256_t message_hash;
     dap_chain_esbocs_message_t *message;
@@ -166,6 +194,36 @@ typedef struct dap_chain_esbocs_directive {
     dap_nanotime_t timestamp;
     byte_t tsd[];
 } DAP_ALIGN_PACKED dap_chain_esbocs_directive_t;
+
+#define DAP_CHAIN_ESBOCS_DIRECTIVE_FIXED_WIRE_SIZE offsetof(dap_chain_esbocs_directive_t, tsd)
+typedef struct dap_chain_esbocs_directive_fixed_mem {
+    uint8_t version;
+    uint8_t type;
+    uint16_t pad;
+    uint32_t size;
+    uint64_t timestamp;
+} dap_chain_esbocs_directive_fixed_mem_t;
+_Static_assert(sizeof(dap_chain_esbocs_directive_fixed_mem_t) == DAP_CHAIN_ESBOCS_DIRECTIVE_FIXED_WIRE_SIZE,
+               "dap_chain_esbocs_directive_fixed_mem_t matches wire layout");
+#define DAP_CHAIN_ESBOCS_DIRECTIVE_FIXED_MAGIC 0xCF5FF02BU
+extern const dap_serialize_field_t g_dap_chain_esbocs_directive_fixed_fields[];
+extern const dap_serialize_schema_t g_dap_chain_esbocs_directive_fixed_schema;
+static inline int dap_chain_esbocs_directive_fixed_pack(const dap_chain_esbocs_directive_fixed_mem_t *a_mem,
+                                                        uint8_t *a_wire, size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_ESBOCS_DIRECTIVE_FIXED_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_esbocs_directive_fixed_schema, a_mem, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_esbocs_directive_fixed_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                          dap_chain_esbocs_directive_fixed_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_ESBOCS_DIRECTIVE_FIXED_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_esbocs_directive_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
+    return r.error_code;
+}
 
 typedef struct dap_chain_esbocs_round {
     uint64_t id;

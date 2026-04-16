@@ -24,6 +24,7 @@
 #pragma once
 
 #include "dap_common.h"
+#include "dap_serialize.h"
 #include "dap_list.h"
 #include "dap_enc_key.h"
 #include "dap_time.h"
@@ -44,6 +45,43 @@ typedef struct dap_chain_datum_tx {
     } DAP_ALIGN_PACKED header;
     uint8_t tx_items[];
 } DAP_ALIGN_PACKED dap_chain_datum_tx_t;
+
+/** Wire size of @ref dap_chain_datum_tx_t::header (packed, before FAM @c tx_items). */
+#define DAP_CHAIN_DATUM_TX_HDR_WIRE_SIZE (sizeof(uint64_t) + sizeof(uint32_t))
+_Static_assert(sizeof(((dap_chain_datum_tx_t *)0)->header) == DAP_CHAIN_DATUM_TX_HDR_WIRE_SIZE,
+               "dap_chain_datum_tx_t header wire layout");
+
+#define DAP_CHAIN_DATUM_TX_HDR_SERIALIZE_MAGIC 0xCF5FEED4U
+
+/**
+ * @brief Naturally aligned in-memory view of @ref dap_chain_datum_tx_t::header (wire is packed).
+ */
+typedef struct dap_chain_datum_tx_hdr_mem {
+    dap_time_t ts_created;
+    uint32_t tx_items_size;
+} dap_chain_datum_tx_hdr_mem_t;
+
+extern const dap_serialize_field_t g_dap_chain_datum_tx_hdr_fields[];
+extern const size_t g_dap_chain_datum_tx_hdr_field_count;
+extern const dap_serialize_schema_t g_dap_chain_datum_tx_hdr_schema;
+
+static inline int dap_chain_datum_tx_hdr_pack(const dap_chain_datum_tx_hdr_mem_t *a_mem, uint8_t *a_wire, size_t a_wire_size)
+{
+    if (!a_mem || !a_wire || a_wire_size < DAP_CHAIN_DATUM_TX_HDR_WIRE_SIZE)
+        return -1;
+    dap_serialize_result_t l_r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_datum_tx_hdr_schema, a_mem, a_wire, a_wire_size, NULL);
+    return l_r.error_code;
+}
+
+static inline int dap_chain_datum_tx_hdr_unpack(const uint8_t *a_wire, size_t a_wire_size, dap_chain_datum_tx_hdr_mem_t *a_mem)
+{
+    if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_DATUM_TX_HDR_WIRE_SIZE)
+        return -1;
+    dap_deserialize_result_t l_r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_datum_tx_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
+    return l_r.error_code;
+}
 
 #define TX_ITEM_ITER(item, item_size, data, total_size)                                                             \
     for ( byte_t *l_pos = (byte_t*)(data), *l_end = l_pos + (total_size) > l_pos ? l_pos + (total_size) : l_pos;    \

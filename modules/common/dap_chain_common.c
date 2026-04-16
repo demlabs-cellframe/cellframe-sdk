@@ -30,8 +30,32 @@
 #endif
 #include "dap_json.h"
 #include "dap_chain_common.h"
+#include "dap_serialize.h"
 
 #define LOG_TAG "dap_chain_common"
+
+const dap_serialize_field_t g_dap_chain_addr_fields[] = {
+    {
+        .name = "addr",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_addr_mem_t, bytes),
+        .size = DAP_CHAIN_ADDR_WIRE_SIZE,
+    },
+};
+
+const size_t g_dap_chain_addr_field_count =
+    sizeof(g_dap_chain_addr_fields) / sizeof(g_dap_chain_addr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_addr_schema = {
+    .name = "chain_addr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_addr_mem_t),
+    .field_count = sizeof(g_dap_chain_addr_fields) / sizeof(g_dap_chain_addr_fields[0]),
+    .fields = g_dap_chain_addr_fields,
+    .magic = DAP_CHAIN_ADDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
 
 const dap_chain_srv_uid_t c_dap_chain_srv_uid_null = {0};
 const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};

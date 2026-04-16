@@ -21,12 +21,15 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include <stddef.h>
+#include <stdint.h>
 #include "dap_common.h"
 #include "dap_time.h"
 #include "dap_hash.h"
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
+#include "dap_serialize.h"
 
 #define DAP_CHAIN_BLOCK_SIGNATURE 0xDA05BF8E
 #define DAP_CHAIN_BLOCK_ID_SIZE 4
@@ -56,6 +59,51 @@ typedef struct dap_chain_block_hdr{
     dap_hash_sha3_256_t merkle;
     uint32_t meta_n_datum_n_signs_size; // Meta&Datum&Signs section size
 } DAP_ALIGN_PACKED dap_chain_block_hdr_t;
+
+/** Wire size of @ref dap_chain_block_hdr_t (packed). */
+#define DAP_CHAIN_BLOCK_HDR_WIRE_SIZE sizeof(dap_chain_block_hdr_t)
+
+/**
+ * @brief Naturally aligned in-memory view of @ref dap_chain_block_hdr_t (matches wire layout).
+ */
+typedef struct dap_chain_block_hdr_mem {
+    uint32_t signature;
+    int32_t version;
+    uint8_t cell_id[DAP_CHAIN_SHARD_ID_SIZE];
+    uint8_t chain_id[DAP_CHAIN_ID_SIZE];
+    uint8_t ts_created_wire[sizeof(dap_time_t)];
+    uint16_t meta_count;
+    uint16_t datum_count;
+    uint8_t merkle[DAP_CHAIN_HASH_SLOW_SIZE];
+    uint32_t meta_n_datum_n_signs_size;
+} dap_chain_block_hdr_mem_t;
+
+_Static_assert(sizeof(dap_chain_block_hdr_mem_t) == DAP_CHAIN_BLOCK_HDR_WIRE_SIZE,
+               "dap_chain_block_hdr_mem_t matches block header wire layout");
+_Static_assert(sizeof(dap_chain_block_hdr_mem_t) == sizeof(dap_chain_block_hdr_t),
+               "dap_chain_block_hdr_mem_t matches packed block hdr");
+
+extern const dap_serialize_field_t g_dap_chain_block_hdr_fields[];
+extern const dap_serialize_schema_t g_dap_chain_block_hdr_schema;
+#define DAP_CHAIN_BLOCK_HDR_SERIALIZE_MAGIC 0xCF5FF015U
+
+static inline int dap_chain_block_hdr_pack(const dap_chain_block_hdr_mem_t *a_mem, uint8_t *a_wire, size_t a_wire_size)
+{
+    if (!a_mem || !a_wire || a_wire_size < DAP_CHAIN_BLOCK_HDR_WIRE_SIZE)
+        return -1;
+    dap_serialize_result_t l_r =
+        dap_serialize_to_buffer_raw(&g_dap_chain_block_hdr_schema, a_mem, a_wire, a_wire_size, NULL);
+    return l_r.error_code;
+}
+
+static inline int dap_chain_block_hdr_unpack(const uint8_t *a_wire, size_t a_wire_size, dap_chain_block_hdr_mem_t *a_mem)
+{
+    if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_BLOCK_HDR_WIRE_SIZE)
+        return -1;
+    dap_deserialize_result_t l_r =
+        dap_deserialize_from_buffer_raw(&g_dap_chain_block_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
+    return l_r.error_code;
+}
 
 // Metadata item
 typedef struct dap_chain_block_meta{

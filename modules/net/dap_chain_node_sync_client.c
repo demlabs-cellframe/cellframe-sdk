@@ -39,7 +39,8 @@
 #include "dap_timerfd.h"
 #include "dap_client.h"
 #include "dap_client_fsm.h"
-#include "dap_client_esocket.h"
+#include "dap_net_trans_ctx.h"
+#include "dap_stream.h"
 #include "dap_stream_worker.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
@@ -203,9 +204,12 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     log_it(L_NOTICE, "Sync client connected to %s:%u",
            l_sync_client->node_info->ext_host, l_sync_client->node_info->ext_port);
     
-    dap_client_esocket_t *l_es = DAP_CLIENT_ESOCKET(a_client);
-    l_sync_client->esocket_uuid = l_es && l_es->stream_es ? l_es->stream_es->uuid : 0;
-    l_sync_client->stream_worker = l_es ? l_es->stream_worker : NULL;
+    dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_client);
+    dap_net_trans_ctx_t *l_ntc = l_fsm ? l_fsm->trans_ctx : NULL;
+    dap_stream_t *l_stream = l_ntc ? l_ntc->stream : NULL;
+    dap_events_socket_t *l_stream_es = l_stream ? l_stream->esocket : NULL;
+    l_sync_client->esocket_uuid = l_stream_es ? l_stream_es->uuid : 0;
+    l_sync_client->stream_worker = l_stream ? l_stream->stream_worker : NULL;
     
     // Add universal notifier for all active channels
     s_add_channel_notifiers(l_sync_client);
@@ -224,11 +228,10 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
  */
 static void s_stage_error_callback(dap_client_t *a_client, void *a_arg)
 {
-    dap_chain_node_sync_client_t *l_sync_client = (dap_chain_node_sync_client_t *)a_arg;
+    bool l_is_last_attempt = (bool)(intptr_t)a_arg;
+    dap_chain_node_sync_client_t *l_sync_client = a_client ? a_client->callbacks_arg : NULL;
     if (!l_sync_client)
         return;
-    
-    bool l_is_last_attempt = a_arg ? true : false;
     
     log_it(L_WARNING, "Sync client connection error%s", l_is_last_attempt ? " (last attempt)" : "");
     
