@@ -526,7 +526,7 @@ static uint8_t *s_meta_extract(dap_chain_block_meta_t *a_meta)
     break;
     case DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS:
         if (a_meta->hdr.data_size >= sizeof(uint16_t)) {
-            uint16_t l_expected_size = *(uint16_t *)a_meta->data + sizeof(uint16_t);
+            uint16_t l_expected_size; memcpy(&l_expected_size, a_meta->data, sizeof(uint16_t)); l_expected_size += sizeof(uint16_t);
             if (!(l_expected_size % sizeof(uint16_t)) &&
                     l_expected_size == a_meta->hdr.data_size)
                 return a_meta->data;
@@ -684,7 +684,7 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
             if (a_nonce) {
                 l_meta_data = s_meta_extract(l_meta);
                 if (l_meta_data)
-                    *a_nonce = *(uint64_t *)l_meta_data;
+                    memcpy(a_nonce, l_meta_data, sizeof(*a_nonce));
                 else
                     return -4;
             }
@@ -698,7 +698,7 @@ int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size
             if (a_nonce2) {
                 l_meta_data = s_meta_extract(l_meta);
                 if (l_meta_data)
-                    *a_nonce2 = *(uint64_t *)l_meta_data;
+                    memcpy(a_nonce2, l_meta_data, sizeof(*a_nonce2));
                 else
                     return -4;
             }

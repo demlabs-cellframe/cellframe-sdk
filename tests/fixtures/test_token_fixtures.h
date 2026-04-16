@@ -27,6 +27,7 @@ typedef struct test_token_fixture {
     size_t token_size;
     uint16_t flags;
     dap_cert_t *owner_cert;
+    bool owns_cert;     // If true, destroy will delete owner_cert
 } test_token_fixture_t;
 
 /**

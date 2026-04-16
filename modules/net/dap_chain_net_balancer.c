@@ -494,9 +494,10 @@ void dap_chain_net_balancer_request(void *a_arg)
     }
 // links from http balancer request
     if (!l_arg->host_addr || !*l_arg->host_addr || !l_arg->host_port) {
+        const char *l_net_name = l_arg->net->pub.name;
         DAP_DEL_MULTY(a_arg, l_ignored_addrs);
         log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only",
-                l_arg->net->pub.name);
+                l_net_name);
         return;
     }
     l_arg->worker = dap_worker_get_current();

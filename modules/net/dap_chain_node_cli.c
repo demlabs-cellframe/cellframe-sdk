@@ -40,6 +40,7 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd_tx.h"
+#include "dap_chain_node_cli_cmd_tx_sign.h"
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli.h"
 #include "dap_notify_srv.h"
@@ -74,6 +75,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     if ( !dap_config_get_item_bool_default(g_config, "cli-server", "enabled", true) )
         return log_it( L_WARNING, "CLI server is disabled" ), 0;
     s_debug_cli = dap_config_get_item_bool_default(g_config, "cli-server", "debug-cli", false);
+    
+    // Initialize CLI commands module
+    dap_chain_node_cli_cmd_init(g_config);
+    
     if ( dap_cli_server_init(s_debug_cli, "cli-server") )
         return log_it(L_ERROR, "Can't init CLI server!"), -1;
 
@@ -208,7 +213,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\t-value <value> - funds value to hold\n"
                                 "\t-fee <value> - fee value\n"
                                 "\t-signs_minimum <value_int> - number of required valid signatures for funds debit tx\n"
-                                "\t-pkey_hashes <hash1[,hash2,...,hashN]> - owners public key hashes, who can sign a debit tx\n"
+                                "\t-pkey_hashes <hash1[,hash2,...,hashN]> - owners public key hashes\n"
+                                "\t-addrs <addr1[,addr2,...,addrN]> - owners regular addresses (pkey hashes are extracted automatically)\n"
+                                "\t  Note: -pkey_hashes and -addrs can be used separately or together; at least one is required\n"
                                 "\t[-tag \"<str>\"] - additional info about tx\n"
                                 "\t[-H {hex(default) | base58}] - tx hash return format\n"
                             "wallet shared refill - refills value on shared funds transaction\n"
@@ -216,12 +223,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\t-w <wallet_name> - wallet for take funds and pay fee\n"
                                 "\t-value <value> - funds value to refill\n"
                                 "\t-fee <value> - fee value\n"
-                                "\t-tx <transaction_hash> - hash of the shared funds tx to refill\n"
+                                "\t{-tx <transaction_hash> | -addr <shared_address>} - hold tx hash or shared address\n"
                                 "\t[-H {hex(default) | base58}] - tx hash return format\n"
                             "wallet shared take - creates debit tx to take value from shared funds tx\n"
                                 "\t-net <net_name>\n"
                                 "\t-w <wallet_name> - wallet to pay fee\n"
-                                "\t-tx <transaction_hash> - hash of the shared funds tx to take\n"
+                                "\t{-tx <transaction_hash> | -addr <shared_address>} - hold tx hash or shared address\n"
                                 "\t-to_addr <addr1[,addr2,...,addrN]> - recipient addresses, their quantity must match the values specified number\n"
                                 "\t-value <value1[,value2,...,valueN]> - value sent to each recipient, must match the addresses number\n"
                                 "\t-fee <value> - fee value\n"
@@ -233,7 +240,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\t[-H {hex(default) | base58}] - tx hash return format\n"
                             "wallet shared info - get info about shared funds tx by hash\n"
                                 "\t-net <net_name>\n"
-                                "\t-tx <transaction_hash> - shared funds tx hash to get info\n"
+                                "\t{-tx <transaction_hash> | -addr <shared_address>} - hold tx hash or shared address\n"
+                                "\t[-H {hex(default) | base58}] - tx hash format\n"
+                            "wallet shared history - show full chain of operations for a shared wallet\n"
+                                "\t{-tx <transaction_hash> | -addr <shared_address>} - hold tx hash or shared address\n"
+                                "\t[-net <net_name>] - required when using -tx, auto-detected from -addr\n"
                                 "\t[-H {hex(default) | base58}] - tx hash format\n"
                             "wallet shared list - list wallet shared transactions from GDB\n"
                                 "\t[-net <net_name>] - filter by net name\n"
@@ -243,6 +254,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                 "\t[-cert <cert_name>] - filter by certificate name\n"
                                 "\t  Note: -pkey, -addr, -w, and -cert are mutually exclusive\n"
                                 "\t[-local] - filter by local wallets and certificates\n"
+                                "\t[-verbose] - include full info: balance, tx_hash_final, creator, owner_hashes, owner_addrs, member_of, waiting_operations\n"
                                 "\t[-H {hex(default) | base58}] - hash format for output\n"
                             "Hint:\n"
                                 "\texample value_coins (only natural) 1.0 123.4567\n"
@@ -319,6 +331,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "token_emit { sign -emission <hash> | -token <mempool_token_ticker> -emission_value <value> -addr <addr> } "
                             "[-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n");
 
+    dap_cli_server_cmd_add ("token_emit_sign", com_token_emit_sign, NULL, "Token emission add sign",
+            "token_emit_sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
+            "\t Sign existent emission <datum_hash> in mempool with <certs_list>\n"
+            );
+
     dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_add("mempool", com_mempool, NULL, "Command for working with mempool",
                            "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief] [-limit] [-offset] [-h]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
@@ -351,10 +368,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, NULL, "Make transaction",
-            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> -to_addr <addr> [-lock_before <unlock_time_in_RCF822 or YYMMDD>] [-arbitrage]"
-            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n"
+            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> [-to_addr <addr>] [-arbitrage] [-lock_before <unlock_time>] "
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value> [-certs <certs>]\n"
             "OPTIONS:\n"
-            "  -arbitrage: Create arbitrage transaction (requires token owner signature, bypasses UTXO blocking)\n");
+            "  -arbitrage: Create arbitrage transaction (requires token owner signature, bypasses UTXO blocking)\n"
+            "              For arbitrage: -to_addr is optional and ignored, all outputs go to network fee address\n"
+            "  -certs: Comma-separated certificate names for arbitrage transactions\n"
+            "  -wallet_fee: Wallet for fee payment\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, NULL, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool",
@@ -374,6 +394,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, NULL, "Verifing transaction in mempool",
             "tx_verify -net <net_name> [-chain <chain_name>] -tx <tx_hash>\n" );
+    dap_cli_server_cmd_add ("tx_sign", com_tx_sign, NULL, "Add signatures to existing arbitrage transaction in mempool",
+            "tx_sign -net <net_name> [-chain <chain_name>] -tx <tx_hash> -certs <cert1,cert2,...>\n"
+            "OPTIONS:\n"
+            "  -tx: Transaction hash (hex or base58)\n"
+            "  -certs: Comma-separated list of certificate names belonging to token owners\n"
+            "  -H: Hash output format (hex or base58, default: hex)\n"
+            "NOTE: For now this command can only add signatures to arbitrage transactions. But in future it will be possible to add signatures to any transaction.\n"
+            "      For arbitrage transactions certificates must belong to token owners (auth_pkeys).\n");
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, NULL, "Transaction history (for address or by hash)",

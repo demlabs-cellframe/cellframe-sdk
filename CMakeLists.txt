@@ -27,10 +27,17 @@ if(CMAKE_C_COMPILER MATCHES "clang")
     add_compile_options(-Wno-sign-compare)
 endif()
 
+#set(BUILD_CELLFRAME_SDK_TESTS ON)
+
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
-    set(CELLFRAME_MODULES "core chains mining network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-dex compose")
+    # GlobalDB drivers - MDBX enabled by default (must be set before add_subdirectory(dap-sdk))
+    option(BUILD_WITH_GDB_DRIVER_MDBX "Build with MDBX driver for GlobalDB" ON)
+    option(BUILD_WITH_GDB_DRIVER_SQLITE "Build with SQLite driver for GlobalDB" OFF)
+    option(BUILD_WITH_GDB_DRIVER_PGSQL "Build with PostgreSQL driver for GlobalDB" OFF)
+
+    set(CELLFRAME_MODULES "core chains network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-dex compose")
 
     if(BUILD_CELLFRAME_SDK_TESTS)
         set(DAPSDK_MODULES "test-framework")

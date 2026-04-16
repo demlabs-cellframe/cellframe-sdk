@@ -23,6 +23,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
+#include <stdatomic.h>
 #include "dap_timerfd.h"
 #include "dap_chain.h"
 #include "dap_chain_block.h"
@@ -31,7 +32,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_STREAM_CH_ESBOCS_ID                     'E'
 
-#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           8
+#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_LEGACY    8
+#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT   9
+#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT
 #define DAP_CHAIN_ESBOCS_CS_TYPE_STR                "esbocs"
 #define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          DAP_CHAIN_ESBOCS_CS_TYPE_STR
 #define DAP_CHAIN_CLUSTER_ID_ESBOCS                 0x8000
@@ -204,6 +207,12 @@ typedef struct dap_chain_esbocs_penalty_item {
         UT_hash_handle hh;
 } dap_chain_esbocs_penalty_item_t;
 
+typedef struct dap_chain_esbocs_peer_version_item {
+    dap_chain_addr_t signing_addr;
+    uint16_t version;
+    UT_hash_handle hh;
+} dap_chain_esbocs_peer_version_item_t;
+
 #define DAP_CHAIN_ESBOCS_PENALTY_KICK   3U      // Number of missed rounds to kick
 
 typedef struct dap_chain_esbocs_session {
@@ -221,7 +230,12 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_node_addr_t my_addr;
     uint8_t state, old_state;
     bool cs_timer, round_fast_forward, sync_failed, new_round_enqueued, is_actual_hash;
+    atomic_bool stopping;
+    atomic_uint_fast32_t inflight_callbacks;
+    void *atom_notifier_ctx;
     dap_global_db_driver_hash_t db_hash;
+    dap_global_db_driver_hash_t db_hash_legacy;
+    dap_chain_esbocs_peer_version_item_t *peer_version_items;
     dap_chain_addr_t my_signing_addr;
 } dap_chain_esbocs_session_t;
 

@@ -683,12 +683,12 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             a_cell->chain->callback_atom_iter_delete(l_atom_iter);
         }
         a_cell->chain->is_mapped = was_mapped;
-        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "After rewriting file %s, stream pos is %ld and map pos is %zu",
-                      a_cell->file_storage_path, ftello(a_cell->file_storage),
+        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "After rewriting file %s, stream pos is %lld and map pos is %zu",
+                      a_cell->file_storage_path, (long long)ftello(a_cell->file_storage),
                       (size_t)(a_cell->map_pos - a_cell->map));
     } else {
-        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "Before appending an atom of size %zu, stream pos of %s is %ld, map pos is %zu",
-                      a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
+        debug_if (s_debug_more && a_cell->chain->is_mapped,L_DEBUG, "Before appending an atom of size %zu, stream pos of %s is %lld, map pos is %zu",
+                      a_atom_size, a_cell->file_storage_path, (long long)ftello(a_cell->file_storage),
                       (size_t)(a_cell->map_pos - a_cell->map));
         if ( s_cell_file_atom_add(a_cell, a_atom, a_atom_size) ) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't save atom!",
@@ -696,8 +696,8 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             pthread_rwlock_unlock(&a_cell->storage_rwlock);
             return -4;
         }
-        debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG,"After appending an atom of size %zu, stream pos of %s is %ld, map pos is %zu",
-                                                a_atom_size, a_cell->file_storage_path, ftello(a_cell->file_storage),
+        debug_if (s_debug_more && a_cell->chain->is_mapped, L_DEBUG,"After appending an atom of size %zu, stream pos of %s is %lld, map pos is %zu",
+                                                a_atom_size, a_cell->file_storage_path, (long long)ftello(a_cell->file_storage),
                                                 (size_t)(a_cell->map_end - a_cell->map_pos));
         ++l_count;
         l_total_res = a_atom_size + sizeof(uint64_t);
@@ -736,4 +736,3 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     pthread_rwlock_unlock(&a_cell->storage_rwlock);
     return l_total_res;
 }
-

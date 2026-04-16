@@ -36,6 +36,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_policy.h"
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_cli_server.h"
@@ -265,14 +266,14 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
                 log_it(L_WARNING, "Incorrect size %u of TSD section EXPIRE for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
-            l_item->voting_params.voting_expire = *(dap_time_t *)l_tsd->data;
+            memcpy(&l_item->voting_params.voting_expire, l_tsd->data, sizeof(l_item->voting_params.voting_expire));
             break;
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
             if (l_tsd->size != sizeof(uint64_t)) {
                 log_it(L_WARNING, "Incorrect size %u of TSD section MAX_VOTES_COUNT for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
-            l_item->voting_params.votes_max_count = *(uint64_t *)l_tsd->data;
+            memcpy(&l_item->voting_params.votes_max_count, l_tsd->data, sizeof(l_item->voting_params.votes_max_count));
             break;
         case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
             if (l_tsd->size != sizeof(byte_t)) {
@@ -293,7 +294,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
                 log_it(L_WARNING, "Incorrect size %u of TSD section TOKEN for poll %s", l_tsd->size, dap_hash_fast_to_str_static(a_tx_hash));
                 return -DAP_LEDGER_CHECK_INVALID_SIZE;
             }
-            strcpy(l_item->voting_params.token_ticker, (char *)l_tsd->data);
+            dap_strncpy(l_item->voting_params.token_ticker, (char *)l_tsd->data, sizeof(l_item->voting_params.token_ticker) - 1);
         default:
             break;
         }
@@ -592,15 +593,13 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
 
         if (l_old_vote) {
             // change vote & move it to the end of list
-            const char *l_vote_hash_str = dap_hash_fast_to_str_static(&((dap_chain_net_vote_t *)l_old_vote->data)->vote_hash);
+            log_it(L_NOTICE, "Vote %s of poll %s has been changed",
+                dap_hash_fast_to_str_static(&((dap_chain_net_vote_t *)l_old_vote->data)->vote_hash), dap_hash_fast_to_str_static(&l_voting->voting_hash));
             DAP_DELETE(l_old_vote->data);
             l_voting->votes = dap_list_delete_link(l_voting->votes, l_old_vote);
-            log_it(L_NOTICE, "Vote %s of poll %s has been changed", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->voting_hash));
         } else {
-            const char *l_vote_hash_str = dap_hash_fast_to_str_static(a_tx_hash);
-            log_it(L_NOTICE, "Vote %s of poll %s has been accepted", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->voting_hash));
+            log_it(L_NOTICE, "Vote %s of poll %s has been accepted", dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(&l_voting->voting_hash));
         }
-
         l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
     }
     dap_list_free(l_tsd_list);
