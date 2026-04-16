@@ -692,7 +692,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
 
     int l_err = 0;
-    int l_tun_fd;
+    int l_tun_fd = -1;
 #if defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
     // Prepare structs
     struct ctl_info l_ctl_info = {0};

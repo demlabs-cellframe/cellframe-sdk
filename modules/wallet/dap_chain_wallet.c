@@ -1207,10 +1207,12 @@ json_object *dap_chain_wallet_info_to_json(const char *a_name, const char *a_pat
             json_object_object_add(l_jobj_net, "tokens", l_arr_balance);
             DAP_DELETE(l_addr_tokens);
             // add shared wallet tx hashes
-            json_object *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_pkey_hash, l_net->pub.name);
-            if (l_tx_hashes) {
+            json_object *l_tx_hashes = dap_chain_wallet_shared_get_tx_hashes_json(&l_pkey_hash, l_net->pub.name, l_net->pub.id);
+            if (l_tx_hashes)
                 json_object_object_add(l_json_ret, "wallet_shared_tx_hashes", l_tx_hashes);
-            }
+            json_object *l_tx_hashes_owner = dap_chain_wallet_shared_get_tx_hashes_owner_json(&l_pkey_hash, l_net->pub.name, l_net->pub.id);
+            if (l_tx_hashes_owner)
+                json_object_object_add(l_json_ret, "wallet_shared_tx_hashes_owner", l_tx_hashes_owner);
         }
         json_object_object_add(l_json_ret, "networks", l_jobj_network);
         dap_chain_wallet_close(l_wallet);
