@@ -3789,7 +3789,7 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t *a_net, dap_hash_sha
     log_it(L_NOTICE, "Stream connection established");
 
     // Prepare request with random test data
-    randombytes(l_test_data, sizeof(l_test_data));
+    dap_random_bytes(l_test_data, sizeof(l_test_data));
     
     // Build request packet (channel N requires net_id header)
     size_t l_request_size = sizeof(dap_chain_net_ch_pkt_t) + sizeof(l_test_data);
