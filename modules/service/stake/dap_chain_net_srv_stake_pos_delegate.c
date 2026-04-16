@@ -39,7 +39,7 @@
 #include "dap_chain_type_blocks.h" // For block-specific functions
 // REMOVED: #include "dap_chain_cs_esbocs.h" - TODO: resolve esbocs dependency
 #include "dap_chain_net_utils.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_node_sync_client.h"
 #include "dap_chain_net_ch_pkt.h"
 #include "dap_json_rpc_errors.h"

@@ -98,7 +98,7 @@
 #include "dap_stream_ch.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_net_api.h" 
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
