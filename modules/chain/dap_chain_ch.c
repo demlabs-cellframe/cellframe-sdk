@@ -1645,8 +1645,13 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
         a_ch_chain->sync_context = NULL;
     }
     if (a_ch_chain->sync_timer) {
-        dap_timerfd_delete_unsafe(a_ch_chain->sync_timer);
+        // MUST use _mt: this function can be called from any thread (e.g. FSM thread pool
+        // via dap_stream_ch_delete → s_stream_ch_delete), while the timer was created on
+        // stream_worker->worker. Unsafe delete from a different thread causes use-after-free.
+        dap_timerfd_t *l_timer = a_ch_chain->sync_timer;
         a_ch_chain->sync_timer = NULL;
+        l_timer->callback_arg = NULL; // neutralize any in-flight callback
+        dap_timerfd_delete_mt(l_timer->worker, l_timer->esocket_uuid);
     }
 //}
     // Legacy
