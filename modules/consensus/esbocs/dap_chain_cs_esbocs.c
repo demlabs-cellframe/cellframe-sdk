@@ -2082,9 +2082,7 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
         return;
     }
     for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
-        dap_chain_esbocs_validator_t *l_validator = it->data;
-        if (l_validator->sync_status == DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK && !l_validator->is_chosen) {
-            // We have synced validator with no submitted candidate
+        if (!((dap_chain_esbocs_validator_t *)it->data)->is_chosen) {
             debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". Attempt:%hhu is started",
                                                                 a_session->chain->net_name, a_session->chain->name,
                                                                     a_session->cur_round.id, a_session->cur_round.attempt_num);
@@ -2093,7 +2091,7 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
         }
     }
     debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". "
-                                                    "All synced validators already tryed their attempts",
+                                                    "All validators already tried their attempts",
                                                         a_session->chain->net_name, a_session->chain->name,
                                                             a_session->cur_round.id);
     a_session->cur_round.attempt_num = PVT(a_session->esbocs)->round_attempts_max + 1;
@@ -2251,14 +2249,17 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             }
         }
         for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
-            l_validator = it->data;
-            if (l_validator->sync_status == DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK && !l_validator->is_chosen) {
-                l_validator->is_chosen = true;
-                break;
-            }
+            dap_chain_esbocs_validator_t *l_cur = it->data;
+            if (l_cur->is_chosen)
+                continue;
+            l_cur->is_chosen = true;
+            l_validator = l_cur;
+            break;
         }
         if (!l_validator) {
-            log_it(L_CRITICAL, "l_validator is NULL");
+            a_session->cur_round.attempt_num = PVT(a_session->esbocs)->round_attempts_max + 1;
+            a_session->ts_fast_path_ready = 0;
+            a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
             break;
         }
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
@@ -2448,8 +2449,14 @@ static void s_session_proc_state(void *a_arg)
             }
         }
     } break;
-    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC:
-        if (l_time - l_session->ts_stage_entry >= PVT(l_session->esbocs)->round_attempt_timeout * l_session->listen_ensure) {
+    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC: {
+        dap_time_t l_attempt_timeout = PVT(l_session->esbocs)->round_attempt_timeout * l_session->listen_ensure;
+        dap_list_t *l_submitter = s_validator_check(&l_session->cur_round.attempt_submit_validator,
+                                                     l_session->cur_round.validators_list);
+        if (l_submitter && ((dap_chain_esbocs_validator_t *)l_submitter->data)->sync_status
+                                != DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK)
+            l_attempt_timeout = ESBOCS_FAST_PATH_GRACE_SEC;
+        if (l_time - l_session->ts_stage_entry >= l_attempt_timeout) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Attempt finished by reason: haven't cantidate submitted",
                                             l_session->chain->net_name, l_session->chain->name,
@@ -2457,7 +2464,7 @@ static void s_session_proc_state(void *a_arg)
             l_session->listen_ensure = 2;
             s_session_attempt_new(l_session);
         }
-        break;
+    } break;
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS:
         if (l_time - l_session->ts_stage_entry >= PVT(l_session->esbocs)->round_attempt_timeout) {
             dap_chain_esbocs_store_t *l_store = NULL;
