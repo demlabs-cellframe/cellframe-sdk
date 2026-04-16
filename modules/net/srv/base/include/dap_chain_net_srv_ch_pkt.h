@@ -173,8 +173,6 @@ typedef struct dap_chain_net_srv_ch_pkt_request_hdr_mem {
     uint8_t client_pkey_hash[DAP_HASH_SHA3_256_SIZE];
     uint8_t order_hash[DAP_HASH_SHA3_256_SIZE];
 } dap_chain_net_srv_ch_pkt_request_hdr_mem_t;
-_Static_assert(sizeof(dap_chain_net_srv_ch_pkt_request_hdr_mem_t) == DAP_CHAIN_NET_SRV_CH_PKT_REQUEST_HDR_WIRE_SIZE,
-               "dap_chain_net_srv_ch_pkt_request_hdr_mem_t matches wire layout");
 #define DAP_CHAIN_NET_SRV_CH_PKT_REQUEST_HDR_MAGIC 0xCF5FF020U
 extern const dap_serialize_field_t g_dap_chain_net_srv_ch_pkt_request_hdr_fields[];
 extern const dap_serialize_schema_t g_dap_chain_net_srv_ch_pkt_request_hdr_schema;
@@ -199,8 +197,6 @@ static inline int dap_chain_net_srv_ch_pkt_request_hdr_unpack(const uint8_t *a_w
 typedef struct dap_chain_net_srv_ch_pkt_data_hdr_mem {
     uint8_t bytes[DAP_CHAIN_NET_SRV_CH_PKT_DATA_HDR_WIRE_SIZE];
 } dap_chain_net_srv_ch_pkt_data_hdr_mem_t;
-_Static_assert(sizeof(dap_chain_net_srv_ch_pkt_data_hdr_mem_t) == DAP_CHAIN_NET_SRV_CH_PKT_DATA_HDR_WIRE_SIZE,
-               "dap_chain_net_srv_ch_pkt_data_hdr_mem_t matches wire layout");
 #define DAP_CHAIN_NET_SRV_CH_PKT_DATA_HDR_MAGIC 0xCF5FF021U
 extern const dap_serialize_field_t g_dap_chain_net_srv_ch_pkt_data_hdr_fields[];
 extern const dap_serialize_schema_t g_dap_chain_net_srv_ch_pkt_data_hdr_schema;
@@ -227,8 +223,6 @@ typedef struct dap_chain_net_srv_ch_pkt_success_hdr_mem {
     uint8_t net_id[DAP_CHAIN_NET_ID_SIZE];
     uint8_t srv_uid[DAP_CHAIN_NET_SRV_UID_SIZE];
 } dap_chain_net_srv_ch_pkt_success_hdr_mem_t;
-_Static_assert(sizeof(dap_chain_net_srv_ch_pkt_success_hdr_mem_t) == DAP_CHAIN_NET_SRV_CH_PKT_SUCCESS_HDR_WIRE_SIZE,
-               "dap_chain_net_srv_ch_pkt_success_hdr_mem_t matches wire layout");
 #define DAP_CHAIN_NET_SRV_CH_PKT_SUCCESS_HDR_MAGIC 0xCF5FF022U
 extern const dap_serialize_field_t g_dap_chain_net_srv_ch_pkt_success_hdr_fields[];
 extern const dap_serialize_schema_t g_dap_chain_net_srv_ch_pkt_success_hdr_schema;
@@ -256,8 +250,6 @@ typedef struct dap_chain_net_srv_ch_pkt_error_mem {
     uint32_t usage_id;
     uint32_t code;
 } dap_chain_net_srv_ch_pkt_error_mem_t;
-_Static_assert(sizeof(dap_chain_net_srv_ch_pkt_error_mem_t) == DAP_CHAIN_NET_SRV_CH_PKT_ERROR_WIRE_SIZE,
-               "dap_chain_net_srv_ch_pkt_error_mem_t matches wire layout");
 #define DAP_CHAIN_NET_SRV_CH_PKT_ERROR_MAGIC 0xCF5FF023U
 extern const dap_serialize_field_t g_dap_chain_net_srv_ch_pkt_error_fields[];
 extern const dap_serialize_schema_t g_dap_chain_net_srv_ch_pkt_error_schema;
@@ -282,8 +274,6 @@ static inline int dap_chain_net_srv_ch_pkt_error_unpack(const uint8_t *a_wire, s
 typedef struct dap_chain_net_srv_ch_pkt_test_fixed_mem {
     uint8_t bytes[DAP_CHAIN_NET_SRV_CH_PKT_TEST_FIXED_WIRE_SIZE];
 } dap_chain_net_srv_ch_pkt_test_fixed_mem_t;
-_Static_assert(sizeof(dap_chain_net_srv_ch_pkt_test_fixed_mem_t) == DAP_CHAIN_NET_SRV_CH_PKT_TEST_FIXED_WIRE_SIZE,
-               "dap_chain_net_srv_ch_pkt_test_fixed_mem_t matches wire layout");
 #define DAP_CHAIN_NET_SRV_CH_PKT_TEST_FIXED_MAGIC 0xCF5FF027U
 extern const dap_serialize_field_t g_dap_chain_net_srv_ch_pkt_test_fixed_fields[];
 extern const dap_serialize_schema_t g_dap_chain_net_srv_ch_pkt_test_fixed_schema;

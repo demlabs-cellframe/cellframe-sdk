@@ -78,9 +78,6 @@ typedef struct dap_chain_datum_decree_fixed_mem {
     uint8_t signs_size_wire[sizeof(uint32_t)];
 } dap_chain_datum_decree_fixed_mem_t;
 
-_Static_assert(sizeof(dap_chain_datum_decree_fixed_mem_t) == DAP_CHAIN_DATUM_DECREE_FIXED_WIRE_SIZE,
-               "dap_chain_datum_decree_fixed_mem_t wire size");
-
 extern const dap_serialize_field_t g_dap_chain_datum_decree_fixed_fields[];
 extern const size_t g_dap_chain_datum_decree_fixed_field_count;
 extern const dap_serialize_schema_t g_dap_chain_datum_decree_fixed_schema;

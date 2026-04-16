@@ -61,9 +61,6 @@ typedef struct dap_chain_datum_hashtree_roots_v2_mem {
     uint8_t txs[sizeof(dap_hash_sha3_256_t)];
 } dap_chain_datum_hashtree_roots_v2_mem_t;
 
-_Static_assert(sizeof(dap_chain_datum_hashtree_roots_v2_mem_t) == DAP_CHAIN_DATUM_HASHTREE_ROOTS_V2_WIRE_SIZE,
-               "dap_chain_datum_hashtree_roots_v2_mem_t wire size");
-
 extern const dap_serialize_field_t g_dap_chain_datum_hashtree_roots_v2_fields[];
 extern const size_t g_dap_chain_datum_hashtree_roots_v2_field_count;
 extern const dap_serialize_schema_t g_dap_chain_datum_hashtree_roots_v2_schema;

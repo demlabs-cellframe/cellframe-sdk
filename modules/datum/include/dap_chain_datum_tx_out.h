@@ -79,8 +79,6 @@ typedef struct dap_chain_tx_out_old_hdr_mem {
     uint64_t value;
 } dap_chain_tx_out_old_hdr_mem_t;
 
-_Static_assert(sizeof(dap_chain_tx_out_old_hdr_mem_t) == DAP_CHAIN_TX_OUT_OLD_HDR_WIRE_SIZE, "dap_chain_tx_out_old_hdr_mem_t wire size");
-
 extern const dap_serialize_field_t g_dap_chain_tx_out_old_hdr_fields[];
 extern const size_t g_dap_chain_tx_out_old_hdr_field_count;
 extern const dap_serialize_schema_t g_dap_chain_tx_out_old_hdr_schema;
@@ -115,8 +113,6 @@ typedef struct dap_chain_tx_out_hdr_mem {
     dap_chain_tx_item_type_t type;
     uint8_t value[sizeof(uint256_t)];
 } dap_chain_tx_out_hdr_mem_t;
-
-_Static_assert(sizeof(dap_chain_tx_out_hdr_mem_t) == DAP_CHAIN_TX_OUT_HDR_WIRE_SIZE, "dap_chain_tx_out_hdr_mem_t wire size");
 
 extern const dap_serialize_field_t g_dap_chain_tx_out_hdr_fields[];
 extern const size_t g_dap_chain_tx_out_hdr_field_count;

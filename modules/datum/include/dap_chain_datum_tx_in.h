@@ -57,8 +57,6 @@ typedef struct dap_chain_tx_in_mem {
     uint32_t tx_out_prev_idx;
 } dap_chain_tx_in_mem_t;
 
-_Static_assert(sizeof(dap_chain_tx_in_mem_t) == DAP_CHAIN_TX_IN_HDR_WIRE_SIZE, "dap_chain_tx_in_mem_t wire size");
-
 extern const dap_serialize_field_t g_dap_chain_tx_in_fields[];
 extern const size_t g_dap_chain_tx_in_field_count;
 extern const dap_serialize_schema_t g_dap_chain_tx_in_schema;

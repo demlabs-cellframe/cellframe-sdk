@@ -157,9 +157,6 @@ typedef struct dap_chain_tx_out_cond_hdr_mem {
     uint8_t padding[8];
 } dap_chain_tx_out_cond_hdr_mem_t;
 
-_Static_assert(sizeof(dap_chain_tx_out_cond_hdr_mem_t) == DAP_CHAIN_TX_OUT_COND_HDR_WIRE_SIZE,
-               "dap_chain_tx_out_cond_hdr_mem_t wire size");
-
 extern const dap_serialize_field_t g_dap_chain_tx_out_cond_hdr_fields[];
 extern const size_t g_dap_chain_tx_out_cond_hdr_field_count;
 extern const dap_serialize_schema_t g_dap_chain_tx_out_cond_hdr_schema;

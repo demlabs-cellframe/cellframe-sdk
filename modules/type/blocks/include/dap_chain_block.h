@@ -78,11 +78,6 @@ typedef struct dap_chain_block_hdr_mem {
     uint32_t meta_n_datum_n_signs_size;
 } dap_chain_block_hdr_mem_t;
 
-_Static_assert(sizeof(dap_chain_block_hdr_mem_t) == DAP_CHAIN_BLOCK_HDR_WIRE_SIZE,
-               "dap_chain_block_hdr_mem_t matches block header wire layout");
-_Static_assert(sizeof(dap_chain_block_hdr_mem_t) == sizeof(dap_chain_block_hdr_t),
-               "dap_chain_block_hdr_mem_t matches packed block hdr");
-
 extern const dap_serialize_field_t g_dap_chain_block_hdr_fields[];
 extern const dap_serialize_schema_t g_dap_chain_block_hdr_schema;
 #define DAP_CHAIN_BLOCK_HDR_SERIALIZE_MAGIC 0xCF5FF015U

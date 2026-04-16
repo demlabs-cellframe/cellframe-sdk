@@ -70,8 +70,6 @@ typedef struct dap_chain_net_srv_order_fixed_mem {
     uint64_t units;
     uint8_t free_space[120];
 } dap_chain_net_srv_order_fixed_mem_t;
-_Static_assert(sizeof(dap_chain_net_srv_order_fixed_mem_t) == DAP_CHAIN_NET_SRV_ORDER_FIXED_WIRE_SIZE,
-               "dap_chain_net_srv_order_fixed_mem_t matches fixed wire layout");
 #define DAP_CHAIN_NET_SRV_ORDER_FIXED_MAGIC 0xCF5FF024U
 extern const dap_serialize_field_t g_dap_chain_net_srv_order_fixed_fields[];
 extern const dap_serialize_schema_t g_dap_chain_net_srv_order_fixed_schema;

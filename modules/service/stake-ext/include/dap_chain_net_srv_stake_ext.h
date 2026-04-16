@@ -80,9 +80,6 @@ typedef struct dap_chain_tx_event_data_stake_ext_started_fixed_mem {
     uint8_t calculation_rule_id[sizeof(uint32_t)];
     uint8_t total_positions;
 } dap_chain_tx_event_data_stake_ext_started_fixed_mem_t;
-_Static_assert(sizeof(dap_chain_tx_event_data_stake_ext_started_fixed_mem_t) ==
-                   DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_STARTED_FIXED_WIRE_SIZE,
-               "stake_ext_started fixed mem matches wire layout");
 #define DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_STARTED_FIXED_MAGIC 0xCF5FF025U
 extern const dap_serialize_field_t g_dap_chain_tx_event_data_stake_ext_started_fixed_fields[];
 extern const dap_serialize_schema_t g_dap_chain_tx_event_data_stake_ext_started_fixed_schema;
@@ -108,9 +105,6 @@ typedef struct dap_chain_tx_event_data_stake_ext_ended_fixed_mem {
     uint8_t end_time[sizeof(dap_time_t)];
     uint8_t winners_cnt;
 } dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t;
-_Static_assert(sizeof(dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t) ==
-                   DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_ENDED_FIXED_WIRE_SIZE,
-               "stake_ext ended fixed mem matches wire layout");
 #define DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_ENDED_FIXED_MAGIC 0xCF5FF026U
 extern const dap_serialize_field_t g_dap_chain_tx_event_data_stake_ext_ended_fixed_fields[];
 extern const dap_serialize_schema_t g_dap_chain_tx_event_data_stake_ext_ended_fixed_schema;

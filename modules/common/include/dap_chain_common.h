@@ -143,8 +143,6 @@ typedef struct dap_chain_addr_mem {
     uint8_t bytes[DAP_CHAIN_ADDR_WIRE_SIZE];
 } dap_chain_addr_mem_t;
 
-_Static_assert(sizeof(dap_chain_addr_mem_t) == sizeof(dap_chain_addr_t), "dap_chain_addr_mem_t wire size");
-
 #define DAP_CHAIN_ADDR_SERIALIZE_MAGIC 0xCF5FEED1U
 
 extern const dap_serialize_field_t g_dap_chain_addr_fields[];

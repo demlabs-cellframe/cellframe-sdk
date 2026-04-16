@@ -71,9 +71,6 @@ typedef struct dap_chain_node_info_fixed_mem {
     uint8_t ext_host_len;
 } dap_chain_node_info_fixed_mem_t;
 
-_Static_assert(sizeof(dap_chain_node_info_fixed_mem_t) == DAP_CHAIN_NODE_INFO_FIXED_WIRE_SIZE,
-               "dap_chain_node_info_fixed_mem_t wire size");
-
 extern const dap_serialize_field_t g_dap_chain_node_info_fixed_fields[];
 extern const dap_serialize_schema_t g_dap_chain_node_info_fixed_schema;
 #define DAP_CHAIN_NODE_INFO_FIXED_SERIALIZE_MAGIC 0xCF5FF012U

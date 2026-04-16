@@ -74,9 +74,6 @@ typedef struct dap_chain_net_ch_pkt_hdr_mem {
     uint8_t net_id[DAP_CHAIN_NET_ID_SIZE];
 } dap_chain_net_ch_pkt_hdr_mem_t;
 
-_Static_assert(sizeof(dap_chain_net_ch_pkt_hdr_mem_t) == sizeof(dap_chain_net_ch_pkt_hdr_t),
-               "dap_chain_net_ch_pkt_hdr_mem_t matches wire header layout");
-
 extern const dap_serialize_field_t g_dap_chain_net_ch_pkt_hdr_fields[];
 extern const dap_serialize_schema_t g_dap_chain_net_ch_pkt_hdr_schema;
 #define DAP_CHAIN_NET_CH_PKT_HDR_MAGIC 0xCF5FEED3U

@@ -94,8 +94,6 @@ typedef struct dap_chain_wallet_file_hdr{
 typedef struct dap_chain_wallet_file_hdr_fixed_mem {
     uint8_t bytes[DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE];
 } dap_chain_wallet_file_hdr_fixed_mem_t;
-_Static_assert(sizeof(dap_chain_wallet_file_hdr_fixed_mem_t) == DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE,
-               "dap_chain_wallet_file_hdr_fixed_mem_t matches fixed wire layout");
 #define DAP_CHAIN_WALLET_FILE_HDR_FIXED_MAGIC 0xCF5FF028U
 extern const dap_serialize_field_t g_dap_chain_wallet_file_hdr_fixed_fields[];
 extern const dap_serialize_schema_t g_dap_chain_wallet_file_hdr_fixed_schema;

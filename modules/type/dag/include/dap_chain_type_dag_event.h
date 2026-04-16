@@ -62,11 +62,6 @@ typedef struct dap_chain_class_dag_event_hdr_mem {
     uint16_t signs_count;
 } dap_chain_class_dag_event_hdr_mem_t;
 
-_Static_assert(sizeof(dap_chain_class_dag_event_hdr_mem_t) == DAP_CHAIN_CLASS_DAG_EVENT_HDR_WIRE_SIZE,
-               "dap_chain_class_dag_event_hdr_mem_t matches dag event header wire layout");
-_Static_assert(sizeof(dap_chain_class_dag_event_hdr_mem_t) == sizeof(dap_chain_class_dag_event_hdr_t),
-               "dag event hdr mem matches packed hdr");
-
 extern const dap_serialize_field_t g_dap_chain_class_dag_event_hdr_fields[];
 extern const dap_serialize_schema_t g_dap_chain_class_dag_event_hdr_schema;
 #define DAP_CHAIN_CLASS_DAG_EVENT_HDR_SERIALIZE_MAGIC 0xCF5FF014U

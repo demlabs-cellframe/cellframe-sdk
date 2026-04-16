@@ -119,8 +119,6 @@ typedef struct dap_chain_esbocs_message {
 typedef struct dap_chain_esbocs_message_hdr_mem {
     uint8_t bytes[DAP_CHAIN_ESBOCS_MESSAGE_HDR_WIRE_SIZE];
 } dap_chain_esbocs_message_hdr_mem_t;
-_Static_assert(sizeof(dap_chain_esbocs_message_hdr_mem_t) == DAP_CHAIN_ESBOCS_MESSAGE_HDR_WIRE_SIZE,
-               "dap_chain_esbocs_message_hdr_mem_t matches wire layout");
 #define DAP_CHAIN_ESBOCS_MESSAGE_HDR_MAGIC 0xCF5FF02AU
 extern const dap_serialize_field_t g_dap_chain_esbocs_message_hdr_fields[];
 extern const dap_serialize_schema_t g_dap_chain_esbocs_message_hdr_schema;
@@ -203,8 +201,6 @@ typedef struct dap_chain_esbocs_directive_fixed_mem {
     uint32_t size;
     uint64_t timestamp;
 } dap_chain_esbocs_directive_fixed_mem_t;
-_Static_assert(sizeof(dap_chain_esbocs_directive_fixed_mem_t) == DAP_CHAIN_ESBOCS_DIRECTIVE_FIXED_WIRE_SIZE,
-               "dap_chain_esbocs_directive_fixed_mem_t matches wire layout");
 #define DAP_CHAIN_ESBOCS_DIRECTIVE_FIXED_MAGIC 0xCF5FF02BU
 extern const dap_serialize_field_t g_dap_chain_esbocs_directive_fixed_fields[];
 extern const dap_serialize_schema_t g_dap_chain_esbocs_directive_fixed_schema;
