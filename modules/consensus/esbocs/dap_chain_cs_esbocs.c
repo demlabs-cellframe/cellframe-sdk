@@ -2253,8 +2253,10 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             if (l_cur->is_chosen)
                 continue;
             l_cur->is_chosen = true;
-            l_validator = l_cur;
-            break;
+            if (l_cur->sync_status == DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK) {
+                l_validator = l_cur;
+                break;
+            }
         }
         if (!l_validator) {
             a_session->cur_round.attempt_num = PVT(a_session->esbocs)->round_attempts_max + 1;
@@ -2291,7 +2293,9 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         } else {
             for (dap_chain_esbocs_message_item_t *l_item = a_session->cur_round.message_items; l_item; l_item = l_item->hh.next) {
                 if (l_item->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT &&
-                        dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator)) {
+                        (dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator)
+                         || s_validator_check(&l_item->signing_addr, a_session->cur_round.validators_list))) {
+                    a_session->cur_round.attempt_submit_validator = l_item->signing_addr;
                     dap_hash_fast_t *l_candidate_hash = &l_item->message->hdr.candidate_hash;
                     if (dap_hash_fast_is_blank(l_candidate_hash))
                         s_session_attempt_new(a_session);
@@ -2301,7 +2305,6 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                         if (l_store) {
                             a_session->cur_round.attempt_candidate_hash = *l_candidate_hash;
                             s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS, dap_time_now());
-                            // Verify and vote already submitted candidate
                             s_session_candidate_verify(a_session, l_store->candidate, l_store->candidate_size, l_candidate_hash);
                         }
                     }
@@ -2449,14 +2452,8 @@ static void s_session_proc_state(void *a_arg)
             }
         }
     } break;
-    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC: {
-        dap_time_t l_attempt_timeout = PVT(l_session->esbocs)->round_attempt_timeout * l_session->listen_ensure;
-        dap_list_t *l_submitter = s_validator_check(&l_session->cur_round.attempt_submit_validator,
-                                                     l_session->cur_round.validators_list);
-        if (l_submitter && ((dap_chain_esbocs_validator_t *)l_submitter->data)->sync_status
-                                != DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK)
-            l_attempt_timeout = ESBOCS_FAST_PATH_GRACE_SEC;
-        if (l_time - l_session->ts_stage_entry >= l_attempt_timeout) {
+    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC:
+        if (l_time - l_session->ts_stage_entry >= PVT(l_session->esbocs)->round_attempt_timeout * l_session->listen_ensure) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Attempt finished by reason: haven't cantidate submitted",
                                             l_session->chain->net_name, l_session->chain->name,
@@ -2464,7 +2461,7 @@ static void s_session_proc_state(void *a_arg)
             l_session->listen_ensure = 2;
             s_session_attempt_new(l_session);
         }
-    } break;
+        break;
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS:
         if (l_time - l_session->ts_stage_entry >= PVT(l_session->esbocs)->round_attempt_timeout) {
             dap_chain_esbocs_store_t *l_store = NULL;
@@ -3540,7 +3537,10 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         // save new block candidate
         HASH_ADD(hh, l_session->cur_round.store_items, candidate_hash, sizeof(dap_hash_fast_t), l_store);
         // check it and send APPROVE/REJECT
-        if (dap_chain_addr_compare(&l_session->cur_round.attempt_submit_validator, &l_signing_addr)) {
+        if (dap_chain_addr_compare(&l_session->cur_round.attempt_submit_validator, &l_signing_addr)
+                || (l_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC
+                    && s_validator_check(&l_signing_addr, l_session->cur_round.validators_list))) {
+            l_session->cur_round.attempt_submit_validator = l_signing_addr;
             l_session->cur_round.attempt_candidate_hash = *l_candidate_hash;
             s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS, dap_time_now());
             s_session_candidate_verify(l_session, l_store->candidate, l_store->candidate_size, &l_store->candidate_hash);
