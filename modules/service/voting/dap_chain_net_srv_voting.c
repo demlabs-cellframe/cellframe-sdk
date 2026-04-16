@@ -1198,8 +1198,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             json_object_object_add( json_obj_vote, "poll_tx",
                                     json_object_new_string(dap_chain_hash_fast_to_str_static(&l_voting->voting_hash)));            
             char* l_voting_question = (char*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset;
-            json_object_object_add( json_obj_vote, "question", 
-                                    json_object_new_string_len(l_voting_question, l_voting->voting_params.voting_question_length) );
+            json_object_object_add( json_obj_vote, "question",
+                                    json_object_new_string_len(l_voting_question, (int)l_voting->voting_params.voting_question_length) );
             json_object_object_add(json_obj_vote, "token", json_object_new_string(l_voting->voting_params.token_ticker));
             
             // Add status information
@@ -1291,7 +1291,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 json_object* l_json_obj = json_object_new_object();
                 json_object_object_add(l_json_obj, "vote_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_vote->vote_hash)));
                 json_object_object_add(l_json_obj, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_vote->pkey_hash)));
-                json_object_object_add(l_json_obj, "answer_idx", json_object_new_int(l_vote->answer_idx));
+                json_object_object_add(l_json_obj, "answer_idx", json_object_new_int((int32_t)l_vote->answer_idx));
                 json_object_object_add(l_json_obj, "weight", json_object_new_string(dap_uint256_to_char(l_vote->weight, NULL)));
                 json_object_array_add(l_json_arr_vote_list, l_json_obj);
             }
@@ -1316,9 +1316,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         dap_chain_addr_fill_from_sign(&l_creator_addr, l_sign, l_net->pub.id);
         json_object_object_add(json_vote_out,"creator_addr", json_object_new_string(dap_chain_addr_to_str_static(&l_creator_addr))); 
 
-        json_object_object_add(json_vote_out, "question", 
+        json_object_object_add(json_vote_out, "question",
                                json_object_new_string_len((char*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset,
-                               l_voting->voting_params.voting_question_length));
+                               (int)l_voting->voting_params.voting_question_length));
         json_object_object_add(json_vote_out, "token", json_object_new_string(l_voting->voting_params.token_ticker));
 
         // Add status information
@@ -1374,7 +1374,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             dap_chain_net_vote_option_t* l_vote_option = (dap_chain_net_vote_option_t*)l_option->data;
             json_object_object_add( json_vote_obj, "option_text",
                                     json_object_new_string_len((char*)l_voting->voting_params.voting_tx + l_vote_option->vote_option_offset,
-                                                                l_vote_option->vote_option_length) );
+                                                                (int)l_vote_option->vote_option_length) );
             json_object_object_add(json_vote_obj, "votes_count", json_object_new_uint64( l_results[i].num_of_votes) );
             int l_percentage = l_votes_count ? ((double)(l_results[i].num_of_votes * 100))/l_votes_count + 0.5 : 0;
             json_object_object_add(json_vote_obj, "votes_percent", json_object_new_int(l_percentage) );

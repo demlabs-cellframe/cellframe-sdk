@@ -1115,8 +1115,8 @@ static int s_cli_take(int a_argc, char **a_argv, int a_arg_index, json_object **
         return ERROR_PARAM;
     }
 
-    l_addr_el_count = dap_chain_addr_from_str_array(l_addr_str, &l_to_addr);
-    l_value_el_count = dap_str_symbol_count(l_value_str, ',') + 1;
+    l_addr_el_count = (uint32_t)dap_chain_addr_from_str_array(l_addr_str, &l_to_addr);
+    l_value_el_count = (uint32_t)(dap_str_symbol_count(l_value_str, ',') + 1);
 
     if (l_addr_el_count != l_value_el_count) {
         DAP_DELETE(l_to_addr);

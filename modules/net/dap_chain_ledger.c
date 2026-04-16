@@ -362,7 +362,7 @@ int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_led
     
     dap_ledger_service_info_t *l_new_sinfo = NULL;
     
-    int l_tmp = a_uid.raw_ui64;
+    int l_tmp = (int)a_uid.raw_ui64;
 
     pthread_rwlock_rdlock(&s_services_rwlock);
     HASH_FIND_INT(s_services, &l_tmp, l_new_sinfo);
@@ -392,7 +392,7 @@ int dap_ledger_service_add(dap_chain_net_srv_uid_t a_uid, char *tag_str, dap_led
 
 int dap_ledger_service_tx_to_json_set(dap_chain_net_srv_uid_t a_uid, dap_ledger_srv_tx_to_json_callback_t a_callback)
 {
-    int l_tmp = a_uid.raw_ui64;
+    int l_tmp = (int)a_uid.raw_ui64;
     dap_ledger_service_info_t *l_sinfo = NULL;
     pthread_rwlock_rdlock(&s_services_rwlock);
     HASH_FIND_INT(s_services, &l_tmp, l_sinfo);
@@ -406,7 +406,7 @@ int dap_ledger_service_tx_to_json_set(dap_chain_net_srv_uid_t a_uid, dap_ledger_
 struct json_object *dap_ledger_service_tx_to_json(dap_chain_net_srv_uid_t a_uid, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
                                                    dap_hash_fast_t *a_tx_hash, const dap_chain_addr_t *a_addr, const char *a_hash_out_type)
 {
-    int l_tmp = a_uid.raw_ui64;
+    int l_tmp = (int)a_uid.raw_ui64;
     dap_ledger_service_info_t *l_sinfo = NULL;
     pthread_rwlock_rdlock(&s_services_rwlock);
     HASH_FIND_INT(s_services, &l_tmp, l_sinfo);
@@ -2342,8 +2342,8 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
     json_object_object_add(json_obj_datum, a_version == 1 ? "Supply current" : "supply_current", json_object_new_string(dap_uint256_to_char(a_token_item->current_supply, NULL)));
     json_object_object_add(json_obj_datum, a_version == 1 ? "Supply total" : "supply_total", json_object_new_string(dap_uint256_to_char(a_token_item->total_supply, NULL)));
     json_object_object_add(json_obj_datum, a_version == 1 ? "Decimals" : "decimals", json_object_new_string("18"));
-    json_object_object_add(json_obj_datum, a_version == 1 ? "Auth signs valid" : "auth_sig_valid", json_object_new_int(a_token_item->auth_signs_valid));
-    json_object_object_add(json_obj_datum, a_version == 1 ? "Auth signs total" : "auth_sig_total", json_object_new_int(a_token_item->auth_signs_total));
+    json_object_object_add(json_obj_datum, a_version == 1 ? "Auth signs valid" : "auth_sig_valid", json_object_new_int((int32_t)a_token_item->auth_signs_valid));
+    json_object_object_add(json_obj_datum, a_version == 1 ? "Auth signs total" : "auth_sig_total", json_object_new_int((int32_t)a_token_item->auth_signs_total));
     json_object *l_json_arr_pkeys = json_object_new_array();
     for (uint16_t i = 0; i < a_token_item->auth_signs_total; i++) {
         json_object *l_json_obj_out = json_object_new_object();
@@ -2479,13 +2479,13 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
     if (a_offset > 0) {
         l_arr_start = a_offset;
         json_object* json_obj_tx = json_object_new_object();
-        json_object_object_add(json_obj_tx, "offset", json_object_new_int(l_arr_start));
+        json_object_object_add(json_obj_tx, "offset", json_object_new_int((int32_t)l_arr_start));
         json_object_array_add(json_arr_out, json_obj_tx);        
     }
     size_t l_arr_end = HASH_COUNT(PVT(a_ledger)->tokens);
     if (a_limit) {
         json_object* json_obj_tx = json_object_new_object();
-        json_object_object_add(json_obj_tx, "limit", json_object_new_int(a_limit));
+        json_object_object_add(json_obj_tx, "limit", json_object_new_int((int32_t)a_limit));
         json_object_array_add(json_arr_out, json_obj_tx);
         l_arr_end = l_arr_start + a_limit;
         if (l_arr_end > HASH_COUNT(PVT(a_ledger)->tokens)) {
@@ -2939,7 +2939,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     l_ledger_pvt->mapped = a_flags & DAP_LEDGER_MAPPED;
     l_ledger_pvt->threshold_enabled = a_flags & DAP_LEDGER_THRESHOLD_ENABLED;
     if (l_ledger_pvt->threshold_enabled)
-        l_ledger_pvt->threshold_txs_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
+        l_ledger_pvt->threshold_txs_free_timer = dap_interval_timer_create((unsigned int)s_threshold_free_timer_tick,
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
@@ -3959,7 +3959,7 @@ const char *dap_ledger_tx_tag_str_by_uid(dap_chain_net_srv_uid_t a_service_uid)
 {
     dap_ledger_service_info_t *l_new_sinfo = NULL;
     
-    int l_tmp = a_service_uid.raw_ui64;
+    int l_tmp = (int)a_service_uid.raw_ui64;
 
     pthread_rwlock_rdlock(&s_services_rwlock);
     HASH_FIND_INT(s_services, &l_tmp, l_new_sinfo);
@@ -5998,7 +5998,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
 unsigned dap_ledger_count(dap_ledger_t *a_ledger)
 {
     pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
-    unsigned long ret = HASH_COUNT(PVT(a_ledger)->ledger_items);
+    unsigned ret = HASH_COUNT(PVT(a_ledger)->ledger_items);
     pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
     return ret;
 }

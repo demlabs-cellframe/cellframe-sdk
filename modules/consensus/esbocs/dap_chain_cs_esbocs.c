@@ -508,7 +508,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_net_srv_stake_net_add(a_chain->net_id);
     uint16_t i, l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    int l_dot_pos = strlen(l_auth_certs_prefix), l_len = l_dot_pos + 16, l_pos2 = 0;
+    int l_dot_pos = (int)strlen(l_auth_certs_prefix), l_len = l_dot_pos + 16, l_pos2 = 0;
     char l_cert_name[l_len];
     dap_strncpy(l_cert_name, l_auth_certs_prefix, l_dot_pos);
     for (i = 0; i < l_auth_certs_count; ++i) {
@@ -2112,7 +2112,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 memcpy(((byte_t *)l_store->candidate) + l_store->candidate_size, l_candidate_sign, l_candidate_sign_size);
             l_store->candidate_size += l_candidate_sign_size;
         }
-        l_store->candidate->hdr.meta_n_datum_n_signs_size = l_store->candidate_size - sizeof(l_store->candidate->hdr);
+        l_store->candidate->hdr.meta_n_datum_n_signs_size = (uint32_t)(l_store->candidate_size - sizeof(l_store->candidate->hdr));
         dap_hash_fast(l_store->candidate, l_store->candidate_size, &l_store->precommit_candidate_hash);
         // Process received earlier PreCommit messages
         dap_chain_esbocs_message_item_t *l_chain_message, *l_chain_message_tmp;
@@ -3681,7 +3681,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     dap_chain_block_t *l_block = a_blocks->chain->is_mapped
         ? DAP_DUP_SIZE(a_block, l_block_size)
         : a_block;
-    l_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(l_block->hdr);
+    l_block->hdr.meta_n_datum_n_signs_size = (uint32_t)(l_block_excl_sign_size - sizeof(l_block->hdr));
     for (size_t i = 0; i < l_signs_count; i++) {
         dap_sign_t *l_sign = l_signs[i];
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
@@ -3756,7 +3756,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     if ( a_blocks->chain->is_mapped )
         DAP_DELETE(l_block);
     else
-        l_block->hdr.meta_n_datum_n_signs_size = l_block_original;
+        l_block->hdr.meta_n_datum_n_signs_size = (uint32_t)l_block_original;
     if (l_signs_verified_count < l_esbocs_pvt->min_validators_count) {
         debug_if(l_esbocs_pvt->debug, L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
                     dap_hash_fast_to_str_static(a_block_hash), l_signs_verified_count, l_esbocs_pvt->min_validators_count);
@@ -3903,7 +3903,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
     // Parse commands
     for (size_t i = 1; i < l_subcmd_str_count; i++) {
         if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, l_arg_index + 1, l_subcmd_strs[i], &l_subcmd_str_arg)) {
-            l_subcmd = i;
+            l_subcmd = (int)i;
             break;
         }
     }
@@ -4127,7 +4127,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         json_object_array_add(*a_json_arr_reply, l_json_obj_banlist);   
 
         json_object* l_json_obj_status = json_object_new_object();
-        json_object_object_add(l_json_obj_status, "ban_list_count", json_object_new_int(l_penalties_count));
+        json_object_object_add(l_json_obj_status, "ban_list_count", json_object_new_int((int32_t)l_penalties_count));
         json_object_object_add(l_json_obj_status, "sync_attempt", json_object_new_uint64(l_session->cur_round.sync_attempt));
         json_object_object_add(l_json_obj_status, "round_id", json_object_new_uint64(l_session->cur_round.id));
         json_object_array_add(*a_json_arr_reply, l_json_obj_status);

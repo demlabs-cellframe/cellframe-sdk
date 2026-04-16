@@ -176,7 +176,7 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
         memcpy(l_block->meta_n_datum_n_sign + l_offset, a_datum, a_datum_size);
         l_offset += a_datum_size;
         l_block->hdr.datum_count++;
-        l_block->hdr.meta_n_datum_n_signs_size = l_offset;
+        l_block->hdr.meta_n_datum_n_signs_size = (uint32_t)l_offset;
         return l_offset + sizeof(l_block->hdr);
     } else {
         log_it(L_ERROR,"Can't add datum: size arithmetics error");

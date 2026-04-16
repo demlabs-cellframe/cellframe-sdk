@@ -452,7 +452,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     l_decree->header.common_decree_params.chain_id = l_chain_anchor->id;
     l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD;
-    l_decree->header.data_size = l_tsd_total_size;
+    l_decree->header.data_size = (uint32_t)l_tsd_total_size;
     // Fill a TSD section
     dap_tsd_t *l_tsd = (dap_tsd_t *)l_decree->data_n_signs;
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE;
@@ -468,7 +468,7 @@ static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_c
     log_it(L_NOTICE, "<-- Signed with '%s'", a_cert->name);
     size_t l_sign_size = dap_sign_get_size(l_sign);
     l_decree_size += l_sign_size;
-    l_decree->header.signs_size = l_sign_size;
+    l_decree->header.signs_size = (uint32_t)l_sign_size;
     dap_chain_datum_decree_t *l_decree_rl = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, l_decree_size, NULL, l_decree, l_sign);
     l_decree = l_decree_rl;
     memcpy(l_decree->data_n_signs + l_tsd_total_size, l_sign, l_sign_size);
@@ -612,7 +612,7 @@ static int block_list_sort_by_date(const void *a, const void *b)
     int64_t time_a = json_object_get_int64(timestamp_a);
     int64_t time_b = json_object_get_int64(timestamp_b);
 
-    return time_a - time_b;
+    return (int)(time_a - time_b);
 }
 
 static int block_list_sort_by_date_back(const void *a, const void *b)
@@ -626,7 +626,7 @@ static int block_list_sort_by_date_back(const void *a, const void *b)
     int64_t time_a = json_object_get_int64(timestamp_a);
     int64_t time_b = json_object_get_int64(timestamp_b);
 
-    return time_b - time_a;
+    return (int)(time_b - time_a);
 }
 
 /**
@@ -706,7 +706,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
         int l_opt_idx = dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, l_subcmd_strs[i]);
         if( l_opt_idx >= 0 ){
             dap_cli_server_cmd_find_option_val(a_argv, l_opt_idx, a_argc, l_subcmd_strs[i], &l_subcmd_str_args[i] );
-            l_subcmd = i;
+            l_subcmd = (int)i;
             l_subcmd_str = l_subcmd_strs[i];
             l_subcmd_str_arg = l_subcmd_str_args[i];
         }
@@ -1851,7 +1851,7 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             dap_chain_block_cache_t *l_curr_atom = l_item->block_cache;
             ++PVT(l_blocks)->blocks_count;
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_curr_atom->block_hash), l_curr_atom);
-            HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_curr_atom->block_number), l_curr_atom->block_number, l_curr_atom);
+            HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_curr_atom->block_number), (unsigned int)l_curr_atom->block_number, l_curr_atom);
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", l_curr_atom);
             s_add_atom_datums(l_blocks, l_curr_atom);
             dap_chain_atom_notify(a_cell, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size, l_curr_atom->block->hdr.ts_created);
@@ -1923,7 +1923,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             if (l_last_block && dap_hash_fast_compare(&l_last_block->block_hash, &l_block_prev_hash)){
                 ++PVT(l_blocks)->blocks_count;
                 HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
-                HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
+                HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), (unsigned int)l_block_cache->block_number, l_block_cache);
                 debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
                 s_add_atom_datums(l_blocks, l_block_cache);
                 dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
@@ -1939,7 +1939,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
                         dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
                         dap_chain_block_cache_t *l_tmp = l_bcache_last;
-                        int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
+                        int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? (int)l_notifier->block_notify_cnt : (int)PVT(l_blocks)->block_confirm_cnt;
                         for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
                         if (l_checked_atoms_cnt == 0 && l_tmp)
                             l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
@@ -1975,7 +1975,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                             DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
                                 dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
                                 dap_chain_block_cache_t *l_tmp = l_bcache_last;
-                                int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
+                                int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? (int)l_notifier->block_notify_cnt : (int)PVT(l_blocks)->block_confirm_cnt;
                                 for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
                                 if (l_checked_atoms_cnt == 0 && l_tmp)
                                     l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
@@ -1992,7 +1992,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
         } else {            
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
-            HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
+            HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), (unsigned int)l_block_cache->block_number, l_block_cache);
             ++PVT(l_blocks)->blocks_count;
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
             s_add_atom_datums(l_blocks, l_block_cache);
@@ -2022,8 +2022,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id);
 #ifndef DAP_CHAIN_BLOCKS_TEST
         if ( !dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id)) ) {
-            if ( (ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL)) < 0 ) {
-                log_it(L_ERROR, "Can't save atom to file, code %d", ret);
+            ssize_t l_save_ret = dap_chain_atom_save(l_cell, a_atom, a_atom_size, a_atom_new ? &l_block_hash : NULL);
+            if (l_save_ret < 0) {
+                log_it(L_ERROR, "Can't save atom to file, code %zd", l_save_ret);
                 return ATOM_REJECT;
             } else if (a_chain->is_mapped) {
                 l_block = (dap_chain_block_t*)( l_cell->map_pos += sizeof(uint64_t) );  // Switching to mapped area
@@ -2207,7 +2208,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             }
             if (ret == ATOM_MOVE_TO_THRESHOLD) {
                 // search block and previous block in main branch
-                unsigned l_checked_atoms_cnt = PVT(l_blocks)->block_confirm_cnt;
+                unsigned l_checked_atoms_cnt = (unsigned int)PVT(l_blocks)->block_confirm_cnt;
                 for (dap_chain_block_cache_t *l_tmp = l_bcache_last; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--){
                     if(dap_hash_fast_compare(&l_tmp->block_hash, &l_block_hash)){
                         debug_if(s_debug_more,L_DEBUG,"%s","Block is already exist in main branch.");

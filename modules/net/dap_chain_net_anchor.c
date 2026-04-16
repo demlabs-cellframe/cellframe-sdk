@@ -106,7 +106,7 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
     if ( a_net->pub.chains->is_mapped )
         DAP_DELETE(l_anchor);
     else
-        l_anchor->header.signs_size = l_signs_size_original;
+        l_anchor->header.signs_size = (uint32_t)l_signs_size_original;
     if (!l_sign_authorized) {
         log_it(L_WARNING, "Anchor signs verify failed");
         return -108;

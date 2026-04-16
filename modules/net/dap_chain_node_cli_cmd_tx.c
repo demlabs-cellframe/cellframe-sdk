@@ -849,10 +849,10 @@ next_step:
     }    
     json_object_object_add(json_obj_summary, "network", json_object_new_string(l_net->pub.name));
     json_object_object_add(json_obj_summary, "chain", json_object_new_string(a_chain->name));
-    json_object_object_add(json_obj_summary, a_version == 1 ? "accepted_tx" : "tx_accept_count", json_object_new_int(l_tx_ledger_accepted));
-    json_object_object_add(json_obj_summary, a_version == 1 ? "rejected_tx" : "tx_reject_count", json_object_new_int(l_tx_ledger_rejected));
-    json_object_object_add(json_obj_summary, a_version == 1 ? "tx_sum" : "tx_count", json_object_new_int(l_count));
-    json_object_object_add(json_obj_summary, "total_tx_count", json_object_new_int(i_tmp));
+    json_object_object_add(json_obj_summary, a_version == 1 ? "accepted_tx" : "tx_accept_count", json_object_new_int((int32_t)l_tx_ledger_accepted));
+    json_object_object_add(json_obj_summary, a_version == 1 ? "rejected_tx" : "tx_reject_count", json_object_new_int((int32_t)l_tx_ledger_rejected));
+    json_object_object_add(json_obj_summary, a_version == 1 ? "tx_sum" : "tx_count", json_object_new_int((int32_t)l_count));
+    json_object_object_add(json_obj_summary, "total_tx_count", json_object_new_int((int32_t)i_tmp));
     return json_obj_datum;
 }
 
@@ -967,9 +967,9 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
 
         json_object_object_add(json_obj_summary, "network", json_object_new_string(a_net->pub.name));
         json_object_object_add(json_obj_summary, "chain", json_object_new_string(a_chain->name));
-        json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int(l_count));
-        json_object_object_add(json_obj_summary, "accepted_tx", json_object_new_int(l_tx_ledger_accepted));
-        json_object_object_add(json_obj_summary, "rejected_tx", json_object_new_int(l_tx_ledger_rejected));
+        json_object_object_add(json_obj_summary, "tx_sum", json_object_new_int((int32_t)l_count));
+        json_object_object_add(json_obj_summary, "accepted_tx", json_object_new_int((int32_t)l_tx_ledger_accepted));
+        json_object_object_add(json_obj_summary, "rejected_tx", json_object_new_int((int32_t)l_tx_ledger_rejected));
         return json_arr_out;
 }
 
@@ -1426,7 +1426,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                 l_decree->header.sub_type = l_key_subcmd == KEY_SUBCMD_ADD ? 
                                         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD : 
                                         DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE;
-                l_decree->header.data_size = l_tsd_size;
+                l_decree->header.data_size = (uint32_t)l_tsd_size;
                 l_decree->header.signs_size = 0;
 
                 // Add TSD with key hash
@@ -1706,7 +1706,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                     
                     json_object *json_items = json_object_object_get(json_datum, "items");
                     if (json_items && json_object_is_type(json_items, json_type_array)) {
-                        int array_len = json_object_array_length(json_items);
+                        int array_len = (int)json_object_array_length(json_items);
                         for (int i = 0; i < array_len; i++) {
                             json_object *item = json_object_array_get_idx(json_items, i);
                             const char *item_type = json_object_get_string(json_object_object_get(item, "type"));
@@ -1980,7 +1980,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
             memcpy((byte_t*)a_datum_anchor->data_n_sign + l_cur_sign_offset, l_sign, l_sign_size);
             l_total_signs_size += l_sign_size;
             l_cur_sign_offset += l_sign_size;
-            a_datum_anchor->header.signs_size = l_total_signs_size;
+            a_datum_anchor->header.signs_size = (uint32_t)l_total_signs_size;
             DAP_DELETE(l_sign);
             log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
             l_total_sign_count++;
@@ -2237,7 +2237,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_v
             l_datum_decree->header.common_decree_params.chain_id = l_decree_chain->id;
             l_datum_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_net);
             l_datum_decree->header.sub_type = l_subtype;
-            l_datum_decree->header.data_size = l_total_tsd_size;
+            l_datum_decree->header.data_size = (uint32_t)l_total_tsd_size;
             l_datum_decree->header.signs_size = 0;
 
             size_t l_data_tsd_offset = 0;

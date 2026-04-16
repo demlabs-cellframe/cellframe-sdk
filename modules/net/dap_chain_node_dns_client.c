@@ -234,7 +234,7 @@ int dap_chain_node_info_dns_request(dap_worker_t *a_worker, struct in_addr a_add
             l_ptr++;
         }
     *l_cur++='\0';
-    l_dns_client->dns_request.size = l_cur - l_dns_client->buf;
+    l_dns_client->dns_request.size = (uint32_t)(l_cur - l_dns_client->buf);
     dap_dns_buf_put_uint16(&l_dns_client->dns_request, DNS_RECORD_TYPE_A);
     dap_dns_buf_put_uint16(&l_dns_client->dns_request, DNS_CLASS_TYPE_IN);
 
@@ -313,5 +313,5 @@ void dap_dns_buf_put_uint32(dap_dns_buf_t *buf, uint32_t val)
 void dap_dns_buf_put_uint64(dap_dns_buf_t *buf, uint64_t val)
 {
     dap_dns_buf_put_uint32(buf, val >> 32);
-    dap_dns_buf_put_uint32(buf, val);
+    dap_dns_buf_put_uint32(buf, (uint32_t)val);
 }

@@ -228,7 +228,7 @@ dap_chain_policy_t *dap_chain_policy_create_deactivate(char **a_nums, uint32_t a
     dap_chain_policy_deactivate_t *l_deactivate = (dap_chain_policy_deactivate_t *)l_ret->data;
     l_deactivate->count = a_count;
     for (uint32_t i = 0; i < l_deactivate->count; ++i) {
-        l_deactivate->nums[i] = strtoull(a_nums[i], NULL, 10);
+        l_deactivate->nums[i] = (uint32_t)strtoull(a_nums[i], NULL, 10);
     }
     return l_ret;
 }
@@ -255,7 +255,7 @@ int dap_chain_policy_net_add(dap_chain_net_id_t a_net_id, dap_config_t *a_net_cf
         l_new_item->exceptions = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint32_t, l_policy_count + 1, -4);
         l_new_item->exceptions[0] = l_policy_count;
         for (uint32_t i = 0; i < l_policy_count; ++i) {
-            l_new_item->exceptions[i + 1] = strtoul(l_policy_str[i], NULL, 10);
+            l_new_item->exceptions[i + 1] = (uint32_t)strtoul(l_policy_str[i], NULL, 10);
         }
     }
     return 0;
@@ -340,7 +340,7 @@ void dap_chain_policy_add_exceptions(dap_chain_net_id_t a_net_id, const char **a
     l_net_item->exceptions = DAP_NEW_Z_COUNT_RET_IF_FAIL(uint32_t, a_count + 1);
     l_net_item->exceptions[0] = a_count;
     for (uint32_t i = 0; i < a_count; ++i) {
-        l_net_item->exceptions[i + 1] = strtoul(a_nums[i], NULL, 10);
+        l_net_item->exceptions[i + 1] = (uint32_t)strtoul(a_nums[i], NULL, 10);
     }
     return;
 }

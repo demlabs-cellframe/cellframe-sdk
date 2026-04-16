@@ -304,7 +304,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_HASH_ERR, "Can't find order with hash %s\n", l_order_hash_base58_str);
                     } else {
                         if (l_ext) {
-                            l_order->ext_size = strlen(l_ext) + 1;
+                            l_order->ext_size = (uint32_t)(strlen(l_ext) + 1);
                             dap_chain_net_srv_order_t *l_order_new = DAP_REALLOC_RET_VAL_IF_FAIL(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size,
                                                                                                  -7, l_order, l_order_hash_hex_str, l_order_hash_base58_str);
                             l_order = l_order_new;
@@ -605,7 +605,7 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                 // create order
                     char * l_order_new_hash_str = dap_chain_net_srv_order_create(
                         l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
-                        l_price_token, l_expires, (uint8_t*)l_ext, l_ext_len, l_units, l_region_str, l_continent_num, l_key);
+                        l_price_token, l_expires, (uint8_t*)l_ext, (uint32_t)l_ext_len, l_units, l_region_str, l_continent_num, l_key);
                     if (l_order_new_hash_str) {
                         json_obj_net_srv = json_object_new_object();
                         json_object_object_add(json_obj_net_srv, "order_hash", json_object_new_string(l_order_new_hash_str));

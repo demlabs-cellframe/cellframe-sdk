@@ -437,7 +437,7 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_new(dap_chain_net_id_t a_net_id
     l_decree->header.common_decree_params.net_id = a_net_id;
     l_decree->header.common_decree_params.chain_id = a_chain_id;
     l_decree->header.common_decree_params.cell_id = a_cell_id;
-    l_decree->header.data_size = a_total_tsd_size;
+    l_decree->header.data_size = (uint32_t)a_total_tsd_size;
     return l_decree;
 }
 
@@ -471,7 +471,7 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
         DAP_DELETE(l_sign);
         l_total_signs_size += l_sign_size;
         l_cur_sign_offset += l_sign_size;
-        a_datum_decree->header.signs_size = l_total_signs_size;
+        a_datum_decree->header.signs_size = (uint32_t)l_total_signs_size;
         log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
         l_total_sign_count++;
     }

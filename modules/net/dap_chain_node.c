@@ -102,8 +102,8 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             dap_strncpy(l_info->version_node, DAP_VERSION, sizeof(l_info->version_node) - 1);
             l_info->role = dap_chain_net_get_role(l_net);
             l_info->info_v1.address.uint64 = g_node_addr.uint64;
-            l_info->info_v1.uplinks_count = l_uplinks_count;
-            l_info->info_v1.downlinks_count = l_downlinks_count;
+            l_info->info_v1.uplinks_count = (uint32_t)l_uplinks_count;
+            l_info->info_v1.downlinks_count = (uint32_t)l_downlinks_count;
 
             dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = 0 });  // zerochain
             l_info->info_v1.events_count = (l_chain && l_chain->callback_count_atom) ? l_chain->callback_count_atom(l_chain) : 0;

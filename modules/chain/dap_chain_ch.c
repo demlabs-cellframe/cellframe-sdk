@@ -370,7 +370,7 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg)
         if (l_cur_state == DAP_CHAIN_CH_STATE_UPDATE_GLOBAL_DB) {
             dap_chain_ch_update_element_t *l_hashes = l_data;
             l_hashes[i].hash = l_pkt_hash;
-            l_hashes[i].size = l_pkt->data_size;
+            l_hashes[i].size = (uint32_t)l_pkt->data_size;
         } else { // l_cur_state == DAP_CHAIN_CH_STATE_SYNC_GLOBAL_DB
             dap_chain_ch_hash_item_t *l_hash_item = NULL;
             HASH_FIND(hh, l_context->remote_gdbs, &l_pkt_hash, sizeof(dap_hash_fast_t), l_hash_item);
@@ -497,7 +497,7 @@ static bool s_sync_out_chains_proc_callback(void *a_arg)
         }
         if (l_cur_state == DAP_CHAIN_CH_STATE_UPDATE_CHAINS) {
             l_hashes[i].hash = *l_context->atom_iter->cur_hash;
-            l_hashes[i].size = l_context->atom_iter->cur_size;
+            l_hashes[i].size = (uint32_t)l_context->atom_iter->cur_size;
             l_data_size += sizeof(dap_chain_ch_update_element_t);
         } else { // l_cur_state == DAP_CHAIN_CH_STATE_SYNC_CHAINS
             dap_chain_ch_hash_item_t *l_hash_item = NULL;
@@ -1474,7 +1474,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
         }
-        l_chain_pkt->hdr.data_size = l_chain_pkt_data_size;
+        l_chain_pkt->hdr.data_size = (uint32_t)l_chain_pkt_data_size;
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         debug_if(s_debug_legacy, L_INFO, "In: CHAIN_OLD pkt: atom hash %s (size %zd)",
                                          dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size);

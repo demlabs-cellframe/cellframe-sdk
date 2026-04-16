@@ -245,7 +245,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
 #ifdef DAP_VERSION
             strncpy((char *)send->header.version, (char *)DAP_VERSION, sizeof(send->header.version));
 #endif
-            send->header.sign_size = sign_s;
+            send->header.sign_size = (uint32_t)sign_s;
             //strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
             flags = (l_net->pub.mempool_autoproc) ? flags | A_PROC : flags & ~A_PROC;
 

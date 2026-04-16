@@ -198,7 +198,7 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     if ( a_net->pub.chains->is_mapped )
         DAP_DELETE(l_decree);
     else
-        l_decree->header.signs_size = l_signs_size;
+        l_decree->header.signs_size = (uint32_t)l_signs_size;
     DAP_DELETE(l_unique_signs);
 
     if (l_signs_verify_counter < l_min_signs) {

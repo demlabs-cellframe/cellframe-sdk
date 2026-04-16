@@ -792,7 +792,7 @@ void s_chain_net_states_to_json(dap_chain_net_t *a_net, json_object *a_json_out,
                            json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
     json_object_object_add(a_json_out, a_version == 1 ? "linksCount" : "links_count", json_object_new_int(0));
     json_object_object_add(a_json_out, a_version == 1 ? "activeLinksCount" : "active_links_count",
-                           json_object_new_int(dap_link_manager_links_count(a_net->pub.id.uint64)));
+                           json_object_new_int((int32_t)dap_link_manager_links_count(a_net->pub.id.uint64)));
     char l_node_addr_str[24] = {'\0'};
     int l_tmp = snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(g_node_addr));
     json_object_object_add(a_json_out, a_version == 1 ? "nodeAddress" : "node_addr", json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
@@ -965,7 +965,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg) {
         json_object *json_chains = json_object_new_object();
         for (dap_chain_t *l_chain = net->pub.chains; l_chain; l_chain = l_chain->next) {
             json_object *l_jobj_chain_info = json_object_new_object();
-            json_object_object_add(l_jobj_chain_info, "count_atoms", json_object_new_int(l_chain->callback_count_atom(l_chain)));
+            json_object_object_add(l_jobj_chain_info, "count_atoms", json_object_new_int((int32_t)l_chain->callback_count_atom(l_chain)));
             json_object_object_add(l_jobj_chain_info, "load_process", json_object_new_int(l_chain->load_progress));
             json_object_object_add(json_chains, l_chain->name, l_jobj_chain_info);
             log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",

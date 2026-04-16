@@ -970,8 +970,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply, UNUSED_ARG int a_ve
 
     // struct to write to the global db
     dap_chain_node_addr_t l_node_addr = {}, l_link;
-    uint32_t l_info_size = l_hostname 
-        ? sizeof(dap_chain_node_info_t) + dap_strlen(l_hostname) + 1
+    uint32_t l_info_size = l_hostname
+        ? (uint32_t)(sizeof(dap_chain_node_info_t) + dap_strlen(l_hostname) + 1)
         : sizeof(dap_chain_node_info_t);
     dap_chain_node_info_t *l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
     memset(l_node_info, 0, l_info_size);;
@@ -2183,7 +2183,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     json_object * json_obj_wall = json_object_new_object();
                     const char *l_prefix = cmd_num == CMD_WALLET_ACTIVATE ? "" : "de";
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ttl", &l_ttl_str);
-                    l_rc = l_ttl_str ? strtoul(l_ttl_str, NULL, 10) : 60;
+                    l_rc = l_ttl_str ? (int)strtoul(l_ttl_str, NULL, 10) : 60;
 
                     l_rc = cmd_num == CMD_WALLET_ACTIVATE
                             ? dap_chain_wallet_activate(l_wallet_name, strlen(l_wallet_name), NULL, l_pass_str, strlen(l_pass_str), l_rc)
@@ -3921,7 +3921,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         if (l_store_obj && l_store_obj->value) {
             l_hole = DAP_FLAG_CHECK(l_store_obj->flags, DAP_GLOBAL_DB_RECORD_DEL);
             if (l_hole) {
-                l_ret_code = strtol((const char*)l_store_obj->value, NULL, 10);
+                l_ret_code = (int)strtol((const char*)l_store_obj->value, NULL, 10);
             } else {
                 l_datum = DAP_DUP_SIZE(l_store_obj->value, l_store_obj->value_len);
             }
@@ -8863,7 +8863,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR, c_error_memory_alloc);
             return DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_MEMORY_ERR;
         }
-        char **l_value_array = dap_strsplit(l_value_str, ",", l_value_el_count);
+        char **l_value_array = dap_strsplit(l_value_str, ",", (int)l_value_el_count);
         if (!l_value_array) {
             DAP_DELETE(l_value);
             dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
@@ -8892,7 +8892,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         }
         // For arbitrage TX with -to_addr or normal TX, parse -to_addr addresses
         if (addr_base58_to) {
-            char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", l_addr_el_count);
+            char **l_addr_base58_to_array = dap_strsplit(addr_base58_to, ",", (int)l_addr_el_count);
             if (!l_addr_base58_to_array) {
                 DAP_DEL_MULTY(l_addr_to, l_value);
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR, "Can't read '-to_addr' arg");
@@ -9035,7 +9035,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
             DAP_DEL_MULTY(l_addr_to, l_value);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_MEMORY_ERR;
         }
-        char **l_time_unlock_array = dap_strsplit(l_time_str, ",", l_value_el_count);
+        char **l_time_unlock_array = dap_strsplit(l_time_str, ",", (int)l_value_el_count);
         if (!l_time_unlock_array) {
             DAP_DELETE(l_addr_from);
             DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
@@ -9789,7 +9789,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int
                 uint8_t l_flags = (uint8_t)json_object_get_uint64(l_jobj_flags);
                 uint64_t l_crc = json_object_get_uint64(l_jobj_crc);
                 const char *l_sign_str = json_object_get_string(l_jobj_sign);
-                int l_len = dap_strlen(l_sign_str);
+                int l_len = (int)dap_strlen(l_sign_str);
                 dap_sign_t *l_sign = DAP_NEW_Z_SIZE(dap_sign_t, DAP_ENC_BASE64_DECODE_SIZE(l_len) + 1);
                 size_t l_sign_decree_size = dap_enc_base64_decode(l_sign_str, l_len, l_sign, DAP_ENC_DATA_TYPE_B64);
                 if (dap_sign_get_size(l_sign) != l_sign_decree_size) {
@@ -10160,7 +10160,7 @@ end:
 static char **s_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit)
 {
     int l_count_temp = *a_count = 0;
-    int l_len_str = strlen(a_str);
+    int l_len_str = (int)strlen(a_str);
     if (l_len_str == 0) return NULL;
     char *s, *l_temp_str;
     s = l_temp_str = dap_strdup(a_str);
@@ -10305,7 +10305,7 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str
     if (!l_datum)
         return dap_cli_server_cmd_set_reply_text(a_str_reply, "not created datum"), -1;
     dap_cli_server_cmd_set_reply_text(a_str_reply, "hash: %s", dap_get_data_hash_str(l_datum->data, l_datum->header.data_size).s);
-    return DAP_DELETE(l_datum), l_chain->callback_add_datums(l_chain, &l_datum, 1);
+    return DAP_DELETE(l_datum), (int)l_chain->callback_add_datums(l_chain, &l_datum, 1);
 }
 
 
@@ -10419,7 +10419,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
     for ( dap_list_t* l_iter = dap_list_first(a_meta); l_iter; l_iter = l_iter->next){
         if (!l_iter->data) continue;
         dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
-        l_index = l_counter;
+        l_index = (int)l_counter;
         l_counter += strlen((char *)l_tsd->data);
         if (l_counter >= l_part_power) {
             l_part_power = l_part * l_power++;
@@ -10473,7 +10473,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
             {
                 char *l_filename_short = NULL;
                 if ((l_filename_short = strrchr(a_file, '.')) != 0) {
-                    int l_index_of_latest_point = l_filename_short - a_file;
+                    int l_index_of_latest_point = (int)(l_filename_short - a_file);
                     l_filename_short = s_strdup_by_index (a_file, l_index_of_latest_point);
                     if (!l_filename_short) return NULL;
                     dap_tsd_t *l_ret = dap_tsd_create_string(SIGNER_FILENAME_SHORT, l_filename_short);
@@ -10798,7 +10798,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
     uint64_t l_policy_num = 0;
     if (l_cmd == CMD_DEACTIVATE) {
         l_deactivate_array = dap_strsplit(l_num_str, ",", 0);
-        l_policy = dap_chain_policy_create_deactivate(l_deactivate_array, dap_str_countv(l_deactivate_array));
+        l_policy = dap_chain_policy_create_deactivate(l_deactivate_array, (uint32_t)dap_str_countv(l_deactivate_array));
         dap_strfreev(l_deactivate_array);
         if (!l_policy) {
             dap_json_rpc_error_add(*a_json_arr_reply, -17, "Can't create deactivate policy object");
@@ -10813,9 +10813,9 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
     }
 
     if (l_cmd == CMD_FIND) {
-        json_object *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, l_policy_num);
+        json_object *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, (uint32_t)l_policy_num);
         if (l_answer) {
-            json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_is_activated(l_net->pub.id, l_policy_num) ? "true" : "false"));
+            json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_is_activated(l_net->pub.id, (uint32_t)l_policy_num) ? "true" : "false"));
             json_object_array_add(*a_json_arr_reply, l_answer);
         } else {
             json_object_array_add(*a_json_arr_reply, json_object_new_string("Detailed information not exist"));
@@ -10842,7 +10842,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
         }
     }
     if (l_cmd == CMD_ACTIVATE) {
-        if (dap_chain_policy_is_exist(l_net->pub.id, l_policy_num)) {
+        if (dap_chain_policy_is_exist(l_net->pub.id, (uint32_t)l_policy_num)) {
             dap_json_rpc_error_add(*a_json_arr_reply, -15, "Specified policy num already exist");
             return -15;
         }
@@ -10872,7 +10872,7 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
                 l_chain_id.uint64 = l_chain->id.uint64;
             }
         }
-        l_policy = dap_chain_policy_create_activate(l_policy_num, l_ts_start, l_block_start, l_chain_id, 0);
+        l_policy = dap_chain_policy_create_activate((uint32_t)l_policy_num, l_ts_start, l_block_start, l_chain_id, 0);
         if (!l_policy) {
             dap_json_rpc_error_add(*a_json_arr_reply, -18, "Can't create activate policy object");
             return -18;

@@ -1826,10 +1826,10 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
 
                         if (l_head)
                             for (size_t i = l_arr_start; i < l_arr_end; i++)
-                                s_json_dag_pack_round(json_arr_obj_event, l_objs, i, a_version);
+                                s_json_dag_pack_round(json_arr_obj_event, l_objs, (int)i, a_version);
                         else
                             for (size_t i = l_objs_count - l_arr_start; i > l_objs_count - l_arr_end; i--)
-                                s_json_dag_pack_round(json_arr_obj_event, l_objs, i, a_version);
+                                s_json_dag_pack_round(json_arr_obj_event, l_objs, (int)i, a_version);
                         json_object_object_add(json_obj_event_list, a_version == 1 ? "OBJ" : "obj", json_arr_obj_event);
                         if (l_objs && l_objs_count )
                             dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -1967,7 +1967,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                 const char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                 if (l_gdb_group_events) {
                     size_t l_objs_count = dap_global_db_driver_count(l_gdb_group_events, c_dap_global_db_driver_hash_blank, false);
-                    json_object_object_add(json_obj_event_count, a_version == 1 ? "event count in round new" : "event_count_in_round_new", json_object_new_int(l_objs_count));
+                    json_object_object_add(json_obj_event_count, a_version == 1 ? "event count in round new" : "event_count_in_round_new", json_object_new_int((int32_t)l_objs_count));
                 }
                 size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
                 size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);

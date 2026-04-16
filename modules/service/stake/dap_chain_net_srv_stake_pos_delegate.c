@@ -502,7 +502,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
         dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_stake_tx_hash);
         if (l_tx) {
             dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, NULL);
-            if (l_cond && (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, dap_pkey_get_size(l_stake->pkey)))) {
+            if (l_cond && (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, (uint32_t)dap_pkey_get_size(l_stake->pkey)))) {
                 dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
                 l_stake->sovereign_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
                 l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
@@ -1229,7 +1229,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     l_decree->header.common_decree_params.chain_id = l_chain->id;
     l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE;
-    l_decree->header.data_size = l_total_tsd_size;
+    l_decree->header.data_size = (uint32_t)l_total_tsd_size;
     l_decree->header.signs_size = 0;
 
     size_t l_data_tsd_offset = 0;
@@ -1254,7 +1254,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
         l_decree = l_new_decree;
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
-        l_decree->header.signs_size = l_total_signs_size;
+        l_decree->header.signs_size = (uint32_t)l_total_signs_size;
         DAP_DELETE(l_sign);
         log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
     }else{
@@ -1292,14 +1292,14 @@ static dap_chain_datum_decree_t *s_decree_pkey_update(dap_chain_net_t *a_net, da
     l_decree->header.common_decree_params.chain_id = l_chain->id;
     l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE;
-    l_decree->header.data_size = l_total_tsd_size;
+    l_decree->header.data_size = (uint32_t)l_total_tsd_size;
     l_decree->header.signs_size = 0;
     dap_tsd_write((byte_t*)l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY, a_pkey, dap_pkey_get_size(a_pkey));
 
     dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size);
 
     if (l_sign) {
-        l_decree->header.signs_size = dap_sign_get_size(l_sign);
+        l_decree->header.signs_size = (uint32_t)dap_sign_get_size(l_sign);
         l_decree = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size + l_decree->header.signs_size, NULL, l_decree, l_sign);
         memcpy((byte_t*)l_decree->data_n_signs + l_decree->header.data_size, l_sign, l_decree->header.signs_size);
         DAP_DELETE(l_sign);
@@ -1497,7 +1497,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     l_decree->header.common_decree_params.chain_id = l_chain->id;
     l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE;
-    l_decree->header.data_size = l_total_tsd_size;
+    l_decree->header.data_size = (uint32_t)l_total_tsd_size;
     l_decree->header.signs_size = 0;
 
     size_t l_data_tsd_offset = 0;
@@ -1522,7 +1522,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
         l_decree = l_new_decree;
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
-        l_decree->header.signs_size = l_total_signs_size;
+        l_decree->header.signs_size = (uint32_t)l_total_signs_size;
         DAP_DELETE(l_sign);
         log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
     }else{
@@ -1651,7 +1651,7 @@ int json_object_compare_by_timestamp(const void *a, const void *b) {
     int64_t time_a = json_object_get_int64(timestamp_a);
     int64_t time_b = json_object_get_int64(timestamp_b);
 
-    return time_a - time_b;
+    return (int)(time_a - time_b);
 }
 
 typedef enum s_cli_srv_stake_order_err{
@@ -2066,7 +2066,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                                         l_pkey = (dap_pkey_t *)l_tsd->data;
                                     }
                                 }
-                                if (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, dap_pkey_get_size(l_pkey))) {
+                                if (l_cond->tsd_size == dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(true, (uint32_t)dap_pkey_get_size(l_pkey))) {
                                     dap_tsd_t *l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_ADDR);
                                     l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
                                     l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
@@ -3455,9 +3455,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
                     json_object_object_add(l_json_obj_keys_count, "total_keys", json_object_new_int(0));
                 } else {
                     if (!l_cert_str && !l_pkey_hash_str)
-                        json_object_object_add(l_json_obj_keys_count, "total_keys", json_object_new_int(l_total_count));
+                        json_object_object_add(l_json_obj_keys_count, "total_keys", json_object_new_int((int32_t)l_total_count));
                     if (dap_chain_esbocs_started(l_net->pub.id))
-                        json_object_object_add(l_json_obj_keys_count, "inactive_keys", json_object_new_int(l_inactive_count));
+                        json_object_object_add(l_json_obj_keys_count, "inactive_keys", json_object_new_int((int32_t)l_inactive_count));
 
 
                     const char *l_total_weight_coins, *l_total_weight_str = dap_uint256_to_char(l_total_locked_weight, &l_total_weight_coins);
@@ -4087,7 +4087,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         HASH_ITER(hh, l_validators_fees, l_item, l_tmp) {
             l_all_fees[l_idx] = l_item->price;
             // Insertion sort while adding
-            for (int j = l_idx; j > 0 && compare256(l_all_fees[j], l_all_fees[j - 1]) == -1; --j) {
+            for (int j = (int)l_idx; j > 0 && compare256(l_all_fees[j], l_all_fees[j - 1]) == -1; --j) {
                 uint256_t l_temp = l_all_fees[j];
                 l_all_fees[j] = l_all_fees[j - 1];
                 l_all_fees[j - 1] = l_temp;

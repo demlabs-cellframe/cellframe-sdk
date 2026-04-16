@@ -314,7 +314,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
         if ( dap_config_get_item_bool_default(g_config, "ledger", "mapped", true) )
             DAP_DELETE(l_tx);
         else
-            a_tx->header.tx_items_size = l_tx_items_size;
+            a_tx->header.tx_items_size = (uint32_t)l_tx_items_size;
     }
     debug_if(l_ret, L_ERROR, "Sign verification error %d", l_ret);
     return l_ret;

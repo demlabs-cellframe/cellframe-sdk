@@ -370,7 +370,7 @@ static int s_cmd_request_get_response(struct cmd_request *a_cmd_request, json_ob
     } else if (a_cmd_request->response && a_cmd_request->response_size > 0) {
             struct json_tokener *l_tok = json_tokener_new();
             if (l_tok) {
-                *a_response_out = json_tokener_parse_ex(l_tok, a_cmd_request->response, a_cmd_request->response_size);
+                *a_response_out = json_tokener_parse_ex(l_tok, a_cmd_request->response, (int)a_cmd_request->response_size);
                 json_tokener_free(l_tok);
                 if (*a_response_out) {
                     *a_response_out_size = a_cmd_request->response_size;
@@ -633,7 +633,7 @@ static json_object* s_request_command_parse(json_object *a_response, compose_con
     if (json_object_object_get_ex(first_element, "errors", &errors_array) && 
         json_object_is_type(errors_array, json_type_array)) {
         
-        int errors_len = json_object_array_length(errors_array);
+        int errors_len = (int)json_object_array_length(errors_array);
         for (int j = 0; j < errors_len; j++) {
             json_object *error_obj = json_object_array_get_idx(errors_array, j);
             if (!error_obj) continue;
@@ -865,7 +865,7 @@ static bool s_get_remote_wallet_outs_and_count(dap_chain_addr_t *a_addr_from, co
         return false;
     }
 
-    *l_outputs_count = json_object_array_length(*l_outs);
+    *l_outputs_count = (int)json_object_array_length(*l_outs);
     json_object_get(*l_outs);
     json_object_put(l_json_outs);
     return true;
@@ -941,7 +941,7 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
         s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_MEMORY_ERROR, "Can't allocate memory");
         return s_compose_config_return_response_handler(l_config);
     }
-    char **l_value_array = dap_strsplit(a_value_str, ",", l_value_el_count);
+    char **l_value_array = dap_strsplit(a_value_str, ",", (int)l_value_el_count);
     if (!l_value_array) {
         log_it(L_ERROR, "failed to read '-to_addr' arg");
         DAP_DELETE(l_value);
@@ -967,7 +967,7 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
             s_json_compose_error_add(l_config->response_handler, TX_CREATE_COMPOSE_MEMORY_ERROR, "Can't allocate memory");
             return s_compose_config_return_response_handler(l_config);
         }
-        char **l_time_unlock_array = dap_strsplit(l_time_unlock_str, ",", l_value_el_count);
+        char **l_time_unlock_array = dap_strsplit(l_time_unlock_str, ",", (int)l_value_el_count);
         if (!l_time_unlock_array) {
             DAP_DELETE(l_time_unlock);
             log_it(L_ERROR, "failed to read time unlock array");
@@ -998,7 +998,7 @@ json_object *dap_chain_tx_compose_tx_create(dap_chain_net_id_t a_net_id, const c
             DAP_DELETE(l_value);
             return s_compose_config_return_response_handler(l_config);
         }
-        char **l_addr_base58_to_array = dap_strsplit(a_addr_base58_to, ",", l_addr_el_count);
+        char **l_addr_base58_to_array = dap_strsplit(a_addr_base58_to, ",", (int)l_addr_el_count);
         if (!l_addr_base58_to_array) {
             DAP_DEL_MULTY(l_addr_to, l_value, l_time_unlock);
             log_it(L_ERROR, "failed to read '-to_addr' arg");
@@ -1158,7 +1158,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_create(dap_chain_addr_t* a_a
 
     }
     if (a_tx_num > 1) {
-        uint32_t l_tx_num = a_tx_num;
+        uint32_t l_tx_num = (uint32_t)a_tx_num;
         dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_tx_num, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
         dap_chain_datum_tx_add_item(&l_tx, l_out_count);
         DAP_DELETE(l_out_count);
@@ -2122,8 +2122,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_hold(dap_chain_addr_
     } else {
         l_outs_main = dap_get_remote_tx_outs(a_main_ticker, a_wallet_addr, a_config);
     }
-    int l_out_native_count = json_object_array_length(l_outs_native);
-    l_out_main_count = json_object_array_length(l_outs_main);
+    int l_out_native_count = (int)json_object_array_length(l_outs_native);
+    l_out_main_count = (int)json_object_array_length(l_outs_main);
 
     if (l_main_native)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
@@ -2499,8 +2499,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_stake_lock_take(dap_chain_addr_
         DAP_DEL_Z(l_addr_fee);
         return NULL;
     }
-    int l_out_native_count = json_object_array_length(l_outs_native);
-    int l_out_delegated_count = json_object_array_length(l_outs_delegated);
+    int l_out_native_count = (int)json_object_array_length(l_outs_native);
+    int l_out_delegated_count = (int)json_object_array_length(l_outs_delegated);
 #else
     json_object *l_outs_native = NULL;
     json_object *l_outs_delegated = NULL;
@@ -3186,7 +3186,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
         return NULL;
     }
 
-    int l_results_count = json_object_array_length(l_results);
+    int l_results_count = (int)json_object_array_length(l_results);
 
 
     if (l_votes_max && l_votes_max <= l_results_count) {
@@ -3237,7 +3237,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
             s_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_FAILED_TO_RETRIEVE_COINS_FROM_LEDGER, "Can't covert l_pkey_hash to str");
             return NULL;
         }
-        int items_count = json_object_array_length(l_json_coins);
+        int items_count = (int)json_object_array_length(l_json_coins);
         bool found = false;
         for (int i = 0; i < items_count; i++) {
             json_object *item = json_object_array_get_idx(l_json_coins, i);
@@ -3309,7 +3309,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
     }
 
     if (json_object_is_type(l_votes_list, json_type_array)) {
-        l_votes_count = json_object_array_length(l_votes_list);
+        l_votes_count = (int)json_object_array_length(l_votes_list);
     } else {
         l_votes_count = 0;
     }
@@ -3446,7 +3446,7 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
 
     size_t l_cond_outputs_count = json_object_array_length(l_cond_tx_outputs);
 
-    dap_list_t *l_cond_outs = s_ledger_get_list_tx_outs_from_json_all(l_cond_tx_outputs, l_cond_outputs_count,
+    dap_list_t *l_cond_outs = s_ledger_get_list_tx_outs_from_json_all(l_cond_tx_outputs, (int)l_cond_outputs_count,
                                                             l_total_fee,    
                                                             &l_value_transfer);
     for (dap_list_t *it = l_cond_outs; it; it = it->next) {
@@ -3578,7 +3578,7 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
             return s_compose_config_return_response_handler(l_config);
         }
         
-        int items_count = json_object_array_length(l_json_coins);
+        int items_count = (int)json_object_array_length(l_json_coins);
         bool found = false;
         for (int i = 0; i < items_count; i++) {
             json_object *item = json_object_array_get_idx(l_json_coins, i);
@@ -3619,7 +3619,7 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
         }
 
         bool tx_exists = false;
-        int tx_count = json_object_array_length(l_json_coins);
+        int tx_count = (int)json_object_array_length(l_json_coins);
         for (int i = 0; i < tx_count; i++) {
             json_object *tx_item = json_object_array_get_idx(l_json_coins, i);
             const char *tx_hash = json_object_get_string(json_object_object_get(tx_item, "tx_hash"));
@@ -3683,7 +3683,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_invalidate(dap_hash_f
         return NULL;
     }
 
-    int l_out_native_count = json_object_array_length(l_outs_native);
+    int l_out_native_count = (int)json_object_array_length(l_outs_native);
 #else
     const char *l_native_ticker = a_config->native_ticker;
     char *l_token_ticker = dap_strdup("mBUZ");
@@ -4189,8 +4189,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_delegate(dap_chain_ad
         return NULL;
     }
 
-    int l_out_native_count = json_object_array_length(l_outs_native);
-    int l_out_delegated_count = json_object_array_length(l_outs_delegated); 
+    int l_out_native_count = (int)json_object_array_length(l_outs_native);
+    int l_out_delegated_count = (int)json_object_array_length(l_outs_delegated);
 #else
     json_object *l_outs_native = NULL;
     json_object *l_outs_delegated = NULL;
@@ -4486,7 +4486,7 @@ static bool s_process_ledger_response(dap_chain_tx_out_cond_subtype_t a_cond_typ
         return false;
     }
     bool l_found = false;
-    int items_count = json_object_array_length(items);
+    int items_count = (int)json_object_array_length(items);
     for (int i = 0; i < items_count; i++) {
         json_object *item = json_object_array_get_idx(items, i);
         const char *item_type = json_object_get_string(json_object_object_get(item, "type"));
@@ -4509,7 +4509,7 @@ static bool s_process_ledger_response(dap_chain_tx_out_cond_subtype_t a_cond_typ
     bool l_another_tx = false;
     json_object *spent_outs = json_object_object_get(l_response_array, "spent_OUTs");
     if (spent_outs) {
-        int spent_outs_count = json_object_array_length(spent_outs);
+        int spent_outs_count = (int)json_object_array_length(spent_outs);
         for (int i = 0; i < spent_outs_count; i++) {
             json_object *spent_out = json_object_array_get_idx(spent_outs, i);
             int out_index = json_object_get_int(json_object_object_get(spent_out, "OUT - "));
@@ -4635,7 +4635,7 @@ dap_chain_datum_tx_t* dap_xchange_tx_invalidate_compose( dap_chain_net_srv_xchan
             DAP_DELETE(l_addr_fee);
             return NULL;
         }
-        int l_out_native_count = json_object_array_length(l_outs_native);
+        int l_out_native_count = (int)json_object_array_length(l_outs_native);
         uint256_t l_transfer_fee = {}, l_fee_back = {};
         // list of transaction with 'out' items to get net fee
         dap_list_t *l_list_fee_out = s_ledger_get_list_tx_outs_from_json(l_outs_native, l_out_native_count,
@@ -5336,8 +5336,8 @@ dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold_ext(dap_cha
         l_outs_main = dap_get_remote_tx_outs(a_token_ticker, a_owner_addr, a_config);
     }
 
-    int l_out_native_count = json_object_array_length(l_outs_native);
-    int l_out_main_count = json_object_array_length(l_outs_main);
+    int l_out_native_count = (int)json_object_array_length(l_outs_native);
+    int l_out_main_count = (int)json_object_array_length(l_outs_main);
 #else
     json_object *l_outs_native = NULL;
     json_object *l_outs_main = NULL;
@@ -5635,8 +5635,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_refill(dap_chain_
         l_outs_main = dap_get_remote_tx_outs(l_tx_ticker, a_owner_addr, a_config);
     }
 
-    int l_out_native_count = json_object_array_length(l_outs_native);
-    int l_out_main_count = json_object_array_length(l_outs_main);
+    int l_out_native_count = (int)json_object_array_length(l_outs_native);
+    int l_out_main_count = (int)json_object_array_length(l_outs_main);
 #else
     int l_out_native_count = 0;
     int l_out_main_count = 0;
@@ -5912,8 +5912,8 @@ json_object *dap_chain_tx_compose_wallet_shared_take(dap_chain_net_id_t a_net_id
         return l_response;
     }
 
-    l_addr_el_count = dap_chain_addr_from_str_array(a_to_addr_str, &l_to_addr);
-    l_value_el_count = dap_str_symbol_count(a_value_str, ',') + 1;
+    l_addr_el_count = (uint32_t)dap_chain_addr_from_str_array(a_to_addr_str, &l_to_addr);
+    l_value_el_count = (uint32_t)(dap_str_symbol_count(a_value_str, ',') + 1);
 
     if (l_addr_el_count != l_value_el_count) {
         DAP_DELETE(l_to_addr);
@@ -6074,7 +6074,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
         DAP_DEL_MULTY(l_final_tx_hash_str, l_tx_ticker, l_net_fee_addr);
         return NULL;
     }
-    int l_out_native_count = json_object_array_length(l_outs_native);
+    int l_out_native_count = (int)json_object_array_length(l_outs_native);
 #else
     int l_out_native_count = 0;
 #endif
@@ -6651,8 +6651,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_refill(dap_chain_addr_t
         DAP_DELETE(l_tx_ticker);
         return NULL;
     }
-    int l_out_native_count = json_object_array_length(l_outs_native);
-    int l_out_main_count = json_object_array_length(l_outs_main);
+    int l_out_native_count = (int)json_object_array_length(l_outs_native);
+    int l_out_main_count = (int)json_object_array_length(l_outs_main);
 #else
     int l_out_native_count = 0;
     int l_out_main_count = 0;
@@ -7015,7 +7015,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
         return NULL;
     }
 
-    int l_arr_len = json_object_array_length(l_transactions);
+    int l_arr_len = (int)json_object_array_length(l_transactions);
 
     for (dap_list_t *l_tmp = a_tx_hashes; l_tmp; l_tmp = l_tmp->next)
     {

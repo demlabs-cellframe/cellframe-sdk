@@ -1325,7 +1325,7 @@ LOCAL int lookup_path_in_array(const char *path_elem,
 
     int saved_errno = errno;
     errno = 0;
-    int array_index = strtol(path_elem, &first_invalid, 10);
+    int array_index = (int)strtol(path_elem, &first_invalid, 10);
     if (ERANGE == errno) {
         errno = saved_errno;
         return MMDB_INVALID_LOOKUP_PATH_ERROR;

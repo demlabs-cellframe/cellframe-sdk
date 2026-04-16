@@ -153,7 +153,7 @@ char *dap_chain_arbitrage_tx_create_with_signatures(
     }
     
     if (a_tx_num > 1) {
-        uint32_t l_tx_num = a_tx_num;
+        uint32_t l_tx_num = (uint32_t)a_tx_num;
         dap_chain_tx_tsd_t *l_out_count = dap_chain_datum_tx_item_tsd_create(&l_tx_num, DAP_CHAIN_DATUM_TRANSFER_TSD_TYPE_OUT_COUNT, sizeof(uint32_t));
         if (l_out_count) {
             dap_chain_datum_tx_add_item(&l_tx, l_out_count);

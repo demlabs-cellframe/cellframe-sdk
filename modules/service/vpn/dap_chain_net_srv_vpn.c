@@ -306,7 +306,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
     l_pkt_out->header.op_code           = VPN_PACKET_OP_CODE_VPN_RECV;
     l_pkt_out->header.sock_id           = s_raw_server->tun_fd;
     l_pkt_out->header.usage_id          = l_ch_vpn_info->usage_id;
-    l_pkt_out->header.op_data.data_size = a_data_size;
+    l_pkt_out->header.op_data.data_size = (uint32_t)a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
 
     if(l_ch_vpn_info->is_on_this_worker){

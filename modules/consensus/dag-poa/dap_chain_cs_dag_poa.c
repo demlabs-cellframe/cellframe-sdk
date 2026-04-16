@@ -507,7 +507,7 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
                 break;
             }
         }
-        unsigned int l_dups_count = dap_list_length(l_dups);
+        unsigned int l_dups_count = (unsigned int)dap_list_length(l_dups);
         if (!l_dups_count)
             return NULL;
         if (l_dups_count == 1) {

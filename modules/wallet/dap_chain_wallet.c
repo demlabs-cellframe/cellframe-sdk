@@ -706,7 +706,7 @@ if ( a_pass )
              * block nature of the GOST family and other block-cyphers. We expect that this work is performed
              * by the "enc_na" internaly. So , relax mothefackerzzz!
              */
-            l_len = l_enc_key->enc_na(l_enc_key, l_cert_raw, l_len, l_buf, sizeof(l_buf) );
+            l_len = (uint32_t)l_enc_key->enc_na(l_enc_key, l_cert_raw, l_len, l_buf, sizeof(l_buf) );
         }
         dap_chain_wallet_cert_hdr_t l_wallet_cert_hdr = { .type = DAP_WALLET$K_CERT, .cert_raw_size = l_len };
 
@@ -991,7 +991,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
         if ( l_enc_key )
         {
-            l_len = l_enc_key->dec_na(l_enc_key, l_buf, l_rc, l_buf2, sizeof(l_buf2) );
+            l_len = (int)l_enc_key->dec_na(l_enc_key, l_buf, l_rc, l_buf2, sizeof(l_buf2) );
             l_bufp = l_buf2;
             l_csum = crc32c(l_csum, l_bufp, l_len);                          /* CRC for every certificate */
         }

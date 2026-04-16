@@ -294,8 +294,8 @@ static bool is_local_address(const char *a_address)
         dap_strfreev(l_octets);
         return false;
     }
-    int first_octet = strtol(l_octets[0], NULL, 10);
-    int second_octet = strtol(l_octets[1], NULL, 10);
+    int first_octet = (int)strtol(l_octets[0], NULL, 10);
+    int second_octet = (int)strtol(l_octets[1], NULL, 10);
     if(first_octet == 10)
         return true;
     else if(first_octet == 172 && second_octet >= 16 && second_octet < 32)
@@ -380,7 +380,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
         dap_stream_ch_vpn_pkt_t* pkt_out = DAP_NEW_STACK_SIZE(dap_stream_ch_vpn_pkt_t, sizeof(pkt_out->header) + l_read_bytes);
         pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND;
         pkt_out->header.sock_id = s_fd_tun;
-        pkt_out->header.op_data.data_size = l_read_bytes;
+        pkt_out->header.op_data.data_size = (uint32_t)l_read_bytes;
         memcpy(pkt_out->data, a_es->buf_in + l_shift, l_read_bytes);
         // pthread_mutex_lock(&s_clients_mutex);
         dap_stream_ch_pkt_write_mt(l_ch->stream_worker, l_ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
@@ -622,7 +622,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     memset(&l_pkt_out->header,0,sizeof(l_pkt_out->header));
     l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
     l_pkt_out->header.sock_id = a_ch->stream->esocket->socket;
-    l_pkt_out->header.op_data.data_size = a_data_size;
+    l_pkt_out->header.op_data.data_size = (uint32_t)a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
     dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out, l_pkt_out_size);
     DAP_DELETE(l_pkt_out);

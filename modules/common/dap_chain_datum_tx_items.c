@@ -432,7 +432,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
         return NULL;
     bool l_tsd_sovereign_addr = a_sovereign_addr && !dap_chain_addr_is_blank(a_sovereign_addr);
     size_t l_pkey_size = a_pkey ? dap_pkey_get_size(a_pkey) : 0;
-    size_t l_tsd_total_size =  dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(l_tsd_sovereign_addr, l_pkey_size);
+    size_t l_tsd_total_size =  dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size(l_tsd_sovereign_addr, (uint32_t)l_pkey_size);
     
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + l_tsd_total_size, NULL);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
@@ -442,7 +442,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
     l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
     if (l_tsd_total_size) {
-        l_item->tsd_size = l_tsd_total_size;
+        l_item->tsd_size = (uint32_t)l_tsd_total_size;
         byte_t *l_next_tsd_ptr = l_item->tsd;
         if (l_tsd_sovereign_addr) {
             l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_ADDR, a_sovereign_addr, sizeof(*a_sovereign_addr));
@@ -470,7 +470,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_deleg
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
     l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
-    l_item->tsd_size = a_params_size;
+    l_item->tsd_size = (uint32_t)a_params_size;
     if (l_item->tsd_size) {
         memcpy(l_item->tsd, a_params, l_item->tsd_size);
         if (dap_tsd_find((byte_t *)a_params, a_params_size, DAP_CHAIN_TX_OUT_COND_TSD_PKEY)) {
@@ -607,7 +607,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_e
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED;
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.wallet_shared.signers_minimum = a_signs_min;
-    l_item->tsd_size = l_tsd_total_size;
+    l_item->tsd_size = (uint32_t)l_tsd_total_size;
     byte_t *l_next_tsd_ptr = l_item->tsd;
     for (size_t i = 0; i < a_addrs_count; i++)
         l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_HASH, &a_owner_addrs[i].data.hash_fast, sizeof(dap_hash_fast_t));

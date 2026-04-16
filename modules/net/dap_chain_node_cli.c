@@ -575,7 +575,7 @@ int  s_print_for_mempool_list(dap_json_rpc_response_t* response, char **cmd_para
 	if (!j_arr_chains || json_object_get_type(j_arr_chains) != json_type_array)
 		return -4;
 
-	int chains_count = json_object_array_length(j_arr_chains);
+	int chains_count = (int)json_object_array_length(j_arr_chains);
 	for (int i = 0; i < chains_count; i++) {
 		json_object *json_obj_chain = json_object_array_get_idx(j_arr_chains, i);
 		if (!json_obj_chain)
@@ -599,7 +599,7 @@ int  s_print_for_mempool_list(dap_json_rpc_response_t* response, char **cmd_para
 		printf("  Hash \t\t\t\t\t\t\t\t     | %-22s | %-31s |\n","Datum type", "Time create");
 
 		if (j_arr_datums && json_object_get_type(j_arr_datums) == json_type_array) {
-			int datums_count = json_object_array_length(j_arr_datums);
+			int datums_count = (int)json_object_array_length(j_arr_datums);
 			for (int j = 0; j < datums_count; j++) {
 				json_object *j_obj_datum = json_object_array_get_idx(j_arr_datums, j);
 				if (!j_obj_datum)
@@ -653,7 +653,7 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
 
     if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
     if (json_object_get_type(response->result_json_object) == json_type_array) {
-        int result_count = json_object_array_length(response->result_json_object);
+        int result_count = (int)json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
@@ -671,7 +671,7 @@ static int s_print_for_srv_stake_list_keys(dap_json_rpc_response_t* response, ch
                    "Node addres", "Pkey hash", "Stake val", "Eff val", "Rel weight", "Sover addr", "Sover tax");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
-        result_count = json_object_array_length(json_obj_array);
+        result_count = (int)json_object_array_length(json_obj_array);
         struct json_object * json_obj_total = NULL;
         for (int i = 0; i < result_count; i++) {
             struct json_object *json_obj_result = json_object_array_get_idx(json_obj_array, i);
@@ -737,7 +737,7 @@ static int s_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char
     if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
     
     if (json_object_get_type(response->result_json_object) == json_type_array) {
-        int result_count = json_object_array_length(response->result_json_object);
+        int result_count = (int)json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
@@ -754,7 +754,7 @@ static int s_print_for_srv_stake_list_tx(dap_json_rpc_response_t* response, char
             printf(" %-15s | %-31s | %-19s | %-15s | %-22s | %-11s | %-19s |\n", "TX Hash","Date","Signing Addr","Signing Hash","Node Address","Value Coins","Owner Addr");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
-        result_count = json_object_array_length(json_obj_array);
+        result_count = (int)json_object_array_length(json_obj_array);
         struct json_object * json_obj_total = NULL;
         char hash_buffer[16];
         for (int i = 0; i < result_count; i++) {
@@ -879,7 +879,7 @@ static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cm
 
         // Case 1: array of objects where each token is an object with field token_name or subtype/supply, etc.
         if (json_object_is_type(root0, json_type_array)) {
-            int arr_len = json_object_array_length(root0);
+            int arr_len = (int)json_object_array_length(root0);
             if (arr_len <= 0) { printf("No coins found\n"); return 0; }
 
             printf("__________________________________________________________________________________________________________"
@@ -998,7 +998,7 @@ static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cm
             printf("Response array is empty\n");
             return -3;
         }
-        int result_count = json_object_array_length(json_obj_array);
+        int result_count = (int)json_object_array_length(json_obj_array);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
@@ -1056,7 +1056,7 @@ static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cm
             printf("Response array is empty\n");
             return -3;
         }
-        int result_count = json_object_array_length(json_obj_array);
+        int result_count = (int)json_object_array_length(json_obj_array);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
@@ -1110,7 +1110,7 @@ static int s_print_for_srv_stake_list(dap_json_rpc_response_t* response, char **
     // Full output flag
     bool l_full = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-full") != -1;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
-        int result_count = json_object_array_length(response->result_json_object);
+        int result_count = (int)json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
@@ -1128,7 +1128,7 @@ static int s_print_for_srv_stake_list(dap_json_rpc_response_t* response, char **
                    "Order", "Direction", "Created", "Price Coins", "Price Token", "Price Unit", "Node Addr", "Pkey");
         }
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
-        result_count = json_object_array_length(json_obj_array);
+        result_count = (int)json_object_array_length(json_obj_array);
         struct json_object * json_obj_total = NULL;
         char hash_buffer[16];
         for (int i = 0; i < result_count; i++) {
@@ -1243,7 +1243,7 @@ static int s_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd
     if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "list") == -1)
         return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
-        int result_count = json_object_array_length(response->result_json_object);
+        int result_count = (int)json_object_array_length(response->result_json_object);
         if (result_count <= 1) {
             printf("Response array is empty\n");
             return -3;
@@ -1251,7 +1251,7 @@ static int s_print_for_block_list(dap_json_rpc_response_t* response, char ** cmd
         printf("_________________________________________________________________________________________________________________\n");
         printf("  Block # | Block hash \t\t\t\t\t\t\t       | Time create \t\t\t | \n");
         struct json_object *json_obj_array = json_object_array_get_idx(response->result_json_object, 0);
-        result_count = json_object_array_length(json_obj_array);
+        result_count = (int)json_object_array_length(json_obj_array);
         char *l_limit = NULL;
         char *l_offset = NULL;
         for (int i = 0; i < result_count; i++) {
@@ -1310,7 +1310,7 @@ static int s_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_p
     if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "list") == -1)
         return -2;
     if (json_object_get_type(response->result_json_object) == json_type_array) {
-        int result_count = json_object_array_length(response->result_json_object);
+        int result_count = (int)json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
@@ -1325,7 +1325,7 @@ static int s_print_for_dag_list(dap_json_rpc_response_t* response, char ** cmd_p
         if (json_object_object_get_ex(json_obj_array, "events", &j_object_events) || json_object_object_get_ex(json_obj_array, "EVENTS", &j_object_events)
            || json_object_object_get_ex(json_obj_array, "TRESHOLD", &j_object_events) || json_object_object_get_ex(json_obj_array, "treshold", &j_object_events))
         {
-            result_count = json_object_array_length(j_object_events);
+            result_count = (int)json_object_array_length(j_object_events);
             for (int i = 0; i < result_count; i++) {
                 struct json_object *json_obj_result = json_object_array_get_idx(j_object_events, i);
                 if (!json_obj_result) {
@@ -1391,7 +1391,7 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
         return -2;
     
     if (json_object_get_type(response->result_json_object) == json_type_array) {        
-        int result_count = json_object_array_length(response->result_json_object);
+        int result_count = (int)json_object_array_length(response->result_json_object);
         if (result_count <= 0) {
             printf("Response array is empty\n");
             return -3;
@@ -1407,7 +1407,7 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
             return -4;
         }
         
-        int chains_count = json_object_array_length(j_object_tokens);
+        int chains_count = (int)json_object_array_length(j_object_tokens);
         if (chains_count <= 0) {
             printf("No tokens found\n");
             return -5;
@@ -1504,8 +1504,8 @@ static int s_print_for_token_list(dap_json_rpc_response_t* response, char ** cmd
                     }
                 }
                 
-                int decl_count = declarations ? json_object_array_length(declarations) : 0;
-                int upd_count = updates ? json_object_array_length(updates) : 0;
+                int decl_count = declarations ? (int)json_object_array_length(declarations) : 0;
+                int upd_count = updates ? (int)json_object_array_length(updates) : 0;
                 
                 printf("  %-15s|  %-7s|    %-6d|     %-10s|      %-9d|   %-7d|   %-9s|  %-*s|  %-40s|  %-40s|\n",
                     ticker,
@@ -1577,7 +1577,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 	// Branch: orders
 	if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "orders") != -1) {
 		if (json_object_get_type(response->result_json_object) == json_type_array && l_arr_orders) {
-			int result_count = json_object_array_length(l_arr_orders);
+			int result_count = (int)json_object_array_length(l_arr_orders);
 			if (result_count <= 0) {
 				printf("Response array is empty\n");
 				return -3;
@@ -1657,7 +1657,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 		// list all
 		if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "list") != -1) {
 			struct json_object *l_obj_pairs = NULL, *l_pairs_arr = NULL, *l_pair_cnt = NULL;
-			int top_len = json_object_array_length(response->result_json_object);
+			int top_len = (int)json_object_array_length(response->result_json_object);
 			for (int i = 0; i < top_len; i++) {
 				struct json_object *el = json_object_array_get_idx(response->result_json_object, i);
 				if (el && json_object_get_type(el) == json_type_object) {
@@ -1681,7 +1681,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 		}
 		// rate average
 		if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "average") != -1) {
-			int top_len = json_object_array_length(response->result_json_object);
+			int top_len = (int)json_object_array_length(response->result_json_object);
 			for (int i = 0; i < top_len; i++) {
 				struct json_object *el = json_object_array_get_idx(response->result_json_object, i);
 				if (el && json_object_get_type(el) == json_type_object) {
@@ -1702,7 +1702,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 		if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "history") != -1) {
 			struct json_object *l_arr = NULL;
 			struct json_object *l_summary = NULL;
-			int top_len = json_object_array_length(response->result_json_object);
+			int top_len = (int)json_object_array_length(response->result_json_object);
 			for (int i = 0; i < top_len; i++) {
 				struct json_object *el = json_object_array_get_idx(response->result_json_object, i);
 				if (el && json_object_get_type(el) == json_type_array && !l_arr) l_arr = el;
@@ -1743,7 +1743,7 @@ static int s_print_for_srv_xchange_list(dap_json_rpc_response_t* response, char 
 	// Branch: tx_list
 	if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "tx_list") != -1) {
 		struct json_object *l_arr = NULL, *l_total = NULL;
-		int top_len = json_object_array_length(response->result_json_object);
+		int top_len = (int)json_object_array_length(response->result_json_object);
 		for (int i = 0; i < top_len; i++) {
 			struct json_object *el = json_object_array_get_idx(response->result_json_object, i);
 			if (!el) continue;
@@ -1830,7 +1830,7 @@ static int s_print_for_tx_history_all(dap_json_rpc_response_t* response, char **
     bool l_table_mode = dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "-h") != -1;
     if (!l_table_mode) { json_print_object(response->result_json_object, 0); return 0; }
 	if (json_object_get_type(response->result_json_object) == json_type_array) {
-		int result_count = json_object_array_length(response->result_json_object);
+		int result_count = (int)json_object_array_length(response->result_json_object);
 		if (result_count <= 0) {
 			printf("Response array is empty\n");
 			return -2;
@@ -1941,7 +1941,7 @@ static int s_print_for_tx_history_all(dap_json_rpc_response_t* response, char **
 			if (json_object_get_type(tx_array) == json_type_array) {
                 char *l_limit = NULL;
                 char *l_offset = NULL;
-				int tx_count = json_object_array_length(tx_array);
+				int tx_count = (int)json_object_array_length(tx_array);
 				for (int i = 0; i < tx_count; i++) {
 					json_object *tx_obj = json_object_array_get_idx(tx_array, i);
 					if (!tx_obj) continue;
@@ -2057,7 +2057,7 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
     // group_list: can be an array of objects { group_name: count } or an object { group_name: count }
     if (dap_cli_server_cmd_check_option(cmd_param, 0, cmd_cnt, "group_list") != -1) {
         if (json_object_get_type(response->result_json_object) == json_type_array) {
-            int len = json_object_array_length(response->result_json_object);
+            int len = (int)json_object_array_length(response->result_json_object);
             if (len <= 0) { printf("Response array is empty\n"); return -2; }
             json_object *obj = json_object_array_get_idx(response->result_json_object, 0);
             json_object *arr = NULL, *total = NULL;

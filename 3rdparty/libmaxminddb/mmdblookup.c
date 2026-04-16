@@ -258,11 +258,11 @@ LOCAL const char **get_options(
         } else if ('n' == opt_char) {
             version = 1;
         } else if ('b' == opt_char) {
-            *iterations = strtol(optarg, NULL, 10);
+            *iterations = (int)strtol(optarg, NULL, 10);
         } else if ('h' == opt_char || '?' == opt_char) {
             help = 1;
         } else if (opt_char == 't') {
-            *thread_count = strtol(optarg, NULL, 10);
+            *thread_count = (int)strtol(optarg, NULL, 10);
         } else if (opt_char == 'I') {
             *ip_file = optarg;
         }

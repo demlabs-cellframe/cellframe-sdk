@@ -517,7 +517,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
 
     clock_gettime(CLOCK_REALTIME, &l_t);
     long l_t2 = l_t.tv_sec * 1000 + l_t.tv_nsec / 1e6;
-    int l_dtime_connect_ms = l_t2 - l_t1;
+    int l_dtime_connect_ms = (int)(l_t2 - l_t1);
 
     {
         uint8_t l_ch_id = DAP_STREAM_CH_NET_SRV_ID; // Channel id for chain net request = 'R'
@@ -530,7 +530,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
             l_request->data_size_send = a_data_size_to_send;
             l_request->data_size_recv = a_data_size_to_recv;
             l_request->data_size = a_data_size_to_send;
-            randombytes(l_request->data, a_data_size_to_send);
+            randombytes(l_request->data, (unsigned int)a_data_size_to_send);
             dap_hash_fast(l_request->data, l_request->data_size, &l_request->data_hash);
             dap_strncpy(l_request->host_recv, a_host, DAP_HOSTADDR_STRLEN);
             l_request->time_connect_ms = l_dtime_connect_ms;

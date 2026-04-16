@@ -159,7 +159,7 @@ void dap_dns_client_read(dap_events_socket_t *a_es, UNUSED_ARG void *a_arg) {
     int dot_count = 0;
     dap_string_t *dns_hostname = dap_string_new("");
     for (int i = 0; i < qdcount; i++) {
-        block_len = strlen(&dns_message->data[dns_message->size]) + 1 + 2 * sizeof(uint16_t);
+        block_len = (int)(strlen(&dns_message->data[dns_message->size]) + 1 + 2 * sizeof(uint16_t));
         dns_reply->data = DAP_REALLOC(dns_reply->data, dns_reply->size + block_len);
         memcpy(&dns_reply->data[dns_reply->size], &dns_message->data[dns_message->size], block_len);
         dns_reply->size += block_len;

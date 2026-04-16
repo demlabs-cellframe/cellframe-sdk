@@ -142,7 +142,7 @@ static void* node_ping_proc(void *a_arg)
             char *l_str_to_send = dap_strdup_printf("GET /%s/ping_sub_url HTTP/1.1\r\nHost: %s\r\n\r\n",
             DAP_UPLINK_PATH_ENC_INIT, "str_ip4");
             // send data to bad suburl
-            int l_send_count = send(l_socket, l_str_to_send, dap_strlen(l_str_to_send), 0);
+            int l_send_count = (int)send(l_socket, l_str_to_send, dap_strlen(l_str_to_send), 0);
             long l_recv_count = 0;
             // recv data with error message
             if(l_send_count > 30)
@@ -214,7 +214,7 @@ static void* node_ping_background_proc(void *a_arg)
     s_node_addr_ping = DAP_NEW(dap_chain_node_addr_t);
 
     // select the nearest node from the list
-    unsigned int l_nodes_count = dap_list_length(l_node_list);
+    unsigned int l_nodes_count = (unsigned int)dap_list_length(l_node_list);
     unsigned int l_thread_id = 0;
     pthread_t l_threads[l_nodes_count];
     memset(l_threads, 0, l_nodes_count * sizeof(pthread_t));

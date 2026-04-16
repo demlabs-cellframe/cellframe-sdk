@@ -825,7 +825,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                 *l_request = *(pkt_test_t*)l_ch_pkt->data;
             }
 
-            randombytes(l_request->data, l_request->data_size);
+            randombytes(l_request->data, (unsigned int)l_request->data_size);
             dap_hash_fast_t l_data_hash;
             dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash);
             l_request->data_hash = l_data_hash;

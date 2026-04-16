@@ -2225,7 +2225,7 @@ static int s_dex_add_seller_payouts(dap_chain_datum_tx_t **a_tx, dex_match_table
         int l_found_idx = -1;
         for (size_t j = 0; j < l_aggregated_count; j++) {
             if (dap_chain_addr_compare(&l_cur->seller_addr, &l_aggregated[j].addr)) {
-                l_found_idx = j;
+                l_found_idx = (int)j;
                 break;
             }
         }
@@ -2246,7 +2246,7 @@ static int s_dex_add_seller_payouts(dap_chain_datum_tx_t **a_tx, dex_match_table
         int l_found_idx = -1;
         for (size_t j = 0; j < l_aggregated_count; j++) {
             if (dap_chain_addr_compare(a_service_addr, &l_aggregated[j].addr)) {
-                l_found_idx = j;
+                l_found_idx = (int)j;
                 break;
             }
         }
@@ -11131,7 +11131,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         json_object_object_add(l_json_reply, "fee_default",
             json_object_new_string(dap_uint256_to_char_ex(l_srv_fee).frac));
         json_object_object_add(l_json_reply, "pairs", l_pairs_arr);
-        json_object_object_add(l_json_reply, "count", json_object_new_int(json_object_array_length(l_pairs_arr)));
+        json_object_object_add(l_json_reply, "count", json_object_new_int((int32_t)json_object_array_length(l_pairs_arr)));
     } break; // PAIRS
 
     case CMD_DECREE: {
