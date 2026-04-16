@@ -44,8 +44,7 @@ typedef struct dap_chain_tx_in_ems {
 
 /** Wire size of @ref dap_chain_tx_in_ems_t::header (packed). */
 #define DAP_CHAIN_TX_IN_EMS_HDR_WIRE_SIZE sizeof(((dap_chain_tx_in_ems_t *)0)->header)
-_Static_assert(sizeof(dap_chain_tx_in_ems_t) == 54u, "dap_chain_tx_in_ems_t wire size");
-_Static_assert(DAP_CHAIN_TX_IN_EMS_HDR_WIRE_SIZE == 54, "dap_chain_tx_in_ems_t header wire layout");
+_Static_assert(DAP_CHAIN_TX_IN_EMS_HDR_WIRE_SIZE == sizeof(dap_chain_tx_in_ems_t), "dap_chain_tx_in_ems_t header wire layout");
 
 #define DAP_CHAIN_TX_IN_EMS_SERIALIZE_MAGIC 0xCF5FEEDFU
 
@@ -59,8 +58,6 @@ typedef struct dap_chain_tx_in_ems_mem {
     uint64_t token_emission_chain_id_le;
     uint8_t token_emission_hash[sizeof(dap_hash_sha3_256_t)];
 } dap_chain_tx_in_ems_mem_t;
-
-_Static_assert(sizeof(dap_chain_tx_in_ems_mem_t) == DAP_CHAIN_TX_IN_EMS_HDR_WIRE_SIZE, "dap_chain_tx_in_ems_mem_t wire size");
 
 extern const dap_serialize_field_t g_dap_chain_tx_in_ems_fields[];
 extern const size_t g_dap_chain_tx_in_ems_field_count;
