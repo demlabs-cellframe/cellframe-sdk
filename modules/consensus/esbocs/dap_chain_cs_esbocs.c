@@ -54,6 +54,7 @@ enum s_esbocs_session_state {
 #define ESBOCS_PENALTY_TTL ( 72 * 3600 ) // 3 days
 #define ESBOCS_PENALTY_HASH_VERSION 1
 #define ESBOCS_FAST_PATH_GRACE_SEC 3
+#define ESBOCS_NEAR_QUORUM_EXTENSION_SEC 10
 #define ESBOCS_SESSION_DRAIN_WAIT_US 1000U
 #define ESBOCS_SESSION_DRAIN_WAIT_ATTEMPTS 30000U
 #define ESBOCS_ROUND_SKIP_TIMEOUT_CAP_DEFAULT 30U
@@ -440,6 +441,17 @@ DAP_STATIC_INLINE uint16_t s_session_sync_backoff_delay(dap_chain_esbocs_session
 DAP_STATIC_INLINE void s_session_sync_backoff_increase(dap_chain_esbocs_session_t *a_session, const char *a_reason)
 {
     dap_return_if_pass(!a_session);
+    dap_time_t l_last_block_ts = a_session->esbocs->last_accepted_block_timestamp;
+    if (l_last_block_ts) {
+        dap_time_t l_elapsed = dap_time_now() - l_last_block_ts;
+        if (l_elapsed < PVT(a_session->esbocs)->new_round_delay) {
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG,
+                     "net:%s, chain:%s skip sync backoff increase (block accepted %"DAP_UINT64_FORMAT_U"s ago), reason: %s",
+                     a_session->chain->net_name, a_session->chain->name, l_elapsed,
+                     a_reason ? a_reason : "unspecified");
+            return;
+        }
+    }
     if (a_session->sync_backoff_level < UINT8_MAX)
         a_session->sync_backoff_level++;
     debug_if(PVT(a_session->esbocs)->debug, L_MSG,
@@ -840,12 +852,19 @@ static bool s_session_mempool_wakeup_queued(void *a_arg)
         return false;
     }
     uint32_t l_pending = atomic_load_explicit(&l_session->pending_mempool_count, memory_order_acquire);
-    if (l_pending && !l_session->sync_backoff_level && l_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START &&
-            !l_session->cur_round.sync_sent) {
-        debug_if(PVT(l_session->esbocs)->debug, L_MSG,
-                 "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" send START_SYNC immediately because mempool has %u pending datums",
-                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id, l_pending);
-        s_session_send_startsync(l_session);
+    if (l_pending && l_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START) {
+        if (!l_session->sync_backoff_level && !l_session->cur_round.sync_sent) {
+            debug_if(PVT(l_session->esbocs)->debug, L_MSG,
+                     "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" send START_SYNC immediately because mempool has %u pending datums",
+                     l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id, l_pending);
+            s_session_send_startsync(l_session);
+        }
+        if (l_session->ts_fast_path_ready > 1) {
+            debug_if(PVT(l_session->esbocs)->debug, L_MSG,
+                     "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" grace period collapsed, mempool has %u pending datums",
+                     l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id, l_pending);
+            l_session->ts_fast_path_ready = 1;
+        }
     }
     s_session_release_after_callback(l_session);
     return false;
@@ -2420,8 +2439,13 @@ static void s_session_proc_state(void *a_arg)
         }
         bool l_round_skip = PVT(l_session->esbocs)->emergency_mode ?
                     false : !s_validator_check(&l_session->my_signing_addr, l_session->cur_round.validators_list);
-        if (l_session->ts_round_sync_start && l_time - l_session->ts_round_sync_start >=
-                (dap_time_t)PVT(l_session->esbocs)->round_start_sync_timeout + (l_round_skip ? s_get_round_skip_timeout_capped(l_session) : 0)) {
+        dap_time_t l_sync_timeout = (dap_time_t)PVT(l_session->esbocs)->round_start_sync_timeout
+                                        + (l_round_skip ? s_get_round_skip_timeout_capped(l_session) : 0);
+        if (!l_round_skip
+                && l_session->cur_round.validators_synced_count >= PVT(l_session->esbocs)->min_validators_count - 1
+                && l_session->cur_round.validators_synced_count < PVT(l_session->esbocs)->min_validators_count)
+            l_sync_timeout += ESBOCS_NEAR_QUORUM_EXTENSION_SEC;
+        if (l_session->ts_round_sync_start && l_time - l_session->ts_round_sync_start >= l_sync_timeout) {
             if (l_session->cur_round.attempt_num > PVT(l_session->esbocs)->round_attempts_max ) {
                 debug_if(PVT(l_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
                                                                 " Round finished by reason: attempts is out",
