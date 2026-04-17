@@ -2065,7 +2065,7 @@ static bool s_session_round_new(void *a_arg)
     a_session->round_fast_forward = false;
     a_session->new_round_enqueued = false;
     a_session->sync_failed = false;
-    a_session->listen_ensure = 0;
+    a_session->listen_ensure = 1;
     return false;
 }
 
