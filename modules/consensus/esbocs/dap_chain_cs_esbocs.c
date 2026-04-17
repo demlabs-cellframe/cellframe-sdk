@@ -3521,7 +3521,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                         " Receive SUBMIT candidate NULL",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
-            if (l_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC)
+            if (l_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC
+                    && dap_chain_addr_compare(&l_session->cur_round.attempt_submit_validator, &l_signing_addr))
                 s_session_attempt_new(l_session);
             break;
         }
