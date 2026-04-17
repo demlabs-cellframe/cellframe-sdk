@@ -2312,26 +2312,32 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             } else
                 s_session_candidate_submit(a_session);
         } else {
+            dap_chain_esbocs_message_item_t *l_pending_null = NULL;
             for (dap_chain_esbocs_message_item_t *l_item = a_session->cur_round.message_items; l_item; l_item = l_item->hh.next) {
-                if (l_item->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT &&
-                        (dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator)
-                         || s_validator_check(&l_item->signing_addr, a_session->cur_round.validators_list))) {
-                    a_session->cur_round.attempt_submit_validator = l_item->signing_addr;
-                    dap_hash_fast_t *l_candidate_hash = &l_item->message->hdr.candidate_hash;
-                    if (dap_hash_fast_is_blank(l_candidate_hash))
-                        s_session_attempt_new(a_session);
-                    else {
-                        dap_chain_esbocs_store_t *l_store = NULL;
-                        HASH_FIND(hh, a_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
-                        if (l_store) {
-                            a_session->cur_round.attempt_candidate_hash = *l_candidate_hash;
-                            s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS, dap_time_now());
-                            s_session_candidate_verify(a_session, l_store->candidate, l_store->candidate_size, l_candidate_hash);
-                        }
-                    }
-                    break;
+                if (l_item->message->hdr.type != DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT)
+                    continue;
+                bool l_is_designated = dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator);
+                if (!l_is_designated && !s_validator_check(&l_item->signing_addr, a_session->cur_round.validators_list))
+                    continue;
+                dap_hash_fast_t *l_candidate_hash = &l_item->message->hdr.candidate_hash;
+                if (dap_hash_fast_is_blank(l_candidate_hash)) {
+                    if (l_is_designated)
+                        l_pending_null = l_item;
+                    continue;
                 }
+                a_session->cur_round.attempt_submit_validator = l_item->signing_addr;
+                dap_chain_esbocs_store_t *l_store = NULL;
+                HASH_FIND(hh, a_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
+                if (l_store) {
+                    a_session->cur_round.attempt_candidate_hash = *l_candidate_hash;
+                    s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS, dap_time_now());
+                    s_session_candidate_verify(a_session, l_store->candidate, l_store->candidate_size, l_candidate_hash);
+                }
+                l_pending_null = NULL;
+                break;
             }
+            if (l_pending_null)
+                s_session_attempt_new(a_session);
         }
     } break;
 
@@ -3515,7 +3521,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                                         " Receive SUBMIT candidate NULL",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
-            s_session_attempt_new(l_session);
+            if (l_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC)
+                s_session_attempt_new(l_session);
             break;
         }
         // check submission rights
