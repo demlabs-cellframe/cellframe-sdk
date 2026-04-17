@@ -163,7 +163,7 @@ int dap_chain_wallet_cache_init()
         }
     }
 
-    s_debug_more = dap_config_get_item_bool_default(g_config,"wallet","debug_more", s_debug_more);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config,"wallet","debug_more", s_debug_more);
 
     if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED){
         debug_if(s_debug_more, L_DEBUG, "Wallet cache is disabled.");

@@ -152,7 +152,7 @@ int dap_chain_cs_dag_init()
     srand((unsigned int) time(NULL));
     dap_chain_cs_type_add( "dag", s_chain_cs_dag_new, s_chain_cs_dag_start);
     s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
-    s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
+    s_debug_more        = g_dap_debug_mode && dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
     debug_if(s_debug_more, L_DEBUG, "Thresholding %s", s_threshold_enabled ? "enabled" : "disabled");
     dap_cli_server_cmd_add ("dag", s_cli_dag, NULL, "DAG commands",

@@ -6098,7 +6098,7 @@ static bool s_tag_check_dex(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 
 int dap_chain_net_srv_dex_init()
 {
-    s_debug_more = dap_config_get_item_bool_default(g_config, "srv_dex", "debug_more", true);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config, "srv_dex", "debug_more", true);
     // Register verificator for SRV_DEX
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, s_dex_verificator_callback, NULL, NULL);
     // Register service for tagging (mempool list, tx history)

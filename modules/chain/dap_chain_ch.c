@@ -182,7 +182,7 @@ int dap_chain_ch_init()
     s_sync_timeout = dap_config_get_item_uint32_default(g_config, "chain", "sync_timeout", s_sync_timeout);
     s_sync_ack_window_size = dap_config_get_item_uint32_default(g_config, "chain", "sync_ack_window_size", s_sync_ack_window_size);
     s_sync_packets_per_thread_call = dap_config_get_item_int16_default(g_config, "chain", "pack_size", s_sync_packets_per_thread_call);
-    s_debug_more = dap_config_get_item_bool_default(g_config, "chain", "debug_more", false);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config, "chain", "debug_more", false);
     s_debug_legacy = dap_config_get_item_bool_default(g_config, "chain", "debug_legacy", false);
 #ifdef  DAP_SYS_DEBUG
     for (int i = 0; i < MEMSTAT$K_NR; i++)

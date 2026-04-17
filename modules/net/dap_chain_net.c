@@ -444,7 +444,7 @@ int dap_chain_net_init()
         "net -net <net_name> poa_certs list\n"
             "\tPrint list of PoA cerificates for this network\n");
 
-    s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
     s_node_list_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_ttl", s_node_list_ttl);
     char l_path[MAX_PATH + 1], *l_end = NULL;
     int l_pos = snprintf(l_path, MAX_PATH, "%s/network/", dap_config_path());

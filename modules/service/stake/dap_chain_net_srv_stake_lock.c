@@ -257,7 +257,7 @@ int dap_chain_net_srv_stake_lock_init()
                 "stake_lock take -net <net_name> -w <wallet_name> -tx <transaction_hash> -fee <value>"
                             "[-chain <chain_name>]\n"
     );
-    s_debug_more = dap_config_get_item_bool_default(g_config, "ledger", "debug_more", false);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config, "ledger", "debug_more", false);
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     dap_ledger_service_add(l_uid, "staking", s_tag_check_staking);

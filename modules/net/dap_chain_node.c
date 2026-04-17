@@ -316,7 +316,7 @@ int dap_chain_node_init()
     }
     s_node_list_auto_update = dap_config_get_item_bool_default(g_config, "global_db", "node_list_auto_update", s_node_list_auto_update);
     s_node_list_record_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_record_ttl", s_node_list_record_ttl);
-    s_debug_more = dap_config_get_item_bool_default(g_config, "node", "debug_more", false);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config, "node", "debug_more", false);
     return 0;
 }
 

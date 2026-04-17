@@ -129,7 +129,7 @@ static bool s_debug_more = false;
 void dap_chain_node_cli_cmd_init(dap_config_t *a_config)
 {
     if (a_config) {
-        s_debug_more = dap_config_get_item_bool_default(a_config, "cli-server", "debug_more", false);
+        s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(a_config, "cli-server", "debug_more", false);
     }
 }
 

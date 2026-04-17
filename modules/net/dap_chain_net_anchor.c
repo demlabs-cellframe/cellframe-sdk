@@ -54,7 +54,7 @@ static bool s_debug_more = false;
 
 int dap_chain_net_anchor_init()
 {
-    s_debug_more = dap_config_get_item_bool_default(g_config, "chain_net", "debug_more", s_debug_more);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config, "chain_net", "debug_more", s_debug_more);
     return 0;
 }
 

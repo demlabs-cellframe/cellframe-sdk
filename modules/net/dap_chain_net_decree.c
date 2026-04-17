@@ -68,7 +68,7 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
         return -106;
     }
 
-    s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
 
     dap_list_t *l_net_keys = NULL;
     uint16_t l_count_verify = 0;

@@ -468,7 +468,7 @@ int dap_chain_net_srv_xchange_init()
     l_srv->_internal = s_srv_xchange;
     s_srv_xchange->parent = l_srv;
     s_srv_xchange->enabled = false;
-    s_debug_more = dap_config_get_item_bool_default(g_config, "srv_xchange", "debug_more", s_debug_more);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config, "srv_xchange", "debug_more", s_debug_more);
 
     const char *l_cache_state_str = dap_config_get_item_str_default(g_config, "srv_xchange", "cache", "disable");
     if (!strcmp(l_cache_state_str, "enable"))

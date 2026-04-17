@@ -211,7 +211,7 @@ static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* 
 
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
-static bool s_debug_more = true;
+static bool s_debug_more = false;
 static size_t s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
@@ -422,7 +422,7 @@ struct json_object *dap_ledger_service_tx_to_json(dap_chain_net_srv_uid_t a_uid,
  */
 int dap_ledger_init()
 {
-    s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
     
     pthread_rwlock_init(&s_verificators_rwlock, NULL);
     pthread_rwlock_init(&s_services_rwlock, NULL);

@@ -190,7 +190,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);
-    s_debug_more = dap_config_get_item_bool_default(g_config, "stake", "debug_more", s_debug_more);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config, "stake", "debug_more", s_debug_more);
     return 0;
 }
 

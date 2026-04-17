@@ -360,7 +360,7 @@ int dap_chain_wallet_init()
     dap_chain_wallet_t *l_wallet = NULL;
     size_t l_len = 0;
 
-    s_debug_more = dap_config_get_item_bool_default(g_config,"wallet","debug_more", s_debug_more);
+    s_debug_more = g_dap_debug_mode && dap_config_get_item_bool_default(g_config,"wallet","debug_more", s_debug_more);
 
     if ( !(c_wallets_path = (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
         return -1;
