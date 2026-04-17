@@ -313,8 +313,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     
     const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
     dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(l_fee_addr);
-    log_it(L_INFO, "✓ Network fee address: %s", l_fee_addr_str);
+    log_it(L_INFO, "✓ Network fee address: %s", dap_chain_addr_to_str_static(l_fee_addr));
     
     // ========== PHASE 2: Create Token and Owner ==========
     log_it(L_INFO, "PHASE 2: Creating token with emission");
@@ -353,8 +352,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
     dap_assert_PIF(l_res == 0, "TX added to ledger");
     
-    const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx->tx_hash);
-    log_it(L_INFO, "✓ TX created: %s", l_tx_hash_str);
+    log_it(L_INFO, "✓ TX created: %s", dap_chain_hash_fast_to_str_static(&l_tx->tx_hash));
     
     // Get initial balance of fee address (will be checked after arbitrage TX)
     uint256_t l_fee_balance_before = dap_ledger_calc_balance(s_net_fixture->ledger, l_fee_addr, "ARBCLI");
@@ -363,7 +361,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     char l_cmd_block[2048];
     snprintf(l_cmd_block, sizeof(l_cmd_block),
              "token_update -net Snet -token ARBCLI -utxo_blocked_add %s:0 -certs %s",
-             l_tx_hash_str, l_owner_cert->name);
+             dap_chain_hash_fast_to_str_static(&l_tx->tx_hash), l_owner_cert->name);
     char l_json_req_block[4096];
     char *l_json_req_block_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_block, "token_update", 
                                                                          l_json_req_block, sizeof(l_json_req_block), 1);
@@ -384,7 +382,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     }
     json_object_put(l_json_block);
     
-    log_it(L_INFO, "✓ UTXO %s:0 blocked via CLI", l_tx_hash_str);
+    log_it(L_INFO, "✓ UTXO %s:0 blocked via CLI", dap_chain_hash_fast_to_str_static(&l_tx->tx_hash));
     
     // ========== PHASE 4: Create Wallet for Arbitrage TX ==========
     log_it(L_INFO, "PHASE 4: Creating wallet for arbitrage TX");
@@ -453,8 +451,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     dap_assert_PIF(l_wallet_for_addr != NULL, "Wallet opened for address retrieval");
     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_wallet_for_addr, s_net_fixture->net->pub.id);
     dap_assert_PIF(l_wallet_addr != NULL, "Wallet address retrieved");
-    const char *l_wallet_addr_str = dap_chain_addr_to_str_static(l_wallet_addr);
-    log_it(L_INFO, "Wallet address: %s", l_wallet_addr_str);
+    log_it(L_INFO, "Wallet address: %s", dap_chain_addr_to_str_static(l_wallet_addr));
     
     // Send funds to wallet from owner address (for fee payment)
     // Use UTXO from l_tx (output 1, which is change output) to send funds to wallet
@@ -525,8 +522,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     // Get owner wallet address for TestCoin funding
     dap_chain_addr_t *l_owner_wallet_addr = dap_chain_wallet_get_addr(l_owner_wallet, s_net_fixture->net->pub.id);
     dap_assert_PIF(l_owner_wallet_addr != NULL, "Owner wallet address retrieved");
-    const char *l_owner_wallet_addr_str = dap_chain_addr_to_str_static(l_owner_wallet_addr);
-    log_it(L_INFO, "Owner wallet address: %s", l_owner_wallet_addr_str);
+    log_it(L_INFO, "Owner wallet address: %s", dap_chain_addr_to_str_static(l_owner_wallet_addr));
     
     // Create TestCoin token if it doesn't exist and send it to owner wallet for fee payment
     // Check if TestCoin exists in ledger
@@ -577,7 +573,7 @@ static void s_test_cli_arbitrage_transaction_workflow(void)
     char l_cmd_arbitrage[4096];
     snprintf(l_cmd_arbitrage, sizeof(l_cmd_arbitrage),
              "tx_create -net Snet -chain %s -token ARBCLI -from_wallet %s -to_addr %s -value %s -fee %s -wallet_fee %s -arbitrage -certs %s",
-             l_chain_name, l_wallet_name, l_fee_addr_str, ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, 
+             l_chain_name, l_wallet_name, dap_chain_addr_to_str_static(l_fee_addr), ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, 
              l_owner_wallet_name, l_owner_cert->name);
     
     char l_json_req_arbitrage[8192];
@@ -812,8 +808,7 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     
     const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
     dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(l_fee_addr);
-    log_it(L_INFO, "✓ Network fee address: %s", l_fee_addr_str);
+    log_it(L_INFO, "✓ Network fee address: %s", dap_chain_addr_to_str_static(l_fee_addr));
     
     // ========== PHASE 2: Create Token with Multi-Signature Requirements ==========
     log_it(L_INFO, "PHASE 2: Creating token with auth_signs_valid=3");
@@ -920,12 +915,11 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     
     // Create emission via CLI
     dap_chain_hash_fast_t l_emission_hash = {0};
-    const char *l_fee_addr_str_decl = dap_chain_addr_to_str_static(&l_owner_addr1);
     
     char l_cmd_emission[4096];
     snprintf(l_cmd_emission, sizeof(l_cmd_emission),
              "token_emit -net Snet -chain_emission %s -token ARBMULTI -emission_value 50000.0 -addr %s -certs %s,%s,%s",
-             l_token_decl_chain_name, l_fee_addr_str_decl, 
+             l_token_decl_chain_name, dap_chain_addr_to_str_static(&l_owner_addr1), 
              l_owner_cert1->name, l_owner_cert2->name, l_owner_cert3->name);
     
     char l_json_req_emission[8192];
@@ -1235,13 +1229,11 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
     dap_assert_PIF(l_res == 0, "TX added to ledger");
     
-    const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_tx->tx_hash);
-    
     // Count outputs in transaction
     int l_out_count = 0;
     dap_list_t *l_out_list = dap_chain_datum_tx_items_get(l_tx->tx, TX_ITEM_TYPE_OUT_ALL, &l_out_count);
     dap_list_free(l_out_list);
-    log_it(L_INFO, "✓ TX created: %s (value: %s, outputs: %d, will block output 0)", l_tx_hash_str, l_tx_value, l_out_count);
+    log_it(L_INFO, "✓ TX created: %s (value: %s, outputs: %d, will block output 0)", dap_chain_hash_fast_to_str_static(&l_tx->tx_hash), l_tx_value, l_out_count);
     
     // Verify wallet has balance before creating arbitrage transaction
     dap_chain_wallet_t *l_wallet_check = dap_chain_wallet_open(l_wallet_name, l_wallets_path, NULL);
@@ -1263,7 +1255,7 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     char l_cmd_block[2048];
     snprintf(l_cmd_block, sizeof(l_cmd_block),
              "token_update -net Snet -token ARBMULTI -utxo_blocked_add %s:0 -certs %s",
-             l_tx_hash_str, l_owner_cert1->name);
+             dap_chain_hash_fast_to_str_static(&l_tx->tx_hash), l_owner_cert1->name);
     char l_json_req_block[4096];
     char *l_json_req_block_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_block, "token_update", 
                                                                          l_json_req_block, sizeof(l_json_req_block), 1);
@@ -1281,7 +1273,7 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     json_object_put(l_json_block);
     DAP_DELETE(l_reply_block);
     
-    log_it(L_INFO, "✓ UTXO %s:0 blocked", l_tx_hash_str);
+    log_it(L_INFO, "✓ UTXO %s:0 blocked", dap_chain_hash_fast_to_str_static(&l_tx->tx_hash));
     
     // ========== PHASE 4: Create Arbitrage TX with Insufficient Signatures ==========
     log_it(L_INFO, "PHASE 4: Creating arbitrage TX with insufficient signatures (1 of 3)");
@@ -1468,7 +1460,7 @@ static void s_test_cli_arbitrage_multisig_tx_sign(void)
     char l_cmd_arbitrage[4096];
     snprintf(l_cmd_arbitrage, sizeof(l_cmd_arbitrage),
              "tx_create -net Snet -chain %s -token ARBMULTI -from_wallet %s -to_addr %s -value %s -fee %s -wallet_fee %s -arbitrage -certs %s",
-             l_chain_name, l_wallet_name_phase4, l_fee_addr_str, ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, 
+             l_chain_name, l_wallet_name_phase4, dap_chain_addr_to_str_static(l_fee_addr), ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, 
              l_owner_wallet_name, l_owner_cert1->name);
     
     char l_json_req_arbitrage[8192];
@@ -1885,7 +1877,6 @@ static void s_test_cli_arbitrage_insufficient_funds(void)
     
     const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
     dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(l_fee_addr);
     
     // Create token and owner
     dap_enc_key_t *l_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
@@ -1935,7 +1926,7 @@ static void s_test_cli_arbitrage_insufficient_funds(void)
     char l_cmd_arbitrage[4096];
     snprintf(l_cmd_arbitrage, sizeof(l_cmd_arbitrage),
              "tx_create -net Snet -chain %s -token ARBINSUF -from_wallet %s -to_addr %s -value %s -fee %s -arbitrage -certs %s",
-             l_chain_name, l_wallet_name, l_fee_addr_str, ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, l_owner_cert->name);
+             l_chain_name, l_wallet_name, dap_chain_addr_to_str_static(l_fee_addr), ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, l_owner_cert->name);
     
     char l_json_req_arbitrage[8192];
     char *l_json_req_arbitrage_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_arbitrage, "tx_create", 
@@ -1985,7 +1976,6 @@ static void s_test_cli_arbitrage_disabled_flag(void)
     
     const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
     dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(l_fee_addr);
     
     // Create token and owner
     dap_enc_key_t *l_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
@@ -2063,7 +2053,7 @@ static void s_test_cli_arbitrage_disabled_flag(void)
     char l_cmd_arbitrage[4096];
     snprintf(l_cmd_arbitrage, sizeof(l_cmd_arbitrage),
              "tx_create -net Snet -chain %s -token ARBDISABL -from_wallet %s -to_addr %s -value %s -fee %s -arbitrage -certs %s",
-             l_chain_name, l_wallet_name, l_fee_addr_str, ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, l_owner_cert->name);
+             l_chain_name, l_wallet_name, dap_chain_addr_to_str_static(l_fee_addr), ARBITRAGE_TX_VALUE, ARBITRAGE_FEE_MIN, l_owner_cert->name);
     
     char l_json_req_arbitrage[8192];
     char *l_json_req_arbitrage_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd_arbitrage, "tx_create", 
@@ -2210,8 +2200,6 @@ static void s_test_cli_arbitrage_regression_hang(void)
         uint256_t l_zero_fee = uint256_0;
         dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
     }
-    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(l_fee_addr);
     
     char l_cmd_nonexistent_wallet[4096];
     snprintf(l_cmd_nonexistent_wallet, sizeof(l_cmd_nonexistent_wallet),
