@@ -823,8 +823,11 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     assert(l_session->chain == a_chain);
     dap_chain_hash_fast_t l_last_block_hash;
     dap_chain_get_atom_last_hash(l_session->chain, a_id, &l_last_block_hash);
-    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash))
+    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash)) {
+        if (a_atom && a_atom_size)
+            s_session_mempool_cleanup_by_block(l_session, (dap_chain_block_t *)a_atom, a_atom_size);
         s_session_try_round_new(l_session);
+    }
     if (!PVT(l_session->esbocs)->collecting_addr) {
         s_session_release_after_callback(l_session);
         return;
@@ -2101,7 +2104,8 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
         return;
     }
     for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
-        if (!((dap_chain_esbocs_validator_t *)it->data)->is_chosen) {
+        dap_chain_esbocs_validator_t *l_cur = it->data;
+        if (!l_cur->is_chosen && l_cur->sync_status == DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK) {
             debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". Attempt:%hhu is started",
                                                                 a_session->chain->net_name, a_session->chain->name,
                                                                     a_session->cur_round.id, a_session->cur_round.attempt_num);
@@ -2269,13 +2273,11 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         }
         for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
             dap_chain_esbocs_validator_t *l_cur = it->data;
-            if (l_cur->is_chosen)
+            if (l_cur->is_chosen || l_cur->sync_status != DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK)
                 continue;
             l_cur->is_chosen = true;
-            if (l_cur->sync_status == DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK) {
-                l_validator = l_cur;
-                break;
-            }
+            l_validator = l_cur;
+            break;
         }
         if (!l_validator) {
             a_session->cur_round.attempt_num = PVT(a_session->esbocs)->round_attempts_max + 1;
@@ -2795,6 +2797,10 @@ static void s_session_mempool_cleanup_by_block(dap_chain_esbocs_session_t *a_ses
             log_it(L_INFO, " ! Delete datum %s from mempool", l_datum_hash_str);
     }
     DAP_DELETE(l_datums);
+    size_t l_real = dap_global_db_driver_count(l_gdb_group_mempool, c_dap_global_db_driver_hash_blank, false);
+    atomic_store_explicit(&a_session->pending_mempool_count,
+                          l_real > UINT32_MAX ? UINT32_MAX : (uint_fast32_t)l_real,
+                          memory_order_release);
 }
 
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store)
