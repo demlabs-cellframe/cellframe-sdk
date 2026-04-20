@@ -580,7 +580,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     dap_chain_net_t * l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_return_if_pass(!l_net);
 
-    log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
+    debug_if(s_debug_more, L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_link->addr));
 
     s_net_control_event_emit_async(l_net, DAP_CHAIN_NET_CONTROL_EVENT_LINK_CONNECTED, 0);
@@ -2551,13 +2551,13 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
     char l_ts[DAP_TIME_STR_SIZE] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
     if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL) {
-        log_it(L_NOTICE, "Removed node %s from network %s at %s",
+        debug_if(s_debug_more, L_NOTICE, "Removed node %s from network %s at %s",
                                  a_obj->key, l_net->pub.name, l_ts);
         return;
     }
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
     assert(dap_chain_node_info_get_size(l_node_info) == a_obj->value_len);
-    log_it(L_NOTICE, "Added node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s",
+    debug_if(s_debug_more, L_NOTICE, "Added node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s",
                              NODE_ADDR_FP_ARGS_S(l_node_info->address),
                              l_node_info->ext_host, l_node_info->ext_port,
                              l_net->pub.name, l_ts);
