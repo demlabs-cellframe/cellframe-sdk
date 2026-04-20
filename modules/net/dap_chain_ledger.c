@@ -3929,25 +3929,6 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         }
     } 
     pthread_rwlock_unlock(&s_services_rwlock);
-
-    if (l_deductions_ok > 1)
-    {
-        char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_t l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-        dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
-
-        dap_string_t *l_services_str = dap_string_new(NULL);
-        pthread_rwlock_rdlock(&s_services_rwlock);
-        HASH_ITER(hh, s_services , l_sinfo_current, l_sinfo_tmp) {
-            dap_chain_tx_tag_action_type_t action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
-            if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &l_items_groups,&action))  {
-                dap_string_append_printf(l_services_str, " [%s %s]", l_sinfo_current->tag_str, dap_ledger_tx_action_str(action));
-            }
-        } 
-        pthread_rwlock_unlock(&s_services_rwlock);
-        debug_if(s_debug_more, L_WARNING, "Transaction %s identified by multiple services (%d):%s", l_tx_hash_str, l_deductions_ok, l_services_str->str);
-        dap_string_free(l_services_str, true);
-    }
     
     dap_chain_datum_tx_group_items_free(&l_items_groups);
 
