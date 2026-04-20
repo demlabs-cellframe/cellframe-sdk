@@ -1297,18 +1297,17 @@ static void s_test_cli_hybrid_utxo_and_address_blocking(void)
     dap_assert_PIF(l_token != NULL, "Token created");
     
     // Block addr2 as sender
-    const char *l_addr2_str = dap_chain_addr_to_str(&l_addr2);
     char l_cmd[2048];
     snprintf(l_cmd, sizeof(l_cmd),
              "token_update -net Snet -token HYBRID -tx_sender_blocked_add %s -certs %s",
-             l_addr2_str, l_cert->name);
+             dap_chain_addr_to_str(&l_addr2), l_cert->name);
     char l_json_req[4096];
     char *l_json_req_ptr = utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd, "token_update", 
                                                                    l_json_req, sizeof(l_json_req), 1);
     dap_assert_PIF(l_json_req_ptr != NULL, "JSON-RPC request created");
     dap_cli_cmd_exec(l_json_req);
     
-    log_it(L_INFO, "✓ Address %s blocked as sender", l_addr2_str);
+    log_it(L_INFO, "✓ Address %s blocked as sender", dap_chain_addr_to_str(&l_addr2));
     
     // Create transaction and block its UTXO
     test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(

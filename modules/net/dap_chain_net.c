@@ -578,7 +578,7 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     dap_return_if_pass(!a_link || !a_net_id);
 // func work
     dap_chain_net_t * l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
-    dap_return_if_pass(!l_net || !PVT(l_net));
+    dap_return_if_pass(!l_net);
 
     debug_if(s_debug_more, L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_link->addr));
@@ -614,7 +614,7 @@ static bool s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_
     dap_return_val_if_pass(!a_link, false);
 // func work
     dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
-    dap_return_val_if_pass(!l_net || !PVT(l_net), false);
+    dap_return_val_if_pass(!l_net, false);
     bool l_link_is_permanent = s_net_check_link_is_permanent(l_net, a_link->addr);
     log_it(L_INFO, "%s."NODE_ADDR_FP_STR" can't connect for now. %s", l_net->pub.name,
             NODE_ADDR_FP_ARGS_S(a_link->addr),
@@ -3260,7 +3260,7 @@ anchor_table_t **dap_chain_net_get_anchors(dap_chain_net_t *a_net) {
 static int s_net_try_online(dap_chain_net_t *a_net)
 {
 // sanity check
-    dap_return_val_if_pass(!a_net || !PVT(a_net), -1);
+    dap_return_val_if_pass(!a_net, -1);
 // func work
     log_it(L_INFO, "Network \"%s\" goes online",a_net->pub.name);
     return dap_chain_net_state_go_to(a_net, NET_STATE_ONLINE);
@@ -3430,7 +3430,7 @@ static bool s_sync_timer_worker_callback(void *a_arg)
 
 static void s_sync_timer_stop(dap_chain_net_t *a_net)
 {
-    dap_return_if_pass(!a_net || !PVT(a_net));
+    dap_return_if_pass(!a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     if (l_net_pvt->sync_context.sync_timer) {
         dap_timerfd_delete_mt(l_net_pvt->sync_context.sync_timer->worker, l_net_pvt->sync_context.sync_timer->esocket_uuid);
@@ -3441,7 +3441,7 @@ static void s_sync_timer_stop(dap_chain_net_t *a_net)
 
 static int s_sync_timer_start_on_worker(dap_chain_net_t *a_net, dap_worker_t *a_worker)
 {
-    dap_return_val_if_pass(!a_net || !PVT(a_net) || !a_worker, -1);
+    dap_return_val_if_pass(!a_net || !a_worker, -1);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     if (l_net_pvt->sync_context.sync_timer && l_net_pvt->sync_context.owner_worker == a_worker)
         return 0;
@@ -3470,7 +3470,7 @@ static DAP_INLINE dap_worker_t *s_sync_resolve_owner_worker(dap_chain_net_pvt_t 
 
 static int s_sync_timer_rebind_owner(dap_chain_net_t *a_net)
 {
-    dap_return_val_if_pass(!a_net || !PVT(a_net), -1);
+    dap_return_val_if_pass(!a_net, -1);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     dap_worker_t *l_owner_worker = s_sync_resolve_owner_worker(l_net_pvt);
     return l_owner_worker ? s_sync_timer_start_on_worker(a_net, l_owner_worker) : -2;
@@ -3495,7 +3495,7 @@ static void s_sync_timer_rebind_owner_on_owner_cb(void *a_arg)
     if (!l_arg)
         return;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
-    if (l_net && PVT(l_net)) {
+    if (l_net) {
         if (PVT(l_net)->state_target != NET_STATE_OFFLINE) {
             if (s_sync_timer_start_on_worker(l_net, l_arg->owner_worker))
                 debug_if(s_debug_more, L_WARNING, "Can't asynchronously rebind sync timer owner worker for net %s", l_net->pub.name);
@@ -3511,7 +3511,7 @@ static bool s_sync_timer_rebind_owner_cb(void *a_arg)
     if (!l_arg)
         return false;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
-    if (!l_net || !PVT(l_net)) {
+    if (!l_net) {
         DAP_DELETE(l_arg);
         return false;
     }
@@ -3534,7 +3534,7 @@ static bool s_sync_timer_rebind_owner_cb(void *a_arg)
 
 static void s_sync_timer_rebind_owner_async(dap_chain_net_t *a_net)
 {
-    dap_return_if_pass(!a_net || !PVT(a_net));
+    dap_return_if_pass(!a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     if (!s_sync_owner_rebind_try_set_in_progress(l_net_pvt))
         return;
@@ -3562,13 +3562,13 @@ static void s_net_states_proc_run_inline(dap_chain_net_t *a_net)
 static void s_net_states_proc_owner_cb(void *a_arg)
 {
     dap_chain_net_t *l_net = a_arg;
-    if (l_net && PVT(l_net))
+    if (l_net)
         s_net_states_proc_run_inline(l_net);
 }
 
 static int s_net_states_proc_schedule(dap_chain_net_t *a_net)
 {
-    dap_return_val_if_pass(!a_net || !PVT(a_net), -1);
+    dap_return_val_if_pass(!a_net, -1);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     dap_worker_t *l_owner_worker = l_net_pvt->sync_context.owner_worker;
     if (l_owner_worker) {
@@ -3619,7 +3619,7 @@ static void s_net_control_event_owner_cb(void *a_arg)
     if (!l_arg)
         return;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
-    if (l_net && PVT(l_net))
+    if (l_net)
         s_net_control_event_apply(l_net, PVT(l_net), l_arg->event, l_arg->links_count, true);
     DAP_DELETE(l_arg);
 }
@@ -3632,7 +3632,7 @@ static bool s_net_control_event_proc_cb(void *a_arg)
 
 static void s_net_control_event_emit_async(dap_chain_net_t *a_net, dap_chain_net_control_event_t a_event, int a_links_count)
 {
-    dap_return_if_pass(!a_net || !PVT(a_net));
+    dap_return_if_pass(!a_net);
     sync_control_event_arg_t *l_arg = DAP_NEW_Z(sync_control_event_arg_t);
     if (!l_arg) {
         log_it(L_CRITICAL, "%s; drop control event %d for net %s", c_error_memory_alloc, a_event, a_net->pub.name);
@@ -3658,7 +3658,7 @@ static bool s_sync_heavy_ops_exec_cb(void *a_arg)
     if (!l_arg)
         return false;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
-    if (l_net && PVT(l_net)) {
+    if (l_net) {
         if (l_arg->do_ledger_load_end && l_net->pub.ledger)
             dap_ledger_load_end(l_net->pub.ledger);
         if (l_arg->do_wallet_cache_load)
@@ -3680,7 +3680,7 @@ static DAP_INLINE void s_sync_heavy_ops_mark_pending(dap_chain_net_pvt_t *a_net_
 
 static DAP_INLINE void s_sync_heavy_ops_exec_async(dap_chain_net_t *a_net, bool a_do_ledger_load_end, bool a_do_wallet_cache_load)
 {
-    dap_return_if_fail(a_net && PVT(a_net));
+    dap_return_if_fail(a_net);
     if (!a_do_ledger_load_end && !a_do_wallet_cache_load)
         return;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
@@ -3702,7 +3702,7 @@ static DAP_INLINE void s_sync_heavy_ops_exec_async(dap_chain_net_t *a_net, bool 
 
 static DAP_INLINE void s_sync_heavy_ops_retry_pending(dap_chain_net_t *a_net)
 {
-    dap_return_if_pass(!a_net || !PVT(a_net));
+    dap_return_if_pass(!a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     bool l_do_ledger_load_end = atomic_exchange_explicit(&l_net_pvt->sync_context.heavy_ops_pending_ledger_load_end, false,
                                                           memory_order_acq_rel);
@@ -3815,7 +3815,7 @@ static void s_sync_process_chain_miss_rewind_owner_cb(void *a_arg)
     if (!l_arg)
         return;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
-    if (l_net && PVT(l_net)) {
+    if (l_net) {
         dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
         dap_chain_cell_id_t l_cell_id = l_net_pvt->sync_context.cur_cell
                                         ? l_net_pvt->sync_context.cur_cell->id
@@ -3866,7 +3866,7 @@ static bool s_sync_process_chain_miss_rewind_owner_proc_cb(void *a_arg)
 static DAP_INLINE int s_sync_dispatch_to_owner(dap_chain_net_t *a_net, void *a_arg, dap_worker_callback_t a_owner_cb,
                                                dap_proc_queue_callback_t a_proc_cb)
 {
-    dap_return_val_if_pass(!a_net || !a_arg || !PVT(a_net) || !a_owner_cb || !a_proc_cb, -1);
+    dap_return_val_if_pass(!a_net || !a_arg || !a_owner_cb || !a_proc_cb, -1);
     dap_worker_t *l_owner_worker = PVT(a_net)->sync_context.owner_worker;
     if (l_owner_worker) {
         dap_worker_exec_callback_on(l_owner_worker, a_owner_cb, a_arg);
@@ -3895,7 +3895,7 @@ static bool s_sync_process_chain_miss_rewind_cb(void *a_arg)
     if (!l_arg)
         return false;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
-    if (!l_net || !PVT(l_net)) {
+    if (!l_net) {
         DAP_DELETE(l_arg);
         return false;
     }
@@ -3946,7 +3946,7 @@ static void s_sync_process_start_request_owner_cb(void *a_arg)
     if (!l_arg)
         return;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
-    if (l_net && PVT(l_net)) {
+    if (l_net) {
         dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
         dap_chain_cell_id_t l_cell_id = l_net_pvt->sync_context.cur_cell
                                         ? l_net_pvt->sync_context.cur_cell->id
@@ -4009,7 +4009,7 @@ static bool s_sync_process_start_request_cb(void *a_arg)
     if (!l_arg)
         return false;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
-    if (!l_net || !PVT(l_net)) {
+    if (!l_net) {
         DAP_DELETE(l_arg);
         return false;
     }
@@ -4245,7 +4245,7 @@ lb_exit:
 static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_restart_reason_t a_reason)
 {
     // sanity check
-    dap_return_val_if_pass(!a_net || !PVT(a_net), -1);
+    dap_return_val_if_pass(!a_net, -1);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     a_reason = s_sync_restart_reason_norm(a_reason);
     atomic_store_explicit(&l_net_pvt->sync_context.diag_restart_reason_last, a_reason, memory_order_relaxed);
@@ -4368,7 +4368,7 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
 static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
 {
 // sanity check
-    dap_return_val_if_pass(!a_net || !PVT(a_net), NULL);
+    dap_return_val_if_pass(!a_net, NULL);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
 // func work
     dap_chain_t *l_curr_chain = l_net_pvt->sync_context.cur_chain;
