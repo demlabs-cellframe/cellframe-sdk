@@ -142,7 +142,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
     UNUSED(a_arg);
     if(l_node_client) {
-        log_it(L_NOTICE, "Stream connection with node "NODE_ADDR_FP_STR" [ %s : %hu ] established",
+        debug_if(s_debug_more, L_NOTICE, "Stream connection with node "NODE_ADDR_FP_STR" [ %s : %hu ] established",
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
                     l_node_client->info->ext_host,
                     l_node_client->info->ext_port);
