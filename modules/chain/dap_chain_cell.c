@@ -523,7 +523,13 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             }
         } else
 #endif
-        ftruncate(fileno(a_cell->file_storage), l_pos);
+        {
+            int l_fd = fileno(a_cell->file_storage);
+            if (l_fd < 0 || ftruncate(l_fd, l_pos) != 0) {
+                log_it(L_ERROR, "ftruncate() failed for \"%s\" to %zu bytes, errno %d: \"%s\"",
+                                a_cell->file_storage_path, (size_t)l_pos, errno, dap_strerror(errno));
+            }
+        }
     }
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     log_it(L_INFO, "Loaded %lu atoms in cell %s", q, a_cell->file_storage_path);
