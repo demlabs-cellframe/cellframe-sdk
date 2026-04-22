@@ -2260,7 +2260,8 @@ void dap_chain_net_srv_stake_add_approving_decree_info(dap_chain_datum_decree_t 
     dap_chain_datum_decree_get_hash(a_decree, &l_hash);
 
     char *l_approved_group = s_get_approved_group(a_net); 
-    const char *l_tx_hash_str = dap_hash_sha3_256_to_str_static(&l_hash);
+    dap_hash_sha3_256_str_t l_tx_hash_buf = dap_hash_sha3_256_to_str_struct(&l_hash);
+    const char *l_tx_hash_str = l_tx_hash_buf.s;
     char *l_decree_hash_str = NULL;
     if (({dap_global_db_store_obj_t *_o = dap_global_db_get_raw_sync(l_approved_group, l_tx_hash_str); bool _r = !!_o; dap_global_db_store_obj_free_one(_o); _r;})) {
         l_decree_hash_str = (char *)dap_global_db_get_sync(l_approved_group, l_tx_hash_str, NULL, NULL, NULL);
@@ -2292,7 +2293,8 @@ void dap_chain_net_srv_stake_remove_approving_decree_info(dap_chain_net_t *a_net
     }
 // func work
     char *l_delegated_group = s_get_approved_group(a_net); 
-    const char *l_tx_hash_str = dap_hash_sha3_256_to_str_static(&l_stake->tx_hash.hash);
+    dap_hash_sha3_256_str_t l_tx_hash_buf = dap_hash_sha3_256_to_str_struct(&l_stake->tx_hash.hash);
+    const char *l_tx_hash_str = l_tx_hash_buf.s;
     if (l_delegated_group) {
         dap_global_db_del(l_delegated_group, l_tx_hash_str, NULL, NULL);
         DAP_DELETE(l_delegated_group);
@@ -3364,7 +3366,8 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, da
         l_tx_hash = l_stake->tx_hash.hash;
     }
 
-    const char *l_tx_hash_str_tmp = l_tx_hash_str ? l_tx_hash_str : dap_hash_sha3_256_to_str_static(&l_tx_hash);
+    dap_hash_sha3_256_str_t l_tx_hash_tmp_buf = l_tx_hash_str ? (dap_hash_sha3_256_str_t){0} : dap_hash_sha3_256_to_str_struct(&l_tx_hash);
+    const char *l_tx_hash_str_tmp = l_tx_hash_str ? l_tx_hash_str : l_tx_hash_tmp_buf.s;
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
     if (!l_tx) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_NO_TX_ERR, "Transaction %s not found", l_tx_hash_str_tmp);
@@ -3404,7 +3407,8 @@ static int s_cli_srv_stake_update(int a_argc, char **a_argv, int a_arg_index, da
         DAP_DELETE(l_out_hash_str);
         DAP_DELETE(l_tx_new);
     } else {
-        l_tx_hash_str = dap_hash_sha3_256_to_str_static(&l_tx_hash);
+        dap_hash_sha3_256_str_t l_tx_hash_err_buf = dap_hash_sha3_256_to_str_struct(&l_tx_hash);
+        l_tx_hash_str = l_tx_hash_err_buf.s;
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_UPDATE_CANT_COMPOSE_ERR,
                                "Can't compose updating transaction %s, examine log files for details", l_tx_hash_str);
         DAP_DEL_Z(l_tx_new);
@@ -3540,7 +3544,8 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
         l_tx_hash = l_stake->tx_hash.hash;
     }
 
-    const char *l_tx_hash_str_tmp = l_tx_hash_str ? l_tx_hash_str : dap_hash_sha3_256_to_str_static(&l_tx_hash);
+    dap_hash_sha3_256_str_t l_tx_hash_tmp_buf = l_tx_hash_str ? (dap_hash_sha3_256_str_t){0} : dap_hash_sha3_256_to_str_struct(&l_tx_hash);
+    const char *l_tx_hash_str_tmp = l_tx_hash_str ? l_tx_hash_str : l_tx_hash_tmp_buf.s;
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
     if (!l_tx) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_INVALIDATE_NO_TX_ERR, "Transaction %s not found", l_tx_hash_str_tmp);
@@ -3555,7 +3560,8 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
     dap_hash_sha3_256_t l_spender_hash = {};
     if (dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_tx_hash, l_out_num, &l_spender_hash)) {
         l_tx_hash = l_spender_hash;
-        l_tx_hash_str_tmp = dap_hash_sha3_256_to_str_static(&l_spender_hash);
+        l_tx_hash_tmp_buf = dap_hash_sha3_256_to_str_struct(&l_spender_hash);
+        l_tx_hash_str_tmp = l_tx_hash_tmp_buf.s;
         if (!dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_INVALIDATE_NO_PREV_TX_ERR, "Previous transaction %s is not found", l_tx_hash_str_tmp);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_INVALIDATE_NO_PREV_TX_ERR;
@@ -3606,7 +3612,8 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             DAP_DELETE(l_out_hash_str);
             DAP_DELETE(l_tx);
         } else {
-            l_tx_hash_str = dap_hash_sha3_256_to_str_static(&l_tx_hash);
+            dap_hash_sha3_256_str_t l_tx_hash_err_buf = dap_hash_sha3_256_to_str_struct(&l_tx_hash);
+            l_tx_hash_str = l_tx_hash_err_buf.s;
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_INVALIDATE_TX_INVALIDATE_ERR, "Can't invalidate transaction %s, examine log files for details", l_tx_hash_str);
             DAP_DEL_Z(l_tx);
             return DAP_CHAIN_NODE_CLI_SRV_STAKE_INVALIDATE_TX_INVALIDATE_ERR;
@@ -3657,8 +3664,11 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
     MULT_256_256(a_stake->value, GET_256_FROM_64(100), &l_tmp);
     DIV_256_COIN(l_tmp, a_total_weight, &l_rel_weight);
     char *l_rel_weight_str = dap_chain_balance_coins_print(l_rel_weight);
-    const char *l_sov_addr_str = dap_chain_addr_is_blank(&a_stake->sovereign_addr) ?
-                "null" : dap_chain_addr_to_str_static(&a_stake->sovereign_addr);
+    dap_chain_addr_str_t l_sov_addr_buf = dap_chain_addr_is_blank(&a_stake->sovereign_addr)
+                ? (dap_chain_addr_str_t){0}
+                : dap_chain_addr_to_str_static_(&a_stake->sovereign_addr);
+    const char *l_sov_addr_str = dap_chain_addr_is_blank(&a_stake->sovereign_addr)
+                ? "null" : l_sov_addr_buf.s;
     uint256_t l_sov_tax_percent = uint256_0;
     MULT_256_256(a_stake->sovereign_tax, GET_256_FROM_64(100), &l_sov_tax_percent);
     char *l_sov_tax_str = dap_chain_balance_coins_print(l_sov_tax_percent);
@@ -4308,7 +4318,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, dap_json_t *a_json_arr_rep
                     dap_hash_sha3_256_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast, l_pkey_hash_str, sizeof(l_pkey_hash_str));
                     l_balance = dap_uint256_to_const_char(l_tx_out_cond->header.value, &l_coins);
                     
-                    l_signing_addr_str = dap_chain_addr_to_str_static(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
+                    dap_chain_addr_str_t l_signing_addr_buf = dap_chain_addr_to_str_static_(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
+                    l_signing_addr_str = l_signing_addr_buf.s;
                     dap_json_object_add_string(l_json_obj_tx, "signing_addr", l_signing_addr_str);
                     dap_json_object_add_string(l_json_obj_tx, a_version == 1 ? "signing_hash" : "sig_pkey_hash", l_pkey_hash_str);
                     if (a_version == 1) {

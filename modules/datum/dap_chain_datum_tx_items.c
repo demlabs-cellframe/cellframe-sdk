@@ -663,12 +663,10 @@ int dap_chain_datum_tx_event_to_json(dap_json_t *a_json_obj, dap_chain_tx_event_
     dap_json_object_add_object(l_object, "srv_uid", dap_json_object_new_uint64(a_event->srv_uid.uint64));
     dap_json_object_add_object(l_object, "event_type", dap_json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     dap_json_object_add_object(l_object, "event_group", dap_json_object_new_string(a_event->group_name));
-    const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->tx_hash)
-                                                                   : dap_hash_sha3_256_to_str_static(&a_event->tx_hash);
-    dap_json_object_add_object(l_object, "tx_hash", dap_json_object_new_string(l_tx_hash_str));
-    const char *l_pkey_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->pkey_hash)
-                                                                     : dap_hash_sha3_256_to_str_static(&a_event->pkey_hash);
-    dap_json_object_add_object(l_object, "pkey_hash", dap_json_object_new_string(l_pkey_hash_str));
+    dap_hash_sha3_256_str_t l_tx_hash_buf = dap_hash_sha3_256_to_str_static_ex(&a_event->tx_hash, a_hash_out_type);
+    dap_json_object_add_object(l_object, "tx_hash", dap_json_object_new_string(l_tx_hash_buf.s));
+    dap_hash_sha3_256_str_t l_pkey_hash_buf = dap_hash_sha3_256_to_str_static_ex(&a_event->pkey_hash, a_hash_out_type);
+    dap_json_object_add_object(l_object, "pkey_hash", dap_json_object_new_string(l_pkey_hash_buf.s));
     dap_json_object_add_object(l_object, "data_size", dap_json_object_new_int64(a_event->event_data_size));
     if (a_event->event_data && a_event->event_data_size > 0) {
         const size_t l_print_size_max = 32;

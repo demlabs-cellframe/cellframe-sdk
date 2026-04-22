@@ -1405,7 +1405,8 @@ dap_list_t *s_trackers_update_out(dap_list_t *a_trackers, dap_hash_sha3_256_t *a
 int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    const char *l_addr_str = dap_chain_addr_to_str_static(a_addr);
+    dap_chain_addr_str_t l_addr_buf = dap_chain_addr_to_str_static_(a_addr);
+    const char *l_addr_str = l_addr_buf.s;
     dap_ledger_wallet_balance_t *l_wallet_balance = NULL;
     char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, a_token_ticker, (char*)NULL);
     debug_if(g_debug_ledger, L_DEBUG, "%s %s to addr: %s", a_reverse ? "UNDO" : "GOT", dap_uint256_to_const_char(a_value, NULL), l_wallet_balance_key);
@@ -1686,7 +1687,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         case TX_ITEM_TYPE_IN: {
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
             l_cur_token_ticker = l_bound_item->in.token_ticker;
-            const char *l_addr_str = dap_chain_addr_to_str_static(&l_bound_item->in.addr_from);
+            dap_chain_addr_str_t l_addr_buf = dap_chain_addr_to_str_static_(&l_bound_item->in.addr_from);
+            const char *l_addr_str = l_addr_buf.s;
             char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
             pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             dap_ht_find_str(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
@@ -2095,7 +2097,8 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         case TX_ITEM_TYPE_IN: {
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
             l_cur_token_ticker = l_bound_item->in.token_ticker;
-            const char *l_addr_str = dap_chain_addr_to_str_static(&l_bound_item->in.addr_from);
+            dap_chain_addr_str_t l_addr_buf = dap_chain_addr_to_str_static_(&l_bound_item->in.addr_from);
+            const char *l_addr_str = l_addr_buf.s;
             char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
             pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             dap_ht_find_str(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
@@ -2844,7 +2847,8 @@ static dap_chain_addr_t* s_change_addr(dap_json_t *a_json, dap_chain_addr_t *a_a
 {
     if(!a_json || !a_addr)
         return NULL;
-    const char * l_out_addr = dap_chain_addr_to_str_static(a_addr);
+    dap_chain_addr_str_t l_out_addr_buf = dap_chain_addr_to_str_static_(a_addr);
+    const char *l_out_addr = l_out_addr_buf.s;
     dap_json_t *l_json = NULL;
     dap_json_object_get_ex(a_json, l_out_addr, &l_json);
     if(l_json && dap_json_get_type(l_json) == DAP_JSON_TYPE_STRING) {

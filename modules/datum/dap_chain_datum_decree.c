@@ -236,11 +236,9 @@ void dap_chain_datum_decree_certs_dump_json(dap_json_t *a_json_out, byte_t *a_si
             continue;
         }
 
-        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_hash_sha3_256_to_str_static(&l_pkey_hash);
+        dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_static_ex(&l_pkey_hash, a_hash_out_type);
         dap_json_object_add_uint64(json_obj_sign, a_version == 1 ? "sign #" : "sig_num", i);
-        dap_json_object_add_string(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", l_hash_str);
+        dap_json_object_add_string(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", l_hash_buf.s);
         dap_json_object_add_string(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_sign_type_to_str(l_sign->header.type));
         dap_json_object_add_uint64(json_obj_sign, a_version == 1 ? "sign size" : "sig_size", l_sign->header.sign_size);
         dap_json_array_add(json_arr_certs_out, json_obj_sign);        

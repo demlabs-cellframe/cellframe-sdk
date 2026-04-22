@@ -218,7 +218,8 @@ dap_json_t *dap_chain_node_rpc_states_info_read(dap_cluster_node_addr_t a_addr)
         dap_json_object_free(json_node_obj);
         return NULL;
     }
-    const char *l_node_addr_str = dap_cluster_node_addr_to_str(a_addr.uint64 ? a_addr : g_node_addr);
+    dap_node_addr_str_t l_node_addr_buf = dap_cluster_node_addr_to_str_(a_addr.uint64 ? a_addr : g_node_addr);
+    const char *l_node_addr_str = l_node_addr_buf.s;
     dap_chain_node_rpc_states_info_t *l_node_info = (dap_chain_node_rpc_states_info_t *)dap_global_db_get_sync(s_rpc_server_states_group, l_node_addr_str, &l_data_size, NULL, &l_timestamp);
     if (!l_node_info) {
         log_it(L_ERROR, "Can't find state of rpc node %s", l_node_addr_str);
@@ -259,7 +260,8 @@ DAP_INLINE bool dap_chain_node_rpc_is_my_node_authorized()
 int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info, bool a_force)
 {
     dap_return_val_if_pass(!a_node_info || !a_node_info->address.uint64, -1);
-    const char *l_addr_str =  dap_cluster_node_addr_to_str(a_node_info->address);
+    dap_node_addr_str_t l_addr_buf = dap_cluster_node_addr_to_str_(a_node_info->address);
+    const char *l_addr_str = l_addr_buf.s;
     dap_global_db_store_obj_t *l_obj = NULL;
     if (!a_force && (l_obj = dap_global_db_get_raw_sync(s_rpc_node_list_group, l_addr_str))) {
         log_it(L_ERROR, "Can't save node info to rpc node list, record already exist");
@@ -277,14 +279,15 @@ int dap_chain_node_rpc_info_save(dap_chain_node_info_t *a_node_info, bool a_forc
 int dap_chain_node_rpc_info_del(dap_chain_node_addr_t a_addr)
 {
     dap_return_val_if_pass(!a_addr.uint64, -1);
-    const char *l_addr_str =  dap_cluster_node_addr_to_str(a_addr);
+    dap_node_addr_str_t l_addr_buf = dap_cluster_node_addr_to_str_(a_addr);
+    const char *l_addr_str = l_addr_buf.s;
     dap_global_db_store_obj_t *l_obj = NULL;
     if (!(l_obj = dap_global_db_get_raw_sync(s_rpc_node_list_group, l_addr_str))) {
         log_it(L_ERROR, "Can't del node info from rpc node list, record not exist");
         return -2;
     }
     dap_global_db_store_obj_free_one(l_obj);
-    return dap_global_db_del_sync(s_rpc_node_list_group, dap_cluster_node_addr_to_str(a_addr));
+    return dap_global_db_del_sync(s_rpc_node_list_group, l_addr_str);
 }
 
 /**

@@ -326,10 +326,13 @@ int com_token_decl_sign(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
     l_datum_size = dap_chain_datum_size(l_datum);
     dap_hash_sha3_256_t l_new_datum_hash = { };
     dap_hash_sha3_256(l_datum->data, l_new_token_size, &l_new_datum_hash);
-    const char *l_out_hash_str = l_hash_out_base58 ? dap_enc_base58_encode_hash_to_str_static(&l_new_datum_hash)
-                                                   : dap_hash_sha3_256_to_str_static(&l_new_datum_hash);
+    dap_hash_sha3_256_b58_str_t l_out_hash_b58 = l_hash_out_base58
+                                                   ? dap_hash_sha3_256_to_base58_str_static_(&l_new_datum_hash)
+                                                   : (dap_hash_sha3_256_b58_str_t){0};
+    dap_hash_sha3_256_str_t l_out_hash_hex = dap_hash_sha3_256_to_str_struct(&l_new_datum_hash);
+    const char *l_out_hash_str = l_hash_out_base58 ? l_out_hash_b58.s : l_out_hash_hex.s;
     // Add datum to mempool with datum_token hash as a key
-    if( dap_global_db_set_sync(l_gdb_group_mempool, dap_hash_sha3_256_to_str_static(&l_new_datum_hash),
+    if( dap_global_db_set_sync(l_gdb_group_mempool, l_out_hash_hex.s,
                                l_datum, dap_chain_datum_size(l_datum), false) != 0) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_DECL_SIGN_DATUM_CANT_BE_PL_MEMPOOL_ERR,
                                                 "Error! datum %s produced from %s can't be placed in mempool", l_out_hash_str, l_datum_hash_str);
@@ -1034,8 +1037,10 @@ int com_token_decl(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, UNU
     dap_hash_sha3_256_t l_key_hash;
     dap_chain_datum_calc_hash(l_datum, &l_key_hash);
     char *l_key_str = dap_hash_sha3_256_to_str_new(&l_key_hash);
-    const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
-                           dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
+    dap_hash_sha3_256_b58_str_t l_key_b58 = dap_strcmp(l_hash_out_type, "hex")
+            ? dap_hash_sha3_256_to_base58_str_static_(&l_key_hash)
+            : (dap_hash_sha3_256_b58_str_t){0};
+    const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ? l_key_b58.s : l_key_str;
 
     // Add datum to mempool with datum_token hash as a key
     char *l_gdb_group_mempool = l_chain
@@ -1219,8 +1224,10 @@ int com_token_update(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, U
     dap_hash_sha3_256_t l_key_hash;
     dap_chain_datum_calc_hash(l_datum, &l_key_hash);
     char *l_key_str = dap_hash_sha3_256_to_str_new(&l_key_hash);
-    const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
-                           dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str;
+    dap_hash_sha3_256_b58_str_t l_key_b58 = dap_strcmp(l_hash_out_type, "hex")
+            ? dap_hash_sha3_256_to_base58_str_static_(&l_key_hash)
+            : (dap_hash_sha3_256_b58_str_t){0};
+    const char *l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ? l_key_b58.s : l_key_str;
 
     // Add datum to mempool with datum_token hash as a key
     char *l_gdb_group_mempool = l_chain

@@ -114,8 +114,8 @@ static int s_net_decree_fee_handler(dap_chain_datum_decree_t *a_decree,
     }
     
     const char *l_fee_str = dap_uint256_to_const_char(l_fee, NULL);
-    const char *l_addr_str = dap_chain_addr_to_str(&l_fee_addr);
-    log_it(L_NOTICE, "Network fee updated: %s, address: %s", l_fee_str, l_addr_str);
+    dap_chain_addr_str_t l_addr_buf = dap_chain_addr_to_str_static_(&l_fee_addr);
+    log_it(L_NOTICE, "Network fee updated: %s, address: %s", l_fee_str, l_addr_buf.s);
     
     return 0;
 }

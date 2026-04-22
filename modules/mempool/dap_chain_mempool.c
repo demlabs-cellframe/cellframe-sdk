@@ -218,8 +218,11 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     dap_hash_sha3_256_t l_key_hash;
     dap_chain_datum_calc_hash(a_datum, &l_key_hash);
     char *l_key_str = dap_hash_sha3_256_to_str_new(&l_key_hash);
+    dap_hash_sha3_256_b58_str_t l_key_b58 = dap_strcmp(a_hash_out_type, "hex")
+            ? dap_hash_sha3_256_to_base58_str_static_(&l_key_hash)
+            : (dap_hash_sha3_256_b58_str_t){0};
     const char *l_key_str_out = dap_strcmp(a_hash_out_type, "hex")
-            ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
+            ? l_key_b58.s
             : l_key_str;
 
     const char *l_type_str;

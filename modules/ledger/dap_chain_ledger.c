@@ -355,10 +355,8 @@ static void s_tx_header_print(dap_json_t *a_json_out, dap_chain_datum_tx_t *a_tx
     char l_time_str[DAP_TIME_STR_SIZE] = "unknown";
     if (a_tx->header.ts_created)
         dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
-    const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
-            ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
-            : dap_hash_sha3_256_to_str_static(a_tx_hash);
-    dap_json_object_add_string(a_json_out, "tx_hash ", l_tx_hash_str);
+    dap_hash_sha3_256_str_t l_tx_hash_buf = dap_hash_sha3_256_to_str_static_ex(a_tx_hash, a_hash_out_type);
+    dap_json_object_add_string(a_json_out, "tx_hash ", l_tx_hash_buf.s);
     dap_json_object_add_string(a_json_out, "time ", l_time_str);
 }
 
@@ -454,9 +452,12 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                 l_header_printed = true;
             }
             //const char *l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
-            const char *l_dst_addr_str = !dap_chain_addr_is_blank(&l_dst_addr) 
-                ? dap_chain_addr_to_str_static(&l_dst_addr)
-                : dap_chain_tx_out_cond_subtype_to_str( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype );
+            dap_chain_addr_str_t l_dst_addr_buf = !dap_chain_addr_is_blank(&l_dst_addr)
+                    ? dap_chain_addr_to_str_static_(&l_dst_addr)
+                    : (dap_chain_addr_str_t){0};
+            const char *l_dst_addr_str = !dap_chain_addr_is_blank(&l_dst_addr)
+                    ? l_dst_addr_buf.s
+                    : dap_chain_tx_out_cond_subtype_to_str( ((dap_chain_tx_out_cond_t *)l_item)->header.subtype );
             dap_json_object_add_string(l_json_obj_datum, "send", dap_uint256_to_const_char(l_value, NULL));
             dap_json_object_add_string(l_json_obj_datum, "to_addr", l_dst_addr_str);
             dap_json_object_add_object(l_json_obj_datum, "token", l_src_token ? dap_json_object_new_string(l_src_token) : dap_json_object_new_string("UNKNOWN"));
@@ -470,11 +471,14 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             }
             const char *l_dst_token = (l_type == TX_ITEM_TYPE_OUT_EXT) ?
                         (const char *)(((dap_chain_tx_out_ext_t *)l_item)->token) : NULL;
-            const char *l_src_addr_str = l_base_tx 
-                ? "emission"
-                : ( !dap_chain_addr_is_blank(&l_src_addr) 
-                    ? dap_chain_addr_to_str_static(&l_src_addr)
-                    : dap_chain_tx_out_cond_subtype_to_str(l_src_subtype) );
+            dap_chain_addr_str_t l_src_addr_buf = (!l_base_tx && !dap_chain_addr_is_blank(&l_src_addr))
+                    ? dap_chain_addr_to_str_static_(&l_src_addr)
+                    : (dap_chain_addr_str_t){0};
+            const char *l_src_addr_str = l_base_tx
+                    ? "emission"
+                    : ( !dap_chain_addr_is_blank(&l_src_addr)
+                        ? l_src_addr_buf.s
+                        : dap_chain_tx_out_cond_subtype_to_str(l_src_subtype) );
             dap_json_object_add_string(l_json_obj_datum, "recv", dap_uint256_to_const_char(l_value, NULL));
             dap_json_object_add_object(l_json_obj_datum, "token", l_dst_token ? dap_json_object_new_string(l_dst_token) :
                                   (l_src_token ? dap_json_object_new_string(l_src_token) : dap_json_object_new_string("UNKNOWN")));
@@ -1553,7 +1557,8 @@ uint256_t dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t
     uint256_t l_ret = uint256_0;
 
     dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
-    const char *l_addr = dap_chain_addr_to_str_static(a_addr);
+    dap_chain_addr_str_t l_addr_buf = dap_chain_addr_to_str_static_(a_addr);
+    const char *l_addr = l_addr_buf.s;
     char *l_wallet_balance_key = dap_strjoin(" ", l_addr, a_token_ticker, (char*)NULL);
     pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
     dap_ht_find_str(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, l_balance_item);

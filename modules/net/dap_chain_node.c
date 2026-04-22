@@ -134,7 +134,8 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
             memcpy( l_info->info_v1.links_addrs, l_linked_node_addrs,
                    (l_uplinks_count + l_downlinks_count) * sizeof(dap_chain_node_addr_t) );
         char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
-        const char *l_node_addr_str = dap_cluster_node_addr_to_str(l_info->info_v1.address);
+        dap_node_addr_str_t l_node_addr_buf = dap_cluster_node_addr_to_str_(l_info->info_v1.address);
+        const char *l_node_addr_str = l_node_addr_buf.s;
         dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
         DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
     }
@@ -200,7 +201,8 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_cluster_node_addr_t a_addr)
 {
     dap_string_t *l_ret = dap_string_new("");
-    const char *l_node_addr_str = dap_cluster_node_addr_to_str(a_addr.uint64 ? a_addr : g_node_addr);
+    dap_node_addr_str_t l_node_addr_buf = dap_cluster_node_addr_to_str_(a_addr.uint64 ? a_addr : g_node_addr);
+    const char *l_node_addr_str = l_node_addr_buf.s;
     if(!a_net) {
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             s_states_info_to_str(l_net, l_node_addr_str, l_ret);
@@ -406,7 +408,8 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
  */
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
-    const char *l_key = dap_cluster_node_addr_to_str(*a_address);
+    dap_node_addr_str_t l_key_buf = dap_cluster_node_addr_to_str_(*a_address);
+    const char *l_key = l_key_buf.s;
     size_t l_node_info_size = 0;
     dap_chain_node_info_t *l_node_info
         = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);

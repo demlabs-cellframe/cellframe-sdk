@@ -992,7 +992,8 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
     }
 
     month_str	= s_give_month_str_from_month_count(current_month);
-    year_str	= dap_itoa(current_year);
+    dap_maxint_str_t year_str_buf = dap_itoa_(current_year);
+    year_str	= year_str_buf.s;
 
     if (*month_str
     &&	*year_str

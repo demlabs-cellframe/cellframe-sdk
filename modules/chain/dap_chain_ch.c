@@ -224,9 +224,10 @@ static bool s_sync_in_chains_callback(void *a_arg)
         DAP_DELETE(l_args);
         return false;
     }
-    dap_hash_sha3_256_t l_atom_hash = { }; 
+    dap_hash_sha3_256_t l_atom_hash = { };
     dap_hash_sha3_256(l_atom, l_atom_size, &l_atom_hash);
-    char *l_atom_hash_str = dap_hash_sha3_256_to_str_static(&l_atom_hash);
+    dap_hash_sha3_256_str_t l_atom_hash_buf = dap_hash_sha3_256_to_str_struct(&l_atom_hash);
+    const char *l_atom_hash_str = l_atom_hash_buf.s;
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash, false);
     bool l_ack_send = false;
     switch (l_atom_add_res) {

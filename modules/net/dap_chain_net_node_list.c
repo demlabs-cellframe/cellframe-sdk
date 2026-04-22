@@ -106,7 +106,8 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         *l_return_code = DAP_HTTP_STATUS_METHOD_NOT_ALLOWED;
         return;
     }
-    const char *l_key = dap_cluster_node_addr_to_str( (dap_chain_node_addr_t){.uint64 = addr} );
+    dap_node_addr_str_t l_key_buf = dap_cluster_node_addr_to_str_( (dap_chain_node_addr_t){.uint64 = addr} );
+    const char *l_key = l_key_buf.s;
     if (!l_key) {
         log_it(L_ERROR, "Bad node address %"DAP_UINT64_FORMAT_U, addr);
         *l_return_code = DAP_HTTP_STATUS_BAD_REQUEST;

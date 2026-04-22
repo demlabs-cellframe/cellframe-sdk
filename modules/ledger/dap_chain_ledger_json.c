@@ -133,9 +133,8 @@ void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_o
     dap_json_t *json_obj_datum = dap_json_object_new();
     dap_hash_sha3_256_t l_datum_hash = {};
     dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
-    const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-            ? dap_enc_base58_encode_hash_to_str_static(&l_datum_hash)
-            : dap_hash_sha3_256_to_str_static(&l_datum_hash);
+    dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_static_ex(&l_datum_hash, a_hash_out_type);
+    const char *l_hash_str = l_hash_buf.s;
     if (a_version != 1)
         dap_json_object_add_object(json_obj_datum, "datum_type", dap_json_object_new_string(dap_datum_type_to_str(a_datum->header.type_id)));
     switch (a_datum->header.type_id) {
@@ -240,7 +239,8 @@ void dap_chain_datum_dump_json(dap_json_t *a_json_arr_reply, dap_json_t *a_obj_o
             // Anchor dump is handled by chain module callback - use extern declaration
             dap_hash_sha3_256_t l_decree_hash = {};
             dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash);
-            l_hash_str = dap_hash_sha3_256_to_str_static(&l_decree_hash);
+            l_hash_buf = dap_hash_sha3_256_to_str_struct(&l_decree_hash);
+            l_hash_str = l_hash_buf.s;
             dap_json_object_add_object(json_obj_datum, a_version == 1 ? "decree hash" : "decree_hash", dap_json_object_new_string(l_hash_str));
             dap_chain_datum_anchor_certs_dump_json(json_obj_datum, l_anchor->data_n_sign + l_anchor->header.data_size, l_anchor->header.signs_size, a_hash_out_type, a_version);
         } break;

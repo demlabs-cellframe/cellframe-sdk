@@ -588,10 +588,8 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, dap
 static void s_cli_meta_hash_print(dap_json_t *a_json_obj_out, const char *a_meta_title, dap_chain_block_meta_t *a_meta, const char *a_hash_out_type)
 {
     if (a_meta->hdr.data_size == sizeof (dap_hash_sha3_256_t)) {
-        const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
-                dap_enc_base58_encode_hash_to_str_static((dap_hash_sha3_256_t*)a_meta->data) :
-                dap_hash_sha3_256_to_str_static((dap_hash_sha3_256_t*)a_meta->data);
-        dap_json_object_add_string(a_json_obj_out, a_meta_title, l_hash_str);
+        dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_static_ex((dap_hash_sha3_256_t*)a_meta->data, a_hash_out_type);
+        dap_json_object_add_string(a_json_obj_out, a_meta_title, l_hash_buf.s);
 //        if (dap_strcmp(a_hash_out_type, "base58")) {
 //            const char *l_hash_str = dap_enc_base58_encode_hash_to_str_static(a_meta->data);
             //
@@ -731,7 +729,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
         [SUBCMD_FIND] = "find",
         [SUBCMD_UNDEFINED]=NULL
     };
-    const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
+    enum { l_subcmd_str_count = sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs) };
     const char* l_subcmd_str_args[l_subcmd_str_count];
 	for(size_t i=0;i<l_subcmd_str_count;i++)
         l_subcmd_str_args[i]=NULL;
@@ -890,11 +888,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 dap_chain_datum_t * l_datum = l_block_cache->datum[i];
                 size_t l_datum_size =  dap_chain_datum_size(l_datum);
                 if (l_brief){
-                    const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str_static(&l_block_cache->datum_hash[i])
-                            : dap_hash_sha3_256_to_str_static(&l_block_cache->datum_hash[i]);
+                    dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_static_ex(&l_block_cache->datum_hash[i], l_hash_out_type);
                     dap_json_object_add_object(json_obj_tx, "num",dap_json_object_new_uint64(i));
-                    dap_json_object_add_object(json_obj_tx, a_version == 1 ? "hash" : "datum_hash",dap_json_object_new_string(l_hash_str));
+                    dap_json_object_add_object(json_obj_tx, a_version == 1 ? "hash" : "datum_hash",dap_json_object_new_string(l_hash_buf.s));
                 } else {
                     dap_json_object_add_object(json_obj_tx, a_version == 1 ? "datum size " : "datum_size",dap_json_object_new_uint64(l_datum_size));
                     if (l_datum_size < sizeof (l_datum->header) ){
@@ -935,12 +931,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 size_t l_sign_size = dap_sign_get_size(l_sign);
                 dap_hash_sha3_256_t l_pkey_hash;
                 dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                const char *l_hash_str = !dap_strcmp(l_hash_out_type, "base58") ?
-                        dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
-                        dap_hash_sha3_256_to_str_static(&l_pkey_hash);
+                dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_static_ex(&l_pkey_hash, l_hash_out_type);
                 dap_json_object_add_object(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
                 dap_json_object_add_object(json_obj_sign, a_version == 1 ? "size" : "sig_size",dap_json_object_new_uint64(l_sign_size));
-                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",dap_json_object_new_string(l_hash_str));
+                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",dap_json_object_new_string(l_hash_buf.s));
                 dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
                 uint256_t l_reward = l_chain->callback_calc_reward(l_chain, &l_block_cache->block_hash, l_pkey);
                 DAP_DELETE(l_pkey);
@@ -2497,12 +2491,10 @@ static dap_json_t *s_callback_atom_dump_json(dap_json_t **a_arr_out, dap_chain_t
         size_t l_sign_size = dap_sign_get_size(l_sign);
         dap_hash_sha3_256_t l_pkey_hash;
         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-        const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
-                dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
-                dap_hash_sha3_256_to_str_static(&l_pkey_hash);
+        dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_static_ex(&l_pkey_hash, a_hash_out_type);
         dap_json_object_add_object(json_obj_sign, a_version == 1 ? "type" : "sig_type",dap_json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
         dap_json_object_add_object(json_obj_sign, a_version == 1 ? "size" : "sig_size",dap_json_object_new_uint64(l_sign_size));
-        dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",dap_json_object_new_string(l_hash_str));
+        dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",dap_json_object_new_string(l_hash_buf.s));
         dap_json_array_add(l_jobj_signatures, json_obj_sign);
     }
     dap_json_object_add_object(l_obj_ret, "signatures", l_jobj_signatures);

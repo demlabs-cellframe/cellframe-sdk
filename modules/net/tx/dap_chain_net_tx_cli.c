@@ -392,7 +392,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply,
     DAP_DELETE(l_tx);
 
     // Add transaction to mempool
-    char *l_tx_hash_str = dap_hash_sha3_256_data_to_str(l_datum_tx->data, l_datum_tx->header.data_size).s;
+    dap_hash_sha3_256_str_t l_tx_hash_buf = dap_hash_sha3_256_data_to_str(l_datum_tx->data, l_datum_tx->header.data_size);
+    const char *l_tx_hash_str = l_tx_hash_buf.s;
     dap_hash_sha3_256_t l_hf_tx = {0};
     dap_hash_sha3_256_from_str(l_tx_hash_str, &l_hf_tx);
     int rc = -1;
