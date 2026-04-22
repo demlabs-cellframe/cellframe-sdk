@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project (dap_chain_net)
+
+# Include LibraryHelpers for object library creation
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/LibraryHelpers.cmake)
   
 
 file(GLOB DAP_CHAIN_NET_SRCS *.c)
@@ -23,16 +26,26 @@ if(LINUX)
 endif()
 
 if(WIN32)
-  add_compile_definitions(_GNU_SOURCE)
+  # Will be set after create_object_library
+  set(WIN32_DEFINITIONS _GNU_SOURCE)
 endif()
 
-add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRCS} ${DAP_CHAIN_NET_HEADERS} ${IPUTILS_SRCS} ${IPUTILS_HEADERS})
+# Create OBJECT library instead of STATIC
+create_object_library(${PROJECT_NAME} CELLFRAME_INTERNAL_MODULES ${DAP_CHAIN_NET_SRCS} ${IPUTILS_SRCS} HEADERS ${DAP_CHAIN_NET_HEADERS} ${IPUTILS_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_io dap_notify_srv dap_cli_server dap_chain dap_chain_wallet
+if(WIN32)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC ${WIN32_DEFINITIONS})
+endif()
+
+# Link dependencies as INTERFACE for OBJECT library
+# Use dap_link_libraries for automatic include propagation with cycle detection
+dap_link_libraries(${PROJECT_NAME} INTERFACE dap_core dap_crypto dap_client dap_io dap_notify_srv dap_cli_server dap_chain dap_chain_wallet
                                         dap_chain_net_srv dap_chain_net_srv_voting dap_chain_mempool dap_global_db dap_chain_net_srv_xchange dap_chain_cs_none
                                         dap_stream_ch_chain_net dap_chain_cs_esbocs dap_json_rpc )
 if(LINUX)
-    target_link_libraries(${PROJECT_NAME} resolv)
+    # resolv is a system library, will be linked at final stage
+    # Store for later linking
+    target_link_libraries(${PROJECT_NAME} INTERFACE resolv)
 endif()
 
 target_include_directories(${PROJECT_NAME} INTERFACE . )

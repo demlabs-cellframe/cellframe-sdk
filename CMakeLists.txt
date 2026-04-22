@@ -2,15 +2,25 @@ cmake_minimum_required(VERSION 3.10)
 project(cellframe-sdk C)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "3.4-0")
+set(CELLFRAME_SDK_NATIVE_VERSION "3.5-0")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
+
+# dap_tpl for mock framework: use dap-sdk's full version (has build_engine.sh + mocking support)
+if(NOT DEFINED DAP_TPL_DIR AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/dap_tpl/dap_tpl.sh")
+    set(DAP_TPL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tools/dap_tpl" CACHE PATH "Path to dap_tpl template engine")
+    message(STATUS "[+] dap_tpl: ${DAP_TPL_DIR}")
+endif()
 
 if (INSTALL_SDK)
     set(INSTALL_DAP_SDK ON)
 else()
     install(CODE "MESSAGE(\"No installation targets defined, using dummy install\")")
 endif()
+
+# Include LibraryHelpers for object library creation
+# This must be included early to override target_link_libraries
+include(cmake/LibraryHelpers.cmake)
 
 # problem in /usr/include/linux/netlink.h:99:24: note: expanded from macro 'NLMSG_OK' (nlh)->nlmsg_len <= (len)
 if(CMAKE_C_COMPILER MATCHES "clang")
@@ -29,12 +39,9 @@ if(NOT DEFINED CELLFRAME_MODULES)
 
     set(CELLFRAME_MODULES "core chains network cs-dag-poa cs-esbocs cs-none srv-stake srv-voting srv-bridge srv-xchange srv-dex compose")
 
-    if(LINUX OR DARWIN)
-        set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
-    endif()
-
     if(BUILD_CELLFRAME_SDK_TESTS)
         set(DAPSDK_MODULES "test-framework")
+        set(BUILD_DAP_SDK_TESTS ON)
     endif()
 
     add_subdirectory(dap-sdk)
@@ -44,6 +51,8 @@ endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
 
+# Module-specific definitions
+# These definitions are set globally but could be moved to specific modules if needed
 if (CELLFRAME_MODULES MATCHES "srv-stake")
      add_definitions("-DDAP_SRV_STAKE_USED")
 endif()
@@ -73,8 +82,53 @@ endif()
 
 add_subdirectory(modules/)
 
+# Post-process all OBJECT libraries to propagate include directories
+# This must be done AFTER all modules are created and configured
+# This ensures transitive dependencies are propagated
+post_process_object_libraries()
 
-add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
+# Create final library from OBJECT modules
+# Check if we have any OBJECT modules registered
+if(DEFINED CELLFRAME_INTERNAL_MODULES AND CELLFRAME_INTERNAL_MODULES)
+    # Use OBJECT modules if available
+    message(STATUS "[Cellframe SDK] Using OBJECT libraries: ${CELLFRAME_INTERNAL_MODULES}")
+    
+    # Collect all object files from OBJECT modules
+    set(ALL_OBJECTS "")
+    foreach(MODULE ${CELLFRAME_INTERNAL_MODULES})
+        if(TARGET ${MODULE})
+            list(APPEND ALL_OBJECTS $<TARGET_OBJECTS:${MODULE}>)
+        endif()
+    endforeach()
+    
+    # Create STATIC library from OBJECT modules + main source file
+    add_library(${PROJECT_NAME} STATIC cellframe-sdk.c ${ALL_OBJECTS})
+    
+    # Propagate include directories from all modules
+    foreach(MODULE ${CELLFRAME_INTERNAL_MODULES})
+        if(TARGET ${MODULE})
+            get_target_property(MODULE_INTERFACE_INCLUDES ${MODULE} INTERFACE_INCLUDE_DIRECTORIES)
+            if(MODULE_INTERFACE_INCLUDES)
+                target_include_directories(${PROJECT_NAME} PUBLIC ${MODULE_INTERFACE_INCLUDES})
+            endif()
+            
+            get_target_property(MODULE_INCLUDES ${MODULE} INCLUDE_DIRECTORIES)
+            if(MODULE_INCLUDES)
+                target_include_directories(${PROJECT_NAME} PUBLIC ${MODULE_INCLUDES})
+            endif()
+        endif()
+    endforeach()
+    
+    # Collect and link external libraries from modules
+    collect_external_libraries_from_modules("${CELLFRAME_INTERNAL_MODULES}" ALL_EXTERNAL_LIBS)
+    if(ALL_EXTERNAL_LIBS)
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${ALL_EXTERNAL_LIBS})
+    endif()
+else()
+    # Fallback to old STATIC library approach for backward compatibility
+    message(STATUS "[Cellframe SDK] Using legacy STATIC library approach")
+    add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
+endif()
 
 # init libs
 set(CELLFRAME_LIBS "")
@@ -169,12 +223,6 @@ if (CELLFRAME_MODULES MATCHES "srv-datum")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_datum)
 endif()
 
-# Enable service VPN
-if (CELLFRAME_MODULES MATCHES "srv-vpn")
-    message("[+] Module 'srv-vpn'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn)
-endif()
-
 # Enable service eXchange
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
     message("[+] Module 'srv-xchange'")
@@ -234,7 +282,41 @@ if (DARWIN)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
-target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+# Link libraries
+# For OBJECT modules, external libraries are already linked via collect_external_libraries_from_modules
+# For legacy approach, link CELLFRAME_LIBS as before
+if(NOT DEFINED CELLFRAME_INTERNAL_MODULES OR NOT CELLFRAME_INTERNAL_MODULES)
+    target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+else()
+    # Still need to link DAP SDK modules and system libraries
+    # DAP SDK modules are OBJECT libraries, so we need to link them explicitly
+    # System libraries will be linked here
+    if(CELLFRAME_LIBS)
+        # Filter out OBJECT libraries, keep only external/system libraries
+        set(EXTERNAL_LIBS "")
+        foreach(LIB ${CELLFRAME_LIBS})
+            if(TARGET ${LIB})
+                get_target_property(LIB_TYPE ${LIB} TYPE)
+                if(NOT LIB_TYPE STREQUAL "OBJECT_LIBRARY")
+                    list(APPEND EXTERNAL_LIBS ${LIB})
+                endif()
+            else()
+                # Not a target, assume it's a system library
+                list(APPEND EXTERNAL_LIBS ${LIB})
+            endif()
+        endforeach()
+        if(EXTERNAL_LIBS)
+            target_link_libraries(${PROJECT_NAME} PUBLIC ${EXTERNAL_LIBS})
+        endif()
+    endif()
+    
+    # Link DAP SDK modules if they are OBJECT libraries
+    # They should be linked via dap_link_all_sdk_modules
+    if(CELLFRAME_MODULES MATCHES "core")
+        # Link all DAP SDK modules that are needed
+        dap_link_all_sdk_modules(${PROJECT_NAME} DAP_INTERNAL_MODULES)
+    endif()
+endif()
 
 # For .so
 #target_link_libraries(${PROJECT_NAME} -Wl,--whole-archive ${CELLFRAME_LIBS} -Wl,--no-whole-archive)

@@ -74,11 +74,6 @@ if (CELLFRAME_MODULES MATCHES "srv-datum")
     add_subdirectory(service/datum)
 endif()
 
-# Service VPN
-if (CELLFRAME_MODULES MATCHES "srv-vpn")
-    add_subdirectory(service/vpn)
-endif()
-
 # Service DEX v2 (must be before xchange, which depends on it)
 if (CELLFRAME_MODULES MATCHES "srv-dex")
     add_subdirectory(service/dex)

@@ -9,10 +9,7 @@ add_executable(${PROJECT_NAME} ${DAP_CHAIN_TESTS_SRC} ${DAP_CHAIN_TESTS_HEADERS}
 
 target_link_libraries(${PROJECT_NAME} 
     dap_test 
-    dap_core 
-    dap_crypto
-    dap_chain_common
-    dap_chain_net
+    cellframe-sdk
     dap_json-c
 )
 

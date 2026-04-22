@@ -117,6 +117,10 @@ typedef struct dap_chain_net_srv_stream_session {
 
     dap_sign_t* user_sign; // User's signature for auth if reconnect
 
+    // Service-specific custom data (opaque pointer, managed by service)
+    void *custom_data;  // Custom data for service (e.g., VPN traffic config)
+    void (*custom_data_delete)(void *);  // Cleanup callback for custom_data
+
 } dap_chain_net_srv_stream_session_t;
 
 #define DAP_CHAIN_NET_SRV_STREAM_SESSION(a) ((dap_chain_net_srv_stream_session_t *) (a)->_inheritor )

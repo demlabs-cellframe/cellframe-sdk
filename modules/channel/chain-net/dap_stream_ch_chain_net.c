@@ -167,7 +167,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE:
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE_ACK:
             if (!a_ch->stream->authorized) {
-                log_it(L_WARNING, "Trying to announce net from not authorized stream");
+                log_it(L_WARNING, "Trying to announce net from not authorized stream %p (node=" NODE_ADDR_FP_STR ")",
+                       (void*)a_ch->stream, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
                 char l_err_str[] = "ERROR_STREAM_NOT_AUTHORIZED";
                 dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                                   l_ch_chain_net_pkt->hdr.net_id, l_err_str, sizeof(l_err_str));

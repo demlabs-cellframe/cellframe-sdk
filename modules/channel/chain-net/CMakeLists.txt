@@ -1,12 +1,16 @@
 cmake_minimum_required(VERSION 3.10)
 project (dap_stream_ch_chain_net)
+
+# Include LibraryHelpers for object library creation
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/LibraryHelpers.cmake)
   
 file(GLOB DAP_STREAM_CH_CHAIN_NET_SRCS *.c)
 file(GLOB DAP_STREAM_CH_CHAIN_NET_HDRS include/*.h)
 
-add_library(${PROJECT_NAME} STATIC ${DAP_STREAM_CH_CHAIN_NET_SRCS} ${DAP_STREAM_CH_CHAIN_NET_HDRS})
+# Create OBJECT library instead of STATIC
+create_object_library(${PROJECT_NAME} CELLFRAME_INTERNAL_MODULES ${DAP_STREAM_CH_CHAIN_NET_SRCS} HEADERS ${DAP_STREAM_CH_CHAIN_NET_HDRS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_stream_ch dap_chain_net dap_chain_net_srv_stake dap_chain_net_srv_dex)
+dap_link_libraries(${PROJECT_NAME} INTERFACE dap_core dap_crypto dap_stream dap_stream_ch dap_chain_net dap_chain_net_srv_stake dap_chain_net_srv_dex)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
