@@ -5276,9 +5276,10 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         l_tsd_list = dap_list_append(l_tsd_list, l_utxo_remove_tsd);
         l_tsd_total_size += dap_tsd_size(l_utxo_remove_tsd);
         
-        DAP_DELETE(l_utxo_str_copy);
+        // Log before freeing l_utxo_str_copy (l_hash_str points into it)
         log_it(L_INFO, "Added UTXO unblocking: %s:%u%s", l_hash_str, l_out_idx, 
                l_timestamp ? " (delayed)" : "");
+        DAP_DELETE(l_utxo_str_copy);
     }
     
     // Process -utxo_blocked_clear
