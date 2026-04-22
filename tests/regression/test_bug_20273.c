@@ -276,13 +276,13 @@ static bool s_create_token_and_emission(const char *a_ticker, dap_chain_addr_t *
     
     // Verify emission address matches expected address
     if (l_emission_item) {
-        const char *l_emission_addr_str = dap_chain_addr_to_str(&l_emission_item->hdr.address);
-        const char *l_expected_addr_str = dap_chain_addr_to_str(a_addr_owner);
         if (memcmp(&l_emission_item->hdr.address, a_addr_owner, sizeof(dap_chain_addr_t)) != 0) {
-            log_it(L_WARNING, "⚠️ Emission address mismatch: emission=%s, expected=%s", 
-                   l_emission_addr_str, l_expected_addr_str);
+            log_it(L_WARNING, "⚠️ Emission address mismatch: emission=%s, expected=%s",
+                   dap_chain_addr_to_str(&l_emission_item->hdr.address),
+                   dap_chain_addr_to_str(a_addr_owner));
         } else {
-            log_it(L_INFO, "✓ Emission address verified: %s", l_emission_addr_str);
+            log_it(L_INFO, "✓ Emission address verified: %s",
+                   dap_chain_addr_to_str(&l_emission_item->hdr.address));
         }
     }
     

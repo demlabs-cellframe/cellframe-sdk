@@ -2331,8 +2331,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                 case XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX: {
                     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
                     dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_cond_tx, &l_tx_hash, &l_fee, false);
-                    const char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_static(&l_price->tx_hash);
-                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX, "Can't create invalidate transaction from: %s\n", l_final_tx_hash_str);
+                    dap_json_rpc_error_add(*a_json_arr_reply, XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX, "Can't create invalidate transaction from: %s\n", dap_chain_hash_fast_to_str_static(&l_price->tx_hash));
                     DAP_DELETE(l_price);
                 } break;
                 default:
@@ -2877,12 +2876,11 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
                                               bool a_print_prev_hash, bool a_print_status, bool a_print_ts, int a_version)
 {
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-    const char *l_tx_hash_str = dap_chain_hash_fast_to_str_static(a_tx_hash);
 
     // Get input token ticker
     const char *l_tx_input_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, a_tx_hash);
     if (!l_tx_input_ticker)
-        return log_it(L_WARNING, "Can't get ticker from TX %s", l_tx_hash_str), false;
+        return log_it(L_WARNING, "Can't get ticker from TX %s", dap_chain_hash_fast_to_str_static(a_tx_hash)), false;
 
     dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL, *l_out_cond_item = NULL;
     int l_cond_idx = 0;
@@ -2900,9 +2898,9 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
     switch(l_tx_type){
         case TX_TYPE_ORDER:{
             if (!l_out_cond_item)
-                return log_it(L_ERROR, "Can't find conditional output in TX %s", l_tx_hash_str), false;
+                return log_it(L_ERROR, "Can't find conditional output in TX %s", dap_chain_hash_fast_to_str_static(a_tx_hash)), false;
 
-            json_object_object_add(a_json_out, "hash", json_object_new_string(l_tx_hash_str));
+            json_object_object_add(a_json_out, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(a_tx_hash)));
             if (a_print_ts){
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
@@ -2927,10 +2925,9 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
         case TX_TYPE_EXCHANGE:{
             dap_chain_tx_in_cond_t *l_in_cond 
                 = (dap_chain_tx_in_cond_t*)dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND , NULL);
-            char *l_tx_prev_cond_hash_str = dap_hash_fast_to_str_static(&l_in_cond->header.tx_prev_hash);
 
             if (!l_out_prev_cond_item)
-                return log_it(L_ERROR, "Can't find previous cond item for tx %s", l_tx_hash_str), false;
+                return log_it(L_ERROR, "Can't find previous cond item for tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash)), false;
 
             uint256_t l_rate = l_out_cond_item 
                 ? l_out_cond_item->subtype.srv_xchange.rate
@@ -2947,7 +2944,7 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
                 ? l_out_cond_item->subtype.srv_xchange.buy_token
                 : l_out_prev_cond_item->subtype.srv_xchange.buy_token;
 
-            json_object_object_add(a_json_out, "hash", json_object_new_string(l_tx_hash_str));
+            json_object_object_add(a_json_out, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(a_tx_hash)));
             if(a_print_ts){
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
@@ -2976,7 +2973,7 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
             json_object_object_add(a_json_out, "ticker", json_object_new_string(l_tx_input_ticker));
             json_object_object_add(a_json_out, "net", json_object_new_string(a_net->pub.name));
             if (a_print_prev_hash)
-                json_object_object_add(a_json_out, "prev_tx", json_object_new_string(l_tx_prev_cond_hash_str));
+                json_object_object_add(a_json_out, "prev_tx", json_object_new_string(dap_hash_fast_to_str_static(&l_in_cond->header.tx_prev_hash)));
             
             dap_chain_addr_t l_owner_addr = a_owner_addr ? *a_owner_addr :
                 l_out_cond_item ? l_out_cond_item->subtype.srv_xchange.seller_addr :
@@ -2999,7 +2996,7 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
             dap_hash_fast_to_str(&l_in_cond->header.tx_prev_hash,l_tx_prev_cond_hash_str, sizeof(l_tx_prev_cond_hash_str));
 
             if (!l_out_prev_cond_item)
-                return log_it(L_ERROR, "Can't find previous cond item for tx %s", l_tx_hash_str), false;
+                return log_it(L_ERROR, "Can't find previous cond item for tx %s", dap_chain_hash_fast_to_str_static(a_tx_hash)), false;
 
             dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &l_in_cond->header.tx_prev_hash);
             if (!l_prev_tx)
@@ -3014,7 +3011,7 @@ static bool s_string_append_tx_cond_info_json(json_object * a_json_out, dap_chai
             if ( dap_hash_fast_is_blank(&l_order_hash) )
                 l_order_hash = l_in_cond->header.tx_prev_hash;
 
-            json_object_object_add(a_json_out, "hash", json_object_new_string(l_tx_hash_str));
+            json_object_object_add(a_json_out, "hash", json_object_new_string(dap_chain_hash_fast_to_str_static(a_tx_hash)));
             if(a_print_ts){
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_tx->header.ts_created);

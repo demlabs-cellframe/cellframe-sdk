@@ -61,11 +61,10 @@ void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
             dap_string_append_printf(a_str_out, "<CORRUPTED - can't calc hash>\n");
             continue;
         }
-        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
-        dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,
-                                 dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
+        dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, dap_strcmp(a_hash_out_type, "hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
+            : dap_chain_hash_fast_to_str_static(&l_pkey_hash),
+            dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
     }
 }
 
@@ -95,11 +94,10 @@ void dap_chain_datum_anchor_certs_dump_json(json_object * a_json_out, byte_t * a
             json_object_array_add(json_arr_certs_out, json_obj_sign);
             continue;
         }
-        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_chain_hash_fast_to_str_static(&l_pkey_hash);
         json_object_object_add(json_obj_sign, a_version == 1 ? "sign #" : "sig_num", json_object_new_uint64(i));
-        json_object_object_add(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", json_object_new_string(l_hash_str));
+        json_object_object_add(json_obj_sign, a_version == 1 ? "hash" : "sig_pkey_hash", json_object_new_string(dap_strcmp(a_hash_out_type, "hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
+            : dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
         json_object_object_add(json_obj_sign, a_version == 1 ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str(l_sign->header.type)));
         json_object_object_add(json_obj_sign, a_version == 1 ? "sign size" : "sig_size", json_object_new_uint64(l_sign->header.sign_size));
         json_object_array_add(json_arr_certs_out, json_obj_sign); 

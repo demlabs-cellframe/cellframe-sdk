@@ -324,6 +324,14 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
  */
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
+    if (a_node_client->client) {
+        dap_client_pvt_t *l_client_pvt = DAP_CLIENT_PVT(a_node_client->client);
+        dap_worker_t *l_worker = l_client_pvt ? l_client_pvt->worker : NULL;
+        if (l_worker && dap_worker_get_current() != l_worker) {
+            dap_chain_node_client_close_mt(a_node_client);
+            return;
+        }
+    }
     if (a_node_client->info)
         log_it(L_INFO, "Closing node client to uplink "NODE_ADDR_FP_STR" [ %s : %u ]",
                         NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),

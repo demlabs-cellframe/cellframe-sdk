@@ -601,28 +601,27 @@ static bool s_sync_in_chains_callback(void *a_arg)
     }
     dap_hash_fast_t l_atom_hash = { }; 
     dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
-    char *l_atom_hash_str = dap_hash_fast_to_str_static(&l_atom_hash);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash, false);
     bool l_ack_send = false;
     switch (l_atom_add_res) {
     case ATOM_PASS:
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",
-                                          l_atom_hash_str, l_chain->net_name, l_chain->name);
+            dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
         break;
     case ATOM_MOVE_TO_THRESHOLD:
-        debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         break;
     case ATOM_ACCEPT:
-        debug_if(s_debug_more, L_INFO, "Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        debug_if(s_debug_more, L_INFO, "Accepted atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
         break;
     case ATOM_REJECT: {
-        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         break;
     }
     case ATOM_FORK: {
-        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s added to a fork branch.", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s added to a fork branch.", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
         break;
     }

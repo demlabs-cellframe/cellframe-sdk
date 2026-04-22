@@ -130,12 +130,13 @@ All runtime DEX configuration is managed through on-chain decrees. This ensures:
 
 ```c
 typedef enum {
-    DEX_DECREE_UNKNOWN,          // 0 (invalid/unset)
-    DEX_DECREE_FEE_SET,          // 1
-    DEX_DECREE_PAIR_ADD,         // 2
-    DEX_DECREE_PAIR_REMOVE,      // 3
-    DEX_DECREE_PAIR_FEE_SET,     // 4
-    DEX_DECREE_PAIR_FEE_SET_ALL  // 5
+    DEX_DECREE_UNKNOWN,             // 0 (invalid/unset)
+    DEX_DECREE_FEE_SET,             // 1
+    DEX_DECREE_PAIR_ADD,            // 2
+    DEX_DECREE_PAIR_REMOVE,         // 3
+    DEX_DECREE_PAIR_FEE_SET,        // 4
+    DEX_DECREE_PAIR_FEE_SET_ALL,    // 5
+    DEX_DECREE_PCT_DIVISOR_SET      // 6
 } dex_decree_method_t;
 ```
 
@@ -159,8 +160,9 @@ Sets global native fee fallback and service wallet address.
 
 ### Effect
 ```c
-s_dex_native_fee_amount = <FEE_AMOUNT>;
-s_dex_service_fee_addr = <FEE_ADDR>;
+// Per a_ledger->net->pub.id in s_dex_net_fee_tbl:
+native_fee_amount = <FEE_AMOUNT>;
+service_fee_addr = <FEE_ADDR>;
 ```
 
 ### CLI
@@ -271,7 +273,7 @@ srv_dex decree -net TestNet -w admin.dwallet -service_key dex_admin \
 
 ## Method: PAIR_FEE_SET_ALL
 
-Updates fee configuration for ALL pairs.
+Updates fee configuration for every whitelisted pair that references the **network of the decree** (same rule as `srv_dex pairs`: `net_id_base` or `net_id_quote` matches `-net`).
 
 ### Required TSD
 | Type | Content |
@@ -287,9 +289,12 @@ Updates fee configuration for ALL pairs.
 ### Effect
 ```c
 HASH_ITER(hh, s_dex_pair_index, l_it, l_tmp) {
+    if (l_it->key.net_id_base != decree_net && l_it->key.net_id_quote != decree_net)
+        continue;
     l_it->key.fee_config = <FEE_CONFIG>;
 }
 ```
+(`decree_net` = `a_ledger->net->pub.id` when the decree is applied.)
 
 ### CLI
 ```bash
@@ -349,8 +354,7 @@ srv_dex decree ... -service_key dex_admin
 ### Runtime State
 
 Decree-applied state is held in memory:
-- `s_dex_native_fee_amount`
-- `s_dex_service_fee_addr`
+- `s_dex_net_fee_tbl` — UTHash of `dex_net_fee_cache_t` per `dap_chain_net_id_t`: native fee fallback + service addr (`FEE_SET`), percent divisor (`PCT_DIVISOR_SET`; 0 in record → default **1000**). Access under `s_dex_cache_rwlock` through `s_dex_get_srv_fee(net_id)`.
 - `s_dex_pair_index` (with fee_config per pair)
 
 ### Persistence

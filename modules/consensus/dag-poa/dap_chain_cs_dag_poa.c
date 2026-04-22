@@ -272,7 +272,6 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, UNUSED_ARG 
                     dap_chain_cs_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
                     char l_event_new_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_event_new_hash, l_event_new_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                    const char *l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
 
                     bool l_event_is_ready = s_round_event_ready_minimum_check(l_dag, l_event, l_event_size_new,
                                                                         l_event_new_hash_hex_str);
@@ -285,7 +284,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, UNUSED_ARG 
                         } else {
                             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                     "Added new sign with cert \"%s\", event %s placed back in round.new\n",
-                                    l_poa_pvt->events_sign_cert->name, l_event_new_hash_base58_str);
+                                    l_poa_pvt->events_sign_cert->name, dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash));
                         }
                         ret = 0;
                         if (l_event_is_ready && l_poa_pvt->auto_round_complete) { // cs done (minimum signs & verify passed) 
@@ -304,7 +303,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply, UNUSED_ARG 
                         else {
                             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                     "GDB Error: Can't place event %s with new sign back in round.new\n",
-                                    l_event_new_hash_base58_str);
+                                    dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash));
                         }
                         ret=-31;
 

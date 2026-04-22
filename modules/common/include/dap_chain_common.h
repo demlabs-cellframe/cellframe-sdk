@@ -35,7 +35,10 @@
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
 
-#define DAP_CHAIN_ADDR_VERSION_CURRENT 1
+typedef enum dap_chain_addr_type {
+    DAP_CHAIN_ADDR_TYPE_REGULAR = 0x01,
+    DAP_CHAIN_ADDR_TYPE_SHARED  = 0x02
+} dap_chain_addr_type_t;
 
 #define DAP_CHAIN_ID_SIZE           8
 #define DAP_CHAIN_SHARD_ID_SIZE     8
@@ -109,8 +112,8 @@ typedef enum dap_chain_hash_slow_kind {
 } dap_chain_hash_slow_kind_t;
 
 typedef struct dap_chain_addr{
-    uint8_t addr_ver; // 0 for default
-    dap_chain_net_id_t net_id;  // Testnet, mainnet or alternet
+    uint8_t addr_type;
+    dap_chain_net_id_t net_id;
     dap_sign_type_t sig_type;
     union {
         //dap_chain_hash_fast_t hash;
@@ -238,8 +241,11 @@ dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
 int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id);
+void dap_chain_addr_fill_shared(dap_chain_addr_t *a_addr, dap_chain_net_id_t a_net_id, dap_chain_hash_fast_t *a_hold_tx_hash);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
+int dap_chain_addr_resolve_hold_tx_hash(const char *a_str, dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_tx_hash);
+size_t dap_chain_hash_fast_from_str_array(const char *a_str, dap_hash_fast_t **a_hashes);
 void dap_chain_set_offset_limit_json(json_object * a_json_obj_out, size_t *a_start, size_t *a_and, size_t a_limit, size_t a_offset, size_t a_and_count, bool a_last);
 
 DAP_STATIC_INLINE bool dap_chain_addr_compare(const dap_chain_addr_t *a_addr1, const dap_chain_addr_t *a_addr2)

@@ -435,7 +435,7 @@ This creates a new order using the entire budget at the specified rate.
 Leftover orders below dust threshold are silently skipped:
 
 ```c
-uint256_t l_leftover_thr = s_dex_dust_threshold_calc(...);
+uint256_t l_leftover_thr = s_dex_calc_dust_threshold(...);
 if (!IS_ZERO_256(l_leftover_thr) && compare256(l_leftover_sell_amount, l_leftover_thr) <= 0) {
     l_create_buyer_leftover = false;  // Skip, don't collect tokens
 }

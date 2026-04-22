@@ -127,6 +127,7 @@ static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_
 static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_datum_t *a_datum);
 static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg);
 static void *s_wallet_load(void *a_arg);
+static void *s_wallet_load_all_for_net(void *a_arg);
 
 typedef struct wallet_cache_load_args {
     dap_chain_net_t *net;
@@ -245,21 +246,15 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
         return 0;
     }
 
-    // Only load cache when network is ONLINE (not during LOADING)
-    // EXCEPTION: In test mode (DAP_LEDGER_TEST defined), allow cache load even in LOADING mode
-    // This is needed because test networks remain in LOADING mode but still need wallet cache for arbitrage TX
 #ifndef DAP_LEDGER_TEST
     if (dap_chain_net_get_load_mode(a_net)) {
         debug_if(s_debug_more, L_DEBUG, "Network %s is in LOADING mode, skipping wallet cache load", a_net->pub.name);
         return 0;
     }
 #else
-    if (dap_chain_net_get_load_mode(a_net)) {
+    if (dap_chain_net_get_load_mode(a_net))
         debug_if(s_debug_more, L_DEBUG, "Network %s is in LOADING mode, but DAP_LEDGER_TEST is defined - loading cache anyway", a_net->pub.name);
-    }
 #endif
-
-    debug_if(s_debug_more, L_DEBUG, "Loading wallet cache for net %s", a_net->pub.name);
 
     dap_list_t *l_local_addr_list = dap_chain_wallet_get_local_addr();
     if (!l_local_addr_list) {
@@ -267,64 +262,42 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
         return 0;
     }
 
-    int l_loaded_count = 0;
+    int l_count = 0;
+    pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
     for (dap_list_t *it = l_local_addr_list; it; it = it->next) {
         dap_chain_addr_t *l_addr = (dap_chain_addr_t *)it->data;
-        
-        // Check if address belongs to this network
-        if (l_addr->net_id.uint64 != a_net->pub.id.uint64) {
+        if (l_addr->net_id.uint64 != a_net->pub.id.uint64)
             continue;
-        }
-
-        pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
         dap_wallet_cache_t *l_wallet_item = NULL;
         HASH_FIND(hh, s_wallets_cache, l_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-        
-        // Load cache if item doesn't exist or is empty (no transactions cached)
-        bool l_need_load = false;
         if (!l_wallet_item) {
-            l_need_load = true;
             l_wallet_item = DAP_NEW_Z(dap_wallet_cache_t);
-            memcpy(&l_wallet_item->wallet_addr, l_addr, sizeof(dap_chain_addr_t));
+            l_wallet_item->wallet_addr = *l_addr;
             l_wallet_item->is_loading = true;
             HASH_ADD(hh, s_wallets_cache, wallet_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-            debug_if(s_debug_more, L_DEBUG, "Creating wallet cache entry for %s in net %s",
-                     dap_chain_addr_to_str_static(l_addr), a_net->pub.name);
+            l_count++;
         } else if (!l_wallet_item->is_loading && !l_wallet_item->wallet_txs) {
-            // Wallet item exists but has no transactions - reload cache
-            l_need_load = true;
             l_wallet_item->is_loading = true;
-            debug_if(s_debug_more, L_DEBUG, "Reloading empty wallet cache for %s in net %s",
-                     dap_chain_addr_to_str_static(l_addr), a_net->pub.name);
-        }
-        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-
-        if (l_need_load) {
-            wallet_cache_load_args_t *l_args = DAP_NEW_Z(wallet_cache_load_args_t);
-            if (l_args) {
-                l_args->net = a_net;
-                l_args->addr = *l_addr;
-                l_args->wallet_item = l_wallet_item;
-
-                pthread_t l_tid;
-                pthread_attr_t attr;
-                pthread_attr_init(&attr);
-                pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-                atomic_fetch_add(&s_loading_threads_count, 1);
-                pthread_create(&l_tid, &attr, s_wallet_load, l_args);
-                l_loaded_count++;
-            }
+            l_count++;
         }
     }
-
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
     dap_list_free_full(l_local_addr_list, NULL);
-    
-    if (l_loaded_count > 0) {
-        log_it(L_INFO, "Started loading wallet cache for %d wallet(s) in net %s", l_loaded_count, a_net->pub.name);
-    } else {
+
+    if (!l_count) {
         debug_if(s_debug_more, L_DEBUG, "No wallets needed cache loading for net %s", a_net->pub.name);
+        return 0;
     }
 
+    pthread_t l_tid;
+    pthread_attr_t l_attr;
+    pthread_attr_init(&l_attr);
+    pthread_attr_setdetachstate(&l_attr, PTHREAD_CREATE_DETACHED);
+    atomic_fetch_add(&s_loading_threads_count, 1);
+    pthread_create(&l_tid, &l_attr, s_wallet_load_all_for_net, a_net);
+    pthread_attr_destroy(&l_attr);
+
+    log_it(L_INFO, "Started single-pass wallet cache load for %d wallet(s) in net %s", l_count, a_net->pub.name);
     return 0;
 }
 
@@ -850,6 +823,32 @@ static void *s_wallet_load(void *a_arg)
     return NULL;
 }
 
+/**
+ * @brief Single-pass bulk loader for all wallets in a net.
+ *        Iterates the chain once with a_addr=NULL so that s_save_tx_cache_for_addr
+ *        dispatches every TX to all matching cached wallets in one pass.
+ */
+static void *s_wallet_load_all_for_net(void *a_arg)
+{
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    time_t l_ts_start = time(NULL);
+    log_it(L_INFO, "Single-pass wallet cache build started for net %s", l_net->pub.name);
+
+    s_save_cache_for_addr_in_net(l_net, NULL);
+
+    pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+    dap_wallet_cache_t *l_item, *l_tmp;
+    HASH_ITER(hh, s_wallets_cache, l_item, l_tmp) {
+        if (l_item->wallet_addr.net_id.uint64 == l_net->pub.id.uint64)
+            l_item->is_loading = false;
+    }
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+
+    log_it(L_INFO, "Single-pass wallet cache build for net %s completed in %llu sec",
+           l_net->pub.name, (unsigned long long)(time(NULL) - l_ts_start));
+    atomic_fetch_sub(&s_loading_threads_count, 1);
+    return NULL;
+}
 
 static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg)
 {

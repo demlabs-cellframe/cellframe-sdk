@@ -119,7 +119,8 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_PKEY_MISMATCH,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_OTHER_TICKER_EXPECTED,
-    DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET
+    DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET,
+    DAP_LEDGER_TX_CHECK_INVALID_ADDR_TYPE
 } dap_ledger_check_error_t;
 
 typedef struct dap_ledger_datum_iter {
@@ -231,6 +232,7 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN: return "Legacy stakes are not accepted from mempool anymore!";
     case DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED: return "Transaction output is blocked in UTXO blocklist for this token";
     case DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED: return "Arbitrage transaction not authorized: invalid owner signature or arbitrage disabled for token";
+    case DAP_LEDGER_TX_CHECK_INVALID_ADDR_TYPE: return "Standard output cannot target a non-regular address type";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";

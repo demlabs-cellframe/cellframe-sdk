@@ -2356,26 +2356,22 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
     json_object *l_json_arr_tx_recv_allow = json_object_new_array();
     for (size_t i = 0; i < a_token_item->tx_recv_allow_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_recv_allow[i].addr;
-        const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        json_object_array_add(l_json_arr_tx_recv_allow, json_object_new_string(l_addr_str));
+        json_object_array_add(l_json_arr_tx_recv_allow, json_object_new_string(dap_chain_addr_to_str_static(&l_addr)));
     }
     json_object *l_json_arr_tx_recv_block = json_object_new_array();
     for (size_t i = 0; i < a_token_item->tx_recv_block_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_recv_block[i].addr;
-        const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        json_object_array_add(l_json_arr_tx_recv_block, json_object_new_string(l_addr_str));
+        json_object_array_add(l_json_arr_tx_recv_block, json_object_new_string(dap_chain_addr_to_str_static(&l_addr)));
     }
     json_object *l_json_arr_tx_send_allow = json_object_new_array();
     for (size_t i = 0; i < a_token_item->tx_send_allow_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_send_allow[i].addr;
-        const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        json_object_array_add(l_json_arr_tx_send_allow, json_object_new_string(l_addr_str));
+        json_object_array_add(l_json_arr_tx_send_allow, json_object_new_string(dap_chain_addr_to_str_static(&l_addr)));
     }
     json_object *l_json_arr_tx_send_block = json_object_new_array();
     for (size_t i = 0; i < a_token_item->tx_send_block_size; i++) {
         dap_chain_addr_t l_addr = a_token_item->tx_send_block[i].addr;
-        const char *l_addr_str = dap_chain_addr_to_str_static(&l_addr);
-        json_object_array_add(l_json_arr_tx_send_block, json_object_new_string(l_addr_str));
+        json_object_array_add(l_json_arr_tx_send_block, json_object_new_string(dap_chain_addr_to_str_static(&l_addr)));
     }
     json_object_object_add(json_obj_datum, a_version == 1 ? "Signatures public keys" : "sig_pkeys", l_json_arr_pkeys);
     a_token_item->tx_recv_allow_size ? json_object_object_add(json_obj_datum, "tx_recv_allow", l_json_arr_tx_recv_allow) :
@@ -3558,11 +3554,10 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
                 return;
             }
             l_count = 0;
-            const char *l_addr = dap_chain_addr_to_str_static(a_addr);
             pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
                 char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
-                if (!dap_strcmp(l_keys[0], l_addr)) {
+                if (!dap_strcmp(l_keys[0], dap_chain_addr_to_str_static(a_addr))) {
                     l_tickers[l_count] = dap_strdup(wallet_balance->token_ticker);
                     ++l_count;
                 }
@@ -3934,25 +3929,6 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         }
     } 
     pthread_rwlock_unlock(&s_services_rwlock);
-
-    if (l_deductions_ok > 1)
-    {
-        char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_t l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-        dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
-
-        log_it(L_WARNING, "Transaction %s identyfied by multiple services (%d):", l_tx_hash_str, l_deductions_ok);
-    
-        pthread_rwlock_rdlock(&s_services_rwlock);
-        HASH_ITER(hh, s_services , l_sinfo_current, l_sinfo_tmp) {
-            dap_chain_tx_tag_action_type_t action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
-            if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &l_items_groups,&action))  {
-                log_it(L_WARNING, "%s %s", l_sinfo_current->tag_str, dap_ledger_tx_action_str(action));
-            }
-        } 
-
-        pthread_rwlock_unlock(&s_services_rwlock);
-    }
     
     dap_chain_datum_tx_group_items_free(&l_items_groups);
 
@@ -4841,6 +4817,12 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             continue;
         }
         if (!dap_chain_addr_is_blank(&l_tx_out_to)) {
+            if (l_tx_out_to.addr_type != DAP_CHAIN_ADDR_TYPE_REGULAR) {
+                log_it(L_WARNING, "[%s] Standard output targets non-regular address (addr_type=0x%02x)",
+                       dap_chain_hash_fast_to_str_static(a_tx_hash), l_tx_out_to.addr_type);
+                l_err_num = DAP_LEDGER_TX_CHECK_INVALID_ADDR_TYPE;
+                break;
+            }
             if (l_tx_out_to.net_id.uint64 != a_ledger->net->pub.id.uint64) {
                 if (!l_cross_network) {
                     l_cross_network = true;
@@ -5097,9 +5079,8 @@ static int s_compare_locked_outs(dap_ledger_locked_out_t *a_out1, dap_ledger_loc
 int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_token_ticker, uint256_t a_value, bool a_reverse)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    const char *l_addr_str = dap_chain_addr_to_str_static(a_addr);
     dap_ledger_wallet_balance_t *l_wallet_balance = NULL;
-    char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, a_token_ticker, (char*)NULL);
+    char *l_wallet_balance_key = dap_strjoin(" ", dap_chain_addr_to_str_static(a_addr), a_token_ticker, (char*)NULL);
     debug_if(s_debug_more, L_DEBUG, "%s %s to addr: %s", a_reverse ? "UNDO" : "GOT", dap_uint256_to_char(a_value, NULL), l_wallet_balance_key);
     pthread_rwlock_wrlock(&l_ledger_pvt->balance_accounts_rwlock);
     HASH_FIND_STR(l_ledger_pvt->balance_accounts, l_wallet_balance_key, l_wallet_balance);
@@ -5126,7 +5107,7 @@ int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_add
         l_wallet_balance->key = l_wallet_balance_key;
         dap_strncpy(l_wallet_balance->token_ticker, a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
         SUM_256_256(l_wallet_balance->balance, a_value, &l_wallet_balance->balance);
-        debug_if(s_debug_more, L_DEBUG, "Create new balance item: %s %s", l_addr_str, a_token_ticker);
+        debug_if(s_debug_more, L_DEBUG, "Create new balance item: %s %s", dap_chain_addr_to_str_static(a_addr), a_token_ticker);
         HASH_ADD_KEYPTR(hh, PVT(a_ledger)->balance_accounts, l_wallet_balance->key,
                         strlen(l_wallet_balance_key), l_wallet_balance);
     }
@@ -5300,8 +5281,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         case TX_ITEM_TYPE_IN: {
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
             l_cur_token_ticker = l_bound_item->in.token_ticker;
-            const char *l_addr_str = dap_chain_addr_to_str_static(&l_bound_item->in.addr_from);
-            char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
+            char *l_wallet_balance_key = dap_strjoin(" ", dap_chain_addr_to_str_static(&l_bound_item->in.addr_from), l_cur_token_ticker, (char*)NULL);
             pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
             pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
@@ -5313,7 +5293,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                 s_balance_cache_update(a_ledger, wallet_balance);
             } else {
                 if(s_debug_more)
-                    log_it(L_ERROR,"!!! Attempt to SPEND from some non-existent balance !!!: %s %s", l_addr_str, l_cur_token_ticker);
+                    log_it(L_ERROR,"!!! Attempt to SPEND from some non-existent balance !!!: %s %s", dap_chain_addr_to_str_static(&l_bound_item->in.addr_from), l_cur_token_ticker);
             }
             
             DAP_DELETE(l_wallet_balance_key);
@@ -5658,8 +5638,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         case TX_ITEM_TYPE_IN: {
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
             l_cur_token_ticker = l_bound_item->in.token_ticker;
-            const char *l_addr_str = dap_chain_addr_to_str_static(&l_bound_item->in.addr_from);
-            char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
+            char *l_wallet_balance_key = dap_strjoin(" ", dap_chain_addr_to_str_static(&l_bound_item->in.addr_from), l_cur_token_ticker, (char*)NULL);
             pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
             pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
@@ -5674,7 +5653,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
                 s_balance_cache_update(a_ledger, wallet_balance);
             } else {
                 if(s_debug_more)
-                    log_it(L_ERROR,"!!! Attempt to SPEND from some non-existent balance !!!: %s %s", l_addr_str, l_cur_token_ticker);
+                    log_it(L_ERROR,"!!! Attempt to SPEND from some non-existent balance !!!: %s %s", dap_chain_addr_to_str_static(&l_bound_item->in.addr_from), l_cur_token_ticker);
             }
             DAP_DELETE(l_wallet_balance_key);
         } break;
@@ -6065,8 +6044,7 @@ uint256_t dap_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t
     uint256_t l_ret = uint256_0;
 
     dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
-    const char *l_addr = dap_chain_addr_to_str_static(a_addr);
-    char *l_wallet_balance_key = dap_strjoin(" ", l_addr, a_token_ticker, (char*)NULL);
+    char *l_wallet_balance_key = dap_strjoin(" ", dap_chain_addr_to_str_static(a_addr), a_token_ticker, (char*)NULL);
     pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
     HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, l_balance_item);
     pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);

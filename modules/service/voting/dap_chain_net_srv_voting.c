@@ -593,15 +593,13 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
 
         if (l_old_vote) {
             // change vote & move it to the end of list
-            const char *l_vote_hash_str = dap_hash_fast_to_str_static(&((dap_chain_net_vote_t *)l_old_vote->data)->vote_hash);
+            log_it(L_NOTICE, "Vote %s of poll %s has been changed",
+                dap_hash_fast_to_str_static(&((dap_chain_net_vote_t *)l_old_vote->data)->vote_hash), dap_hash_fast_to_str_static(&l_voting->voting_hash));
             DAP_DELETE(l_old_vote->data);
             l_voting->votes = dap_list_delete_link(l_voting->votes, l_old_vote);
-            log_it(L_NOTICE, "Vote %s of poll %s has been changed", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->voting_hash));
         } else {
-            const char *l_vote_hash_str = dap_hash_fast_to_str_static(a_tx_hash);
-            log_it(L_NOTICE, "Vote %s of poll %s has been accepted", l_vote_hash_str, dap_hash_fast_to_str_static(&l_voting->voting_hash));
+            log_it(L_NOTICE, "Vote %s of poll %s has been accepted", dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(&l_voting->voting_hash));
         }
-
         l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
     }
     dap_list_free(l_tsd_list);

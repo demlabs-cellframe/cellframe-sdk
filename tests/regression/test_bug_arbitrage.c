@@ -1289,8 +1289,7 @@ static void test_arbitrage_to_addr_behavior(void)
     dap_assert_PIF(l_wallet_opened != NULL, "Wallet opened for arbitrage TX");
     
     dap_chain_addr_t l_fee_addr = s_net_fixture->net->pub.fee_addr;
-    const char *l_fee_addr_str = dap_chain_addr_to_str_static(&l_fee_addr);
-    log_it(L_INFO, "Network fee address: %s", l_fee_addr_str);
+    log_it(L_INFO, "Network fee address: %s", dap_chain_addr_to_str_static(&l_fee_addr));
     
     // 9. Create DIFFERENT address for -to_addr (to test that it's ignored)
     dap_chain_wallet_t *l_dummy_wallet = dap_chain_wallet_create_with_seed("dummy_wallet", s_wallets_dir, 
@@ -1298,8 +1297,7 @@ static void test_arbitrage_to_addr_behavior(void)
     dap_enc_key_t *l_dummy_key = dap_chain_wallet_get_key(l_dummy_wallet, 0);
     dap_chain_addr_t l_dummy_addr = {0};
     dap_chain_addr_fill_from_key(&l_dummy_addr, l_dummy_key, s_net_fixture->net->pub.id);
-    const char *l_dummy_addr_str = dap_chain_addr_to_str_static(&l_dummy_addr);
-    log_it(L_INFO, "Dummy -to_addr: %s (should be IGNORED)", l_dummy_addr_str);
+    log_it(L_INFO, "Dummy -to_addr: %s (should be IGNORED)", dap_chain_addr_to_str_static(&l_dummy_addr));
     dap_chain_wallet_close(l_dummy_wallet);
     
     // === TEST 2.2: Arbitrage WITH -to_addr ===
@@ -1313,7 +1311,7 @@ static void test_arbitrage_to_addr_behavior(void)
     snprintf(l_cmd_with_toaddr, sizeof(l_cmd_with_toaddr), 
              "tx_create -net %s -chain %s -from_wallet reg_wallet_toaddr -to_addr %s -token %s -value 100.0 -arbitrage -fee %s -certs %s",
              s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
-             l_dummy_addr_str,  // THIS SHOULD BE IGNORED!
+             dap_chain_addr_to_str_static(&l_dummy_addr),  // THIS SHOULD BE IGNORED!
              l_custom_ticker, ARBITRAGE_FEE, l_cert->name);
     
     log_it(L_INFO, "Command WITH -to_addr: %s", l_cmd_with_toaddr);

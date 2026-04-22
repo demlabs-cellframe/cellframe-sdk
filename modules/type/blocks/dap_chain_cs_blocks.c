@@ -217,7 +217,8 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> [-chain <chain_name>] list [{signed | first_signed}] [-limit] [-offset] [-head]"
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>}] [-unspent] [-h]\n"
-                "\t\t List blocks\n\n"
+                "\t\t List blocks. Filter priority: date range -> hash range -> offset/limit.\n"
+                "\t\t Date and hash ranges cannot be mixed. Limit/offset paginates within filtered results.\n\n"
 
             "block -net <net_name> [-chain <chain_name>] count\n"
                 "\t\t Show count block\n\n"
@@ -513,10 +514,9 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, voi
 static void s_cli_meta_hash_print(json_object* a_json_obj_out, const char *a_meta_title, dap_chain_block_meta_t *a_meta, const char *a_hash_out_type)
 {
     if (a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t)) {
-        const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
-                dap_enc_base58_encode_hash_to_str_static((dap_chain_hash_fast_t*)a_meta->data) :
-                dap_chain_hash_fast_to_str_static((dap_chain_hash_fast_t*)a_meta->data);
-        json_object_object_add(a_json_obj_out, a_meta_title, json_object_new_string(l_hash_str));
+        json_object_object_add(a_json_obj_out, a_meta_title, json_object_new_string(!dap_strcmp(a_hash_out_type, "base58")
+            ? dap_enc_base58_encode_hash_to_str_static((dap_chain_hash_fast_t*)a_meta->data)
+            : dap_chain_hash_fast_to_str_static((dap_chain_hash_fast_t*)a_meta->data)));
 //        if (dap_strcmp(a_hash_out_type, "base58")) {
 //            const char *l_hash_str = dap_enc_base58_encode_hash_to_str_static(a_meta->data);
             //
@@ -678,10 +678,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
         [SUBCMD_FIND] = "find",
         [SUBCMD_UNDEFINED]=NULL
     };
-    const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
-    const char* l_subcmd_str_args[l_subcmd_str_count];
-	for(size_t i=0;i<l_subcmd_str_count;i++)
-        l_subcmd_str_args[i]=NULL;
+    const size_t l_subcmd_str_count = sizeof(l_subcmd_strs) / sizeof(*l_subcmd_strs);
+    const char *l_subcmd_str_args[SUBCMD_FIND + 1] = {0};
     const char* l_subcmd_str_arg = NULL, *l_subcmd_str = NULL;
 
     int arg_index = 1;
@@ -903,11 +901,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 dap_chain_datum_t * l_datum = l_block_cache->datum[i];
                 size_t l_datum_size =  dap_chain_datum_size(l_datum);
                 if (l_brief){
-                    const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str_static(&l_block_cache->datum_hash[i])
-                            : dap_chain_hash_fast_to_str_static(&l_block_cache->datum_hash[i]);
                     json_object_object_add(json_obj_tx, "num",json_object_new_uint64(i));
-                    json_object_object_add(json_obj_tx, a_version == 1 ? "hash" : "datum_hash",json_object_new_string(l_hash_str));
+                    json_object_object_add(json_obj_tx, a_version == 1 ? "hash" : "datum_hash",json_object_new_string(dap_strcmp(l_hash_out_type, "hex")
+                        ? dap_enc_base58_encode_hash_to_str_static(&l_block_cache->datum_hash[i])
+                        : dap_chain_hash_fast_to_str_static(&l_block_cache->datum_hash[i])));
                 } else {
                     json_object_object_add(json_obj_tx, a_version == 1 ? "datum size " : "datum_size",json_object_new_uint64(l_datum_size));
                     if (l_datum_size < sizeof (l_datum->header) ){
@@ -948,12 +945,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 size_t l_sign_size = dap_sign_get_size(l_sign);
                 dap_chain_hash_fast_t l_pkey_hash;
                 dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                const char *l_hash_str = !dap_strcmp(l_hash_out_type, "base58") ?
-                        dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
-                        dap_chain_hash_fast_to_str_static(&l_pkey_hash);
                 json_object_object_add(json_obj_sign, a_version == 1 ? "type" : "sig_type", json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
                 json_object_object_add(json_obj_sign, a_version == 1 ? "size" : "sig_size",json_object_new_uint64(l_sign_size));
-                json_object_object_add(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",json_object_new_string(l_hash_str));
+                json_object_object_add(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",json_object_new_string(!dap_strcmp(l_hash_out_type, "base58")
+                    ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
+                    : dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
                 dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
                 uint256_t l_reward = l_chain->callback_calc_reward(l_chain, &l_block_cache->block_hash, l_pkey);
                 DAP_DELETE(l_pkey);
@@ -993,18 +989,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
 
-            /**
-             * Validate mutually exclusive flag groups usage
-             * Groups: {-limit/-offset/-head}, {-from_date/-to_date}, {-from_hash/-to_hash}
-             * Only one group can be used at a time, same as in s_cli_dag
-             */
-            bool l_has_loh = (l_limit_str != NULL) || (l_offset_str != NULL) || l_head;
             bool l_has_dates = (l_from_date_str != NULL) || (l_to_date_str != NULL);
             bool l_has_hashes = (l_from_hash_str != NULL) || (l_to_hash_str != NULL);
-            int l_groups_cnt = (l_has_loh ? 1 : 0) + (l_has_dates ? 1 : 0) + (l_has_hashes ? 1 : 0);
-            if (l_groups_cnt > 1) {
+            if (l_has_dates && l_has_hashes) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
-                    "Invalid flags combination: use only one of sets: {-limit/-offset/-head} or {-from_date/-to_date} or {-from_hash/-to_hash}");
+                    "Invalid flags combination: cannot mix {-from_date/-to_date} with {-from_hash/-to_hash}");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
 
@@ -1107,15 +1096,16 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 l_block_cache = HASH_LAST(l_block_cache);             
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
-                // Time window filtering aligned with DAG logic and traversal direction
                 if (l_head) {
-                    // Oldest -> newest
-                    if ((l_from_time && l_ts > l_from_time) || (l_to_time && l_ts < l_to_time))
+                    if (l_to_time && l_ts < l_to_time)
                         continue;
+                    if (l_from_time && l_ts > l_from_time)
+                        break;
                 } else {
-                    // Newest -> oldest
-                    if ((l_from_time && l_ts < l_from_time) || (l_to_time && l_ts > l_to_time))
+                    if (l_to_time && l_ts > l_to_time)
                         continue;
+                    if (l_from_time && l_ts < l_from_time)
+                        break;
                 }
                 // Hash range start boundary depends on traversal direction (align with DAG)
                 if (!l_hash_flag) {                    
@@ -1175,7 +1165,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                             continue;
                     }
                 }
-                if (i_tmp < l_start_arr || i_tmp >= l_arr_end) {
+                if (i_tmp >= l_arr_end)
+                    break;
+                if (i_tmp < l_start_arr) {
                     i_tmp++;
                     continue;
                 }
@@ -2444,12 +2436,11 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
         size_t l_sign_size = dap_sign_get_size(l_sign);
         dap_chain_hash_fast_t l_pkey_hash;
         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-        const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
-                dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
-                dap_chain_hash_fast_to_str_static(&l_pkey_hash);
         json_object_object_add(json_obj_sign, a_version == 1 ? "type" : "sig_type",json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
         json_object_object_add(json_obj_sign, a_version == 1 ? "size" : "sig_size",json_object_new_uint64(l_sign_size));
-        json_object_object_add(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",json_object_new_string(l_hash_str));
+        json_object_object_add(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",json_object_new_string(!dap_strcmp(a_hash_out_type, "base58")
+            ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
+            : dap_chain_hash_fast_to_str_static(&l_pkey_hash)));
         json_object_array_add(l_jobj_signatures, json_obj_sign);
     }
     json_object_object_add(l_obj_ret, "signatures", l_jobj_signatures);

@@ -114,8 +114,7 @@ static void s_update_node_states_info(UNUSED_ARG void *a_arg)
                    (l_info->info_v1.uplinks_count + l_info->info_v1.downlinks_count) * sizeof(dap_chain_node_addr_t) );
             // DB write
             char *l_gdb_group = dap_strdup_printf("%s%s", l_net->pub.gdb_groups_prefix, s_states_group);
-            const char *l_node_addr_str = dap_stream_node_addr_to_str_static(l_info->info_v1.address);
-            dap_global_db_set_sync(l_gdb_group, l_node_addr_str, l_info, l_info_size, false);
+            dap_global_db_set_sync(l_gdb_group, dap_stream_node_addr_to_str_static(l_info->info_v1.address), l_info, l_info_size, false);
             DAP_DEL_MULTY(l_linked_node_addrs, l_info, l_gdb_group);
         }
     }
@@ -181,20 +180,19 @@ static void s_states_info_to_str(dap_chain_net_t *a_net, const char *a_node_addr
 dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
 {
     dap_string_t *l_ret = dap_string_new("");
-    const char *l_node_addr_str = dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr);
     if(!a_net) {
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
-            s_states_info_to_str(l_net, l_node_addr_str, l_ret);
+            s_states_info_to_str(l_net, dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr), l_ret);
         }
     } else {
-        s_states_info_to_str(a_net, l_node_addr_str, l_ret);
+        s_states_info_to_str(a_net, dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr), l_ret);
     }
     if (!l_ret->len) {
         const char *l_prefix = !a_addr.uint64 ? "my" : a_addr.uint64 == g_node_addr.uint64 ? "my" : "";
         if (a_net){
-            dap_string_append_printf(l_ret, "Can't find state of %s node %s in net %s", l_prefix, l_node_addr_str, a_net->pub.name);
+            dap_string_append_printf(l_ret, "Can't find state of %s node %s in net %s", l_prefix, dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr), a_net->pub.name);
         } else {
-            dap_string_append_printf(l_ret, "Can't find state of %s node %s in nets ", l_prefix, l_node_addr_str);
+            dap_string_append_printf(l_ret, "Can't find state of %s node %s in nets ", l_prefix, dap_stream_node_addr_to_str_static(a_addr.uint64 ? a_addr : g_node_addr));
             dap_chain_net_t *l_current_net = NULL, *l_next_net = dap_chain_net_iter_start();
             while(l_next_net) {
                 l_current_net = l_next_net;
@@ -392,18 +390,17 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
  */
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
-    const char *l_key = dap_stream_node_addr_to_str_static(*a_address);
     size_t l_node_info_size = 0;
     dap_chain_node_info_t *l_node_info
-        = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
+        = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, dap_stream_node_addr_to_str_static(*a_address), &l_node_info_size, NULL, NULL);
 
     if (!l_node_info) {
-        log_it(L_NOTICE, "Node with address %s not found in base of %s network", l_key, a_net->pub.name);
+        log_it(L_NOTICE, "Node with address %s not found in base of %s network", dap_stream_node_addr_to_str_static(*a_address), a_net->pub.name);
         return NULL;
     }
     size_t l_node_info_size_calced = dap_chain_node_info_get_size(l_node_info);
     if (l_node_info_size_calced != l_node_info_size) {
-        log_it(L_ERROR, "Bad node \"%s\" record size, %zu != %zu", l_key, l_node_info_size_calced, l_node_info_size);
+        log_it(L_ERROR, "Bad node \"%s\" record size, %zu != %zu", dap_stream_node_addr_to_str_static(*a_address), l_node_info_size_calced, l_node_info_size);
         DAP_DELETE(l_node_info);
         return NULL;
     }
