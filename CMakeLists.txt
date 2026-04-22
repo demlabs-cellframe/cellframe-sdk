@@ -194,9 +194,30 @@ endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
 
-# srv-stake enabled
+# Module-presence defines for conditional compilation in cellframe-sdk.c
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     add_definitions("-DDAP_SRV_STAKE_USED")
+endif()
+if (CELLFRAME_MODULES MATCHES "cs-dag-")
+    add_definitions("-DCELLFRAME_HAS_CS_DAG")
+endif()
+if (CELLFRAME_MODULES MATCHES "cs-dag-poa")
+    add_definitions("-DCELLFRAME_HAS_CS_DAG_POA")
+endif()
+if (CELLFRAME_MODULES MATCHES "cs-none")
+    add_definitions("-DCELLFRAME_HAS_CS_NONE")
+endif()
+if (CELLFRAME_MODULES MATCHES "srv-xchange")
+    add_definitions("-DCELLFRAME_HAS_SRV_XCHANGE")
+endif()
+if (CELLFRAME_MODULES MATCHES "srv-voting")
+    add_definitions("-DCELLFRAME_HAS_SRV_VOTING")
+endif()
+if (CELLFRAME_MODULES MATCHES "srv-bridge")
+    add_definitions("-DCELLFRAME_HAS_SRV_BRIDGE")
+endif()
+if (CELLFRAME_MODULES MATCHES "srv-stake-ext")
+    add_definitions("-DCELLFRAME_HAS_SRV_STAKE_EXT")
 endif()
 
 option(DAP_INT128_SUPPORT "Use 128-bit varaibles, if supported" ON) # Enabled by default

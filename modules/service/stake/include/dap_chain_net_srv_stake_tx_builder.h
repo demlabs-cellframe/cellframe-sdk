@@ -22,6 +22,10 @@
  * They follow the same pattern as wallet TX builders.
  */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Create unsigned stake lock transaction from used outputs
  * 
@@ -132,4 +136,8 @@ int dap_stake_tx_builders_register(void);
  * Called during stake module deinitialization.
  */
 void dap_stake_tx_builders_unregister(void);
+
+#ifdef __cplusplus
+}
+#endif
 

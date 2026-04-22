@@ -13,10 +13,17 @@
 #include "dap_config.h"
 
 #include "dap_chain.h"
+
+#ifdef CELLFRAME_HAS_CS_DAG
 #include "dap_chain_type_dag.h"
+#endif
+#ifdef CELLFRAME_HAS_CS_DAG_POA
 #include "dap_chain_type_dag_poa.h"
+#endif
 #include "dap_chain_type_blocks.h"
+#ifdef CELLFRAME_HAS_CS_NONE
 #include "dap_chain_type_none.h"
+#endif
 #include "dap_chain_cs_esbocs.h"
 
 #include "dap_chain_net.h"
@@ -26,12 +33,22 @@
 #include "dap_chain_wallet_shared.h"
 
 #include "dap_chain_net_srv.h"
+#ifdef CELLFRAME_HAS_SRV_XCHANGE
 #include "dap_chain_net_srv_xchange.h"
+#endif
+#ifdef CELLFRAME_HAS_SRV_VOTING
 #include "dap_chain_net_srv_voting.h"
+#endif
+#ifdef CELLFRAME_HAS_SRV_BRIDGE
 #include "dap_chain_net_srv_bridge.h"
+#endif
+#ifdef DAP_SRV_STAKE_USED
 #include "dap_chain_net_srv_stake.h"
-#include "dap_chain_net_srv_stake_ext.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#endif
+#ifdef CELLFRAME_HAS_SRV_STAKE_EXT
+#include "dap_chain_net_srv_stake_ext.h"
+#endif
 #include "dap_chain_net_srv_order.h"
 
 #include "dap_chain_mempool.h"
@@ -82,11 +99,17 @@ int cellframe_sdk_init(uint32_t a_modules)
     }
 
     /* 2. Consensus types */
+#ifdef CELLFRAME_HAS_CS_DAG
     CF_INIT(CF_MODULE_CONSENSUS_DAG,    dap_chain_type_dag_init(),      "DAG consensus");
+#endif
+#ifdef CELLFRAME_HAS_CS_DAG_POA
     CF_INIT(CF_MODULE_CONSENSUS_POA,    dap_chain_type_dag_poa_init(),  "DAG-PoA consensus");
+#endif
     CF_INIT(CF_MODULE_CONSENSUS_BLOCKS, dap_chain_type_blocks_init(),   "Blocks consensus");
     CF_INIT(CF_MODULE_CONSENSUS_ESBOCS, dap_chain_cs_esbocs_init(),     "ESBOCS consensus");
+#ifdef CELLFRAME_HAS_CS_NONE
     CF_INIT(CF_MODULE_CONSENSUS_NONE,   dap_nonconsensus_init(),        "No-consensus");
+#endif
 
     /* 3. Network */
     CF_INIT(CF_MODULE_NETWORK, dap_chain_net_init(), "chain net");
@@ -107,12 +130,24 @@ int cellframe_sdk_init(uint32_t a_modules)
             return log_it(L_CRITICAL, "dap_chain_net_srv_init failed"), -1;
     }
 
+#ifdef DAP_SRV_STAKE_USED
     CF_INIT_WARN(CF_MODULE_SRV_STAKE,     dap_chain_net_srv_stake_pos_delegate_init(), "delegated PoS");
+#endif
+#ifdef CELLFRAME_HAS_SRV_XCHANGE
     CF_INIT_WARN(CF_MODULE_SRV_XCHANGE,   dap_chain_net_srv_xchange_init(),            "xchange");
+#endif
+#ifdef CELLFRAME_HAS_SRV_VOTING
     CF_INIT_WARN(CF_MODULE_SRV_VOTING,    dap_chain_net_srv_voting_init(),              "voting");
+#endif
+#ifdef CELLFRAME_HAS_SRV_BRIDGE
     CF_INIT_WARN(CF_MODULE_SRV_BRIDGE,    dap_chain_net_srv_bridge_init(),              "bridge");
+#endif
+#ifdef CELLFRAME_HAS_SRV_STAKE_EXT
     CF_INIT_WARN(CF_MODULE_SRV_STAKE_EXT, dap_chain_net_srv_stake_ext_init(),           "stake-ext");
+#endif
+#ifdef DAP_SRV_STAKE_USED
     CF_INIT_WARN(CF_MODULE_SRV_STAKE,     dap_chain_net_srv_stake_init(),               "stake-lock");
+#endif
 
     /* 7. CLI modules */
 #ifndef DAP_OS_WASM
@@ -156,16 +191,24 @@ void cellframe_sdk_deinit(void)
     if (s_modules & CF_MODULE_MEMPOOL)
         dap_chain_node_mempool_autoproc_deinit();
 
+#ifdef CELLFRAME_HAS_SRV_XCHANGE
     if (s_modules & CF_MODULE_SRV_XCHANGE)
         dap_chain_net_srv_xchange_deinit();
+#endif
+#ifdef DAP_SRV_STAKE_USED
     if (s_modules & CF_MODULE_SRV_STAKE) {
         dap_chain_net_srv_stake_pos_delegate_deinit();
         dap_chain_net_srv_stake_deinit();
     }
+#endif
+#ifdef CELLFRAME_HAS_SRV_BRIDGE
     if (s_modules & CF_MODULE_SRV_BRIDGE)
         dap_chain_net_srv_bridge_deinit();
+#endif
+#ifdef CELLFRAME_HAS_SRV_VOTING
     if (s_modules & CF_MODULE_SRV_VOTING)
         dap_chain_net_srv_voting_deinit();
+#endif
 
     if (s_modules & CF_MODULE_NETWORK)
         dap_chain_net_deinit();
