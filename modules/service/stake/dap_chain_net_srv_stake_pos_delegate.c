@@ -39,7 +39,7 @@
 #include "dap_chain_type_blocks.h" // For block-specific functions
 // REMOVED: #include "dap_chain_cs_esbocs.h" - TODO: resolve esbocs dependency
 #include "dap_chain_net_utils.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_node_sync_client.h"
 #include "dap_chain_net_ch_pkt.h"
 #include "dap_json_rpc_errors.h"
@@ -3789,7 +3789,7 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t *a_net, dap_hash_sha
     log_it(L_NOTICE, "Stream connection established");
 
     // Prepare request with random test data
-    randombytes(l_test_data, sizeof(l_test_data));
+    dap_random_bytes(l_test_data, sizeof(l_test_data));
     
     // Build request packet (channel N requires net_id header)
     size_t l_request_size = sizeof(dap_chain_net_ch_pkt_t) + sizeof(l_test_data);

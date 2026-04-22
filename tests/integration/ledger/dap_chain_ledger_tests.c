@@ -1,5 +1,5 @@
 #include "dap_math_convert.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_dl.h"
 

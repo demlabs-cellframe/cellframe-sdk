@@ -24,6 +24,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_common.h"
 #include "dap_dl.h"
 #include "dap_rand.h"
+#include "dap_pseudo_random.h"
 #include "dap_stream_ch_proc.h"
 // Phase 5.3: Use network API layer instead of full net module to break cycles
 #include "dap_chain_net_api.h"  // Core net API (lookup functions) - replaces dap_chain_net.h for core functions

@@ -24,7 +24,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include "dap_chain_net_srv.h"
 #include "dap_common.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_net_srv_stream_session.h"
 
 #define LOG_TAG "dap_chain_net_srv_ch_session"
@@ -83,7 +83,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return NULL;
         }
-        randombytes(&l_ret->id, sizeof(l_ret->id));
+        dap_random_bytes(&l_ret->id, sizeof(l_ret->id));
         l_ret->net = a_net;
         l_ret->service = a_srv;
         pthread_rwlock_init(&l_ret->rwlock,NULL);
