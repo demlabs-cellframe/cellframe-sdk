@@ -3929,25 +3929,6 @@ bool dap_ledger_deduct_tx_tag(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         }
     } 
     pthread_rwlock_unlock(&s_services_rwlock);
-
-    if (l_deductions_ok > 1)
-    {
-        char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_t l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-        dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
-
-        log_it(L_WARNING, "Transaction %s identyfied by multiple services (%d):", l_tx_hash_str, l_deductions_ok);
-    
-        pthread_rwlock_rdlock(&s_services_rwlock);
-        HASH_ITER(hh, s_services , l_sinfo_current, l_sinfo_tmp) {
-            dap_chain_tx_tag_action_type_t action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;
-            if (l_sinfo_current->callback && l_sinfo_current->callback(a_ledger, a_tx, &l_items_groups,&action))  {
-                log_it(L_WARNING, "%s %s", l_sinfo_current->tag_str, dap_ledger_tx_action_str(action));
-            }
-        } 
-
-        pthread_rwlock_unlock(&s_services_rwlock);
-    }
     
     dap_chain_datum_tx_group_items_free(&l_items_groups);
 
