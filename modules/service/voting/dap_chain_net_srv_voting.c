@@ -546,13 +546,13 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
         if (l_vote_overwrited) {
             // change vote & move it to the end of list
-            const char *l_vote_hash_str = dap_hash_sha3_256_to_str_static(&((struct vote *)l_vote_overwrited->data)->vote_hash);
+            dap_hash_sha3_256_str_t l_vote_hash_buf = dap_hash_sha3_256_to_str_struct(&((struct vote *)l_vote_overwrited->data)->vote_hash);
             DAP_DELETE(l_vote_overwrited->data);
             l_voting->votes = dap_list_delete_link(l_voting->votes, l_vote_overwrited);
-            log_it(L_NOTICE, "Vote %s of poll %s has been changed", l_vote_hash_str, dap_hash_sha3_256_to_str_static(&l_voting->hash));
+            log_it(L_NOTICE, "Vote %s of poll %s has been changed", l_vote_hash_buf.s, dap_hash_sha3_256_to_str_static(&l_voting->hash));
         } else {
-            const char *l_vote_hash_str = dap_hash_sha3_256_to_str_static(a_tx_hash);
-            log_it(L_NOTICE, "Vote %s of poll %s has been accepted", l_vote_hash_str, dap_hash_sha3_256_to_str_static(&l_voting->hash));
+            dap_hash_sha3_256_str_t l_vote_hash_buf = dap_hash_sha3_256_to_str_struct(a_tx_hash);
+            log_it(L_NOTICE, "Vote %s of poll %s has been accepted", l_vote_hash_buf.s, dap_hash_sha3_256_to_str_static(&l_voting->hash));
         }
 
         l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
@@ -1187,10 +1187,10 @@ static int s_cli_voting(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply,
         for (dap_list_t *l_vote_item = l_voting->votes; l_vote_item; l_vote_item = l_vote_item->next) {
             dap_json_t *json_vote_obj = dap_json_object_new();
             dap_json_object_add_int(json_vote_obj, "vote_id", i++);
-            const char *l_vote_hash_str = dap_hash_sha3_256_to_str_static(&((struct vote *)l_vote_item->data)->vote_hash);
-            dap_json_object_add_string(json_vote_obj, "vote_hash", l_vote_hash_str);
-            const char *l_pkey_hash_str = dap_hash_sha3_256_to_str_static(&((struct vote *)l_vote_item->data)->pkey_hash);
-            dap_json_object_add_string(json_vote_obj, "pkey_hash", l_pkey_hash_str);
+            dap_hash_sha3_256_str_t l_vote_hash_buf = dap_hash_sha3_256_to_str_struct(&((struct vote *)l_vote_item->data)->vote_hash);
+            dap_json_object_add_string(json_vote_obj, "vote_hash", l_vote_hash_buf.s);
+            dap_hash_sha3_256_str_t l_pkey_hash_buf = dap_hash_sha3_256_to_str_struct(&((struct vote *)l_vote_item->data)->pkey_hash);
+            dap_json_object_add_string(json_vote_obj, "pkey_hash", l_pkey_hash_buf.s);
             dap_json_object_add_object(json_vote_obj, "answer_idx", dap_json_object_new_int(((struct vote *)l_vote_item->data)->answer_idx));
             const char *l_weight_str; dap_uint256_to_const_char(((struct vote *)l_vote_item->data)->weight, &l_weight_str);
             dap_json_object_add_string(json_vote_obj, "weight", l_weight_str);

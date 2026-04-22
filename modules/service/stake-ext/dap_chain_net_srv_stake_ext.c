@@ -439,9 +439,9 @@ static int s_stake_ext_cache_add_stake_ext(struct stake_ext *a_cache,
             }
         }
 
-        const char *l_hash_str = dap_hash_sha3_256_to_str_static(a_stake_ext_hash);
+        dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_struct(a_stake_ext_hash);
         log_it(L_DEBUG, "Added stake_ext %s with %u positions, duration: %" DAP_UINT64_FORMAT_U " %s", 
-               l_hash_str,
+               l_hash_buf.s,
                a_started_data->total_positions,
                a_started_data->duration,
                dap_chain_tx_event_data_time_unit_to_str(a_started_data->time_unit));

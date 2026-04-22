@@ -1771,9 +1771,8 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                         }
                         dap_hash_sha3_256_t l_pkey_hash;
                         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                        const char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                            : dap_hash_sha3_256_to_str_static(&l_pkey_hash);
+                        dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_static_ex(&l_pkey_hash, l_hash_out_type);
+                        const char *l_hash_str = l_hash_buf.s;
 
                         dap_json_object_add_string(json_obj_event, a_version ? "type" : "sig_type", dap_sign_type_to_str( l_sign->header.type ));
                         dap_json_object_add_object(json_obj_event,"sig_pkey_hash", dap_json_object_new_string(l_hash_str));
@@ -2089,10 +2088,12 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
                         if ( l_event_size_new ) {
                             dap_hash_sha3_256_t l_event_new_hash;
                             dap_chain_type_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
-                            const char *l_event_new_hash_hex_str = dap_hash_sha3_256_to_str_static(&l_event_new_hash);
-                            const char *l_event_new_hash_base58_str = NULL;
-                            if (dap_strcmp(l_hash_out_type, "hex"))
-                                l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
+                            dap_hash_sha3_256_str_t l_event_new_hash_hex_buf = dap_hash_sha3_256_to_str_struct(&l_event_new_hash);
+                            const char *l_event_new_hash_hex_str = l_event_new_hash_hex_buf.s;
+                            dap_hash_sha3_256_b58_str_t l_event_new_hash_base58_buf = dap_strcmp(l_hash_out_type, "hex")
+                                ? dap_enc_base58_encode_hash_to_str_static_(&l_event_new_hash)
+                                : (dap_hash_sha3_256_b58_str_t){0};
+                            const char *l_event_new_hash_base58_str = dap_strcmp(l_hash_out_type, "hex") ? l_event_new_hash_base58_buf.s : NULL;
 
                             if (dap_chain_type_dag_event_gdb_set(l_dag, l_event_new_hash_hex_str, l_event,
                                                                l_event_size_new, l_round_item)) {
@@ -2239,9 +2240,8 @@ static dap_json_t *s_dap_chain_callback_atom_to_json(dap_json_t **a_arr_out, dap
     dap_json_t *l_jobj_hash_links = dap_json_array_new();
     for (uint16_t i=0; i < l_event->header.hash_count; i++){
         dap_hash_sha3_256_t * l_hash = (dap_hash_sha3_256_t *) (l_event->hashes_n_datum_n_signs + i*sizeof (dap_hash_sha3_256_t));
-        const char *l_hash_str = !dap_strcmp(a_hash_out_type, "base58") ?
-                                 dap_enc_base58_encode_hash_to_str_static(l_hash) :
-                                 dap_hash_sha3_256_to_str_static(l_hash);
+        dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_static_ex(l_hash, a_hash_out_type);
+        const char *l_hash_str = l_hash_buf.s;
         dap_json_t *l_hash_json = dap_json_object_new_string(l_hash_str);
         dap_json_array_add(l_jobj_hash_links, l_hash_json);
     }
@@ -2266,9 +2266,8 @@ static dap_json_t *s_dap_chain_callback_atom_to_json(dap_json_t **a_arr_out, dap
         }
         dap_hash_sha3_256_t l_pkey_hash;
         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-        const char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash)
-                : dap_hash_sha3_256_to_str_static(&l_pkey_hash);
+        dap_hash_sha3_256_str_t l_hash_buf = dap_hash_sha3_256_to_str_static_ex(&l_pkey_hash, a_hash_out_type);
+        const char *l_hash_str = l_hash_buf.s;
         dap_json_object_add_string(l_jobj_signature, a_version == 1 ? "type" : "pkey_type", dap_sign_type_to_str( l_sign->header.type ));
         dap_json_object_add_string(l_jobj_signature,"pkey_hash", l_hash_str);
         dap_json_array_add(l_jobj_signatures, l_jobj_signature);

@@ -265,16 +265,16 @@ static bool s_string_append_tx_cond_info_json( dap_json_t *a_json_out, dap_chain
     }
     
     if (a_owner_addr) {
-        const char *l_owner_addr_str = dap_chain_addr_to_str_static(a_owner_addr);
-        if (l_owner_addr_str) {
-            dap_json_object_add_string(a_json_out, "owner_addr", l_owner_addr_str);
+        dap_chain_addr_str_t l_owner_addr_buf = dap_chain_addr_to_str_static_(a_owner_addr);
+        if (l_owner_addr_buf.s[0]) {
+            dap_json_object_add_string(a_json_out, "owner_addr", l_owner_addr_buf.s);
         }
     }
     
     if (a_buyer_addr) {
-        const char *l_buyer_addr_str = dap_chain_addr_to_str_static(a_buyer_addr);
-        if (l_buyer_addr_str) {
-            dap_json_object_add_string(a_json_out, "buyer_addr", l_buyer_addr_str);
+        dap_chain_addr_str_t l_buyer_addr_buf = dap_chain_addr_to_str_static_(a_buyer_addr);
+        if (l_buyer_addr_buf.s[0]) {
+            dap_json_object_add_string(a_json_out, "buyer_addr", l_buyer_addr_buf.s);
         }
     }
     
@@ -2452,7 +2452,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, d
                 case XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX: {
                     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
                     dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_cond_tx, &l_tx_hash, &l_fee, false);
-                    const char *l_final_tx_hash_str = dap_hash_sha3_256_to_str_static(&l_price->tx_hash);
+                    dap_hash_sha3_256_str_t l_final_tx_hash_buf = dap_hash_sha3_256_to_str_struct(&l_price->tx_hash);
+                    const char *l_final_tx_hash_str = l_final_tx_hash_buf.s;
                     dap_json_rpc_error_add(a_json_arr_reply, XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX, "Can't create invalidate transaction from: %s\n", l_final_tx_hash_str);
                     DAP_DELETE(l_price);
                 } break;

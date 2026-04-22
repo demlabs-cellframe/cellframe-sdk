@@ -2504,7 +2504,7 @@ void dap_chain_srv_stake_ext_test_thread_safety(void)
     dap_test_msg("Test 3: Testing data consistency under simulated load");
     
     // Create multiple stake_ext and perform operations
-    const int l_stake_ext_count = 20;
+    enum { l_stake_ext_count = 20 };
     dap_hash_fast_t l_stake_ext_hashes[l_stake_ext_count];
     
     // Phase 1: Add all stake_ext

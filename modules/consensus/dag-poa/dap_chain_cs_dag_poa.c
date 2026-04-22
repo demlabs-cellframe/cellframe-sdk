@@ -269,7 +269,8 @@ static int s_cli_dag_poa(int argc, char ** argv, dap_json_t *a_json_arr_reply, U
                     dap_chain_type_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
                     char l_event_new_hash_hex_str[DAP_HASH_SHA3_256_STR_SIZE];
                     dap_hash_sha3_256_to_str(&l_event_new_hash, l_event_new_hash_hex_str, DAP_HASH_SHA3_256_STR_SIZE);
-                    const char *l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
+                    dap_hash_sha3_256_b58_str_t l_event_new_hash_base58_buf = dap_enc_base58_encode_hash_to_str_static_(&l_event_new_hash);
+                    const char *l_event_new_hash_base58_str = l_event_new_hash_base58_buf.s;
 
                     bool l_event_is_ready = s_round_event_ready_minimum_check(l_dag, l_event, l_event_size_new,
                                                                         l_event_new_hash_hex_str);
