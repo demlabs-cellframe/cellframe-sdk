@@ -694,7 +694,7 @@ struct request_link_info *s_get_permanent_link_info(dap_chain_net_t *a_net, dap_
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
         if (l_net_pvt->permanent_links_addrs[i].uint64 == a_address->uint64 &&
             i < l_net_pvt->permanent_links_hosts_count &&
-            i < l_net_pvt->permanent_links_hosts[i]->addr[0] && 
+            i < l_net_pvt->permanent_links_hosts[i]->addr[0] &&
             i < l_net_pvt->permanent_links_hosts[i]->port)
             return l_net_pvt->permanent_links_hosts[i];
     }
@@ -2347,7 +2347,7 @@ static void *s_net_load(void *a_arg)
             // Set to process everything in datum pool
             dap_chain_t * l_chain = NULL;
             DL_FOREACH(l_net->pub.chains, l_chain)
-                l_chain->is_datum_pool_proc = true;
+            l_chain->is_datum_pool_proc = true;
             log_it(L_INFO,"Root master node role established");
         } // Master root includes root
         case NODE_ROLE_ROOT:{
@@ -3816,7 +3816,7 @@ static void s_sync_process_chain_miss_rewind_owner_cb(void *a_arg)
         return;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->net_id);
     if (l_net) {
-        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
         dap_chain_cell_id_t l_cell_id = l_net_pvt->sync_context.cur_cell
                                         ? l_net_pvt->sync_context.cur_cell->id
                                         : c_dap_chain_cell_id_null;
@@ -4022,13 +4022,13 @@ static DAP_INLINE bool s_sync_pkt_validate_context(dap_chain_net_t *a_net, dap_s
                                                    const void *a_data, size_t a_data_size, const dap_chain_ch_pkt_t **a_chain_pkt)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    if (a_ch->stream->node.uint64 != l_net_pvt->sync_context.current_link.uint64) {
+        if (a_ch->stream->node.uint64 != l_net_pvt->sync_context.current_link.uint64) {
         s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_stale_drop_count);
-        debug_if(s_debug_more, L_DEBUG, "Ignoring sync packet type %hhu from non-current link " NODE_ADDR_FP_STR
-                                        ", current link is " NODE_ADDR_FP_STR ". Net %s",
-                                        a_type,
-                                        NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
-                                        NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
+            debug_if(s_debug_more, L_DEBUG, "Ignoring sync packet type %hhu from non-current link " NODE_ADDR_FP_STR
+                                            ", current link is " NODE_ADDR_FP_STR ". Net %s",
+                                            a_type,
+                                            NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
+                                            NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
                                         a_net->pub.name);
         return false;
     }
@@ -4097,7 +4097,7 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
     sync_notifier_arg_t *l_notifier_arg = a_arg;
     dap_chain_net_t *l_net = NULL;
     if (!s_sync_notifier_try_enter(l_notifier_arg, &l_net))
-        return;
+            return;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     uint64_t l_notifier_session_id = s_sync_notifier_session_get(l_notifier_arg);
     if (l_notifier_session_id != s_sync_session_get(l_net_pvt)) {
@@ -4287,7 +4287,7 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
         if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
             l_net_pvt->sync_context.current_link = l_links_addrs[0];
     } else
-        l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
+    l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
     DAP_DELETE(l_links_addrs);
     if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
         log_it(L_DEBUG, "No links in net %s cluster", a_net->pub.name);
@@ -4325,7 +4325,7 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain) {
         if (l_chain->state != CHAIN_SYNC_STATE_ERROR)
-            l_chain->state = CHAIN_SYNC_STATE_IDLE;
+        l_chain->state = CHAIN_SYNC_STATE_IDLE;
     }
     l_net_pvt->sync_context.cur_cell = NULL;
     l_net_pvt->sync_context.requested_atom_hash = (dap_hash_fast_t){};
@@ -4373,7 +4373,7 @@ static dap_chain_t *s_switch_sync_chain(dap_chain_net_t *a_net)
 // func work
     dap_chain_t *l_curr_chain = l_net_pvt->sync_context.cur_chain;
     if (l_curr_chain)
-        l_curr_chain = l_curr_chain->next;
+    l_curr_chain = l_curr_chain->next;
     else {
         log_it(L_WARNING, "Sync context has no current chain in net %s, restoring chain iteration from head", a_net->pub.name);
         for (l_curr_chain = a_net->pub.chains; l_curr_chain && l_curr_chain->state == CHAIN_SYNC_STATE_SYNCED; l_curr_chain = l_curr_chain->next) {
@@ -4431,7 +4431,7 @@ static void s_sync_timer_callback(void *a_arg)
         l_state_forming = l_chain->state;
         if (l_net_pvt->sync_split_timeouts) {
             if (l_now - l_net_pvt->sync_context.last_rx_activity > l_net_pvt->sync_context.sync_activity_timeout) {
-                // check if need restart sync chains (emergency mode)
+        // check if need restart sync chains (emergency mode)
                 log_it(L_WARNING, "Chain %s of net %s sync liveness timeout", l_chain->name, l_net->pub.name);
                 l_state_forming = CHAIN_SYNC_STATE_ERROR;
                 l_restart_reason = DAP_CHAIN_NET_SYNC_RESTART_REASON_ACTIVITY_TIMEOUT;
@@ -4443,8 +4443,8 @@ static void s_sync_timer_callback(void *a_arg)
                 s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_timeout_progress_count);
             }
         } else if (l_now - l_net_pvt->sync_context.stage_last_activity > l_net_pvt->sync_context.sync_activity_timeout) {
-            log_it(L_WARNING, "Chain %s of net %s sync activity timeout", l_chain->name, l_net->pub.name);
-            l_state_forming = CHAIN_SYNC_STATE_ERROR;
+        log_it(L_WARNING, "Chain %s of net %s sync activity timeout", l_chain->name, l_net->pub.name);
+        l_state_forming = CHAIN_SYNC_STATE_ERROR;
             l_restart_reason = DAP_CHAIN_NET_SYNC_RESTART_REASON_ACTIVITY_TIMEOUT;
             s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_timeout_liveness_count);
         }
@@ -4599,7 +4599,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
         bool l_links_added = false;
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
-            if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i, 
+            if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->port : 0)
              ) {
@@ -4610,7 +4610,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         }
         if (l_links_added)
             s_net_control_event_emit_async(a_net, DAP_CHAIN_NET_CONTROL_EVENT_LINKS_CONNECTING, 0);
-        if (a_new_state == NET_STATE_ONLINE) {
+        if (a_new_state == NET_STATE_ONLINE) {        
             dap_chain_esbocs_start_timer(a_net->pub.id);
             s_net_control_event_emit_async(a_net, DAP_CHAIN_NET_CONTROL_EVENT_SYNC_CONTEXT_RESET, 0);
         }
