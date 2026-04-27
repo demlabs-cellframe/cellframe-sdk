@@ -186,6 +186,7 @@ typedef struct dap_chain_esbocs_round {
     uint16_t votes_for_count;
     uint16_t votes_against_count;
     uint16_t validators_synced_count;
+    uint16_t validators_rejected_count;
     uint16_t total_validators_synced;
 
     bool directive_applied;
@@ -193,11 +194,17 @@ typedef struct dap_chain_esbocs_round {
     uint8_t attempt_num;
 } dap_chain_esbocs_round_t;
 
+typedef enum {
+    DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_NONE = 0,
+    DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_OK,
+    DAP_CHAIN_ESBOCS_VALIDATOR_SYNC_REJECTED
+} dap_chain_esbocs_validator_sync_status_t;
+
 typedef struct dap_chain_esbocs_validator {
     dap_chain_node_addr_t node_addr;
     dap_chain_addr_t signing_addr;
     uint256_t weight;
-    bool is_synced;
+    dap_chain_esbocs_validator_sync_status_t sync_status;
     bool is_chosen;
 } dap_chain_esbocs_validator_t;
 
@@ -220,7 +227,7 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_block_t *processing_candidate;
     dap_chain_t *chain;
     dap_chain_esbocs_t *esbocs;
-    dap_time_t ts_round_sync_start, ts_stage_entry;
+    dap_time_t ts_round_sync_start, ts_stage_entry, ts_fast_path_ready;
     dap_chain_esbocs_sync_item_t *sync_items;
     dap_chain_esbocs_penalty_item_t *penalty;
     dap_global_db_cluster_t *db_cluster;
@@ -229,10 +236,15 @@ typedef struct dap_chain_esbocs_session {
     unsigned int listen_ensure;
     dap_chain_node_addr_t my_addr;
     uint8_t state, old_state;
+    uint8_t sync_backoff_level;
     bool cs_timer, round_fast_forward, sync_failed, new_round_enqueued, is_actual_hash;
     atomic_bool stopping;
     atomic_uint_fast32_t inflight_callbacks;
+    atomic_uint_fast32_t pending_mempool_count;
+    atomic_bool mempool_wakeup_enqueued;
     void *atom_notifier_ctx;
+    void *mempool_notifier_ctx;
+    char *mempool_gdb_group;
     dap_global_db_driver_hash_t db_hash;
     dap_global_db_driver_hash_t db_hash_legacy;
     dap_chain_esbocs_peer_version_item_t *peer_version_items;
