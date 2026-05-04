@@ -6202,7 +6202,7 @@ int dap_chain_net_srv_dex_init()
         "      summary:          [-type all|trade|market|targeted|order|update|cancel] [-limit <N>] [-offset <N>]\n"
         "      ohlc:            [-type market|trade] [-bucket <sec>] [-fill]\n"
         "      volume:          [-type market|targeted|trade] [-bucket <sec> [-fill]]\n"
-        "      stats:           [-type market|trade]\n"
+        "      stats:           [-type market|trade] (default range: last 1d)\n"
         "    Timestamp <ts>: unix | RFC822 | now | -30m | -1h | -2d\n"
         "    -fill without -bucket uses history_bucket_sec\n"
         "srv_dex slippage -net <net_name> -pair <BASE/QUOTE>\n"
@@ -9728,6 +9728,10 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 return dap_json_rpc_error_add(*json_arr_reply, -2,
                                               "bad type %s, use: all | trade | market | targeted | order | update | cancel", l_type_str),
                        -2;
+        }
+        if (l_view == VIEW_STATS && !l_from_str && !l_to_str) {
+            l_t_to = (uint64_t)dap_time_now();
+            l_t_from = l_t_to > DAP_SEC_PER_DAY ? l_t_to - DAP_SEC_PER_DAY : 0;
         }
         switch (l_view) {
         case VIEW_EVENTS:
