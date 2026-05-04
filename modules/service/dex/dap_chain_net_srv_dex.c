@@ -6216,9 +6216,10 @@ int dap_chain_net_srv_dex_init()
         "    [-unit sell|buy] [-create_leftover_order [-leftover_rate <rate>] [-leftover_fill_policy AON|min|min_from_origin]\n"
         "    [-leftover_min_fill_pct <0-100>]]\n"
         "srv_dex purchase_auto -net <net_name> -token_sell <ticker> -token_buy <ticker>\n"
-        "    (-w <wallet> [-addr <addr>] | -unsigned -addr <addr>) -value <amount> -fee <fee>\n"
+        "    execute: -value <amount> -fee <fee> (-w <wallet> [-addr <addr>] | -unsigned -addr <addr>)\n"
+        "    dry-run: -dry-run -addr <addr> -value <amount>\n"
         "    [-unit sell|buy] [-rate_cap <price>] [-create_leftover_order [-leftover_rate <rate>]\n"
-        "    [-leftover_fill_policy AON|min|min_from_origin] [-leftover_min_fill_pct <0-100>]] [-dry-run]\n"
+        "    [-leftover_fill_policy AON|min|min_from_origin] [-leftover_min_fill_pct <0-100>]]\n"
         "srv_dex purchase_multi -net <net_name> -orders <hash1,hash2,...> (-w <wallet> [-addr <addr>] | -unsigned -addr <addr>) -value <amount> -fee <fee>\n"
         "    [-unit sell|buy] [-create_leftover_order [-leftover_rate <rate>] [-leftover_fill_policy AON|min|min_from_origin]\n"
         "    [-leftover_min_fill_pct <0-100>]]\n"
@@ -7599,7 +7600,7 @@ dap_chain_net_srv_dex_purchase_auto_ex(dap_chain_net_t *a_net, const char *a_sel
 {
     // a_tx == NULL is allowed for dry-run mode (matching only, no TX composition)
     // a_value == 0 means unlimited budget (full fill across matches)
-    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_sell_token, !a_buy_token, IS_ZERO_256(a_fee));
+    dap_ret_val_if_any(DEX_PURCHASE_ERROR_INVALID_ARGUMENT, !a_net, !a_sell_token, !a_buy_token, a_tx && IS_ZERO_256(a_fee));
     dap_chain_addr_t *l_buyer_addr = a_owner_addr ? (dap_chain_addr_t*)a_owner_addr
                                                   : a_wallet ? dap_chain_wallet_get_addr(a_wallet, a_net->pub.id) : NULL;
     if (!l_buyer_addr || dap_chain_addr_is_blank(l_buyer_addr))
@@ -10657,10 +10658,10 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         uint256_t l_rate_cap = l_rate_cap_str ? dap_chain_balance_scan(l_rate_cap_str) : uint256_0;
         if (l_dry_run && l_unsigned)
             return dap_json_rpc_error_add(*json_arr_reply, -2, "-dry-run and -unsigned are mutually exclusive"), -2;
-        if (!l_wallet_str && !l_unsigned)
-            return dap_json_rpc_error_add(*json_arr_reply, -2, "missing -w"), -2;
+        if (l_dry_run ? (!l_wallet_str && !l_addr_str) : (!l_wallet_str && !l_unsigned))
+            return dap_json_rpc_error_add(*json_arr_reply, -2, l_dry_run ? "missing -addr" : "missing -w"), -2;
         dap_chain_wallet_t *l_wallet = NULL;
-        if (!l_unsigned) {
+        if (!l_unsigned && l_wallet_str) {
             l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config), NULL);
             if (!l_wallet)
                 return dap_json_rpc_error_add(*json_arr_reply, -3, "wallet open failed"), -3;
@@ -10720,7 +10721,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             s_dex_match_pair_index_clear(&l_matches);
             break;
         }
-        dap_chain_wallet_close(l_wallet);
+        if (l_wallet)
+            dap_chain_wallet_close(l_wallet);
     } break; // PURCHASE_AUTO
 
     case CMD_SLIPPAGE: {
