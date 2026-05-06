@@ -10690,27 +10690,27 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             HASH_ITER(hh, l_matches, l_cur, l_tmp)
             {
                 json_object *o = json_object_new_object();
-                // side=0 (ASK): seller sells BASE, buys QUOTE; side=1 (BID): seller sells QUOTE, buys BASE
-                bool l_is_bid = (l_cur->side_version & 0x1);
-                json_object_object_add(o, "token_sell",
-                                       json_object_new_string(l_is_bid ? l_cur->pair_key->token_quote : l_cur->pair_key->token_base));
-                json_object_object_add(o, "token_buy",
-                                       json_object_new_string(l_is_bid ? l_cur->pair_key->token_base : l_cur->pair_key->token_quote));
+                bool l_sell_is_base = !dap_strcmp(l_sell_tok, l_cur->pair_key->token_base);
                 json_object_object_add(o, "root", json_object_new_string(dap_hash_fast_to_str_static(&l_cur->match.root)));
                 json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&l_cur->match.tail)));
                 json_object_object_add(o, "rate", json_object_new_string(dap_uint256_to_char_ex(l_cur->match.rate).frac));
-                uint256_t l_exec_buy = uint256_0;
-                MULT_256_COIN(l_cur->exec_b_sell, l_cur->match.rate, &l_exec_buy);
-                json_object_object_add(o, "executed_sell", json_object_new_string(dap_uint256_to_char_ex(l_cur->exec_b_sell).frac));
+                uint256_t l_exec_quote = l_cur->exec_q, l_exec_sell, l_exec_buy;
+                if (IS_ZERO_256(l_exec_quote))
+                    MULT_256_COIN(l_cur->exec_b_sell, l_cur->match.rate, &l_exec_quote);
+                l_exec_sell = l_sell_is_base ? l_cur->exec_b_sell : l_exec_quote;
+                l_exec_buy = l_sell_is_base ? l_exec_quote : l_cur->exec_b_sell;
+                json_object_object_add(o, "executed_sell", json_object_new_string(dap_uint256_to_char_ex(l_exec_sell).frac));
                 json_object_object_add(o, "executed_buy", json_object_new_string(dap_uint256_to_char_ex(l_exec_buy).frac));
                 json_object_array_add(l_arr, o);
-                if (!IS_ZERO_256(l_cur->exec_b_sell))
-                    SUM_256_256(l_total_sell, l_cur->exec_b_sell, &l_total_sell);
+                if (!IS_ZERO_256(l_exec_sell))
+                    SUM_256_256(l_total_sell, l_exec_sell, &l_total_sell);
                 if (!IS_ZERO_256(l_exec_buy))
                     SUM_256_256(l_total_buy, l_exec_buy, &l_total_buy);
             }
             l_json_reply = json_object_new_object();
             json_object_object_add(l_json_reply, "orders", json_object_new_int((int)HASH_CNT(hh, l_matches)));
+            json_object_object_add(l_json_reply, "token_sell", json_object_new_string(l_sell_tok));
+            json_object_object_add(l_json_reply, "token_buy", json_object_new_string(l_buy_tok));
             json_object_object_add(l_json_reply, "sell", json_object_new_string(dap_uint256_to_char_ex(l_total_sell).frac));
             json_object_object_add(l_json_reply, "buy", json_object_new_string(dap_uint256_to_char_ex(l_total_buy).frac));
             json_object_object_add(l_json_reply, "matches", l_arr);
