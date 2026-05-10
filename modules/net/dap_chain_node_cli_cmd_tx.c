@@ -681,7 +681,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     l_src_token ? l_tx_ledger_accepted++ : l_tx_ledger_rejected++;                    
                 }
                     
-                if (l_recv_from_cond)
+                bool l_is_cond_recv = l_recv_from_cond && l_noaddr_token && l_dst_token && !dap_strcmp(l_dst_token, l_noaddr_token);
+                if (l_is_cond_recv)
                     l_value = l_cond_value;
                 else if (!l_is_exchange && !dap_strcmp(l_native_ticker, l_noaddr_token)) {
                     l_is_need_correction = true;
@@ -709,12 +710,12 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                     l_src_str = strdup(dap_chain_addr_to_str_static(l_src_addr));
                 else{
                     l_src_str = strdup(dap_chain_tx_out_cond_subtype_to_str(l_src_subtype));
-                    if (l_src_addr && !dap_strcmp(l_dst_token, l_noaddr_token) && l_recv_from_cond)
+                    if (l_src_addr && l_is_cond_recv)
                         l_found_out_to_same_addr_from_out_cond = true;
                 }
                 json_object_object_add(j_obj_data, "source_address", json_object_new_string(l_src_str));
                 DAP_DELETE(l_src_str);
-                if (l_recv_from_cond && !l_cond_recv_object)
+                if (l_is_cond_recv && !l_cond_recv_object)
                     l_cond_recv_object = j_obj_data;
                 else
                     json_object_array_add(j_arr_data, j_obj_data);
@@ -808,7 +809,7 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
                 json_object_object_add(l_cond_send_object, "send_datoshi", json_object_new_string(l_value_str));
                 json_object_array_add(j_arr_data, l_cond_send_object);
             }
-        } else if (l_recv_from_cond)
+        } else if (l_cond_recv_object)
             json_object_array_add(j_arr_data, l_cond_recv_object);
 
         if (json_object_array_length(j_arr_data) > 0) {
