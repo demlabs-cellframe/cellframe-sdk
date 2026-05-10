@@ -478,6 +478,10 @@ void dap_chain_net_balancer_request(void *a_arg)
     size_t
         l_ignored_addrs_size = 0,
         l_required_links_count = dap_link_manager_needed_links_count(l_arg->net->pub.id.uint64);
+    if (!l_required_links_count) {
+        DAP_DELETE(a_arg);
+        return;
+    }
     dap_chain_net_links_t
         *l_ignored_addrs = s_get_ignored_node_addrs(l_arg->net, &l_ignored_addrs_size),
         *l_links = s_get_node_addrs(l_arg->net, l_required_links_count, l_ignored_addrs, false);
