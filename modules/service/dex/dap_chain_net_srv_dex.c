@@ -151,7 +151,7 @@ static bool s_dex_cache_enabled = false,
 typedef struct dex_pair_index {
     dex_pair_key_t key;
     dex_order_cache_entry_t *asks,
-                            *bids; // heads keyed by hh_pair_bucket; best = head->rate
+                            *bids; // hh_pair_bucket: asks sorted rate ASC (best ask = head), bids rate DESC (best bid = head)
     uint256_t best_ask_snap,
               best_bid_snap; // snapshots of best prices before current block
     UT_hash_handle hh;
@@ -9066,8 +9066,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     SUM_256_256(l_lvl->vol_quote, l_add_q, &l_lvl->vol_quote);
                     l_lvl->orders++;
                 }
-                dex_order_cache_entry_t *l_bids_last = HASH_LAST_EX(hh_pair_bucket, l_pair_bucket->bids);
-                for (l_entry = l_bids_last; l_entry; l_entry = (dex_order_cache_entry_t *)l_entry->hh_pair_bucket.prev) {
+                HASH_ITER(hh_pair_bucket, l_pair_bucket->bids, l_entry, l_tmp)
+                {
                     if (l_entry->ts_expires && l_now_ts > l_entry->ts_expires)
                         continue;
                     uint256_t l_bin_pair = l_entry->level.match.rate;
@@ -9323,8 +9323,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         }
                         l_asks_cnt++;
                     }
-                    dex_order_cache_entry_t *l_last_bid = HASH_LAST_EX(hh_pair_bucket, l_pair_bucket->bids);
-                    for (l_entry = l_last_bid; l_entry; l_entry = (dex_order_cache_entry_t *)l_entry->hh_pair_bucket.prev) {
+                    for (l_entry = l_pair_bucket->bids; l_entry; l_entry = (dex_order_cache_entry_t *)l_entry->hh_pair_bucket.next) {
                         if (l_entry->ts_expires && l_now_ts > l_entry->ts_expires)
                             continue;
                         if (!l_has_bid) {
@@ -9561,8 +9560,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     }
                     break;
                 }
-                dex_order_cache_entry_t *l_last_bid = HASH_LAST_EX(hh_pair_bucket, l_pb->bids);
-                for (dex_order_cache_entry_t *e = l_last_bid; e; e = (dex_order_cache_entry_t *)e->hh_pair_bucket.prev) {
+                for (dex_order_cache_entry_t *e = l_pb->bids; e; e = (dex_order_cache_entry_t *)e->hh_pair_bucket.next) {
                     if (e->ts_expires && l_now_ts > e->ts_expires)
                         continue;
                     l_best_bid = e->level.match.rate;
@@ -10842,12 +10840,11 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     l_budget = l_budget_b;
                 }
             } else {
-                dex_order_cache_entry_t *l_last = HASH_LAST_EX(hh_pair_bucket, l_pb->bids);
                 if (l_unit_base) {
                     // SELL with BASE budget: convert BASE->QUOTE at each price level
                     uint256_t l_budget_b = l_budget;
-                    // Reverse iteration
-                    for (e = l_last; e && !IS_ZERO_256(l_budget_b); e = (dex_order_cache_entry_t *)e->hh_pair_bucket.prev) {
+                    HASH_ITER(hh_pair_bucket, l_pb->bids, e, tmp)
+                    {
                         if (e->ts_expires && l_now_ts > e->ts_expires)
                             continue;
                         s_consume_sell_pair_base(&l_budget_b, e->level.match.rate, e->level.match.value, &l_total_base, &l_total_quote,
@@ -10860,7 +10857,8 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 } else {
                     // SELL with QUOTE target: compute required BASE per level
                     uint256_t l_budget_q = l_budget;
-                    for (e = l_last; e && !IS_ZERO_256(l_budget_q); e = (dex_order_cache_entry_t *)e->hh_pair_bucket.prev) {
+                    HASH_ITER(hh_pair_bucket, l_pb->bids, e, tmp)
+                    {
                         if (e->ts_expires && l_now_ts > e->ts_expires)
                             continue;
                         s_consume_sell_pair_quote(&l_budget_q, e->level.match.rate, e->level.match.value, &l_total_base, &l_total_quote,
