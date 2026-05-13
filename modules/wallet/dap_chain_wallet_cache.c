@@ -1025,8 +1025,10 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             }
             break;
         case 'd': {
-            if (!l_wallet_item)
+            if (!l_wallet_item) {
+                pthread_rwlock_unlock(&s_wallet_cache_rwlock);
                 continue;
+            }
             HASH_FIND(hh, l_wallet_item->wallet_txs, a_tx_hash, sizeof(dap_hash_fast_t), l_wallet_tx_item);
             if (l_wallet_tx_item){
                 HASH_DEL(l_wallet_item->wallet_txs, l_wallet_tx_item);
@@ -1034,8 +1036,11 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                 dap_list_free_full(l_wallet_tx_item->tx_wallet_outputs, NULL);
                 DAP_DELETE(l_wallet_tx_item);
             }
+            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+            continue;
         }
         default:
+            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
             continue;
         }
 
