@@ -3587,11 +3587,14 @@ static DAP_INLINE void s_net_control_event_apply(dap_chain_net_t *a_net, dap_cha
     dap_return_if_pass(!a_net || !a_net_pvt);
     switch (a_event) {
     case DAP_CHAIN_NET_CONTROL_EVENT_LINK_CONNECTED:
-        if (a_net_pvt->state == NET_STATE_LINKS_CONNECTING)
+        if (a_net_pvt->state == NET_STATE_LINKS_CONNECTING &&
+                dap_link_manager_established_uplinks_count(a_net->pub.id.uint64) >= dap_link_manager_required_links_count(a_net->pub.id.uint64))
             a_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
         break;
     case DAP_CHAIN_NET_CONTROL_EVENT_LINKS_COUNT_CHANGED:
-        if (!a_links_count && a_net_pvt->state != NET_STATE_OFFLINE) {
+        UNUSED(a_links_count);
+        if (dap_link_manager_established_uplinks_count(a_net->pub.id.uint64) < dap_link_manager_required_links_count(a_net->pub.id.uint64) &&
+                a_net_pvt->state != NET_STATE_OFFLINE) {
             a_net_pvt->state = NET_STATE_LINKS_PREPARE;
             if (a_owner_context)
                 s_net_states_proc_run_inline(a_net);
