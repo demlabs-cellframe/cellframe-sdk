@@ -238,7 +238,7 @@ static void s_session_process_unprocessed_messages(dap_chain_esbocs_session_t *a
             s_session_packet_in(a_session, NULL, (uint8_t *)l_message, s_get_esbocs_message_size(l_message));
         DAP_DELETE(l_message);
     }
-    dap_list_free_full(l_unprocessed_messages, NULL);
+    dap_list_free(l_unprocessed_messages);
 }
 
 static int s_penalty_key_compare(const void *a_key1, const void *a_key2)
