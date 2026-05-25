@@ -553,11 +553,54 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_ext_l
     return l_item;
 }
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
-                                                                                   uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
-                                                                                   size_t a_pkey_hashes_count, const char *a_tag_str)
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                                   uint32_t a_signs_min,
+                                                                                   dap_chain_addr_t *a_owner_addrs, size_t a_addrs_count,
+                                                                                   dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count,
+                                                                                   const char *a_tag_str)
 {
-    size_t l_tsd_total_size = a_pkey_hashes_count *(sizeof(dap_hash_fast_t) + sizeof(dap_tsd_t)) + (a_tag_str ? sizeof(dap_tsd_t) + strlen(a_tag_str) + 1 : 0);
+    size_t l_total_owners = a_addrs_count + a_pkey_hashes_count;
+    if (!l_total_owners)
+        return NULL;
+    if (a_addrs_count && !a_owner_addrs)
+        return NULL;
+    if (a_pkey_hashes_count && !a_pkey_hashes)
+        return NULL;
+    for (size_t i = 0; i < a_addrs_count; i++) {
+        if (a_owner_addrs[i].addr_type != DAP_CHAIN_ADDR_TYPE_REGULAR) {
+            log_it(L_ERROR, "Address at position %zu is not a regular address", i);
+            return NULL;
+        }
+    }
+    for (size_t i = 1; i < a_addrs_count; i++) {
+        for (size_t j = 0; j < i; j++) {
+            if (dap_hash_fast_compare(&a_owner_addrs[i].data.hash_fast, &a_owner_addrs[j].data.hash_fast)) {
+                log_it(L_ERROR, "Duplicate address: addr[%zu] matches addr[%zu]", i, j);
+                return NULL;
+            }
+        }
+    }
+    for (size_t i = 1; i < a_pkey_hashes_count; i++) {
+        for (size_t j = 0; j < i; j++) {
+            if (dap_hash_fast_compare(a_pkey_hashes + i, a_pkey_hashes + j)) {
+                log_it(L_ERROR, "Duplicate pkey hash: pkey_hash[%zu] matches pkey_hash[%zu]", i, j);
+                return NULL;
+            }
+        }
+    }
+    for (size_t i = 0; i < a_addrs_count; i++) {
+        dap_hash_fast_t *l_addr_hash = &a_owner_addrs[i].data.hash_fast;
+        for (size_t j = 0; j < a_pkey_hashes_count; j++) {
+            if (dap_hash_fast_compare(l_addr_hash, a_pkey_hashes + j)) {
+                log_it(L_ERROR, "Cross-duplicate: addr[%zu] pkey hash matches standalone pkey_hash[%zu]", i, j);
+                return NULL;
+            }
+        }
+    }
+    size_t l_tsd_hash_size = l_total_owners * (sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t));
+    size_t l_tsd_addr_size = a_addrs_count * (sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t));
+    size_t l_tsd_tag_size = a_tag_str ? sizeof(dap_tsd_t) + strlen(a_tag_str) + 1 : 0;
+    size_t l_tsd_total_size = l_tsd_hash_size + l_tsd_addr_size + l_tsd_tag_size;
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + l_tsd_total_size, NULL);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
@@ -566,11 +609,31 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(d
     l_item->subtype.wallet_shared.signers_minimum = a_signs_min;
     l_item->tsd_size = l_tsd_total_size;
     byte_t *l_next_tsd_ptr = l_item->tsd;
+    for (size_t i = 0; i < a_addrs_count; i++)
+        l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_HASH, &a_owner_addrs[i].data.hash_fast, sizeof(dap_hash_fast_t));
     for (size_t i = 0; i < a_pkey_hashes_count; i++)
         l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_HASH, a_pkey_hashes + i, sizeof(dap_hash_fast_t));
+    for (size_t i = 0; i < a_addrs_count; i++)
+        l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_ADDR, a_owner_addrs + i, sizeof(dap_chain_addr_t));
     if (a_tag_str)
-        l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_STR, (const void*)a_tag_str, strlen(a_tag_str) + 1);
+        l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_STR, (const void *)a_tag_str, strlen(a_tag_str) + 1);
     return l_item;
+}
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                                   uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes,
+                                                                                   size_t a_pkey_hashes_count, const char *a_tag_str)
+{
+    return dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(a_srv_uid, a_value, a_signs_min,
+                                                                     NULL, 0, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
+}
+
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_by_addrs(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+                                                                                   uint32_t a_signs_min, dap_chain_addr_t *a_owner_addrs,
+                                                                                   size_t a_addrs_count, const char *a_tag_str)
+{
+    return dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(a_srv_uid, a_value, a_signs_min,
+                                                                     a_owner_addrs, a_addrs_count, NULL, 0, a_tag_str);
 }
 
 dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create_from_sign(const dap_sign_t *a_sign)
@@ -941,12 +1004,19 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_dex(dap_cha
     if (!a_token_buy || !a_seller_addr || IS_ZERO_256(a_value_sell) || IS_ZERO_256(a_rate))
         return NULL;
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
-    *l_item = (dap_chain_tx_out_cond_t){
-        .header = { .item_type = TX_ITEM_TYPE_OUT_COND, .value = a_value_sell, .subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, .srv_uid = a_srv_uid },
-        .subtype = { .srv_dex = {
-            .sell_net_id = a_sell_net_id, .buy_net_id = a_buy_net_id, .rate = a_rate, .buy_token = { 0 }, .seller_addr = *a_seller_addr,
-            .min_fill = a_min_fill_pct, .version = a_version, .flags = a_flags, .tx_type = a_type } },
-        .tsd_size = a_params_size };
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX;
+    l_item->header.value = a_value_sell;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_dex.sell_net_id = a_sell_net_id;
+    l_item->subtype.srv_dex.buy_net_id = a_buy_net_id;
+    l_item->subtype.srv_dex.rate = a_rate;
+    l_item->subtype.srv_dex.seller_addr = *a_seller_addr;
+    l_item->subtype.srv_dex.min_fill = a_min_fill_pct;
+    l_item->subtype.srv_dex.version = a_version;
+    l_item->subtype.srv_dex.flags = a_flags;
+    l_item->subtype.srv_dex.tx_type = a_type;
+    l_item->tsd_size = a_params_size;
     strncpy(l_item->subtype.srv_dex.buy_token, a_token_buy, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     if (a_order_root_hash)
         l_item->subtype.srv_dex.order_root_hash = *a_order_root_hash;
@@ -1001,12 +1071,12 @@ int dap_chain_datum_tx_event_to_json(json_object *a_json_obj, dap_chain_tx_event
     json_object_object_add(l_object, "srv_uid", json_object_new_uint64(a_event->srv_uid.uint64));
     json_object_object_add(l_object, "event_type", json_object_new_string(dap_chain_tx_item_event_type_to_str(a_event->event_type)));
     json_object_object_add(l_object, "event_group", json_object_new_string(a_event->group_name));
-    const char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->tx_hash)
-                                                                   : dap_chain_hash_fast_to_str_static(&a_event->tx_hash);
-    json_object_object_add(l_object, "tx_hash", json_object_new_string(l_tx_hash_str));
-    const char *l_pkey_hash_str = dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&a_event->pkey_hash)
-                                                                     : dap_hash_fast_to_str_static(&a_event->pkey_hash);
-    json_object_object_add(l_object, "pkey_hash", json_object_new_string(l_pkey_hash_str));
+    json_object_object_add(l_object, "tx_hash", json_object_new_string(dap_strcmp(a_hash_out_type, "hex")
+        ? dap_enc_base58_encode_hash_to_str_static(&a_event->tx_hash)
+        : dap_chain_hash_fast_to_str_static(&a_event->tx_hash)));
+    json_object_object_add(l_object, "pkey_hash", json_object_new_string(
+        dap_strcmp(a_hash_out_type, "hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&a_event->pkey_hash) : dap_hash_fast_to_str_static(&a_event->pkey_hash)));
     json_object_object_add(l_object, "data_size", json_object_new_int64(a_event->event_data_size));
     if (a_event->event_data && a_event->event_data_size > 0) {
         const size_t l_print_size_max = 32;

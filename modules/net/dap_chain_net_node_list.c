@@ -105,15 +105,17 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
     }
-    const char *l_key = dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} );
-    if (!l_key) {
+    char *l_key = dap_strdup(dap_stream_node_addr_to_str_static( (dap_chain_node_addr_t){.uint64 = addr} ));
+    if (!l_key || !*l_key) {
         log_it(L_ERROR, "Bad node address %"DAP_UINT64_FORMAT_U, addr);
+        DAP_DELETE(l_key);
         *l_return_code = Http_Status_BadRequest;
         return;
     }
     char *l_net_str = strstr(a_http_simple->http_client->in_query_string, l_net_token);
     if (!l_net_str) {
         log_it(L_ERROR, "Net name token not found in the request to dap_chain_net_node_list module");
+        DAP_DELETE(l_key);
         *l_return_code = Http_Status_NotFound;
         return;
     }
@@ -156,9 +158,10 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     } break;
 
     default:
+        DAP_DELETE(l_key);
         return *l_return_code = Http_Status_MethodNotAllowed, log_it(L_ERROR, "Unsupported protocol version/method");
     }
-
+    DAP_DELETE(l_key);
     dap_http_simple_reply(a_http_simple, &l_response, sizeof(uint8_t));
 }
 

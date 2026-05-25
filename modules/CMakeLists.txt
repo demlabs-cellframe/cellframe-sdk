@@ -76,12 +76,11 @@ endif()
 
 # Service eXchange
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
+    if (NOT CELLFRAME_MODULES MATCHES "srv-dex")
+        message(STATUS "srv-xchange requires srv-dex, enabling it automatically")
+        add_subdirectory(service/dex)
+    endif()
     add_subdirectory(service/xchange)
-endif()
-
-# Service DEX v2
-if (CELLFRAME_MODULES MATCHES "srv-dex")
-    add_subdirectory(service/dex)
 endif()
 
 # Service for token staking and PoS delegation

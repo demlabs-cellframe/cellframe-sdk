@@ -24,6 +24,7 @@
  */
 
 
+#include <inttypes.h>
 #include "dap_common.h"
 #include "dap_chain_tx_compose.h"
 #include "dap_chain_datum_tx_voting.h"
@@ -31,9 +32,7 @@
 #include "dap_chain_net_srv_voting.h"
 #include "dap_chain_net_tx.h"
 #include "dap_net.h"
-#include "dap_app_cli.h"
 #include "dap_json_rpc.h"
-#include "dap_app_cli_net.h"
 #include "dap_cli_server.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_order.h"
@@ -57,7 +56,7 @@ static dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_orde
 
 static compose_config_t* s_compose_config_init(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                  uint16_t a_port, const char *a_enc_cert_path) {
-    dap_return_val_if_pass(!a_net_id.raw || !a_net_name || !a_native_ticker || !a_url_str || !a_port, NULL);
+    dap_return_val_if_pass(!a_net_id.uint64 || !a_net_name || !a_native_ticker || !a_url_str || !a_port, NULL);
     compose_config_t *l_config = DAP_NEW_Z_RET_VAL_IF_FAIL(compose_config_t, NULL);
     l_config->net_id.uint64 = a_net_id.uint64;
     l_config->net_name = a_net_name;
@@ -1775,7 +1774,7 @@ json_object *dap_chain_tx_compose_tx_cond_create(dap_chain_net_id_t a_net_id, co
         dap_chain_hash_fast_from_str(a_pkey_hash_str, &l_pkey_cond_hash);
     }
     if (dap_hash_fast_is_blank(&l_pkey_cond_hash)) {
-        log_it(L_ERROR, "can't calc pkey hash '%s'", a_cert_str);
+        log_it(L_ERROR, "can't calc pkey hash for cert '%s'", a_cert_str);
         s_json_compose_error_add(l_config->response_handler, TX_COND_CREATE_COMPOSE_ERROR_INVALID_CERT_KEY, "Cert '%s' doesn't contain a valid public key\n", a_cert_str);
         return s_compose_config_return_response_handler(l_config);
     }
@@ -3140,10 +3139,9 @@ dap_chain_datum_tx_t* dap_chain_tx_compose_datum_poll_vote(dap_cert_t *a_cert, u
                               uint64_t a_option_idx, compose_config_t *a_config) {
     dap_return_val_if_pass(!a_config, NULL);
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST   
-    const char * l_hash_str = dap_chain_hash_fast_to_str_static(&a_hash);
 
     json_object *l_json_voting = s_request_command_to_rpc_with_params(a_config, "poll", "dump;-need_vote_list;-net;%s;-hash;%s", 
-                                                                      a_config->net_name, l_hash_str);
+                                                                      a_config->net_name, dap_chain_hash_fast_to_str_static(&a_hash));
     if (!l_json_voting) {
         log_it(L_ERROR, "can't get voting info");
         s_json_compose_error_add(a_config->response_handler, DAP_CHAIN_NET_VOTE_COMPOSE_ERROR_CAN_NOT_GET_TX_OUTS, "Error: Can't get voting info\n");
@@ -3574,7 +3572,6 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
                 return s_compose_config_return_response_handler(l_config);
             }
         }
-        const char *l_addr_str = dap_chain_addr_to_str_static(&l_signing_addr);
 
         json_object *l_json_coins = s_request_command_to_rpc_with_params(l_config, "srv_stake", "list;keys;-net;%s", l_config->net_name);
         if (!l_json_coins) {
@@ -3588,7 +3585,7 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
         for (int i = 0; i < items_count; i++) {
             json_object *item = json_object_array_get_idx(l_json_coins, i);
             const char *node_addr_str = json_object_get_string(json_object_object_get(item, "node_addr"));
-            if (node_addr_str && !dap_strcmp(l_addr_str, node_addr_str)) {
+            if (node_addr_str && !dap_strcmp(dap_chain_addr_to_str_static(&l_signing_addr), node_addr_str)) {
                 const char *tx_hash_str = json_object_get_string(json_object_object_get(item, "tx_hash"));
                 if (dap_chain_hash_fast_from_str(tx_hash_str, &l_tx_hash)) {
                     log_it(L_ERROR, "invalid transaction hash format");
@@ -3609,7 +3606,6 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
     }
 
     if (a_tx_hash_str) {
-        const char *l_tx_hash_str_tmp = a_tx_hash_str ? a_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash);
         json_object *l_json_answer = s_request_command_to_rpc_with_params(l_config, "srv_stake", "list;keys;-net;%s", l_config->net_name);
         if (!l_json_answer) {
             log_it(L_ERROR, "failed to get rpc answer");
@@ -3629,7 +3625,7 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
         for (int i = 0; i < tx_count; i++) {
             json_object *tx_item = json_object_array_get_idx(l_json_coins, i);
             const char *tx_hash = json_object_get_string(json_object_object_get(tx_item, "tx_hash"));
-            if (tx_hash && strcmp(tx_hash, l_tx_hash_str_tmp) == 0) {
+            if (tx_hash && strcmp(tx_hash, a_tx_hash_str ? a_tx_hash_str : dap_hash_fast_to_str_static(&l_tx_hash)) == 0) {
                 const char *l_pkey_hash_str = json_object_get_string(json_object_object_get(tx_item, "pkey_hash"));
                 log_it(L_ERROR, "Transaction %s has active delegated key %s, need to revoke it first", tx_hash, l_pkey_hash_str);
                 json_object_put(l_json_answer);
@@ -5229,7 +5225,7 @@ typedef enum {
 
 json_object * dap_chain_tx_compose_wallet_shared_hold(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                                     uint16_t a_port, const char *a_enc_cert_path, dap_chain_addr_t *a_owner_addr, const char *a_token_str, const char *a_value_str, 
-                                                    const char *a_fee_str, const char *a_signs_min_str, const char *a_pkeys_str, 
+                                                    const char *a_fee_str, const char *a_signs_min_str, const char *a_owners_str, 
                                                     const char *a_tag_str)
 {
     if (!a_net_name || !a_token_str) return NULL;
@@ -5259,52 +5255,39 @@ json_object * dap_chain_tx_compose_wallet_shared_hold(dap_chain_net_id_t a_net_i
         return s_compose_config_return_response_handler(l_config);
     }
 
-    size_t l_pkeys_str_size = strlen(a_pkeys_str);
-    size_t l_hashes_count_max = l_pkeys_str_size / DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_hash_fast_t)),
-           l_hashes_count = 0;
-    dap_chain_hash_fast_t *l_pkey_hashes = DAP_NEW_Z_COUNT(dap_chain_hash_fast_t, l_hashes_count_max);
-    if (!l_pkey_hashes) {
-        s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_MEMORY, c_error_memory_alloc);
-        DAP_DEL_Z(l_pkey_hashes);
-        return s_compose_config_return_response_handler(l_config);
-    }
-    char l_hash_str_buf[DAP_HASH_FAST_STR_SIZE];
-    const char *l_token_ptr = a_pkeys_str;
-    for (size_t i = 0; i < l_hashes_count_max; i++) {
-        const char *l_cur_ptr = strchr(l_token_ptr, ',');
-        if (!l_cur_ptr)
-            l_cur_ptr = a_pkeys_str + l_pkeys_str_size;
-        dap_strncpy(l_hash_str_buf, l_token_ptr, dap_min(DAP_HASH_FAST_STR_SIZE, l_cur_ptr - l_token_ptr));
-        if (dap_chain_hash_fast_from_str(l_hash_str_buf, l_pkey_hashes + i)) {
-            s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
-            DAP_DEL_Z(l_pkey_hashes);
-            return s_compose_config_return_response_handler(l_config);
-        }
-        for (size_t j = 0; j < i; ++j) {
-            if (!memcmp(l_pkey_hashes + j, l_pkey_hashes + i, sizeof(dap_chain_hash_fast_t))){
-                s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Find pkey hash %s dublicate", l_hash_str_buf);
-                DAP_DEL_Z(l_pkey_hashes);
+    size_t l_hashes_count = 0;
+    dap_chain_hash_fast_t *l_pkey_hashes = NULL;
+    dap_chain_addr_t *l_addrs_array = NULL;
+    size_t l_addrs_count = 0;
+
+    size_t l_parsed_addrs_count = dap_chain_addr_from_str_array(a_owners_str, &l_addrs_array);
+    if (l_parsed_addrs_count && l_addrs_array && l_addrs_array[0].addr_type == DAP_CHAIN_ADDR_TYPE_REGULAR) {
+        for (size_t i = 0; i < l_parsed_addrs_count; i++) {
+            if (l_addrs_array[i].addr_type != DAP_CHAIN_ADDR_TYPE_REGULAR) {
+                s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE,
+                    "Address at position %zu is not a regular address (type 0x%02x)", i, l_addrs_array[i].addr_type);
+                DAP_DELETE(l_addrs_array);
                 return s_compose_config_return_response_handler(l_config);
             }
         }
-        if (*l_cur_ptr == 0) {
-            l_hashes_count = i + 1;
-            break;
+        l_addrs_count = l_parsed_addrs_count;
+    } else {
+        DAP_DELETE(l_addrs_array);
+        l_addrs_array = NULL;
+        l_hashes_count = dap_chain_hash_fast_from_str_array(a_owners_str, &l_pkey_hashes);
+        if (!l_hashes_count) {
+            s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Can't parse pkey hashes from input (invalid format or duplicates)");
+            return s_compose_config_return_response_handler(l_config);
         }
-        l_token_ptr = l_cur_ptr + 1;
     }
-
-    if (!l_hashes_count) {
-        s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Can't recognize %s as a hex or base58 format hash", l_hash_str_buf);
+    size_t l_total_owners = l_addrs_count + l_hashes_count;
+    if (l_total_owners < l_signs_min) {
+        s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Quantity of owners %zu should not be less than signs_minimum (%zu)", l_total_owners, l_signs_min);
+        DAP_DEL_MULTY(l_pkey_hashes, l_addrs_array);
         return s_compose_config_return_response_handler(l_config);
     }
-    if (l_hashes_count < l_signs_min) {
-        s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_VALUE, "Quantity of pkey_hashes %zu should not be less than signs_minimum (%zu)", l_hashes_count, l_signs_min);
-        DAP_DEL_Z(l_pkey_hashes);
-        return s_compose_config_return_response_handler(l_config);
-    }
-    dap_chain_datum_tx_t *l_tx = dap_chain_tx_compose_datum_wallet_shared_hold(a_owner_addr, a_token_str, l_value, l_fee, l_signs_min, l_pkey_hashes, l_hashes_count, a_tag_str, l_config);
-    DAP_DEL_Z(l_pkey_hashes);
+    dap_chain_datum_tx_t *l_tx = dap_chain_tx_compose_datum_wallet_shared_hold_ext(a_owner_addr, a_token_str, l_value, l_fee, l_signs_min, l_addrs_array, l_addrs_count, l_pkey_hashes, l_hashes_count, a_tag_str, l_config);
+    DAP_DEL_MULTY(l_pkey_hashes, l_addrs_array);
     if (l_tx) {
         dap_chain_net_tx_to_json(l_tx, l_config->response_handler);
         dap_chain_datum_tx_delete(l_tx);
@@ -5321,7 +5304,7 @@ typedef enum {
     SHARED_FUNDS_HOLD_COMPOSE_ERR_COMPOSE = -4
 } shared_funds_hold_compose_err_t;
 
-dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee, uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str, compose_config_t *a_config)
+dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold_ext(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee, uint32_t a_signs_min, dap_chain_addr_t *a_owner_addrs, size_t a_addrs_count, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str, compose_config_t *a_config)
 {
     if (!a_owner_addr || !a_token_ticker ) return NULL;
 
@@ -5407,8 +5390,8 @@ dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_a
 
     // add 'out_cond' & 'out_ext' items
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
-    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_wallet_shared(
-                                                l_uid, a_value, a_signs_min, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
+    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(
+                                                l_uid, a_value, a_signs_min, a_owner_addrs, a_addrs_count, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
     if (!l_tx_out) {
         s_json_compose_error_add(a_config->response_handler, SHARED_FUNDS_HOLD_COMPOSE_ERR_COMPOSE, "Can't compose the transaction conditional output");
         log_it(L_ERROR, "Can't compose the transaction conditional output");
@@ -5470,6 +5453,21 @@ dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_a
     return l_tx;
 }
 
+dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee, uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str, compose_config_t *a_config)
+{
+    return dap_chain_tx_compose_datum_wallet_shared_hold_ext(a_owner_addr, a_token_ticker, a_value, a_fee, a_signs_min, NULL, 0, a_pkey_hashes, a_pkey_hashes_count, a_tag_str, a_config);
+}
+
+dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold_by_addrs(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee, uint32_t a_signs_min, dap_chain_addr_t *a_owner_addrs, size_t a_addrs_count, const char *a_tag_str, compose_config_t *a_config)
+{
+    return dap_chain_tx_compose_datum_wallet_shared_hold_ext(a_owner_addr, a_token_ticker, a_value, a_fee, a_signs_min, a_owner_addrs, a_addrs_count, NULL, 0, a_tag_str, a_config);
+}
+
+static bool s_resolve_hold_tx_hash(const char *a_hash_or_addr_str, dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_tx_hash)
+{
+    return dap_chain_addr_resolve_hold_tx_hash(a_hash_or_addr_str, a_net_id, a_tx_hash) == 0;
+}
+
 typedef enum {
     SHARED_FUNDS_REFILL_COMPOSE_ERR_OK = 0,
     SHARED_FUNDS_REFILL_COMPOSE_ERR_CONFIG,
@@ -5528,13 +5526,13 @@ json_object *dap_chain_tx_compose_wallet_shared_refill(dap_chain_net_id_t a_net_
     }
 
     dap_hash_fast_t l_tx_in_hash;
-    if (dap_chain_hash_fast_from_str(a_tx_in_hash_str, &l_tx_in_hash)) {
-        s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_VALUE, "Can't recognize %s as a hex or base58 format hash", a_tx_in_hash_str);
-        log_it(L_ERROR, "Can't recognize %s as a hex or base58 format hash", a_tx_in_hash_str);
+    if (!s_resolve_hold_tx_hash(a_tx_in_hash_str, a_net_id, &l_tx_in_hash)) {
+        s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_VALUE, "Can't recognize %s as a hash or shared address", a_tx_in_hash_str);
+        log_it(L_ERROR, "Can't recognize %s as a hash or shared address", a_tx_in_hash_str);
         return s_compose_config_return_response_handler(l_config);
     }
 
-    json_object *l_json_response = s_request_command_to_rpc_with_params(l_config, "ledger", "info;-hash;%s;-net;%s", a_tx_in_hash_str, l_config->net_name);
+    json_object *l_json_response = s_request_command_to_rpc_with_params(l_config, "ledger", "info;-hash;%s;-net;%s", dap_hash_fast_to_str_static(&l_tx_in_hash), l_config->net_name);
     if (!l_json_response) {
         s_json_compose_error_add(l_config->response_handler, SHARED_FUNDS_REFILL_COMPOSE_ERR_NETWORK, "Can't get ledger info");
         log_it(L_ERROR, "Can't get ledger info");
@@ -5898,9 +5896,9 @@ json_object *dap_chain_tx_compose_wallet_shared_take(dap_chain_net_id_t a_net_id
 
 
     dap_hash_fast_t l_tx_in_hash;
-    if (dap_chain_hash_fast_from_str(a_tx_in_hash_str, &l_tx_in_hash)) {
-        s_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_INVALID_HASH, "Can't recognize %s as a hex or base58 format hash", a_tx_in_hash_str);
-        log_it(L_ERROR, "Can't recognize %s as a hex or base58 format hash", a_tx_in_hash_str);
+    if (!s_resolve_hold_tx_hash(a_tx_in_hash_str, a_net_id, &l_tx_in_hash)) {
+        s_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_INVALID_HASH, "Can't recognize %s as a hash or shared address", a_tx_in_hash_str);
+        log_it(L_ERROR, "Can't recognize %s as a hash or shared address", a_tx_in_hash_str);
         return s_compose_config_return_response_handler(l_config);
     }
 
@@ -5910,8 +5908,10 @@ json_object *dap_chain_tx_compose_wallet_shared_take(dap_chain_net_id_t a_net_id
     if (IS_ZERO_256(l_fee)) {
         s_json_compose_error_add(l_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_INVALID_FEE, "Format -fee <256 bit integer> and not equal zero");
         log_it(L_ERROR, "Format -fee <256 bit integer> and not equal zero");
+        json_object *l_response = l_config->response_handler;
+        l_config->response_handler = NULL;
         s_compose_config_deinit(l_config);
-        return l_config->response_handler;
+        return l_response;
     }
 
     l_addr_el_count = dap_chain_addr_from_str_array(a_to_addr_str, &l_to_addr);
@@ -5968,9 +5968,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
 
     json_object *l_json_shared_info = s_request_command_to_rpc_with_params(a_config, "wallet", "shared;info;-tx;%s;-net;%s", dap_hash_fast_to_str_static(a_tx_in_hash), a_config->net_name);
     if (!l_json_shared_info) {
-        const char *l_hash_str = dap_hash_fast_to_str_static(a_tx_in_hash);
-        s_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_TX_COMPOSE, "Can't get shared info by hash %s", l_hash_str);
-        log_it(L_ERROR, "Can't get shared info by hash %s", l_hash_str);
+        s_json_compose_error_add(a_config->response_handler, DAP_WALLET_SHARED_FUNDS_TAKE_COMPOSE_ERR_TX_COMPOSE, "Can't get shared info by hash %s", dap_hash_fast_to_str_static(a_tx_in_hash));
+        log_it(L_ERROR, "Can't get shared info by hash %s", dap_hash_fast_to_str_static(a_tx_in_hash));
         return NULL;
     }
 
@@ -7026,7 +7025,8 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
         if (!l_hash)
             continue;
 
-        const char *l_input_hash_str = dap_hash_fast_to_str_static(l_hash);
+        char l_input_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(l_hash, l_input_hash_str, sizeof(l_input_hash_str));
         json_object *l_found_tx_item = NULL;
 
         // Find matching TX in list response (match by tx_first OR tx_last)
@@ -7079,7 +7079,7 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_tx_cond_remove(dap_chain_addr_t
             uint64_t l_found_srv_uid = json_object_get_uint64(l_srv_uid_obj);
             if (l_found_srv_uid != a_srv_uid.uint64)
             {
-                log_it(L_WARNING, "TX %s srv_uid mismatch (got %lu, expected %lu)",
+                log_it(L_WARNING, "TX %s srv_uid mismatch (got %" DAP_UINT64_FORMAT_U ", expected %" DAP_UINT64_FORMAT_U ")",
                        l_input_hash_str, l_found_srv_uid, a_srv_uid.uint64);
                 continue;
             }

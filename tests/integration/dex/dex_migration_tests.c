@@ -77,11 +77,10 @@ static int s_xchange_orders_find(dex_test_fixture_t *a_f, const dap_chain_addr_t
                                  bool *a_out_can_migrate)
 {
     dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net, !a_addr, !a_root_hash, !a_out_tail);
-    const char *l_addr_str = dap_chain_addr_to_str_static(a_addr);
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
         "{\"method\":\"srv_xchange\",\"params\":[\"srv_xchange;orders;-net;%s;-addr;%s\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
-        a_f->net->net->pub.name, l_addr_str);
+        a_f->net->net->pub.name, dap_chain_addr_to_str_static(a_addr));
     char *l_reply = dap_cli_cmd_exec(l_json_request);
     if (!l_reply)
         return -2;
@@ -184,11 +183,10 @@ static int s_tx_out_cond_idx(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_s
 static int s_dex_history_summary_by_order(dex_test_fixture_t *a_f, const dap_hash_fast_t *a_order_hash)
 {
     dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net, !a_order_hash);
-    const char *l_hash_str = dap_chain_hash_fast_to_str_static(a_order_hash);
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
         "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-order;%s;-view;summary\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
-        a_f->net->net->pub.name, l_hash_str);
+        a_f->net->net->pub.name, dap_chain_hash_fast_to_str_static(a_order_hash));
     char *l_reply = dap_cli_cmd_exec(l_json_request);
     if (!l_reply)
         return -2;
@@ -222,12 +220,10 @@ static int s_dex_find_matches_by_order(dex_test_fixture_t *a_f, const dap_hash_f
                                        const dap_chain_addr_t *a_addr, const char *a_tag)
 {
     dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net, !a_order_hash, !a_addr);
-    const char *l_hash_str = dap_chain_hash_fast_to_str_static(a_order_hash);
-    const char *l_addr_str = dap_chain_addr_to_str_static(a_addr);
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
         "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;find_matches;-net;%s;-order;%s;-addr;%s\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
-        a_f->net->net->pub.name, l_hash_str, l_addr_str);
+        a_f->net->net->pub.name, dap_chain_hash_fast_to_str_static(a_order_hash), dap_chain_addr_to_str_static(a_addr));
     char *l_reply = dap_cli_cmd_exec(l_json_request);
     if (!l_reply)
         return -2;
