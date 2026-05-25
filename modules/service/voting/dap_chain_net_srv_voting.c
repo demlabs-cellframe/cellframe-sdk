@@ -100,6 +100,7 @@ typedef struct dap_chain_net_votings {
 static dap_chain_net_votings_t *s_votings;
 static pthread_rwlock_t s_votings_rwlock;
 
+static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
 static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash, dap_hash_fast_t a_tx_cond_hash, int a_cond_out_idx, dap_hash_fast_t *a_vote_hash);
 /// -1 error, 0 - unspent, 1 - spent
 static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash,
@@ -107,6 +108,97 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
 static int s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
 static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in);
 static int s_cli_voting(int argc, char **argv, void **a_str_reply, int a_version);
+
+static bool s_vote_tx_get_pkey_hash(dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_pkey_hash)
+{
+    dap_return_val_if_fail(a_tx && a_pkey_hash, false);
+    dap_sign_t *l_pkey_sign = NULL;
+    uint8_t *l_tx_item = NULL;
+    size_t l_size = 0;
+    int i = 0;
+    TX_ITEM_ITER_TX_TYPE(l_tx_item, TX_ITEM_TYPE_SIG, l_size, i, a_tx) {
+        l_pkey_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_item);
+    }
+    return l_pkey_sign && dap_sign_get_pkey_hash(l_pkey_sign, a_pkey_hash);
+}
+
+static size_t s_voting_cond_outs_delete_by_pkey(dap_chain_net_votings_t *a_voting, dap_hash_fast_t *a_pkey_hash)
+{
+    dap_return_val_if_fail(a_voting && a_pkey_hash, 0);
+    size_t l_deleted_count = 0;
+    dap_chain_net_voting_cond_outs_t *l_out = NULL, *l_tmp = NULL;
+    pthread_rwlock_wrlock(&a_voting->s_tx_outs_rwlock);
+    HASH_ITER(hh, a_voting->voting_spent_cond_outs, l_out, l_tmp) {
+        if (!dap_hash_fast_compare(a_pkey_hash, &l_out->pkey_hash))
+            continue;
+        HASH_DEL(a_voting->voting_spent_cond_outs, l_out);
+        DAP_DELETE(l_out);
+        l_deleted_count++;
+    }
+    pthread_rwlock_unlock(&a_voting->s_tx_outs_rwlock);
+    return l_deleted_count;
+}
+
+static void s_voting_restore_previous_vote(dap_ledger_t *a_ledger, dap_chain_net_votings_t *a_voting,
+                                           dap_hash_fast_t *a_deleted_hash, dap_hash_fast_t *a_pkey_hash,
+                                           dap_time_t a_deleted_ts)
+{
+    dap_return_if_fail(a_ledger && a_voting && a_deleted_hash && a_pkey_hash);
+    for (dap_list_t *it = a_voting->votes; it; it = it->next)
+        if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)it->data)->pkey_hash, a_pkey_hash))
+            return;
+
+    dap_hash_fast_t l_prev_vote_hash = {};
+    dap_time_t l_prev_vote_ts = 0;
+    dap_ledger_datum_iter_t *l_iter = dap_ledger_datum_iter_create(a_ledger->net);
+    if (!l_iter)
+        return;
+    for (dap_chain_datum_tx_t *l_tx = dap_ledger_datum_iter_get_first(l_iter); l_tx; l_tx = dap_ledger_datum_iter_get_next(l_iter)) {
+        dap_hash_fast_t l_tx_hash = {};
+        dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+        if (dap_hash_fast_compare(&l_tx_hash, a_deleted_hash))
+            continue;
+        if (a_deleted_ts && l_tx->header.ts_created > a_deleted_ts)
+            continue;
+        dap_chain_tx_vote_t *l_vote_tx_item = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
+        if (!l_vote_tx_item || !dap_hash_fast_compare(&l_vote_tx_item->voting_hash, &a_voting->voting_hash))
+            continue;
+        if (dap_chain_datum_tx_item_get_tsd_by_type(l_tx, VOTING_TSD_TYPE_CANCEL))
+            continue;
+        dap_hash_fast_t l_pkey_hash = {};
+        if (!s_vote_tx_get_pkey_hash(l_tx, &l_pkey_hash) || !dap_hash_fast_compare(&l_pkey_hash, a_pkey_hash))
+            continue;
+        if (l_tx->header.ts_created >= l_prev_vote_ts) {
+            l_prev_vote_ts = l_tx->header.ts_created;
+            l_prev_vote_hash = l_tx_hash;
+        }
+    }
+    dap_ledger_datum_iter_delete(l_iter);
+    char l_deleted_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+    char l_voting_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+    char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+    dap_chain_hash_fast_to_str(a_deleted_hash, l_deleted_hash_str, sizeof(l_deleted_hash_str));
+    dap_chain_hash_fast_to_str(&a_voting->voting_hash, l_voting_hash_str, sizeof(l_voting_hash_str));
+    dap_chain_hash_fast_to_str(a_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str));
+    if (dap_hash_fast_is_blank(&l_prev_vote_hash)) {
+        log_it(L_DEBUG, "Ledger delete vote %s for poll %s: no previous vote for voter %s",
+               l_deleted_hash_str, l_voting_hash_str, l_pkey_hash_str);
+        return;
+    }
+    dap_chain_datum_tx_t *l_prev_vote_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_prev_vote_hash);
+    if (l_prev_vote_tx) {
+        char l_prev_vote_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+        dap_chain_hash_fast_to_str(&l_prev_vote_hash, l_prev_vote_hash_str, sizeof(l_prev_vote_hash_str));
+        log_it(L_INFO, "Ledger delete vote %s for poll %s: restore previous vote %s for voter %s",
+               l_deleted_hash_str, l_voting_hash_str, l_prev_vote_hash_str, l_pkey_hash_str);
+        s_vote_verificator(a_ledger, TX_ITEM_TYPE_VOTE, l_prev_vote_tx, &l_prev_vote_hash, true);
+    } else {
+        char l_prev_vote_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+        dap_chain_hash_fast_to_str(&l_prev_vote_hash, l_prev_vote_hash_str, sizeof(l_prev_vote_hash_str));
+        log_it(L_DEBUG, "Ledger delete vote %s for poll %s: previous vote %s for voter %s is not available",
+               l_deleted_hash_str, l_voting_hash_str, l_prev_vote_hash_str, l_pkey_hash_str);
+    }
+}
 
 static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,  dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
@@ -540,34 +632,10 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         // Mark conditional outs
         pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
         if (l_old_vote) {
-            dap_hash_fast_t *l_vote_hash = &((dap_chain_net_vote_t *)l_old_vote->data)->vote_hash;
+            dap_hash_fast_t *l_old_pkey_hash = &((dap_chain_net_vote_t *)l_old_vote->data)->pkey_hash;
             dap_chain_net_voting_cond_outs_t *it = NULL, *tmp;
             HASH_ITER(hh, l_voting->voting_spent_cond_outs, it, tmp) {
-                if (!dap_hash_fast_compare(l_vote_hash, &it->pkey_hash))
-                    continue;
-                HASH_DEL(l_voting->voting_spent_cond_outs, it);
-                DAP_DELETE(it);
-            }
-        }
-        for (dap_list_t *it = l_tsd_list; it; it = it->next) {
-            dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t *)it->data)->tsd;
-            if (l_tsd->type != VOTING_TSD_TYPE_VOTE_TX_COND)
-                continue;
-            dap_chain_net_voting_cond_outs_t *l_tx_out = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_net_voting_cond_outs_t, -DAP_LEDGER_CHECK_NOT_ENOUGH_MEMORY);
-            l_tx_out->tx_hash = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->tx_hash;
-            l_tx_out->out_idx = ((dap_chain_tx_voting_tx_cond_t *)l_tsd->data)->out_idx;
-            l_tx_out->pkey_hash = l_pkey_hash;
-            HASH_ADD(hh, l_voting->voting_spent_cond_outs, tx_hash, sizeof(dap_hash_fast_t), l_tx_out);
-        }
-        pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
-
-        // Mark conditional outs
-        pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
-        if (l_old_vote) {
-            dap_hash_fast_t *l_vote_hash = &((dap_chain_net_vote_t *)l_old_vote->data)->vote_hash;
-            dap_chain_net_voting_cond_outs_t *it = NULL, *tmp;
-            HASH_ITER(hh, l_voting->voting_spent_cond_outs, it, tmp) {
-                if (!dap_hash_fast_compare(l_vote_hash, &it->pkey_hash))
+                if (!dap_hash_fast_compare(l_old_pkey_hash, &it->pkey_hash))
                     continue;
                 HASH_DEL(l_voting->voting_spent_cond_outs, it);
                 DAP_DELETE(it);
@@ -636,6 +704,11 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
         HASH_DEL(s_votings, l_voting);
         pthread_rwlock_unlock(&s_votings_rwlock);
 
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+        dap_chain_hash_fast_to_str(&l_hash, l_hash_str, sizeof(l_hash_str));
+        log_it(L_INFO, "Ledger delete voting poll tx %s: removed poll state with %u vote(s)",
+               l_hash_str, (uint32_t)dap_list_length(l_voting->votes));
+
         if (l_voting->voting_params.option_offsets_list)
             dap_list_free_full(l_voting->voting_params.option_offsets_list, NULL);
 
@@ -673,14 +746,47 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
             return false;
         }
 
-        for (dap_list_t *l_vote = l_voting->votes; l_vote; l_vote = l_vote->next) {
-            if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_vote->data)->vote_hash, &l_hash)){
-                // Delete vote
+        dap_chain_tx_tsd_t *l_tsd_cancel = dap_chain_datum_tx_item_get_tsd_by_type(a_tx_in, VOTING_TSD_TYPE_CANCEL);
+        if (l_tsd_cancel) {
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+            char l_voting_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+            dap_chain_hash_fast_to_str(&l_hash, l_hash_str, sizeof(l_hash_str));
+            dap_chain_hash_fast_to_str(&l_voting->voting_hash, l_voting_hash_str, sizeof(l_voting_hash_str));
+            if (dap_hash_fast_compare(&l_voting->voting_params.cancelled_by_tx_hash, &l_hash)) {
+                l_voting->voting_params.status = DAP_CHAIN_NET_VOTING_STATUS_ACTIVE;
+                l_voting->voting_params.cancelled_by_tx_hash = (dap_hash_fast_t){};
+                log_it(L_INFO, "Ledger delete cancel vote %s for poll %s: restored ACTIVE state",
+                       l_hash_str, l_voting_hash_str);
+            } else {
+                log_it(L_DEBUG, "Ledger delete cancel vote %s for poll %s: poll cancellation state already differs",
+                       l_hash_str, l_voting_hash_str);
+            }
+            return true;
+        }
+
+        dap_hash_fast_t l_pkey_hash = {};
+        if (!s_vote_tx_get_pkey_hash(a_tx_in, &l_pkey_hash))
+            return false;
+
+        size_t l_cond_outs_removed = s_voting_cond_outs_delete_by_pkey(l_voting, &l_pkey_hash);
+        bool l_vote_removed = false;
+        for (dap_list_t *l_vote = l_voting->votes; l_vote; l_vote = l_vote->next)
+            if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_vote->data)->vote_hash, &l_hash)) {
                 DAP_DELETE(l_vote->data);
-                l_voting->votes = dap_list_remove(l_voting->votes, l_vote->data);
+                l_voting->votes = dap_list_delete_link(l_voting->votes, l_vote);
+                l_vote_removed = true;
                 break;
             }
-        }
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+        char l_voting_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+        char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+        dap_chain_hash_fast_to_str(&l_hash, l_hash_str, sizeof(l_hash_str));
+        dap_chain_hash_fast_to_str(&l_voting->voting_hash, l_voting_hash_str, sizeof(l_voting_hash_str));
+        dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str));
+        log_it(L_INFO, "Ledger delete vote %s for poll %s: removed current vote state %s and %zu spent conditional out(s) for voter %s",
+               l_hash_str, l_voting_hash_str, l_vote_removed ? "entry" : "entry-not-found",
+               l_cond_outs_removed, l_pkey_hash_str);
+        s_voting_restore_previous_vote(a_ledger, l_voting, &l_hash, &l_pkey_hash, a_tx_in->header.ts_created);
     }
 
     return true;

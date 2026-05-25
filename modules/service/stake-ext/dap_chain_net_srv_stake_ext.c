@@ -70,6 +70,7 @@ enum error_code {
 static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_prev_out_item);
 static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
 static int s_stake_ext_event_verify(dap_ledger_t *a_ledger, const char *a_event_group_name, int a_event_type, void *a_event_data, size_t a_event_data_size, dap_hash_fast_t *a_tx_hash);
+static dap_time_t s_stake_ext_calc_end_time(dap_time_t a_start_time, dap_chain_tx_event_data_stake_ext_started_t *a_started_data);
 // Forward declaration for optimization function
 static dap_stake_ext_cache_item_t *s_find_stake_ext_by_hash_fast(dap_stake_ext_cache_t *a_cache, const dap_hash_fast_t *a_stake_ext_hash);
 
@@ -263,25 +264,7 @@ int dap_stake_ext_cache_add_stake_ext(dap_stake_ext_cache_t *a_cache,
 
     // Calculate end time from stake_ext started data if provided
     if (a_started_data) {
-
-        switch (a_started_data->time_unit) {
-            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS:
-                l_stake_ext->end_time = l_stake_ext->start_time + (a_started_data->duration * 3600);
-                break;
-            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS:
-                l_stake_ext->end_time = l_stake_ext->start_time + (a_started_data->duration * 24 * 3600);
-                break;
-            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS:
-                l_stake_ext->end_time = l_stake_ext->start_time + (a_started_data->duration * 7 * 24 * 3600);
-                break;
-            case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS:
-                l_stake_ext->end_time = l_stake_ext->start_time + (a_started_data->duration * 30 * 24 * 3600);
-                break;
-            default:
-                // Fallback to seconds
-                l_stake_ext->end_time = l_stake_ext->start_time + a_started_data->duration;
-                break;
-        }
+        l_stake_ext->end_time = s_stake_ext_calc_end_time(l_stake_ext->start_time, a_started_data);
         
         // Add positions from the stake_ext started data
         if (a_started_data->total_positions > 0) {
@@ -686,6 +669,118 @@ static int s_stake_ext_event_verify(dap_ledger_t *a_ledger, const char *a_event_
     return 0;
 }
 
+static dap_time_t s_stake_ext_calc_end_time(dap_time_t a_start_time, dap_chain_tx_event_data_stake_ext_started_t *a_started_data)
+{
+    dap_return_val_if_fail(a_started_data, a_start_time);
+    switch (a_started_data->time_unit) {
+        case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_HOURS:
+            return a_start_time + a_started_data->duration * 3600;
+        case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_DAYS:
+            return a_start_time + a_started_data->duration * 24 * 3600;
+        case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_WEEKS:
+            return a_start_time + a_started_data->duration * 7 * 24 * 3600;
+        case DAP_CHAIN_TX_EVENT_DATA_TIME_UNIT_MONTHS:
+            return a_start_time + a_started_data->duration * 30 * 24 * 3600;
+        default:
+            return a_start_time + a_started_data->duration;
+    }
+}
+
+static dap_time_t s_stake_ext_get_started_end_time(dap_ledger_t *a_ledger, const char *a_guuid, dap_time_t a_fallback)
+{
+    dap_list_t *l_events = dap_ledger_event_get_list(a_ledger, a_guuid);
+    if (!l_events)
+        return a_fallback;
+    dap_time_t l_end_time = a_fallback;
+    for (dap_list_t *it = l_events; it; it = it->next) {
+        dap_chain_tx_event_t *l_event = it->data;
+        if (!l_event || l_event->event_type != DAP_CHAIN_TX_EVENT_TYPE_STAKE_EXT_STARTED ||
+                !l_event->event_data || l_event->event_data_size < sizeof(dap_chain_tx_event_data_stake_ext_started_t))
+            continue;
+        l_end_time = s_stake_ext_calc_end_time(l_event->timestamp, (dap_chain_tx_event_data_stake_ext_started_t *)l_event->event_data);
+        break;
+    }
+    dap_list_free_full(l_events, dap_chain_datum_tx_event_delete);
+    return l_end_time;
+}
+
+static void s_stake_ext_cache_item_free(dap_stake_ext_cache_item_t *a_stake_ext)
+{
+    dap_return_if_fail(a_stake_ext);
+    dap_stake_ext_position_cache_item_t *l_position = NULL, *l_position_tmp = NULL;
+    HASH_ITER(hh, a_stake_ext->positions, l_position, l_position_tmp) {
+        dap_stake_ext_lock_cache_item_t *l_lock = NULL, *l_lock_tmp = NULL;
+        HASH_ITER(hh, l_position->locks, l_lock, l_lock_tmp) {
+            HASH_DEL(l_position->locks, l_lock);
+            DAP_DELETE(l_lock);
+        }
+        HASH_DEL(a_stake_ext->positions, l_position);
+        DAP_DELETE(l_position);
+    }
+    DAP_DEL_MULTY(a_stake_ext->guuid, a_stake_ext->description, a_stake_ext->winners_ids, a_stake_ext);
+}
+
+static void s_stake_ext_cache_remove_started(dap_stake_ext_cache_t *a_cache, dap_hash_fast_t *a_stake_ext_hash)
+{
+    dap_return_if_fail(a_cache && a_stake_ext_hash);
+    bool l_removed = false;
+    char *l_guuid = NULL;
+    pthread_rwlock_wrlock(&a_cache->cache_rwlock);
+    dap_stake_ext_cache_item_t *l_stake_ext = s_find_stake_ext_by_hash_fast(a_cache, a_stake_ext_hash);
+    if (l_stake_ext) {
+        l_guuid = dap_strdup(l_stake_ext->guuid);
+        if (a_cache->total_stake_ext > 0)
+            a_cache->total_stake_ext--;
+        if (l_stake_ext->status == DAP_STAKE_EXT_STATUS_ACTIVE && a_cache->active_stake_ext > 0)
+            a_cache->active_stake_ext--;
+        HASH_DELETE(hh, a_cache->stake_ext, l_stake_ext);
+        HASH_DELETE(hh_hash, a_cache->stake_ext_by_hash, l_stake_ext);
+        l_removed = true;
+    }
+    pthread_rwlock_unlock(&a_cache->cache_rwlock);
+    if (l_removed) {
+        log_it(L_INFO, "Ledger delete stake_ext STARTED event %s: removed cache entry for GUUID \"%s\"",
+               dap_chain_hash_fast_to_str_static(a_stake_ext_hash), l_guuid ? l_guuid : "(null)");
+    } else {
+        log_it(L_DEBUG, "Ledger delete stake_ext STARTED event %s: cache entry not found",
+               dap_chain_hash_fast_to_str_static(a_stake_ext_hash));
+    }
+    DAP_DELETE(l_guuid);
+    if (l_stake_ext)
+        s_stake_ext_cache_item_free(l_stake_ext);
+}
+
+static void s_stake_ext_cache_restore_active(dap_ledger_t *a_ledger, dap_stake_ext_cache_t *a_cache, const char *a_guuid)
+{
+    dap_return_if_fail(a_ledger && a_cache && a_guuid);
+    dap_time_t l_end_time = s_stake_ext_get_started_end_time(a_ledger, a_guuid, 0);
+    bool l_restored = false;
+    dap_stake_ext_status_t l_old_status = DAP_STAKE_EXT_STATUS_UNKNOWN;
+    dap_time_t l_restored_end_time = 0;
+    pthread_rwlock_wrlock(&a_cache->cache_rwlock);
+    dap_stake_ext_cache_item_t *l_stake_ext = NULL;
+    HASH_FIND_STR(a_cache->stake_ext, a_guuid, l_stake_ext);
+    if (l_stake_ext) {
+        l_old_status = l_stake_ext->status;
+        if (l_stake_ext->status != DAP_STAKE_EXT_STATUS_ACTIVE)
+            a_cache->active_stake_ext++;
+        l_stake_ext->status = DAP_STAKE_EXT_STATUS_ACTIVE;
+        if (l_end_time)
+            l_stake_ext->end_time = l_end_time;
+        l_stake_ext->winners_cnt = 0;
+        DAP_DEL_Z(l_stake_ext->winners_ids);
+        l_restored = true;
+        l_restored_end_time = l_stake_ext->end_time;
+    }
+    pthread_rwlock_unlock(&a_cache->cache_rwlock);
+    if (l_restored) {
+        log_it(L_INFO, "Ledger delete stake_ext terminal event for GUUID \"%s\": status %s -> active, planned end time %" DAP_UINT64_FORMAT_U ", winners cleared",
+               a_guuid, dap_stake_ext_status_to_str(l_old_status), l_restored_end_time);
+    } else {
+        log_it(L_DEBUG, "Ledger delete stake_ext terminal event for GUUID \"%s\": cache entry not found", a_guuid);
+    }
+}
+
 /**
  * @brief Event fixation callback for stake_ext monitoring
  * @param a_arg User argument (stake_ext cache)
@@ -771,8 +866,8 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                            l_started_data->duration,
                            dap_chain_tx_event_data_time_unit_to_str(l_started_data->time_unit));
                 }
-            } else {
-                // TODO: Handle deleted stake_ext started event
+            } else if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_DELETED) {
+                s_stake_ext_cache_remove_started(s_stake_ext_cache, &a_event->tx_hash);
                 log_it(L_DEBUG, "Processing deleted stake_ext started event for %s", 
                        dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             }
@@ -838,8 +933,8 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                                  dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
                     }
                 }
-            } else {
-                // TODO: Handle deleted stake_ext ended event
+            } else if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_DELETED) {
+                s_stake_ext_cache_restore_active(a_ledger, s_stake_ext_cache, a_event->group_name);
                 log_it(L_DEBUG, "Processing deleted stake_ext ended event for %s", 
                        dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             }
@@ -873,8 +968,8 @@ void dap_stake_ext_cache_event_callback(void *a_arg,
                            a_event->group_name);
                     return;
                 }
-            } else {
-                // TODO: Handle deleted stake_ext cancelled event
+            } else if (a_opcode == DAP_LEDGER_NOTIFY_OPCODE_DELETED) {
+                s_stake_ext_cache_restore_active(a_ledger, s_stake_ext_cache, a_event->group_name);
                 log_it(L_DEBUG, "Processing deleted stake_ext cancelled event for %s", 
                        dap_chain_hash_fast_to_str_static(&a_event->tx_hash));
             }

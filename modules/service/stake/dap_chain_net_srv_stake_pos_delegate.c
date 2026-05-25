@@ -392,10 +392,47 @@ static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 
 static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond)
 {
+    dap_return_if_fail(a_ledger && a_tx);
     if (!a_cond)
         return;
     dap_chain_addr_t *l_signing_addr = &a_cond->subtype.srv_stake_pos_delegate.signing_addr;
-    dap_chain_net_srv_stake_key_invalidate(l_signing_addr);
+    dap_hash_fast_t l_tx_hash = {};
+    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
+    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+    dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)
+                                           dap_chain_datum_tx_item_get(a_tx, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
+    if (!l_tx_in_cond || dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash)) {
+        log_it(L_INFO, "Ledger delete delegated stake tx %s: no previous conditional tx, invalidate addr %s",
+               l_tx_hash_str, dap_chain_addr_to_str_static(l_signing_addr));
+        dap_chain_net_srv_stake_key_invalidate(l_signing_addr);
+        s_uncache_data(a_ledger, a_tx, l_signing_addr);
+        return;
+    }
+    char l_prev_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+    dap_chain_hash_fast_to_str(&l_tx_in_cond->header.tx_prev_hash, l_prev_tx_hash_str, sizeof(l_prev_tx_hash_str));
+    log_it(L_INFO, "Ledger delete delegated stake tx %s: restore addr %s to value %s from previous tx %s",
+           l_tx_hash_str, dap_chain_addr_to_str_static(l_signing_addr),
+           dap_uint256_to_char(a_cond->header.value, NULL), l_prev_tx_hash_str);
+    dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_ledger->net->pub.id);
+    dap_return_if_fail(l_srv_stake);
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    HASH_FIND(hh, l_srv_stake->itemlist, &l_signing_addr->data.hash_fast, sizeof(dap_hash_fast_t), l_stake);
+    if (l_stake) {
+        dap_chain_net_srv_stake_key_update(l_signing_addr, a_cond->header.value, &l_tx_in_cond->header.tx_prev_hash);
+    } else {
+        dap_pkey_t *l_pkey = NULL;
+        if (DAP_SIGN_GET_PKEY_HASHING_FLAG(a_cond->subtype.srv_stake_pos_delegate.flags)) {
+            dap_tsd_t *l_tsd = dap_tsd_find(a_cond->tsd, a_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_PKEY);
+            if (!l_tsd)
+                log_it(L_WARNING, "NULL tsd pkey in tx_out_cond with active PKEY_HASHING_FLAG");
+            else
+                l_pkey = (dap_pkey_t *)l_tsd->data;
+        }
+        dap_chain_net_srv_stake_key_delegate(a_ledger->net, l_signing_addr, &l_tx_in_cond->header.tx_prev_hash,
+                                             a_cond->header.value,
+                                             &a_cond->subtype.srv_stake_pos_delegate.signer_node_addr, l_pkey);
+    }
     s_uncache_data(a_ledger, a_tx, l_signing_addr);
 }
 
