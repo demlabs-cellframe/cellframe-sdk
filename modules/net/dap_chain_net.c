@@ -553,6 +553,12 @@ int s_link_manager_link_request(uint64_t a_net_id)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
     size_t l_required_links_count = dap_link_manager_needed_links_count(l_net->pub.id.uint64);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
+        // permanent_links_addrs is the shared topology list and naturally
+        // includes our own node address — silently skip self instead of
+        // sending it through dap_chain_net_link_add() and noise-logging the
+        // -3 return as an ERROR every balancer tick.
+        if (l_net_pvt->permanent_links_addrs[i].uint64 == g_node_addr.uint64)
+            continue;
         bool l_is_link_present = dap_link_manager_link_find(&l_net_pvt->permanent_links_addrs[i], a_net_id);
         if (l_is_link_present)
             continue;
@@ -3323,6 +3329,9 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         uint16_t l_permalink_hosts_count = 0;
         dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
+            // Skip ourselves — see s_link_manager_link_request() for rationale.
+            if (PVT(a_net)->permanent_links_addrs[i].uint64 == g_node_addr.uint64)
+                continue;
             if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->port : 0)
