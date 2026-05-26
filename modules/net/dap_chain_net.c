@@ -553,12 +553,8 @@ int s_link_manager_link_request(uint64_t a_net_id)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
     size_t l_required_links_count = dap_link_manager_needed_links_count(l_net->pub.id.uint64);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
-        // permanent_links_addrs is the shared topology list and naturally
-        // includes our own node address — silently skip self instead of
-        // sending it through dap_chain_net_link_add() and noise-logging the
-        // -3 return as an ERROR every balancer tick.
-        if (l_net_pvt->permanent_links_addrs[i].uint64 == g_node_addr.uint64)
-            continue;
+        // Self-address is filtered out at load time in s_net_init(); no
+        // per-iteration skip needed here.
         bool l_is_link_present = dap_link_manager_link_find(&l_net_pvt->permanent_links_addrs[i], a_net_id);
         if (l_is_link_present)
             continue;
@@ -2044,6 +2040,41 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     if ( !l_net_pvt->seed_nodes_count )
         log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
 
+    // Strip our own address (and its paired host) from the permanent_links
+    // arrays right after parsing the config. The config naturally lists every
+    // node in the topology, ours included, but dialing self always returns
+    // -3 from dap_chain_net_link_add and used to spam ERROR logs on every
+    // balancer tick. Cleaning the source array once here is cheaper and
+    // semantically correct than spreading "is this self?" checks across
+    // every use site of permanent_links_addrs[].
+    if (l_net_pvt->permanent_links_addrs_count && g_node_addr.uint64) {
+        uint16_t l_kept = 0;
+        bool l_have_hosts = l_net_pvt->permanent_links_hosts_count
+                            == l_net_pvt->permanent_links_addrs_count;
+        for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
+            if (l_net_pvt->permanent_links_addrs[i].uint64 == g_node_addr.uint64) {
+                if (l_have_hosts && l_net_pvt->permanent_links_hosts[i]) {
+                    DAP_DELETE(l_net_pvt->permanent_links_hosts[i]);
+                    l_net_pvt->permanent_links_hosts[i] = NULL;
+                }
+                continue;
+            }
+            if (l_kept != i) {
+                l_net_pvt->permanent_links_addrs[l_kept] = l_net_pvt->permanent_links_addrs[i];
+                if (l_have_hosts)
+                    l_net_pvt->permanent_links_hosts[l_kept] = l_net_pvt->permanent_links_hosts[i];
+            }
+            ++l_kept;
+        }
+        if (l_kept != l_net_pvt->permanent_links_addrs_count) {
+            log_it(L_INFO, "Stripped self address from permanent_links_addrs (was %u, now %u)",
+                            l_net_pvt->permanent_links_addrs_count, l_kept);
+            l_net_pvt->permanent_links_addrs_count = l_kept;
+            if (l_have_hosts)
+                l_net_pvt->permanent_links_hosts_count = l_kept;
+        }
+    }
+
     if ( dap_server_enabled() && ( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
         log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
 
@@ -3329,9 +3360,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         uint16_t l_permalink_hosts_count = 0;
         dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
-            // Skip ourselves — see s_link_manager_link_request() for rationale.
-            if (PVT(a_net)->permanent_links_addrs[i].uint64 == g_node_addr.uint64)
-                continue;
+            // Self-address is filtered out at load time in s_net_init().
             if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->port : 0)
