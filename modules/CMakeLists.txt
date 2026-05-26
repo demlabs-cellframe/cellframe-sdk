@@ -74,6 +74,10 @@ if (CELLFRAME_MODULES MATCHES "srv-datum")
     add_subdirectory(service/datum)
 endif()
 
+if (CELLFRAME_MODULES MATCHES "srv-dex")
+    add_subdirectory(service/dex)
+endif()
+
 # Service eXchange
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
     if (NOT CELLFRAME_MODULES MATCHES "srv-dex")

@@ -56,7 +56,6 @@
 #include "dap_uuid.h"
 #include "dap_client.h"
 #include "dap_client_fsm.h"
-#include "dap_client_esocket.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net_srv.h"
@@ -147,8 +146,9 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
                     l_node_client->info->ext_host,
                     l_node_client->info->ext_port);
-        l_node_client->esocket_uuid = DAP_CLIENT_FSM(a_client) && DAP_CLIENT_FSM(a_client)->esocket
-                                     ? DAP_CLIENT_FSM(a_client)->esocket->stream_es->uuid : 0;
+        dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_client);
+        l_node_client->esocket_uuid = (l_fsm && l_fsm->trans_ctx && l_fsm->trans_ctx->stream)
+                                     ? l_fsm->trans_ctx->stream->esocket_uuid : 0;
         // set callbacks for R and N channels
         if (a_client->active_channels) {
             size_t l_channels_count = dap_strlen(a_client->active_channels);
@@ -326,14 +326,6 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
  */
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
-    if (a_node_client->client) {
-        dap_client_pvt_t *l_client_pvt = DAP_CLIENT_PVT(a_node_client->client);
-        dap_worker_t *l_worker = l_client_pvt ? l_client_pvt->worker : NULL;
-        if (l_worker && dap_worker_get_current() != l_worker) {
-            dap_chain_node_client_close_mt(a_node_client);
-            return;
-        }
-    }
     if (a_node_client->info)
         log_it(L_INFO, "Closing node client to uplink "NODE_ADDR_FP_STR" [ %s : %u ]",
                         NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),
@@ -374,9 +366,15 @@ void s_close_on_worker_callback(void *a_arg)
 
 void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client)
 {
-    if (a_node_client->client)
-        dap_worker_exec_callback_on(DAP_CLIENT_FSM(a_node_client->client)->worker, s_close_on_worker_callback, a_node_client);
-    else
+    if (a_node_client->client) {
+        dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_node_client->client);
+        if (l_fsm)
+            l_fsm->is_removing = true;
+        if (l_fsm && l_fsm->worker)
+            dap_worker_exec_callback_on(l_fsm->worker, s_close_on_worker_callback, a_node_client);
+        else
+            dap_chain_node_client_close_unsafe(a_node_client);
+    } else
         dap_chain_node_client_close_unsafe(a_node_client);
 }
 
