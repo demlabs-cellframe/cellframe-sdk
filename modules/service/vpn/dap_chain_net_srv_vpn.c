@@ -817,10 +817,12 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     log_it(L_NOTICE, "Brought up %s virtual network interface (%s/%s)", s_raw_server->tun_device_name, l_str_ipv4_gw, l_str_ipv4_netmask);
 #if defined (DAP_OS_ANDROID) || defined (DAP_OS_LINUX)
     snprintf(buf,sizeof(buf),"ip link set %s up", s_raw_server->tun_device_name);
-    system(buf);
+    if (system(buf) != 0)
+        log_it(L_WARNING, "Command failed: %s", buf);
     snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ", 
         l_str_ipv4_gw, l_str_ipv4_netmask, s_raw_server->tun_device_name);
-    system(buf);
+    if (system(buf) != 0)
+        log_it(L_WARNING, "Command failed: %s", buf);
 #elif defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
     snprintf(buf,sizeof(buf),"ifconfig %s %s %s up",s_raw_server->tun_device_name,
              inet_ntoa(s_raw_server->ipv4_gw),inet_ntoa(s_raw_server->ipv4_gw));

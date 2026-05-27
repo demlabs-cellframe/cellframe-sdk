@@ -121,9 +121,9 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                                     dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_atom_hash, int a_ret_code, char* a_main_token_ticker,
                                     dap_chain_net_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action, char a_cache_op);
 static int s_save_cache_for_addr_in_net(dap_chain_net_t *a_net, dap_chain_addr_t *a_addr);
-static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_hash_fast_t *a_atom_hash, void *a_datum, 
-                                    size_t a_datum_size, int a_ret_code, uint32_t a_action, 
-                                    dap_chain_net_srv_uid_t a_uid);
+static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_hash_fast_t *a_atom_hash,
+                                    const void *a_atom, size_t a_atom_size, void *a_datum, size_t a_datum_size, int a_ret_code,
+                                    uint32_t a_action, dap_chain_net_srv_uid_t a_uid);
 static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_datum_t *a_datum);
 static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg);
 static void *s_wallet_load(void *a_arg);
@@ -787,9 +787,12 @@ static int s_save_cache_for_addr_in_net(dap_chain_net_t *a_net, dap_chain_addr_t
     return 0;
 }
 
-static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_hash_fast_t *a_atom_hash, void *a_datum, 
-                                    size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid)
+static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_hash, dap_chain_hash_fast_t *a_atom_hash,
+                                    const void *a_atom, size_t a_atom_size, void *a_datum, size_t a_datum_size, int a_ret_code,
+                                    uint32_t a_action, dap_chain_net_srv_uid_t a_uid)
 {
+    (void) a_atom;
+    (void) a_atom_size;
     dap_atom_notify_arg_t *l_arg = (dap_atom_notify_arg_t*)a_arg;
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*)a_datum;
     if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
