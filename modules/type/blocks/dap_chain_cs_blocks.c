@@ -97,6 +97,14 @@ typedef struct dap_chain_block_fork_resolved_notificator{
     void *arg;
 } dap_chain_block_fork_resolved_notificator_t;
 
+typedef struct s_fork_switch_notify {
+    bool pending;
+    dap_hash_fast_t block_before_fork_hash;
+    dap_list_t *reverted_blocks_list;
+    uint64_t reverted_blocks_cnt;
+    uint64_t main_blocks_cnt;
+} s_fork_switch_notify_t;
+
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
 
 #define print_rdlock(blocks) log_it(L_DEBUG, "Try to rdlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());\
@@ -1720,7 +1728,9 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-            dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash, (byte_t*)l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
+            dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash,
+                                   (byte_t *) l_datum_index->block_cache->block, l_datum_index->block_cache->block_size,
+                                   (byte_t *) l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
         }
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
@@ -1768,6 +1778,15 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
  * @param a_block_cache
  * @return
  */
+static void s_fork_resolved_notify(dap_chain_t *a_chain, dap_hash_fast_t a_block_before_fork_hash,
+                                   dap_list_t *a_reverted_blocks, uint64_t a_reverted_blocks_cnt, uint64_t a_main_blocks_cnt)
+{
+    for (dap_list_t *l_temp = s_fork_resolved_notificators; l_temp; l_temp = l_temp->next) {
+        dap_chain_block_fork_resolved_notificator_t *l_notificator = (dap_chain_block_fork_resolved_notificator_t *) l_temp->data;
+        l_notificator->callback(a_chain, a_block_before_fork_hash, a_reverted_blocks, a_reverted_blocks_cnt, a_main_blocks_cnt, l_notificator->arg);
+    }
+}
+
 static void s_add_atom_to_blocks(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
 {
 
@@ -1775,9 +1794,11 @@ static void s_add_atom_to_blocks(dap_chain_cs_blocks_t *a_blocks, dap_chain_bloc
 }
 
 
-static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_block_cache_t * a_bcache, uint64_t a_main_branch_length, dap_chain_cell_t *a_cell)
+static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_block_cache_t * a_bcache, uint64_t a_main_branch_length, dap_chain_cell_t *a_cell, s_fork_switch_notify_t *a_notify)
 {
     dap_chain_cs_blocks_t * l_blocks = a_blocks;
+    dap_return_val_if_fail(a_notify, false);
+    a_notify->pending = false;
     if (!a_blocks){
         log_it(L_ERROR,"a_blocks is NULL");
         return false;
@@ -1856,13 +1877,11 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             DAP_DELETE(l_item);
             l_main_blocks_cnt++;
         }
-        // Notify about branch switching
-        for (dap_list_t *l_temp = s_fork_resolved_notificators; l_temp; l_temp = l_temp->next){
-            dap_chain_block_fork_resolved_notificator_t *l_notificator = (dap_chain_block_fork_resolved_notificator_t*)l_temp->data;
-            l_notificator->callback(l_blocks->chain, a_bcache->block_hash, l_reverted_blocks_list, l_reverted_blocks_cnt, l_main_blocks_cnt, l_notificator->arg);
-        }
-
-        dap_list_free_full(l_reverted_blocks_list, NULL);
+        a_notify->pending = true;
+        a_notify->block_before_fork_hash = a_bcache->block_hash;
+        a_notify->reverted_blocks_list = l_reverted_blocks_list;
+        a_notify->reverted_blocks_cnt = l_reverted_blocks_cnt;
+        a_notify->main_blocks_cnt = l_main_blocks_cnt;
         // Next we save pointer to new forked branch (former main branch) instead of it
         l_longest_branch_cache_ptr->forked_branch_atoms = l_new_forked_branch;
         return true;
@@ -1962,7 +1981,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     l_block_cache->block_number = l_last->block_cache->block_number + 1;
                     HASH_ADD(hh, l_cur_branch->forked_branch_atoms, block_hash, sizeof(dap_hash_fast_t), l_new_item);
                     uint64_t l_main_branch_length = PVT(l_blocks)->blocks_count - l_cur_branch->connected_block->block_number;
-                    if (s_select_longest_branch(l_blocks, l_cur_branch->connected_block, l_main_branch_length, l_cell)){
+                    s_fork_switch_notify_t l_fork_notify = { .pending = false };
+                    if (s_select_longest_branch(l_blocks, l_cur_branch->connected_block, l_main_branch_length, l_cell, &l_fork_notify)){
                         dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                         // Send it to notificator listeners
 #ifndef DAP_CHAIN_BLOCKS_TEST
@@ -1982,6 +2002,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 #endif
                     }
                     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                    if (l_fork_notify.pending) {
+                        s_fork_resolved_notify(l_blocks->chain, l_fork_notify.block_before_fork_hash,
+                                               l_fork_notify.reverted_blocks_list, l_fork_notify.reverted_blocks_cnt,
+                                               l_fork_notify.main_blocks_cnt);
+                        dap_list_free_full(l_fork_notify.reverted_blocks_list, NULL);
+                    }
                     debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED to a forked branch.", a_atom);
                     return ATOM_FORK;
                 }

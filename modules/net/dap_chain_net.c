@@ -213,6 +213,7 @@ typedef enum dap_chain_net_sync_restart_reason {
     DAP_CHAIN_NET_SYNC_RESTART_REASON_UNSPECIFIED = 0,
     DAP_CHAIN_NET_SYNC_RESTART_REASON_ACTIVITY_TIMEOUT,
     DAP_CHAIN_NET_SYNC_RESTART_REASON_PROGRESS_TIMEOUT,
+    DAP_CHAIN_NET_SYNC_RESTART_REASON_IDLE_RESYNC,   // periodic resync while ONLINE (cur_chain == NULL)
     DAP_CHAIN_NET_SYNC_RESTART_REASON_MAX
 } dap_chain_net_sync_restart_reason_t;
 
@@ -3406,10 +3407,32 @@ static DAP_INLINE const char *s_sync_restart_reason_to_str(dap_chain_net_sync_re
         return "activity_timeout";
     case DAP_CHAIN_NET_SYNC_RESTART_REASON_PROGRESS_TIMEOUT:
         return "progress_timeout";
+    case DAP_CHAIN_NET_SYNC_RESTART_REASON_IDLE_RESYNC:
+        return "idle_resync";
     case DAP_CHAIN_NET_SYNC_RESTART_REASON_UNSPECIFIED:
     default:
         return "unspecified";
     }
+}
+
+/** Rotate sync peer when the current source may be stale or failed. */
+static DAP_INLINE bool s_sync_restart_should_rotate_peer(dap_chain_net_sync_restart_reason_t a_reason)
+{
+    switch (s_sync_restart_reason_norm(a_reason)) {
+    case DAP_CHAIN_NET_SYNC_RESTART_REASON_ACTIVITY_TIMEOUT:
+    case DAP_CHAIN_NET_SYNC_RESTART_REASON_PROGRESS_TIMEOUT:
+    case DAP_CHAIN_NET_SYNC_RESTART_REASON_IDLE_RESYNC:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static DAP_INLINE bool s_sync_chain_known_ahead(dap_chain_t *a_chain)
+{
+    if (!a_chain || !a_chain->callback_count_atom || a_chain->callback_load_from_gdb)
+        return false;
+    return a_chain->atom_num_last > a_chain->callback_count_atom(a_chain);
 }
 
 static DAP_INLINE void s_sync_diag_counter_inc(_Atomic uint64_t *a_counter)
@@ -3835,7 +3858,8 @@ static void s_sync_process_chain_miss_rewind_owner_cb(void *a_arg)
             switch ((sync_miss_rewind_prepare_status_t)l_arg->prepare_status) {
             case SYNC_MISS_REWIND_PREPARE_SYNCED:
                 l_chain->state = CHAIN_SYNC_STATE_SYNCED;
-                l_chain->atom_num_last = l_arg->last_num;
+                if (l_chain->atom_num_last < l_arg->last_num)
+                    l_chain->atom_num_last = l_arg->last_num;
                 l_net_pvt->sync_context.last_progress_activity = dap_time_now();
                 break;
             case SYNC_MISS_REWIND_PREPARE_READY: {
@@ -4144,12 +4168,15 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_ERROR;
         break;
 
-    case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
+    case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
         log_it(L_DEBUG, "Got SYNCED_CHAIN paket to %s chain net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
-        l_net_pvt->sync_context.cur_chain->atom_num_last = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
+        uint64_t l_atom_count = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
+        if (l_net_pvt->sync_context.cur_chain->atom_num_last < l_atom_count)
+            l_net_pvt->sync_context.cur_chain->atom_num_last = l_atom_count;
         l_net_pvt->sync_context.last_progress_activity = dap_time_now();
         break;
+    }
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS: {
         size_t l_chain_pkt_data_size = a_data_size - sizeof(l_chain_pkt->hdr);
@@ -4278,8 +4305,10 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
                                                                                   true);
     if (l_links_addrs && (l_uplinks_count + l_downlinks_count)) {
         size_t l_links_count = l_uplinks_count + l_downlinks_count;
+        const bool l_try_sticky = !dap_stream_node_addr_is_blank(&l_prev_link)
+                && !s_sync_restart_should_rotate_peer(a_reason);
         l_net_pvt->sync_context.current_link.uint64 = 0;
-        if (!dap_stream_node_addr_is_blank(&l_prev_link)) {
+        if (l_try_sticky) {
             for (size_t i = 0; i < l_links_count; ++i) {
                 if (l_links_addrs[i].uint64 != l_prev_link.uint64)
                     continue;
@@ -4287,8 +4316,23 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
                 break;
             }
         }
-        if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
-            l_net_pvt->sync_context.current_link = l_links_addrs[0];
+        if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
+            for (size_t i = 0; i < l_links_count; ++i) {
+                if (l_links_addrs[i].uint64 == l_prev_link.uint64)
+                    continue;
+                l_net_pvt->sync_context.current_link = l_links_addrs[i];
+                break;
+            }
+            if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
+                l_net_pvt->sync_context.current_link = l_links_addrs[0];
+        }
+        if (!dap_stream_node_addr_is_blank(&l_prev_link)
+                && l_prev_link.uint64 != l_net_pvt->sync_context.current_link.uint64) {
+            log_it(L_INFO, "Sync peer rotate " NODE_ADDR_FP_STR " -> " NODE_ADDR_FP_STR " in net %s (%s, uplinks %zu, downlinks %zu)",
+                   NODE_ADDR_FP_ARGS_S(l_prev_link),
+                   NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
+                   a_net->pub.name, s_sync_restart_reason_to_str(a_reason), l_uplinks_count, l_downlinks_count);
+        }
     } else
         l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
     DAP_DELETE(l_links_addrs);
@@ -4419,11 +4463,22 @@ static void s_sync_timer_callback(void *a_arg)
                                      : l_net_pvt->sync_context.stage_last_activity;
         // if sync more than 3 mins after online state, change state to SYNC
         if (l_net_pvt->state == NET_STATE_ONLINE) {
-            if (l_now - l_resync_anchor <= l_net_pvt->sync_context.sync_idle_time)
+            bool l_known_chain_ahead = false;
+            for (dap_chain_t *l_chain_iter = l_net->pub.chains; l_chain_iter; l_chain_iter = l_chain_iter->next) {
+                if (!s_sync_chain_known_ahead(l_chain_iter))
+                    continue;
+                l_known_chain_ahead = true;
+                log_it(L_INFO, "Force resync for net %s chain %s: known atoms %" DAP_UINT64_FORMAT_U
+                               " > local atoms %" DAP_UINT64_FORMAT_U,
+                       l_net->pub.name, l_chain_iter->name, l_chain_iter->atom_num_last,
+                       l_chain_iter->callback_count_atom(l_chain_iter));
+                break;
+            }
+            if (!l_known_chain_ahead && l_now - l_resync_anchor <= l_net_pvt->sync_context.sync_idle_time)
                 return;
             l_net_pvt->state = NET_STATE_SYNC_CHAINS;
             s_net_states_proc(l_net);
-            l_restart_reason = DAP_CHAIN_NET_SYNC_RESTART_REASON_PROGRESS_TIMEOUT;
+            l_restart_reason = DAP_CHAIN_NET_SYNC_RESTART_REASON_IDLE_RESYNC;
         }
         if (s_restart_sync_chains(l_net, l_restart_reason)) {
             log_it(L_WARNING, "Can't start sync chains in net %s, wait next attempt", l_net->pub.name);
