@@ -28,6 +28,7 @@
 #include "uthash.h"
 #include "dap_client.h"
 #include "dap_chain_node.h"
+#include "dap_net_trans.h"
 #include "dap_stream_ch_pkt.h"
 
 // connection states
@@ -96,6 +97,7 @@ typedef struct dap_chain_node_client {
     dap_chain_node_addr_t remote_node_addr;
 
     bool is_connected;
+    dap_net_trans_type_t desired_trans_type;
     dap_timerfd_t *sync_timer;
     dap_timerfd_t *reconnect_timer;
     // callbacks

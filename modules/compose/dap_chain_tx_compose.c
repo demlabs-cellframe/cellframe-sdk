@@ -52,6 +52,9 @@
 #define TEST_COND_VALUE_DATOSHI 1000000000ULL
 #endif
 
+/* Legacy compatibility: VPN client declares this extern and sets it to its own HTTP POST callback. */
+json_object *(*g_dap_compose_http_callback)(const char *, uint16_t, const char *, size_t) = NULL;
+
 static dap_chain_tx_out_cond_t *dap_find_last_xchange_tx(dap_hash_fast_t *a_order_hash, dap_chain_addr_t *a_seller_addr, compose_config_t *a_config,
     dap_time_t *a_ts_created, char **a_token_ticker, int32_t *a_prev_cond_idx, dap_hash_fast_t *a_hash_out);
 
