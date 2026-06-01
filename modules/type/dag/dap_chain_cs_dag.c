@@ -1476,15 +1476,13 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                         }
                     }
                 }
-                
-                if (dap_chain_cell_file_update(l_chain->cells));
-                // delete events from db
-                dap_list_t *l_el;
-                DL_FOREACH(l_list_to_del, l_el) {
-                    dap_global_db_del_sync(l_dag->gdb_group_events_round_new, (char*)l_el->data);
+                if (dap_chain_cell_file_update(l_chain->cells) > 0) {
+                    // delete events from db
+                    dap_list_t *l_el;
+                    DL_FOREACH(l_list_to_del, l_el) {
+                        dap_global_db_del_sync(l_dag->gdb_group_events_round_new, (char*)l_el->data);
+                    }
                 }
-                
-                dap_chain_cell_close(l_chain->cells);
                 dap_list_free(l_list_to_del);
             }
 

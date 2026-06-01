@@ -255,16 +255,20 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     int l_res = dap_global_db_set_sync(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false);//, NULL, NULL);
-    if (l_res == DAP_GLOBAL_DB_RC_SUCCESS)
-        log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, dap_strcmp(a_hash_out_type, "hex")
-            ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str, l_gdb_group);
-    else
-        log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, dap_strcmp(a_hash_out_type, "hex")
-        ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
-        : l_key_str, l_gdb_group);
-    char *ret = (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? dap_strdup(dap_strcmp(a_hash_out_type, "hex")
-        ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
-        : l_key_str) : NULL;
+    char *ret = (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? dap_strdup(
+        dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str
+    ) : NULL;
+    if (l_res == DAP_GLOBAL_DB_RC_SUCCESS) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        dap_notify_server_send_f_mt(
+            "{\"class\":\"MempoolEvent\",\"op\":\"add\","
+            "\"hash\":\"%s\",\"type\":\"%s\","
+            "\"net\":\"%s\",\"chain\":\"%s\"}",
+            ret, l_type_str,
+            l_net ? l_net->pub.name : "unknown", a_chain->name);
+        log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, ret, l_gdb_group);
+    } else
+        log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, ret, l_gdb_group);
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_key_str);
     return ret;
