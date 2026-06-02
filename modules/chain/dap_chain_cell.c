@@ -219,7 +219,11 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, off_t a_fp
 #else
     if (a_load)
         s_cell_reclaim_cur_volume(a_cell->mapping->volume);
-    l_new_vol->base = mmap( NULL, l_new_vol->size, PROT_READ, MAP_PRIVATE,
+    // MAP_PRIVATE + PROT_READ|PROT_WRITE: changes are copy-on-write (never written to disk).
+    // PROT_WRITE is required because sign verification code (s_dap_sign_hdr_sync_wire,
+    // dap_sign_hdr_pack) normalises the signature header in-place. Without write permission,
+    // any such store into the mapped region would raise SIGSEGV.
+    l_new_vol->base = mmap( NULL, l_new_vol->size, PROT_READ | PROT_WRITE, MAP_PRIVATE,
                             fileno(a_cell->file_storage), l_volume_offset );
     if ( l_new_vol->base == MAP_FAILED ) {
         log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be mapped, errno %d",
@@ -613,7 +617,7 @@ static int s_cell_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a
     if (a_cell->chain->is_mapped) {
 #ifdef DAP_OS_DARWIN
         a_cell->mapping->volume->base = mmap( a_cell->mapping->volume->base, a_cell->mapping->volume->size,
-                                              PROT_READ, MAP_PRIVATE | MAP_FIXED, fileno(a_cell->file_storage),
+                                              PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, fileno(a_cell->file_storage),
                                               a_cell->mapping->volume->offset );
         dap_return_val_if_pass_err( a_cell->mapping->volume->base == MAP_FAILED, -2,
             "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be remapped, errno %d",

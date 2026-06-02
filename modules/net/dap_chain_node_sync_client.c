@@ -603,7 +603,6 @@ void dap_chain_node_sync_client_close(dap_chain_node_sync_client_t *a_client)
     }
     pthread_rwlock_unlock(&a_client->requests_lock);
     
-    // Close underlying client
     if (a_client->client)
         dap_client_delete_unsafe(a_client->client);
     
