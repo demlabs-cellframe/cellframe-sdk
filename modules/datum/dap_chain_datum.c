@@ -35,15 +35,809 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_datum_tx_out_cond.h"
+#include "dap_chain_datum_tx_tsd.h"
+#include "dap_chain_datum_tx_in_cond.h"
+#include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_datum_tx_pkey.h"
 #include "dap_chain_datum_hashtree_roots.h"
+#include "dap_chain_datum_service_state.h"
 #include "dap_enc_base58.h"
 #include "dap_sign.h"
 #include "dap_tsd.h"
 #include "dap_json_rpc_errors.h"
+#include "dap_serialize.h"
 
 #define LOG_TAG "dap_chain_datum"
+
+const dap_serialize_field_t g_dap_chain_datum_hdr_fields[] = {
+    {
+        .name = "version_id",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_hdr_mem_t, version_id),
+        .size = sizeof(uint8_t),
+    },
+    {
+        .name = "type_id",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_hdr_mem_t, type_id),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "data_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_hdr_mem_t, data_size),
+        .size = sizeof(uint32_t),
+    },
+    {
+        .name = "ts_create",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_hdr_mem_t, ts_create),
+        .size = sizeof(uint64_t),
+    },
+};
+
+const size_t g_dap_chain_datum_hdr_field_count =
+    sizeof(g_dap_chain_datum_hdr_fields) / sizeof(g_dap_chain_datum_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_datum_hdr_schema = {
+    .name = "chain_datum_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_datum_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_datum_hdr_fields) / sizeof(g_dap_chain_datum_hdr_fields[0]),
+    .fields = g_dap_chain_datum_hdr_fields,
+    .magic = DAP_CHAIN_DATUM_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_datum_tx_hdr_fields[] = {
+    {
+        .name = "ts_created",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_hdr_mem_t, ts_created),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "tx_items_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_hdr_mem_t, tx_items_size),
+        .size = sizeof(uint32_t),
+    },
+};
+
+const size_t g_dap_chain_datum_tx_hdr_field_count =
+    sizeof(g_dap_chain_datum_tx_hdr_fields) / sizeof(g_dap_chain_datum_tx_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_datum_tx_hdr_schema = {
+    .name = "chain_datum_tx_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_datum_tx_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_datum_tx_hdr_fields) / sizeof(g_dap_chain_datum_tx_hdr_fields[0]),
+    .fields = g_dap_chain_datum_tx_hdr_fields,
+    .magic = DAP_CHAIN_DATUM_TX_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_in_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_mem_t, type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "tx_prev_hash",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_mem_t, tx_prev_hash),
+        .size = sizeof(((dap_chain_tx_in_mem_t *)0)->tx_prev_hash),
+    },
+    {
+        .name = "wire_pad_before_out_idx",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_mem_t, wire_pad_before_out_idx),
+        .size = sizeof(((dap_chain_tx_in_mem_t *)0)->wire_pad_before_out_idx),
+    },
+    {
+        .name = "tx_out_prev_idx",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_mem_t, tx_out_prev_idx),
+        .size = sizeof(uint32_t),
+    },
+};
+
+const size_t g_dap_chain_tx_in_field_count =
+    sizeof(g_dap_chain_tx_in_fields) / sizeof(g_dap_chain_tx_in_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_tx_in_schema = {
+    .name = "chain_tx_in",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_in_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_in_fields) / sizeof(g_dap_chain_tx_in_fields[0]),
+    .fields = g_dap_chain_tx_in_fields,
+    .magic = DAP_CHAIN_TX_IN_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_out_old_hdr_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_old_hdr_mem_t, type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "wire_pad_before_value",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_old_hdr_mem_t, wire_pad_before_value),
+        .size = sizeof(((dap_chain_tx_out_old_hdr_mem_t *)0)->wire_pad_before_value),
+    },
+    {
+        .name = "value",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_old_hdr_mem_t, value),
+        .size = sizeof(uint64_t),
+    },
+};
+
+const size_t g_dap_chain_tx_out_old_hdr_field_count =
+    sizeof(g_dap_chain_tx_out_old_hdr_fields) / sizeof(g_dap_chain_tx_out_old_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_tx_out_old_hdr_schema = {
+    .name = "chain_tx_out_old_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_out_old_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_out_old_hdr_fields) / sizeof(g_dap_chain_tx_out_old_hdr_fields[0]),
+    .fields = g_dap_chain_tx_out_old_hdr_fields,
+    .magic = DAP_CHAIN_TX_OUT_OLD_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_out_hdr_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_hdr_mem_t, type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "value",
+        .type = DAP_SERIALIZE_TYPE_UINT256,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_hdr_mem_t, value),
+        .size = sizeof(((dap_chain_tx_out_hdr_mem_t *)0)->value),
+    },
+};
+
+const size_t g_dap_chain_tx_out_hdr_field_count =
+    sizeof(g_dap_chain_tx_out_hdr_fields) / sizeof(g_dap_chain_tx_out_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_tx_out_hdr_schema = {
+    .name = "chain_tx_out_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_out_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_out_hdr_fields) / sizeof(g_dap_chain_tx_out_hdr_fields[0]),
+    .fields = g_dap_chain_tx_out_hdr_fields,
+    .magic = DAP_CHAIN_TX_OUT_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_sig_hdr_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_sig_hdr_mem_t, type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "version",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_sig_hdr_mem_t, version),
+        .size = sizeof(uint8_t),
+    },
+    {
+        .name = "wire_pad_before_sig_size",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_sig_hdr_mem_t, wire_pad_before_sig_size),
+        .size = sizeof(((dap_chain_tx_sig_hdr_mem_t *)0)->wire_pad_before_sig_size),
+    },
+    {
+        .name = "sig_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_sig_hdr_mem_t, sig_size),
+        .size = sizeof(uint32_t),
+    },
+};
+
+const size_t g_dap_chain_tx_sig_hdr_field_count =
+    sizeof(g_dap_chain_tx_sig_hdr_fields) / sizeof(g_dap_chain_tx_sig_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_tx_sig_hdr_schema = {
+    .name = "chain_tx_sig_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_sig_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_sig_hdr_fields) / sizeof(g_dap_chain_tx_sig_hdr_fields[0]),
+    .fields = g_dap_chain_tx_sig_hdr_fields,
+    .magic = DAP_CHAIN_TX_SIG_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_pkey_hdr_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_pkey_hdr_mem_t, type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "pkey_type_le",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_pkey_hdr_mem_t, pkey_type_le),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "wire_pad_before_size",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_pkey_hdr_mem_t, wire_pad_before_size),
+        .size = sizeof(((dap_chain_tx_pkey_hdr_mem_t *)0)->wire_pad_before_size),
+    },
+    {
+        .name = "pkey_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_pkey_hdr_mem_t, pkey_size),
+        .size = sizeof(uint32_t),
+    },
+};
+
+const size_t g_dap_chain_tx_pkey_hdr_field_count =
+    sizeof(g_dap_chain_tx_pkey_hdr_fields) / sizeof(g_dap_chain_tx_pkey_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_tx_pkey_hdr_schema = {
+    .name = "chain_tx_pkey_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_pkey_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_pkey_hdr_fields) / sizeof(g_dap_chain_tx_pkey_hdr_fields[0]),
+    .fields = g_dap_chain_tx_pkey_hdr_fields,
+    .magic = DAP_CHAIN_TX_PKEY_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_datum_tx_receipt_hdr_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "srv_uid",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, srv_uid_le),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "addition",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, addition),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "units_type",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, units_type),
+        .size = sizeof(uint32_t),
+    },
+    {
+        .name = "version",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, version),
+        .size = sizeof(uint8_t),
+    },
+    {
+        .name = "receipt_info_padding",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, receipt_info_padding),
+        .size = sizeof(((dap_chain_datum_tx_receipt_hdr_mem_t *)0)->receipt_info_padding),
+    },
+    {
+        .name = "units",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, units),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "value_datoshi",
+        .type = DAP_SERIALIZE_TYPE_UINT256,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, value_datoshi),
+        .size = sizeof(((dap_chain_datum_tx_receipt_hdr_mem_t *)0)->value_datoshi),
+    },
+    {
+        .name = "prev_tx_cond_hash",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, prev_tx_cond_hash),
+        .size = sizeof(((dap_chain_datum_tx_receipt_hdr_mem_t *)0)->prev_tx_cond_hash),
+    },
+    {
+        .name = "size",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, size),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "exts_size",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_tx_receipt_hdr_mem_t, exts_size),
+        .size = sizeof(uint64_t),
+    },
+};
+
+const size_t g_dap_chain_datum_tx_receipt_hdr_field_count =
+    sizeof(g_dap_chain_datum_tx_receipt_hdr_fields) / sizeof(g_dap_chain_datum_tx_receipt_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_datum_tx_receipt_hdr_schema = {
+    .name = "chain_datum_tx_receipt_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_datum_tx_receipt_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_datum_tx_receipt_hdr_fields) / sizeof(g_dap_chain_datum_tx_receipt_hdr_fields[0]),
+    .fields = g_dap_chain_datum_tx_receipt_hdr_fields,
+    .magic = DAP_CHAIN_DATUM_TX_RECEIPT_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_datum_token_hdr_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_token_hdr_mem_t, type),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "version",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_token_hdr_mem_t, version),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "subtype",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_token_hdr_mem_t, subtype),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "ticker",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_token_hdr_mem_t, ticker),
+        .size = sizeof(((dap_chain_datum_token_hdr_mem_t *)0)->ticker),
+    },
+    {
+        .name = "signs_valid",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_token_hdr_mem_t, signs_valid),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "signs_total",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_token_hdr_mem_t, signs_total),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "total_supply",
+        .type = DAP_SERIALIZE_TYPE_UINT256,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_token_hdr_mem_t, total_supply),
+        .size = sizeof(((dap_chain_datum_token_hdr_mem_t *)0)->total_supply),
+    },
+};
+
+const size_t g_dap_chain_datum_token_hdr_field_count =
+    sizeof(g_dap_chain_datum_token_hdr_fields) / sizeof(g_dap_chain_datum_token_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_datum_token_hdr_schema = {
+    .name = "chain_datum_token_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_datum_token_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_datum_token_hdr_fields) / sizeof(g_dap_chain_datum_token_hdr_fields[0]),
+    .fields = g_dap_chain_datum_token_hdr_fields,
+    .magic = DAP_CHAIN_DATUM_TOKEN_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_datum_decree_fixed_fields[] = {
+    {
+        .name = "decree_version",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_decree_fixed_mem_t, decree_version),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "ts_created",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_decree_fixed_mem_t, ts_created_wire),
+        .size = sizeof(((dap_chain_datum_decree_fixed_mem_t *)0)->ts_created_wire),
+    },
+    {
+        .name = "header_type",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_decree_fixed_mem_t, header_type),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "srv_or_common",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_decree_fixed_mem_t, srv_or_common_wire),
+        .size = sizeof(((dap_chain_datum_decree_fixed_mem_t *)0)->srv_or_common_wire),
+    },
+    {
+        .name = "sub_type",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_decree_fixed_mem_t, sub_type),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "data_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_decree_fixed_mem_t, data_size_wire),
+        .size = sizeof(((dap_chain_datum_decree_fixed_mem_t *)0)->data_size_wire),
+    },
+    {
+        .name = "signs_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_decree_fixed_mem_t, signs_size_wire),
+        .size = sizeof(((dap_chain_datum_decree_fixed_mem_t *)0)->signs_size_wire),
+    },
+};
+
+const size_t g_dap_chain_datum_decree_fixed_field_count =
+    sizeof(g_dap_chain_datum_decree_fixed_fields) / sizeof(g_dap_chain_datum_decree_fixed_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_datum_decree_fixed_schema = {
+    .name = "chain_datum_decree_fixed",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_datum_decree_fixed_mem_t),
+    .field_count = sizeof(g_dap_chain_datum_decree_fixed_fields) / sizeof(g_dap_chain_datum_decree_fixed_fields[0]),
+    .fields = g_dap_chain_datum_decree_fixed_fields,
+    .magic = DAP_CHAIN_DATUM_DECREE_FIXED_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_datum_anchor_fixed_fields[] = {
+    {
+        .name = "anchor_version",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_anchor_fixed_mem_t, anchor_version),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "ts_created",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_anchor_fixed_mem_t, ts_created_wire),
+        .size = sizeof(((dap_chain_datum_anchor_fixed_mem_t *)0)->ts_created_wire),
+    },
+    {
+        .name = "data_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_anchor_fixed_mem_t, data_size_wire),
+        .size = sizeof(((dap_chain_datum_anchor_fixed_mem_t *)0)->data_size_wire),
+    },
+    {
+        .name = "signs_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_anchor_fixed_mem_t, signs_size_wire),
+        .size = sizeof(((dap_chain_datum_anchor_fixed_mem_t *)0)->signs_size_wire),
+    },
+};
+
+const size_t g_dap_chain_datum_anchor_fixed_field_count =
+    sizeof(g_dap_chain_datum_anchor_fixed_fields) / sizeof(g_dap_chain_datum_anchor_fixed_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_datum_anchor_fixed_schema = {
+    .name = "chain_datum_anchor_fixed",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_datum_anchor_fixed_mem_t),
+    .field_count = sizeof(g_dap_chain_datum_anchor_fixed_fields) / sizeof(g_dap_chain_datum_anchor_fixed_fields[0]),
+    .fields = g_dap_chain_datum_anchor_fixed_fields,
+    .magic = DAP_CHAIN_DATUM_ANCHOR_FIXED_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_datum_service_state_hdr_fields[] = {
+    {
+        .name = "nonce",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_service_state_hdr_mem_t, nonce),
+        .size = sizeof(((dap_chain_datum_service_state_hdr_mem_t *)0)->nonce),
+    },
+    {
+        .name = "srv_uid",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_service_state_hdr_mem_t, srv_uid_wire),
+        .size = sizeof(((dap_chain_datum_service_state_hdr_mem_t *)0)->srv_uid_wire),
+    },
+    {
+        .name = "states_count",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_service_state_hdr_mem_t, states_count_wire),
+        .size = sizeof(((dap_chain_datum_service_state_hdr_mem_t *)0)->states_count_wire),
+    },
+    {
+        .name = "state_size",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_datum_service_state_hdr_mem_t, state_size_wire),
+        .size = sizeof(((dap_chain_datum_service_state_hdr_mem_t *)0)->state_size_wire),
+    },
+};
+
+const size_t g_dap_chain_datum_service_state_hdr_field_count =
+    sizeof(g_dap_chain_datum_service_state_hdr_fields) / sizeof(g_dap_chain_datum_service_state_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_datum_service_state_hdr_schema = {
+    .name = "chain_datum_service_state_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_datum_service_state_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_datum_service_state_hdr_fields) / sizeof(g_dap_chain_datum_service_state_hdr_fields[0]),
+    .fields = g_dap_chain_datum_service_state_hdr_fields,
+    .magic = DAP_CHAIN_DATUM_SERVICE_STATE_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_out_cond_hdr_fields[] = {
+    {
+        .name = "item_type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_cond_hdr_mem_t, item_type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "subtype",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_cond_hdr_mem_t, subtype),
+        .size = sizeof(dap_chain_tx_out_cond_subtype_t),
+    },
+    {
+        .name = "value",
+        .type = DAP_SERIALIZE_TYPE_UINT256,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_cond_hdr_mem_t, value),
+        .size = sizeof(((dap_chain_tx_out_cond_hdr_mem_t *)0)->value),
+    },
+    {
+        .name = "paddding_ext",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_cond_hdr_mem_t, paddding_ext),
+        .size = sizeof(((dap_chain_tx_out_cond_hdr_mem_t *)0)->paddding_ext),
+    },
+    {
+        .name = "ts_expires",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_cond_hdr_mem_t, ts_expires),
+        .size = sizeof(dap_time_t),
+    },
+    {
+        .name = "srv_uid",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_cond_hdr_mem_t, srv_uid_le),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "padding",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_out_cond_hdr_mem_t, padding),
+        .size = sizeof(((dap_chain_tx_out_cond_hdr_mem_t *)0)->padding),
+    },
+};
+
+const size_t g_dap_chain_tx_out_cond_hdr_field_count =
+    sizeof(g_dap_chain_tx_out_cond_hdr_fields) / sizeof(g_dap_chain_tx_out_cond_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_tx_out_cond_hdr_schema = {
+    .name = "chain_tx_out_cond_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_out_cond_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_out_cond_hdr_fields) / sizeof(g_dap_chain_tx_out_cond_hdr_fields[0]),
+    .fields = g_dap_chain_tx_out_cond_hdr_fields,
+    .magic = DAP_CHAIN_TX_OUT_COND_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_tsd_hdr_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_tsd_hdr_mem_t, type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "wire_pad_before_size",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_tsd_hdr_mem_t, wire_pad_before_size),
+        .size = sizeof(((dap_chain_tx_tsd_hdr_mem_t *)0)->wire_pad_before_size),
+    },
+    {
+        .name = "size",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_tsd_hdr_mem_t, size),
+        .size = sizeof(uint64_t),
+    },
+};
+
+const size_t g_dap_chain_tx_tsd_hdr_field_count =
+    sizeof(g_dap_chain_tx_tsd_hdr_fields) / sizeof(g_dap_chain_tx_tsd_hdr_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_tx_tsd_hdr_schema = {
+    .name = "chain_tx_tsd_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_tsd_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_tsd_hdr_fields) / sizeof(g_dap_chain_tx_tsd_hdr_fields[0]),
+    .fields = g_dap_chain_tx_tsd_hdr_fields,
+    .magic = DAP_CHAIN_TX_TSD_HDR_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_in_cond_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_cond_mem_t, type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "tx_prev_hash",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_cond_mem_t, tx_prev_hash),
+        .size = sizeof(((dap_chain_tx_in_cond_mem_t *)0)->tx_prev_hash),
+    },
+    {
+        .name = "wire_pad_before_tx_out_prev_idx",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_cond_mem_t, wire_pad_before_tx_out_prev_idx),
+        .size = sizeof(((dap_chain_tx_in_cond_mem_t *)0)->wire_pad_before_tx_out_prev_idx),
+    },
+    {
+        .name = "tx_out_prev_idx",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_cond_mem_t, tx_out_prev_idx),
+        .size = sizeof(uint32_t),
+    },
+    {
+        .name = "receipt_idx",
+        .type = DAP_SERIALIZE_TYPE_INT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_cond_mem_t, receipt_idx),
+        .size = sizeof(int32_t),
+    },
+};
+
+const size_t g_dap_chain_tx_in_cond_field_count =
+    sizeof(g_dap_chain_tx_in_cond_fields) / sizeof(g_dap_chain_tx_in_cond_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_tx_in_cond_schema = {
+    .name = "chain_tx_in_cond",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_in_cond_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_in_cond_fields) / sizeof(g_dap_chain_tx_in_cond_fields[0]),
+    .fields = g_dap_chain_tx_in_cond_fields,
+    .magic = DAP_CHAIN_TX_IN_COND_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_in_ems_fields[] = {
+    {
+        .name = "type",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_ems_mem_t, type),
+        .size = sizeof(dap_chain_tx_item_type_t),
+    },
+    {
+        .name = "ticker",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_ems_mem_t, ticker),
+        .size = sizeof(((dap_chain_tx_in_ems_mem_t *)0)->ticker),
+    },
+    {
+        .name = "wire_pad_before_token_emission_chain_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_ems_mem_t, wire_pad_before_token_emission_chain_id),
+        .size = sizeof(((dap_chain_tx_in_ems_mem_t *)0)->wire_pad_before_token_emission_chain_id),
+    },
+    {
+        .name = "token_emission_chain_id",
+        .type = DAP_SERIALIZE_TYPE_UINT64,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_ems_mem_t, token_emission_chain_id_le),
+        .size = sizeof(uint64_t),
+    },
+    {
+        .name = "token_emission_hash",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_tx_in_ems_mem_t, token_emission_hash),
+        .size = sizeof(((dap_chain_tx_in_ems_mem_t *)0)->token_emission_hash),
+    },
+};
+
+const size_t g_dap_chain_tx_in_ems_field_count =
+    sizeof(g_dap_chain_tx_in_ems_fields) / sizeof(g_dap_chain_tx_in_ems_fields[0]);
+
+const dap_serialize_schema_t g_dap_chain_tx_in_ems_schema = {
+    .name = "chain_tx_in_ems",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_in_ems_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_in_ems_fields) / sizeof(g_dap_chain_tx_in_ems_fields[0]),
+    .fields = g_dap_chain_tx_in_ems_fields,
+    .magic = DAP_CHAIN_TX_IN_EMS_SERIALIZE_MAGIC,
+    .validate_func = NULL,
+};
 
 
 // Callbacks for dependency inversion
@@ -478,7 +1272,9 @@ bool dap_chain_datum_dump_tx_json(dap_json_t *a_json_arr_reply,
 
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
-                    dap_chain_node_addr_t *l_signer_node_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
+                    dap_chain_node_addr_t l_signer_node_addr_val;
+                    memcpy(&l_signer_node_addr_val, &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr, sizeof(l_signer_node_addr_val));
+                    dap_chain_node_addr_t *l_signer_node_addr = &l_signer_node_addr_val;
                     dap_chain_addr_t *l_signing_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
                     l_hash_tmp = l_signing_addr->data.hash_fast;
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")

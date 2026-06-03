@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include "dap_common.h"
+#include "dap_serialize.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_token.h"
@@ -112,6 +113,7 @@ typedef union dap_chain_datum_typeid{
     uint8_t data[DAP_CHAIN_DATUM_ID_SIZE];
     uint16_t uint16;
 } DAP_ALIGN_PACKED dap_chain_datum_typeid_t;
+_Static_assert(sizeof(dap_chain_datum_typeid_t) == DAP_CHAIN_DATUM_ID_SIZE, "dap_chain_datum_typeid_t wire size");
 
 
 /**
@@ -131,6 +133,47 @@ typedef struct dap_chain_datum{
     } DAP_ALIGN_PACKED header;
     byte_t data[]; /// Stored datum body
 } DAP_ALIGN_PACKED dap_chain_datum_t;
+
+/** Wire size of @ref dap_chain_datum_t::header (packed, no tail padding). */
+#define DAP_CHAIN_DATUM_HDR_WIRE_SIZE 15u
+_Static_assert(DAP_CHAIN_DATUM_HDR_WIRE_SIZE == sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint32_t) + sizeof(uint64_t),
+               "dap_chain_datum header wire layout");
+_Static_assert(sizeof(((dap_chain_datum_t *)0)->header) == DAP_CHAIN_DATUM_HDR_WIRE_SIZE,
+               "dap_chain_datum_t header must match wire layout");
+
+#define DAP_CHAIN_DATUM_HDR_SERIALIZE_MAGIC 0xCF5FEED0U
+
+/**
+ * @brief Naturally aligned in-memory view of @ref dap_chain_datum_t::header (wire is packed).
+ */
+typedef struct dap_chain_datum_hdr_mem {
+    uint8_t version_id;
+    uint16_t type_id;
+    uint32_t data_size;
+    uint64_t ts_create;
+} dap_chain_datum_hdr_mem_t;
+
+extern const dap_serialize_field_t g_dap_chain_datum_hdr_fields[];
+extern const size_t g_dap_chain_datum_hdr_field_count;
+extern const dap_serialize_schema_t g_dap_chain_datum_hdr_schema;
+
+static inline int dap_chain_datum_hdr_pack(const dap_chain_datum_hdr_mem_t *a_mem, uint8_t *a_wire, size_t a_wire_size)
+{
+    if (!a_mem || !a_wire || a_wire_size < DAP_CHAIN_DATUM_HDR_WIRE_SIZE)
+        return -1;
+    dap_serialize_result_t l_r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_datum_hdr_schema, a_mem, a_wire, a_wire_size, NULL);
+    return l_r.error_code;
+}
+
+static inline int dap_chain_datum_hdr_unpack(const uint8_t *a_wire, size_t a_wire_size, dap_chain_datum_hdr_mem_t *a_mem)
+{
+    if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_DATUM_HDR_WIRE_SIZE)
+        return -1;
+    dap_deserialize_result_t l_r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_datum_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
+    return l_r.error_code;
+}
 
 #ifdef __cplusplus
 extern "C" {

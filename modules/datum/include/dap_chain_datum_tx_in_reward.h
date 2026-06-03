@@ -28,3 +28,4 @@ typedef struct dap_chain_tx_in_reward {
     dap_chain_tx_item_type_t type;          /// @param type             @brief Transaction item type
     dap_hash_sha3_256_t block_hash;                  /// @param block_hash       @brief Hash of the block signed with current validator
 } DAP_ALIGN_PACKED dap_chain_tx_in_reward_t;
+_Static_assert(sizeof(dap_chain_tx_in_reward_t) == 1u + 32u, "dap_chain_tx_in_reward_t wire size");

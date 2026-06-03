@@ -28,7 +28,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_time.h"
 #include "dap_timerfd.h"
 #include "dap_hash.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_ledger.h"
 
 #include "dap_chain_net_srv_stream_session.h"
@@ -814,7 +814,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                 *l_request = *(pkt_test_t*)l_ch_pkt->data;
             }
 
-            randombytes(l_request->data, l_request->data_size);
+            dap_random_bytes(l_request->data, l_request->data_size);
             dap_hash_sha3_256_t l_data_hash;
             dap_hash_sha3_256(l_request->data, l_request->data_size, &l_data_hash);
             l_request->data_hash = l_data_hash;

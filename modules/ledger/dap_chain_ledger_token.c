@@ -862,11 +862,12 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     }
     char *ptr = l_token->ticker;
     while (*ptr) {
-        if (!dap_ascii_isalnum(*ptr++)) {
+        if (!dap_ascii_isalnum(*ptr) && *ptr != '_') {
             log_it(L_WARNING, "Token ticker is not alpha-numeric");
             DAP_DELETE(l_token);
             return DAP_LEDGER_CHECK_PARSE_ERROR;
         }
+        ptr++;
     }
     if (!l_token->signs_total) {
         log_it(L_WARNING, "No auth signs in token '%s' datum!", l_token->ticker);
@@ -915,9 +916,9 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     if (l_update_token) {
         switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
         default:
             /* Bogdanoff, unknown token subtype update. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' update! "
@@ -931,9 +932,9 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     } else {
         switch (l_token->subtype) {
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
-            l_size_tsd_section = l_token->header_private_update.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_private_decl.tsd_total_size; break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            l_size_tsd_section = l_token->header_native_update.tsd_total_size; break;
+            l_size_tsd_section = l_token->header_native_decl.tsd_total_size; break;
         default:
             /* Bogdanoff, unknown token subtype declaration. What shall we TODO? */
             log_it(L_WARNING, "Unsupported token subtype '0x%0hX' declaration! "
@@ -988,16 +989,29 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     }
     size_t l_signs_approve = 0;
     size_t l_verify_size = 0;
-    uint16_t l_tmp_auth_signs = 0;
-    if (l_legacy_type)
+    const void *l_verify_data = NULL;
+    // Mutable copy used for non-legacy tokens: we must zero signs_total before
+    // hashing, but a_token may point to mmap'd read-only chain storage.
+    void *l_verify_copy = NULL;
+    if (l_legacy_type) {
         l_verify_size = sizeof(dap_chain_datum_token_old_t) - sizeof(uint16_t);
-    else {
+        l_verify_data = a_token;
+    } else {
         l_verify_size = l_signs_offset;
-        l_tmp_auth_signs = l_token->signs_total;
-        l_token->signs_total = 0;
+        l_verify_copy = DAP_NEW_Z_SIZE(byte_t, l_verify_size);
+        if (!l_verify_copy) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            DAP_DELETE(l_signs);
+            DAP_DELETE(l_token);
+            return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+        }
+        memcpy(l_verify_copy, a_token, l_verify_size);
+        ((dap_chain_datum_token_t *)l_verify_copy)->signs_total = 0;
+        l_verify_data = l_verify_copy;
     }
     for (size_t i = 0; i < l_signs_unique; i++) {
-        if (!dap_sign_verify(l_signs[i], l_legacy_type ? a_token : (void *)l_token, l_verify_size)) {
+        int l_sign_verify_ret = dap_sign_verify(l_signs[i], l_verify_data, l_verify_size);
+        if (!l_sign_verify_ret) {
             if (l_update_token) {
                 for (size_t j = 0; j < l_token_item->auth_signs_total; j++) {
                     if (dap_pkey_compare_with_sign(l_token_item->auth_pkeys[j], l_signs[i])) {
@@ -1007,11 +1021,13 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
                 }
             } else
                 l_signs_approve++;
+        } else if (i == 0) {
+            log_it(L_WARNING, "Token '%s' sign %zu verify failed (ret=%d, verify_size=%zu, legacy=%d)",
+                    l_token->ticker, i, l_sign_verify_ret, l_verify_size, (int)l_legacy_type);
         }
     }
     DAP_DELETE(l_signs);
-    if (!l_legacy_type)
-        l_token->signs_total = l_tmp_auth_signs;
+    DAP_DEL_Z(l_verify_copy);
     size_t l_signs_need = l_update_token ? l_token_item->auth_signs_valid : l_token->signs_total;
     if (l_signs_approve < l_signs_need) {
         log_it(L_WARNING, "Datum token for ticker '%s' has only %zu valid signatures out of %zu",

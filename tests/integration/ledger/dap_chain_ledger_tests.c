@@ -1,5 +1,5 @@
 #include "dap_math_convert.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_dl.h"
 
@@ -1107,7 +1107,7 @@ void dap_ledger_test_run(void){
     dap_assert_PIF(!dap_ledger_token_emission_add(l_ledger, (byte_t*)l_emi, l_emi_size, &l_emi_hash), "Added emission in ledger");
 
     // Declarate delegated token
-    dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
+    dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section = {0};
     dap_strncpy(l_tsd_section.ticker_token_from, s_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     l_tsd_section.emission_rate = dap_chain_balance_coins_scan("0.1");//	TODO: 'm' 1:10 tokens
     dap_tsd_t * l_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);

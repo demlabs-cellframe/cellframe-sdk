@@ -305,7 +305,8 @@ dap_json_t *dap_chain_node_rpc_list()
 
     for (size_t i = 0; i < l_nodes_count; i++) {
         dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
-        if (dap_chain_node_addr_is_blank(&l_node_info->address)){
+        dap_cluster_node_addr_t l_node_addr_local = l_node_info->address;
+        if (dap_chain_node_addr_is_blank(&l_node_addr_local)){
             log_it(L_ERROR, "Node address is empty");
             continue;
         }

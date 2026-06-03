@@ -39,7 +39,7 @@
 #include "dap_chain_type_blocks.h" // For block-specific functions
 // REMOVED: #include "dap_chain_cs_esbocs.h" - TODO: resolve esbocs dependency
 #include "dap_chain_net_utils.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_node_sync_client.h"
 #include "dap_chain_net_ch_pkt.h"
 #include "dap_json_rpc_errors.h"
@@ -1812,8 +1812,9 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
         return NULL;
     }
 
-    if(dap_chain_net_srv_stake_verify_key_and_node(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr,
-                                                   &l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr)){
+    dap_chain_addr_t l_signing_addr = l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr;
+    dap_chain_node_addr_t l_signer_node_addr = l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr;
+    if(dap_chain_net_srv_stake_verify_key_and_node(&l_signing_addr, &l_signer_node_addr)){
         log_it(L_WARNING, "Key and node verification error");
         return NULL;
     }
@@ -3789,7 +3790,7 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t *a_net, dap_hash_sha
     log_it(L_NOTICE, "Stream connection established");
 
     // Prepare request with random test data
-    randombytes(l_test_data, sizeof(l_test_data));
+    dap_random_bytes(l_test_data, sizeof(l_test_data));
     
     // Build request packet (channel N requires net_id header)
     size_t l_request_size = sizeof(dap_chain_net_ch_pkt_t) + sizeof(l_test_data);
@@ -4535,12 +4536,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, dap_json_t *a_json_arr_rep
             if (l_addr_str) {
                 l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
                 memset(l_node_info, 0, l_info_size);
-                if (dap_chain_node_addr_from_str(&l_node_info->address, l_addr_str)) {
+                dap_cluster_node_addr_t l_parsed_addr = {0};
+                if (dap_chain_node_addr_from_str(&l_parsed_addr, l_addr_str)) {
                     dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NODE_ADDR_ERR,
                                                                 "Can't parse node address %s", l_addr_str);
                     return DAP_CHAIN_NODE_CLI_SRV_STAKE_REWARD_NODE_ADDR_ERR;
                 }
-
+                l_node_info->address = l_parsed_addr;
             }
 
             dap_hash_sha3_256_t l_hash_public_key = {0};

@@ -276,15 +276,15 @@ bool dap_chain_datum_dump_tx_json_old(dap_json_t *a_json_arr_reply,
                     dap_json_object_add_object(json_obj_item, a_version == 1 ? "max price(value)" : "max_price_value", dap_json_object_new_string(l_value_str));
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
-                    dap_chain_node_addr_t *l_signer_node_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
-                    dap_chain_addr_t *l_signing_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
-                    l_hash_tmp = l_signing_addr->data.hash_fast;
+                    dap_chain_node_addr_t l_signer_node_addr = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
+                    dap_chain_addr_t l_signing_addr = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
+                    l_hash_tmp = l_signing_addr.data.hash_fast;
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str_static(&l_hash_tmp)
                             : dap_chain_hash_fast_to_str_static(&l_hash_tmp);
-                    dap_json_object_add_object(json_obj_item, a_version == 1 ? "signing_addr" : "sig_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(l_signing_addr)));
+                    dap_json_object_add_object(json_obj_item, a_version == 1 ? "signing_addr" : "sig_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&l_signing_addr)));
                     dap_json_object_add_object(json_obj_item, a_version == 1 ? "with pkey hash" : "sig_pkey_hash", dap_json_object_new_string(l_hash_str));                    
-                    snprintf(l_tmp_buff, sizeof(l_tmp_buff), ""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(l_signer_node_addr));
+                    snprintf(l_tmp_buff, sizeof(l_tmp_buff), ""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(&l_signer_node_addr));
                     dap_json_object_add_object(json_obj_item, a_version == 1 ? "signer_node_addr" : "sig_node_addr", dap_json_object_new_string(l_tmp_buff));
                     
                 } break;
