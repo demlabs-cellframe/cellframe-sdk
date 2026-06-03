@@ -98,7 +98,7 @@
 #include "dap_stream_ch.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
-#include "rand/dap_rand.h"
+#include "dap_rand.h"
 #include "dap_chain_net_api.h" 
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
@@ -303,7 +303,11 @@ int dap_chain_net_init()
     dap_chain_net_ch_init();
     dap_chain_node_sync_client_init();
     dap_http_ban_list_client_init();
-    dap_link_manager_init(&s_link_manager_callbacks);
+    dap_link_manager_t *l_link_mgr = dap_link_manager_get_default();
+    if (l_link_mgr)
+        l_link_mgr->callbacks = s_link_manager_callbacks;
+    else
+        dap_link_manager_init(&s_link_manager_callbacks);
     dap_chain_node_init();
     
     // NO MORE callback registration - datum_dump_json moved to ledger module
@@ -549,6 +553,8 @@ int s_link_manager_link_request(uint64_t a_net_id)
         l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
     size_t l_required_links_count = dap_link_manager_needed_links_count(l_net->pub.id.uint64);
     for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
+        // Self-address is filtered out at load time in s_net_init(); no
+        // per-iteration skip needed here.
         bool l_is_link_present = dap_link_manager_link_find(&l_net_pvt->permanent_links_addrs[i], a_net_id);
         if (l_is_link_present)
             continue;
@@ -1975,6 +1981,7 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
                 ? (uint16_t)l_chain->default_datum_types[0] : 0;
             dap_ledger_register_chain(a_net->pub.ledger, l_chain->id, l_chain->name, l_primary_type, l_chain);
         }
+        dap_ledger_set_poa_keys(a_net->pub.ledger, a_net->pub.keys, a_net->pub.keys_min_count);
     }
     
     return l_res;
@@ -2032,6 +2039,41 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     }
     if ( !l_net_pvt->seed_nodes_count )
         log_it(L_WARNING, "Can't read seed nodes addresses, work with local balancer only");
+
+    // Strip our own address (and its paired host) from the permanent_links
+    // arrays right after parsing the config. The config naturally lists every
+    // node in the topology, ours included, but dialing self always returns
+    // -3 from dap_chain_net_link_add and used to spam ERROR logs on every
+    // balancer tick. Cleaning the source array once here is cheaper and
+    // semantically correct than spreading "is this self?" checks across
+    // every use site of permanent_links_addrs[].
+    if (l_net_pvt->permanent_links_addrs_count && g_node_addr.uint64) {
+        uint16_t l_kept = 0;
+        bool l_have_hosts = l_net_pvt->permanent_links_hosts_count
+                            == l_net_pvt->permanent_links_addrs_count;
+        for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; ++i) {
+            if (l_net_pvt->permanent_links_addrs[i].uint64 == g_node_addr.uint64) {
+                if (l_have_hosts && l_net_pvt->permanent_links_hosts[i]) {
+                    DAP_DELETE(l_net_pvt->permanent_links_hosts[i]);
+                    l_net_pvt->permanent_links_hosts[i] = NULL;
+                }
+                continue;
+            }
+            if (l_kept != i) {
+                l_net_pvt->permanent_links_addrs[l_kept] = l_net_pvt->permanent_links_addrs[i];
+                if (l_have_hosts)
+                    l_net_pvt->permanent_links_hosts[l_kept] = l_net_pvt->permanent_links_hosts[i];
+            }
+            ++l_kept;
+        }
+        if (l_kept != l_net_pvt->permanent_links_addrs_count) {
+            log_it(L_INFO, "Stripped self address from permanent_links_addrs (was %u, now %u)",
+                            l_net_pvt->permanent_links_addrs_count, l_kept);
+            l_net_pvt->permanent_links_addrs_count = l_kept;
+            if (l_have_hosts)
+                l_net_pvt->permanent_links_hosts_count = l_kept;
+        }
+    }
 
     if ( dap_server_enabled() && ( l_net_pvt->node_info->ext_port = dap_config_get_item_uint16(g_config, "server", "ext_port") ))
         log_it(L_INFO, "Set external port %u for adding in node list", l_net_pvt->node_info->ext_port);
@@ -3318,6 +3360,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
         uint16_t l_permalink_hosts_count = 0;
         dap_config_get_array_str(a_net->pub.config, "general", "permanent_nodes_hosts", &l_permalink_hosts_count);
         for (uint16_t i = 0; i < PVT(a_net)->permanent_links_addrs_count; ++i) {
+            // Self-address is filtered out at load time in s_net_init().
             if (dap_chain_net_link_add(a_net, PVT(a_net)->permanent_links_addrs + i,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->addr : NULL,
                 i < PVT(a_net)->permanent_links_hosts_count ? (PVT(a_net)->permanent_links_hosts[i])->port : 0)

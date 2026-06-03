@@ -11,13 +11,35 @@ add_executable(${PROJECT_NAME}
 
 # No explicit includes needed - all propagate via linked modules
 
-# Link modules - includes propagate automatically
-target_link_libraries(${PROJECT_NAME}
-    dap_test          # Test framework
-    dap_sdk           # DAP SDK
-    cellframe_sdk     # Cellframe SDK (provides ledger/chain headers)
-    dap_chain_ledger  # Ledger module (for implementation, headers from cellframe_sdk)
-)
+# On macOS, real symbols come from cellframe_sdk (shared, -flat_namespace -interposable)
+# and mock_interpose.c overrides them.  We must NOT link the mocked OBJECT library
+# directly (duplicate symbols), but we still need its transitive include dirs.
+if(APPLE)
+    target_link_libraries(${PROJECT_NAME}
+        dap_test          # Test framework
+        dap_sdk           # DAP SDK
+        cellframe_sdk     # Cellframe SDK (shared lib provides all implementations)
+    )
+    foreach(_mod dap_chain_ledger dap_chain_datum dap_chain_tx_compose)
+        if(TARGET ${_mod})
+            get_target_property(_inc ${_mod} INCLUDE_DIRECTORIES)
+            if(_inc)
+                target_include_directories(${PROJECT_NAME} PRIVATE ${_inc})
+            endif()
+            get_target_property(_iinc ${_mod} INTERFACE_INCLUDE_DIRECTORIES)
+            if(_iinc)
+                target_include_directories(${PROJECT_NAME} PRIVATE ${_iinc})
+            endif()
+        endif()
+    endforeach()
+else()
+    target_link_libraries(${PROJECT_NAME}
+        dap_test          # Test framework
+        dap_sdk           # DAP SDK
+        cellframe_sdk     # Cellframe SDK (provides ledger/chain headers)
+        dap_chain_ledger  # Ledger module (for --wrap to intercept)
+    )
+endif()
 
 # Set additional includes for custom mock generation
 set(ENV{DAP_MOCK_ADDITIONAL_INCLUDES} "#include \"dap_hash.h\"\n#include \"dap_chain_common.h\"\n#include \"dap_chain_datum.h\"\n#include \"dap_chain_datum_tx.h\"\n#include \"dap_chain_ledger.h\"")

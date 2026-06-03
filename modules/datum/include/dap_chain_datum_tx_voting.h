@@ -53,12 +53,14 @@ typedef struct dap_chain_tx_voting_tx_cond {
     dap_hash_sha3_256_t tx_hash;
     int out_idx;
 } DAP_ALIGN_PACKED dap_chain_tx_voting_tx_cond_t;
+_Static_assert(sizeof(dap_chain_tx_voting_tx_cond_t) == 32u + 4u, "dap_chain_tx_voting_tx_cond_t wire size");
 
 typedef struct dap_chain_tx_vote {
     dap_chain_tx_item_type_t type;
     dap_hash_sha3_256_t voting_hash;
     uint64_t answer_idx;
 } DAP_ALIGN_PACKED dap_chain_tx_vote_t;
+_Static_assert(sizeof(dap_chain_tx_vote_t) == 1u + 32u + 8u, "dap_chain_tx_vote_t wire size");
 
 typedef struct dap_chain_datum_tx_voting_params {
     char       *question;

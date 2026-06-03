@@ -39,7 +39,8 @@
 #include "dap_timerfd.h"
 #include "dap_client.h"
 #include "dap_client_fsm.h"
-#include "dap_client_esocket.h"
+#include "dap_net_trans_ctx.h"
+#include "dap_stream.h"
 #include "dap_stream_worker.h"
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
@@ -159,12 +160,12 @@ static void s_add_channel_notifiers(dap_chain_node_sync_client_t *a_sync_client)
     if (!a_sync_client || !a_sync_client->client || !a_sync_client->client->active_channels)
         return;
     
-    dap_cluster_node_addr_t *l_addr = (dap_cluster_node_addr_t *)&a_sync_client->node_info->address;
+    dap_cluster_node_addr_t l_addr = a_sync_client->node_info->address;
     const char *l_channels = a_sync_client->client->active_channels;
     
     for (size_t i = 0; l_channels[i]; i++) {
         uint8_t l_ch_id = l_channels[i];
-        int l_ret = dap_stream_ch_add_notifier(l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
+        int l_ret = dap_stream_ch_add_notifier(&l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
                                                s_universal_packet_in_callback, a_sync_client);
         if (l_ret == 0)
             log_it(L_DEBUG, "Added sync notifier for channel '%c'", l_ch_id);
@@ -181,12 +182,12 @@ static void s_del_channel_notifiers(dap_chain_node_sync_client_t *a_sync_client)
     if (!a_sync_client || !a_sync_client->client || !a_sync_client->client->active_channels)
         return;
     
-    dap_cluster_node_addr_t *l_addr = (dap_cluster_node_addr_t *)&a_sync_client->node_info->address;
+    dap_cluster_node_addr_t l_addr = a_sync_client->node_info->address;
     const char *l_channels = a_sync_client->client->active_channels;
     
     for (size_t i = 0; l_channels[i]; i++) {
         uint8_t l_ch_id = l_channels[i];
-        dap_stream_ch_del_notifier(l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
+        dap_stream_ch_del_notifier(&l_addr, l_ch_id, DAP_STREAM_PKT_DIR_IN,
                                    s_universal_packet_in_callback, a_sync_client);
     }
 }
@@ -203,9 +204,12 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     log_it(L_NOTICE, "Sync client connected to %s:%u",
            l_sync_client->node_info->ext_host, l_sync_client->node_info->ext_port);
     
-    dap_client_esocket_t *l_es = DAP_CLIENT_ESOCKET(a_client);
-    l_sync_client->esocket_uuid = l_es && l_es->stream_es ? l_es->stream_es->uuid : 0;
-    l_sync_client->stream_worker = l_es ? l_es->stream_worker : NULL;
+    dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_client);
+    dap_net_trans_ctx_t *l_ntc = l_fsm ? l_fsm->trans_ctx : NULL;
+    dap_stream_t *l_stream = l_ntc ? l_ntc->stream : NULL;
+    dap_events_socket_t *l_stream_es = l_stream ? l_stream->esocket : NULL;
+    l_sync_client->esocket_uuid = l_stream_es ? l_stream_es->uuid : 0;
+    l_sync_client->stream_worker = l_stream ? l_stream->stream_worker : NULL;
     
     // Add universal notifier for all active channels
     s_add_channel_notifiers(l_sync_client);
@@ -224,11 +228,10 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
  */
 static void s_stage_error_callback(dap_client_t *a_client, void *a_arg)
 {
-    dap_chain_node_sync_client_t *l_sync_client = (dap_chain_node_sync_client_t *)a_arg;
+    bool l_is_last_attempt = (bool)(intptr_t)a_arg;
+    dap_chain_node_sync_client_t *l_sync_client = a_client ? a_client->callbacks_arg : NULL;
     if (!l_sync_client)
         return;
-    
-    bool l_is_last_attempt = a_arg ? true : false;
     
     log_it(L_WARNING, "Sync client connection error%s", l_is_last_attempt ? " (last attempt)" : "");
     
@@ -325,8 +328,9 @@ dap_chain_node_sync_client_t *dap_chain_node_sync_client_connect(
         dap_client_set_auth_cert(l_sync_client->client, l_auth_cert_name);
     
     // Setup uplink and start connection
+    dap_cluster_node_addr_t l_uplink_addr = a_node_info->address;
     dap_client_set_uplink_unsafe(l_sync_client->client, 
-                                  &a_node_info->address,
+                                  &l_uplink_addr,
                                   a_node_info->ext_host, 
                                   a_node_info->ext_port);
     
@@ -599,7 +603,6 @@ void dap_chain_node_sync_client_close(dap_chain_node_sync_client_t *a_client)
     }
     pthread_rwlock_unlock(&a_client->requests_lock);
     
-    // Close underlying client
     if (a_client->client)
         dap_client_delete_unsafe(a_client->client);
     

@@ -17,8 +17,71 @@
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_ch_pkt.h"
 #include "dap_chain.h"
+#include "dap_serialize.h"
 
 #define LOG_TAG "dap_chain_ch_pkt"
+
+const dap_serialize_field_t g_dap_chain_ch_pkt_hdr_fields[] = {
+    {
+        .name = "version",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_ch_pkt_hdr_mem_t, version),
+        .size = sizeof(uint8_t),
+    },
+    {
+        .name = "num_hi",
+        .type = DAP_SERIALIZE_TYPE_UINT8,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_ch_pkt_hdr_mem_t, num_hi),
+        .size = sizeof(uint8_t),
+    },
+    {
+        .name = "num_lo",
+        .type = DAP_SERIALIZE_TYPE_UINT16,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_ch_pkt_hdr_mem_t, num_lo),
+        .size = sizeof(uint16_t),
+    },
+    {
+        .name = "data_size",
+        .type = DAP_SERIALIZE_TYPE_UINT32,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_ch_pkt_hdr_mem_t, data_size),
+        .size = sizeof(uint32_t),
+    },
+    {
+        .name = "net_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_ch_pkt_hdr_mem_t, net_id),
+        .size = DAP_CHAIN_NET_ID_SIZE,
+    },
+    {
+        .name = "chain_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_ch_pkt_hdr_mem_t, chain_id),
+        .size = DAP_CHAIN_ID_SIZE,
+    },
+    {
+        .name = "cell_id",
+        .type = DAP_SERIALIZE_TYPE_BYTES_FIXED,
+        .flags = DAP_SERIALIZE_FLAG_NONE,
+        .offset = offsetof(dap_chain_ch_pkt_hdr_mem_t, cell_id),
+        .size = DAP_CHAIN_SHARD_ID_SIZE,
+    },
+};
+
+const dap_serialize_schema_t g_dap_chain_ch_pkt_hdr_schema = {
+    .name = "chain_ch_pkt_hdr",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_ch_pkt_hdr_mem_t),
+    .field_count = sizeof(g_dap_chain_ch_pkt_hdr_fields) / sizeof(g_dap_chain_ch_pkt_hdr_fields[0]),
+    .fields = g_dap_chain_ch_pkt_hdr_fields,
+    .magic = DAP_CHAIN_CH_PKT_HDR_MAGIC,
+    .validate_func = NULL,
+};
 
 static void s_chain_pkt_fill(dap_chain_ch_pkt_t *a_pkt, dap_chain_net_id_t a_net_id,
                              dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id,

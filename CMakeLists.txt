@@ -236,9 +236,12 @@ set(CELLFRAME_LIBS "")
 if (CELLFRAME_MODULES MATCHES "core")
     message("[+] Module 'core'")
     if(DAP_WASM)
-        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto m)
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto)
     else()
-        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_plugin dap_crypto m)
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_plugin dap_crypto)
+    endif()
+    if(NOT APPLE)
+        list(APPEND CELLFRAME_LIBS m)
     endif()
 endif()
 
@@ -261,7 +264,7 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_decree dap_chain_net_srv dap_chain_mempool)
+        dap_stream dap_client dap_cli_server dap_chain_net dap_chain_net_decree dap_chain_net_srv dap_chain_mempool)
         # REMOVED: dap_chain_node_cli_cmd - module was refactored and split
         # dap_chain_net_decree - network decree handlers
 endif()
@@ -271,7 +274,7 @@ if (CELLFRAME_MODULES MATCHES "compose")
     message("[+] Module 'compose'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
         # REMOVED: dap_compose - module was replaced with dap_chain_tx_compose
-        dap_stream dap_stream_ch dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
+        dap_stream dap_client dap_cli_server dap_chain_net dap_chain_net_srv dap_chain_mempool)
 endif()
 
 # Chain net services
@@ -435,6 +438,14 @@ post_process_object_libraries()
 
 # Combine all internal static modules into one final library
 cellframe_create_final_library()
+
+# Make cellframe-sdk.h available to consumers
+if(TARGET cellframe_sdk)
+    target_include_directories(cellframe_sdk PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+if(TARGET cellframe_sdk_static)
+    target_include_directories(cellframe_sdk_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
 
 # =========================================
 # INSTALL TARGETS
