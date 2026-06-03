@@ -1333,6 +1333,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     }
     const char *l_add_sign = NULL;
     dap_chain_addr_t *l_addr = NULL;
+    bool l_addr_allocated = false;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "sign", &l_add_sign);
     if (!l_add_sign) {      //Create the emission
         // Emission value
@@ -1362,6 +1363,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         }
 
         l_addr = dap_chain_addr_from_str(l_addr_str);
+        l_addr_allocated = (l_addr != NULL);
 
         if(!l_addr) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_ADDR_INVALID_ERR,
@@ -1488,13 +1490,13 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     }
     DAP_DEL_Z(l_emission_hash_str);
     dap_json_array_add(a_json_arr_reply, json_obj_out);
-    if (l_addr)
+    if (l_addr_allocated)
         return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
     return DAP_DEL_MULTY(l_certs, l_str_reply_tmp), 0;
 
 RET_CLEANUP:
     dap_json_object_free(json_obj_out);
-    if (l_addr)
+    if (l_addr_allocated)
         DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr);
     else
         DAP_DEL_MULTY(l_certs, l_str_reply_tmp);
