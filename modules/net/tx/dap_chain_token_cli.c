@@ -1488,11 +1488,16 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     }
     DAP_DEL_Z(l_emission_hash_str);
     dap_json_array_add(a_json_arr_reply, json_obj_out);
-    return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
+    if (l_addr)
+        return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
+    return DAP_DEL_MULTY(l_certs, l_str_reply_tmp), 0;
 
 RET_CLEANUP:
     dap_json_object_free(json_obj_out);
-    DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr);
+    if (l_addr)
+        DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr);
+    else
+        DAP_DEL_MULTY(l_certs, l_str_reply_tmp);
     return l_ret;
 }
 
