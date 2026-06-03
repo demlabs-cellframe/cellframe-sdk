@@ -35,6 +35,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 #ifdef DAP_OS_UNIX
 #include <sys/uio.h>
 #endif
