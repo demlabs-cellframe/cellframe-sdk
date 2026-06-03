@@ -55,6 +55,7 @@
 #include "dap_chain_wallet.h"
 // REMOVED: #include "dap_chain_wallet_tx.h" - moved to net/tx/ module
 #include "dap_chain_wallet_internal.h"
+#include "dap_serialize.h"
 // REMOVED: #include "dap_chain_wallet_shared.h" - moved to wallet-shared module
 // REMOVED: #include "dap_chain_wallet_cache.h" - moved to wallet-cache module
 #include "crc32c_adler.h"
@@ -1485,3 +1486,19 @@ char *dap_chain_wallet_get_pkey_str(dap_chain_wallet_t *a_wallet, const char *a_
     DAP_DELETE(l_pkey);
     return l_ret;
 }
+
+const dap_serialize_field_t g_dap_chain_wallet_file_hdr_fixed_fields[] = {
+    { .name = "fixed", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_wallet_file_hdr_fixed_mem_t, bytes), .size = DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE },
+};
+
+const dap_serialize_schema_t g_dap_chain_wallet_file_hdr_fixed_schema = {
+    .name = "chain_wallet_file_hdr_fixed",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_wallet_file_hdr_fixed_mem_t),
+    .field_count = sizeof(g_dap_chain_wallet_file_hdr_fixed_fields) /
+                   sizeof(g_dap_chain_wallet_file_hdr_fixed_fields[0]),
+    .fields = g_dap_chain_wallet_file_hdr_fixed_fields,
+    .magic = DAP_CHAIN_WALLET_FILE_HDR_FIXED_MAGIC,
+    .validate_func = NULL,
+};

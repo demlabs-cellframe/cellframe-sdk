@@ -24,7 +24,9 @@
 
 #include <strings.h>
 
+#include <stddef.h>
 #include "dap_chain_net_srv_order.h"
+#include "dap_serialize.h"
 #include "dap_hash.h"
 #include "dap_enc_base58.h"
 #include "dap_enc_base64.h"
@@ -658,3 +660,46 @@ void dap_chain_net_srv_order_dump_to_json(const dap_chain_net_srv_order_t *a_ord
         dap_json_object_add_string(a_json_obj_out, "pkey", l_sign_pkey_hash_str);
     }
 }
+
+const dap_serialize_field_t g_dap_chain_net_srv_order_fixed_fields[] = {
+    { .name = "version", .type = DAP_SERIALIZE_TYPE_UINT16, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, version), .size = sizeof(uint16_t) },
+    { .name = "srv_uid", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, srv_uid), .size = DAP_CHAIN_NET_SRV_UID_SIZE },
+    { .name = "padding", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, padding), .size = sizeof(((dap_chain_net_srv_order_fixed_mem_t *)0)->padding) },
+    { .name = "direction", .type = DAP_SERIALIZE_TYPE_UINT8, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, direction), .size = sizeof(uint8_t) },
+    { .name = "padding_dir", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, padding_dir), .size = sizeof(((dap_chain_net_srv_order_fixed_mem_t *)0)->padding_dir) },
+    { .name = "node_addr", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, node_addr), .size = sizeof(((dap_chain_net_srv_order_fixed_mem_t *)0)->node_addr) },
+    { .name = "tx_cond_hash", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, tx_cond_hash), .size = DAP_HASH_SHA3_256_SIZE },
+    { .name = "price_unit", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, price_unit), .size = sizeof(dap_chain_net_srv_price_unit_uid_t) },
+    { .name = "ts_created", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, ts_created), .size = sizeof(dap_time_t) },
+    { .name = "ts_expires", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, ts_expires), .size = sizeof(dap_time_t) },
+    { .name = "price", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, price), .size = sizeof(((dap_chain_net_srv_order_fixed_mem_t *)0)->price) },
+    { .name = "price_ticker", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, price_ticker), .size = DAP_CHAIN_TICKER_SIZE_MAX },
+    { .name = "ext_size", .type = DAP_SERIALIZE_TYPE_UINT32, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, ext_size), .size = sizeof(uint32_t) },
+    { .name = "units", .type = DAP_SERIALIZE_TYPE_UINT64, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, units), .size = sizeof(uint64_t) },
+    { .name = "free_space", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_net_srv_order_fixed_mem_t, free_space), .size = sizeof(((dap_chain_net_srv_order_fixed_mem_t *)0)->free_space) },
+};
+
+const dap_serialize_schema_t g_dap_chain_net_srv_order_fixed_schema = {
+    .name = "chain_net_srv_order_fixed",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_net_srv_order_fixed_mem_t),
+    .field_count = sizeof(g_dap_chain_net_srv_order_fixed_fields) / sizeof(g_dap_chain_net_srv_order_fixed_fields[0]),
+    .fields = g_dap_chain_net_srv_order_fixed_fields,
+    .magic = DAP_CHAIN_NET_SRV_ORDER_FIXED_MAGIC,
+    .validate_func = NULL,
+};

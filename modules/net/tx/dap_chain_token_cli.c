@@ -153,6 +153,16 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
     size_t l_tsd_size = 0;
     switch (l_datum_token->subtype) {
     case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+        switch (l_datum_token->type) {
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
+            l_tsd_size = l_datum_token->header_private_decl.tsd_total_size;
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+            l_tsd_size = l_datum_token->header_private_update.tsd_total_size;
+            break;
+        default: break;
+        }
+        break;
     case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
         switch (l_datum_token->type) {
         case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
@@ -163,6 +173,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
             break;
         default: break;
         }
+        break;
     default: break;
     }
     uint16_t l_tmp_cert_sign_count = l_datum_token->signs_total;
@@ -1276,8 +1287,7 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     dap_chain_net_t * l_net = NULL;
     
     dap_json_t *json_obj_out = dap_json_object_new();
-    dap_json_object_add_bool(json_obj_out, "status_placed", false);
-    dap_json_array_add(a_json_arr_reply, json_obj_out);
+    int l_ret = 0;
 
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -1286,12 +1296,14 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_H_PARAM_ERR,
                                    "invalid parameter -H, valid values: -H <hex | base58>");
-        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_H_PARAM_ERR;
+        l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_H_PARAM_ERR;
+        goto RET_CLEANUP;
     }
 
     s_parse_net_chain_args(a_json_arr_reply, &arg_index,a_argc,a_argv,NULL, &l_net, CHAIN_TYPE_INVALID);
     if( ! l_net) { // Can't find such network
-        return -43;
+        l_ret = -43;
+        goto RET_CLEANUP;
     }
     // Token emission
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-emission", &l_emission_hash_str);
@@ -1308,14 +1320,16 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     if(!l_certs_str) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CERTS,
                                    "token_emit requires parameter '-certs'");
-        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CERTS;
+        l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CERTS;
+        goto RET_CLEANUP;
     }
     dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_size);
 
     if(!l_certs_size) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_NOT_VALID_CERT_ERRS,
                                    "token_emit command requres at least one valid certificate to sign the basic transaction of emission");
-        return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_NOT_VALID_CERT_ERRS;
+        l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_NOT_VALID_CERT_ERRS;
+        goto RET_CLEANUP;
     }
     const char *l_add_sign = NULL;
     dap_chain_addr_t *l_addr = NULL;
@@ -1329,19 +1343,22 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         if (IS_ZERO_256(l_emission_value)) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_EMISSION_VAL,
                                    "token_emit requires parameter '-emission_value'");
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_EMISSION_VAL;
+            l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_EMISSION_VAL;
+            goto RET_CLEANUP;
         }
 
         if(!l_addr_str) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_ADDR,
                                    "token_emit requires parameter '-addr'");
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_ADDR;
+            l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_ADDR;
+            goto RET_CLEANUP;
         }
 
         if(!l_ticker) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_TOKEN,
                                    "token_emit requires parameter '-token'");
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_TOKEN;
+            l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_TOKEN;
+            goto RET_CLEANUP;
         }
 
         l_addr = dap_chain_addr_from_str(l_addr_str);
@@ -1349,7 +1366,8 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         if(!l_addr) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_ADDR_INVALID_ERR,
                                    "address \"%s\" is invalid", l_addr_str);
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_ADDR_INVALID_ERR;
+            l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_ADDR_INVALID_ERR;
+            goto RET_CLEANUP;
         }
 
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_emission", &l_chain_emission_str);
@@ -1362,7 +1380,8 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CHAIN_EMISSION,
                                    "token_emit requires parameter '-chain_emission' to be valid chain name in chain net %s"
                                    "or set default datum type in chain configuration file", l_net->pub.name);
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CHAIN_EMISSION;
+            l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CHAIN_EMISSION;
+            goto RET_CLEANUP;
         }
     } else {
         if (l_emission_hash_str) {
@@ -1392,12 +1411,14 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_CANT_FIND_EMI_ERR,
                                    "Can't find emission with hash \"%s\" for token %s on network %s",
                                                   l_emission_hash_str, l_ticker, l_net->pub.name);
-                return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_CANT_FIND_EMI_ERR;
+                l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_CANT_FIND_EMI_ERR;
+                goto RET_CLEANUP;
             }
         } else {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_EMISSION,
                                    "Subcommand 'sign' recuires parameter '-emission'");
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_EMISSION;
+            l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_EMISSION;
+            goto RET_CLEANUP;
         }
     }
 
@@ -1409,25 +1430,24 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
                                                            " and network ID=0x%"DAP_UINT64_FORMAT_x" is not equal."
                                                            " Please, change network name or wallet address",
                                                            l_addr->net_id.uint64, l_net->pub.id.uint64);
-            DAP_DEL_Z(l_addr);
-            DAP_DEL_Z(l_emission);
-            return -3;
+            l_ret = -3;
+            goto RET_CLEANUP;
         }
 
         if(!l_ticker) {
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_TOKEN,
                                    "token_emit requires parameter '-token'");
-            DAP_DEL_Z(l_addr);
-            return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_TOKEN;
+            l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_TOKEN;
+            goto RET_CLEANUP;
         }
 
         if (!l_chain_emission) {
             if ( (l_chain_emission = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_EMISSION)) == NULL ) {
-                DAP_DEL_Z(l_addr);
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CHAIN_EMISSION,
                     "token_create requires parameter '-chain_emission' to be valid chain name in chain net %s or set default datum type in chain configuration file",
                          l_net->pub.name);
-                return -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CHAIN_EMISSION;
+                l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_REQUIRES_PARAMETER_CHAIN_EMISSION;
+                goto RET_CLEANUP;
             }
         }
         // Create emission datum
@@ -1467,7 +1487,13 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         dap_json_object_add_string(json_obj_out, "new_hash", l_emission_hash_str);
     }
     DAP_DEL_Z(l_emission_hash_str);
+    dap_json_array_add(a_json_arr_reply, json_obj_out);
     return DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr), 0;
+
+RET_CLEANUP:
+    dap_json_object_free(json_obj_out);
+    DAP_DEL_MULTY(l_certs, l_str_reply_tmp, l_addr);
+    return l_ret;
 }
 
 // Chain CA commands

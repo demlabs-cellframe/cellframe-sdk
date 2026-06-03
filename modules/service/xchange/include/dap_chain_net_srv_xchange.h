@@ -51,6 +51,8 @@ typedef struct dap_srv_xchange_order_ext {
     uint256_t datoshi_buy;
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
 } DAP_ALIGN_PACKED dap_srv_xchange_order_ext_t;
+_Static_assert(sizeof(dap_srv_xchange_order_ext_t) == 8u + 32u + DAP_CHAIN_TICKER_SIZE_MAX,
+               "dap_srv_xchange_order_ext_t wire size");
 
 extern const dap_chain_srv_uid_t c_dap_chain_net_srv_xchange_uid;
 

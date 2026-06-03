@@ -1924,12 +1924,12 @@ int dap_chain_net_tx_to_json(dap_chain_datum_tx_t *a_tx, dap_json_t *a_out_json)
                     dap_json_object_add_object(json_obj_item,"value_max_per_unit", dap_json_object_new_string(l_value_str));
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
-                    dap_chain_node_addr_t *l_signer_node_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
-                    dap_chain_addr_t *l_signing_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
-                    l_hash_tmp = l_signing_addr->data.hash_fast;
+                    dap_chain_node_addr_t l_signer_node_addr = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
+                    dap_chain_addr_t l_signing_addr = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
+                    l_hash_tmp = l_signing_addr.data.hash_fast;
                     l_hash_str = dap_hash_sha3_256_to_str_static(&l_hash_tmp);
-                    dap_json_object_add_object(json_obj_item,"signing_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(l_signing_addr)));
-                    sprintf(l_tmp_buff,""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(l_signer_node_addr));
+                    dap_json_object_add_object(json_obj_item,"signing_addr", dap_json_object_new_string(dap_chain_addr_to_str_static(&l_signing_addr)));
+                    sprintf(l_tmp_buff,""NODE_ADDR_FP_STR"",NODE_ADDR_FP_ARGS(&l_signer_node_addr));
                     dap_json_object_add_object(json_obj_item,"signer_node_addr", dap_json_object_new_string(l_tmp_buff));
                     dap_json_object_add_object(json_obj_item,"subtype", dap_json_object_new_string("srv_stake_pos_delegate"));
                 } break;

@@ -32,6 +32,7 @@
 #include <string.h>
 
 #include "dap_common.h"
+#include "dap_serialize.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_net_srv.h"
@@ -2927,3 +2928,45 @@ byte_t *dap_chain_srv_stake_ext_ended_tx_event_create(size_t *a_data_size, dap_t
 
     return (byte_t *)l_data;
 }
+
+const dap_serialize_field_t g_dap_chain_tx_event_data_stake_ext_started_fixed_fields[] = {
+    { .name = "multiplier", .type = DAP_SERIALIZE_TYPE_UINT32, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_tx_event_data_stake_ext_started_fixed_mem_t, multiplier), .size = sizeof(uint32_t) },
+    { .name = "duration", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_tx_event_data_stake_ext_started_fixed_mem_t, duration), .size = sizeof(dap_time_t) },
+    { .name = "time_unit", .type = DAP_SERIALIZE_TYPE_UINT8, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_tx_event_data_stake_ext_started_fixed_mem_t, time_unit), .size = sizeof(uint8_t) },
+    { .name = "calculation_rule_id", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_tx_event_data_stake_ext_started_fixed_mem_t, calculation_rule_id), .size = sizeof(uint32_t) },
+    { .name = "total_positions", .type = DAP_SERIALIZE_TYPE_UINT8, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_tx_event_data_stake_ext_started_fixed_mem_t, total_positions), .size = sizeof(uint8_t) },
+};
+
+const dap_serialize_schema_t g_dap_chain_tx_event_data_stake_ext_started_fixed_schema = {
+    .name = "chain_tx_event_data_stake_ext_started_fixed",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_event_data_stake_ext_started_fixed_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_event_data_stake_ext_started_fixed_fields) /
+                   sizeof(g_dap_chain_tx_event_data_stake_ext_started_fixed_fields[0]),
+    .fields = g_dap_chain_tx_event_data_stake_ext_started_fixed_fields,
+    .magic = DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_STARTED_FIXED_MAGIC,
+    .validate_func = NULL,
+};
+
+const dap_serialize_field_t g_dap_chain_tx_event_data_stake_ext_ended_fixed_fields[] = {
+    { .name = "end_time", .type = DAP_SERIALIZE_TYPE_BYTES_FIXED, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t, end_time), .size = sizeof(dap_time_t) },
+    { .name = "winners_cnt", .type = DAP_SERIALIZE_TYPE_UINT8, .flags = DAP_SERIALIZE_FLAG_NONE,
+      .offset = offsetof(dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t, winners_cnt), .size = sizeof(uint8_t) },
+};
+
+const dap_serialize_schema_t g_dap_chain_tx_event_data_stake_ext_ended_fixed_schema = {
+    .name = "chain_tx_event_data_stake_ext_ended_fixed",
+    .version = 1,
+    .struct_size = sizeof(dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t),
+    .field_count = sizeof(g_dap_chain_tx_event_data_stake_ext_ended_fixed_fields) /
+                   sizeof(g_dap_chain_tx_event_data_stake_ext_ended_fixed_fields[0]),
+    .fields = g_dap_chain_tx_event_data_stake_ext_ended_fixed_fields,
+    .magic = DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_ENDED_FIXED_MAGIC,
+    .validate_func = NULL,
+};

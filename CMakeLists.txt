@@ -443,6 +443,9 @@ cellframe_create_final_library()
 if(TARGET cellframe_sdk)
     target_include_directories(cellframe_sdk PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
+if(TARGET cellframe_sdk_static)
+    target_include_directories(cellframe_sdk_static PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
 
 # =========================================
 # INSTALL TARGETS
