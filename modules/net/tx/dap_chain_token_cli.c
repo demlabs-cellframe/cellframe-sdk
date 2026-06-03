@@ -1288,6 +1288,9 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     
     dap_json_t *json_obj_out = dap_json_object_new();
     int l_ret = 0;
+    const char *l_add_sign = NULL;
+    dap_chain_addr_t *l_addr = NULL;
+    bool l_addr_allocated = false;
 
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -1331,9 +1334,6 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
         l_ret = -DAP_CHAIN_NODE_CLI_COM_TOKEN_EMIT_NOT_VALID_CERT_ERRS;
         goto RET_CLEANUP;
     }
-    const char *l_add_sign = NULL;
-    dap_chain_addr_t *l_addr = NULL;
-    bool l_addr_allocated = false;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "sign", &l_add_sign);
     if (!l_add_sign) {      //Create the emission
         // Emission value
