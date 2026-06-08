@@ -268,7 +268,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
             l_net ? l_net->pub.name : "unknown", a_chain->name);
         log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, ret, l_gdb_group);
     } else
-        log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, ret, l_gdb_group);
+        log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, l_key_str, l_gdb_group);
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_key_str);
     return ret;
