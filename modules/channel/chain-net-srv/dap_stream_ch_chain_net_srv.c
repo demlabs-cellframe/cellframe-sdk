@@ -463,13 +463,17 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     log_it(L_DEBUG, "Got service request from user %s", dap_chain_hash_fast_to_str_static(&a_request->hdr.client_pkey_hash));
 
     if (dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
-        log_it( L_ERROR, "No order hash in request.");
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
-            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-        return false;
+        if (l_srv && l_srv->allow_free_srv) {
+            log_it(L_INFO, "No order hash in request, but allow_free_srv=true — continuing as free service");
+        } else {
+            log_it( L_ERROR, "No order hash in request.");
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
+            if(a_ch)
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv && l_srv->callbacks.response_error)
+                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+            return false;
+        }
     }
 
     char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
@@ -487,18 +491,26 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         return false;
     }
 
-    bool l_check_role = dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER;  // check role
-    if ( ! l_srv || l_check_role) // Service not found
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NODE_ROLE_ERROR;
+    if (!l_srv) {
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+    } else if (l_srv->decree_disabled) {
+        log_it(L_WARNING, "Service uid=0x%016"DAP_UINT64_FORMAT_x" is disabled by decree in net %s",
+               l_srv->uid.uint64, l_net->pub.name);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_DISABLED;
+    } else if (l_srv->allowed_roles_mask) {
+        dap_chain_node_role_t l_cur_role = dap_chain_net_get_role(l_net);
+        dap_chain_node_role_mask_t l_cur_bit = dap_chain_node_role_to_bit(l_cur_role);
+        if (!(l_srv->allowed_roles_mask & l_cur_bit)) {
+            log_it(L_ERROR, "Service uid=0x%016"DAP_UINT64_FORMAT_x": node role %s (bit 0x%02x) not in allowed mask 0x%02x for net %s",
+                   l_srv->uid.uint64, dap_chain_node_role_to_str(l_cur_role),
+                   (unsigned)l_cur_bit, (unsigned)l_srv->allowed_roles_mask, l_net->pub.name);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NODE_ROLE_ERROR;
+        }
+    }
 
-    if ( l_err.code || !l_srv_session){
-        debug_if(
-            l_check_role, L_ERROR,
-            "You can't provide service with ID %" DAP_UINT64_FORMAT_U " in net %s. Node role should be not lower than master\n", l_srv ?
-            l_srv->uid.uint64 : 0, l_net->pub.name
-            );
+    if (l_err.code || !l_srv_session) {
         if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
         if (l_srv && l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         return false;
@@ -542,22 +554,58 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     l_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE;
     l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE;
 
-    dap_chain_net_srv_price_t * l_price = NULL;
-    bool l_specific_order_free = false;
-    l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
-    if (!l_price){
-        log_it(L_ERROR, "Can't get price from order!");
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_ERROR;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
-            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-        DAP_DEL_Z(l_usage->client);
-        DAP_DEL_Z(l_usage);
-        return false;
+    /* --- Client pkey whitelist check (optional, configured per service) --- */
+    if (l_srv->allowed_client_pkeys && l_srv->allowed_client_pkeys_count > 0) {
+        bool l_allowed = false;
+        for (size_t i = 0; i < l_srv->allowed_client_pkeys_count; i++) {
+            if (memcmp(&l_srv->allowed_client_pkeys[i], &l_usage->client_pkey_hash,
+                       sizeof(dap_chain_hash_fast_t)) == 0) {
+                l_allowed = true;
+                break;
+            }
+        }
+        if (!l_allowed) {
+            log_it(L_WARNING, "Service uid=0x%016"DAP_UINT64_FORMAT_x": client pkey_hash %s"
+                   " is not in the allowed_client_pkeys whitelist, rejecting",
+                   l_srv->uid.uint64,
+                   dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash));
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+            if (a_ch)
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR,
+                                               &l_err, sizeof(l_err));
+            if (l_srv->callbacks.response_error)
+                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+            DAP_DEL_Z(l_usage->client);
+            DAP_DEL_Z(l_usage);
+            return false;
+        }
+        log_it(L_NOTICE, "Service uid=0x%016"DAP_UINT64_FORMAT_x": client pkey_hash %s"
+               " is in whitelist, allowing",
+               l_srv->uid.uint64,
+               dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash));
     }
 
-    if (IS_ZERO_256(l_price->value_datoshi)){
+    dap_chain_net_srv_price_t * l_price = NULL;
+    bool l_specific_order_free = false;
+    /* When allow_free_srv=true and no order hash provided, skip price lookup entirely */
+    if (l_srv->allow_free_srv && dap_hash_fast_is_blank(&a_request->hdr.order_hash)) {
+        l_specific_order_free = true;
+    } else {
+        l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
+        if (!l_price){
+            log_it(L_ERROR, "Can't get price from order!");
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_ERROR;
+            if(a_ch)
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv && l_srv->callbacks.response_error)
+                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+            DAP_DEL_Z(l_usage->client);
+            DAP_DEL_Z(l_usage);
+            return false;
+        }
+    }
+
+    if (l_price && IS_ZERO_256(l_price->value_datoshi)){
         l_specific_order_free = true;
     }
 

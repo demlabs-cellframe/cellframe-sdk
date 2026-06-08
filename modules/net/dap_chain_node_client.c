@@ -48,6 +48,8 @@
 #include "uthash.h"
 
 #include "dap_common.h"
+#include "dap_enc_key.h"
+#include "dap_client_fsm.h"
 #include "dap_client.h"
 #include "dap_config.h"
 #include "dap_events.h"
@@ -294,7 +296,11 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
  * @return true
  * @return false
  */
-bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
+static bool s_node_client_connect_impl(dap_chain_node_client_t *a_node_client,
+                                       const char *a_active_channels,
+                                       dap_enc_key_t *a_resume_session_key,
+                                       const char *a_resume_session_key_id,
+                                       uint32_t a_resume_protocol_version)
 {
     if (!a_node_client)
         return false;
@@ -308,17 +314,58 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
             dap_client_set_auth_cert(a_node_client->client, l_auth_cert_name);
     }
     char *l_host_addr = a_node_client->info->ext_host;
-    
+
     if ( !*l_host_addr || !strcmp(l_host_addr, "::") || !a_node_client->info->ext_port ) {
         return log_it(L_WARNING, "Node client address undefined"), false;
+    }
+
+    if (a_resume_session_key) {
+        dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_node_client->client);
+        dap_net_trans_ctx_t *l_tc = l_fsm ? l_fsm->trans_ctx : NULL;
+        if (!l_tc) {
+            log_it(L_ERROR, "Session resume: no trans_ctx on new client");
+            return false;
+        }
+        if (l_tc->session_key)
+            dap_enc_key_delete(l_tc->session_key);
+        l_tc->session_key = dap_enc_key_dup(a_resume_session_key);
+        if (!l_tc->session_key) {
+            log_it(L_ERROR, "Session resume: failed to dup session_key");
+            return false;
+        }
+        DAP_DEL_Z(l_tc->session_key_id);
+        if (a_resume_session_key_id && a_resume_session_key_id[0])
+            l_tc->session_key_id = dap_strdup(a_resume_session_key_id);
+        if (a_resume_protocol_version)
+            l_tc->uplink_protocol_version = a_resume_protocol_version;
+        a_node_client->client->session_resume_mode = true;
+        log_it(L_NOTICE, "Session resume: connecting with existing session_key (proto=%u)",
+               a_resume_protocol_version);
     }
 
     log_it(L_INFO, "Connecting to addr %s : %d", l_host_addr, a_node_client->info->ext_port);
     dap_client_set_uplink_unsafe(a_node_client->client, &a_node_client->info->address, l_host_addr, a_node_client->info->ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
-    // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
     return true;
+}
+
+bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
+{
+    return s_node_client_connect_impl(a_node_client, a_active_channels, NULL, NULL, 0);
+}
+
+bool dap_chain_node_client_connect_resume(dap_chain_node_client_t *a_node_client,
+                                          const char *a_active_channels,
+                                          dap_enc_key_t *a_resume_session_key,
+                                          const char *a_resume_session_key_id,
+                                          uint32_t a_resume_protocol_version)
+{
+    if (!a_resume_session_key)
+        return dap_chain_node_client_connect(a_node_client, a_active_channels);
+    return s_node_client_connect_impl(a_node_client, a_active_channels,
+                                      a_resume_session_key, a_resume_session_key_id,
+                                      a_resume_protocol_version);
 }
 
 /**

@@ -26,11 +26,13 @@
 #include "dap_common.h"
 #include "dap_sign.h"
 #include "dap_pkey.h"
+#include "dap_tsd.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_decree.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_policy.h"
@@ -213,7 +215,8 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
         l_ret = s_common_decree_handler(a_decree, a_net, false, a_anchored);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
-    break;
+        l_ret = s_service_decree_handler(a_decree, a_net, false);
+        break;
     default:
         log_it(L_WARNING, "Decree type is undefined!");
         l_ret = -100;
@@ -289,6 +292,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, a_anchored);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
+        ret_val = s_service_decree_handler(l_new_decree->decree, l_net, true);
         break;
     default:
         log_it(L_WARNING,"Decree type is undefined!");
@@ -719,5 +723,56 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             return -1;
     }
 
+    return 0;
+}
+
+static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply)
+{
+    dap_return_val_if_fail(a_decree && a_net, -112);
+
+    dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(a_decree->header.srv_id);
+    if (!l_srv) {
+        log_it(L_WARNING, "Service decree: service uid=0x%016"DAP_UINT64_FORMAT_x" not found in net %s",
+               a_decree->header.srv_id.uint64, a_net->pub.name);
+        return -1;
+    }
+
+    switch (a_decree->header.sub_type) {
+    case DAP_CHAIN_DATUM_DECREE_SERVICE_SUBTYPE_ENABLE:
+        if (a_apply) {
+            l_srv->decree_disabled = false;
+            log_it(L_INFO, "Service uid=0x%016"DAP_UINT64_FORMAT_x" enabled by decree in net %s",
+                   l_srv->uid.uint64, a_net->pub.name);
+        }
+        break;
+    case DAP_CHAIN_DATUM_DECREE_SERVICE_SUBTYPE_DISABLE:
+        if (a_apply) {
+            l_srv->decree_disabled = true;
+            log_it(L_INFO, "Service uid=0x%016"DAP_UINT64_FORMAT_x" disabled by decree in net %s",
+                   l_srv->uid.uint64, a_net->pub.name);
+        }
+        break;
+    case DAP_CHAIN_DATUM_DECREE_SERVICE_SUBTYPE_ALLOWED_ROLES: {
+        dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size,
+                                         DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ALLOWED_ROLES);
+        if (!l_tsd) {
+            log_it(L_WARNING, "Service decree ALLOWED_ROLES: TSD_TYPE_ALLOWED_ROLES not found");
+            return -3;
+        }
+        if (l_tsd->size < sizeof(dap_chain_node_role_mask_t)) {
+            log_it(L_WARNING, "Service decree ALLOWED_ROLES: TSD size too small (%u)", l_tsd->size);
+            return -2;
+        }
+        if (a_apply) {
+            l_srv->allowed_roles_mask = dap_tsd_get_scalar(l_tsd, dap_chain_node_role_mask_t);
+            log_it(L_INFO, "Service uid=0x%016"DAP_UINT64_FORMAT_x" allowed_roles_mask=0x%02x set by decree in net %s",
+                   l_srv->uid.uint64, (unsigned)l_srv->allowed_roles_mask, a_net->pub.name);
+        }
+        break;
+    }
+    default:
+        log_it(L_WARNING, "Service decree: unknown subtype 0x%04x", a_decree->header.sub_type);
+        return -4;
+    }
     return 0;
 }

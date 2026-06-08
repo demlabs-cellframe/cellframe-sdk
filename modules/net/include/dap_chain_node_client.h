@@ -27,6 +27,7 @@
 
 #include "uthash.h"
 #include "dap_client.h"
+#include "dap_enc_key.h"
 #include "dap_chain_node.h"
 #include "dap_net_trans.h"
 #include "dap_stream_ch_pkt.h"
@@ -120,6 +121,18 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net, da
                                                       const dap_chain_node_client_callbacks_t *a_callbacks, void *a_callback_arg);
 
 bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels);
+
+/**
+ * @brief Connect reusing an established session key (hot reconnect fast path).
+ * @param a_resume_session_key Copied into trans_ctx; caller keeps ownership of the pointer.
+ * @param a_resume_session_key_id Optional session id string (may be NULL).
+ * @param a_resume_protocol_version Uplink protocol version from the previous session.
+ */
+bool dap_chain_node_client_connect_resume(dap_chain_node_client_t *a_node_client,
+                                          const char *a_active_channels,
+                                          dap_enc_key_t *a_resume_session_key,
+                                          const char *a_resume_session_key_id,
+                                          uint32_t a_resume_protocol_version);
 
 /**
  * Create handshake to server
