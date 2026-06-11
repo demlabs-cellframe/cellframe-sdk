@@ -45,19 +45,8 @@ int ledger_cli_token_info(int a_argc, char **a_argv, dap_json_t *a_json_arr_repl
         return dap_cli_error_code_get("LEDGER_PARAM_ERR");
     }
 
-    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
-    if (!l_net) {
-        dap_json_rpc_error_add(a_json_arr_reply,
-            dap_cli_error_code_get("LEDGER_PARAM_ERR"),
-            "Network '%s' not found", l_net_name);
-        return dap_cli_error_code_get("LEDGER_PARAM_ERR");
-    }
-
-    dap_ledger_t *l_ledger = l_net->pub.ledger;
+    dap_ledger_t *l_ledger = cli_get_ledger_by_net_name(l_net_name, a_json_arr_reply);
     if (!l_ledger) {
-        dap_json_rpc_error_add(a_json_arr_reply,
-            dap_cli_error_code_get("LEDGER_PARAM_ERR"),
-            "Ledger not available for network '%s'", l_net_name);
         return dap_cli_error_code_get("LEDGER_PARAM_ERR");
     }
 
@@ -69,7 +58,7 @@ int ledger_cli_token_info(int a_argc, char **a_argv, dap_json_t *a_json_arr_repl
         return dap_cli_error_code_get("LEDGER_PARAM_ERR");
     }
 
-    dap_json_array_add_object(a_json_arr_reply, l_token_info);
+    dap_json_array_add(a_json_arr_reply, l_token_info);
     return 0;
 }
 
