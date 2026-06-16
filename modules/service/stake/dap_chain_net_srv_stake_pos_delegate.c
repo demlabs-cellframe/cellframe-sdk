@@ -618,7 +618,7 @@ void dap_chain_net_srv_stake_pkey_update(dap_chain_net_t *a_net, dap_pkey_t *a_p
     
     // If pkey already exists, free the old one before replacing
     if (l_stake->pkey) {
-        //log_it(L_DEBUG, "Replacing existing pkey %s", dap_hash_fast_to_str_static(&l_pkey_hash));
+        //debug_if(s_debug_more, L_DEBUG, "Replacing existing pkey %s", dap_hash_fast_to_str_static(&l_pkey_hash));
         DAP_DELETE(l_stake->pkey);
         l_stake->pkey = NULL;
     }
@@ -802,7 +802,7 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_count);
 
     if (!l_objs_count || !l_objs) {
-        log_it(L_DEBUG, "Stake cache data not found");
+        debug_if(s_debug_more, L_DEBUG, "Stake cache data not found");
         return -2;
     }
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net->pub.id);
@@ -1280,7 +1280,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
         l_total_signs_size += l_sign_size;
         l_decree->header.signs_size = l_total_signs_size;
         DAP_DELETE(l_sign);
-        log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
+        debug_if(s_debug_more, L_DEBUG,"<-- Signed with '%s'", a_cert->name);
     }else{
         log_it(L_ERROR, "Decree signing failed");
         DAP_DELETE(l_decree);
@@ -1327,7 +1327,7 @@ static dap_chain_datum_decree_t *s_decree_pkey_update(dap_chain_net_t *a_net, da
         l_decree = DAP_REALLOC_RET_VAL_IF_FAIL(l_decree, sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size + l_decree->header.signs_size, NULL, l_decree, l_sign);
         memcpy((byte_t*)l_decree->data_n_signs + l_decree->header.data_size, l_sign, l_decree->header.signs_size);
         DAP_DELETE(l_sign);
-        log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
+        debug_if(s_debug_more, L_DEBUG,"<-- Signed with '%s'", a_cert->name);
     } else {
         log_it(L_ERROR, "Decree signing failed");
         DAP_DELETE(l_decree);
@@ -1548,7 +1548,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
         l_total_signs_size += l_sign_size;
         l_decree->header.signs_size = l_total_signs_size;
         DAP_DELETE(l_sign);
-        log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
+        debug_if(s_debug_more, L_DEBUG,"<-- Signed with '%s'", a_cert->name);
     }else{
         log_it(L_ERROR, "Decree signing failed");
         DAP_DELETE(l_decree);

@@ -1373,7 +1373,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             if (l_tsd->size == l_expected_size_extended) {
                 // Extended format with explicit timestamp
                 l_becomes_effective = *(dap_time_t *)(l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t));
-                log_it(L_DEBUG, "UTXO blocking with delayed activation at %"DAP_UINT64_FORMAT_U, l_becomes_effective);
+                debug_if(s_debug_more, L_DEBUG, "UTXO blocking with delayed activation at %"DAP_UINT64_FORMAT_U, l_becomes_effective);
             } else {
                 // Basic format - immediate activation (use blockchain time, not wall clock!)
                 l_becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
@@ -1405,7 +1405,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 } else {
                     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(l_tx_hash, l_hash_str, sizeof(l_hash_str));
-                    log_it(L_DEBUG, "UTXO validation: transaction %s not found in ledger (may not exist yet)", l_hash_str);
+                    debug_if(s_debug_more, L_DEBUG, "UTXO validation: transaction %s not found in ledger (may not exist yet)", l_hash_str);
                 }
             }
 
@@ -2736,7 +2736,7 @@ static void s_threshold_txs_proc( dap_ledger_t *a_ledger)
  */
 static void s_threshold_txs_free(dap_ledger_t *a_ledger)
 {
-    log_it(L_DEBUG, "Start free threshold txs");
+    debug_if(s_debug_more, L_DEBUG, "Start free threshold txs");
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_current = NULL, *l_tmp = NULL;
     dap_nanotime_t l_time_cut_off = dap_nanotime_now() - dap_nanotime_from_sec(7200); //7200 sec = 2 hours.
@@ -3119,7 +3119,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
             dap_chain_hash_fast_from_str(l_whitelist[i], &l_item->hash);
             HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(dap_hash_fast_t), l_item);
         }
-        log_it(L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_chain->name, l_whitelist_size, l_blacklist_size);
+        debug_if(s_debug_more, L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_chain->name, l_whitelist_size, l_blacklist_size);
 
     }
     if ( l_ledger_pvt->cached )
@@ -3901,7 +3901,7 @@ dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_c
 static bool s_ledger_tx_hash_is_used_out_item(dap_ledger_tx_item_t *a_item, int a_idx_out, dap_hash_fast_t *a_out_spender_hash)
 {
     if (!a_item || !a_item->cache_data.n_outs) {
-        //log_it(L_DEBUG, "list_cached_item is NULL");
+        //debug_if(s_debug_more, L_DEBUG, "list_cached_item is NULL");
         return true;
     }
     // if there are used 'out' items
@@ -4897,7 +4897,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
                     break;
                 }
-                log_it(L_DEBUG, "SRV_DEX token extraction: buy = %s, main = %s, unqualified main was %s",
+                debug_if(s_debug_more, L_DEBUG, "SRV_DEX token extraction: buy = %s, main = %s, unqualified main was %s",
                        l_buy_tok ? l_buy_tok : "NULL", l_token, l_main_ticker);
                 l_main_ticker = l_token;
             } else
@@ -5771,7 +5771,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             if (wallet_balance) {
                 if(s_debug_more) {
                     char *l_balance = dap_chain_balance_print(l_bound_item->value);
-                    log_it(L_DEBUG,"REFUND %s from addr: %s because tx was removed.", l_balance, l_wallet_balance_key);
+                    debug_if(s_debug_more, L_DEBUG,"REFUND %s from addr: %s because tx was removed.", l_balance, l_wallet_balance_key);
                     DAP_DELETE(l_balance);
                 }
                 SUM_256_256(wallet_balance->balance, l_bound_item->value, &wallet_balance->balance);
@@ -5880,7 +5880,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             l_cur_token_ticker = l_out_item_std->token;
         } break;
         default:
-            log_it(L_DEBUG, "Unknown item type %d", l_type);
+            debug_if(s_debug_more, L_DEBUG, "Unknown item type %d", l_type);
             break;
         }
         if (!l_addr)
@@ -6476,7 +6476,7 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
                 continue;
             dap_chain_tx_used_out_item_t *l_utxo = DAP_NEW(dap_chain_tx_used_out_item_t);
             *l_utxo = (dap_chain_tx_used_out_item_t) { l_cur->tx_hash_fast, (uint32_t)l_out_idx, l_value };
-            log_it(L_DEBUG, "UTXO: tx %s out #%d",
+            debug_if(s_debug_more, L_DEBUG, "UTXO: tx %s out #%d",
                 dap_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx);
             l_ret = dap_list_append(l_ret, l_utxo);
             if (a_out_value) {
@@ -7431,7 +7431,7 @@ static int s_ledger_utxo_block_history_add(dap_ledger_utxo_block_item_t *a_utxo_
     
     pthread_rwlock_unlock(&a_utxo_item->history_rwlock);
     
-    log_it(L_DEBUG, "Added UTXO block history entry: action=%d, bc_time=%"DAP_UINT64_FORMAT_U,
+    debug_if(s_debug_more, L_DEBUG, "Added UTXO block history entry: action=%d, bc_time=%"DAP_UINT64_FORMAT_U,
            a_action, a_bc_time);
     
     return 0;
@@ -7485,7 +7485,7 @@ static int s_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
 
     if (l_found) {
         pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
-        log_it(L_DEBUG, "UTXO already blocked");
+        debug_if(s_debug_more, L_DEBUG, "UTXO already blocked");
         return 0;  // Already blocked
     }
 
@@ -7755,7 +7755,7 @@ static int s_ledger_tx_check_arbitrage_outputs(dap_ledger_t *a_ledger,
     }
 
     const dap_chain_addr_t *l_fee_addr = &a_ledger->net->pub.fee_addr;
-    log_it(L_DEBUG, "Validating arbitrage TX outputs against fee address: %s", 
+    debug_if(s_debug_more, L_DEBUG, "Validating arbitrage TX outputs against fee address: %s", 
            dap_chain_addr_to_str_static(l_fee_addr));
 
     // Get all OUT items from transaction

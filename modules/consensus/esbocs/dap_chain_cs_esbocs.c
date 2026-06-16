@@ -42,6 +42,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 
+static bool s_debug_more = false;
 enum s_esbocs_session_state {
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START,
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC,
@@ -1125,7 +1126,7 @@ static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
         if (l_item->miss_count < DAP_CHAIN_ESBOCS_PENALTY_KICK) {
             if (PVT(a_session->esbocs)->debug) {
                 const char *l_addr_str = dap_chain_hash_fast_to_str_static(&l_signing_addr->data.hash_fast);
-                log_it(L_DEBUG, "Increment miss count %d for addr %s. Miss count for kick is %d",
+                debug_if(s_debug_more, L_DEBUG, "Increment miss count %d for addr %s. Miss count for kick is %d",
                                         l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
             }
             l_item->miss_count++;
@@ -1996,7 +1997,7 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
             a_session->cur_round.total_validators_synced++;
         if (PVT(a_session->esbocs)->debug) {
             const char *l_addr_str = dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast);
-            log_it(L_DEBUG, "Mark validator %s as online", l_addr_str);
+            debug_if(s_debug_more, L_DEBUG, "Mark validator %s as online", l_addr_str);
         }
     } else {
         const char *l_addr_str = dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast);
@@ -2008,7 +2009,7 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
     bool l_inactive = dap_chain_net_srv_stake_key_delegated(a_signing_addr) == -1;
     if (l_inactive && !l_item) {
         const char *l_addr_str = dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast);
-        log_it(L_DEBUG, "Validator %s not in penalty list, but currently disabled", l_addr_str);
+        debug_if(s_debug_more, L_DEBUG, "Validator %s not in penalty list, but currently disabled", l_addr_str);
         l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_esbocs_penalty_item_t);
         l_item->signing_addr = *a_signing_addr;
         l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
@@ -2019,7 +2020,7 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
             l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
         if (PVT(a_session->esbocs)->debug) {
             const char *l_addr_str = dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast);
-            log_it(L_DEBUG, "Decrement miss count %d for addr %s. Miss count for kick is %d",
+            debug_if(s_debug_more, L_DEBUG, "Decrement miss count %d for addr %s. Miss count for kick is %d",
                             l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
         }
         if (l_item->miss_count)
@@ -2273,8 +2274,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     }
     if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
         log_it(L_MSG, "Reject packet because net %s is offline", l_net->pub.name);
-        if (a_ch->stream->trans_ctx && a_ch->stream->trans_ctx->esocket)
-            a_ch->stream->trans_ctx->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        if (a_ch->stream->esocket)
+            a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         return false;
     }
     if (l_message->hdr.recv_addr.uint64 != g_node_addr.uint64) {
@@ -2287,8 +2288,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             break;
     if (!l_session) {
         log_it(L_WARNING, "Session for net %s not found", l_net->pub.name);
-        if (a_ch->stream->trans_ctx && a_ch->stream->trans_ctx->esocket)
-            a_ch->stream->trans_ctx->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        if (a_ch->stream->esocket)
+            a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         return false;
     }
     if (l_message->hdr.version != DAP_CHAIN_ESBOCS_PROTOCOL_VERSION) {
