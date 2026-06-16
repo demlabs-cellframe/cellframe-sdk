@@ -724,7 +724,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             }
         }
 #endif
-        log_it(L_DEBUG, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": saved %zu atoms (%zu bytes)",
+        debug_if(s_debug_more, L_DEBUG, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": saved %zu atoms (%zu bytes)",
                a_cell->file_storage_path, a_cell->id.uint64, l_count, l_total_res);
         if (l_err) {
             log_it(L_WARNING, "Not all data was saved due to writing error!");

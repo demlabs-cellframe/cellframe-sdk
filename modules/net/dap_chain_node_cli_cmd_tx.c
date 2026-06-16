@@ -53,6 +53,7 @@
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
+static bool s_debug_more = false;
 
 
 /**
@@ -879,7 +880,7 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
                                    size_t a_limit, size_t a_offset, bool out_brief,
 					const char *a_srv, dap_chain_tx_tag_action_type_t a_action, bool a_head, int a_version)
 {
-        log_it(L_DEBUG, "Start getting tx from chain");
+        debug_if(s_debug_more, L_DEBUG, "Start getting tx from chain");
         size_t
             l_tx_ledger_accepted = 0,
             l_tx_ledger_rejected = 0,
@@ -931,7 +932,7 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
             ++i_tmp;
             l_count++;            
         }        
-        log_it(L_DEBUG, "END getting tx from chain");
+        debug_if(s_debug_more, L_DEBUG, "END getting tx from chain");
         a_chain->callback_datum_iter_delete(l_datum_iter);
 
         json_object_object_add(json_obj_summary, "network", json_object_new_string(a_net->pub.name));
@@ -1954,7 +1955,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
             l_cur_sign_offset += l_sign_size;
             a_datum_anchor->header.signs_size = l_total_signs_size;
             DAP_DELETE(l_sign);
-            log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
+            debug_if(s_debug_more, L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
             l_total_sign_count++;
         }
     }
@@ -2302,7 +2303,7 @@ int cmd_decree(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int a_v
             else
                 l_datum_hash_out_str = l_datum_hash_base58_str;
 
-            log_it(L_DEBUG, "Requested to sign decree creation %s in gdb://%s with certs %s",
+            debug_if(s_debug_more, L_DEBUG, "Requested to sign decree creation %s in gdb://%s with certs %s",
                     l_gdb_group_mempool, l_datum_hash_hex_str, l_certs_str);
 
             dap_chain_datum_t * l_datum = NULL;

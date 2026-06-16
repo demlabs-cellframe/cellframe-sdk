@@ -48,6 +48,7 @@
 
 #define LOG_TAG "dap_chain_net_tx"
 
+static bool s_debug_more = false;
 const dap_chain_addr_t c_dap_chain_addr_blank_1 = {0};
 
 typedef struct cond_all_with_spends_by_srv_uid_arg{
@@ -1843,7 +1844,7 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
             continue;
         }
 
-        log_it(L_DEBUG, "Json TX: process item %s", json_object_get_string(l_json_item_type));
+        debug_if(s_debug_more, L_DEBUG, "Json TX: process item %s", json_object_get_string(l_json_item_type));
         // Create an item depending on its type
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
@@ -2882,7 +2883,7 @@ int dap_chain_tx_datum_from_json(json_object *a_tx_json, dap_chain_net_t *a_net,
             continue;
         }
 
-        log_it(L_DEBUG, "Json TX: process item %s", l_item_type_str);
+        debug_if(s_debug_more, L_DEBUG, "Json TX: process item %s", l_item_type_str);
         // Create an item depending on its type
         uint8_t *l_item = NULL;
         switch (l_item_type) {

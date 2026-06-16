@@ -37,6 +37,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
+static bool s_debug_more = false;
 #define DAP_CHAIN_NET_BALANCER_REQUEST_DELAY 20 // sec
 
 typedef struct dap_balancer_request_info {
@@ -110,7 +111,7 @@ static dap_chain_net_links_t *s_get_ignored_node_addrs(dap_chain_net_t *a_net, s
                 l_pos += snprintf(l_ignored_str + l_pos, sizeof(l_ignored_str) - l_pos, "\t\t"NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS(l_low_availability + i));
             }
         }
-        log_it(L_DEBUG, "%s", l_ignored_str);
+        debug_if(s_debug_more, L_DEBUG, "%s", l_ignored_str);
     }
 // func work
     byte_t *l_mempos = dap_mempcpy(l_ret->nodes_info, l_curr_addr, sizeof(dap_stream_node_addr_t));
@@ -143,7 +144,7 @@ static void s_balancer_link_prepare_success(dap_chain_net_t* a_net, dap_chain_ne
             l_pos += snprintf(l_links_str + l_pos, sizeof(l_links_str) - l_pos - 1, "\t"NODE_ADDR_FP_STR " [ %s : %u ]\n",
                               NODE_ADDR_FP_ARGS_S(l_link_info->node_addr), l_link_info->uplink_addr, l_link_info->uplink_port);
         }
-        log_it(L_DEBUG, "%s", l_links_str);
+        debug_if(s_debug_more, L_DEBUG, "%s", l_links_str);
     }
     struct json_object *l_json;
     for (size_t i = 0; i < a_link_full_node_list->count_node; ++i) {
@@ -235,7 +236,7 @@ static dap_chain_net_links_t *s_get_node_addrs(dap_chain_net_t *a_net, uint16_t 
 // preparing
     dap_list_t *l_nodes_list = dap_chain_node_get_states_list_sort(a_net, a_ignored ? (dap_chain_node_addr_t *)a_ignored->nodes_info : (dap_chain_node_addr_t *)NULL, a_ignored ? a_ignored->count_node : 0);
     if (!l_nodes_list) {
-        log_it(L_DEBUG, "There isn't any nodes to %s list prepare in net %s", a_external_call ? "external" : "local", a_net->pub.name);
+        debug_if(s_debug_more, L_DEBUG, "There isn't any nodes to %s list prepare in net %s", a_external_call ? "external" : "local", a_net->pub.name);
         if (!a_external_call)
             return NULL;
     }
@@ -372,7 +373,7 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
  */
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
-    log_it(L_DEBUG,"Proc enc http request from %s", a_http_simple->es_hostaddr);
+    debug_if(s_debug_more, L_DEBUG,"Proc enc http request from %s", a_http_simple->es_hostaddr);
     http_status_code_t *l_return_code = (http_status_code_t *)a_arg;
 
     if (strcmp(a_http_simple->http_client->url_path, DAP_BALANCER_URI_HASH)) {
@@ -411,10 +412,10 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
         *(l_ignored_str - 1) = 0; // set 0 terminator to split string
         l_ignored_str += sizeof(l_ignored_token) - 1;
     } 
-    log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_str);
+    debug_if(s_debug_more, L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_str);
     dap_chain_net_links_t *l_link_full_node_list = s_balancer_issue_link(l_net_str, l_links_need, l_protocol_version, l_ignored_str);
     if (!l_link_full_node_list) {
-        log_it(L_DEBUG, "Can't issue link for network %s, no acceptable links found", l_net_str);
+        debug_if(s_debug_more, L_DEBUG, "Can't issue link for network %s, no acceptable links found", l_net_str);
         *l_return_code = Http_Status_NoContent;
         return;
     }
@@ -438,7 +439,7 @@ dap_link_info_t *dap_chain_net_balancer_dns_issue_link(const char *a_net_name)
 // sanity check
     dap_return_val_if_pass(!a_net_name, NULL);
 // func work
-    log_it(L_DEBUG, "DNS balancer parser retrieve netname %s", a_net_name);
+    debug_if(s_debug_more, L_DEBUG, "DNS balancer parser retrieve netname %s", a_net_name);
     dap_chain_net_links_t *l_balancer_reply = s_balancer_issue_link(a_net_name, 1, DAP_BALANCER_PROTOCOL_VERSION, NULL);
     if (!l_balancer_reply || !l_balancer_reply->count_node) {
         DAP_DEL_Z(l_balancer_reply);
@@ -470,7 +471,7 @@ void dap_chain_net_balancer_request(void *a_arg)
         HASH_ADD(hh, s_request_info_items, net_id, sizeof(l_item->net_id), l_item);
     }
     if (l_item->request_time + DAP_CHAIN_NET_BALANCER_REQUEST_DELAY > dap_time_now()) {
-        log_it(L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", l_arg->net->pub.name);
+        debug_if(s_debug_more, L_DEBUG, "Who understands life, he is in no hurry. Dear %s, please wait few seconds", l_arg->net->pub.name);
         DAP_DELETE(a_arg);
         return;
     }
@@ -502,7 +503,7 @@ void dap_chain_net_balancer_request(void *a_arg)
     l_arg->worker = dap_worker_get_current();
     l_arg->required_links_count = l_required_links_count;
     l_arg->request_info = l_item;
-    log_it(L_DEBUG, "Start balancer %s request to %s:%u in net %s",
+    debug_if(s_debug_more, L_DEBUG, "Start balancer %s request to %s:%u in net %s",
                     dap_chain_net_balancer_type_to_str(l_arg->type), l_arg->host_addr, l_arg->host_port, l_arg->net->pub.name);
     
     if (l_arg->type == DAP_CHAIN_NET_BALANCER_TYPE_HTTP) {

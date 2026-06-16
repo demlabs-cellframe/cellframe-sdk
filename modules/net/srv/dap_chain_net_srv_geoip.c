@@ -35,6 +35,8 @@
 #include "maxminddb.h"
 
 #define LOG_TAG "chain_net_srv_geoip"
+
+static bool s_debug_more = false;
 #define LOCALE_DEFAULT  "en"
 
 
@@ -94,7 +96,7 @@ static int mmdb_get_value_double2(MMDB_lookup_result_s *a_result, const char *a_
 	MMDB_entry_data_s entry_data;
 	int l_status = MMDB_get_value(&a_result->entry, &entry_data, a_one, a_two, NULL);
 	if (MMDB_SUCCESS != l_status) {
-		log_it(L_DEBUG, "False get_value [%s->%s] with errcode=%d", a_one, a_two, l_status);
+		debug_if(s_debug_more, L_DEBUG, "False get_value [%s->%s] with errcode=%d", a_one, a_two, l_status);
 		return -2;
 	}
 	if (entry_data.has_data) {
@@ -102,7 +104,7 @@ static int mmdb_get_value_double2(MMDB_lookup_result_s *a_result, const char *a_
 			//memcpy(a_out_double, &entry_data.double_value, entry_data.data_size);
 			*a_out_double = entry_data.double_value;
 		} else
-			log_it(L_DEBUG,
+			debug_if(s_debug_more, L_DEBUG,
 					"error value [%s->%s] has size=%d(>0) type=%d(%d)",
 					a_one, a_two, entry_data.data_size,
 					entry_data.type, MMDB_DATA_TYPE_DOUBLE);
@@ -122,7 +124,7 @@ static int mmdb_get_value_str2(MMDB_lookup_result_s *a_result, const char *a_one
 	MMDB_entry_data_s entry_data;
 	int l_status = MMDB_get_value(&a_result->entry, &entry_data, a_one, a_two, NULL);
 	if (MMDB_SUCCESS != l_status) {
-		log_it(L_DEBUG, "False get_value [%s->%s] with errcode=%d", a_one, a_two, l_status);
+		debug_if(s_debug_more, L_DEBUG, "False get_value [%s->%s] with errcode=%d", a_one, a_two, l_status);
 		return -2;
 	}
 	if (entry_data.has_data) {
@@ -131,7 +133,7 @@ static int mmdb_get_value_str2(MMDB_lookup_result_s *a_result, const char *a_one
 			strncpy(a_out_str, entry_data.utf8_string, l_size);
 			a_out_str[l_size] = 0;
 		} else
-			log_it(L_DEBUG,
+			debug_if(s_debug_more, L_DEBUG,
 					"error value [%s->%s] has size=%d(>0) type=%d(%d)",
 					a_one, a_two, entry_data.data_size,
 					entry_data.type, MMDB_DATA_TYPE_UTF8_STRING);
@@ -151,7 +153,7 @@ static int mmdb_get_value_str3(MMDB_lookup_result_s *a_result, const char *a_one
 	MMDB_entry_data_s entry_data;
 	int l_status = MMDB_get_value(&a_result->entry, &entry_data, a_one, a_two, a_three, NULL);
 	if (MMDB_SUCCESS != l_status) {
-		log_it(L_DEBUG, "False get_value [%s->%s->%s] with errcode=%d", a_one, a_two, a_three, l_status);
+		debug_if(s_debug_more, L_DEBUG, "False get_value [%s->%s->%s] with errcode=%d", a_one, a_two, a_three, l_status);
 		return -2;
 	}
 	if (entry_data.has_data) {
@@ -160,7 +162,7 @@ static int mmdb_get_value_str3(MMDB_lookup_result_s *a_result, const char *a_one
 			strncpy(a_out_str, entry_data.utf8_string, l_size);
 			a_out_str[l_size] = 0;
 		} else
-			log_it(L_DEBUG,
+			debug_if(s_debug_more, L_DEBUG,
 					"error value [%s->%s->%s] has size=%d(>0) type=%d(%d)",
 					a_one, a_two, a_three, entry_data.data_size,
 					entry_data.type, MMDB_DATA_TYPE_UTF8_STRING);

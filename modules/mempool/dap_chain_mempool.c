@@ -74,6 +74,7 @@
 
 #define LOG_TAG "dap_chain_mempool"
 
+static bool s_debug_more = false;
 extern int g_dap_global_db_debug_more;
 
 static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_dbi,
@@ -892,7 +893,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     MULT_256_256(dap_chain_uint256_from(a_tx_num), l_single_val, &l_value_need);
     uint256_t l_value_transfer = {}; // how many coins to transfer
     const char *l_balance; dap_uint256_to_char(l_value_need, &l_balance);
-    log_it(L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
+    debug_if(s_debug_more, L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     dap_list_t *l_list_used_out = NULL;
     if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
@@ -906,7 +907,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     
     dap_chain_hash_fast_t l_tx_new_hash = {0};
     for (size_t i=0; i < a_tx_num; ++i){
-        log_it(L_DEBUG, "Prepare tx %zu", i);
+        debug_if(s_debug_more, L_DEBUG, "Prepare tx %zu", i);
         // find the transactions from which to take away coins
 
         // create empty transaction
@@ -924,7 +925,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             l_balance = dap_uint256_to_char(l_item->value, NULL);
             if (1 == dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, l_item->num_idx_out)) {
                 SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
-                log_it(L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, l_balance);
+                debug_if(s_debug_more, L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, l_balance);
             } else {
                 log_it(L_WARNING, "Can't add input from %s with %s datoshi", l_in_hash_str, l_balance);
             }
@@ -995,7 +996,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         dap_hash_fast(l_tx_new, l_tx_size, &l_tx_new_hash);
         // If we have value back - update balance cache
         if (!IS_ZERO_256(l_value_back)) {
-            //log_it(L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
+            //debug_if(s_debug_more, L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
             int l_out_idx = 0;
             byte_t *l_item; size_t l_size;
             TX_ITEM_ITER_TX(l_item, l_size, l_tx_new) {
@@ -1021,7 +1022,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                         .value          = l_value_back
                     };
                     l_list_used_out = dap_list_prepend(l_list_used_out, l_item_back);
-                    log_it(L_DEBUG,"Found change back output, stored back in UTXO table");
+                    debug_if(s_debug_more, L_DEBUG,"Found change back output, stored back in UTXO table");
                     break;
                 default:
                     continue;
@@ -1038,7 +1039,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         l_objs[i].value = (uint8_t *)l_datum;
         l_objs[i].value_len = dap_chain_datum_size(l_datum);
         l_objs[i].timestamp = dap_nanotime_now();
-        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
+        debug_if(s_debug_more, L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key ? l_objs[i].key :"NULL" , l_objs[i].value_len );
         dap_chain_datum_tx_delete(l_tx_new);
 
