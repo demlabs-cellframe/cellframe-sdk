@@ -111,37 +111,40 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
  */
 void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_session)
 {
-    if (!a_srv_session || !a_srv_session->usage_active)
+    if (!a_srv_session)
+        return;
+
+    dap_chain_net_srv_usage_t *l_usage = __atomic_exchange_n(
+        &a_srv_session->usage_active, NULL, __ATOMIC_ACQ_REL);
+    if (!l_usage)
         return;
 
     dap_chain_net_srv_grace_usage_t *l_item = NULL;
-    pthread_mutex_lock(&a_srv_session->usage_active->service->grace_mutex);
-    HASH_FIND(hh, a_srv_session->usage_active->service->grace_hash_tab, &a_srv_session->usage_active->tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+    pthread_mutex_lock(&l_usage->service->grace_mutex);
+    HASH_FIND(hh, l_usage->service->grace_hash_tab, &l_usage->tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
     if (l_item){
         log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
-        // Stop timer
         dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
-        // finish grace
-        HASH_DEL(a_srv_session->usage_active->service->grace_hash_tab, l_item);
+        HASH_DEL(l_usage->service->grace_hash_tab, l_item);
         DAP_DELETE(l_item->grace);
         DAP_DELETE(l_item);
     }
-    pthread_mutex_unlock(&a_srv_session->usage_active->service->grace_mutex);
+    pthread_mutex_unlock(&l_usage->service->grace_mutex);
 
-    if ( a_srv_session->usage_active->receipt )
-        DAP_DEL_Z( a_srv_session->usage_active->receipt );
-    if ( a_srv_session->usage_active->receipt_next )
-        DAP_DEL_Z( a_srv_session->usage_active->receipt_next);
-    if (!dap_hash_fast_is_blank(&a_srv_session->usage_active->static_order_hash) && a_srv_session->usage_active->price)
-        DAP_DEL_Z( a_srv_session->usage_active->price);
-    if ( a_srv_session->usage_active->client ){
-        for (dap_chain_net_srv_client_remote_t * l_srv_client = a_srv_session->usage_active->client, * tmp = NULL; l_srv_client; ){
+    if (l_usage->receipt)
+        DAP_DEL_Z(l_usage->receipt);
+    if (l_usage->receipt_next)
+        DAP_DEL_Z(l_usage->receipt_next);
+    if (!dap_hash_fast_is_blank(&l_usage->static_order_hash) && l_usage->price)
+        DAP_DEL_Z(l_usage->price);
+    if (l_usage->client) {
+        for (dap_chain_net_srv_client_remote_t *l_srv_client = l_usage->client, *tmp = NULL; l_srv_client; ) {
             tmp = l_srv_client;
             l_srv_client = l_srv_client->next;
-            DAP_DELETE( tmp);
+            DAP_DELETE(tmp);
         }
     }
-    DAP_DEL_Z(a_srv_session->usage_active);
+    DAP_DELETE(l_usage);
 }
 
 /**

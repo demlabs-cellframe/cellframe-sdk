@@ -50,9 +50,7 @@
 
 #define LOG_TAG "dap_chain_node"
 
-// Debug flag for node operations (read from config: node.debug_more)
 static bool s_debug_more = false;
-
 #define DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION 2
 typedef struct dap_chain_node_net_states_info_v1 {
     dap_chain_node_addr_t address;
@@ -206,14 +204,14 @@ dap_string_t *dap_chain_node_states_info_read(dap_chain_net_t *a_net, dap_stream
 
 void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
     if (!s_node_list_auto_update) {
-        log_it(L_DEBUG, "Current node not configured to auto clean node list");
+        debug_if(s_debug_more, L_DEBUG, "Current node not configured to auto clean node list");
         return;
     }
     const char *l_net_name = (const char*)a_arg;
-    log_it(L_DEBUG, "Start check node list %s group %s key", a_obj->group, a_obj->key);
+    debug_if(s_debug_more, L_DEBUG, "Start check node list %s group %s key", a_obj->group, a_obj->key);
 
     if (!a_obj->value) {
-        log_it(L_DEBUG, "Can't find value in %s group %s key delete from node list", a_obj->group, a_obj->key);
+        debug_if(s_debug_more, L_DEBUG, "Can't find value in %s group %s key delete from node list", a_obj->group, a_obj->key);
         dap_global_db_driver_delete(a_obj, 1);
         return;
     }
@@ -261,7 +259,7 @@ void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
     if (l_info_state_timestamp > (dap_nanotime_now() - dap_nanotime_from_sec(s_node_list_record_ttl)) 
         && l_node_info_states && l_node_info_states->info_v1.downlinks_count > 0) {
             l_state_active = true;
-            log_it(L_DEBUG, "Node %s [ %s : %u ] is active in nodes.states, rewrite to node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
+            debug_if(s_debug_more, L_DEBUG, "Node %s [ %s : %u ] is active in nodes.states, rewrite to node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
     }
 
     // if no data in nodes.state do handshake
@@ -276,14 +274,14 @@ void s_node_list_autoclean_callback(dap_store_obj_t *a_obj, void *a_arg) {
         }
         if (l_ret == 0) {
             l_state_active = true;
-            log_it(L_DEBUG, "Node %s [ %s : %u ] is answered for handshake, rewrite to node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
+            debug_if(s_debug_more, L_DEBUG, "Node %s [ %s : %u ] is answered for handshake, rewrite to node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
         }
     }
 
     if (l_state_active) {
         dap_global_db_set_sync(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, a_obj->flags & DAP_GLOBAL_DB_RECORD_PINNED);
     } else {
-        log_it(L_DEBUG, "Node %s [ %s : %u ] is not active, delete them from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
+        debug_if(s_debug_more, L_DEBUG, "Node %s [ %s : %u ] is not active, delete them from node list", a_obj->key, l_node_info->ext_host, l_node_info->ext_port);
         dap_global_db_del_ex(a_obj->group, a_obj->key, a_obj->value, a_obj->value_len, NULL, NULL);
     }
     
@@ -301,7 +299,7 @@ int dap_chain_node_list_clean_init() {
             }
             l_cluster->del_callback = s_node_list_autoclean_callback;
             l_cluster->del_arg = l_net->pub.name;
-            log_it(L_DEBUG, "Node list clean inited for net %s", l_net->pub.name);
+            debug_if(s_debug_more, L_DEBUG, "Node list clean inited for net %s", l_net->pub.name);
         }
     }
     dap_proc_thread_timer_add_pri(NULL, (dap_thread_timer_callback_t)dap_chain_net_announce_addr_all, NULL, 300000, true, DAP_QUEUE_MSG_PRIORITY_NORMAL);
@@ -530,7 +528,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                             log_it(L_WARNING, "Can't get fee value from tx %s", l_objs[i].key);
                             continue;
                         } else
-                            log_it(L_DEBUG, "Process service tx without fee");
+                            debug_if(s_debug_more, L_DEBUG, "Process service tx without fee");
                     } else {
                         uint256_t l_min_fee = dap_chain_esbocs_get_fee(a_chain->net_id);
                         if (compare256(l_tx_fee, l_min_fee) < 0) {

@@ -56,7 +56,6 @@ typedef struct dap_chain_cs_dag
     dap_chain_t * chain;
     bool is_single_line;
     bool is_celled;
-    bool is_add_directly;
     bool is_static_genesis_event;
     dap_chain_hash_fast_t static_genesis_event_hash;
     dap_chain_cs_dag_hal_item_t *hal;

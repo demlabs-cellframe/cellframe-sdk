@@ -42,6 +42,7 @@
 
 #define LOG_TAG "dap_chain_cs_none"
 
+static bool s_debug_more = false;
 #define CONSENSUS_NAME "none"
 
 typedef struct dap_nonconsensus_datum_hash_item {
@@ -270,7 +271,7 @@ static void s_nonconsensus_ledger_load(dap_chain_t *a_chain)
         dap_hash_fast_t l_hash = {};
         dap_chain_hash_fast_from_hex_str(it->key, &l_hash);
         s_nonconsensus_callback_atom_add(a_chain, it->value, it->value_len, &l_hash, false);
-        log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_nochain_pvt->group_datums);
+        debug_if(s_debug_more, L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_nochain_pvt->group_datums);
     }
     dap_global_db_objs_delete(l_values, l_values_count);
     l_nochain_pvt->is_load_mode = false;

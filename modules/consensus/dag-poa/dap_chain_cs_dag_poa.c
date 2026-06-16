@@ -401,7 +401,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     log_it(L_NOTICE,"Initialized DAG-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
     l_dag->chain->callback_created = s_callback_created;
 
-    if ( !l_dag->is_add_directly && l_poa_pvt->auto_round_complete ) {
+    if ( l_poa_pvt->auto_round_complete ) {
         switch ( dap_chain_net_get_role(dap_chain_net_by_id(a_chain->net_id)).enums ) {
             case NODE_ROLE_ROOT_MASTER:
             case NODE_ROLE_ROOT:
@@ -662,7 +662,7 @@ static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
     dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t*)a_arg;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
     dap_global_db_optype_t l_type = dap_store_obj_get_type(a_obj);
-    log_it(L_DEBUG, "%s.%s: op_code '%c', group \"%s\", key \"%s\", value_size %zu",
+    debug_if(s_debug_more, L_DEBUG, "%s.%s: op_code '%c', group \"%s\", key \"%s\", value_size %zu",
         l_net->pub.name, l_dag->chain->name, l_type, a_obj->group, a_obj->key, a_obj->value_len);
     if ( !dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY) )
         return;

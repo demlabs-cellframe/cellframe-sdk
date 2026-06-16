@@ -67,6 +67,7 @@
 
 #define LOG_TAG "chain_net_srv"
 
+static bool s_debug_more = false;
 typedef struct service_list {
     dap_chain_net_srv_uid_t uid;
     dap_chain_net_srv_t * srv;
@@ -144,7 +145,7 @@ void s_load_all()
                     continue;
                 }
             }
-            log_it(L_DEBUG,"Service config %s try to load", l_dir_entry->d_name);
+            debug_if(s_debug_more, L_DEBUG,"Service config %s try to load", l_dir_entry->d_name);
             //char* l_dot_pos = rindex(l_dir_entry->d_name,'.');
             char* l_dot_pos = strchr(l_dir_entry->d_name,'.');
             if ( l_dot_pos )
@@ -512,10 +513,10 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                     if ( l_direction_str ){
                         if (!strcmp(l_direction_str, "sell")) {
                             l_direction = SERV_DIR_SELL;
-                            log_it(L_DEBUG, "Created order to sell");
+                            debug_if(s_debug_more, L_DEBUG, "Created order to sell");
                         } else if (!strcmp(l_direction_str, "buy")) {
                             l_direction = SERV_DIR_BUY;
-                            log_it(L_DEBUG, "Created order to buy");
+                            debug_if(s_debug_more, L_DEBUG, "Created order to buy");
                         } else {
                             log_it(L_WARNING, "Undefined order direction");
                             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_CREATE_UNDEF_ORDER_DIR_ERR, "Wrong direction of the token was "
@@ -960,6 +961,17 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
         return NULL;
     }
 
+    {
+        const char *l_coins_diag = NULL;
+        const char *l_datoshi_diag = dap_uint256_to_char(l_order->price, &l_coins_diag);
+        log_it(L_WARNING, "DIAG get_price_from_order: order price datoshi=%s coins=%s units=%"DAP_UINT64_FORMAT_U" is_zero=%d allow_free=%d",
+               l_datoshi_diag ? l_datoshi_diag : "NULL",
+               l_coins_diag ? l_coins_diag : "NULL",
+               l_order->units,
+               (int)IS_ZERO_256(l_order->price),
+               (int)a_srv->allow_free_srv);
+    }
+
     dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
     if (!l_price) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -968,6 +980,10 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     }
     if (l_order->node_addr.uint64 != g_node_addr.uint64 &&
         l_order->srv_uid.uint64 != a_srv->uid.uint64) {
+        log_it(L_ERROR, "Order mismatch: order_node=0x%"DAP_UINT64_FORMAT_x" local_node=0x%"DAP_UINT64_FORMAT_x
+               " order_srv_uid=0x%"DAP_UINT64_FORMAT_x" local_srv_uid=0x%"DAP_UINT64_FORMAT_x,
+               l_order->node_addr.uint64, g_node_addr.uint64,
+               l_order->srv_uid.uint64, a_srv->uid.uint64);
         DAP_DELETE(l_price);
         DAP_DEL_Z(l_order);
         return NULL;
@@ -1641,7 +1657,7 @@ static void s_srv_pay_ledger_tx_notify(void *a_arg, dap_ledger_t *a_ledger, dap_
                             l_entry->is_removed = false;
                             // Note: value/prev_cond_idx may be stale, but will be fixed when prev TX reorg is processed
                             HASH_ADD(hh_tail, s_srv_pay_index_by_tail, tail_hash, sizeof(l_entry->tail_hash), l_entry);
-                            log_it(L_DEBUG, "REMOVE reorg: prev TX not in ledger, updated tail for cascade reorg");
+                            debug_if(s_debug_more, L_DEBUG, "REMOVE reorg: prev TX not in ledger, updated tail for cascade reorg");
                         }
                     }
                     else if (!l_entry)

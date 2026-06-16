@@ -720,9 +720,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             return false;
         }
         log_it(L_WARNING, "In: from remote addr %s chain id 0x%016" DAP_UINT64_FORMAT_x " got error on his side: '%s'",
-               (DAP_STREAM_CH(l_ch_chain)->stream->trans_ctx
-                && DAP_STREAM_CH(l_ch_chain)->stream->trans_ctx->remote_addr_str[0])
-                   ? DAP_STREAM_CH(l_ch_chain)->stream->trans_ctx->remote_addr_str : "unknown",
+               DAP_STREAM_CH(l_ch_chain)->stream->esocket
+                   ? DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str : "unknown",
                l_chain_pkt->hdr.chain_id.uint64, (char *)l_chain_pkt->data);
         s_ch_chain_go_idle(l_ch_chain);
     } break;
@@ -1645,8 +1644,13 @@ static void s_ch_chain_go_idle(dap_chain_ch_t *a_ch_chain)
         a_ch_chain->sync_context = NULL;
     }
     if (a_ch_chain->sync_timer) {
-        dap_timerfd_delete_unsafe(a_ch_chain->sync_timer);
+        // MUST use _mt: this function can be called from any thread (e.g. FSM thread pool
+        // via dap_stream_ch_delete → s_stream_ch_delete), while the timer was created on
+        // stream_worker->worker. Unsafe delete from a different thread causes use-after-free.
+        dap_timerfd_t *l_timer = a_ch_chain->sync_timer;
         a_ch_chain->sync_timer = NULL;
+        l_timer->callback_arg = NULL; // neutralize any in-flight callback
+        dap_timerfd_delete_mt(l_timer->worker, l_timer->esocket_uuid);
     }
 //}
     // Legacy
