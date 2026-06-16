@@ -332,7 +332,7 @@ int dap_chain_net_init()
             if ( (int)(l_end - l_path) + l_pos > 4 && strncmp(l_end - 4, ".cfg", 4) )
                 continue;
 
-            log_it(L_DEBUG, "Loading net config \"%s\"", l_dir_entry->d_name);
+            debug_if(s_debug_more, L_DEBUG, "Loading net config \"%s\"", l_dir_entry->d_name);
             *(l_end - 4) = '\0';
             if ( !dap_dir_test(l_path) ) {
                 log_it(L_ERROR, "Path \"%s\" not found, skipping it", l_path);
@@ -430,7 +430,7 @@ int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_add
     int rc = dap_link_manager_link_update(a_addr, a_host, a_port);
     if (rc)
         log_it(L_ERROR, "Can't update link to addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_addr));
-    log_it(L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added", NODE_ADDR_FP_ARGS(a_addr));
+    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added", NODE_ADDR_FP_ARGS(a_addr));
     return rc;
 }
 
@@ -840,7 +840,7 @@ bool s_net_disk_load_notify_callback(UNUSED_ARG void *a_arg) {
             json_object_object_add(l_jobj_chain_info, "count_atoms", json_object_new_int(l_chain->callback_count_atom(l_chain)));
             json_object_object_add(l_jobj_chain_info, "load_process", json_object_new_int(l_chain->load_progress));
             json_object_object_add(json_chains, l_chain->name, l_jobj_chain_info);
-            log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
+            debug_if(s_debug_more, L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
                             net->pub.name, l_chain->name, l_chain->id.uint64, l_chain->load_progress);
         }
         json_object_object_add(l_jobj_nets, net->pub.name, json_chains);
@@ -1962,7 +1962,7 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         unsigned short l_len = strlen(l_dir_entry->d_name);
         if ( l_len > 4 && !dap_strncmp(l_dir_entry->d_name + l_len - 4, ".cfg", 4) ) {
             *(l_dir_entry->d_name + l_len - 4) = '\0';
-            log_it(L_DEBUG, "Opening chain config \"%s.%s\"", a_net_name, l_dir_entry->d_name);
+            debug_if(s_debug_more, L_DEBUG, "Opening chain config \"%s.%s\"", a_net_name, l_dir_entry->d_name);
             dap_strncpy(l_chain_cfg_path + l_pos, l_dir_entry->d_name, MAX_PATH - l_pos);
             if (!( l_chain_config = dap_config_open(l_chain_cfg_path) )) {
                 log_it(L_ERROR, "Can't open chain config %s, skip it", l_dir_entry->d_name);
@@ -2083,7 +2083,7 @@ static void *s_net_load(void *a_arg)
                 log_it(L_DAP, "Reordering chain files for chain %s", l_chain->name);
                 if (l_chain->callback_atom_add_from_treshold) {
                     while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
-                        log_it(L_DEBUG, "Added atom from treshold");
+                        debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
                 }
                 dap_chain_save_all(l_chain);
                 
@@ -2100,7 +2100,7 @@ static void *s_net_load(void *a_arg)
             }
             if (l_chain->callback_atom_add_from_treshold) {
                 while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
-                    log_it(L_DEBUG, "Added atom from treshold");
+                    debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
             }
         } else {
             //dap_chain_save_all( l_chain );
@@ -3031,7 +3031,7 @@ void dap_chain_net_try_online_all() {
         return log_it(L_ERROR, "Can't find any nets");
 
     if ( !dap_config_get_item_bool_default(g_config ,"general", "auto_online", false) )
-        return log_it(L_DEBUG, "Auto online is off in config");
+        return debug_if(s_debug_more, L_DEBUG, "Auto online is off in config");
 
     for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
         if (( l_ret = s_net_try_online(net) ))
@@ -3079,19 +3079,19 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
     switch (a_type) {
     case DAP_CHAIN_CH_PKT_TYPE_ERROR:
         if (!l_net_pvt->sync_context.cur_chain) {
-            log_it(L_DEBUG, "Got ERROR paket with NO chain net %s", l_net->pub.name);
+            debug_if(s_debug_more, L_DEBUG, "Got ERROR paket with NO chain net %s", l_net->pub.name);
             break;
         }
-        log_it(L_DEBUG, "Got ERROR paket to %s chain in net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
+        debug_if(s_debug_more, L_DEBUG, "Got ERROR paket to %s chain in net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_ERROR;
         break;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN:
         if (!l_net_pvt->sync_context.cur_chain) {
-            log_it(L_DEBUG, "Got SYNCED_CHAIN paket with NO chain net %s", l_net->pub.name);
+            debug_if(s_debug_more, L_DEBUG, "Got SYNCED_CHAIN paket with NO chain net %s", l_net->pub.name);
             break;
         }
-        log_it(L_DEBUG, "Got SYNCED_CHAIN paket to %s chain net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
+        debug_if(s_debug_more, L_DEBUG, "Got SYNCED_CHAIN paket to %s chain net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
         l_net_pvt->sync_context.cur_chain->atom_num_last = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
         l_net_pvt->sync_context.stage_last_activity = dap_time_now();
@@ -3204,7 +3204,7 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net)
     }
     l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
     if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
-        log_it(L_DEBUG, "No links in net %s cluster", a_net->pub.name);
+        debug_if(s_debug_more, L_DEBUG, "No links in net %s cluster", a_net->pub.name);
         return -2;     // No links in cluster
     }
     l_net_pvt->sync_context.cur_chain = a_net->pub.chains;
@@ -3310,7 +3310,7 @@ static void s_sync_timer_callback(void *a_arg)
 
     if (l_net_pvt->sync_context.cur_chain->callback_load_from_gdb) {
         // This type of chain is GDB based and not synced by chains protocol
-        log_it(L_DEBUG, "Chain %s in net %s will sync from gdb", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
+        debug_if(s_debug_more, L_DEBUG, "Chain %s in net %s will sync from gdb", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
         return;
     }
@@ -3396,7 +3396,7 @@ static bool s_net_states_proc(void *a_arg)
             log_it(L_INFO,"%s.state: %s", l_net->pub.name, c_net_states[l_net_pvt->state]);
             break;
         default:
-            log_it(L_DEBUG, "Unprocessed state");
+            debug_if(s_debug_more, L_DEBUG, "Unprocessed state");
     }
     s_net_states_notify(l_net);
     return l_repeat_after_exit;

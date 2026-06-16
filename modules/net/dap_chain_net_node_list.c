@@ -31,6 +31,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_node_list"
 
+static bool s_debug_more = false;
 enum RetCode {
     ADD_OK = 1,
     ERR_NO_SERVER,
@@ -80,7 +81,7 @@ static int s_dap_chain_net_node_list_del(dap_chain_net_t *a_net, dap_chain_node_
  */
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
-    log_it(L_DEBUG,"Proc enc http request");
+    debug_if(s_debug_more, L_DEBUG,"Proc enc http request");
     http_status_code_t *l_return_code = (http_status_code_t*)a_arg;    
     if ( strcmp(a_http_simple->http_client->url_path, DAP_NODE_LIST_URI_HASH) ) {
         log_it(L_ERROR, "Wrong path '%s' in the request to dap_chain_net_node_list module",
@@ -118,7 +119,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         return;
     }
     l_net_str += strlen(l_net_token);
-    log_it(L_DEBUG, "HTTP Node check parser retrieve netname %s", l_net_str);
+    debug_if(s_debug_more, L_DEBUG, "HTTP Node check parser retrieve netname %s", l_net_str);
     dap_chain_node_info_t *l_node_info;
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
     uint8_t l_response = ERR_UNKNOWN;
@@ -133,13 +134,13 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         };
         l_response = !dap_chain_net_balancer_handshake(l_node_info, l_net)
             ? s_dap_chain_net_node_list_add(l_net, l_node_info)
-            : ( log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ]", l_key, l_node_info->ext_host, l_node_info->ext_port), ERR_HANDSHAKE );
+            : ( debug_if(s_debug_more, L_DEBUG, "Can't do handshake with %s [ %s : %u ]", l_key, l_node_info->ext_host, l_node_info->ext_port), ERR_HANDSHAKE );
         *l_return_code = Http_Status_OK;
     } break;
 
     case 'r': {
         if ( !(l_node_info = (dap_chain_node_info_t*)dap_global_db_get_sync(l_net->pub.gdb_nodes, l_key, NULL, NULL, NULL)) ) {
-            log_it(L_DEBUG,"Address %s is not present in nodelist", l_key);
+            debug_if(s_debug_more, L_DEBUG,"Address %s is not present in nodelist", l_key);
             l_response = ERR_NOT_ADDED;
         } else {
             if ( dap_strcmp(l_node_info->ext_host, a_http_simple->es_hostaddr) ) {
@@ -147,8 +148,8 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
                 *l_return_code = Http_Status_Forbidden;
             } else {
                 l_response = !dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key)
-                    ? ( log_it(L_DEBUG, "Node %s successfully deleted from nodelist", l_key), DELETED_OK )
-                    : ( log_it(L_DEBUG, "Can't delete node %s from nodelist", l_key), ERR_EXISTS );
+                    ? ( debug_if(s_debug_more, L_DEBUG, "Node %s successfully deleted from nodelist", l_key), DELETED_OK )
+                    : ( debug_if(s_debug_more, L_DEBUG, "Can't delete node %s from nodelist", l_key), ERR_EXISTS );
                 *l_return_code = Http_Status_OK;
             }
             DAP_DELETE(l_node_info);

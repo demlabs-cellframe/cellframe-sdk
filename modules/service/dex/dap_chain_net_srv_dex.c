@@ -1744,7 +1744,7 @@ static dex_match_table_entry_t *s_dex_matches_build_by_criteria(dap_chain_net_t 
         if (s_debug_more) {
             char l_ts[64];
             dap_time_to_str_rfc822(l_ts, sizeof(l_ts), tx->header.ts_created);
-            log_it_f(L_DEBUG,
+            debug_if_f(s_debug_more, L_DEBUG,
                    "{ ledger scan } %s order snapshot; Tx: %s; Root: %s; Seller: %s; "
                    "Value: %s; Rate: %s; Exec sell: %s; Ts created: %s",
                    l_side_cur == DEX_SIDE_ASK ? "ASK" : "BID", dap_chain_hash_fast_to_str_static(&it->cur_hash),
@@ -2387,7 +2387,7 @@ static int s_dex_collect_inputs_by_requirements(dap_chain_net_t *a_net, const da
         if (s_dex_collect_utxo_for_ticker(a_net, l_req->ticker, &l_addr, l_req->amount, a_tx, &l_req->transfer) < 0)
             ret_log_it(-3, L_WARNING, "Failed to collect %s %s", dap_uint256_to_char_ex(l_req->amount).frac, l_req->ticker);
 
-        log_it(L_DEBUG, "Added %s %s inputs, needed %s", dap_uint256_to_char_ex(l_req->transfer).frac, l_req->ticker,
+        debug_if(s_debug_more, L_DEBUG, "Added %s %s inputs, needed %s", dap_uint256_to_char_ex(l_req->transfer).frac, l_req->ticker,
                dap_uint256_to_char_ex(l_req->amount).frac);
     }
     return 0;
@@ -4756,7 +4756,7 @@ static int s_dex_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_c
                                  l_order_pair.net_id_quote.uint64);
                         RET_ERR(DEXV_PAIR_NOT_ALLOWED);
                     }
-                    log_it_f(L_DEBUG, "Pair %s/%s is whitelisted", l_sell_ticker, l_buy_ticker);
+                    debug_if_f(s_debug_more, L_DEBUG, "Pair %s/%s is whitelisted", l_sell_ticker, l_buy_ticker);
                 }
                 l_in_idx++;
             }
@@ -6992,7 +6992,7 @@ dap_chain_net_srv_dex_create_error_t dap_chain_net_srv_dex_create(dap_chain_net_
                                    : l_min_pct == 100                  ? "AON (all-or-none)"
                                    : (a_min_fill_combined & 0x80) != 0 ? "MIN_FROM_ORIGIN"
                                                                        : "MIN_FROM_CURRENT";
-        log_it_f(L_DEBUG,
+        debug_if_f(s_debug_more, L_DEBUG,
                "Args; sell = %s; buy = %s; value_sell = %s; rate = %s; "
                "min_fill: pct = %u, %s policy; fee = %s %s",
                a_token_sell, a_token_buy, dap_uint256_to_char_ex(a_value_sell).frac, dap_uint256_to_char_ex(a_rate).frac,
@@ -7379,12 +7379,12 @@ dap_chain_net_srv_dex_purchase_error_t dap_chain_net_srv_dex_purchase_multi(dap_
     if (a_orders_count == 0)
         return DEX_PURCHASE_MULTI_ERROR_ORDERS_EMPTY;
     if (s_debug_more) {
-        log_it_f(L_DEBUG, "Args: orders count = %zu; budget = %s in %s tokens; fee = %s %s%s%s", a_orders_count,
+        debug_if_f(s_debug_more, L_DEBUG, "Args: orders count = %zu; budget = %s in %s tokens; fee = %s %s%s%s", a_orders_count,
                dap_uint256_to_char_ex(a_value).frac, a_is_budget_buy ? "buy" : "sell", dap_uint256_to_char_ex(a_fee).frac,
                a_net->pub.native_ticker, a_create_buyer_order_on_leftover ? "; Buyer-leftover requested with rate: " : "",
                a_create_buyer_order_on_leftover ? dap_uint256_to_char_ex(a_leftover_rate).frac : "");
         for (size_t i = 0; i < a_orders_count; ++i) {
-            log_it_f(L_DEBUG, "  order[%zu/%zu]: %s", i + 1, a_orders_count,
+            debug_if_f(s_debug_more, L_DEBUG, "  order[%zu/%zu]: %s", i + 1, a_orders_count,
                    dap_chain_hash_fast_to_str_static(&a_order_hashes[i]));
         }
     }

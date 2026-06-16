@@ -48,6 +48,7 @@
 
 #define LOG_TAG "chain"
 
+static bool s_debug_more = false;
 typedef struct dap_chain_item_id {
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
@@ -505,7 +506,7 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
 const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
 {
     if (!l_chain){
-        log_it(L_DEBUG, "dap_get_chain_type. Chain object is 0");
+        debug_if(s_debug_more, L_DEBUG, "dap_get_chain_type. Chain object is 0");
         return NULL;
     }
     return (const char *)DAP_CHAIN_PVT(l_chain)->cs_name;
@@ -537,7 +538,7 @@ bool download_notify_callback(dap_chain_t* a_chain) {
     json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
     json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
     dap_notify_server_send_mt(json_object_get_string(l_chain_info));
-    log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
+    debug_if(s_debug_more, L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
                     a_chain->net_name, a_chain->name, a_chain->id.uint64, a_chain->load_progress);
     json_object_put(l_chain_info);
     return true;

@@ -33,6 +33,7 @@
 
 #define LOG_TAG "dap_chain_cs_dag_event"
 
+static bool s_debug_more = false;
 /**
  * @brief dap_chain_cs_dag_event_new
  * @param a_chain_id
@@ -148,7 +149,7 @@ size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, s
     if (dap_chain_cs_dag_event_sign_exists(l_event, a_event_size, a_key)) {
         size_t l_pub_key_size = 0;
         uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
-        return log_it(L_DEBUG, "Already signed with pkey %s", dap_get_data_hash_str(l_pub_key, l_pub_key_size).s), DAP_DELETE(l_pub_key), 0;
+        return debug_if(s_debug_more, L_DEBUG, "Already signed with pkey %s", dap_get_data_hash_str(l_pub_key, l_pub_key_size).s), DAP_DELETE(l_pub_key), 0;
     }
     size_t l_event_size_excl_sign = dap_chain_cs_dag_event_calc_size_excl_signs(l_event, a_event_size);
     dap_sign_t *l_sign = dap_sign_create(a_key, l_event, l_event_size_excl_sign);
