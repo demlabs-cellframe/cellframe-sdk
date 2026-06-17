@@ -90,6 +90,36 @@ DAP_STATIC_INLINE const char *dap_chain_node_role_to_str(dap_chain_node_role_t a
     }
 }
 
+/**
+ * @brief Bitmask type for node roles, used in service decrees.
+ * Each bit corresponds to a specific role (see DAP_CHAIN_NODE_ROLE_MASK_* constants).
+ * 0 means no restriction (all roles allowed).
+ */
+typedef uint8_t dap_chain_node_role_mask_t;
+
+#define DAP_CHAIN_NODE_ROLE_MASK_ROOT_MASTER  0x01u
+#define DAP_CHAIN_NODE_ROLE_MASK_ROOT         0x02u
+#define DAP_CHAIN_NODE_ROLE_MASK_ARCHIVE      0x04u
+#define DAP_CHAIN_NODE_ROLE_MASK_CELL_MASTER  0x08u
+#define DAP_CHAIN_NODE_ROLE_MASK_MASTER       0x10u
+#define DAP_CHAIN_NODE_ROLE_MASK_FULL         0x20u
+#define DAP_CHAIN_NODE_ROLE_MASK_LIGHT        0x40u
+#define DAP_CHAIN_NODE_ROLE_MASK_ALL          0x7Fu
+
+DAP_STATIC_INLINE dap_chain_node_role_mask_t dap_chain_node_role_to_bit(dap_chain_node_role_t a_role)
+{
+    switch (a_role.enums) {
+        case NODE_ROLE_ROOT_MASTER: return DAP_CHAIN_NODE_ROLE_MASK_ROOT_MASTER;
+        case NODE_ROLE_ROOT:        return DAP_CHAIN_NODE_ROLE_MASK_ROOT;
+        case NODE_ROLE_ARCHIVE:     return DAP_CHAIN_NODE_ROLE_MASK_ARCHIVE;
+        case NODE_ROLE_CELL_MASTER: return DAP_CHAIN_NODE_ROLE_MASK_CELL_MASTER;
+        case NODE_ROLE_MASTER:      return DAP_CHAIN_NODE_ROLE_MASK_MASTER;
+        case NODE_ROLE_FULL:        return DAP_CHAIN_NODE_ROLE_MASK_FULL;
+        case NODE_ROLE_LIGHT:       return DAP_CHAIN_NODE_ROLE_MASK_LIGHT;
+        default:                    return 0;
+    }
+}
+
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
 #define dap_chain_node_addr_from_str dap_stream_node_addr_from_str

@@ -240,7 +240,16 @@ typedef struct dap_chain_net_srv
     // dap_chain_net_srv_price_t *pricelist;
 
     bool allow_free_srv;
+    bool decree_disabled;              // Set true by SERVICE/DISABLE decree; service refuses all incoming requests
+    dap_chain_node_role_mask_t allowed_roles_mask; // 0 = no restriction; set by SERVICE/ALLOWED_ROLES decree
     uint32_t grace_period;
+
+    /* Optional client pkey-hash whitelist.
+     * When non-NULL, only clients whose client_pkey_hash is present in this
+     * array are allowed to use the service (regardless of payment status).
+     * NULL means no restriction (all clients allowed). */
+    dap_chain_hash_fast_t *allowed_client_pkeys;  // heap-allocated array
+    size_t                 allowed_client_pkeys_count;
 
     dap_chain_net_srv_callbacks_t callbacks;
 

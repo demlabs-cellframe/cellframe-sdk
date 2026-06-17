@@ -18,6 +18,10 @@ target_include_directories(${PROJECT_NAME} PUBLIC include/ )
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/json-c)
 target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
 
+# GCC 14 promotes -Wincompatible-pointer-types to error; suppress for legacy
+# cellframe-sdk code that passes dap_events_socket_t* to dap_json_rpc_request_send
+set_source_files_properties(dap_chain_tx_compose.c PROPERTIES COMPILE_FLAGS -Wno-incompatible-pointer-types)
+
 if(BUILD_CELLFRAME_SDK_TESTS)
     target_compile_definitions(${PROJECT_NAME} PRIVATE DAP_CHAIN_TX_COMPOSE_TEST)
     add_subdirectory(tests)

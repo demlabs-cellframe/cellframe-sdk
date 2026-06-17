@@ -48,6 +48,8 @@
 #include "uthash.h"
 
 #include "dap_common.h"
+#include "dap_enc_key.h"
+#include "dap_client_fsm.h"
 #include "dap_client.h"
 #include "dap_config.h"
 #include "dap_events.h"
@@ -56,8 +58,7 @@
 #include "dap_uuid.h"
 #include "dap_client.h"
 #include "dap_client_fsm.h"
-#include "dap_client_trans_ctx.h"
-#include "dap_net_trans_ctx.h"
+#include "dap_client_esocket.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net_srv.h"
@@ -74,7 +75,6 @@
 
 #define LOG_TAG "dap_chain_node_client"
 
-static bool s_debug_more = false;
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
 static bool s_timer_update_states_callback(void *a_arg);
 static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
@@ -103,28 +103,21 @@ void dap_chain_node_client_deinit()
  */
 static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 {
-    debug_if(s_debug_more, L_DEBUG, "s_stage_status_error_callback");
+    log_it(L_DEBUG, "s_stage_status_error_callback");
 
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
     if(!l_node_client)
         return;
 
-    const char *l_err_str = dap_client_get_error_str(a_client);
-    const char *l_stage_str = dap_client_get_stage_str(a_client);
-    snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
-             "%s at %s", l_err_str ? l_err_str : "unknown",
-             l_stage_str ? l_stage_str : "unknown");
-
     if (l_node_client->sync_timer) {
+        // Disable timer, it will be restarted with new connection
         dap_timerfd_delete_unsafe(l_node_client->sync_timer);
         l_node_client->sync_timer = NULL;
     }
 
+    // check for last attempt
     bool l_is_last_attempt = a_arg ? true : false;
     if (l_is_last_attempt) {
-        log_it(L_ERROR, "Connection to %s:%u failed after all attempts: %s",
-               a_client->link_info.uplink_addr, a_client->link_info.uplink_port,
-               l_node_client->last_error);
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
         pthread_cond_signal(&l_node_client->wait_cond);
@@ -132,12 +125,13 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 
         l_node_client->esocket_uuid = 0;
 
+        // dap_chain_net_sync_unlock(l_node_client->net, l_node_client);
         if (l_node_client->callbacks.disconnected) {
             l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
         }
         if (dap_client_get_stage(l_node_client->client) != STAGE_BEGIN)
             dap_client_go_stage(l_node_client->client, STAGE_BEGIN, NULL);
-    } else if(l_node_client->callbacks.error)
+    } else if(l_node_client->callbacks.error) // TODO make different error codes
         l_node_client->callbacks.error(l_node_client, EINVAL, l_node_client->callbacks_arg);
 }
 
@@ -155,12 +149,8 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
                     l_node_client->info->ext_host,
                     l_node_client->info->ext_port);
-        {
-            dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_client);
-            dap_net_trans_ctx_t *l_tc = l_fsm ? l_fsm->trans_ctx : NULL;
-            l_node_client->esocket_uuid = (l_tc && l_tc->stream && l_tc->stream->esocket)
-                ? l_tc->stream->esocket->uuid : 0;
-        }
+        l_node_client->esocket_uuid = DAP_CLIENT_FSM(a_client) && DAP_CLIENT_FSM(a_client)->esocket
+                                     ? DAP_CLIENT_FSM(a_client)->esocket->stream_es->uuid : 0;
         // set callbacks for R and N channels
         if (a_client->active_channels) {
             size_t l_channels_count = dap_strlen(a_client->active_channels);
@@ -306,33 +296,76 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
  * @return true
  * @return false
  */
-bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
+static bool s_node_client_connect_impl(dap_chain_node_client_t *a_node_client,
+                                       const char *a_active_channels,
+                                       dap_enc_key_t *a_resume_session_key,
+                                       const char *a_resume_session_key_id,
+                                       uint32_t a_resume_protocol_version)
 {
     if (!a_node_client)
         return false;
     a_node_client->client = dap_client_new(s_stage_status_error_callback, a_node_client);
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
-    if(a_node_client->desired_trans_type)
-        dap_client_set_trans_type(a_node_client->client, a_node_client->desired_trans_type);
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
-    if (a_node_client->net && a_node_client->net->pub.config) {
+    if (a_node_client->net) {
         const char *l_auth_cert_name = dap_config_get_item_str(a_node_client->net->pub.config, "general", "auth_cert");
         if (l_auth_cert_name)
             dap_client_set_auth_cert(a_node_client->client, l_auth_cert_name);
     }
     char *l_host_addr = a_node_client->info->ext_host;
-    
+
     if ( !*l_host_addr || !strcmp(l_host_addr, "::") || !a_node_client->info->ext_port ) {
         return log_it(L_WARNING, "Node client address undefined"), false;
+    }
+
+    if (a_resume_session_key) {
+        dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_node_client->client);
+        dap_net_trans_ctx_t *l_tc = l_fsm ? l_fsm->trans_ctx : NULL;
+        if (!l_tc) {
+            log_it(L_ERROR, "Session resume: no trans_ctx on new client");
+            return false;
+        }
+        if (l_tc->session_key)
+            dap_enc_key_delete(l_tc->session_key);
+        l_tc->session_key = dap_enc_key_dup(a_resume_session_key);
+        if (!l_tc->session_key) {
+            log_it(L_ERROR, "Session resume: failed to dup session_key");
+            return false;
+        }
+        DAP_DEL_Z(l_tc->session_key_id);
+        if (a_resume_session_key_id && a_resume_session_key_id[0])
+            l_tc->session_key_id = dap_strdup(a_resume_session_key_id);
+        if (a_resume_protocol_version)
+            l_tc->uplink_protocol_version = a_resume_protocol_version;
+        a_node_client->client->session_resume_mode = true;
+        log_it(L_NOTICE, "Session resume: connecting with existing session_key (proto=%u)",
+               a_resume_protocol_version);
     }
 
     log_it(L_INFO, "Connecting to addr %s : %d", l_host_addr, a_node_client->info->ext_port);
     dap_client_set_uplink_unsafe(a_node_client->client, &a_node_client->info->address, l_host_addr, a_node_client->info->ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
-    // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
     return true;
+}
+
+bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
+{
+    return s_node_client_connect_impl(a_node_client, a_active_channels, NULL, NULL, 0);
+}
+
+bool dap_chain_node_client_connect_resume(dap_chain_node_client_t *a_node_client,
+                                          const char *a_active_channels,
+                                          dap_enc_key_t *a_resume_session_key,
+                                          const char *a_resume_session_key_id,
+                                          uint32_t a_resume_protocol_version)
+{
+    if (!a_resume_session_key)
+        return dap_chain_node_client_connect(a_node_client, a_active_channels);
+    return s_node_client_connect_impl(a_node_client, a_active_channels,
+                                      a_resume_session_key, a_resume_session_key_id,
+                                      a_resume_protocol_version);
 }
 
 /**
@@ -378,18 +411,8 @@ void s_close_on_worker_callback(void *a_arg)
 
 void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client)
 {
-    if(a_node_client->client)
-    {
-        dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_node_client->client);
-        if(l_fsm)
-        {
-            l_fsm->is_removing = true;
-        }
-        if(l_fsm && l_fsm->worker)
-            dap_worker_exec_callback_on(l_fsm->worker, s_close_on_worker_callback, a_node_client);
-        else
-            dap_chain_node_client_close_unsafe(a_node_client);
-    }
+    if (a_node_client->client)
+        dap_worker_exec_callback_on(DAP_CLIENT_FSM(a_node_client->client)->worker, s_close_on_worker_callback, a_node_client);
     else
         dap_chain_node_client_close_unsafe(a_node_client);
 }
@@ -426,18 +449,13 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         return -2;
     }
 
-    // Compute absolute deadline once to prevent timeout reset on state-change wakeups
-    struct timespec l_deadline;
-    clock_gettime(CLOCK_MONOTONIC, &l_deadline);
-    l_deadline.tv_sec += a_timeout_ms / 1000;
-    l_deadline.tv_nsec += (a_timeout_ms % 1000) * 1000000L;
-    if (l_deadline.tv_nsec >= 1000000000L) {
-        l_deadline.tv_sec++;
-        l_deadline.tv_nsec -= 1000000000L;
-    }
-
+    // signal waiting
     while (a_client->state != a_waited_state) {
-        int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_deadline);
+        // prepare for signal waiting
+        struct timespec l_cond_timeout;
+        clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
+        l_cond_timeout.tv_sec += a_timeout_ms/1000;
+        int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
         if (l_ret_wait == 0) {
             if (a_client->state != a_waited_state) {
                 if (a_client->state == NODE_CLIENT_STATE_CONNECTING)
@@ -500,7 +518,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
                 break;
             }
             default: {
-                debug_if(s_debug_more, L_DEBUG, "Channel id %d (%c) has no node-client notify setup, handled by plugin", a_ch_id, a_ch_id);
+                log_it(L_DEBUG, "Channel id %d (%c) has no node-client notify setup, handled by plugin", a_ch_id, a_ch_id);
                 break;
             }
             }

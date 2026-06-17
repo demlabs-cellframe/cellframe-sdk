@@ -69,8 +69,7 @@ if (BUILD_CELLFRAME_SDK_TESTS)
 endif()
 
 if (BUILD_WITH_ZIP)
-    add_subdirectory(3rdparty/libzip)
-    include_directories(3rdparty/libzip/lib)
+    # libzip removed — unused, pulled in OpenSSL dependency
 endif()
 
 add_subdirectory(modules/)
