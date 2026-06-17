@@ -134,20 +134,6 @@ void dap_chain_node_cli_cmd_init(dap_config_t *a_config)
     }
 }
 
-// Debug flag for CLI commands (read from config: cli-server.debug_more)
-static bool s_debug_more = false;
-
-/**
- * @brief Initialize CLI commands module
- * Called during module initialization
- * @param a_config Configuration object
- */
-void dap_chain_node_cli_cmd_init(dap_config_t *a_config)
-{
-    if (a_config) {
-        s_debug_more = dap_config_get_item_bool_default(a_config, "cli-server", "debug_more", false);
-    }
-}
 
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 static int _cmd_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
@@ -2877,7 +2863,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                     log_it(L_WARNING, "token_decl_sign: Actual signature count (%u) differs from signs_total (%u) in datum %s", 
                            l_actual_signs_count, l_current_signs_count, l_datum_hash_out_str);
                 }
-                l_datum_token->signs_total = l_tmp_signs_total;
+                l_datum_token->signs_total = l_actual_signs_count;
                 debug_if(s_debug_more, L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
 
