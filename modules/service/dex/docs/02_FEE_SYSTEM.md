@@ -41,7 +41,7 @@ fee_amount = value * DAP_DEX_FEE_UNIT_NATIVE  // value × 0.01 native
 
 | fee_config | Calculation | Result |
 |------------|-------------|--------|
-| 0x00 | Fallback to global | s_dex_native_fee_amount |
+| 0x00 | Fallback per network (FEE_SET on that ledger) | dex_net_fee_cache.native_fee_amount |
 | 0x01 | 1 × 0.01 | 0.01 native |
 | 0x05 | 5 × 0.01 | 0.05 native |
 | 0x7F | 127 × 0.01 | 1.27 native |
@@ -80,9 +80,10 @@ The INPUT token depends on trade direction:
 
 ```c
 pthread_rwlock_rdlock(&s_dex_cache_rwlock);
-l_srv_addr = s_dex_service_fee_addr;
+dex_net_fee_cache_t *l_nf = s_dex_get_srv_fee(a_ledger->net->pub.id);
+l_srv_addr = l_nf ? l_nf->service_fee_addr : (dap_chain_addr_t){};
 l_fee_cfg = l_pair_idx->key.fee_config;
-l_native_fee_cached = s_dex_native_fee_amount;
+l_native_fee_cached = l_nf ? l_nf->native_fee_amount : uint256_0;
 pthread_rwlock_unlock(&s_dex_cache_rwlock);
 ```
 
@@ -101,7 +102,7 @@ if ((l_fee_cfg & 0x80) == 0) {
     uint8_t l_pct = l_fee_cfg & 0x7F;
     l_srv_ticker = l_is_bid ? l_pair_idx->key.token_base : l_pair_idx->key.token_quote;
     if (l_pct > 0) {
-        l_srv_fee_req = (INPUT_amount × l_pct) / 1000;
+        l_srv_fee_req = (INPUT_amount × l_pct) / s_dex_get_pct_div(net_id);  // under same rwlock; default divisor 1000
     }
 }
 ```
@@ -169,9 +170,9 @@ if (l_srv_used && l_srv_addr_blank)
 
 ---
 
-## Global Fee Configuration (Decree)
+## Network Fee Configuration (Decree)
 
-Service fee defaults are set via decree:
+Service fee defaults are set via decree **per ledger network** (`a_ledger->net->pub.id`); each net has its own entry in `s_dex_net_fee_tbl` (lookup under `s_dex_cache_rwlock` via `s_dex_get_srv_fee(net_id)`).
 
 ### DEX_DECREE_FEE_SET
 
@@ -188,10 +189,15 @@ Required TSD:
 
 ```c
 pthread_rwlock_wrlock(&s_dex_cache_rwlock);
-s_dex_native_fee_amount = <fee_amount>;
-s_dex_service_fee_addr = <fee_addr>;
+// find-or-insert dex_net_fee_cache_t for a_ledger->net->pub.id, then:
+l_entry->native_fee_amount = <fee_amount>;
+l_entry->service_fee_addr = <fee_addr>;
 pthread_rwlock_unlock(&s_dex_cache_rwlock);
 ```
+
+### DEX_DECREE_PCT_DIVISOR_SET
+
+Stores `pct_divisor` in the **same** `dex_net_fee_cache_t` entry for `a_ledger->net->pub.id` (find-or-insert). If `pct_divisor` is 0 in cache, fee math uses default **1000**.
 
 ---
 
@@ -215,7 +221,7 @@ Required TSD:
   - FEE_CONFIG (uint8_t)
 ```
 
-Applies `fee_config` to ALL existing pairs.
+Applies `fee_config` to all existing pairs whose canonical key references the **decree ledger network** (`net_id_base` or `net_id_quote` equals that net). Pairs that only belong to other nets are unchanged.
 
 ---
 

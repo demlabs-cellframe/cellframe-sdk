@@ -479,6 +479,10 @@ void dap_chain_net_balancer_request(void *a_arg)
     size_t
         l_ignored_addrs_size = 0,
         l_required_links_count = dap_link_manager_needed_links_count(l_arg->net->pub.id.uint64);
+    if (!l_required_links_count) {
+        DAP_DELETE(a_arg);
+        return;
+    }
     dap_chain_net_links_t
         *l_ignored_addrs = s_get_ignored_node_addrs(l_arg->net, &l_ignored_addrs_size),
         *l_links = s_get_node_addrs(l_arg->net, l_required_links_count, l_ignored_addrs, false);
@@ -495,9 +499,10 @@ void dap_chain_net_balancer_request(void *a_arg)
     }
 // links from http balancer request
     if (!l_arg->host_addr || !*l_arg->host_addr || !l_arg->host_port) {
+        const char *l_net_name = l_arg->net->pub.name;
         DAP_DEL_MULTY(a_arg, l_ignored_addrs);
         log_it(L_INFO, "Can't read seed nodes addresses in net %s, work with local balancer only",
-                l_arg->net->pub.name);
+                l_net_name);
         return;
     }
     l_arg->worker = dap_worker_get_current();

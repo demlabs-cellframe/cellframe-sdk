@@ -27,7 +27,9 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#ifndef __USE_GNU
 #define __USE_GNU   /* See feature_test_macros(7) */
+#endif
 #include <pthread.h>
 
 #include "dap_client.h"

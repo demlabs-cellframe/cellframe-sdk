@@ -56,11 +56,10 @@ static participants_t init_participants(
 static int s_dex_history_summary_by_order(dex_test_fixture_t *a_f, const dap_hash_fast_t *a_order_hash)
 {
     dap_ret_val_if_any(-1, !a_f, !a_f->net, !a_f->net->net, !a_order_hash);
-    const char *l_hash_str = dap_chain_hash_fast_to_str_static(a_order_hash);
     char l_json_request[1024];
     snprintf(l_json_request, sizeof(l_json_request),
         "{\"method\":\"srv_dex\",\"params\":[\"srv_dex;history;-net;%s;-order;%s;-view;summary\"],\"id\":1,\"jsonrpc\":\"2.0\"}",
-        a_f->net->net->pub.name, l_hash_str);
+        a_f->net->net->pub.name, dap_chain_hash_fast_to_str_static(a_order_hash));
     char *l_reply = dap_cli_cmd_exec(l_json_request);
     if (!l_reply)
         return -2;
@@ -3137,7 +3136,6 @@ static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_confi
                         ? json_object_array_get_idx(l_result_raw, 0) : l_result_raw;
                     json_object *l_orders = NULL;
                     if (l_result && json_object_object_get_ex(l_result, "orders", &l_orders)) {
-                        const char *l_tx1_hash_str = dap_hash_fast_to_str_static(&tx1_hash);
                         int l_arr_len = json_object_array_length(l_orders);
                         bool l_found = false;
                         for (int i = 0; i < l_arr_len; i++) {
@@ -3146,7 +3144,7 @@ static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_confi
                             if (json_object_object_get_ex(l_order, "tx_hash", &l_tx_hash) &&
                                 json_object_object_get_ex(l_order, "type", &l_type)) {
                                 const char *l_hash_str = json_object_get_string(l_tx_hash);
-                                if (l_hash_str && !dap_strcmp(l_hash_str, l_tx1_hash_str)) {
+                                if (l_hash_str && !dap_strcmp(l_hash_str, dap_hash_fast_to_str_static(&tx1_hash))) {
                                     const char *l_type_str = json_object_get_string(l_type);
                                     l_found = true;
                                     if (!dap_strcmp(l_type_str, "market trade | new order") ||
@@ -3164,7 +3162,7 @@ static int s_run_m03_buyer_leftover(dex_test_fixture_t *f, const test_pair_confi
                             }
                         }
                         if (!l_found) {
-                            log_it(L_ERROR, "M03: Buyer-leftover %s not found in history", l_tx1_hash_str);
+                            log_it(L_ERROR, "M03: Buyer-leftover %s not found in history", dap_hash_fast_to_str_static(&tx1_hash));
                             json_object_put(l_json);
                             return -7;
                         }
@@ -3486,7 +3484,6 @@ static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_c
                         ? json_object_array_get_idx(l_result_raw, 0) : l_result_raw;
                     json_object *l_orders = NULL;
                     if (l_result && json_object_object_get_ex(l_result, "orders", &l_orders)) {
-                        const char *l_tx1_hash_str = dap_hash_fast_to_str_static(&tx1_hash);
                         int l_arr_len = json_object_array_length(l_orders);
                         bool l_found = false;
                         for (int i = 0; i < l_arr_len; i++) {
@@ -3495,7 +3492,7 @@ static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_c
                             if (json_object_object_get_ex(l_order, "tx_hash", &l_tx_hash) &&
                                 json_object_object_get_ex(l_order, "type", &l_type)) {
                                 const char *l_hash_str = json_object_get_string(l_tx_hash);
-                                if (l_hash_str && !dap_strcmp(l_hash_str, l_tx1_hash_str)) {
+                                if (l_hash_str && !dap_strcmp(l_hash_str, dap_hash_fast_to_str_static(&tx1_hash))) {
                                     const char *l_type_str = json_object_get_string(l_type);
                                     l_found = true;
                                     if (!dap_strcmp(l_type_str, "market trade | new order") ||
@@ -3513,7 +3510,7 @@ static int s_run_m06_bid_buyer_leftover(dex_test_fixture_t *f, const test_pair_c
                             }
                         }
                         if (!l_found) {
-                            log_it(L_ERROR, "M06: Buyer-leftover %s not found in history", l_tx1_hash_str);
+                            log_it(L_ERROR, "M06: Buyer-leftover %s not found in history", dap_hash_fast_to_str_static(&tx1_hash));
                             json_object_put(l_json);
                             return -7;
                         }
