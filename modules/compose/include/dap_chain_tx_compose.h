@@ -125,7 +125,7 @@ json_object *dap_chain_tx_compose_srv_stake_invalidate(dap_chain_net_id_t a_net_
 
 json_object * dap_chain_tx_compose_wallet_shared_hold(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
                                                     uint16_t a_port, const char *a_enc_cert_path, dap_chain_addr_t *a_owner_addr, const char *a_token_str, const char *a_value_str, 
-                                                    const char *a_fee_str, const char *a_signs_min_str, const char *a_pkeys_str, 
+                                                    const char *a_fee_str, const char *a_signs_min_str, const char *a_owners_str, 
                                                     const char *a_tag_str);
 
 json_object *dap_chain_tx_compose_wallet_shared_refill(dap_chain_net_id_t a_net_id, const char *a_net_name, const char *a_native_ticker, const char *a_url_str,
@@ -182,8 +182,17 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_srv_stake_delegate(dap_chain_ad
                                                  dap_chain_datum_tx_t *a_prev_tx, dap_pkey_t *a_pkey, compose_config_t *a_config);
 
 
-dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee, 
-                                                      uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str, 
+dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
+                                                      uint32_t a_signs_min, dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str,
+                                                      compose_config_t *a_config);
+
+dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold_by_addrs(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
+                                                      uint32_t a_signs_min, dap_chain_addr_t *a_owner_addrs, size_t a_addrs_count, const char *a_tag_str,
+                                                      compose_config_t *a_config);
+
+dap_chain_datum_tx_t * dap_chain_tx_compose_datum_wallet_shared_hold_ext(dap_chain_addr_t *a_owner_addr, const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
+                                                      uint32_t a_signs_min, dap_chain_addr_t *a_owner_addrs, size_t a_addrs_count,
+                                                      dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str,
                                                       compose_config_t *a_config);
 
 dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_refill(dap_chain_addr_t *a_owner_addr, uint256_t a_value, uint256_t a_fee, dap_hash_fast_t *a_tx_in_hash, 
