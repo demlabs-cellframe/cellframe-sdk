@@ -42,8 +42,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
-
-static bool s_debug_more = false;
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
 #define SRV_STATISTIC_GDB_GROUP "local.srv_statistic"
 #define SRV_RECEIPTS_GDB_GROUP "local.receipts"
@@ -181,15 +179,15 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , UNUSED_ARG void *a_arg)
 // sanity check
     dap_return_if_pass(!a_ch);
 // func work
-    debug_if(s_debug_more, L_DEBUG, "Stream ch chain net srv delete");
+    log_it(L_DEBUG, "Stream ch chain net srv delete");
 
     dap_chain_net_srv_stream_session_t * l_srv_session = a_ch && a_ch->stream && a_ch->stream->session ? (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor : NULL;
-    dap_chain_net_srv_usage_t *l_usage_snap = l_srv_session ? __atomic_load_n(&l_srv_session->usage_active, __ATOMIC_ACQUIRE) : NULL;
-    dap_chain_net_srv_t * l_srv = l_usage_snap ? dap_chain_net_srv_get(l_usage_snap->service->uid) : NULL;
+    dap_chain_net_srv_t * l_srv = l_srv_session && l_srv_session->usage_active ? dap_chain_net_srv_get(l_srv_session->usage_active->service->uid) : NULL;
 
     if (l_srv) {
-        s_set_usage_data_to_gdb(l_usage_snap);
-        l_srv->callbacks.save_remain_service(l_srv, l_usage_snap->id, l_usage_snap->client);
+        dap_chain_net_srv_usage_t *l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session, l_srv_session->usage_active->id);
+        s_set_usage_data_to_gdb(l_usage);
+        l_srv->callbacks.save_remain_service(l_srv, l_srv_session->usage_active->id, l_srv_session->usage_active->client);
     }
 
     dap_chain_net_srv_call_closed_all(a_ch);
@@ -247,13 +245,13 @@ static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
     dap_time_t l_end_of_ban_timestamp = dap_time_now() + (a_usage->service->grace_period * 50); // ban client for 10x grace periods
     char l_tmp_buf[DAP_TIME_STR_SIZE];
     dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban_timestamp);
-    debug_if(s_debug_more, L_DEBUG, "Add client %s to ban list till %s.", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_tmp_buf);
+    log_it(L_DEBUG, "Add client %s to ban list till %s.", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), l_tmp_buf);
     char *l_ban_group = s_get_ban_group(a_usage);
 
     int l_ret = dap_global_db_set_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_end_of_ban_timestamp, sizeof(l_end_of_ban_timestamp), false);
     if(l_ret)
     {
-        debug_if(s_debug_more, L_DEBUG, "Can't add client to ban list group in GDB. Error code: %d", l_ret);
+        log_it(L_DEBUG, "Can't add client to ban list group in GDB. Error code: %d", l_ret);
         DAP_DELETE(l_ban_group);
         return;
     }
@@ -262,7 +260,7 @@ static void s_ban_client(dap_chain_net_srv_usage_t *a_usage)
 
 static void s_unban_client(dap_chain_net_srv_usage_t *a_usage)
 {
-    debug_if(s_debug_more, L_DEBUG, "Remove client %s from ban list", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
+    log_it(L_DEBUG, "Remove client %s from ban list", dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
     char *l_ban_group = s_get_ban_group(a_usage);
     size_t l_data_size = 0;
     byte_t* l_ret = dap_global_db_get_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash), &l_data_size, NULL, NULL);
@@ -271,7 +269,7 @@ static void s_unban_client(dap_chain_net_srv_usage_t *a_usage)
         int l_ret = dap_global_db_del_sync(l_ban_group, dap_hash_fast_to_str_static(&a_usage->client_pkey_hash));
         if(l_ret)
         {
-            debug_if(s_debug_more, L_DEBUG, "Can't remove client from ban list group in GDB. Error code: %d", l_ret);
+            log_it(L_DEBUG, "Can't remove client from ban list group in GDB. Error code: %d", l_ret);
             DAP_DELETE(l_ban_group);
             return;
         }
@@ -368,31 +366,24 @@ struct dap_grace_exit_args{
     dap_chain_net_srv_t *net_srv;
     dap_chain_net_srv_grace_usage_t *grace_item;
     dap_chain_datum_tx_t* tx;
-    dap_hash_fast_t tx_cond_hash;
 };
 
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt(void *a_arg)
 {
     struct dap_grace_exit_args *l_args = (struct dap_grace_exit_args*)a_arg;
     pthread_mutex_lock(&l_args->net_srv->grace_mutex);
-    dap_chain_net_srv_grace_usage_t *l_found = NULL;
-    HASH_FIND(hh, l_args->net_srv->grace_hash_tab,
-              &l_args->tx_cond_hash,
-              sizeof(dap_hash_fast_t), l_found);
-    if (l_found != l_args->grace_item) {
-        pthread_mutex_unlock(&l_args->net_srv->grace_mutex);
-        DAP_DELETE(a_arg);
-        return;
-    }
+    // finish grace
     HASH_DEL(l_args->net_srv->grace_hash_tab, l_args->grace_item);
     pthread_mutex_unlock(&l_args->net_srv->grace_mutex);
 
     log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
+    // Stop timer
     dap_timerfd_delete_unsafe(l_args->grace_item->grace->timer);
     l_args->grace_item->grace->usage->tx_cond = l_args->tx;
 
     dap_chain_datum_tx_receipt_t *l_new_receipt = NULL;
     if (l_args->grace_item->grace->usage->service_substate == DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_NEW_TX_IN_LEDGER) {
+        // Send new receipt with new tx
         if (l_args->grace_item->grace->usage->receipt_next){
             DAP_DEL_Z(l_args->grace_item->grace->usage->receipt_next);
             l_args->grace_item->grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(l_args->grace_item->grace->usage->service, l_args->grace_item->grace->usage->price, NULL, 0, &l_args->grace_item->grace->usage->tx_cond_hash);
@@ -405,6 +396,7 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt(void *a_arg)
         
         l_args->grace_item->grace->usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_WAITING_RECEIPT_FOR_NEW_TX_FROM_CLIENT;
 
+        //start timeout timer
         l_args->grace_item->grace->usage->receipt_timeout_timer_start_callback(l_args->grace_item->grace->usage);
         log_it(L_NOTICE, "Create new receipt with new tx %s and send to user for signing.", dap_chain_hash_fast_to_str_static(&l_args->grace_item->grace->usage->tx_cond_hash));
         dap_stream_ch_pkt_write_unsafe(l_args->grace_item->grace->usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST, l_new_receipt, l_new_receipt->size);
@@ -441,17 +433,15 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
     }
     pthread_mutex_lock(&l_net_srv->grace_mutex);
     HASH_FIND(hh, l_net_srv->grace_hash_tab, a_tx_hash, sizeof(dap_hash_fast_t), l_item);
+    pthread_mutex_unlock(&l_net_srv->grace_mutex);
     if (l_item){
-        dap_worker_t *l_target_worker = l_item->grace->usage->client->stream_worker->worker;
+        // send routine to right worker
         struct dap_grace_exit_args *l_args = DAP_NEW_Z(struct dap_grace_exit_args);
         l_args->grace_item = l_item;
         l_args->net_srv = l_net_srv;
         l_args->tx = a_tx;
-        l_args->tx_cond_hash = *a_tx_hash;
-        pthread_mutex_unlock(&l_net_srv->grace_mutex);
-        dap_worker_exec_callback_on(l_target_worker, dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt, l_args);
-    } else {
-        pthread_mutex_unlock(&l_net_srv->grace_mutex);
+
+        dap_worker_exec_callback_on(l_item->grace->usage->client->stream_worker->worker, dap_stream_ch_chain_net_srv_tx_cond_added_cb_mt, l_args);
     }
 }
 
@@ -470,16 +460,20 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     l_err.net_id.uint64 = a_request->hdr.net_id.uint64;
     l_err.srv_uid.uint64 = a_request->hdr.srv_uid.uint64;
 
-    debug_if(s_debug_more, L_DEBUG, "Got service request from user %s", dap_chain_hash_fast_to_str_static(&a_request->hdr.client_pkey_hash));
+    log_it(L_DEBUG, "Got service request from user %s", dap_chain_hash_fast_to_str_static(&a_request->hdr.client_pkey_hash));
 
     if (dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
-        log_it( L_ERROR, "No order hash in request.");
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
-            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-        return false;
+        if (l_srv && l_srv->allow_free_srv) {
+            log_it(L_INFO, "No order hash in request, but allow_free_srv=true — continuing as free service");
+        } else {
+            log_it( L_ERROR, "No order hash in request.");
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
+            if(a_ch)
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv && l_srv->callbacks.response_error)
+                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+            return false;
+        }
     }
 
     char l_order_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
@@ -497,18 +491,26 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         return false;
     }
 
-    bool l_check_role = dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER;  // check role
-    if ( ! l_srv || l_check_role) // Service not found
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NODE_ROLE_ERROR;
+    if (!l_srv) {
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+    } else if (l_srv->decree_disabled) {
+        log_it(L_WARNING, "Service uid=0x%016"DAP_UINT64_FORMAT_x" is disabled by decree in net %s",
+               l_srv->uid.uint64, l_net->pub.name);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_DISABLED;
+    } else if (l_srv->allowed_roles_mask) {
+        dap_chain_node_role_t l_cur_role = dap_chain_net_get_role(l_net);
+        dap_chain_node_role_mask_t l_cur_bit = dap_chain_node_role_to_bit(l_cur_role);
+        if (!(l_srv->allowed_roles_mask & l_cur_bit)) {
+            log_it(L_ERROR, "Service uid=0x%016"DAP_UINT64_FORMAT_x": node role %s (bit 0x%02x) not in allowed mask 0x%02x for net %s",
+                   l_srv->uid.uint64, dap_chain_node_role_to_str(l_cur_role),
+                   (unsigned)l_cur_bit, (unsigned)l_srv->allowed_roles_mask, l_net->pub.name);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NODE_ROLE_ERROR;
+        }
+    }
 
-    if ( l_err.code || !l_srv_session){
-        debug_if(
-            l_check_role, L_ERROR,
-            "You can't provide service with ID %" DAP_UINT64_FORMAT_U " in net %s. Node role should be not lower than master\n", l_srv ?
-            l_srv->uid.uint64 : 0, l_net->pub.name
-            );
+    if (l_err.code || !l_srv_session) {
         if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
         if (l_srv && l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         return false;
@@ -552,31 +554,59 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     l_usage->service_state = DAP_CHAIN_NET_SRV_USAGE_SERVICE_STATE_IDLE;
     l_usage->service_substate = DAP_CHAIN_NET_SRV_USAGE_SERVICE_SUBSTATE_IDLE;
 
+    /* --- Client pkey whitelist check (optional, configured per service) --- */
+    if (l_srv->allowed_client_pkeys && l_srv->allowed_client_pkeys_count > 0) {
+        bool l_allowed = false;
+        for (size_t i = 0; i < l_srv->allowed_client_pkeys_count; i++) {
+            if (memcmp(&l_srv->allowed_client_pkeys[i], &l_usage->client_pkey_hash,
+                       sizeof(dap_chain_hash_fast_t)) == 0) {
+                l_allowed = true;
+                break;
+            }
+        }
+        if (!l_allowed) {
+            log_it(L_WARNING, "Service uid=0x%016"DAP_UINT64_FORMAT_x": client pkey_hash %s"
+                   " is not in the allowed_client_pkeys whitelist, rejecting",
+                   l_srv->uid.uint64,
+                   dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash));
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+            if (a_ch)
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR,
+                                               &l_err, sizeof(l_err));
+            if (l_srv->callbacks.response_error)
+                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+            DAP_DEL_Z(l_usage->client);
+            DAP_DEL_Z(l_usage);
+            return false;
+        }
+        log_it(L_NOTICE, "Service uid=0x%016"DAP_UINT64_FORMAT_x": client pkey_hash %s"
+               " is in whitelist, allowing",
+               l_srv->uid.uint64,
+               dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash));
+    }
+
     dap_chain_net_srv_price_t * l_price = NULL;
     bool l_specific_order_free = false;
-    l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
-    if (!l_price){
-        log_it(L_ERROR, "Can't get price from order!");
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_ERROR;
-        if(a_ch)
-            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-        if (l_srv && l_srv->callbacks.response_error)
-            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-        dap_chain_net_srv_usage_delete(l_srv_session);
-        return false;
-    }
-
-    if (IS_ZERO_256(l_price->value_datoshi)){
+    /* When allow_free_srv=true and no order hash provided, skip price lookup entirely */
+    if (l_srv->allow_free_srv && dap_hash_fast_is_blank(&a_request->hdr.order_hash)) {
         l_specific_order_free = true;
+    } else {
+        l_price = dap_chain_net_srv_get_price_from_order(l_srv, "srv_vpn", &a_request->hdr.order_hash);
+        if (!l_price){
+            log_it(L_ERROR, "Can't get price from order!");
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_ERROR;
+            if(a_ch)
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv && l_srv->callbacks.response_error)
+                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+            DAP_DEL_Z(l_usage->client);
+            DAP_DEL_Z(l_usage);
+            return false;
+        }
     }
 
-    {
-        const char *l_coins_diag = NULL;
-        const char *l_datoshi_diag = dap_uint256_to_char(l_price->value_datoshi, &l_coins_diag);
-        log_it(L_WARNING, "DIAG: order price datoshi=%s coins=%s is_zero=%d allow_free=%d",
-               l_datoshi_diag ? l_datoshi_diag : "NULL",
-               l_coins_diag ? l_coins_diag : "NULL",
-               (int)l_specific_order_free, (int)l_srv->allow_free_srv);
+    if (l_price && IS_ZERO_256(l_price->value_datoshi)){
+        l_specific_order_free = true;
     }
 
     l_usage->price = l_price;
@@ -592,9 +622,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
             if (l_srv && l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-            l_usage->price = NULL;
-            dap_chain_net_srv_usage_delete(l_srv_session);
-            DAP_DELETE(l_price);
+            DAP_DEL_Z(l_usage->client);
+            DAP_DEL_Z(l_usage);
             return false;
         }
 
@@ -620,7 +649,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
             if (l_end_of_ban != 0) {   // client banned
                 char l_tmp_buf[DAP_TIME_STR_SIZE];
                 dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_end_of_ban);
-                debug_if(s_debug_more, L_DEBUG, "Client %s is banned till %s!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash), l_tmp_buf);
+                log_it(L_DEBUG, "Client %s is banned till %s!", dap_chain_hash_fast_to_str_static(&l_usage->client_pkey_hash), l_tmp_buf);
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH;
                 if(a_ch)
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -749,13 +778,6 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 
     dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(a_grace_item->grace->usage->service->uid);
     pthread_mutex_lock(&l_srv->grace_mutex);
-    dap_chain_net_srv_grace_usage_t *l_found = NULL;
-    HASH_FIND(hh, l_srv->grace_hash_tab, &a_grace_item->grace->usage->tx_cond_hash,
-              sizeof(dap_hash_fast_t), l_found);
-    if (l_found != a_grace_item) {
-        pthread_mutex_unlock(&l_srv->grace_mutex);
-        return false;
-    }
     HASH_DEL(l_srv->grace_hash_tab, a_grace_item);
     pthread_mutex_unlock(&l_srv->grace_mutex);
 
@@ -861,8 +883,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
         l_request->err_code = 0;
 
-        dap_strncpy(l_request->host_send, a_ch->stream->esocket
-                    ? a_ch->stream->esocket->remote_addr_str : "unknown", DAP_HOSTADDR_STRLEN);
+        dap_strncpy(l_request->host_send, a_ch->stream->trans_ctx && a_ch->stream->trans_ctx->esocket
+                    ? a_ch->stream->trans_ctx->esocket->remote_addr_str : "unknown", DAP_HOSTADDR_STRLEN);
         l_request->recv_time2 = dap_nanotime_now();
 
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request,
@@ -1124,14 +1146,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
             pthread_mutex_unlock(&l_srv->grace_mutex);
 
             if (l_curr_grace_item){
-                if (dap_hash_fast_is_blank(&l_responce->hdr.tx_cond)){
-                        pthread_mutex_lock(&l_srv->grace_mutex);
+                if (dap_hash_fast_is_blank(&l_responce->hdr.tx_cond)){ //if new tx cond creation failed tx_cond in responce will be blank
                         HASH_DEL(l_srv->grace_hash_tab, l_curr_grace_item);
-                        pthread_mutex_unlock(&l_srv->grace_mutex);
                         dap_timerfd_delete_mt(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
                         l_usage->last_err_code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_NEW_COND;
                         s_service_substate_go_to_error(l_usage);
-                        DAP_DEL_Z(l_curr_grace_item->grace);
                         DAP_DEL_Z(l_curr_grace_item);
                     break;
                 }

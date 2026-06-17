@@ -62,6 +62,11 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                                  0x0001
 #define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                                 0x0002
 
+// Service decree subtypes (used with DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE)
+#define DAP_CHAIN_DATUM_DECREE_SERVICE_SUBTYPE_ENABLE                       0x0001  // Enable service in network
+#define DAP_CHAIN_DATUM_DECREE_SERVICE_SUBTYPE_DISABLE                      0x0002  // Disable service in network
+#define DAP_CHAIN_DATUM_DECREE_SERVICE_SUBTYPE_ALLOWED_ROLES                0x0003  // Set allowed provider roles (TSD: ALLOWED_ROLES)
+
 // Common decree subtypes
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE                           0x0001
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS                        0x0002
@@ -102,6 +107,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY                          0x010D
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E 
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD             0x0118
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ALLOWED_ROLES               0x0119  // uint8_t bitmask of dap_chain_node_role_mask_t
 
 #ifdef __cplusplus
 extern "C" {
