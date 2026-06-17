@@ -30,3 +30,4 @@ add_subdirectory(unit)
 # Integration tests subdirectory  
 add_subdirectory(integration)
 
+add_subdirectory(regression)
