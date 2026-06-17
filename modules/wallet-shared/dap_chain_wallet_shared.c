@@ -252,7 +252,7 @@ static char *s_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_t *a_chain, const ch
 
 #define m_tx_fail(e,s) { DAP_DELETE(l_tx); m_sign_fail(e,s); log_it(L_ERROR, "%s", s); }
 
-static dap_chain_datum_tx_t *s_emitting_tx_create(dap_json_t *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
+dap_chain_datum_tx_t *dap_chain_wallet_shared_emitting_tx_create(dap_json_t *a_json_arr_reply, dap_chain_net_t *a_net, dap_enc_key_t *a_enc_key,
                                                   const char *a_token_ticker, uint256_t a_value, uint256_t a_fee,
                                                   uint32_t a_signs_min, dap_hash_sha3_256_t *a_pkey_hashes, size_t a_pkey_hashes_count, const char *a_tag_str)
 {
@@ -863,7 +863,7 @@ static int s_cli_hold(int a_argc, char **a_argv, int a_arg_index, dap_json_t *a_
         return ERROR_VALUE;
     }
     // Create conditional transaction for shared fundss
-    dap_chain_datum_tx_t *l_tx = s_emitting_tx_create(a_json_arr_reply, a_net, l_enc_key, l_token_str, l_value, l_fee, l_signs_min, l_pkey_hashes, l_hashes_count, l_tag_str);
+    dap_chain_datum_tx_t *l_tx = dap_chain_wallet_shared_emitting_tx_create(a_json_arr_reply, a_net, l_enc_key, l_token_str, l_value, l_fee, l_signs_min, l_pkey_hashes, l_hashes_count, l_tag_str);
     DAP_DEL_MULTY(l_enc_key, l_pkey_hashes);
     if (!l_tx) {
         dap_json_rpc_error_add(a_json_arr_reply, ERROR_CREATE, "Can't compose transaction for shared funds");
