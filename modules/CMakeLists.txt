@@ -1,4 +1,3 @@
-
 # Core
 if (CELLFRAME_MODULES MATCHES "core")
     add_subdirectory(common)
@@ -8,11 +7,6 @@ endif()
 if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(chain)
     add_subdirectory(wallet)
-endif()
-
-# Distributed Hash Tables (DHT)
-if (CELLFRAME_MODULES MATCHES "dht")
-    add_subdirectory(dht)
 endif()
 
 # Network
@@ -54,20 +48,6 @@ if (CELLFRAME_MODULES MATCHES "cs-esbocs")
     add_subdirectory(consensus/esbocs)
 endif()
 
-# Block PoW
-if (CELLFRAME_MODULES MATCHES "cs-block-pow")
-    add_subdirectory(consensus/block-pow)
-endif()
-
-# Service App
-if (CELLFRAME_MODULES MATCHES "srv-app")
-    add_subdirectory(service/app)
-endif()
-
-# Service App DB
-if (CELLFRAME_MODULES MATCHES "srv-app-db")
-    add_subdirectory(service/app-db)
-endif()
 
 # Service Datum
 if (CELLFRAME_MODULES MATCHES "srv-datum")
