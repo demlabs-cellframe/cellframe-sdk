@@ -873,8 +873,6 @@ static void s_callback_datum_notify(void *a_arg, dap_chain_hash_fast_t *a_datum_
 {
     (void) a_atom;
     (void) a_atom_size;
-    (void) a_datum;
-    (void) a_datum_size;
     dap_atom_notify_arg_t *l_arg = (dap_atom_notify_arg_t*)a_arg;
     if (!l_arg || !l_arg->chain || !l_arg->chain->callback_datum_find_by_hash || !a_datum_hash)
         return;
