@@ -397,7 +397,8 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
             l_tx_ledger_rejected = 0;
    
     dap_hash_fast_t l_curr_tx_hash = {};
-    bool l_from_cache = dap_chain_wallet_cache_tx_find_in_history(a_addr, NULL, NULL, NULL, NULL, NULL, &l_curr_tx_hash) == 0 ? true : false;
+    int l_cache_ret = dap_chain_wallet_cache_tx_find_in_history(a_addr, NULL, NULL, NULL, NULL, NULL, &l_curr_tx_hash);
+    bool l_from_cache = l_cache_ret == 0 && !dap_hash_fast_is_blank(&l_curr_tx_hash);
     if (l_from_cache && a_addr->net_id.uint64 != l_net->pub.id.uint64){
         log_it(L_WARNING, "Can't find wallet with addr %s in net %s", l_addr_str, l_net->pub.name);
         dap_json_rpc_error_add(a_json_arr_reply, -1, "Can't find wallet with addr %s in net %s", l_addr_str, l_net->pub.name);

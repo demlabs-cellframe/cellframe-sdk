@@ -61,6 +61,7 @@ int dap_chain_wallet_cache_deinit();
  * @return 0 on success, -1 on error
  */
 int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net);
+void dap_chain_wallet_cache_invalidate_net(dap_chain_net_id_t a_net_id);
 
 /**
  * @brief Find next transactions after l_tx_hash_curr for wallet addr and save pointer to datum into a_tx. If l_tx_hash_curr is NULL then function find first tx for addr.
