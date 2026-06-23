@@ -18,13 +18,13 @@ enable_testing()
 # Include directories for tests
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
-    ${CMAKE_SOURCE_DIR}/modules/chain/include
-    ${CMAKE_SOURCE_DIR}/modules/ledger/include
-    ${CMAKE_SOURCE_DIR}/modules/datum/include
-    ${CMAKE_SOURCE_DIR}/modules/net/include
-    ${CMAKE_SOURCE_DIR}/modules/service/stake-ext/include
-    ${CMAKE_SOURCE_DIR}/modules/common/include
-    ${CMAKE_SOURCE_DIR}/dap-sdk/module/test/include
+    ${CELLFRAME_SDK_SOURCE_DIR}/modules/chain/include
+    ${CELLFRAME_SDK_SOURCE_DIR}/modules/ledger/include
+    ${CELLFRAME_SDK_SOURCE_DIR}/modules/datum/include
+    ${CELLFRAME_SDK_SOURCE_DIR}/modules/net/include
+    ${CELLFRAME_SDK_SOURCE_DIR}/modules/service/stake-ext/include
+    ${CELLFRAME_SDK_SOURCE_DIR}/modules/common/include
+    ${CELLFRAME_SDK_SOURCE_DIR}/dap-sdk/module/test/include
 )
 
 # Common test libraries
