@@ -1108,6 +1108,7 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
     dap_chain_net_srv_stake_purge(l_net);
     dap_chain_net_decree_deinit(l_net);
     dap_ledger_purge(l_net->pub.ledger, false);
+    dap_chain_wallet_cache_invalidate_net(l_net->pub.id);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge) {
@@ -1996,6 +1997,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     DAP_DELETE(l_net_pvt->node_info);
     if (a_net->pub.ledger) {
         dap_ledger_purge(a_net->pub.ledger, true);
+        dap_chain_wallet_cache_invalidate_net(a_net->pub.id);
         dap_ledger_handle_free(a_net->pub.ledger);
     }
     if (a_net->pub.chains) {
@@ -2279,6 +2281,7 @@ static void *s_net_load(void *a_arg)
                     dap_chain_net_decree_purge(l_net);
                     l_chain->callback_purge(l_chain);
                     dap_ledger_purge(l_net->pub.ledger, false);
+                    dap_chain_wallet_cache_invalidate_net(l_net->pub.id);
                     l_net->pub.fee_value = uint256_0;
                     l_net->pub.fee_addr = c_dap_chain_addr_blank;
                     dap_chain_load_all(l_chain);
