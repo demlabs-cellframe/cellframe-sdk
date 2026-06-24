@@ -1285,7 +1285,6 @@ int com_token_emit(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, UNUS
     const char * l_chain_emission_str = NULL;
     dap_chain_t * l_chain_emission = NULL;
     dap_chain_net_t * l_net = NULL;
-    dap_chain_addr_t *l_addr = NULL;
     
     dap_json_t *json_obj_out = dap_json_object_new();
     int l_ret = 0;
