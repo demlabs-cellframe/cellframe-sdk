@@ -3050,7 +3050,8 @@ static int s_cli_srv_xchange_tx_list_addr_json(dap_chain_net_t *a_net, dap_time_
 
     size_t l_tx_count = 0;
     dap_hash_fast_t l_hash_curr = {};
-    bool l_from_wallet_cache = dap_chain_wallet_cache_tx_find(a_addr, NULL, NULL, &l_hash_curr, NULL) == 0 ? true : false;
+    int l_cache_ret = dap_chain_wallet_cache_tx_find(a_addr, NULL, NULL, &l_hash_curr, NULL);
+    bool l_from_wallet_cache = l_cache_ret == 0 && !dap_hash_fast_is_blank(&l_hash_curr);
     l_hash_curr = (dap_hash_fast_t){0};
 
     if(!l_from_wallet_cache){  
