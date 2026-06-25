@@ -1961,6 +1961,35 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
         l_opts->net_id = a_net->pub.id;
         l_opts->flags = l_ledger_flags;
         l_opts->native_ticker = a_net->pub.native_ticker;
+
+        /* Read ledger type from config: [ledger] type = "open"|"anon" */
+        const char *l_ledger_type_str = dap_config_get_item_str(a_net->pub.config, "ledger", "type");
+        if (l_ledger_type_str && strcmp(l_ledger_type_str, "anon") == 0) {
+            l_opts->ledger_type = 1;  /* anon */
+            /* Read anon_type: chipmunk_snark (default), mrng, lrs */
+            const char *l_anon_type_str = dap_config_get_item_str(a_net->pub.config, "ledger", "anon_type");
+            if (l_anon_type_str) {
+                if (strcmp(l_anon_type_str, "chipmunk_snark") == 0) {
+                    l_opts->anon_type = 0;
+                } else if (strcmp(l_anon_type_str, "mrng") == 0) {
+                    l_opts->anon_type = 1;
+                } else if (strcmp(l_anon_type_str, "lrs") == 0) {
+                    l_opts->anon_type = 2;
+                } else {
+                    log_it(L_WARNING, "Unknown anon_type '%s', using chipmunk_snark", l_anon_type_str);
+                    l_opts->anon_type = 0;
+                }
+            } else {
+                l_opts->anon_type = 0;  /* default: chipmunk_snark */
+            }
+            log_it(L_INFO, "Network %s using ANONYMOUS ledger (backend: %s)",
+                   a_net->pub.name,
+                   l_opts->anon_type == 0 ? "chipmunk_snark" :
+                   l_opts->anon_type == 1 ? "mrng" : "lrs");
+        } else {
+            l_opts->ledger_type = 0;  /* open (default) */
+            l_opts->anon_type = 0;
+        }
         
         // Create ledger
         a_net->pub.ledger = dap_ledger_create(l_opts);

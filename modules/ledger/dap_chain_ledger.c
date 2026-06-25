@@ -47,6 +47,7 @@
 #include "dap_chain_net_types.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_net_utils.h"
+#include "dap_chain_ledger_type.h"
 
 #define LOG_TAG "dap_ledger"
 
@@ -335,6 +336,12 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     
     // Free chain IDs array
     DAP_DEL_Z(a_ledger->chain_ids);
+
+    // Free anonymous context if present
+    if (PVT(a_ledger)->anon_data) {
+        dap_ledger_anon_ctx_free(PVT(a_ledger)->anon_data);
+        PVT(a_ledger)->anon_data = NULL;
+    }
 
     DAP_DEL_MULTY(PVT(a_ledger), a_ledger);
     log_it(L_INFO,"Ledger '%s' destroyed", a_ledger->name);
@@ -943,6 +950,26 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
 
     dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
     l_ledger_pvt->flags = a_options->flags;
+
+    /* Initialize ledger type system */
+    l_ledger_pvt->ledger_type = a_options->ledger_type;
+    l_ledger_pvt->anon_type = a_options->anon_type;
+    l_ledger_pvt->anon_data = NULL;
+
+    if (l_ledger_pvt->ledger_type == 1) { /* anon */
+        log_it(L_INFO, "Ledger '%s' created in ANONYMOUS mode (backend: %s)",
+               l_ledger->name,
+               l_ledger_pvt->anon_type == 0 ? "chipmunk_snark" :
+               l_ledger_pvt->anon_type == 1 ? "mrng" : "lrs");
+
+        /* Initialize anonymous context */
+        l_ledger_pvt->anon_data = dap_ledger_anon_ctx_create();
+        if (!l_ledger_pvt->anon_data) {
+            log_it(L_ERROR, "Failed to create anonymous context for ledger '%s'", l_ledger->name);
+            /* Continue without anon context — TX verification will fail */
+        }
+    }
+
     if ( is_ledger_threshld(l_ledger_pvt) )
         l_ledger_pvt->threshold_txs_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);

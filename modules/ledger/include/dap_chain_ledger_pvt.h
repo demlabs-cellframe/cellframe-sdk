@@ -248,7 +248,12 @@ typedef struct dap_ledger_private {
 
     dap_ledger_cache_tx_check_callback_t cache_tx_check_callback;
     // White- and blacklist
-    dap_ledger_hal_item_t *hal_items, *hrl_items;    
+    dap_ledger_hal_item_t *hal_items, *hrl_items;
+
+    // Ledger type system
+    uint8_t ledger_type;                    // 0=open (UTXO), 1=anon
+    uint8_t anon_type;                      // Anonymous backend type
+    void *anon_data;                        // Type-specific data (SNARK context, etc.)
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )

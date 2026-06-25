@@ -63,6 +63,11 @@ if (CELLFRAME_MODULES MATCHES "cs-esbocs")
     add_subdirectory(consensus/esbocs)
 endif()
 
+# Chipchain (ring-signature consensus with multi-signature aggregation)
+if (CELLFRAME_MODULES MATCHES "cs-chipchain")
+    add_subdirectory(consensus/chipchain)
+endif()
+
 # Block PoW
 if (CELLFRAME_MODULES MATCHES "cs-block-pow")
     add_subdirectory(consensus/block-pow)

@@ -1,0 +1,380 @@
+/*
+* Authors:
+* Dmitrii Gerasimov <dmitry.gerasimov@demlabs.net>
+* Cellframe       https://cellframe.net
+* Copyright  (c) 2026
+* All rights reserved.
+
+This file is part of CellFrame SDK the open source project
+
+CellFrame SDK is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+CellFrame SDK is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
+*/
+#pragma once
+
+#include <stddef.h>
+#include "dap_chain.h"
+#include "dap_json.h"
+#include "dap_chain_type_blocks.h"
+#include "dap_chain_block_collect.h"  // Common block collection types (moved here to break cycles)
+#include "dap_serialize.h"
+
+// Forward declarations
+typedef struct dap_global_db_cluster dap_global_db_cluster_t;
+#include "dap_global_db.h"
+
+#define DAP_STREAM_CH_CHIPCHAIN_ID                     'C'
+
+#define DAP_CHAIN_CHIPCHAIN_PROTOCOL_VERSION           8
+#define DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR                "chipchain"
+#define DAP_CHAIN_CHIPCHAIN_GDB_GROUPS_PREFIX          DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR
+#define DAP_CHAIN_CLUSTER_ID_chipchain                 0x8000
+
+#define DAP_CHAIN_CHIPCHAIN_MSG_TYPE_SUBMIT            0x04
+#define DAP_CHAIN_CHIPCHAIN_MSG_TYPE_APPROVE           0x08
+#define DAP_CHAIN_CHIPCHAIN_MSG_TYPE_REJECT            0x12
+#define DAP_CHAIN_CHIPCHAIN_MSG_TYPE_COMMIT_SIGN       0x16
+#define DAP_CHAIN_CHIPCHAIN_MSG_TYPE_PRE_COMMIT        0x28
+#define DAP_CHAIN_CHIPCHAIN_MSG_TYPE_DIRECTIVE         0x20
+#define DAP_CHAIN_CHIPCHAIN_MSG_TYPE_VOTE_FOR          0x22
+#define DAP_CHAIN_CHIPCHAIN_MSG_TYPE_VOTE_AGAINST      0x24
+#define DAP_CHAIN_CHIPCHAIN_MSG_TYPE_START_SYNC        0x32
+
+#define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
+#define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
+
+#define DAP_CHAIN_CS_CHIPCHAIN_DIRECTIVE_SUPPORT     // Uncomment it for enable directve supporting
+#define DAP_CHAIN_CHIPCHAIN_DIRECTIVE_VERSION          1
+#define DAP_CHAIN_CHIPCHAIN_DIRECTIVE_KICK             0x10
+#define DAP_CHAIN_CHIPCHAIN_DIRECTIVE_LIFT             0x11
+
+#define DAP_CHAIN_CHIPCHAIN_DIRECTIVE_TSD_TYPE_ADDR    0x01
+
+#define PKT_SIGN_N_HDR_OVERHEAD (15 * 1024)
+
+typedef struct dap_chain_chipchain_session dap_chain_chipchain_session_t;
+
+
+/**
+ * @brief Set custom metadata for block
+ * @details This function sets custom binary data to be added to block metadata.
+ * @param a_block Block
+ * @param a_meta_type Metadata type
+ * @param a_data_size Output parameter for data size
+ * @return Pointer to binary data or NULL if no data available
+ */
+typedef uint8_t *(*dap_chain_chipchain_callback_set_custom_metadata_t)(dap_chain_block_t *a_block, uint8_t *a_meta_type, size_t *a_data_size);
+/**
+ * @brief Additional check metadata for block
+ * @details This function checks custom binary data to be added to block metadata.
+ * @param a_block Block
+ * @return True if metadata is valid, false otherwise
+ */
+typedef bool (*dap_chain_chipchain_callback_presign_t)(dap_chain_block_t *a_block);
+
+/* consensus messages
+• Sync(round, last block, sync attempt) - try to synchronize validators before first round attempt start
+• Submit(round, candidate, body) — suggest a new block candidate *** candiate body in data section
+• Approve(round, candidate) — a block candidate has passed local validation
+• Reject(round, candidate) — a block candidate has failed local validation
+• CommitSign(round, candidate, signature) — a block candidate has been accepted and signed *** sign in data section
+• PreCommit(round, candidate, final_hash) — a preliminary commitment to a block candidate *** candidate with signs hash in data section
+• Directive(round, body) — a directive to change consensus parameters *** directive body in data section
+• VoteFor(round, directive) — a vote for a directive in this round
+• VoteAgainst(round, directive) — a vote against a directive in this round
+*/
+
+typedef struct dap_chain_chipchain_message_hdr {
+    uint16_t version;
+    uint8_t type;
+    uint8_t attempt_num;
+    uint64_t round_id;
+    uint64_t sign_size;
+    uint64_t message_size;
+    dap_time_t ts_created;
+    dap_chain_net_id_t net_id;
+    dap_chain_id_t chain_id;
+    dap_chain_cell_id_t cell_id;
+    dap_cluster_node_addr_t recv_addr;
+    dap_hash_sha3_256_t candidate_hash;
+} DAP_ALIGN_PACKED dap_chain_chipchain_message_hdr_t;
+
+typedef struct dap_chain_chipchain_message {
+    dap_chain_chipchain_message_hdr_t hdr;
+    uint8_t msg_n_sign[];
+} DAP_ALIGN_PACKED dap_chain_chipchain_message_t;
+
+#define DAP_CHAIN_CHIPCHAIN_MESSAGE_HDR_WIRE_SIZE sizeof(dap_chain_chipchain_message_hdr_t)
+typedef struct dap_chain_chipchain_message_hdr_mem {
+    uint8_t bytes[DAP_CHAIN_CHIPCHAIN_MESSAGE_HDR_WIRE_SIZE];
+} dap_chain_chipchain_message_hdr_mem_t;
+#define DAP_CHAIN_CHIPCHAIN_MESSAGE_HDR_MAGIC 0xCF5FF02AU
+extern const dap_serialize_field_t g_dap_chain_chipchain_message_hdr_fields[];
+extern const dap_serialize_schema_t g_dap_chain_chipchain_message_hdr_schema;
+static inline int dap_chain_chipchain_message_hdr_pack(const dap_chain_chipchain_message_hdr_mem_t *a_mem,
+                                                    uint8_t *a_wire, size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_CHIPCHAIN_MESSAGE_HDR_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_chipchain_message_hdr_schema, a_mem, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_chipchain_message_hdr_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                      dap_chain_chipchain_message_hdr_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_CHIPCHAIN_MESSAGE_HDR_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_chipchain_message_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
+    return r.error_code;
+}
+
+typedef struct dap_chain_chipchain_message_item {
+    dap_hash_sha3_256_t message_hash;
+    dap_chain_chipchain_message_t *message;
+    dap_chain_addr_t signing_addr;
+    bool unprocessed;   // Do not count one message twice
+    dap_ht_handle_t hh;
+} dap_chain_chipchain_message_item_t;
+
+typedef struct dap_chain_chipchain_sync_item {
+    dap_hash_sha3_256_t last_block_hash;
+    dap_list_t *messages;
+    dap_ht_handle_t hh;
+} dap_chain_chipchain_sync_item_t;
+
+typedef struct dap_chain_chipchain_store {
+    dap_hash_sha3_256_t candidate_hash;
+    dap_hash_sha3_256_t precommit_candidate_hash;
+    dap_chain_block_t *candidate;
+    size_t candidate_size;
+    dap_list_t *candidate_signs;
+    uint16_t approve_count;
+    uint16_t reject_count;
+    uint16_t precommit_count;
+    bool decide_reject;
+    bool decide_approve;
+    bool decide_commit;
+    dap_ht_handle_t hh;
+} dap_chain_chipchain_store_t;
+
+typedef struct dap_chain_chipchain {
+    dap_chain_t *chain;
+    dap_chain_type_blocks_t *blocks;
+    dap_chain_chipchain_session_t *session;
+    bool hardfork_state;
+    uint16_t hardfork_generation;
+    uint64_t hardfork_from;
+    dap_json_t *hardfork_changed_addrs;
+    dap_list_t *hardfork_trusted_addrs;
+    dap_time_t last_directive_vote_timestamp, last_directive_accept_timestamp,
+               last_submitted_candidate_timestamp, last_accepted_block_timestamp;
+    dap_chain_chipchain_callback_set_custom_metadata_t callback_set_custom_metadata;
+    dap_chain_chipchain_callback_presign_t callback_presign;
+    void *_pvt;
+} dap_chain_chipchain_t;
+
+typedef struct dap_chain_chipchain_directive {
+    uint8_t version;
+    uint8_t type;
+    uint16_t pad;
+    uint32_t size;
+    dap_nanotime_t timestamp;
+    byte_t tsd[];
+} DAP_ALIGN_PACKED dap_chain_chipchain_directive_t;
+
+#define DAP_CHAIN_CHIPCHAIN_DIRECTIVE_FIXED_WIRE_SIZE offsetof(dap_chain_chipchain_directive_t, tsd)
+typedef struct dap_chain_chipchain_directive_fixed_mem {
+    uint8_t version;
+    uint8_t type;
+    uint16_t pad;
+    uint32_t size;
+    uint64_t timestamp;
+} dap_chain_chipchain_directive_fixed_mem_t;
+#define DAP_CHAIN_CHIPCHAIN_DIRECTIVE_FIXED_MAGIC 0xCF5FF02BU
+extern const dap_serialize_field_t g_dap_chain_chipchain_directive_fixed_fields[];
+extern const dap_serialize_schema_t g_dap_chain_chipchain_directive_fixed_schema;
+static inline int dap_chain_chipchain_directive_fixed_pack(const dap_chain_chipchain_directive_fixed_mem_t *a_mem,
+                                                        uint8_t *a_wire, size_t a_wire_size)
+{
+    if (a_wire_size < DAP_CHAIN_CHIPCHAIN_DIRECTIVE_FIXED_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_chipchain_directive_fixed_schema, a_mem, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_chipchain_directive_fixed_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                          dap_chain_chipchain_directive_fixed_mem_t *a_mem)
+{
+    if (a_wire_size < DAP_CHAIN_CHIPCHAIN_DIRECTIVE_FIXED_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+        &g_dap_chain_chipchain_directive_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
+    return r.error_code;
+}
+
+typedef struct dap_chain_chipchain_round {
+    uint64_t id;
+    uint64_t sync_attempt;
+    dap_time_t round_start_ts;
+    dap_time_t prev_round_start_ts;
+
+    dap_hash_sha3_256_t last_block_hash;
+    dap_hash_sha3_256_t directive_hash;
+    dap_hash_sha3_256_t attempt_candidate_hash;
+    dap_chain_addr_t attempt_submit_validator;
+
+    dap_list_t *all_validators;
+    dap_chain_chipchain_store_t *store_items;
+    dap_chain_chipchain_message_item_t *message_items;
+    dap_chain_chipchain_directive_t *directive;
+    uint16_t *excluded_list;
+    dap_list_t *validators_list;
+
+
+    uint16_t votes_for_count;
+    uint16_t votes_against_count;
+    uint16_t validators_synced_count;
+    uint16_t total_validators_synced;
+
+    bool directive_applied;
+    bool sync_sent;
+    uint8_t attempt_num;
+} dap_chain_chipchain_round_t;
+
+typedef struct dap_chain_chipchain_validator {
+    dap_chain_node_addr_t node_addr;
+    dap_chain_addr_t signing_addr;
+    uint256_t weight;
+    bool is_synced;
+    bool is_chosen;
+    dap_pkey_t *pkey;   // Full public key for POA validators
+} dap_chain_chipchain_validator_t;
+
+typedef struct dap_chain_chipchain_penalty_item {
+        dap_chain_addr_t signing_addr;
+        uint16_t miss_count;
+        dap_ht_handle_t hh;
+} dap_chain_chipchain_penalty_item_t;
+
+#define DAP_CHAIN_CHIPCHAIN_PENALTY_KICK   3U      // Number of missed rounds to kick
+
+typedef struct dap_chain_chipchain_session {
+    dap_proc_thread_t *proc_thread;
+    dap_chain_block_t *processing_candidate;
+    dap_chain_t *chain;
+    dap_chain_chipchain_t *chipchain;
+    dap_time_t ts_round_sync_start, ts_stage_entry;
+    dap_chain_chipchain_sync_item_t *sync_items;
+    dap_chain_chipchain_penalty_item_t *penalty;
+    dap_global_db_cluster_t *db_cluster;
+    struct dap_chain_chipchain_session *prev, *next;
+    dap_chain_chipchain_round_t cur_round;
+    unsigned int listen_ensure;
+    dap_chain_node_addr_t my_addr;
+    uint8_t state, old_state;
+    bool cs_timer, round_fast_forward, sync_failed,
+         new_round_enqueued, is_actual_hash;
+    dap_global_db_hash_t db_hash;
+    dap_chain_addr_t my_signing_addr;
+} dap_chain_chipchain_session_t;
+
+// dap_chain_chipchain_block_collect_t moved to dap_chain_block_collect.h (breaks cycle with blocks)
+
+typedef enum s_com_chipchain_err{
+    DAP_CHAIN_NODE_CLI_COM_chipchain_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_CHAIN_TYPE_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_CERT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_PVT_KEY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_UNREC_COM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_MINVALSET_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_CHECKING_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_HASH_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_HASH_FORMAT_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_ADD_DEL_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_SUB_ERR,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_NO_NET,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_CANT_FIND_NET,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_NO_SESSION,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_NO_STAKE,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_WRONG_CHAIN,
+    DAP_CHAIN_NODE_CLI_COM_chipchain_BLOCKGEN_PERIOD_ERR,
+
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_chipchain_UNKNOWN /* MAX */
+} s_com_chipchain_err_t;
+
+#define DAP_CHAIN_CHIPCHAIN(a) ((dap_chain_chipchain_t *)(a)->_inheritor)
+
+// Block collection types moved to ../include/dap_chain_block_collect.h to break blocks ↔ chipchain cycle
+
+int dap_chain_cs_chipchain_init();
+void dap_chain_cs_chipchain_deinit(void);
+
+bool dap_chain_chipchain_started(dap_chain_net_id_t a_net_id);
+void dap_chain_chipchain_stop_timer(dap_chain_net_id_t a_net_id);
+void dap_chain_chipchain_start_timer(dap_chain_net_id_t a_net_id);
+
+dap_pkey_t *dap_chain_chipchain_get_sign_pkey(dap_chain_net_id_t a_net_id);
+uint256_t dap_chain_chipchain_get_fee(dap_chain_net_id_t a_net_id);
+bool dap_chain_chipchain_get_autocollect_status(dap_chain_net_id_t a_net_id);
+void dap_chain_chipchain_add_block_collect(dap_chain_block_cache_t *a_block_cache,
+                                        dap_chain_chipchain_block_collect_t *a_block_collect_params,
+                                        dap_chain_block_autocollect_type_t a_type);
+bool dap_chain_chipchain_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_cluster_node_addr_t *a_validator_addr);
+bool dap_chain_chipchain_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_cluster_node_addr_t *a_validator_addr);
+
+uint256_t dap_chain_chipchain_get_collecting_level(dap_chain_t *a_chain);
+dap_enc_key_t *dap_chain_chipchain_get_sign_key(dap_chain_t *a_chain);
+int dap_chain_chipchain_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
+uint16_t dap_chain_chipchain_get_min_validators_count(dap_chain_net_id_t a_net_id);
+int dap_chain_chipchain_set_emergency_validator(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_sha3_256_t *a_validator_hash);
+int dap_chain_chipchain_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable);
+int dap_chain_chipchain_set_hardfork_prepare(dap_chain_t *a_chain, uint16_t l_generation, uint64_t a_block_num, dap_list_t *a_trusted_addrs, dap_json_t *a_changed_addrs);
+int dap_chain_chipchain_set_hardfork_complete(dap_chain_t *a_chain);
+bool dap_chain_chipchain_hardfork_engaged(dap_chain_t *a_chain);
+int dap_chain_chipchain_set_hardfork_state(dap_chain_t *a_chain, bool a_state);
+
+/**
+ * @brief Get custom metadata for block
+ * @details This function returns custom binary data to be added to block metadata.
+ *          Implementation should be provided by user as a black box function.
+ * @param a_session chipchain session
+ * @param a_data_size Output parameter for data size
+ * @return Pointer to binary data or NULL if no data available
+ */
+uint8_t *dap_chain_chipchain_get_custom_metadata(dap_chain_chipchain_session_t *a_session, size_t *a_data_size);
+
+/**
+ * @brief Set custom metadata callback for chipchain consensus
+ * @details This function sets a callback that will be called to get custom metadata
+ *          for each block before SUBMIT message is sent
+ * @param a_net_id Network ID
+ * @param a_callback Callback function pointer or NULL to disable
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_chipchain_set_custom_metadata_callback(dap_chain_net_id_t a_net_id,
+                                                  dap_chain_chipchain_callback_set_custom_metadata_t a_callback);
+
+/**
+ * @brief Set presign callback for chipchain consensus
+ * @details This function sets a callback that will be called to validate custom metadata
+ *          in blocks during verification process
+ * @param a_net_id Network ID
+ * @param a_callback Callback function pointer or NULL to disable
+ * @return 0 on success, negative error code on failure
+ */
+int dap_chain_chipchain_set_presign_callback(dap_chain_net_id_t a_net_id,
+                                          dap_chain_chipchain_callback_presign_t a_callback);
+
+
+int dap_chain_chipchain_set_empty_block_every_times(dap_chain_t *a_chain, uint16_t a_blockgen_period);

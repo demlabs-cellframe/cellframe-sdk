@@ -294,10 +294,22 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
         // Check datum hash and delete if compares successfuly
         if (dap_hash_sha3_256_compare(&l_datum_hash,a_datum_hash)){
             memmove(l_datum, (byte_t*)l_datum + l_datum_size, a_block_size - sizeof(l_block->hdr) - l_offset - l_datum_size);
-            l_block = DAP_REALLOC_RET_VAL_IF_FAIL(*a_block_ptr, a_block_size - l_datum_size, a_block_size);
+            size_t l_new_size = a_block_size - l_datum_size;
+            l_block = DAP_REALLOC_RET_VAL_IF_FAIL(*a_block_ptr, l_new_size, a_block_size);
             *a_block_ptr = l_block;
+            /*
+             * GCC false-positive -Warray-bounds: the compiler tracks the
+             * allocation size through DAP_REALLOC and concludes the buffer
+             * (56 bytes = sizeof(hdr)) cannot hold the header struct.
+             * In reality, realloc only shrinks the data portion; the header
+             * at offset 0 remains fully accessible.
+             * See: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99578
+             */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
             l_block->hdr.datum_count--;
             l_block->hdr.meta_n_datum_n_signs_size -= l_datum_size;
+#pragma GCC diagnostic pop
             // here we don't update offset
         }else{
             // update offset
