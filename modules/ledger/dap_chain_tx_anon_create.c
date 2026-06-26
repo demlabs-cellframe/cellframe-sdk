@@ -24,6 +24,7 @@
 #include "chipmunk_mring.h"
 #include "lotrs_sample.h"
 #include "dap_enc_key.h"
+#include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include "dap_common.h"
@@ -106,7 +107,10 @@ static int s_ring_key_image(uint8_t out[1408], const void *pk, const void *sk, c
     return 0;
 }
 static int s_ring_pk_from_stake(void *out, const dap_pkey_t *pkey) {
-    if (!out || !pkey || pkey->header.size < sizeof(chipmunk_ring_pk_t)) return -EINVAL;
+    if (!out || !pkey) return -EINVAL;
+    /* Check key type is Chipmunk (covers Ring, LRS, etc.) */
+    if (pkey->header.type != DAP_PKEY_TYPE_SIG_CHIPMUNK) return -EINVAL;
+    if (pkey->header.size < sizeof(chipmunk_ring_pk_t)) return -EINVAL;
     memcpy(out, pkey->pkey, sizeof(chipmunk_ring_pk_t));
     return 0;
 }
@@ -134,7 +138,10 @@ static int s_lrs_key_image(uint8_t out[1408], const void *pk, const void *sk, co
     return chipmunk_lrs_key_image(out, (const chipmunk_lrs_secret_key_t *)sk);
 }
 static int s_lrs_pk_from_stake(void *out, const dap_pkey_t *pkey) {
-    if (!out || !pkey || pkey->header.size < sizeof(chipmunk_lrs_public_key_t)) return -EINVAL;
+    if (!out || !pkey) return -EINVAL;
+    /* Check key type is Chipmunk (covers Ring, LRS, etc.) */
+    if (pkey->header.type != DAP_PKEY_TYPE_SIG_CHIPMUNK) return -EINVAL;
+    if (pkey->header.size < sizeof(chipmunk_lrs_public_key_t)) return -EINVAL;
     memcpy(out, pkey->pkey, sizeof(chipmunk_lrs_public_key_t));
     return 0;
 }

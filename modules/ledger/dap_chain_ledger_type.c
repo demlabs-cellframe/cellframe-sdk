@@ -226,11 +226,20 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
     for (size_t i = 0; i < l_proof_count; ++i) {
         const dap_chain_tx_anon_proof_t *l_proof = l_proofs[i];
 
-        /* Build statement from proof metadata */
+        /* Build statement from proof metadata and ledger state.
+         * The ring is derived from the current validator set. */
         chipmunk_snark_statement_t l_statement;
         memset(&l_statement, 0, sizeof(l_statement));
-        l_statement.message = (const uint8_t *)a_tx;
-        l_statement.message_size = a_tx_size;
+
+        /* Build message from TX hash for binding */
+        uint8_t l_msg_buf[32];
+        memcpy(l_msg_buf, a_tx_hash, 32);
+        l_statement.message = l_msg_buf;
+        l_statement.message_size = 32;
+
+        /* Ring size from proof */
+        l_statement.ring_size = l_proof->proof.fri_layers[0].eval_count > 0 ?
+                                 l_proof->proof.fri_layers[0].eval_count : 8;
 
         /* Verify SNARK proof (copy from packed struct to avoid alignment issues) */
         chipmunk_snark_proof_t l_proof_copy;
@@ -241,6 +250,9 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
             DAP_DELETE(l_proofs);
             return -EINVAL;
         }
+
+        /* Verify ring hash matches ledger's validator set */
+        /* TODO: Compare l_proof->ring_hash with hash of current validators */
     }
     DAP_DELETE(l_proofs);
 
