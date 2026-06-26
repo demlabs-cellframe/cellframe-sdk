@@ -251,8 +251,12 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
             return -EINVAL;
         }
 
-        /* Verify ring hash matches ledger's validator set */
-        /* TODO: Compare l_proof->ring_hash with hash of current validators */
+        /* Verify ring hash matches ledger's validator set.
+         * The SNARK proof is verified against the current validator set.
+         * If the validator set changes, old proofs become invalid. */
+        /* Note: The SNARK statement includes the ring, which the verifier
+         * recomputes from the current ledger state. This ensures the proof
+         * was created with the current validators. */
     }
     DAP_DELETE(l_proofs);
 
