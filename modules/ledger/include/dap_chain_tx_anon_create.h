@@ -81,11 +81,13 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
 
 /**
  * Reveal anonymous balance (verify Pedersen commitment openings).
+ * @param a_known_amount Amount the user claims to have committed.
  */
 int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
                                       const dap_chain_addr_t *a_addr,
                                       const char *a_token_ticker,
                                       const uint8_t a_randomness_seed[32],
+                                      int64_t a_known_amount,
                                       uint256_t *a_balance_out);
 
 #ifdef __cplusplus
