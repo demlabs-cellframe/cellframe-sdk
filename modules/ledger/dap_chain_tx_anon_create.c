@@ -313,11 +313,13 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_hash_sha3_256_raw(l_ki_hash.raw, l_ki, sizeof(l_ki));
     dap_hash_sha3_256_t l_rp_hash;
     dap_hash_sha3_256_raw(l_rp_hash.raw, &l_rp, sizeof(l_rp));
+    dap_hash_sha3_256_t l_commit_hash;
+    dap_hash_sha3_256_raw(l_commit_hash.raw, &l_commit, sizeof(l_commit));
 
-    uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
+    uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
     size_t l_off = 0;
     memcpy(l_msg_buf + l_off, a_addr_to, sizeof(dap_chain_addr_t)); l_off += sizeof(dap_chain_addr_t);
-    memcpy(l_msg_buf + l_off, &a_amount, sizeof(uint256_t)); l_off += sizeof(uint256_t);
+    memcpy(l_msg_buf + l_off, l_commit_hash.raw, 32); l_off += 32;
     size_t l_tl = strnlen(a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     memcpy(l_msg_buf + l_off, a_token_ticker, l_tl); l_off += l_tl;
     memcpy(l_msg_buf + l_off, l_ki_hash.raw, 32); l_off += 32;

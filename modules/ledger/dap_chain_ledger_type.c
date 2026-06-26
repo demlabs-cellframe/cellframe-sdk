@@ -140,17 +140,6 @@ static void s_anon_ctx_free(dap_ledger_anon_ctx_t *ctx)
     DAP_DELETE(ctx);
 }
 
-/* Check if key image already exists (double-spend detection) */
-static bool s_key_image_exists(dap_ledger_anon_ctx_t *ctx,
-                                const dap_chain_hash_fast_t *image_hash)
-{
-    dap_ledger_anon_key_image_t *l_item = NULL;
-    pthread_rwlock_rdlock(&ctx->key_images_rwlock);
-    dap_ht_find(ctx->key_images, image_hash, sizeof(dap_chain_hash_fast_t), l_item);
-    pthread_rwlock_unlock(&ctx->key_images_rwlock);
-    return l_item != NULL;
-}
-
 /* Add key image to tracking — atomic check-and-add under write lock
  * to prevent TOCTOU race between check and insertion. */
 static int s_key_image_add(dap_ledger_anon_ctx_t *ctx,
@@ -239,11 +228,51 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
                 l_statement.ring = (const chipmunk_lrs_public_key_t *)(l_item_snark + sizeof(dap_chain_tx_in_anon_t));
             }
 
-            /* Build message from TX hash for binding */
-            uint8_t l_msg_buf[32];
-            memcpy(l_msg_buf, a_tx_hash, 32);
+            /* Reconstruct message: addr_to || commit_hash || ticker || ki_hash || rp_hash
+             * Must match the prover's construction exactly. */
+            const dap_chain_tx_out_anon_t *l_out_anon = NULL;
+            {
+                const uint8_t *l_item_scan = a_tx->tx_items;
+                size_t l_off_scan = 0;
+                while (l_off_scan < l_tx_size_snark) {
+                    if (*l_item_scan == TX_ITEM_TYPE_OUT_ANON) {
+                        l_out_anon = (const dap_chain_tx_out_anon_t *)l_item_scan;
+                        break;
+                    }
+                    uint32_t l_is = *(const uint32_t *)(l_item_scan + 4);
+                    if (l_is == 0) break;
+                    l_item_scan += l_is;
+                    l_off_scan += l_is;
+                }
+            }
+            if (!l_out_anon) {
+                log_it(L_WARNING, "IN_ANON has no matching OUT_ANON");
+                return -EINVAL;
+            }
+
+            dap_hash_sha3_256_t l_ver_ki_hash;
+            dap_hash_sha3_256_raw(l_ver_ki_hash.raw, l_in_anon->key_image, sizeof(l_in_anon->key_image));
+
+            chipmunk_range_proof_t l_ver_rp;
+            memcpy(&l_ver_rp, &l_out_anon->range_proof, sizeof(l_ver_rp));
+            dap_hash_sha3_256_t l_ver_rp_hash;
+            dap_hash_sha3_256_raw(l_ver_rp_hash.raw, (const uint8_t *)&l_ver_rp, sizeof(l_ver_rp));
+
+            chipmunk_pedersen_commit_t l_ver_commit;
+            memcpy(&l_ver_commit, &l_out_anon->commitment, sizeof(l_ver_commit));
+            dap_hash_sha3_256_t l_ver_commit_hash;
+            dap_hash_sha3_256_raw(l_ver_commit_hash.raw, (const uint8_t *)&l_ver_commit, sizeof(l_ver_commit));
+
+            uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
+            size_t l_msg_off = 0;
+            memcpy(l_msg_buf + l_msg_off, &l_out_anon->addr, sizeof(dap_chain_addr_t)); l_msg_off += sizeof(dap_chain_addr_t);
+            memcpy(l_msg_buf + l_msg_off, l_ver_commit_hash.raw, 32); l_msg_off += 32;
+            size_t l_tl = strnlen(l_out_anon->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+            memcpy(l_msg_buf + l_msg_off, l_out_anon->token_ticker, l_tl); l_msg_off += l_tl;
+            memcpy(l_msg_buf + l_msg_off, l_ver_ki_hash.raw, 32); l_msg_off += 32;
+            memcpy(l_msg_buf + l_msg_off, l_ver_rp_hash.raw, 32); l_msg_off += 32;
             l_statement.message = l_msg_buf;
-            l_statement.message_size = 32;
+            l_statement.message_size = l_msg_off;
 
             /* Verify SNARK proof (copy from packed struct to avoid alignment issues) */
             chipmunk_snark_proof_t l_proof_copy;
@@ -279,10 +308,15 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
         dap_chain_hash_fast_t l_image_hash;
         dap_hash_fast(l_images[i]->image, sizeof(l_images[i]->image), &l_image_hash);
 
-        if (s_key_image_exists(l_anon, &l_image_hash)) {
+        int l_add_rc = s_key_image_add(l_anon, &l_image_hash, a_tx_hash);
+        if (l_add_rc == -EEXIST) {
             log_it(L_WARNING, "Double-spend attempt detected: key image already used");
             DAP_DELETE(l_images);
             return -EINVAL;
+        } else if (l_add_rc != 0) {
+            log_it(L_WARNING, "Failed to record key image: %d", l_add_rc);
+            DAP_DELETE(l_images);
+            return l_add_rc;
         }
     }
     DAP_DELETE(l_images);
@@ -329,38 +363,14 @@ static int s_anon_tx_add(dap_ledger_t *a_ledger,
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     dap_ledger_anon_ctx_t *l_anon = (dap_ledger_anon_ctx_t *)l_pvt->anon_data;
 
-    const dap_chain_tx_key_image_t **l_images = NULL;
-    size_t l_image_count = 0;
+    /* Key images were already atomically recorded during s_anon_tx_check()
+     * (which calls s_key_image_add() under write lock). No need to add again. */
 
-    /* 1. Record key images BEFORE adding TX to ledger (TOCTOU fix) */
-    if (l_anon) {
-        int l_rc = dap_chain_datum_tx_get_key_images(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx), &l_images, &l_image_count);
-        if (l_rc == 0 && l_images) {
-            for (size_t i = 0; i < l_image_count; ++i) {
-                dap_chain_hash_fast_t l_image_hash;
-                dap_hash_fast(l_images[i]->image, sizeof(l_images[i]->image), &l_image_hash);
-                int l_add_rc = s_key_image_add(l_anon, &l_image_hash, a_tx_hash);
-                if (l_add_rc != 0) {
-                    log_it(L_WARNING, "Key image already exists, double-spend rejected: %d", l_add_rc);
-                    /* Roll back images already added */
-                    for (size_t j = 0; j < i; ++j) {
-                        dap_chain_hash_fast_t l_rollback_hash;
-                        dap_hash_fast(l_images[j]->image, sizeof(l_images[j]->image), &l_rollback_hash);
-                        s_key_image_remove(l_anon, &l_rollback_hash);
-                    }
-                    DAP_DELETE(l_images);
-                    return l_add_rc;
-                }
-            }
-            DAP_DELETE(l_images);
-        }
-    }
-
-    /* 2. Add TX to ledger — key images already committed */
+    /* 1. Add TX to ledger — key images already committed in check phase */
     int l_rc = dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, NULL);
     if (l_rc != 0) {
-        /* TX add failed — roll back recorded key images */
-        if (l_anon && l_image_count > 0) {
+        /* TX add failed — roll back key images recorded during check phase */
+        if (l_anon) {
             const dap_chain_tx_key_image_t **l_rb_images = NULL;
             size_t l_rb_count = 0;
             if (dap_chain_datum_tx_get_key_images(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx), &l_rb_images, &l_rb_count) == 0 && l_rb_images) {
