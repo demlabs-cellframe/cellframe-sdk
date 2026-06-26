@@ -1557,10 +1557,8 @@ static void s_session_attempt_new(dap_chain_chipchain_session_t *a_session)
 static uint64_t s_session_calc_current_round_id(dap_chain_chipchain_session_t *a_session)
 {
     uint16_t l_total_validators_count = dap_list_length(a_session->cur_round.all_validators);
-    struct {
-        uint64_t id;
-        uint16_t counter;
-    } l_id_candidates[l_total_validators_count];
+    typedef struct { uint64_t id; uint16_t counter; } l_id_candidate_t;
+    l_id_candidate_t *l_id_candidates = DAP_NEW_Z_COUNT(l_id_candidate_t, l_total_validators_count);
     uint16_t l_fill_idx = 0;
     for (dap_list_t *it = a_session->cur_round.all_validators; it ;it = it->next) {
         dap_chain_chipchain_validator_t *l_validator = it->data;
@@ -1608,6 +1606,7 @@ static uint64_t s_session_calc_current_round_id(dap_chain_chipchain_session_t *a
         } else if (l_id_candidates[i].counter == l_counter_max) // Choose maximum round ID
             l_ret = dap_max(l_ret, l_id_candidates[i].id);
     }
+    DAP_DELETE(l_id_candidates);
     return l_ret ? l_ret : a_session->cur_round.id;
 }
 
