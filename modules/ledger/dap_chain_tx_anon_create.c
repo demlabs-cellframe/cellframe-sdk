@@ -198,9 +198,10 @@ int dap_chain_tx_anon_init(void)
         return -EINVAL;
     }
 
-    uint8_t l_seed[32] = "chipchain-pedersen-tx-create-v1";
+    uint8_t l_seed[32] = "chipchain-pedersen-params-v1";
     if (chipmunk_pedersen_init(&s_anon_ctx.pedersen_params, l_seed) != 0) {
         log_it(L_ERROR, "Failed to initialize Pedersen parameters");
+        chipmunk_snark_ctx_free(&s_anon_ctx.snark_ctx);
         return -EINVAL;
     }
 
@@ -272,68 +273,83 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     memset(&l_witness, 0, sizeof(l_witness));
     l_witness.signer_index = l_signer_idx;
     /* Copy secret key into witness (works for both Ring and LRS — both have polyvec s) */
-    memcpy(l_witness.secret_key, l_sk, sizeof(chipmunk_poly_t) * CHIPMUNK_LRS_K);
+    memcpy(l_witness.secret_key, l_sk, sizeof(chipmunk_hots_sk_t));
     memset(&l_witness.indicator, 0, sizeof(l_witness.indicator));
     l_witness.indicator.coeffs[l_signer_idx] = 1;
 
-    /* 4. Statement */
+    /* 4. Key image (computed early to bind into SNARK message) */
+    uint8_t l_ki[1408];
+    memset(l_ki, 0, sizeof(l_ki));
+    l_rc = a_algo->key_image(l_ki, l_pk, l_sk, &l_par);
+    if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
+
+    /* 5. UTXO */
+    dap_chain_hash_fast_t l_prev_hash;
+    uint32_t l_prev_idx = 0;
+    l_rc = s_find_utxo(a_chain->ledger, &a_wallet->addr, a_token_ticker, a_amount, &l_prev_hash, &l_prev_idx);
+    if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
+
+    /* 6. Pedersen commitment */
+    if (a_amount.hi != 0 || a_amount.lo > INT64_MAX) { dap_enc_key_delete(l_key); return NULL; }
+    chipmunk_pedersen_commit_t l_commit;
+    memset(&l_commit, 0, sizeof(l_commit));
+    uint8_t l_rand[32]; dap_random_bytes(l_rand, 32);
+    l_rc = chipmunk_pedersen_commit(&l_commit, &s_anon_ctx.pedersen_params, (int64_t)a_amount.lo, l_rand);
+    if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
+
+    /* 7. Range proof (computed early to bind into SNARK message) */
+    chipmunk_range_proof_t l_rp;
+    memset(&l_rp, 0, sizeof(l_rp));
+    l_rc = chipmunk_range_proof_prove(&l_rp, &s_anon_ctx.pedersen_params, &l_commit, (int64_t)a_amount.lo, l_rand, 64);
+    if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
+
+    /* 8. Statement: message includes key image hash and range proof hash for cross-component binding */
     chipmunk_snark_statement_t l_statement;
     memset(&l_statement, 0, sizeof(l_statement));
+    l_statement.ring = (const chipmunk_lrs_public_key_t *)a_ring;
     l_statement.ring_size = a_ring_size;
 
-    uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX];
+    dap_hash_sha3_256_t l_ki_hash;
+    dap_hash_sha3_256_raw(l_ki_hash.raw, l_ki, sizeof(l_ki));
+    dap_hash_sha3_256_t l_rp_hash;
+    dap_hash_sha3_256_raw(l_rp_hash.raw, &l_rp, sizeof(l_rp));
+
+    uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
     size_t l_off = 0;
     memcpy(l_msg_buf + l_off, a_addr_to, sizeof(dap_chain_addr_t)); l_off += sizeof(dap_chain_addr_t);
     memcpy(l_msg_buf + l_off, &a_amount, sizeof(uint256_t)); l_off += sizeof(uint256_t);
     size_t l_tl = strnlen(a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     memcpy(l_msg_buf + l_off, a_token_ticker, l_tl); l_off += l_tl;
+    memcpy(l_msg_buf + l_off, l_ki_hash.raw, 32); l_off += 32;
+    memcpy(l_msg_buf + l_off, l_rp_hash.raw, 32); l_off += 32;
     l_statement.message = l_msg_buf;
     l_statement.message_size = l_off;
 
-    /* 5. SNARK proof */
+    /* 9. SNARK proof */
     chipmunk_snark_proof_t l_snark;
     memset(&l_snark, 0, sizeof(l_snark));
     l_rc = chipmunk_snark_prove(&l_snark, &s_anon_ctx.snark_ctx, &l_statement, &l_witness);
-    if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
-
-    /* 6. Key image */
-    uint8_t l_ki[1408];
-    memset(l_ki, 0, sizeof(l_ki));
-    l_rc = a_algo->key_image(l_ki, l_pk, l_sk, &l_par);
-    if (l_rc != 0) { chipmunk_snark_proof_free(&l_snark); dap_enc_key_delete(l_key); return NULL; }
-
-    /* 7. UTXO */
-    dap_chain_hash_fast_t l_prev_hash;
-    uint32_t l_prev_idx = 0;
-    l_rc = s_find_utxo(a_chain->ledger, &a_wallet->addr, a_token_ticker, a_amount, &l_prev_hash, &l_prev_idx);
-    if (l_rc != 0) { chipmunk_snark_proof_free(&l_snark); dap_enc_key_delete(l_key); return NULL; }
-
-    /* 8. Pedersen commitment */
-    chipmunk_pedersen_commit_t l_commit;
-    memset(&l_commit, 0, sizeof(l_commit));
-    uint8_t l_rand[32]; dap_random_bytes(l_rand, 32);
-    l_rc = chipmunk_pedersen_commit(&l_commit, &s_anon_ctx.pedersen_params, (int64_t)a_amount.lo, l_rand);
-    if (l_rc != 0) { chipmunk_snark_proof_free(&l_snark); dap_enc_key_delete(l_key); return NULL; }
-
-    /* 9. Range proof */
-    chipmunk_range_proof_t l_rp;
-    memset(&l_rp, 0, sizeof(l_rp));
-    l_rc = chipmunk_range_proof_prove(&l_rp, &s_anon_ctx.pedersen_params, &l_commit, (int64_t)a_amount.lo, l_rand, 64);
-    if (l_rc != 0) { chipmunk_snark_proof_free(&l_snark); dap_enc_key_delete(l_key); return NULL; }
+    dap_memwipe(&l_witness, sizeof(l_witness));
+    if (l_rc != 0) { chipmunk_range_proof_free(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
     /* 10. Build TX */
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_free(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
-    /* IN_ANON */
-    dap_chain_tx_in_anon_t l_in;
-    memset(&l_in, 0, sizeof(l_in));
-    l_in.hdr.type = TX_ITEM_TYPE_IN_ANON; l_in.hdr.version = 1; l_in.hdr.size = sizeof(l_in);
-    l_in.prev_hash = l_prev_hash; l_in.prev_out_idx = l_prev_idx;
-    l_in.ring_size = (uint32_t)a_ring_size;
-    memcpy(&l_in.snark_proof, &l_snark, sizeof(l_snark));
-    memcpy(l_in.key_image, l_ki, sizeof(l_ki));
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_in);
+    /* IN_ANON (variable-size: struct + ring public keys) */
+    size_t l_ring_bytes = a_ring_size * pk_sz;
+    size_t l_in_full_size = sizeof(dap_chain_tx_in_anon_t) + l_ring_bytes;
+    uint8_t *l_in_buf = DAP_NEW_Z_SIZE(uint8_t, l_in_full_size);
+    if (!l_in_buf) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_free(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    dap_chain_tx_in_anon_t *l_in_ptr = (dap_chain_tx_in_anon_t *)l_in_buf;
+    l_in_ptr->hdr.type = TX_ITEM_TYPE_IN_ANON; l_in_ptr->hdr.version = 1; l_in_ptr->hdr.size = l_in_full_size;
+    l_in_ptr->prev_hash = l_prev_hash; l_in_ptr->prev_out_idx = l_prev_idx;
+    l_in_ptr->ring_size = (uint32_t)a_ring_size;
+    memcpy(&l_in_ptr->snark_proof, &l_snark, sizeof(l_snark));
+    memcpy(l_in_ptr->key_image, l_ki, sizeof(l_ki));
+    memcpy(l_in_buf + sizeof(dap_chain_tx_in_anon_t), a_ring, l_ring_bytes);
+    dap_chain_datum_tx_add_item(&l_tx, l_in_buf);
+    DAP_DELETE(l_in_buf);
 
     /* OUT_ANON */
     dap_chain_tx_out_anon_t l_out;
@@ -541,6 +557,7 @@ static int s_find_utxo(dap_ledger_t *a_ledger,
             }
             uint32_t l_item_size = *(const uint32_t *)(l_tx_item + 4);
             if (l_item_size == 0) break;
+            if (l_offset + l_item_size > l_tx_size) break;
             l_tx_item += l_item_size;
             l_offset += l_item_size;
             l_out_idx++;

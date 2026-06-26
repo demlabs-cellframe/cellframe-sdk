@@ -115,6 +115,7 @@ static dap_ledger_anon_ctx_t *s_anon_ctx_new(void)
     uint8_t l_seed[32] = "chipchain-pedersen-params-v1";
     if (chipmunk_pedersen_init(&ctx->pedersen_params, l_seed) != 0) {
         log_it(L_ERROR, "Failed to initialize Pedersen parameters");
+        chipmunk_snark_ctx_free(&ctx->snark_ctx);
         DAP_DELETE(ctx);
         return NULL;
     }
@@ -213,52 +214,57 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
     int l_rc = dap_ledger_tx_add_check(a_ledger, a_tx, a_tx_size, a_tx_hash);
     if (l_rc != 0) return l_rc;
 
-    /* 2. Verify SNARK ring membership proofs */
-    const dap_chain_tx_anon_proof_t **l_proofs = NULL;
-    size_t l_proof_count = 0;
-    l_rc = dap_chain_datum_tx_get_snark_proofs(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx), &l_proofs, &l_proof_count);
-    if (l_rc != 0 || l_proof_count == 0) {
-        log_it(L_WARNING, "Anonymous TX has no SNARK proofs");
-        DAP_DELETE(l_proofs);
+    /* 2. Verify SNARK ring membership proofs from IN_ANON items.
+     * Proofs are embedded in IN_ANON items (not standalone ANON_PROOF items).
+     * Ring public keys follow the IN_ANON struct as variable-length data. */
+    const uint8_t *l_item_snark = a_tx->tx_items;
+    size_t l_offset_snark = 0;
+    size_t l_tx_size_snark = dap_chain_datum_tx_get_size(a_tx);
+    bool l_found_anon_in = false;
+
+    while (l_offset_snark < l_tx_size_snark) {
+        uint8_t l_type_snark = *l_item_snark;
+        if (l_type_snark == TX_ITEM_TYPE_IN_ANON) {
+            const dap_chain_tx_in_anon_t *l_in_anon = (const dap_chain_tx_in_anon_t *)l_item_snark;
+            l_found_anon_in = true;
+
+            /* Build statement from IN_ANON metadata and embedded ring */
+            chipmunk_snark_statement_t l_statement;
+            memset(&l_statement, 0, sizeof(l_statement));
+            l_statement.ring_size = l_in_anon->ring_size;
+
+            /* Extract ring public keys from variable-length data after the struct */
+            size_t l_ring_data_bytes = l_in_anon->hdr.size - sizeof(dap_chain_tx_in_anon_t);
+            if (l_in_anon->ring_size > 0 && l_ring_data_bytes >= l_in_anon->ring_size) {
+                l_statement.ring = (const chipmunk_lrs_public_key_t *)(l_item_snark + sizeof(dap_chain_tx_in_anon_t));
+            }
+
+            /* Build message from TX hash for binding */
+            uint8_t l_msg_buf[32];
+            memcpy(l_msg_buf, a_tx_hash, 32);
+            l_statement.message = l_msg_buf;
+            l_statement.message_size = 32;
+
+            /* Verify SNARK proof (copy from packed struct to avoid alignment issues) */
+            chipmunk_snark_proof_t l_proof_copy;
+            memcpy(&l_proof_copy, &l_in_anon->snark_proof, sizeof(l_proof_copy));
+            l_rc = chipmunk_snark_verify(&l_proof_copy, &l_anon->snark_ctx, &l_statement);
+            if (l_rc != 1) {
+                log_it(L_WARNING, "SNARK proof verification failed for IN_ANON: %d", l_rc);
+                return -EINVAL;
+            }
+        }
+        uint32_t l_item_size_snark = *(const uint32_t *)(l_item_snark + 4);
+        if (l_item_size_snark == 0) break;
+        if (l_offset_snark + l_item_size_snark > l_tx_size_snark) break;
+        l_item_snark += l_item_size_snark;
+        l_offset_snark += l_item_size_snark;
+    }
+
+    if (!l_found_anon_in) {
+        log_it(L_WARNING, "Anonymous TX has no IN_ANON items with SNARK proofs");
         return -EINVAL;
     }
-
-    for (size_t i = 0; i < l_proof_count; ++i) {
-        const dap_chain_tx_anon_proof_t *l_proof = l_proofs[i];
-
-        /* Build statement from proof metadata and ledger state.
-         * The ring is derived from the current validator set. */
-        chipmunk_snark_statement_t l_statement;
-        memset(&l_statement, 0, sizeof(l_statement));
-
-        /* Build message from TX hash for binding */
-        uint8_t l_msg_buf[32];
-        memcpy(l_msg_buf, a_tx_hash, 32);
-        l_statement.message = l_msg_buf;
-        l_statement.message_size = 32;
-
-        /* Ring size from proof */
-        l_statement.ring_size = l_proof->proof.fri_layers[0].eval_count > 0 ?
-                                 l_proof->proof.fri_layers[0].eval_count : 8;
-
-        /* Verify SNARK proof (copy from packed struct to avoid alignment issues) */
-        chipmunk_snark_proof_t l_proof_copy;
-        memcpy(&l_proof_copy, &l_proof->proof, sizeof(l_proof_copy));
-        l_rc = chipmunk_snark_verify(&l_proof_copy, &l_anon->snark_ctx, &l_statement);
-        if (l_rc != 1) {
-            log_it(L_WARNING, "SNARK proof verification failed for proof %zu: %d", i, l_rc);
-            DAP_DELETE(l_proofs);
-            return -EINVAL;
-        }
-
-        /* Verify ring hash matches ledger's validator set.
-         * The SNARK proof is verified against the current validator set.
-         * If the validator set changes, old proofs become invalid. */
-        /* Note: The SNARK statement includes the ring, which the verifier
-         * recomputes from the current ledger state. This ensures the proof
-         * was created with the current validators. */
-    }
-    DAP_DELETE(l_proofs);
 
     /* 3. Check key images for double-spend prevention */
     const dap_chain_tx_key_image_t **l_images = NULL;
@@ -306,6 +312,7 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
         }
         uint32_t l_item_size = *(const uint32_t *)(l_item + 4);
         if (l_item_size == 0) break;
+        if (l_offset + l_item_size > l_tx_size) break;
         l_item += l_item_size;
         l_offset += l_item_size;
     }
@@ -322,27 +329,50 @@ static int s_anon_tx_add(dap_ledger_t *a_ledger,
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     dap_ledger_anon_ctx_t *l_anon = (dap_ledger_anon_ctx_t *)l_pvt->anon_data;
 
-    /* 1. Add TX to ledger (same as open) */
-    int l_rc = dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, NULL);
-    if (l_rc != 0) return l_rc;
+    const dap_chain_tx_key_image_t **l_images = NULL;
+    size_t l_image_count = 0;
 
-    /* 2. Record key images to prevent double-spending */
+    /* 1. Record key images BEFORE adding TX to ledger (TOCTOU fix) */
     if (l_anon) {
-        const dap_chain_tx_key_image_t **l_images = NULL;
-        size_t l_image_count = 0;
-        l_rc = dap_chain_datum_tx_get_key_images(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx), &l_images, &l_image_count);
+        int l_rc = dap_chain_datum_tx_get_key_images(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx), &l_images, &l_image_count);
         if (l_rc == 0 && l_images) {
             for (size_t i = 0; i < l_image_count; ++i) {
                 dap_chain_hash_fast_t l_image_hash;
                 dap_hash_fast(l_images[i]->image, sizeof(l_images[i]->image), &l_image_hash);
                 int l_add_rc = s_key_image_add(l_anon, &l_image_hash, a_tx_hash);
                 if (l_add_rc != 0) {
-                    log_it(L_ERROR, "Failed to add key image: %d", l_add_rc);
-                    /* Don't fail TX add — image was already verified in check */
+                    log_it(L_WARNING, "Key image already exists, double-spend rejected: %d", l_add_rc);
+                    /* Roll back images already added */
+                    for (size_t j = 0; j < i; ++j) {
+                        dap_chain_hash_fast_t l_rollback_hash;
+                        dap_hash_fast(l_images[j]->image, sizeof(l_images[j]->image), &l_rollback_hash);
+                        s_key_image_remove(l_anon, &l_rollback_hash);
+                    }
+                    DAP_DELETE(l_images);
+                    return l_add_rc;
                 }
             }
             DAP_DELETE(l_images);
         }
+    }
+
+    /* 2. Add TX to ledger — key images already committed */
+    int l_rc = dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, NULL);
+    if (l_rc != 0) {
+        /* TX add failed — roll back recorded key images */
+        if (l_anon && l_image_count > 0) {
+            const dap_chain_tx_key_image_t **l_rb_images = NULL;
+            size_t l_rb_count = 0;
+            if (dap_chain_datum_tx_get_key_images(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx), &l_rb_images, &l_rb_count) == 0 && l_rb_images) {
+                for (size_t i = 0; i < l_rb_count; ++i) {
+                    dap_chain_hash_fast_t l_rb_hash;
+                    dap_hash_fast(l_rb_images[i]->image, sizeof(l_rb_images[i]->image), &l_rb_hash);
+                    s_key_image_remove(l_anon, &l_rb_hash);
+                }
+                DAP_DELETE(l_rb_images);
+            }
+        }
+        return l_rc;
     }
 
     return 0;
