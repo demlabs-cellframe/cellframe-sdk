@@ -51,7 +51,7 @@ typedef struct dap_chain_tx_in_anon {
      * Key image = A_I * s (deterministic for each secret key)
      * Same key always produces same image → detect double-spend
      * without revealing which key was used */
-    uint8_t key_image[1408];        /* 1 q-packed polynomial */
+    uint8_t key_image[9216];        /* k=6 q-packed polynomials */
 
     /* SNARK ring membership proof
      * Proves: "I know sk_j for pk_j in {pk_0, ..., pk_{N-1}}"
@@ -97,7 +97,7 @@ typedef struct dap_chain_tx_key_image {
     dap_chain_tx_anon_hdr_t hdr;
 
     /* Key image: I = A_I * s (deterministic for each secret key) */
-    uint8_t image[1408];            /* 1 q-packed polynomial */
+    uint8_t image[9216];            /* k=6 q-packed polynomials */
 
     /* Hash of the image for quick lookup */
     dap_chain_hash_fast_t image_hash;

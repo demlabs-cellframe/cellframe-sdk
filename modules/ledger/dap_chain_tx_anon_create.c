@@ -53,7 +53,7 @@ typedef struct dap_chain_tx_anon_algo {
     /* Compare two public keys (CT-safe) */
     int (*pk_cmp)(const void *a, const void *b);
     /* Generate key image from sk + pk */
-    int (*key_image)(uint8_t out[1408], const void *pk, const void *sk, const lotrs_params_t *par);
+    int (*key_image)(uint8_t out[9216], const void *pk, const void *sk, const lotrs_params_t *par);
     /* Extract pk from stake pkey raw data */
     int (*pk_from_stake_pkey)(void *out_pk, const dap_pkey_t *pkey);
 } dap_chain_tx_anon_algo_t;
@@ -74,7 +74,7 @@ static int s_ring_pk_cmp(const void *a, const void *b) {
     }
     return 0;
 }
-static int s_ring_key_image(uint8_t out[1408], const void *pk, const void *sk, const lotrs_params_t *par) {
+static int s_ring_key_image(uint8_t out[9216], const void *pk, const void *sk, const lotrs_params_t *par) {
     /* Same as chipmunk_ring.c s_generate_key_image */
     const chipmunk_ring_pk_t *l_pk = (const chipmunk_ring_pk_t *)pk;
     const chipmunk_ring_sk_t *l_sk = (const chipmunk_ring_sk_t *)sk;
@@ -101,7 +101,9 @@ static int s_ring_key_image(uint8_t out[1408], const void *pk, const void *sk, c
     for (uint32_t i = 0; i < par->k; ++i)
         for (uint32_t j = 0; j < par->d; ++j)
             I.polys[i]->coeffs[j] = (uint64_t)lotrs_mod_reduce((__int128_t)(int64_t)I.polys[i]->coeffs[j], par->q);
-    lotrs_poly_pack(out, 1408, I.polys[0], par);
+    size_t l_poly_bytes = lotrs_poly_bytes(par);
+    for (uint32_t i = 0; i < par->k; ++i)
+        lotrs_poly_pack(out + i * l_poly_bytes, l_poly_bytes, I.polys[i], par);
     lotrs_polymat_free(&l_A);
     lotrs_polyvec_free(&I);
     return 0;
@@ -133,7 +135,7 @@ static size_t s_lrs_pk_size(void) { return sizeof(chipmunk_lrs_public_key_t); }
 static int s_lrs_pk_cmp(const void *a, const void *b) {
     return memcmp(a, b, sizeof(chipmunk_lrs_public_key_t));
 }
-static int s_lrs_key_image(uint8_t out[1408], const void *pk, const void *sk, const lotrs_params_t *par) {
+static int s_lrs_key_image(uint8_t out[9216], const void *pk, const void *sk, const lotrs_params_t *par) {
     (void)pk; (void)par;
     return chipmunk_lrs_key_image(out, (const chipmunk_lrs_secret_key_t *)sk);
 }
@@ -278,7 +280,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     l_witness.indicator.coeffs[l_signer_idx] = 1;
 
     /* 4. Key image (computed early to bind into SNARK message) */
-    uint8_t l_ki[1408];
+    uint8_t l_ki[9216];
     memset(l_ki, 0, sizeof(l_ki));
     l_rc = a_algo->key_image(l_ki, l_pk, l_sk, &l_par);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
