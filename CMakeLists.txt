@@ -75,9 +75,6 @@ if (BUILD_CELLFRAME_SDK_TESTS)
     add_subdirectory(tests)
 endif()
 
-if (BUILD_WITH_ZIP)
-    # libzip removed — unused, pulled in OpenSSL dependency
-endif()
 
 add_subdirectory(modules/)
 
