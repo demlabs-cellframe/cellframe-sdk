@@ -1104,11 +1104,14 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
             l_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
         }
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
+        log_it(L_NOTICE, "Service registered in hash table: uid=0x%016"DAP_UINT64_FORMAT_X" (total=%u)",
+               l_srv->uid.uint64, HASH_COUNT(s_srv_list));
         dap_stream_ch_chain_net_srv_init(l_srv);
         if (l_net)
             dap_ledger_tx_add_notify(l_net->pub.ledger, dap_stream_ch_chain_net_srv_tx_cond_added_cb, NULL);
     }else{
-        log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
+        log_it(L_NOTICE, "Service already present with uid 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
+        l_srv = l_sdata->srv;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
     return l_srv;
@@ -1220,6 +1223,9 @@ dap_chain_net_srv_t *dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, &a_uid, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     pthread_mutex_unlock(&s_srv_list_mutex);
+    if (!l_sdata)
+        log_it(L_WARNING, "dap_chain_net_srv_get: uid=0x%016"DAP_UINT64_FORMAT_X" NOT FOUND (total=%u)",
+               a_uid.uint64, HASH_COUNT(s_srv_list));
     return (l_sdata) ? l_sdata->srv : NULL;
 }
 
