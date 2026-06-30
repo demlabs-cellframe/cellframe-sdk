@@ -4319,7 +4319,7 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     DAP_DELETE(l_links_addrs);
     if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
         debug_if(s_debug_more, L_DEBUG, "No links in net %s cluster", a_net->pub.name);
-        return -2;     // No links in cluster
+        return -7;     // No links in cluster
     }
     s_sync_timer_rebind_owner_async(a_net);
     l_net_pvt->sync_context.cur_chain = a_net->pub.chains;

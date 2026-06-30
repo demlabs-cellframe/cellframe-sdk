@@ -456,12 +456,15 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t *a_net, const dap_chain_
         for (size_t i = 0; i < l_orders_count; i++) {
             l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
             if (!l_order) {
+                log_it(L_WARNING, "Order %s corrupted (key=%s, val_len=%zu), deleting", l_gdb_group_str, l_orders[i].key, l_orders[i].value_len);
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
                 continue; // order is corrupted
             }
 
-            if (l_order->ts_expires && l_order->ts_expires < dap_time_now())
+            if (l_order->ts_expires && l_order->ts_expires < dap_time_now()){
+                log_it(L_INFO, "Order %s expired (ts_expires=%"DAP_UINT64_FORMAT_U", now=%"DAP_UINT64_FORMAT_U", key=%s)", l_gdb_group_str, l_order->ts_expires, dap_time_now(), l_orders[i].key);
                 continue;
+            }
 
             // Check direction
             if (a_direction != SERV_DIR_UNDEFINED && l_order->direction != a_direction)
