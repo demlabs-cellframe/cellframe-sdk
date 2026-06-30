@@ -466,7 +466,8 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         if (l_srv && l_srv->allow_free_srv) {
             log_it(L_INFO, "No order hash in request, but allow_free_srv=true — continuing as free service");
         } else {
-            log_it( L_ERROR, "No order hash in request.");
+            log_it( L_ERROR, "No order hash in request. l_srv=%p, allow_free_srv=%d, srv_uid=0x%016"DAP_UINT64_FORMAT_x,
+                   (void*)l_srv, l_srv ? l_srv->allow_free_srv : -1, a_request->hdr.srv_uid.uint64);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
             if(a_ch)
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -805,7 +806,17 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         return false;
     dap_chain_net_srv_stream_session_t *l_srv_session = NULL;
     if (a_ch) {
-        l_srv_session = a_ch->stream && a_ch->stream->session ? a_ch->stream->session->_inheritor : NULL;
+        l_srv_session = a_ch->stream && a_ch->stream->session ?
+                        (dap_chain_net_srv_stream_session_t *)a_ch->stream->session->_inheritor : NULL;
+        /* Safety: create session inheritor if not yet set up.
+         * This can happen when the channel is created before the session
+         * is fully initialized (e.g., during STREAM_CONNECTED before
+         * STREAM_SESSION completes). */
+        if (a_ch->stream && a_ch->stream->session && !a_ch->stream->session->_inheritor) {
+            dap_chain_net_srv_stream_session_create(a_ch->stream->session);
+            l_srv_session = (dap_chain_net_srv_stream_session_t *)a_ch->stream->session->_inheritor;
+            log_it(L_INFO, "Created service session inheritor on-the-fly for channel '%c'", a_ch->proc->id);
+        }
     }
     if (!l_srv_session) {
         log_it( L_ERROR, "Not defined service session, switching off packet input process");

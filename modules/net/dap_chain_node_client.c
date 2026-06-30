@@ -308,6 +308,10 @@ static bool s_node_client_connect_impl(dap_chain_node_client_t *a_node_client,
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
+    /* Propagate desired transport type from node client to DAP client */
+    if (a_node_client->desired_trans_type) {
+        dap_client_set_trans_type(a_node_client->client, a_node_client->desired_trans_type);
+    }
     if (a_node_client->net) {
         const char *l_auth_cert_name = dap_config_get_item_str(a_node_client->net->pub.config, "general", "auth_cert");
         if (l_auth_cert_name)
