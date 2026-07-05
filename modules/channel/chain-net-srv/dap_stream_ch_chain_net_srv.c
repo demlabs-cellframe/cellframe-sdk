@@ -493,6 +493,9 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     }
 
     if (!l_srv) {
+        log_it(L_ERROR, "Service uid=0x%016"DAP_UINT64_FORMAT_x" not registered in net %s "
+               "(plugin not loaded or disabled — check plugins enabled and srv-vpn.cfg [srv_vpn] enabled=true)",
+               a_request->hdr.srv_uid.uint64, l_net->pub.name);
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
     } else if (l_srv->decree_disabled) {
         log_it(L_WARNING, "Service uid=0x%016"DAP_UINT64_FORMAT_x" is disabled by decree in net %s",
@@ -509,7 +512,20 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         }
     }
 
+    if (!l_srv_session && !l_err.code) {
+        log_it(L_ERROR, "Service uid=0x%016"DAP_UINT64_FORMAT_x" in net %s: no stream service session "
+               "(channel R session missing on stream)",
+               a_request->hdr.srv_uid.uint64, l_net->pub.name);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_REQUEST_INTERNAL_ERROR;
+    }
+
     if (l_err.code || !l_srv_session) {
+        if (l_err.code) {
+            log_it(L_ERROR, "Service REQUEST rejected: code=0x%08X, net_id=0x%016"DAP_UINT64_FORMAT_x", "
+                   "srv_uid=0x%016"DAP_UINT64_FORMAT_x", srv=%p, session=%p",
+                   l_err.code, l_err.net_id.uint64, l_err.srv_uid.uint64,
+                   (void *)l_srv, (void *)l_srv_session);
+        }
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
         if (l_srv && l_srv->callbacks.response_error)
