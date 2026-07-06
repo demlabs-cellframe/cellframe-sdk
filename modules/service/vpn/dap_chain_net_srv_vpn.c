@@ -90,6 +90,7 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_net_trans.h"
 
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv.h"
@@ -1302,6 +1303,21 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
     l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
+
+    {
+        const char *l_trans_name = "unknown";
+        if(a_ch->stream && a_ch->stream->trans)
+        {
+            if(a_ch->stream->trans->name && a_ch->stream->trans->name[0])
+                l_trans_name = a_ch->stream->trans->name;
+            else
+                l_trans_name = dap_net_trans_type_to_str(a_ch->stream->trans->type);
+        }
+        log_it(L_NOTICE, "VPN client session via transport %s (usage_id=%u, remote=%s:%u)",
+               l_trans_name, l_srv_vpn->usage_id,
+               a_ch->stream && a_ch->stream->esocket ? a_ch->stream->esocket->remote_addr_str : "?",
+               a_ch->stream && a_ch->stream->esocket ? a_ch->stream->esocket->remote_port : 0);
+    }
     
     // If usage is already active, enable channel immediately
     if (l_srv_session->usage_active && l_srv_session->usage_active->is_active) {
