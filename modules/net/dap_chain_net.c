@@ -3607,6 +3607,13 @@ static DAP_INLINE void s_net_control_event_apply(dap_chain_net_t *a_net, dap_cha
         if (a_net_pvt->state == NET_STATE_LINKS_CONNECTING &&
                 dap_link_manager_established_uplinks_count(a_net->pub.id.uint64) >= dap_link_manager_required_links_count(a_net->pub.id.uint64))
             a_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
+        /* === TEMP_DEBUG_LINKS_CONNECTING: START (temporary, remove after investigation) === */
+        else if (a_net_pvt->state == NET_STATE_LINKS_CONNECTING)
+            log_it(L_INFO, "[TEMP_DEBUG] %s still NET_STATE_LINKS_CONNECTING: established %zu/%zu after LINK_CONNECTED",
+                   a_net->pub.name,
+                   dap_link_manager_established_uplinks_count(a_net->pub.id.uint64),
+                   dap_link_manager_required_links_count(a_net->pub.id.uint64));
+        /* === TEMP_DEBUG_LINKS_CONNECTING: END === */
         break;
     case DAP_CHAIN_NET_CONTROL_EVENT_LINKS_COUNT_CHANGED:
         UNUSED(a_links_count);
@@ -3621,6 +3628,9 @@ static DAP_INLINE void s_net_control_event_apply(dap_chain_net_t *a_net, dap_cha
         break;
     case DAP_CHAIN_NET_CONTROL_EVENT_LINKS_CONNECTING:
         a_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+        /* === TEMP_DEBUG_LINKS_CONNECTING: START (temporary, remove after investigation) === */
+        dap_link_manager_log_uplinks_connecting_diag(a_net->pub.id.uint64);
+        /* === TEMP_DEBUG_LINKS_CONNECTING: END === */
         break;
     case DAP_CHAIN_NET_CONTROL_EVENT_SYNC_CONTEXT_RESET:
         s_sync_session_advance(a_net_pvt);
