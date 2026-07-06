@@ -667,6 +667,13 @@ int s_link_manager_link_request(uint64_t a_net_id)
         return -2;
     if (l_net_pvt->state == NET_STATE_LINKS_PREPARE)
         s_net_control_event_emit_async(l_net, DAP_CHAIN_NET_CONTROL_EVENT_LINKS_CONNECTING, 0);
+    /* === TEMP_DEBUG_LINKS_CONNECTING: START (temporary, remove after investigation) === */
+    log_it(L_INFO, "[TEMP_DEBUG] link_request net %s state=%s established=%zu required=%zu needed=%zu",
+           l_net->pub.name, c_net_states[l_net_pvt->state],
+           dap_link_manager_established_uplinks_count(a_net_id),
+           dap_link_manager_required_links_count(a_net_id),
+           dap_link_manager_needed_links_count(a_net_id));
+    /* === TEMP_DEBUG_LINKS_CONNECTING: END === */
     struct request_link_info *l_balancer_link = s_balancer_link_from_cfg(l_net);
     if (!l_balancer_link)
         return log_it(L_ERROR, "Can't process balancer link %s request in net %s", 
