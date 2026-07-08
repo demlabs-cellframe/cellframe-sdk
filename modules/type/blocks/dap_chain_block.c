@@ -267,8 +267,8 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
     dap_chain_block_t * l_block = *a_block_ptr;
     assert(l_block);
     assert(a_datum_hash);
-    if(a_block_size>=sizeof (l_block->hdr)){
-        log_it(L_ERROR, "Corrupted block, block size %zd is lesser than block header size %zd", a_block_size,sizeof (l_block->hdr));
+    if(a_block_size < sizeof(*l_block)){
+        log_it(L_ERROR, "Corrupted block, block size %zd is lesser than block header size %zd", a_block_size, sizeof(*l_block));
         return 0;
     }
     size_t l_offset = s_block_get_datum_offset(l_block,a_block_size);
@@ -294,7 +294,12 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
         // Check datum hash and delete if compares successfuly
         if (dap_hash_sha3_256_compare(&l_datum_hash,a_datum_hash)){
             memmove(l_datum, (byte_t*)l_datum + l_datum_size, a_block_size - sizeof(l_block->hdr) - l_offset - l_datum_size);
-            l_block = DAP_REALLOC_RET_VAL_IF_FAIL(*a_block_ptr, a_block_size - l_datum_size, a_block_size);
+            a_block_size -= l_datum_size;
+            l_block = DAP_REALLOC(*a_block_ptr, a_block_size);
+            if (!l_block) {
+                log_it(L_CRITICAL, "%s", "Memory allocation error");
+                return a_block_size + l_datum_size; /* restore original on failure */
+            }
             *a_block_ptr = l_block;
             l_block->hdr.datum_count--;
             l_block->hdr.meta_n_datum_n_signs_size -= l_datum_size;
