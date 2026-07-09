@@ -33,7 +33,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 typedef struct dap_global_db_cluster dap_global_db_cluster_t;
 #include "dap_global_db.h"
 
-#define DAP_STREAM_CH_CHIPCHAIN_ID                     'C'
+#define DAP_STREAM_CH_CHIPCHAIN_ID                     'M'
 
 #define DAP_CHAIN_CHIPCHAIN_PROTOCOL_VERSION           8
 #define DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR                "chipchain"
@@ -287,6 +287,8 @@ typedef struct dap_chain_chipchain_session {
 } dap_chain_chipchain_session_t;
 
 // dap_chain_chipchain_block_collect_t moved to dap_chain_block_collect.h (breaks cycle with blocks)
+#include "dap_chain_block_collect.h"
+typedef dap_chain_block_collect_params_t dap_chain_chipchain_block_collect_t;
 
 typedef enum s_com_chipchain_err{
     DAP_CHAIN_NODE_CLI_COM_chipchain_OK = 0,

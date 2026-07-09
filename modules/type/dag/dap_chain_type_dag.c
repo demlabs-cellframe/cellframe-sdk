@@ -1478,11 +1478,11 @@ static int s_cli_dag(int argc, char ** argv, dap_json_t *a_json_arr_reply, int a
     }
     l_dag = DAP_CHAIN_TYPE_DAG(l_chain);
 
-    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
+    const char *l_chain_type = dap_chain_get_chain_data_type(l_chain);
 
-    if (!strstr(l_chain_type, "dag_")){
+    if (!l_chain_type || strcmp(l_chain_type, "dag")){
             dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_DAG_CHAIN_TYPE_ERR,"Type of chain %s is not dag. This chain with type %s is not supported by this command",
-                        l_chain->name, l_chain_type);
+                        l_chain->name, l_chain_type ? l_chain_type : "(null)");
             return -DAP_CHAIN_NODE_CLI_COM_DAG_CHAIN_TYPE_ERR;
     }
 

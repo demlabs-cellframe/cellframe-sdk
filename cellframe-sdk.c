@@ -18,6 +18,7 @@
 #include "dap_chain_type_blocks.h"
 #include "dap_chain_type_none.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_cs_chipchain.h"
 
 #include "dap_chain_net.h"
 #include "dap_chain_policy.h"
@@ -86,6 +87,7 @@ int cellframe_sdk_init(uint32_t a_modules)
     CF_INIT(CF_MODULE_CONSENSUS_POA,    dap_chain_type_dag_poa_init(),  "DAG-PoA consensus");
     CF_INIT(CF_MODULE_CONSENSUS_BLOCKS, dap_chain_type_blocks_init(),   "Blocks consensus");
     CF_INIT(CF_MODULE_CONSENSUS_ESBOCS, dap_chain_cs_esbocs_init(),     "ESBOCS consensus");
+    CF_INIT(CF_MODULE_CONSENSUS_CHIPCHAIN, dap_chain_cs_chipchain_init(), "ChipChain consensus");
     CF_INIT(CF_MODULE_CONSENSUS_NONE,   dap_nonconsensus_init(),        "No-consensus");
 
     /* 3. Services — must be registered BEFORE network init, because
@@ -176,6 +178,9 @@ void cellframe_sdk_deinit(void)
 
     if (s_modules & CF_MODULE_NETWORK)
         dap_chain_net_deinit();
+
+    if (s_modules & CF_MODULE_CONSENSUS_CHIPCHAIN)
+        dap_chain_cs_chipchain_deinit();
 
     if (s_modules & (CF_MODULE_CHAIN | CF_MODULE_NETWORK | CF_MODULE_WALLET))
         dap_chain_deinit();

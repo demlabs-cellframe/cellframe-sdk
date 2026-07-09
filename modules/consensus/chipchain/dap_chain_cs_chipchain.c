@@ -36,17 +36,24 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_cs_type.h"  // For old consensus registration system
 #include "dap_chain_policy.h"   // For policy functions from common module
 #include "dap_chain_cs_chipchain.h"
+#include "dap_chain_cell.h"         // For dap_chain_cell_create (auto-sharding)
 #include "dap_chain_block_tx.h"  // For dap_chain_block_tx_coll_fee_create, dap_chain_block_tx_reward_create
 #include "dap_json.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"  // Stake module is now compiled and working!
 #include "dap_chain_ledger.h"
 #include "dap_cli_server.h"
 #include "dap_sign.h"
+#include "dap_sign_chipmunk.h"      // Chipmunk aggregated signature support
+#include "chipmunk_aggregation.h"    // chipmunk_aggregate_signatures, chipmunk_verify_multi_signature
+#include "chipmunk_multi_signature_codec.h"  // chipmunk_multi_signature_deserialize, CHIPMUNK_MULTI_SIG_CODEC_OK
+#include "chipmunk_hypertree.h"      // chipmunk_ht_keypair, chipmunk_ht_sign, chipmunk_ht_verify
 #include "dap_link_manager.h"
 #include "dap_chain_node.h"
 #include "dap_serialize.h"
 
 #define LOG_TAG "dap_chain_cs_chipchain"
+
+static void s_free_callback(void *a_ptr) { DAP_DELETE(a_ptr); }
 
 enum s_chipchain_session_state {
     DAP_CHAIN_CHIPCHAIN_SESSION_STATE_WAIT_START,
@@ -187,6 +194,12 @@ typedef struct dap_chain_chipchain_pvt {
     bool check_signs_structure;
     // Internal cache
     dap_list_t *precached_keys;
+    // Chipmunk aggregated mode: use Chipmunk aggregated signatures instead of Dilithium
+    bool use_chipmunk_aggregated;
+    // Auto-sharding: automatic cell rotation when cell exceeds size threshold
+    uint64_t cell_size_threshold;       // Max atoms per cell before rotation (0 = disabled)
+    uint16_t cell_rotation_generation;  // Incremented on each cell rotation
+    dap_chain_cell_id_t active_cell_id; // Currently active cell ID
 } dap_chain_chipchain_pvt_t;
 
 #define PVT(a) ((dap_chain_chipchain_pvt_t *)a->_pvt)
@@ -699,6 +712,16 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
                                                                                                 dap_config_get_item_str_default(a_chain_net_cfg, DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR, "set_collect_fee", "10.0")));
     l_chipchain_pvt->debug = dap_config_get_item_bool_default(a_chain_net_cfg, "chipchain", "consensus_debug", false);
     l_chipchain_pvt->emergency_mode = dap_config_get_item_bool_default(a_chain_net_cfg, DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR, "emergency_mode", false);
+    l_chipchain_pvt->use_chipmunk_aggregated = dap_config_get_item_bool_default(a_chain_net_cfg, DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR, "use_chipmunk_aggregated", false);
+    if (l_chipchain_pvt->use_chipmunk_aggregated)
+        log_it(L_NOTICE, "Chipmunk aggregated mode enabled for net %s — blocks will be signed with Chipmunk aggregated signatures", a_chain->net_name);
+
+    // Auto-sharding config
+    l_chipchain_pvt->cell_size_threshold = dap_config_get_item_uint64_default(a_chain_net_cfg, DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR, "cell_size_threshold", 0);
+    l_chipchain_pvt->cell_rotation_generation = 0;
+    if (l_chipchain_pvt->cell_size_threshold)
+        log_it(L_NOTICE, "Auto-sharding enabled for net %s — cell rotation at %"DAP_UINT64_FORMAT_U" atoms",
+               a_chain->net_name, l_chipchain_pvt->cell_size_threshold);
 
     dap_chain_chipchain_session_t *l_session = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_chipchain_session_t, -8);
     l_session->chain = a_chain;
@@ -714,8 +737,17 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
             return -1;
         } else if (l_sign_cert->enc_key->priv_key_data) {
+            // Validate key type matches mode
+            if (l_chipchain_pvt->use_chipmunk_aggregated &&
+                l_sign_cert->enc_key->type != DAP_ENC_KEY_TYPE_SIG_CHIPMUNK) {
+                log_it(L_ERROR, "Certificate \"%s\" key type 0x%x is not Chipmunk (0x%x) but use_chipmunk_aggregated is enabled",
+                       l_sign_cert_str, l_sign_cert->enc_key->type, DAP_ENC_KEY_TYPE_SIG_CHIPMUNK);
+                return -1;
+            }
             l_chipchain_pvt->blocks_sign_key = l_sign_cert->enc_key;
-            log_it(L_INFO, "Loaded \"%s\" certificate for net %s to sign chipchain blocks", l_sign_cert_str, a_chain->net_name);
+            log_it(L_INFO, "Loaded \"%s\" certificate for net %s to sign chipchain blocks (type: 0x%x%s)",
+                   l_sign_cert_str, a_chain->net_name, l_sign_cert->enc_key->type,
+                   l_chipchain_pvt->use_chipmunk_aggregated ? ", Chipmunk aggregated" : "");
         } else {
             log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
             return -2;
@@ -1168,7 +1200,8 @@ static dap_list_t *s_get_validators_list(dap_chain_chipchain_t *a_chipchain, dap
     dap_chain_chipchain_pvt_t *l_chipchain_pvt = PVT(a_chipchain);
     dap_list_t *l_ret = NULL;
     dap_list_t *l_validators = NULL;
-    if (l_chipchain_pvt->poa_mode) { // UNDO it after debug!
+    if (!l_chipchain_pvt->poa_mode) {
+        // PoS mode: select validators by weighted random from stake service
         if (a_excluded_list_size) {
             l_validators =  dap_chain_net_srv_stake_get_validators(a_chipchain->chain->net_id, false, NULL);
             uint16_t l_excluded_num = *a_excluded_list;
@@ -1258,6 +1291,7 @@ static dap_list_t *s_get_validators_list(dap_chain_chipchain_t *a_chipchain, dap
         }
         dap_list_free_full(l_validators, NULL);
     } else
+        // PoA mode: use pre-configured validator list (all validators participate)
         l_ret = dap_list_copy_deep(l_chipchain_pvt->poa_validators, s_callback_list_copy, NULL);
 
     return l_ret;
@@ -1458,9 +1492,26 @@ static bool s_session_round_new(void *a_arg)
             return false;
         }
     }
-    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false, NULL);
-    a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
-    dap_list_free_full(l_validators, NULL);
+    // Build all_validators list: PoA mode uses pre-configured poa_validators,
+    // PoS mode uses stake service (which tracks delegated keys from transactions)
+    dap_list_t *l_validators = NULL;
+    if (PVT(a_session->chipchain)->poa_mode) {
+        l_validators = dap_list_copy_deep(PVT(a_session->chipchain)->poa_validators, s_callback_list_copy, NULL);
+    } else {
+        l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false, NULL);
+        if (l_validators) {
+            // Convert stake_service items to chipchain_validator_t format
+            dap_list_t *l_converted = NULL;
+            for (dap_list_t *it = l_validators; it; it = it->next) {
+                dap_chain_chipchain_validator_t *l_val = s_callback_list_form(it->data, NULL);
+                if (l_val)
+                    l_converted = dap_list_append(l_converted, l_val);
+            }
+            dap_list_free_full(l_validators, NULL);
+            l_validators = l_converted;
+        }
+    }
+    a_session->cur_round.all_validators = l_validators;
     bool l_round_already_started = a_session->round_fast_forward;
     dap_chain_chipchain_sync_item_t *l_item = NULL, *l_tmp;
     dap_ht_find(a_session->sync_items, &a_session->cur_round.last_block_hash, sizeof(dap_hash_sha3_256_t), l_item);
@@ -1761,24 +1812,69 @@ static void s_session_state_change(dap_chain_chipchain_session_t *a_session, enu
         }
         l_store->candidate_signs = dap_list_sort(l_store->candidate_signs, s_signs_sort_callback);
         size_t l_candidate_size_exclude_signs = l_store->candidate_size;
-        for (dap_list_t *it = l_store->candidate_signs; it; it = it->next) {
-            dap_sign_t *l_candidate_sign = (dap_sign_t *)it->data;
-            size_t l_candidate_sign_size = dap_sign_get_size(l_candidate_sign);
-            dap_chain_addr_t l_signing_addr_cur;
-            dap_chain_addr_fill_from_sign(&l_signing_addr_cur, l_candidate_sign, a_session->chain->net_id);
-            dap_chain_block_t *l_signed_candidate = DAP_REALLOC_RET_IF_FAIL(l_store->candidate, l_store->candidate_size + l_candidate_sign_size);
+
+        if (PVT(a_session->chipchain)->use_chipmunk_aggregated) {
+            // Chipmunk aggregated mode: aggregate all individual signatures into one
+            uint32_t l_signs_count = dap_list_length(l_store->candidate_signs);
+            if (l_signs_count == 0) {
+                log_it(L_ERROR, "No candidate signs for aggregation");
+                break;
+            }
+            dap_sign_t **l_signs_arr = DAP_NEW_Z_COUNT(dap_sign_t *, l_signs_count);
+            if (!l_signs_arr) {
+                log_it(L_ERROR, "Failed to allocate signs array for aggregation");
+                break;
+            }
+            uint32_t l_idx = 0;
+            for (dap_list_t *it = l_store->candidate_signs; it; it = it->next)
+                l_signs_arr[l_idx++] = (dap_sign_t *)it->data;
+
+            // Message to sign: block header + data (excluding signatures)
+            size_t l_offset = dap_chain_block_get_sign_offset(l_store->candidate, l_store->candidate_size);
+            const void *l_msg = l_store->candidate;
+            size_t l_msg_size = l_offset + sizeof(l_store->candidate->hdr);
+
+            dap_sign_aggregation_params_t l_params = {0};
+            l_params.aggregation_type = DAP_SIGN_AGGREGATION_TYPE_TREE_BASED;
+
+            dap_sign_t *l_aggregated = dap_sign_aggregate_signatures(l_signs_arr, l_signs_count,
+                                                                     l_msg, l_msg_size, &l_params);
+            DAP_DELETE(l_signs_arr);
+
+            if (!l_aggregated) {
+                log_it(L_ERROR, "Failed to aggregate Chipmunk signatures");
+                break;
+            }
+
+            size_t l_agg_size = dap_sign_get_size(l_aggregated);
+            dap_chain_block_t *l_signed_candidate = DAP_REALLOC_RET_IF_FAIL(l_store->candidate,
+                                                                            l_store->candidate_size + l_agg_size, l_aggregated);
             l_store->candidate = l_signed_candidate;
-            if (dap_chain_addr_compare(&l_signing_addr_cur, &a_session->cur_round.attempt_submit_validator) &&
-                                       l_store->candidate_size != l_candidate_size_exclude_signs) {
-                // If it's the primary attempt validator sign, place it in the beginnig
-                if (l_store->candidate_size > l_candidate_size_exclude_signs)
-                    memmove((byte_t *)l_store->candidate + l_candidate_size_exclude_signs + l_candidate_sign_size,
-                            (byte_t *)l_store->candidate + l_candidate_size_exclude_signs,
-                            l_store->candidate_size - l_candidate_size_exclude_signs);
-                memcpy((byte_t *)l_store->candidate + l_candidate_size_exclude_signs, l_candidate_sign, l_candidate_sign_size);
-            } else
-                memcpy(((byte_t *)l_store->candidate) + l_store->candidate_size, l_candidate_sign, l_candidate_sign_size);
-            l_store->candidate_size += l_candidate_sign_size;
+            memcpy(((byte_t *)l_store->candidate) + l_store->candidate_size, l_aggregated, l_agg_size);
+            l_store->candidate_size += l_agg_size;
+            DAP_DELETE(l_aggregated);
+
+            log_it(L_INFO, "Aggregated %u Chipmunk signatures into one (%zu bytes)", l_signs_count, l_agg_size);
+        } else {
+            // Legacy mode: append each individual signature
+            for (dap_list_t *it = l_store->candidate_signs; it; it = it->next) {
+                dap_sign_t *l_candidate_sign = (dap_sign_t *)it->data;
+                size_t l_candidate_sign_size = dap_sign_get_size(l_candidate_sign);
+                dap_chain_addr_t l_signing_addr_cur;
+                dap_chain_addr_fill_from_sign(&l_signing_addr_cur, l_candidate_sign, a_session->chain->net_id);
+                dap_chain_block_t *l_signed_candidate = DAP_REALLOC_RET_IF_FAIL(l_store->candidate, l_store->candidate_size + l_candidate_sign_size);
+                l_store->candidate = l_signed_candidate;
+                if (dap_chain_addr_compare(&l_signing_addr_cur, &a_session->cur_round.attempt_submit_validator) &&
+                                           l_store->candidate_size != l_candidate_size_exclude_signs) {
+                    if (l_store->candidate_size > l_candidate_size_exclude_signs)
+                        memmove((byte_t *)l_store->candidate + l_candidate_size_exclude_signs + l_candidate_sign_size,
+                                (byte_t *)l_store->candidate + l_candidate_size_exclude_signs,
+                                l_store->candidate_size - l_candidate_size_exclude_signs);
+                    memcpy((byte_t *)l_store->candidate + l_candidate_size_exclude_signs, l_candidate_sign, l_candidate_sign_size);
+                } else
+                    memcpy(((byte_t *)l_store->candidate) + l_store->candidate_size, l_candidate_sign, l_candidate_sign_size);
+                l_store->candidate_size += l_candidate_sign_size;
+            }
         }
         l_store->candidate->hdr.meta_n_datum_n_signs_size = l_store->candidate_size - sizeof(l_store->candidate->hdr);
         dap_hash_sha3_256(l_store->candidate, l_store->candidate_size, &l_store->precommit_candidate_hash);
@@ -1956,6 +2052,9 @@ static void s_session_candidate_submit(dap_chain_chipchain_session_t *a_session)
         l_candidate = l_blocks->callback_block_create(l_blocks, &l_candidate_size);
     }
     if (l_candidate && l_candidate_size) {
+        // Auto-sharding: set cell_id in block header to active cell
+        if (PVT(a_session->chipchain)->active_cell_id.uint64 != 0)
+            l_candidate->hdr.cell_id = PVT(a_session->chipchain)->active_cell_id;
         if (PVT(a_session->chipchain)->emergency_mode)
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EMERGENCY, NULL, 0);
         if (PVT(a_session->chipchain)->check_signs_structure && l_candidate_size) {
@@ -1967,6 +2066,34 @@ static void s_session_candidate_submit(dap_chain_chipchain_session_t *a_session)
             if (l_candidate_size)
                 l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
                                                             a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
+        }
+        // Store validator pkey hashes in block metadata for authorization verification
+        // Uses pkey hashing (same as DAP_SIGN_PKEY_HASHING_FLAG) — 32 bytes per validator
+        if (PVT(a_session->chipchain)->use_chipmunk_aggregated && l_candidate_size) {
+            dap_list_t *l_validators = a_session->cur_round.validators_list;
+            uint32_t l_val_count = dap_list_length(l_validators);
+            if (l_val_count > 0) {
+                // Format: [uint32_t count][dap_hash_sha3_256_t hash1]...[hashN]
+                size_t l_keys_buf_size = sizeof(uint32_t) + l_val_count * sizeof(dap_hash_sha3_256_t);
+                uint8_t *l_keys_buf = DAP_NEW_Z_SIZE(uint8_t, l_keys_buf_size);
+                if (l_keys_buf) {
+                    size_t l_offset = 0;
+                    memcpy(l_keys_buf + l_offset, &l_val_count, sizeof(uint32_t));
+                    l_offset += sizeof(uint32_t);
+                    for (dap_list_t *it = l_validators; it; it = it->next) {
+                        dap_chain_chipchain_validator_t *l_val = it->data;
+                        if (l_val->pkey) {
+                            dap_hash_sha3_256(l_val->pkey->pkey, l_val->pkey->header.size,
+                                             (dap_hash_sha3_256_t *)(l_keys_buf + l_offset));
+                            l_offset += sizeof(dap_hash_sha3_256_t);
+                        }
+                    }
+                    l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size,
+                                                                 DAP_CHAIN_BLOCK_META_VALIDATOR_KEYS,
+                                                                 l_keys_buf, l_offset);
+                    DAP_DELETE(l_keys_buf);
+                }
+            }
         }
         if (a_session->chipchain->hardfork_state && l_candidate_size) {
             if (dap_chain_block_meta_get(l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_GENESIS) && l_candidate_size)
@@ -2143,6 +2270,55 @@ static bool s_session_candidate_to_chain(dap_chain_chipchain_session_t *a_sessio
         log_it(L_INFO, "block %s added in chain successfully", l_candidate_hash_str);
         a_session->chipchain->last_accepted_block_timestamp = dap_time_now();
         res = true;
+
+        // Auto-sharding: check if cell needs rotation
+        if (PVT(a_session->chipchain)->cell_size_threshold > 0 && !a_session->chipchain->hardfork_state) {
+            uint64_t l_atom_count = a_session->chain->callback_count_atom(a_session->chain);
+            if (l_atom_count >= PVT(a_session->chipchain)->cell_size_threshold) {
+                log_it(L_WARNING, "Auto-sharding: cell reached %"DAP_UINT64_FORMAT_U" atoms (threshold %"DAP_UINT64_FORMAT_U"), initiating cell rotation",
+                       l_atom_count, PVT(a_session->chipchain)->cell_size_threshold);
+
+                // Save old cell ID for archiving
+                dap_chain_cell_id_t l_old_cell_id = { .uint64 = 0 };
+                // Get current active cell (first cell in chain)
+                dap_chain_cell_t *l_cur_cell = dap_chain_cell_capture_by_id(a_session->chain, c_dap_chain_cell_id_null);
+                if (l_cur_cell) {
+                    l_old_cell_id = l_cur_cell->id;
+                    dap_chain_cell_remit(a_session->chain);
+                }
+
+                // Increment generation for new cell
+                PVT(a_session->chipchain)->cell_rotation_generation++;
+                dap_chain_cell_id_t l_new_cell_id = { .uint64 = PVT(a_session->chipchain)->cell_rotation_generation };
+
+                // Create new cell
+                if (dap_chain_cell_create(a_session->chain, l_new_cell_id) == 0) {
+                    PVT(a_session->chipchain)->active_cell_id = l_new_cell_id;
+                    log_it(L_INFO, "Auto-sharding: new cell %"DAP_UINT64_FORMAT_U" created for chain %s",
+                           l_new_cell_id.uint64, a_session->chain->name);
+
+                    // Trigger hardfork to migrate state to new cell
+                    uint16_t l_new_generation = dap_chain_generation_next(a_session->chain);
+                    int l_hf_rc = dap_chain_chipchain_set_hardfork_prepare(a_session->chain, l_new_generation,
+                                                                            l_atom_count, NULL, NULL);
+                    if (l_hf_rc >= 0) {
+                        log_it(L_INFO, "Auto-sharding: hardfork triggered (generation=%u, from=%"DAP_UINT64_FORMAT_U", rc=%d)",
+                               l_new_generation, l_atom_count, l_hf_rc);
+                        // Archive old cell (make copy, then close)
+                        if (l_old_cell_id.uint64 != 0) {
+                            dap_chain_cell_remove(a_session->chain, l_old_cell_id, true);
+                            log_it(L_INFO, "Auto-sharding: old cell %"DAP_UINT64_FORMAT_U" archived", l_old_cell_id.uint64);
+                        }
+                    } else {
+                        log_it(L_ERROR, "Auto-sharding: hardfork prepare failed (rc=%d), reverting cell creation", l_hf_rc);
+                        dap_chain_cell_remove(a_session->chain, l_new_cell_id, false);
+                        PVT(a_session->chipchain)->cell_rotation_generation--;
+                    }
+                } else {
+                    log_it(L_ERROR, "Auto-sharding: failed to create new cell %"DAP_UINT64_FORMAT_U, l_new_cell_id.uint64);
+                }
+            }
+        }
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         log_it(L_INFO, "Thresholded atom with hash %s", l_candidate_hash_str);
@@ -2213,7 +2389,7 @@ static void s_session_round_finish(dap_chain_chipchain_session_t *a_session, dap
     s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size);
 }
 
-void s_session_sync_queue_add(dap_chain_chipchain_session_t *a_session, dap_chain_chipchain_message_t *a_message, size_t a_message_size)
+void s_chipchain_session_sync_queue_add(dap_chain_chipchain_session_t *a_session, dap_chain_chipchain_message_t *a_message, size_t a_message_size)
 {
     dap_return_if_fail(a_session && a_message && a_message_size);
 
@@ -2231,7 +2407,7 @@ void s_session_sync_queue_add(dap_chain_chipchain_session_t *a_session, dap_chai
         DAP_DELETE(l_message_copy);
 }
 
-void s_session_validator_mark_online(dap_chain_chipchain_session_t *a_session, dap_chain_addr_t *a_signing_addr)
+void s_chipchain_session_validator_mark_online(dap_chain_chipchain_session_t *a_session, dap_chain_addr_t *a_signing_addr)
 {
     dap_list_t *l_list = s_validator_check(a_signing_addr, a_session->cur_round.all_validators);
     if (l_list) {
@@ -2250,7 +2426,13 @@ void s_session_validator_mark_online(dap_chain_chipchain_session_t *a_session, d
 
     dap_chain_chipchain_penalty_item_t *l_item = NULL;
     dap_ht_find(a_session->penalty, a_signing_addr, sizeof(*a_signing_addr), l_item);
-    bool l_inactive = dap_chain_net_srv_stake_key_delegated(a_signing_addr) == -1;
+    // In PoA mode, a validator is inactive if not in the pre-configured list;
+    // in PoS mode, check stake delegation status
+    bool l_inactive;
+    if (PVT(a_session->chipchain)->poa_mode)
+        l_inactive = !s_validator_check(a_signing_addr, PVT(a_session->chipchain)->poa_validators);
+    else
+        l_inactive = dap_chain_net_srv_stake_key_delegated(a_signing_addr) == -1;
     if (l_inactive && !l_item) {
         const char *l_addr_str = dap_hash_sha3_256_to_str_static(&a_signing_addr->data.hash_fast);
         log_it(L_DEBUG, "Validator %s not in penalty list, but currently disabled", l_addr_str);
@@ -2618,7 +2800,7 @@ static void s_session_packet_in(dap_chain_chipchain_session_t *a_session, dap_ch
                                             " Sync message with different last block hash was added to the queue",
                                                 l_session->chain->net_name, l_session->chain->name,
                                                     l_session->cur_round.id);
-                s_session_sync_queue_add(l_session, l_message, a_data_size);
+                s_chipchain_session_sync_queue_add(l_session, l_message, a_data_size);
                 return;
             }
         } else if (l_message->hdr.round_id != l_session->cur_round.id) {
@@ -2672,8 +2854,11 @@ static void s_session_packet_in(dap_chain_chipchain_session_t *a_session, dap_ch
         // Add local sync messages, cause a round clear
         if (!a_sender_node_addr)
             s_message_chain_add(l_session, l_message, a_data_size, &l_data_hash, &l_signing_addr);
-        // Accept all validators
-        l_not_in_list = !dap_chain_net_srv_stake_key_delegated(&l_signing_addr);
+        // Accept validators: PoA mode checks poa_validators, PoS mode checks stake delegation
+        if (PVT(l_session->chipchain)->poa_mode)
+            l_not_in_list = !s_validator_check(&l_signing_addr, PVT(l_session->chipchain)->poa_validators);
+        else
+            l_not_in_list = !dap_chain_net_srv_stake_key_delegated(&l_signing_addr);
         break;
     case DAP_CHAIN_CHIPCHAIN_MSG_TYPE_DIRECTIVE:
     case DAP_CHAIN_CHIPCHAIN_MSG_TYPE_VOTE_FOR:
@@ -2740,7 +2925,7 @@ static void s_session_packet_in(dap_chain_chipchain_session_t *a_session, dap_ch
                                                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                        l_sync_attempt, l_session->cur_round.sync_attempt);
                     // Process this message in new round, it will increment current sync attempt
-                    s_session_sync_queue_add(l_session, l_message, a_data_size);
+                    s_chipchain_session_sync_queue_add(l_session, l_message, a_data_size);
                     l_session->round_fast_forward = true;
                     l_session->cur_round.id = l_message->hdr.round_id - 1;
                     l_session->cur_round.sync_attempt = l_sync_attempt - 1;
@@ -2758,7 +2943,7 @@ static void s_session_packet_in(dap_chain_chipchain_session_t *a_session, dap_ch
         } else // Send it immediatly, if was not sent yet
             s_session_send_startsync(l_session);
 
-        s_session_validator_mark_online(l_session, &l_signing_addr);
+        s_chipchain_session_validator_mark_online(l_session, &l_signing_addr);
         dap_list_t *l_list = s_validator_check(&l_signing_addr, l_session->cur_round.validators_list);
         if (!l_list)
             break;
@@ -3282,7 +3467,7 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
         return 0;
     }
 
-    size_t l_block_size = a_block_size; // /* Can't calc it for many old bugged blocks */ dap_chain_block_get_size(a_block);
+    size_t l_block_size = a_block_size;
     size_t l_signs_count = 0;
     size_t l_offset = dap_chain_block_get_sign_offset(a_block, l_block_size);
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_block->meta_n_datum_n_sign+l_offset,
@@ -3293,6 +3478,87 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
         return -2;
     }
 
+    // Chipmunk aggregated mode: single aggregated signature verification
+    if (l_chipchain_pvt->use_chipmunk_aggregated && l_signs_count == 1 &&
+        l_signs[0]->header.type.type == SIG_TYPE_CHIPMUNK) {
+
+        size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, l_block_size) + sizeof(a_block->hdr);
+        size_t l_block_original = a_block->hdr.meta_n_datum_n_signs_size;
+        dap_chain_block_t *l_block = a_blocks->chain->is_mapped
+            ? DAP_DUP_SIZE(a_block, l_block_size)
+            : a_block;
+        l_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(l_block->hdr);
+
+        const void *l_msgs[] = { l_block };
+        size_t l_msg_sizes[] = { l_block_excl_sign_size };
+
+        // Step 1: Cryptographic verification (public keys are embedded in multi-signature)
+        int l_agg_rc = dap_sign_verify_aggregated(l_signs[0], l_msgs, l_msg_sizes, NULL, 1);
+        if (l_agg_rc != 0) {
+            DAP_DELETE(l_signs);
+            if (a_blocks->chain->is_mapped) DAP_DELETE(l_block);
+            else l_block->hdr.meta_n_datum_n_signs_size = l_block_original;
+            debug_if(l_chipchain_pvt->debug, L_ERROR, "Chipmunk aggregated verification failed for block %s: %d",
+                     dap_hash_sha3_256_to_str_static(a_block_hash), l_agg_rc);
+            return -4;
+        }
+
+        // Step 2: Authorization check — verify signers are authorized validators
+        // Uses pkey hashes from block metadata (32 bytes per validator)
+        size_t l_blob_size = 0;
+        uint8_t *l_blob = dap_sign_get_sign(l_signs[0], &l_blob_size);
+        chipmunk_multi_signature_t l_multi_sig = {0};
+        bool l_auth_ok = true;
+
+        // Extract validator pkey hashes from block metadata
+        uint8_t *l_meta_data = dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_VALIDATOR_KEYS);
+        if (!l_meta_data) {
+            log_it(L_ERROR, "Block %s: missing VALIDATOR_KEYS metadata — required for Chipmunk aggregated verification",
+                   dap_hash_sha3_256_to_str_static(a_block_hash));
+            DAP_DELETE(l_signs);
+            if (a_blocks->chain->is_mapped) DAP_DELETE(l_block);
+            else l_block->hdr.meta_n_datum_n_signs_size = l_block_original;
+            return -5;
+        }
+        uint32_t l_meta_count = *(uint32_t *)l_meta_data;
+        dap_hash_sha3_256_t *l_meta_hashes = (dap_hash_sha3_256_t *)(l_meta_data + sizeof(uint32_t));
+
+        if (l_blob && l_blob_size > 0 &&
+            chipmunk_multi_signature_deserialize(l_blob, l_blob_size, &l_multi_sig) == CHIPMUNK_MULTI_SIG_CODEC_OK) {
+            for (size_t j = 0; j < l_multi_sig.signer_count && l_auth_ok; j++) {
+                dap_hash_sha3_256_t l_signer_hash;
+                dap_hash_sha3_256(&l_multi_sig.hots_pks[j], sizeof(chipmunk_hots_pk_t), &l_signer_hash);
+                bool l_found = false;
+                for (uint32_t k = 0; k < l_meta_count && !l_found; k++) {
+                    if (dap_hash_sha3_256_compare(&l_meta_hashes[k], &l_signer_hash))
+                        l_found = true;
+                }
+                if (!l_found) {
+                    log_it(L_ERROR, "Block %s: signer %zu is not an authorized validator",
+                           dap_hash_sha3_256_to_str_static(a_block_hash), j);
+                    l_auth_ok = false;
+                }
+            }
+            chipmunk_multi_signature_deep_free(&l_multi_sig);
+        } else {
+            log_it(L_ERROR, "Block %s: could not deserialize multi-signature for authorization check",
+                   dap_hash_sha3_256_to_str_static(a_block_hash));
+            l_auth_ok = false;
+        }
+
+        DAP_DELETE(l_signs);
+        if (a_blocks->chain->is_mapped) DAP_DELETE(l_block);
+        else l_block->hdr.meta_n_datum_n_signs_size = l_block_original;
+
+        if (!l_auth_ok) {
+            log_it(L_ERROR, "Block %s: aggregated signature has unauthorized signers",
+                   dap_hash_sha3_256_to_str_static(a_block_hash));
+            return -5;
+        }
+        return 0;
+    }
+
+    // Legacy mode: individual signature verification
     if (l_signs_count < l_chipchain_pvt->min_validators_count) {
         log_it(L_ERROR, "Corrupted block  %s: not enough signs: %zu of %hu", dap_hash_sha3_256_to_str_static(a_block_hash),
                                     l_signs_count, l_chipchain_pvt->min_validators_count);
@@ -3300,12 +3566,10 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
         return -1;
     }
 
-    // Parse the rest signs
     int l_ret = 0;
     uint16_t l_signs_verified_count = 0;
     size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, l_block_size) + sizeof(a_block->hdr);
     bool l_block_is_emergency = s_block_is_emergency(a_block, l_block_size);
-    // Get the header on signing operation time
     size_t l_block_original = a_block->hdr.meta_n_datum_n_signs_size;
     dap_chain_block_t *l_block = a_blocks->chain->is_mapped
         ? DAP_DUP_SIZE(a_block, l_block_size)
@@ -3316,7 +3580,6 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
         s_get_precached_key_hash(&l_chipchain_pvt->precached_keys, l_sign, &l_signing_addr.data.hash_fast);
         if (!l_chipchain_pvt->poa_mode) {
-             // Compare signature with delegated keys
             if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
                 if (l_chipchain_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
@@ -3326,7 +3589,6 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
                 continue;
             }
         } else {
-            // Compare signature with auth_certs
             if (!s_validator_check(&l_signing_addr, l_chipchain_pvt->poa_validators)) {
                 if (l_chipchain_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_SHA3_256_STR_SIZE];
@@ -3381,7 +3643,6 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
             l_signs_verified_count++;
     }
     DAP_DELETE(l_signs);
-    // Restore the original header
     if ( a_blocks->chain->is_mapped )
         DAP_DELETE(l_block);
     else

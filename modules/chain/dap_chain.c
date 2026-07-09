@@ -499,6 +499,25 @@ const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
     return (const char *)DAP_CHAIN_PVT(l_chain)->cs_name;
 }
 
+/**
+ * @brief get chain data-structure type ("blocks", "dag", "none")
+ *
+ * Unlike dap_chain_get_cs_type() which returns the consensus name
+ * (cs_name), this returns the actual data structure type (cs_type)
+ * set by the consensus module's callback_init.
+ *
+ * @param a_chain
+ * @return char*  One of "blocks", "dag", "none", or NULL
+ */
+const char *dap_chain_get_chain_data_type(dap_chain_t *a_chain)
+{
+    if (!a_chain){
+        log_it(L_DEBUG, "dap_chain_get_chain_data_type. Chain object is 0");
+        return NULL;
+    }
+    return (const char *)DAP_CHAIN_PVT(a_chain)->cs_type;
+}
+
 //send chain load_progress data to notify socket
 static bool s_load_notify_callback(dap_chain_t* a_chain) {
     dap_json_t *l_chain_info = dap_json_object_new();

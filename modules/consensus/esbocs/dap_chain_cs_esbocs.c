@@ -203,6 +203,7 @@ DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *
 
 int dap_chain_cs_esbocs_init()
 {
+    log_it(L_WARNING, "ESBOCS consensus is DEPRECATED — use ChipChain (cs-chipchain) for new deployments");
     // Register ESBOCS consensus
     dap_chain_cs_lifecycle_t l_cs_callbacks = {
         .callback_init = s_callback_new,

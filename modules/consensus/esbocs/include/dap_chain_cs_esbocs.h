@@ -23,6 +23,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
+/* DEPRECATED: ESBOCS consensus is deprecated. Use ChipChain (cs-chipchain) instead.
+ * ChipChain provides Chipmunk aggregated signatures and improved architecture.
+ * This module will be removed in a future release.
+ */
+
 #include <stddef.h>
 #include "dap_chain.h"
 #include "dap_json.h"

@@ -14,7 +14,12 @@
 #include "dap_chain_net.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_api.h"  // For dap_chain_net_api_by_id
+#include "dap_sign.h"           // For SIG_TYPE_DILITHIUM
 #include "dap_common.h"
+
+// Forward declaration from dap_chain_datum_decree.c
+int dap_chain_datum_decree_get_hardfork_changed_addrs(dap_chain_datum_decree_t *a_decree, dap_json_t **a_json_obj);
 #include "dap_hash.h"
 #include "dap_tsd.h"
 
@@ -45,21 +50,29 @@ static int s_decree_hardfork_handler(
     if (!a_apply)
         return 0;
 
-    // Extract stake information if present
-    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size,
-                                    DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HARDFORK_CHANGED_ADDRS);
-    // Hardfork data available if needed for future processing
-    UNUSED(l_tsd);  // Mark as intentionally unused for now
+    // Extract generation from decree TSD
+    uint16_t l_generation = 0;
+    dap_tsd_t *l_gen_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size,
+                                         DAP_CHAIN_DATUM_DECREE_TSD_TYPE_GENERATION);
+    if (l_gen_tsd && l_gen_tsd->size == sizeof(uint16_t))
+        l_generation = *(uint16_t *)l_gen_tsd->data;
+    else {
+        log_it(L_WARNING, "Can't get generation from hardfork prepare decree");
+        return -105;
+    }
+
+    // Extract changed addresses as JSON from decree TSD
+    dap_json_t *l_changed_addrs = NULL;
+    dap_chain_datum_decree_get_hardfork_changed_addrs(a_decree, &l_changed_addrs);
 
     dap_hash_sha3_256_t l_decree_hash = {};
     dap_hash_sha3_256(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
     l_chain->hardfork_decree_hash = l_decree_hash;
 
-    // TODO: Fix signature - last parameter should be dap_json_t*, not dap_hash_sha3_256_t*
-    // return dap_chain_chipchain_set_hardfork_prepare(l_chain, l_block_num, l_hardfork_data_size,
-    //                                               l_hardfork_data, &l_decree_hash);
-    log_it(L_WARNING, "HARDFORK_PREPARE decree handler temporarily disabled - requires refactoring");
-    return -1;
+    int l_rc = dap_chain_chipchain_set_hardfork_prepare(l_chain, l_generation, l_block_num, NULL, l_changed_addrs);
+    if (l_changed_addrs)
+        dap_json_object_free(l_changed_addrs);
+    return l_rc;
 }
 
 // Handler for HARDFORK_RETRY decree
@@ -147,9 +160,10 @@ static int s_decree_hardfork_cancel_handler(
         return 0;
     if (l_chain->generation == l_banned_generation) {
         dap_chain_chipchain_set_hardfork_complete(l_chain);
-        // TODO: Fix signature - first parameter should be dap_ledger_t*, not dap_chain_t*
-        // dap_ledger_chain_purge(l_chain, 0);
-        log_it(L_WARNING, "Chain purge temporarily disabled - requires refactoring");
+        // Purge ledger data for the chain
+        dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_net->pub.id);
+        if (l_net && l_net->pub.ledger)
+            dap_ledger_chain_purge(l_net->pub.ledger, l_chain->id, 0);
     }
     return 0;
 }
@@ -179,10 +193,12 @@ static int s_decree_check_signs_structure_handler(
     }
     if (!a_apply)
         return 0;
-    // TODO: Function dap_chain_chipchain_directive_set_signs_check not found - requires refactoring
-    // return dap_chain_chipchain_directive_set_signs_check(l_chain, l_action, (dap_sign_type_t)l_signature_type);
-    log_it(L_WARNING, "CHECK_SIGNS_STRUCTURE decree handler temporarily disabled - function not found");
-    return -1;
+
+    // Use public API to enable/disable sign structure check
+    int l_rc = dap_chain_chipchain_set_signs_struct_check(l_chain, (l_action != 0));
+    log_it(L_INFO, "CHECK_SIGNS_STRUCTURE: %s (signature_type=0x%x, rc=%d)",
+           l_action ? "enabled" : "disabled", l_signature_type, l_rc);
+    return l_rc;
 }
 
 // Handler for EMERGENCY_VALIDATORS decree
@@ -209,10 +225,21 @@ static int s_decree_emergency_validators_handler(
     }
     if (!a_apply)
         return 0;
-    // TODO: Function dap_chain_chipchain_directive_set_emergency not found - requires refactoring
-    // return dap_chain_chipchain_directive_set_emergency(l_chain, l_action);
-    log_it(L_WARNING, "EMERGENCY_VALIDATORS decree handler temporarily disabled - function not found");
-    return -1;
+
+    // Extract pkey hash from decree TSD
+    dap_tsd_t *l_pkey_hash_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size,
+                                               DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_PKEY);
+    if (!l_pkey_hash_tsd || l_pkey_hash_tsd->size != sizeof(dap_hash_sha3_256_t)) {
+        log_it(L_WARNING, "Can't get pkey hash from emergency validators decree");
+        return -105;
+    }
+    dap_hash_sha3_256_t *l_pkey_hash = (dap_hash_sha3_256_t *)l_pkey_hash_tsd->data;
+
+    // Extract signature type (default to Dilithium if not present)
+    uint32_t l_sign_type_raw = SIG_TYPE_DILITHIUM;
+
+    // Use public API to add/remove emergency validator
+    return dap_chain_chipchain_set_emergency_validator(l_chain, (l_action != 0), l_sign_type_raw, l_pkey_hash);
 }
 
 // Registration function

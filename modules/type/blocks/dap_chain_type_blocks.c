@@ -747,11 +747,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
     if (dap_chain_net_parse_net_chain(a_json_arr_reply, &arg_index, a_argc, a_argv, &l_chain, &l_net, CHAIN_TYPE_TX))
         return -DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
 
-    const char *l_chain_type = dap_chain_get_cs_type(l_chain);
+    const char *l_chain_type = dap_chain_get_chain_data_type(l_chain);
 
-    if (!strstr(l_chain_type, "block_") && strcmp(l_chain_type, "esbocs")){
+    if (!l_chain_type || strcmp(l_chain_type, "blocks")){
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_CHAIN_TYPE_ERR, "Type of chain %s is not block. This chain with type %s is not supported by this command",
-                        l_chain->name, l_chain_type);
+                        l_chain->name, l_chain_type ? l_chain_type : "(null)");
         return DAP_CHAIN_NODE_CLI_COM_BLOCK_CHAIN_TYPE_ERR;
     }
 

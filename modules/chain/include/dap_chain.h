@@ -274,6 +274,18 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 
 const char *dap_chain_get_path(dap_chain_t *a_chain);
 const char *dap_chain_get_cs_type(dap_chain_t *l_chain);
+/**
+ * @brief get chain data structure type ("blocks", "dag", "none")
+ *
+ * Returns the chain's data-structure type as set by the consensus
+ * callback_init.  Use this to dispatch type-specific operations
+ * (e.g. "blocks" → block list CLI).
+ *
+ * NOTE: dap_chain_get_cs_type() historically returns cs_name (the
+ * consensus algorithm name, e.g. "chipchain", "esbocs", "dag_poa").
+ * This function returns the actual data type stored in cs_type.
+ */
+const char *dap_chain_get_chain_data_type(dap_chain_t *a_chain);
 bool dap_chain_datum_type_supported_by_chain(dap_chain_t *a_chain, uint16_t a_datum_type);
 bool dap_chain_generation_banned(dap_chain_t *a_chain, uint16_t a_generation);
 int dap_chain_generation_ban(dap_chain_t *a_chain, uint16_t a_generation);

@@ -125,6 +125,7 @@ typedef struct dap_chain_block_meta{
 #define DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS      0x83
 #define DAP_CHAIN_BLOCK_META_EVM_DATA           0x84
 #define DAP_CHAIN_BLOCK_META_BLOCKGEN           0x85
+#define DAP_CHAIN_BLOCK_META_VALIDATOR_KEYS     0x86  // Serialized validator public keys snapshot
 
 /**
  * @struct dap_chain_block
