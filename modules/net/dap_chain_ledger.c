@@ -1110,7 +1110,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             
             // Parse activation time (optional)
             dap_time_t l_becomes_effective;
-            if (l_tsd->size == l_expected_size_extended) {
+            if (l_tsd->size >= sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t) + sizeof(l_becomes_effective)) {
                 // Extended format with explicit timestamp
                 memcpy(&l_becomes_effective, l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t), sizeof(l_becomes_effective));
                 log_it(L_DEBUG, "UTXO blocking with delayed activation at %"DAP_UINT64_FORMAT_U, l_becomes_effective);
@@ -1195,7 +1195,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             
             // Parse optional timestamp for delayed unblocking
             dap_time_t l_becomes_unblocked = 0;  // 0 = immediate removal
-            if (l_tsd->size == l_extended_size) {
+            if (l_tsd->size >= sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t) + sizeof(uint64_t)) {
                 uint64_t l_timestamp; memcpy(&l_timestamp, l_tsd->data + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t), sizeof(l_timestamp));
                 l_becomes_unblocked = (dap_time_t)l_timestamp;
             }
