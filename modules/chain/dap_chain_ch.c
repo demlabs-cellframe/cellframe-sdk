@@ -338,9 +338,12 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                     dap_chain_ch_pkt_type_to_str(l_ch_pkt->hdr.type));
             return false;
         }
-        log_it(L_WARNING, "In: from remote addr %s chain id 0x%016" DAP_UINT64_FORMAT_x " got error on his side: '%s'",
-               DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str,
-               l_chain_pkt->hdr.chain_id.uint64, (char *)l_chain_pkt->data);
+        {
+            dap_events_socket_t *l_esocket = DAP_STREAM_CH(l_ch_chain)->stream->esocket;
+            log_it(L_WARNING, "In: from remote addr %s chain id 0x%016" DAP_UINT64_FORMAT_x " got error on his side: '%s'",
+                   l_esocket ? l_esocket->remote_addr_str : "(disconnected)",
+                   l_chain_pkt->hdr.chain_id.uint64, (char *)l_chain_pkt->data);
+        }
         s_ch_chain_go_idle(l_ch_chain);
     } break;
 
