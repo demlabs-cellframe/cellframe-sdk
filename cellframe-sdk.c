@@ -25,6 +25,8 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_wallet_shared.h"
+#include "dap_chain_tx_anon_create.h"
+#include "dap_chain_tx_anon_compose.h"
 
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_xchange.h"
@@ -118,6 +120,10 @@ int cellframe_sdk_init(uint32_t a_modules)
 
     /* 6. Wallet */
     CF_INIT(CF_MODULE_WALLET, dap_chain_wallet_init(), "wallet");
+
+    /* 6b. Anonymous TX (SNARK/ring) + compose builder registration */
+    CF_INIT_WARN(CF_MODULE_WALLET, dap_chain_tx_anon_init(), "anonymous TX SNARK context");
+    CF_INIT_WARN(CF_MODULE_WALLET, dap_chain_tx_anon_compose_register(), "anon_transfer compose builder");
 
     /* 7. CLI modules */
 #ifndef DAP_OS_WASM

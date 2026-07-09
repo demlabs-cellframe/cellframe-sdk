@@ -58,6 +58,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_datum_tx_create.h"
+#include "dap_chain_tx_anon_create.h"
 
 #define LOG_TAG "chain_net_tx_cli"
 
@@ -513,7 +514,29 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         }
         l_value_fee = dap_chain_balance_scan(l_fee_str);
     }
-    if (IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (l_fee_str && strcmp(l_fee_str, "0")))) {
+    /* Anonymous transaction mode */
+    bool l_anonymous = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-anonymous", NULL);
+    const char *l_anon_set_str = NULL;
+    size_t l_anon_set = 10; /* Default ring size for anonymous TX */
+    if (l_anonymous) {
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-anon_set", &l_anon_set_str);
+        if (l_anon_set_str) {
+            l_anon_set = (size_t)strtoul(l_anon_set_str, NULL, 10);
+            if (l_anon_set < 8) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID,
+                    "Parameter '-anon_set' must be >= 8 (CHIPMUNK_RING_N_MIN)");
+                return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID;
+            }
+            if (l_anon_set > 64) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID,
+                    "Parameter '-anon_set' must be <= 64");
+                return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID;
+            }
+        }
+    }
+
+    /* Fee is required for standard TX, optional for anonymous TX */
+    if (!l_anonymous && IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (l_fee_str && strcmp(l_fee_str, "0")))) {
         dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256, "tx_create requires parameter '-fee' to be valid uint256");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256;
     }
@@ -730,7 +753,142 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         DAP_DEL_MULTY(l_addr_to, l_value);
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST;
     }
-    
+
+    /* ===== Anonymous TX branch ===== */
+    if (l_anonymous) {
+        if (!l_from_wallet_name) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION,
+                "Anonymous transactions require parameter '-from_wallet' (not '-from_emission')");
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+            DAP_DEL_MULTY(l_addr_to, l_value);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION;
+        }
+        if (!l_chain) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NOT_FOUND_CHAIN,
+                "Chain not found for anonymous transaction");
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+            DAP_DEL_MULTY(l_addr_to, l_value);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NOT_FOUND_CHAIN;
+        }
+        if (l_addr_el_count != 1) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID,
+                "Anonymous transactions support only a single '-to_addr' recipient");
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+            DAP_DEL_MULTY(l_addr_to, l_value);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_DESTINATION_ADDRESS_INVALID;
+        }
+
+        /* Open wallet and verify key type is chipmunk_ring or chipmunk_lrs */
+        const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
+        dap_chain_wallet_t *l_anon_wallet = dap_chain_wallet_open(l_from_wallet_name, l_wallets_path, NULL);
+        if (!l_anon_wallet) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST,
+                "Failed to open wallet %s for anonymous TX", l_from_wallet_name);
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+            DAP_DEL_MULTY(l_addr_to, l_value);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_WALLET_DOES_NOT_EXIST;
+        }
+        dap_enc_key_t *l_anon_key = dap_chain_wallet_get_key(l_anon_wallet, 0);
+        if (!l_anon_key) {
+            dap_chain_wallet_close(l_anon_wallet);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                "Failed to get key from wallet %s", l_from_wallet_name);
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+            DAP_DEL_MULTY(l_addr_to, l_value);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
+        }
+        if (l_anon_key->type != DAP_ENC_KEY_TYPE_SIG_CHIPMUNK_RING &&
+            l_anon_key->type != DAP_ENC_KEY_TYPE_SIG_CHIPMUNK_LRS) {
+            const char *l_type_str = "unknown";
+            switch (l_anon_key->type) {
+                case DAP_ENC_KEY_TYPE_SIG_CHIPMUNK_RING: l_type_str = "chipmunk_ring"; break;
+                case DAP_ENC_KEY_TYPE_SIG_CHIPMUNK_LRS:  l_type_str = "chipmunk_lrs"; break;
+                default: break;
+            }
+            log_it(L_ERROR, "Wallet %s has key type %d (%s), but anonymous TX requires chipmunk_ring (0x010C) or chipmunk_lrs (0x010A)",
+                   l_from_wallet_name, l_anon_key->type, l_type_str);
+            dap_enc_key_delete(l_anon_key);
+            dap_chain_wallet_close(l_anon_wallet);
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                "Wallet %s key type is not suitable for anonymous TX. "
+                "Required: sig_chipmunk_ring or sig_chipmunk_lrs. "
+                "Use 'wallet new -sign sig_chipmunk_ring' to create a compatible wallet.", l_from_wallet_name);
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+            DAP_DEL_MULTY(l_addr_to, l_value);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
+        }
+
+        /* Create anonymous TX via dap_chain_tx_anon_transfer_auto_ring() */
+        dap_chain_datum_t *l_anon_datum = dap_chain_tx_anon_transfer_auto_ring(
+            l_anon_wallet, l_chain, l_token_ticker, l_value[0], l_addr_to[0], l_anon_set);
+        dap_enc_key_delete(l_anon_key);
+        dap_chain_wallet_close(l_anon_wallet);
+
+        if (!l_anon_datum) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                "Failed to create anonymous transaction. Check logs for details "
+                "(insufficient balance, no validators for ring, or SNARK error)");
+            DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+            DAP_DEL_MULTY(l_addr_to, l_value);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
+        }
+
+        /* Add fee as a standard OUT_STD item if fee > 0.
+         * Must extract TX from datum first since add_item may REALLOC. */
+        if (!IS_ZERO_256(l_value_fee)) {
+            size_t l_tx_size = l_anon_datum->header.data_size;
+            dap_chain_datum_tx_t *l_anon_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_tx_size);
+            if (l_anon_tx) {
+                memcpy(l_anon_tx, l_anon_datum->data, l_tx_size);
+                /* Fee goes to miners/validators — use blank addr as fee sink */
+                dap_chain_addr_t l_fee_addr = {};
+                dap_chain_tx_out_std_t *l_fee_out = DAP_NEW_Z(dap_chain_tx_out_std_t);
+                if (l_fee_out) {
+                    l_fee_out->hdr.type = TX_ITEM_TYPE_OUT_STD;
+                    l_fee_out->hdr.version = 1;
+                    l_fee_out->hdr.size = sizeof(dap_chain_tx_out_std_t);
+                    l_fee_out->addr = l_fee_addr;
+                    l_fee_out->value = l_value_fee;
+                    dap_strncpy(l_fee_out->token_ticker, l_token_ticker, sizeof(l_fee_out->token_ticker));
+                    if (dap_chain_datum_tx_add_item(&l_anon_tx, (const uint8_t *)l_fee_out) == 1) {
+                        size_t l_new_size = dap_chain_datum_tx_get_size(l_anon_tx);
+                        dap_chain_datum_t *l_new_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_anon_tx, l_new_size);
+                        DAP_DELETE(l_anon_datum);
+                        l_anon_datum = l_new_datum;
+                    }
+                    DAP_DELETE(l_fee_out);
+                }
+                DAP_DELETE(l_anon_tx);
+            }
+        }
+
+        /* Add to mempool */
+        char *l_anon_hash_str = dap_chain_mempool_datum_add(l_anon_datum, l_chain, l_hash_out_type);
+        DAP_DELETE(l_anon_datum);
+
+        dap_json_t *l_jobj_result = dap_json_object_new();
+        dap_json_t *l_jobj_transfer_status = NULL;
+        dap_json_t *l_jobj_tx_hash = NULL;
+        if (l_anon_hash_str) {
+            l_jobj_transfer_status = dap_json_object_new_string("Ok");
+            l_jobj_tx_hash = dap_json_object_new_string(l_anon_hash_str);
+            dap_json_object_add_object(l_jobj_result, "transfer", l_jobj_transfer_status);
+            dap_json_object_add_object(l_jobj_result, "hash", l_jobj_tx_hash);
+            dap_json_object_add_object(l_jobj_result, "anonymous", dap_json_object_new_string("true"));
+            DAP_DELETE(l_anon_hash_str);
+        } else {
+            l_jobj_transfer_status = dap_json_object_new_string("False");
+            dap_json_object_add_object(l_jobj_result, "transfer", l_jobj_transfer_status);
+            l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
+        }
+        dap_json_array_add(a_json_arr_reply, l_jobj_result);
+
+        DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
+        DAP_DEL_MULTY(l_addr_to, l_value);
+        return l_ret;
+    }
+    /* ===== End anonymous TX branch ===== */
+
     dap_json_t *l_jobj_result = dap_json_object_new();
     if (dap_strcmp(l_wallet_check_str, "") != 0) {
         dap_json_t *l_obj_wgn_str = dap_json_object_new_string(l_wallet_check_str);
@@ -1872,10 +2030,11 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_r
 int dap_chain_net_tx_cli_init(void)
 {
     dap_cli_server_cmd_add("tx_create", com_tx_create, NULL,
-                           "Create transaction",
+                           "Create transaction (standard or anonymous)",
                            -1,
                            "tx_create -net <net_name> -chain <chain_name> -from_wallet <wallet_name> -to_addr <addr> -token <token_ticker> -value <value> -fee <value>\n"
-                           "tx_create -net <net_name> -chain <chain_name> -from_emission <emission_hash> -chain_emission <chain_name> -to_addr <addr> -value <value> -fee <fee_value> -cert <cert_name>\n");
+                           "tx_create -net <net_name> -chain <chain_name> -from_emission <emission_hash> -chain_emission <chain_name> -to_addr <addr> -value <value> -fee <fee_value> -cert <cert_name>\n"
+                           "tx_create -net <net_name> -chain <chain_name> -from_wallet <wallet_name> -to_addr <addr> -token <token_ticker> -value <value> -anonymous [-anon_set <ring_size>] [-fee <value>]\n");
     dap_cli_server_cmd_add("tx_create_json", com_tx_create_json, NULL,
                            "Create transaction from JSON",
                            -1,
