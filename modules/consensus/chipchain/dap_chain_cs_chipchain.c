@@ -2035,7 +2035,7 @@ static void s_session_candidate_submit(dap_chain_chipchain_session_t *a_session)
     if (a_session->chipchain->hardfork_state)
         dap_chain_node_hardfork_process(l_chain);
     else
-        dap_chain_node_mempool_process_all(l_chain, false);
+        dap_chain_node_mempool_process_all(l_chain, true);
     dap_chain_block_t *l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
     PVT(a_session->chipchain)->empty_round_count += l_candidate && l_candidate_size ? 0 : 1;
     bool l_empty_block_generation = PVT(a_session->chipchain)->empty_block_every_times && PVT(a_session->chipchain)->empty_round_count >= PVT(a_session->chipchain)->empty_block_every_times;
