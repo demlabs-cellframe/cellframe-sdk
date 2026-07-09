@@ -142,12 +142,12 @@ static dap_chain_datum_t *s_anon_transfer_compose_cb(
             dap_chain_addr_t l_fee_addr = {};
             dap_chain_tx_out_std_t *l_fee_out = DAP_NEW_Z(dap_chain_tx_out_std_t);
             if (l_fee_out) {
-                l_fee_out->hdr.type = TX_ITEM_TYPE_OUT_STD;
-                l_fee_out->hdr.version = 1;
-                l_fee_out->hdr.size = sizeof(dap_chain_tx_out_std_t);
+                l_fee_out->type = TX_ITEM_TYPE_OUT_STD;
+                l_fee_out->version = 1;
                 l_fee_out->addr = l_fee_addr;
                 l_fee_out->value = l_params->fee;
-                dap_strncpy(l_fee_out->token_ticker, l_params->token_ticker, sizeof(l_fee_out->token_ticker));
+                memcpy((char *)l_fee_out->token, l_params->token_ticker,
+                       strnlen(l_params->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX));
 
                 if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_fee_out) == 1) {
                     size_t l_new_size = dap_chain_datum_tx_get_size(l_tx);

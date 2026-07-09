@@ -844,12 +844,12 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
                 dap_chain_addr_t l_fee_addr = {};
                 dap_chain_tx_out_std_t *l_fee_out = DAP_NEW_Z(dap_chain_tx_out_std_t);
                 if (l_fee_out) {
-                    l_fee_out->hdr.type = TX_ITEM_TYPE_OUT_STD;
-                    l_fee_out->hdr.version = 1;
-                    l_fee_out->hdr.size = sizeof(dap_chain_tx_out_std_t);
+                    l_fee_out->type = TX_ITEM_TYPE_OUT_STD;
+                    l_fee_out->version = 1;
                     l_fee_out->addr = l_fee_addr;
                     l_fee_out->value = l_value_fee;
-                    dap_strncpy(l_fee_out->token_ticker, l_token_ticker, sizeof(l_fee_out->token_ticker));
+                    memcpy((char *)l_fee_out->token, l_token_ticker,
+                           strnlen(l_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX));
                     if (dap_chain_datum_tx_add_item(&l_anon_tx, (const uint8_t *)l_fee_out) == 1) {
                         size_t l_new_size = dap_chain_datum_tx_get_size(l_anon_tx);
                         dap_chain_datum_t *l_new_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_anon_tx, l_new_size);

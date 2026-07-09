@@ -21,6 +21,13 @@ target_link_libraries(${PROJECT_NAME}
     dap_chain_mempool     # For token_cli.c
     dap_chain_net_srv     # For net_srv.h
     dap_chain_type_blocks) # For type_blocks.h
+# NOTE: anon TX ring needs dap_chain_net_srv_stake headers (get_validators)
+# but linking creates a cycle (net_tx ↔ net_srv_stake). Since both are OBJECT
+# libraries collected into the final cellframe_sdk, the symbols are resolved
+# at final link time. We only need the include directory here.
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../service/stake/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../net/srv/stake/include)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} INTERFACE include)

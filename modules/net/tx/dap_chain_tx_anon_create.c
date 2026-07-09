@@ -15,7 +15,9 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_ledger_type.h"
 #include "dap_chain_ledger_pvt.h"
-#include "dap_chain_net_srv_stake.h"
+#include "dap_chain_net.h"
+#include "dap_chain_net_srv_stake_common.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "chipmunk_snark.h"
 #include "chipmunk_pedersen.h"
 #include "chipmunk_range_proof.h"
@@ -30,6 +32,8 @@
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_config.h"
+#include "dap_rand.h"
+#include "dap_memwipe.h"
 
 #include <string.h>
 #include <errno.h>
@@ -56,6 +60,8 @@ typedef struct dap_chain_tx_anon_algo {
     int (*key_image)(uint8_t out[9216], const void *pk, const void *sk, const lotrs_params_t *par);
     /* Extract pk from stake pkey raw data */
     int (*pk_from_stake_pkey)(void *out_pk, const dap_pkey_t *pkey);
+    /* Populate SNARK witness secret_key polynomials from enc_key */
+    int (*populate_witness)(chipmunk_snark_witness_t *witness, dap_enc_key_t *key);
 } dap_chain_tx_anon_algo_t;
 
 /* --- Chipmunk Ring adapter --- */
@@ -111,9 +117,24 @@ static int s_ring_key_image(uint8_t out[9216], const void *pk, const void *sk, c
 static int s_ring_pk_from_stake(void *out, const dap_pkey_t *pkey) {
     if (!out || !pkey) return -EINVAL;
     /* Check key type is Chipmunk (covers Ring, LRS, etc.) */
-    if (pkey->header.type != DAP_PKEY_TYPE_SIG_CHIPMUNK) return -EINVAL;
+    if (pkey->header.type.raw != DAP_PKEY_TYPE_SIG_CHIPMUNK) return -EINVAL;
     if (pkey->header.size < sizeof(chipmunk_ring_pk_t)) return -EINVAL;
     memcpy(out, pkey->pkey, sizeof(chipmunk_ring_pk_t));
+    return 0;
+}
+static int s_ring_populate_witness(chipmunk_snark_witness_t *witness, dap_enc_key_t *key) {
+    const chipmunk_ring_sk_t *l_sk = (const chipmunk_ring_sk_t *)key->priv_key_data;
+    if (!l_sk || !l_sk->s.polys) return -EINVAL;
+    /* Copy l+k polynomials from the ring secret key polyvec into witness secret_key array.
+     * l_sk->s.n should be (l+k), witness has CHIPMUNK_LRS_K*2 slots (l+k). */
+    uint32_t l_n = l_sk->s.n;
+    uint32_t l_max = CHIPMUNK_LRS_K * 2;
+    if (l_n > l_max) l_n = l_max;
+    for (uint32_t i = 0; i < l_n && i < l_max; ++i) {
+        if (l_sk->s.polys[i]) {
+            memcpy(&witness->secret_key[i], l_sk->s.polys[i], sizeof(chipmunk_poly_t));
+        }
+    }
     return 0;
 }
 
@@ -126,6 +147,7 @@ static const dap_chain_tx_anon_algo_t s_algo_chipmunk_ring = {
     .pk_cmp = s_ring_pk_cmp,
     .key_image = s_ring_key_image,
     .pk_from_stake_pkey = s_ring_pk_from_stake,
+    .populate_witness = s_ring_populate_witness,
 };
 
 /* --- LRS adapter --- */
@@ -142,9 +164,25 @@ static int s_lrs_key_image(uint8_t out[9216], const void *pk, const void *sk, co
 static int s_lrs_pk_from_stake(void *out, const dap_pkey_t *pkey) {
     if (!out || !pkey) return -EINVAL;
     /* Check key type is Chipmunk (covers Ring, LRS, etc.) */
-    if (pkey->header.type != DAP_PKEY_TYPE_SIG_CHIPMUNK) return -EINVAL;
+    if (pkey->header.type.raw != DAP_PKEY_TYPE_SIG_CHIPMUNK) return -EINVAL;
     if (pkey->header.size < sizeof(chipmunk_lrs_public_key_t)) return -EINVAL;
     memcpy(out, pkey->pkey, sizeof(chipmunk_lrs_public_key_t));
+    return 0;
+}
+static int s_lrs_populate_witness(chipmunk_snark_witness_t *witness, dap_enc_key_t *key) {
+    /* LRS secret key is seed-based; derive witness polynomials from x_seed.
+     * witness->secret_key[K*2] = {s0[0..K-1], s1[0..K-1]}.
+     * For LRS, s0 = x (derived witness), s1 = 0 (LRS is one-sided). */
+    const chipmunk_lrs_secret_key_t *l_sk = (const chipmunk_lrs_secret_key_t *)key->priv_key_data;
+    if (!l_sk) return -EINVAL;
+    chipmunk_poly_t l_x[CHIPMUNK_LRS_K];
+    int rc = chipmunk_lrs_derive_witness(l_x, l_sk->x_seed);
+    if (rc != 0) return rc;
+    /* Fill first K polynomials (s0 = x witness) */
+    for (uint32_t i = 0; i < CHIPMUNK_LRS_K; ++i) {
+        witness->secret_key[i] = l_x[i];
+    }
+    /* Second K polynomials (s1) remain zero — LRS doesn't use them */
     return 0;
 }
 
@@ -157,6 +195,7 @@ static const dap_chain_tx_anon_algo_t s_algo_lrs = {
     .pk_cmp = s_lrs_pk_cmp,
     .key_image = s_lrs_key_image,
     .pk_from_stake_pkey = s_lrs_pk_from_stake,
+    .populate_witness = s_lrs_populate_witness,
 };
 
 /* --- Algorithm registry --- */
@@ -274,10 +313,16 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     chipmunk_snark_witness_t l_witness;
     memset(&l_witness, 0, sizeof(l_witness));
     l_witness.signer_index = l_signer_idx;
-    /* Copy secret key into witness (works for both Ring and LRS — both have polyvec s) */
-    memcpy(l_witness.secret_key, l_sk, sizeof(chipmunk_hots_sk_t));
     memset(&l_witness.indicator, 0, sizeof(l_witness.indicator));
     l_witness.indicator.coeffs[l_signer_idx] = 1;
+    if (a_algo->populate_witness) {
+        l_rc = a_algo->populate_witness(&l_witness, l_key);
+        if (l_rc != 0) {
+            log_it(L_ERROR, "Failed to populate SNARK witness for algo %s", a_algo->name);
+            dap_enc_key_delete(l_key);
+            return NULL;
+        }
+    }
 
     /* 4. Key image (computed early to bind into SNARK message) */
     uint8_t l_ki[9216];
@@ -285,10 +330,16 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     l_rc = a_algo->key_image(l_ki, l_pk, l_sk, &l_par);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
 
-    /* 5. UTXO */
+    /* 5. UTXO — resolve ledger from chain's network name */
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_chain->net_name);
+    if (!l_ledger) { dap_enc_key_delete(l_key); return NULL; }
+    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, l_ledger->net_id);
+    if (!l_wallet_addr) { dap_enc_key_delete(l_key); return NULL; }
+
     dap_chain_hash_fast_t l_prev_hash;
     uint32_t l_prev_idx = 0;
-    l_rc = s_find_utxo(a_chain->ledger, &a_wallet->addr, a_token_ticker, a_amount, &l_prev_hash, &l_prev_idx);
+    l_rc = s_find_utxo(l_ledger, l_wallet_addr, a_token_ticker, a_amount, &l_prev_hash, &l_prev_idx);
+    DAP_DELETE(l_wallet_addr);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
 
     /* 6. Pedersen commitment */
@@ -312,11 +363,11 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     l_statement.ring_size = a_ring_size;
 
     dap_hash_sha3_256_t l_ki_hash;
-    dap_hash_sha3_256_raw(l_ki_hash.raw, l_ki, sizeof(l_ki));
+    dap_hash_sha3_256_raw(l_ki_hash.raw, (const uint8_t *)l_ki, sizeof(l_ki));
     dap_hash_sha3_256_t l_rp_hash;
-    dap_hash_sha3_256_raw(l_rp_hash.raw, &l_rp, sizeof(l_rp));
+    dap_hash_sha3_256_raw(l_rp_hash.raw, (const uint8_t *)&l_rp, sizeof(l_rp));
     dap_hash_sha3_256_t l_commit_hash;
-    dap_hash_sha3_256_raw(l_commit_hash.raw, &l_commit, sizeof(l_commit));
+    dap_hash_sha3_256_raw(l_commit_hash.raw, (const uint8_t *)&l_commit, sizeof(l_commit));
 
     uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
     size_t l_off = 0;
@@ -446,7 +497,7 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
 {
     if (!a_wallet || !a_chain || !a_token_ticker || !a_addr_to) return NULL;
 
-    dap_ledger_t *l_ledger = a_chain->ledger;
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_chain->net_name);
     if (!l_ledger) return NULL;
 
     /* Detect algorithm from config or wallet key type */
@@ -550,7 +601,7 @@ static int s_find_utxo(dap_ledger_t *a_ledger,
             if (l_type == TX_ITEM_TYPE_OUT_STD) {
                 const dap_chain_tx_out_std_t *l_out = (const dap_chain_tx_out_std_t *)l_tx_item;
                 if (dap_chain_addr_compare(&l_out->addr, a_addr) &&
-                    strcmp(l_out->token_ticker, a_token_ticker) == 0 &&
+                    strcmp(l_out->token, a_token_ticker) == 0 &&
                     compare256(l_out->value, a_amount) >= 0) {
                     /* Found suitable UTXO */
                     *a_prev_hash = l_item->tx_hash_fast;
@@ -609,15 +660,15 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
         return 0;
     }
 
-    dap_ledger_anon_ctx_t *l_anon = (dap_ledger_anon_ctx_t *)l_pvt->anon_data;
-    if (!l_anon) return -EINVAL;
+    /* Use the module's own Pedersen params (same as used during TX creation) */
+    if (!s_anon_ctx.initialized) return -EINVAL;
 
     /* Compute expected Pedersen commitment for this amount and seed */
     chipmunk_pedersen_commit_t l_expected_commit;
     int rc = chipmunk_pedersen_commit(&l_expected_commit,
-                                       &l_anon->pedersen_params,
+                                       &s_anon_ctx.pedersen_params,
                                        a_known_amount,
-                                       a_randomness_seed);
+                                       (const uint8_t *)a_randomness_seed);
     if (rc != 0) {
         log_it(L_ERROR, "Failed to compute expected Pedersen commitment: %d", rc);
         return rc;

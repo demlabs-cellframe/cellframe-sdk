@@ -18,8 +18,6 @@ file(GLOB DAP_CHAIN_LEDGER_SRCS
     # dap_chain_ledger_decree.c  # DISABLED - moved to governance module
     dap_chain_ledger_cli_error_codes.c
     dap_chain_ledger_cli.c
-    dap_chain_tx_anon_create.c
-    dap_chain_tx_anon_compose.c
 )
 file(GLOB DAP_CHAIN_LEDGER_HEADERS include/*.h)
 
