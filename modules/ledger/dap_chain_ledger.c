@@ -2108,7 +2108,8 @@ dap_list_t *dap_ledger_get_utxo_for_value(
         byte_t *l_tx_item_ptr = NULL;
         size_t l_tx_item_size = 0;
         TX_ITEM_ITER_TX(l_tx_item_ptr, l_tx_item_size, l_tx) {
-            if (*l_tx_item_ptr != TX_ITEM_TYPE_OUT && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_EXT) {
+            if (*l_tx_item_ptr != TX_ITEM_TYPE_OUT && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_EXT
+                && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_STD) {
                 continue;
             }
             
@@ -2122,11 +2123,16 @@ dap_list_t *dap_ledger_get_utxo_for_value(
                 l_out_addr = l_out->addr;
                 l_out_value = l_out->header.value;
                 l_out_token = l_tx_item->cache_data.token_ticker;
-            } else { // TX_ITEM_TYPE_OUT_EXT
+            } else if (*l_tx_item_ptr == TX_ITEM_TYPE_OUT_EXT) { // TX_ITEM_TYPE_OUT_EXT
                 dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_tx_item_ptr;
                 l_out_addr = l_out_ext->addr;
                 l_out_value = l_out_ext->header.value;
                 l_out_token = l_out_ext->token;
+            } else { // TX_ITEM_TYPE_OUT_STD (v6.0)
+                dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)l_tx_item_ptr;
+                l_out_addr = l_out_std->addr;
+                l_out_value = l_out_std->value;
+                l_out_token = l_out_std->token;
             }
             
             // Check if output matches our criteria
