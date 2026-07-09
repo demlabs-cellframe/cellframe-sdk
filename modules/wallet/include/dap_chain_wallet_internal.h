@@ -40,8 +40,8 @@ enum    {
 };
 
 enum    {
-    DAP_WALLET$K_VER_1 = 1,                                                 /* Wallet's file structure version, entry level */
-    DAP_WALLET$K_VER_2 = 2,                                                 /* BMF Level */
+    DAP_WALLET$K_VER_1 = 1,                                                 /* Wallet file structure v1 - plain password (insecure) */
+    DAP_WALLET$K_VER_2 = 2,                                                 /* Wallet file structure v2 - SHA3-256 password hash */
 };
 
 
@@ -124,4 +124,3 @@ typedef struct dap_chain_wallet_internal
 #define DAP_CHAIN_WALLET_INTERNAL(a) (a ? (dap_chain_wallet_internal_t *) a->_internal : NULL)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t); a->_internal = l_wallet_internal
-
