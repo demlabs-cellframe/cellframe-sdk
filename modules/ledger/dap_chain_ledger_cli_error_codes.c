@@ -48,6 +48,8 @@ void dap_chain_ledger_cli_error_codes_init(void)
     dap_cli_error_code_register("LEDGER_TX_NOT_FOUND", -111, "Transaction not found");
     dap_cli_error_code_register("LEDGER_TX_INVALID", -112, "Invalid transaction");
     dap_cli_error_code_register("LEDGER_TX_CREATE_ERR", -113, "Failed to create transaction");
+    dap_cli_error_code_register("LEDGER_TX_CREATE_FEE_INVALID", -114, "Invalid or missing -fee parameter");
+    dap_cli_error_code_register("LEDGER_TX_CREATE_FROM_WALLET_OR_EMISSION", -115, "Requires one of -from_wallet or -from_emission");
     
     // Network/Chain errors
     dap_cli_error_code_register("LEDGER_NET_FIND_ERR", -120, "Network not found");
