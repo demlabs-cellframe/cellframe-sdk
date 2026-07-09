@@ -403,7 +403,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
                                                                              const dap_chain_addr_t *a_seller_addr,
                                                                              const void *a_params, uint32_t a_params_size)
 {
-    if (!a_token)
+    if (!a_token || !a_seller_addr)
         return NULL;
     if (IS_ZERO_256(a_value_sell) || IS_ZERO_256(a_value_rate))
         return NULL;
