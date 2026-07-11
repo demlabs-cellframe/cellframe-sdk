@@ -82,7 +82,7 @@ static inline int dap_chain_class_dag_event_hdr_unpack(const uint8_t *a_wire, si
     if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_CLASS_DAG_EVENT_HDR_WIRE_SIZE)
         return -1;
     dap_deserialize_result_t l_r =
-        dap_deserialize_from_buffer_raw(&g_dap_chain_class_dag_event_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
+        dap_deserialize_from_buffer_raw_zero(&g_dap_chain_class_dag_event_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
     return l_r.error_code;
 }
 

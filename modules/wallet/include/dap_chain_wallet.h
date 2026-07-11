@@ -41,6 +41,10 @@ typedef struct dap_chain_wallet{
     uint64_t    flags;                                                      /* See DAP_WALLET$M_FL_* constants */
     void        *_internal;
     void        *_inheritor;
+    /* File meta (appended to keep offsetof(_internal/_inheritor) stable vs pre-v3 layout) */
+    uint32_t    version;                                                    /* File format: DAP_WALLET$K_VER_* */
+    uint8_t     type;                                                       /* File type: DAP_WALLET$K_TYPE_* */
+    uint16_t    name_len;                                                   /* Name length on disk (set on save/load) */
 } dap_chain_wallet_t;
 
 
