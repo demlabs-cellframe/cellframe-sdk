@@ -3989,6 +3989,16 @@ static void s_sync_process_start_request_owner_cb(void *a_arg)
         dap_chain_sync_state_t l_chain_state = l_net_pvt->sync_context.cur_chain
                                                ? l_net_pvt->sync_context.cur_chain->state
                                                : CHAIN_SYNC_STATE_IDLE;
+        if (l_chain_state == CHAIN_SYNC_STATE_ERROR && l_net_pvt->sync_context.cur_chain &&
+                l_net_pvt->sync_context.cur_chain->id.uint64 == l_arg->chain_id.uint64 &&
+                l_arg->session_id == s_sync_session_get(l_net_pvt) &&
+                l_cell_id.uint64 == l_arg->cell_id.uint64) {
+            dap_chain_t *l_err_chain = l_net_pvt->sync_context.cur_chain;
+            log_it(L_WARNING, "Chain %s of net %s recovered from ERROR for CHAIN_REQ retry",
+                               l_err_chain->name, l_net->pub.name);
+            l_err_chain->state = CHAIN_SYNC_STATE_IDLE;
+            l_chain_state = CHAIN_SYNC_STATE_IDLE;
+        }
         if (l_arg->session_id != s_sync_session_get(l_net_pvt) || !l_net_pvt->sync_context.cur_chain ||
                 l_net_pvt->sync_context.cur_chain->id.uint64 != l_arg->chain_id.uint64 ||
                 (l_chain_state != CHAIN_SYNC_STATE_IDLE && l_chain_state != CHAIN_SYNC_STATE_WAITING) ||
@@ -4293,6 +4303,14 @@ lb_exit:
 }
 
 
+static dap_chain_t *s_sync_first_unsynced_chain(dap_chain_net_t *a_net)
+{
+    dap_chain_t *l_chain;
+    dap_return_val_if_pass(!a_net, NULL);
+    for (l_chain = a_net->pub.chains; l_chain && l_chain->state == CHAIN_SYNC_STATE_SYNCED; l_chain = l_chain->next) {}
+    return l_chain;
+}
+
 static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_restart_reason_t a_reason)
 {
     // sanity check
@@ -4345,8 +4363,7 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
         return -7;     // No links in cluster
     }
     s_sync_timer_rebind_owner_async(a_net);
-    l_net_pvt->sync_context.cur_chain = a_net->pub.chains;
-    if (!l_net_pvt->sync_context.cur_chain) {
+    if (!a_net->pub.chains) {
         log_it(L_ERROR, "No chains in net %s", a_net->pub.name);
         return -3;
     }
@@ -4375,9 +4392,10 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     l_net_pvt->sync_context.notifier_link = l_net_pvt->sync_context.current_link;
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain) {
-        if (l_chain->state != CHAIN_SYNC_STATE_ERROR)
+        if (l_chain->state != CHAIN_SYNC_STATE_SYNCED)
             l_chain->state = CHAIN_SYNC_STATE_IDLE;
     }
+    l_net_pvt->sync_context.cur_chain = s_sync_first_unsynced_chain(a_net);
     l_net_pvt->sync_context.cur_cell = NULL;
     l_net_pvt->sync_context.requested_atom_hash = (dap_hash_fast_t){};
     l_net_pvt->sync_context.requested_atom_num = 0;
@@ -4522,6 +4540,8 @@ static void s_sync_timer_callback(void *a_arg)
             log_it(L_WARNING, "Can't start sync chains in net %s, wait next attempt", l_net->pub.name);
             return;
         }
+        if (!l_net_pvt->sync_context.cur_chain)
+            return;
         break;
     case CHAIN_SYNC_STATE_SYNCED:
         l_net_pvt->sync_context.cur_chain = s_switch_sync_chain(l_net);
@@ -4533,6 +4553,9 @@ static void s_sync_timer_callback(void *a_arg)
     default:
         break;
     }
+
+    if (!l_net_pvt->sync_context.cur_chain)
+        return;
 
     if (l_net_pvt->sync_context.cur_chain->callback_load_from_gdb) {
         // This type of chain is GDB based and not synced by chains protocol
