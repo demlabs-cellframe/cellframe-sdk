@@ -15,6 +15,7 @@
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_ledger_type.h"
+#include "dap_chain_ledger_anon_ctx.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_core.h"
@@ -46,8 +47,9 @@
 
 #define LOG_TAG "tx_anon_create"
 
-/* Global context */
-static dap_chain_tx_anon_context_t s_anon_ctx = { .initialized = false };
+/* Crypto parameters (SNARK ctx, Pedersen params) are per-ledger,
+ * stored in PVT(ledger)->anon_data as dap_ledger_anon_ctx_t.
+ * No global context — each network has its own parameters. */
 
 /* Algorithm adapter: abstracts over different ring signature types */
 typedef struct dap_chain_tx_anon_algo {
@@ -238,36 +240,19 @@ static int s_find_signer_in_ring(const dap_chain_tx_anon_algo_t *algo,
 
 int dap_chain_tx_anon_init(void)
 {
-    if (s_anon_ctx.initialized) return 0;
-
-    if (chipmunk_snark_init(&s_anon_ctx.snark_ctx) != 0) {
-        log_it(L_ERROR, "Failed to initialize SNARK context");
-        return -EINVAL;
-    }
-
-    uint8_t l_seed[32] = "chipchain-pedersen-params-v1";
-    if (chipmunk_pedersen_init(&s_anon_ctx.pedersen_params, l_seed) != 0) {
-        log_it(L_ERROR, "Failed to initialize Pedersen parameters");
-        chipmunk_snark_ctx_free(&s_anon_ctx.snark_ctx);
-        return -EINVAL;
-    }
-
-    s_anon_ctx.initialized = true;
-    log_it(L_INFO, "Anonymous TX creation context initialized");
+    /* No-op: crypto context is per-ledger, initialized in dap_ledger_anon_ctx_create() */
     return 0;
 }
 
 void dap_chain_tx_anon_deinit(void)
 {
-    if (s_anon_ctx.initialized) {
-        chipmunk_snark_ctx_free(&s_anon_ctx.snark_ctx);
-        s_anon_ctx.initialized = false;
-    }
+    /* No-op: crypto context is freed per-ledger in dap_ledger_anon_ctx_free() */
 }
 
 dap_chain_tx_anon_context_t *dap_chain_tx_anon_get_context(void)
 {
-    return s_anon_ctx.initialized ? &s_anon_ctx : NULL;
+    /* Deprecated: use ledger's anon_data instead */
+    return NULL;
 }
 
 /* Forward declaration */
@@ -279,7 +264,8 @@ static int s_find_utxo(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
                         dap_chain_hash_fast_t *a_prev_hash, uint32_t *a_prev_out_idx,
                         uint256_t *a_input_value);
 static int s_build_out_anon(const dap_chain_addr_t *a_addr, const char *a_token_ticker,
-                            uint256_t a_amount, dap_chain_tx_out_anon_t *a_out);
+                            uint256_t a_amount, dap_chain_tx_out_anon_t *a_out,
+                            const chipmunk_pedersen_params_t *a_params);
 
 /*
  * Reject negative uint256 amounts.
@@ -328,9 +314,10 @@ static void s_uint256_to_bytes(uint256_t a_amount, uint8_t a_out[CHIPMUNK_PEDERS
 }
 
 static int s_build_out_anon(const dap_chain_addr_t *a_addr, const char *a_token_ticker,
-                            uint256_t a_amount, dap_chain_tx_out_anon_t *a_out)
+                            uint256_t a_amount, dap_chain_tx_out_anon_t *a_out,
+                            const chipmunk_pedersen_params_t *a_params)
 {
-    if (!a_addr || !a_token_ticker || !a_out || !s_amount_valid(a_amount))
+    if (!a_addr || !a_token_ticker || !a_out || !s_amount_valid(a_amount) || !a_params)
         return -EINVAL;
 
     uint8_t l_amount_bytes[CHIPMUNK_PEDERSEN_VALUE_BYTES];
@@ -342,12 +329,12 @@ static int s_build_out_anon(const dap_chain_addr_t *a_addr, const char *a_token_
     if (dap_random_bytes(l_rand, sizeof(l_rand)) != 0)
         return -EIO;
 
-    if (chipmunk_pedersen_commit(&l_commit, &s_anon_ctx.pedersen_params, l_amount_bytes, l_rand) != 0)
+    if (chipmunk_pedersen_commit(&l_commit, a_params, l_amount_bytes, l_rand) != 0)
         return -EIO;
 
     chipmunk_range_proof_t l_rp;
     memset(&l_rp, 0, sizeof(l_rp));
-    if (chipmunk_range_proof_prove(&l_rp, &s_anon_ctx.pedersen_params, &l_commit, l_amount_bytes, l_rand) != 0)
+    if (chipmunk_range_proof_prove(&l_rp, a_params, &l_commit, l_amount_bytes, l_rand) != 0)
         return -EIO;
 
     memset(a_out, 0, sizeof(*a_out));
@@ -383,7 +370,12 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (!a_wallet || !a_chain || !a_token_ticker || !a_addr_to || !a_ring || !a_algo)
         return NULL;
     if (a_ring_size < CHIPMUNK_RING_N_MIN || a_ring_size > 64) return NULL;
-    if (!s_anon_ctx.initialized) return NULL;
+
+    /* Resolve ledger and per-ledger anon context */
+    dap_ledger_t *l_ledger_init = dap_ledger_by_net_name(a_chain->net_name);
+    if (!l_ledger_init || !l_ledger_init->_internal) return NULL;
+    dap_ledger_anon_ctx_t *l_anon_init = (dap_ledger_anon_ctx_t *)((dap_ledger_private_t *)l_ledger_init->_internal)->anon_data;
+    if (!l_anon_init) return NULL;
 
     size_t pk_sz = a_algo->pk_size();
     lotrs_params_t l_par = { .d = 512, .q = 3168257, .k = 6, .l = 3 };
@@ -482,7 +474,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         return NULL;
     }
     dap_chain_tx_out_anon_t l_out;
-    l_rc = s_build_out_anon(a_addr_to, a_token_ticker, a_amount, &l_out);
+    l_rc = s_build_out_anon(a_addr_to, a_token_ticker, a_amount, &l_out, &l_anon_init->pedersen_params);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
 
     chipmunk_range_proof_t l_rp;
@@ -514,10 +506,10 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     l_statement.message = l_msg_buf;
     l_statement.message_size = l_off;
 
-    /* 9. SNARK proof */
+    /* 9. SNARK proof — use per-ledger anon context */
     chipmunk_snark_proof_t l_snark;
     memset(&l_snark, 0, sizeof(l_snark));
-    l_rc = chipmunk_snark_prove(&l_snark, &s_anon_ctx.snark_ctx, &l_statement, &l_witness);
+    l_rc = chipmunk_snark_prove(&l_snark, &l_anon_init->snark_ctx, &l_statement, &l_witness);
     dap_memwipe(&l_witness, sizeof(l_witness));
     if (l_rc != 0) { chipmunk_range_proof_free(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
@@ -548,7 +540,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     uint32_t l_out_idx = 1;
     if (!IS_ZERO_256(l_change)) {
         dap_chain_tx_out_anon_t l_change_out;
-        if (s_build_out_anon(&l_change_addr, a_token_ticker, l_change, &l_change_out) != 0) {
+        if (s_build_out_anon(&l_change_addr, a_token_ticker, l_change, &l_change_out, &l_anon_init->pedersen_params) != 0) {
             chipmunk_snark_proof_free(&l_snark);
             chipmunk_range_proof_free(&l_rp);
             dap_chain_datum_tx_delete(l_tx);
@@ -569,7 +561,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
             l_fee_dst = &l_fee_blank;
 
         dap_chain_tx_out_anon_t l_fee_out;
-        if (s_build_out_anon(l_fee_dst, a_token_ticker, a_fee, &l_fee_out) != 0) {
+        if (s_build_out_anon(l_fee_dst, a_token_ticker, a_fee, &l_fee_out, &l_anon_init->pedersen_params) != 0) {
             chipmunk_snark_proof_free(&l_snark);
             chipmunk_range_proof_free(&l_rp);
             dap_chain_datum_tx_delete(l_tx);
@@ -726,8 +718,11 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
 {
     if (!a_wallet || !a_chain || !a_token_ticker || !a_addr_to) return NULL;
 
-    if (!s_anon_ctx.initialized && dap_chain_tx_anon_init() != 0)
-        return NULL;
+    /* Verify ledger has anon context initialized */
+    dap_ledger_t *l_ledger_check = dap_ledger_by_net_name(a_chain->net_name);
+    if (!l_ledger_check || !l_ledger_check->_internal) return NULL;
+    dap_ledger_anon_ctx_t *l_anon_check = (dap_ledger_anon_ctx_t *)((dap_ledger_private_t *)l_ledger_check->_internal)->anon_data;
+    if (!l_anon_check) return NULL;
 
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_chain->net_name);
     if (!l_ledger) return NULL;
@@ -991,7 +986,10 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
         return 0;
     }
 
-    if (!s_anon_ctx.initialized) return -EINVAL;
+    dap_ledger_anon_ctx_t *s_anon_init = (dap_ledger_anon_ctx_t *)l_pvt->anon_data;
+    if (!s_anon_init) return -EINVAL;
+
+    if (!s_anon_init) return -EINVAL;
     if (!s_amount_valid(a_known_amount)) return -EINVAL;
 
     uint8_t l_amount_bytes[CHIPMUNK_PEDERSEN_VALUE_BYTES];
@@ -999,7 +997,7 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
 
     chipmunk_pedersen_commit_t l_expected_commit;
     int rc = chipmunk_pedersen_commit(&l_expected_commit,
-                                       &s_anon_ctx.pedersen_params,
+                                       &s_anon_init->pedersen_params,
                                        l_amount_bytes,
                                        (const uint8_t *)a_randomness_seed);
     if (rc != 0) {

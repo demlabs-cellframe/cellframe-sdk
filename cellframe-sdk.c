@@ -121,8 +121,7 @@ int cellframe_sdk_init(uint32_t a_modules)
     /* 6. Wallet */
     CF_INIT(CF_MODULE_WALLET, dap_chain_wallet_init(), "wallet");
 
-    /* 6b. Anonymous TX (SNARK/ring) + compose builder registration */
-    CF_INIT_WARN(CF_MODULE_WALLET, dap_chain_tx_anon_init(), "anonymous TX SNARK context");
+    /* 6b. Anonymous TX compose builder registration */
     CF_INIT_WARN(CF_MODULE_WALLET, dap_chain_tx_anon_compose_register(), "anon_transfer compose builder");
 
     /* 7. CLI modules */

@@ -9,6 +9,7 @@
  */
 
 #include "dap_chain_ledger_type.h"
+#include "dap_chain_ledger_anon_ctx.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_datum_tx_anon.h"
@@ -88,22 +89,7 @@ static int s_open_emission_check(dap_ledger_t *a_ledger,
  * Built-in: Anonymous (SNARK) ledger
  * ---------------------------------------------------------------------- */
 
-/* Key image tracking: prevents double-spending in anonymous mode.
- * Key images are stored in a hash table indexed by image hash. */
-typedef struct dap_ledger_anon_key_image {
-    dap_chain_hash_fast_t image_hash;
-    dap_chain_hash_fast_t tx_hash;
-    dap_ht_handle_t hh;
-} dap_ledger_anon_key_image_t;
-
-/* Anonymous data stored in ledger's anon_data field */
-typedef struct dap_ledger_anon_ctx {
-    chipmunk_snark_ctx_t snark_ctx;
-    chipmunk_pedersen_params_t pedersen_params;
-    dap_ledger_anon_key_image_t *key_images;
-    pthread_rwlock_t key_images_rwlock;
-    char *ledger_name;
-} dap_ledger_anon_ctx_t;
+/* Key image and anon context types are in dap_chain_ledger_anon_ctx.h */
 
 /* Initialize anonymous context */
 static dap_ledger_anon_ctx_t *s_anon_ctx_new(const char *a_ledger_name)
