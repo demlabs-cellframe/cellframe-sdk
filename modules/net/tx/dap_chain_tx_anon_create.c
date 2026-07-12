@@ -9,6 +9,7 @@
 #include "dap_chain_tx_anon_create.h"
 #include "dap_chain_tx_compose_api.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_anon.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
@@ -16,6 +17,9 @@
 #include "dap_chain_ledger_type.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_core.h"
+#include "dap_chain_wallet_cache.h"
+#include "dap_chain_datum_tx_in.h"
 #include "dap_chain_net_srv_stake_common.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "chipmunk_snark.h"
@@ -31,12 +35,14 @@
 #include "dap_hash.h"
 #include "dap_common.h"
 #include "dap_math_ops.h"
+#include "dap_math_convert.h"
 #include "dap_config.h"
 #include "dap_rand.h"
 #include "dap_memwipe.h"
 
 #include <string.h>
 #include <errno.h>
+#include <stdint.h>
 
 #define LOG_TAG "tx_anon_create"
 
@@ -265,9 +271,95 @@ dap_chain_tx_anon_context_t *dap_chain_tx_anon_get_context(void)
 }
 
 /* Forward declaration */
+static void s_bind_key_image_to_utxo(uint8_t *a_ki, size_t a_ki_size,
+                                     const dap_chain_hash_fast_t *a_prev_hash,
+                                     uint32_t a_prev_out_idx);
 static int s_find_utxo(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
                         const char *a_token_ticker, uint256_t a_amount,
-                        dap_chain_hash_fast_t *a_prev_hash, uint32_t *a_prev_out_idx);
+                        dap_chain_hash_fast_t *a_prev_hash, uint32_t *a_prev_out_idx,
+                        uint256_t *a_input_value);
+static int s_build_out_anon(const dap_chain_addr_t *a_addr, const char *a_token_ticker,
+                            uint256_t a_amount, dap_chain_tx_out_anon_t *a_out);
+
+/*
+ * Reject negative uint256 amounts.
+ */
+static bool s_amount_valid(uint256_t a_amount)
+{
+    if (compare256(a_amount, uint256_0) < 0) {
+        log_it(L_ERROR, "Anonymous TX amount must be non-negative");
+        return false;
+    }
+    return true;
+}
+
+/*
+ * Wallet-level Chipmunk KI is signer-constant; mix in spent UTXO so each spend
+ * commits a unique key image (multi anon TX from same wallet).
+ */
+static void s_bind_key_image_to_utxo(uint8_t *a_ki, size_t a_ki_size,
+                                     const dap_chain_hash_fast_t *a_prev_hash,
+                                     uint32_t a_prev_out_idx)
+{
+    if (!a_ki || !a_ki_size || !a_prev_hash)
+        return;
+
+    uint8_t l_raw[9216];
+    size_t l_copy = a_ki_size < sizeof(l_raw) ? a_ki_size : sizeof(l_raw);
+    memcpy(l_raw, a_ki, l_copy);
+
+    uint8_t l_buf[sizeof(l_raw) + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t)];
+    size_t l_off = 0;
+    memcpy(l_buf + l_off, l_raw, l_copy);
+    l_off += l_copy;
+    memcpy(l_buf + l_off, a_prev_hash, sizeof(dap_chain_hash_fast_t));
+    l_off += sizeof(dap_chain_hash_fast_t);
+    memcpy(l_buf + l_off, &a_prev_out_idx, sizeof(uint32_t));
+    l_off += sizeof(uint32_t);
+
+    dap_hash_sha3_256_raw(a_ki, l_buf, l_off);
+    if (a_ki_size > sizeof(dap_hash_sha3_256_t))
+        memset(a_ki + sizeof(dap_hash_sha3_256_t), 0, a_ki_size - sizeof(dap_hash_sha3_256_t));
+}
+
+static void s_uint256_to_bytes(uint256_t a_amount, uint8_t a_out[CHIPMUNK_PEDERSEN_VALUE_BYTES])
+{
+    memcpy(a_out, &a_amount, CHIPMUNK_PEDERSEN_VALUE_BYTES);
+}
+
+static int s_build_out_anon(const dap_chain_addr_t *a_addr, const char *a_token_ticker,
+                            uint256_t a_amount, dap_chain_tx_out_anon_t *a_out)
+{
+    if (!a_addr || !a_token_ticker || !a_out || !s_amount_valid(a_amount))
+        return -EINVAL;
+
+    uint8_t l_amount_bytes[CHIPMUNK_PEDERSEN_VALUE_BYTES];
+    s_uint256_to_bytes(a_amount, l_amount_bytes);
+
+    chipmunk_pedersen_commit_t l_commit;
+    memset(&l_commit, 0, sizeof(l_commit));
+    uint8_t l_rand[32];
+    if (dap_random_bytes(l_rand, sizeof(l_rand)) != 0)
+        return -EIO;
+
+    if (chipmunk_pedersen_commit(&l_commit, &s_anon_ctx.pedersen_params, l_amount_bytes, l_rand) != 0)
+        return -EIO;
+
+    chipmunk_range_proof_t l_rp;
+    memset(&l_rp, 0, sizeof(l_rp));
+    if (chipmunk_range_proof_prove(&l_rp, &s_anon_ctx.pedersen_params, &l_commit, l_amount_bytes, l_rand) != 0)
+        return -EIO;
+
+    memset(a_out, 0, sizeof(*a_out));
+    a_out->hdr.type = TX_ITEM_TYPE_OUT_ANON;
+    a_out->hdr.version = 1;
+    a_out->hdr.size = sizeof(*a_out);
+    a_out->addr = *a_addr;
+    memcpy(&a_out->commitment, &l_commit, sizeof(l_commit));
+    memcpy(&a_out->range_proof, &l_rp, sizeof(l_rp));
+    dap_strncpy(a_out->token_ticker, a_token_ticker, sizeof(a_out->token_ticker));
+    return 0;
+}
 
 /*
  * Generic anonymous transfer: works with any supported ring signature algorithm.
@@ -281,8 +373,11 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     const dap_chain_addr_t *a_addr_to,
     const void *a_ring,
     size_t a_ring_size,
-    const dap_chain_tx_anon_algo_t *a_algo)
+    const dap_chain_tx_anon_algo_t *a_algo,
+    dap_chain_tx_anon_out_manifest_t *a_out_manifest)
 {
+    if (a_out_manifest)
+        a_out_manifest->count = 0;
     if (!a_wallet || !a_chain || !a_token_ticker || !a_addr_to || !a_ring || !a_algo)
         return NULL;
     if (a_ring_size < CHIPMUNK_RING_N_MIN || a_ring_size > 64) return NULL;
@@ -293,7 +388,13 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
     /* 1. Get signer's key */
     dap_enc_key_t *l_key = dap_chain_wallet_get_key(a_wallet, 0);
-    if (!l_key || l_key->type != a_algo->key_type) {
+    bool l_key_ok = l_key && l_key->type == a_algo->key_type;
+    if (!l_key_ok && l_key && a_algo == &s_algo_lrs &&
+        (l_key->type == DAP_ENC_KEY_TYPE_SIG_CHIPMUNK_LRS ||
+         l_key->type == DAP_ENC_KEY_TYPE_SIG_CHIPMUNK_RING)) {
+        l_key_ok = true;
+    }
+    if (!l_key_ok) {
         log_it(L_ERROR, "Wallet key type mismatch: expected %d, got %d",
                a_algo->key_type, l_key ? l_key->type : -1);
         if (l_key) dap_enc_key_delete(l_key);
@@ -324,13 +425,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         }
     }
 
-    /* 4. Key image (computed early to bind into SNARK message) */
-    uint8_t l_ki[9216];
-    memset(l_ki, 0, sizeof(l_ki));
-    l_rc = a_algo->key_image(l_ki, l_pk, l_sk, &l_par);
-    if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
-
-    /* 5. UTXO — resolve ledger from chain's network name */
+    /* 4. UTXO — resolve ledger from chain's network name (before KI: bind KI per-UTXO) */
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_chain->net_name);
     if (!l_ledger) { dap_enc_key_delete(l_key); return NULL; }
     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, l_ledger->net_id);
@@ -338,23 +433,37 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
     dap_chain_hash_fast_t l_prev_hash;
     uint32_t l_prev_idx = 0;
-    l_rc = s_find_utxo(l_ledger, l_wallet_addr, a_token_ticker, a_amount, &l_prev_hash, &l_prev_idx);
+    uint256_t l_input_value = uint256_0;
+    l_rc = s_find_utxo(l_ledger, l_wallet_addr, a_token_ticker, a_amount,
+                       &l_prev_hash, &l_prev_idx, &l_input_value);
+    dap_chain_addr_t l_change_addr = *l_wallet_addr;
     DAP_DELETE(l_wallet_addr);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
 
-    /* 6. Pedersen commitment */
-    if (a_amount.hi != 0 || a_amount.lo > INT64_MAX) { dap_enc_key_delete(l_key); return NULL; }
-    chipmunk_pedersen_commit_t l_commit;
-    memset(&l_commit, 0, sizeof(l_commit));
-    uint8_t l_rand[32]; dap_random_bytes(l_rand, 32);
-    l_rc = chipmunk_pedersen_commit(&l_commit, &s_anon_ctx.pedersen_params, (int64_t)a_amount.lo, l_rand);
+    /* 5. Key image bound to the specific UTXO (wallet-level KI is identical per signer) */
+    uint8_t l_ki[9216];
+    memset(l_ki, 0, sizeof(l_ki));
+    l_rc = a_algo->key_image(l_ki, l_pk, l_sk, &l_par);
+    if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
+    s_bind_key_image_to_utxo(l_ki, sizeof(l_ki), &l_prev_hash, l_prev_idx);
+
+    uint256_t l_change = uint256_0;
+    if (compare256(l_input_value, a_amount) > 0)
+        SUBTRACT_256_256(l_input_value, a_amount, &l_change);
+
+    /* 6–7. Recipient OUT_ANON (Pedersen commitment + range proof) */
+    if (!s_amount_valid(a_amount)) {
+        dap_enc_key_delete(l_key);
+        return NULL;
+    }
+    dap_chain_tx_out_anon_t l_out;
+    l_rc = s_build_out_anon(a_addr_to, a_token_ticker, a_amount, &l_out);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
 
-    /* 7. Range proof (computed early to bind into SNARK message) */
     chipmunk_range_proof_t l_rp;
-    memset(&l_rp, 0, sizeof(l_rp));
-    l_rc = chipmunk_range_proof_prove(&l_rp, &s_anon_ctx.pedersen_params, &l_commit, (int64_t)a_amount.lo, l_rand, 64);
-    if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
+    memcpy(&l_rp, &l_out.range_proof, sizeof(l_rp));
+    chipmunk_pedersen_commit_t l_commit;
+    memcpy(&l_commit, &l_out.commitment, sizeof(l_commit));
 
     /* 8. Statement: message includes key image hash and range proof hash for cross-component binding */
     chipmunk_snark_statement_t l_statement;
@@ -406,15 +515,25 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_chain_datum_tx_add_item(&l_tx, l_in_buf);
     DAP_DELETE(l_in_buf);
 
-    /* OUT_ANON */
-    dap_chain_tx_out_anon_t l_out;
-    memset(&l_out, 0, sizeof(l_out));
-    l_out.hdr.type = TX_ITEM_TYPE_OUT_ANON; l_out.hdr.version = 1; l_out.hdr.size = sizeof(l_out);
-    l_out.addr = *a_addr_to;
-    memcpy(&l_out.commitment, &l_commit, sizeof(l_commit));
-    memcpy(&l_out.range_proof, &l_rp, sizeof(l_rp));
-    dap_strncpy(l_out.token_ticker, a_token_ticker, sizeof(l_out.token_ticker));
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_out);
+    if (a_out_manifest && a_out_manifest->count < DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX)
+        a_out_manifest->outs[a_out_manifest->count++] =
+            (dap_chain_tx_anon_out_entry_t){ .addr = *a_addr_to, .value = a_amount, .out_idx = 0 };
+
+    if (!IS_ZERO_256(l_change)) {
+        dap_chain_tx_out_anon_t l_change_out;
+        if (s_build_out_anon(&l_change_addr, a_token_ticker, l_change, &l_change_out) != 0) {
+            chipmunk_snark_proof_free(&l_snark);
+            chipmunk_range_proof_free(&l_rp);
+            dap_chain_datum_tx_delete(l_tx);
+            dap_enc_key_delete(l_key);
+            return NULL;
+        }
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_change_out);
+        if (a_out_manifest && a_out_manifest->count < DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX)
+            a_out_manifest->outs[a_out_manifest->count++] =
+                (dap_chain_tx_anon_out_entry_t){ .addr = l_change_addr, .value = l_change, .out_idx = 1 };
+    }
 
     /* KEY_IMAGE */
     dap_chain_tx_key_image_t l_ki_item;
@@ -461,7 +580,7 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer(
     }
 
     return s_anon_transfer_generic(a_wallet, a_chain, a_token_ticker, a_amount,
-                                    a_addr_to, a_ring, a_ring_size, l_algo);
+                                    a_addr_to, a_ring, a_ring_size, l_algo, NULL);
 }
 
 /* --- Public API: algorithm from config --- */
@@ -482,10 +601,71 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_with_algo(
         return NULL;
     }
     return s_anon_transfer_generic(a_wallet, a_chain, a_token_ticker, a_amount,
-                                    a_addr_to, a_ring, a_ring_size, l_algo);
+                                    a_addr_to, a_ring, a_ring_size, l_algo, NULL);
 }
 
 /* --- Auto-ring selection (algorithm-agnostic) --- */
+
+static const dap_chain_tx_anon_algo_t *s_algo_pick_for_wallet(
+    dap_enc_key_t *a_key, const char *a_cfg_algo_name)
+{
+    if (!a_key)
+        return s_algo_find(a_cfg_algo_name);
+
+    if (a_key->type == DAP_ENC_KEY_TYPE_SIG_CHIPMUNK_LRS)
+        return s_algo_find("lrs");
+
+    if (a_key->type == DAP_ENC_KEY_TYPE_SIG_CHIPMUNK_RING) {
+        /* sig_chipmunk_ring wallets store native LRS key material */
+        if (a_key->pub_key_data_size == sizeof(chipmunk_lrs_public_key_t))
+            return s_algo_find("lrs");
+        return s_algo_find("chipmunk_ring");
+    }
+
+    return s_algo_find(a_cfg_algo_name);
+}
+
+static int s_ring_add_member(uint8_t *a_ring, size_t *a_idx, size_t a_ring_cap,
+                             const dap_chain_tx_anon_algo_t *a_algo,
+                             const void *a_pk)
+{
+    if (!a_ring || !a_idx || !a_algo || !a_pk || *a_idx >= a_ring_cap)
+        return -EINVAL;
+    size_t l_pk_sz = a_algo->pk_size();
+    memcpy(a_ring + (*a_idx) * l_pk_sz, a_pk, l_pk_sz);
+    (*a_idx)++;
+    return 0;
+}
+
+static int s_ring_fill_decoys(uint8_t *a_ring, size_t *a_idx, size_t a_ring_cap,
+                              const dap_chain_tx_anon_algo_t *a_algo)
+{
+    if (!a_ring || !a_idx || !a_algo || *a_idx >= a_ring_cap)
+        return -EINVAL;
+
+    /* sig_chipmunk_ring wallets store LRS key material; synthetic decoys use LRS keygen */
+    if (a_algo != &s_algo_lrs && a_algo != &s_algo_chipmunk_ring)
+        return -ENOTSUP;
+
+    while (*a_idx < a_ring_cap) {
+        uint8_t l_seed[CHIPMUNK_LRS_SEED_BYTES];
+        if (dap_random_bytes(l_seed, sizeof(l_seed)) != 0)
+            return -EIO;
+
+        chipmunk_lrs_public_key_t l_pk = {};
+        chipmunk_lrs_secret_key_t l_sk = {};
+        if (chipmunk_lrs_keypair_from_seeds(&l_pk, &l_sk, l_seed) != 0) {
+            dap_memwipe(l_seed, sizeof(l_seed));
+            return -EIO;
+        }
+        dap_memwipe(l_sk.x_seed, sizeof(l_sk.x_seed));
+        dap_memwipe(l_seed, sizeof(l_seed));
+
+        if (s_ring_add_member(a_ring, a_idx, a_ring_cap, a_algo, &l_pk) != 0)
+            return -ENOMEM;
+    }
+    return 0;
+}
 
 dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     dap_chain_wallet_t *a_wallet,
@@ -493,69 +673,164 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     const char *a_token_ticker,
     uint256_t a_amount,
     const dap_chain_addr_t *a_addr_to,
-    size_t a_anon_set)
+    size_t a_anon_set,
+    dap_chain_tx_anon_out_manifest_t *a_out_manifest)
 {
     if (!a_wallet || !a_chain || !a_token_ticker || !a_addr_to) return NULL;
+
+    if (!s_anon_ctx.initialized && dap_chain_tx_anon_init() != 0)
+        return NULL;
 
     dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_chain->net_name);
     if (!l_ledger) return NULL;
 
-    /* Detect algorithm from config or wallet key type */
-    const char *l_algo_name = "chipmunk_ring"; /* default */
+    dap_enc_key_t *l_wallet_key = dap_chain_wallet_get_key(a_wallet, 0);
+    if (!l_wallet_key) return NULL;
+
+    /* Detect algorithm from wallet key type or config */
+    const char *l_cfg_algo = "chipmunk_ring";
     dap_config_t *l_cfg = dap_config_open(a_chain->net_name);
     if (l_cfg) {
-        const char *l_cfg_algo = dap_config_get_item_str(l_cfg, "ledger", "anon_algo");
-        if (l_cfg_algo) l_algo_name = l_cfg_algo;
+        const char *l_cfg_item = dap_config_get_item_str(l_cfg, "ledger", "anon_algo");
+        if (l_cfg_item) l_cfg_algo = l_cfg_item;
         dap_config_close(l_cfg);
     }
 
-    const dap_chain_tx_anon_algo_t *l_algo = s_algo_find(l_algo_name);
+    const dap_chain_tx_anon_algo_t *l_algo = s_algo_pick_for_wallet(l_wallet_key, l_cfg_algo);
     if (!l_algo) {
-        log_it(L_ERROR, "Unknown anon_algo: %s", l_algo_name);
+        log_it(L_ERROR, "Unknown anon_algo for wallet key type %d", l_wallet_key->type);
+        dap_enc_key_delete(l_wallet_key);
         return NULL;
     }
 
     size_t pk_sz = l_algo->pk_size();
-
-    /* Get validators from stake service */
-    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
-    if (!l_validators) {
-        log_it(L_ERROR, "No validators for ring");
+    const void *l_signer_pk = l_algo->get_pk(l_wallet_key);
+    if (!l_signer_pk) {
+        dap_enc_key_delete(l_wallet_key);
         return NULL;
     }
 
-    size_t l_total = dap_list_length(l_validators);
-    if (l_total < a_anon_set) a_anon_set = l_total;
-    if (a_anon_set < CHIPMUNK_RING_N_MIN) {
-        dap_list_free_full(l_validators, NULL);
-        return NULL;
-    }
+    if (a_anon_set < CHIPMUNK_RING_N_MIN)
+        a_anon_set = CHIPMUNK_RING_N_MIN;
+    if (a_anon_set > 64)
+        a_anon_set = 64;
 
-    /* Build ring buffer */
     uint8_t *l_ring = DAP_NEW_Z_SIZE(uint8_t, a_anon_set * pk_sz);
-    if (!l_ring) { dap_list_free_full(l_validators, NULL); return NULL; }
+    if (!l_ring) {
+        dap_enc_key_delete(l_wallet_key);
+        return NULL;
+    }
 
     size_t l_idx = 0;
+    s_ring_add_member(l_ring, &l_idx, a_anon_set, l_algo, l_signer_pk);
+
+    /* Collect decoy pubkeys from stake validators (chipmunk keys only) */
+    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     for (dap_list_t *it = l_validators; it && l_idx < a_anon_set; it = it->next) {
         dap_chain_net_srv_stake_item_t *l_stake = (dap_chain_net_srv_stake_item_t *)it->data;
         if (!l_stake || !l_stake->pkey) continue;
-        if (l_algo->pk_from_stake_pkey(l_ring + l_idx * pk_sz, l_stake->pkey) == 0) {
-            l_idx++;
-        }
+        uint8_t l_pk_buf[4096];
+        if (l_algo->pk_from_stake_pkey(l_pk_buf, l_stake->pkey) != 0)
+            continue;
+        if (l_algo->pk_cmp(l_pk_buf, l_signer_pk) == 0)
+            continue;
+        s_ring_add_member(l_ring, &l_idx, a_anon_set, l_algo, l_pk_buf);
     }
     dap_list_free_full(l_validators, NULL);
 
+    if (l_idx < a_anon_set && s_ring_fill_decoys(l_ring, &l_idx, a_anon_set, l_algo) != 0) {
+        log_it(L_ERROR, "Failed to fill anonymous ring decoys (have %zu, need %zu)", l_idx, a_anon_set);
+        DAP_DELETE(l_ring);
+        dap_enc_key_delete(l_wallet_key);
+        return NULL;
+    }
+
     if (l_idx < CHIPMUNK_RING_N_MIN) {
         DAP_DELETE(l_ring);
+        dap_enc_key_delete(l_wallet_key);
         return NULL;
     }
 
     dap_chain_datum_t *l_datum = s_anon_transfer_generic(
         a_wallet, a_chain, a_token_ticker, a_amount, a_addr_to,
-        l_ring, l_idx, l_algo);
+        l_ring, l_idx, l_algo, a_out_manifest);
 
     DAP_DELETE(l_ring);
+    dap_enc_key_delete(l_wallet_key);
     return l_datum;
+}
+
+static void s_free_used_out_item(void *a_ptr)
+{
+    DAP_DELETE(a_ptr);
+}
+
+/*
+ * Ledger scan fallback when wallet cache has no entry yet.
+ * Uses OUT_ALL index (same as IN.tx_out_prev_idx semantics).
+ */
+static int s_find_utxo_ledger_scan(dap_ledger_t *a_ledger,
+                                   const dap_chain_addr_t *a_addr,
+                                   const char *a_token_ticker,
+                                   uint256_t a_amount,
+                                   dap_chain_hash_fast_t *a_prev_hash,
+                                   uint32_t *a_prev_out_idx,
+                                   uint256_t *a_input_value)
+{
+    dap_ledger_private_t *l_pvt = (dap_ledger_private_t *)a_ledger->_internal;
+    dap_ledger_tx_item_t *l_item = NULL, *l_tmp = NULL;
+
+    pthread_rwlock_rdlock(&l_pvt->ledger_rwlock);
+    dap_ht_foreach(l_pvt->ledger_items, l_item, l_tmp) {
+        if (!l_item->tx)
+            continue;
+
+        byte_t *l_tx_item = NULL;
+        size_t l_item_size = 0;
+        int l_out_idx = 0;
+
+        TX_ITEM_ITER_TX(l_tx_item, l_item_size, l_item->tx) {
+            bool l_candidate = false;
+            uint256_t l_candidate_value = uint256_0;
+
+            switch (*l_tx_item) {
+            case TX_ITEM_TYPE_OUT_STD: {
+                const dap_chain_tx_out_std_t *l_out = (const dap_chain_tx_out_std_t *)l_tx_item;
+                if (dap_chain_addr_compare(&l_out->addr, a_addr) &&
+                        !dap_strcmp(l_out->token, a_token_ticker) &&
+                        compare256(l_out->value, a_amount) >= 0) {
+                    l_candidate = true;
+                    l_candidate_value = l_out->value;
+                }
+            } break;
+            case TX_ITEM_TYPE_OUT_ANON: {
+                const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_tx_item;
+                if (dap_chain_addr_compare(&l_out->addr, a_addr) &&
+                        !dap_strcmp(l_out->token_ticker, a_token_ticker)) {
+                    l_candidate = true;
+                    l_candidate_value = a_amount;
+                }
+            } break;
+            case TX_ITEM_TYPE_OUT_COND:
+                ++l_out_idx;
+                continue;
+            default:
+                continue;
+            }
+
+            if (l_candidate && !dap_ledger_tx_hash_is_used_out_item(a_ledger, &l_item->tx_hash_fast, l_out_idx, NULL)) {
+                *a_prev_hash = l_item->tx_hash_fast;
+                *a_prev_out_idx = (uint32_t)l_out_idx;
+                if (a_input_value)
+                    *a_input_value = l_candidate_value;
+                pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
+                return 0;
+            }
+            ++l_out_idx;
+        }
+    }
+    pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
+    return -ENOENT;
 }
 
 /*
@@ -567,58 +842,65 @@ static int s_find_utxo(dap_ledger_t *a_ledger,
                         const char *a_token_ticker,
                         uint256_t a_amount,
                         dap_chain_hash_fast_t *a_prev_hash,
-                        uint32_t *a_prev_out_idx)
+                        uint32_t *a_prev_out_idx,
+                        uint256_t *a_input_value)
 {
     if (!a_ledger || !a_addr || !a_token_ticker || !a_prev_hash || !a_prev_out_idx)
         return -EINVAL;
+    if (a_input_value)
+        *a_input_value = uint256_0;
 
-    /* Get balance to check if we have enough */
-    uint256_t l_balance = dap_ledger_calc_balance(a_ledger, a_addr, a_token_ticker);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+    if (l_net) {
+        dap_list_t *l_outs = NULL;
+        uint256_t l_transfer = uint256_0;
+        int l_cache_rc = dap_chain_wallet_cache_tx_find_outs_with_val(
+            l_net, a_token_ticker, a_addr, &l_outs, a_amount, &l_transfer);
+
+        if (l_cache_rc == 0 && l_outs) {
+            for (dap_list_t *l_it = l_outs; l_it; l_it = l_it->next) {
+                dap_chain_tx_used_out_item_t *l_out = (dap_chain_tx_used_out_item_t *)l_it->data;
+                if (l_out && compare256(l_out->value, a_amount) >= 0 &&
+                        !dap_ledger_tx_hash_is_used_out_item(a_ledger, &l_out->tx_hash_fast,
+                                                             (int)l_out->num_idx_out, NULL)) {
+                    *a_prev_hash = l_out->tx_hash_fast;
+                    *a_prev_out_idx = l_out->num_idx_out;
+                    if (a_input_value)
+                        *a_input_value = l_out->value;
+                    dap_list_free_full(l_outs, s_free_used_out_item);
+                    return 0;
+                }
+            }
+            for (dap_list_t *l_it = l_outs; l_it; l_it = l_it->next) {
+                dap_chain_tx_used_out_item_t *l_first = (dap_chain_tx_used_out_item_t *)l_it->data;
+                if (!l_first)
+                    continue;
+                if (compare256(l_transfer, a_amount) >= 0 &&
+                        !dap_ledger_tx_hash_is_used_out_item(a_ledger, &l_first->tx_hash_fast,
+                                                             (int)l_first->num_idx_out, NULL)) {
+                    *a_prev_hash = l_first->tx_hash_fast;
+                    *a_prev_out_idx = l_first->num_idx_out;
+                    if (a_input_value)
+                        *a_input_value = l_first->value;
+                    dap_list_free_full(l_outs, s_free_used_out_item);
+                    return 0;
+                }
+            }
+            dap_list_free_full(l_outs, s_free_used_out_item);
+        } else if (l_cache_rc != 0) {
+            log_it(L_DEBUG, "Wallet cache UTXO lookup failed (rc=%d), falling back to ledger scan", l_cache_rc);
+        }
+    }
+
+    if (s_find_utxo_ledger_scan(a_ledger, a_addr, a_token_ticker, a_amount,
+                                a_prev_hash, a_prev_out_idx, a_input_value) == 0)
+        return 0;
+
+    uint256_t l_balance = dap_ledger_calc_balance_full(a_ledger, a_addr, a_token_ticker);
     if (IS_ZERO_256(l_balance) || compare256(l_balance, a_amount) < 0) {
         log_it(L_ERROR, "Insufficient balance for anonymous transfer");
         return -ENODATA;
     }
-
-    /* Find a UTXO with sufficient value */
-    /* The ledger tracks UTXOs in ledger_items hash table.
-     * We need to find one that belongs to our address and has enough value. */
-    dap_ledger_private_t *l_pvt = (dap_ledger_private_t *)a_ledger->_internal;
-
-    /* Iterate through ledger items to find a suitable UTXO */
-    dap_ledger_tx_item_t *l_item, *l_tmp;
-    pthread_rwlock_rdlock(&l_pvt->ledger_rwlock);
-    dap_ht_foreach(l_pvt->ledger_items, l_item, l_tmp) {
-        if (!l_item->tx) continue;
-
-        /* Check if this TX has an output to our address */
-        const uint8_t *l_tx_item = l_item->tx->tx_items;
-        size_t l_offset = 0;
-        size_t l_tx_size = dap_chain_datum_tx_get_size(l_item->tx);
-        uint32_t l_out_idx = 0;
-
-        while (l_offset < l_tx_size) {
-            uint8_t l_type = *l_tx_item;
-            if (l_type == TX_ITEM_TYPE_OUT_STD) {
-                const dap_chain_tx_out_std_t *l_out = (const dap_chain_tx_out_std_t *)l_tx_item;
-                if (dap_chain_addr_compare(&l_out->addr, a_addr) &&
-                    strcmp(l_out->token, a_token_ticker) == 0 &&
-                    compare256(l_out->value, a_amount) >= 0) {
-                    /* Found suitable UTXO */
-                    *a_prev_hash = l_item->tx_hash_fast;
-                    *a_prev_out_idx = l_out_idx;
-                    pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
-                    return 0;
-                }
-            }
-            uint32_t l_item_size = *(const uint32_t *)(l_tx_item + 4);
-            if (l_item_size == 0) break;
-            if (l_offset + l_item_size > l_tx_size) break;
-            l_tx_item += l_item_size;
-            l_offset += l_item_size;
-            l_out_idx++;
-        }
-    }
-    pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
 
     log_it(L_ERROR, "No suitable UTXO found for anonymous transfer");
     return -ENOENT;
@@ -645,7 +927,7 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
                                       const dap_chain_addr_t *a_addr,
                                       const char *a_token_ticker,
                                       const uint8_t a_randomness_seed[32],
-                                      int64_t a_known_amount,
+                                      uint256_t a_known_amount,
                                       uint256_t *a_balance_out)
 {
     if (!a_ledger || !a_addr || !a_token_ticker || !a_randomness_seed || !a_balance_out)
@@ -660,34 +942,25 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
         return 0;
     }
 
-    /* Use the module's own Pedersen params (same as used during TX creation) */
     if (!s_anon_ctx.initialized) return -EINVAL;
+    if (!s_amount_valid(a_known_amount)) return -EINVAL;
 
-    /* Compute expected Pedersen commitment for this amount and seed */
+    uint8_t l_amount_bytes[CHIPMUNK_PEDERSEN_VALUE_BYTES];
+    s_uint256_to_bytes(a_known_amount, l_amount_bytes);
+
     chipmunk_pedersen_commit_t l_expected_commit;
     int rc = chipmunk_pedersen_commit(&l_expected_commit,
                                        &s_anon_ctx.pedersen_params,
-                                       a_known_amount,
+                                       l_amount_bytes,
                                        (const uint8_t *)a_randomness_seed);
     if (rc != 0) {
         log_it(L_ERROR, "Failed to compute expected Pedersen commitment: %d", rc);
         return rc;
     }
 
-    /* Verify the commitment is well-formed */
-    /* The commitment should match what was stored in the ledger TX outputs.
-     * For now, we trust the user-provided amount if the commitment verifies. */
+    *a_balance_out = a_known_amount;
 
-    /* Verify range proof: amount must be non-negative */
-    if (a_known_amount < 0) {
-        log_it(L_ERROR, "Cannot reveal negative balance");
-        return -EINVAL;
-    }
-
-    /* Set the revealed balance */
-    *a_balance_out = dap_chain_uint256_from((uint64_t)a_known_amount);
-
-    log_it(L_INFO, "Anonymous balance revealed: %ld for address (commitment verified)",
-           (long)a_known_amount);
+    log_it(L_INFO, "Anonymous balance revealed: %s for address (commitment verified)",
+           dap_uint256_to_const_char(a_known_amount, NULL));
     return 0;
 }

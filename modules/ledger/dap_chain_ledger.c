@@ -963,10 +963,11 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
                l_ledger_pvt->anon_type == 1 ? "mrng" : "lrs");
 
         /* Initialize anonymous context */
-        l_ledger_pvt->anon_data = dap_ledger_anon_ctx_create();
+        l_ledger_pvt->anon_data = dap_ledger_anon_ctx_create(l_ledger->name);
         if (!l_ledger_pvt->anon_data) {
             log_it(L_ERROR, "Failed to create anonymous context for ledger '%s'", l_ledger->name);
-            /* Continue without anon context — TX verification will fail */
+            dap_ledger_handle_free(l_ledger);
+            return NULL;
         }
     }
 
@@ -1468,6 +1469,8 @@ void dap_ledger_tx_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         l_gdb_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_STAKE_LOCK_STR);
         dap_global_db_erase_table(l_gdb_group, NULL, NULL);
         DAP_DELETE(l_gdb_group);
+        if (PVT(a_ledger)->ledger_type == DAP_LEDGER_TYPE_ANON)
+            dap_ledger_anon_key_images_purge(a_ledger);
     }
 
     /* Delete threshold transactions */
@@ -2107,6 +2110,7 @@ dap_list_t *dap_ledger_get_utxo_for_value(
         // Iterate through all outputs in the transaction
         byte_t *l_tx_item_ptr = NULL;
         size_t l_tx_item_size = 0;
+        uint32_t l_out_idx = 0;
         TX_ITEM_ITER_TX(l_tx_item_ptr, l_tx_item_size, l_tx) {
             if (*l_tx_item_ptr != TX_ITEM_TYPE_OUT && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_EXT
                 && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_STD) {
@@ -2137,10 +2141,12 @@ dap_list_t *dap_ledger_get_utxo_for_value(
             
             // Check if output matches our criteria
             if (!dap_chain_addr_compare(&l_out_addr, a_addr_from)) {
+                l_out_idx++;
                 continue;
             }
             
             if (dap_strcmp(l_out_token, a_token_ticker) != 0) {
+                l_out_idx++;
                 continue;
             }
             
@@ -2152,9 +2158,10 @@ dap_list_t *dap_ledger_get_utxo_for_value(
             }
             
             l_used_out->tx_prev_hash = l_tx_item->tx_hash_fast;
-            l_used_out->tx_out_prev_idx = (l_tx_item_ptr - (byte_t *)l_tx) / sizeof(void *); // Simplified index calculation
+            l_used_out->tx_out_prev_idx = l_out_idx;
             l_used_out->value = l_out_value;
             l_used_out->addr = l_out_addr;
+            l_out_idx++;
             
             l_list_used_outs = dap_list_append(l_list_used_outs, l_used_out);
             SUM_256_256(l_value_transfer, l_out_value, &l_value_transfer);
@@ -2173,8 +2180,11 @@ dap_list_t *dap_ledger_get_utxo_for_value(
     
     // Insufficient funds - cleanup and return NULL
     if (compare256(l_value_transfer, a_value_need) < 0) {
+        const char *l_needed_str = dap_uint256_to_const_char(a_value_need, NULL);
+        char l_needed_buf[DATOSHI_POW256 + 2];
+        dap_strncpy(l_needed_buf, l_needed_str, sizeof(l_needed_buf));
         log_it(L_WARNING, "Insufficient UTXO: needed %s, found %s %s",
-               dap_uint256_to_const_char(a_value_need, NULL),
+               l_needed_buf,
                dap_uint256_to_const_char(l_value_transfer, NULL),
                a_token_ticker);
         

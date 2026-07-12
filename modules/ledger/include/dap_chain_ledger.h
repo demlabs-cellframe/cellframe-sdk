@@ -322,6 +322,8 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL,
     DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE,
     DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN,
+    DAP_LEDGER_TX_CHECK_ANON_ITEM_FORBIDDEN,
+    DAP_LEDGER_TX_CHECK_MIXED_ANON_TX,
     /* Emisssion check return codes */
     DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY,
     DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN,
@@ -420,6 +422,7 @@ typedef struct dap_ledger_datum_iter_data {
 #define DAP_LEDGER_TXS_STR                 "txs"
 #define DAP_LEDGER_SPENT_TXS_STR           "spent_txs"
 #define DAP_LEDGER_BALANCES_STR            "balances"
+#define DAP_LEDGER_KEY_IMAGES_STR          "key_images"
 
 #ifdef __cplusplus
 extern "C" {
@@ -496,6 +499,8 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL: return "Usage of timed locked out is forbidden for this tx";
     case DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE: return "Event verification failure";
     case DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN: return "Legacy stakes are not accepted from mempool anymore!";
+    case DAP_LEDGER_TX_CHECK_ANON_ITEM_FORBIDDEN: return "Anonymous transaction items are forbidden on open ledger";
+    case DAP_LEDGER_TX_CHECK_MIXED_ANON_TX: return "Transaction mixes standard and anonymous inputs";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";
@@ -647,6 +652,8 @@ DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(const char *a_net_name, const c
  * return 1 OK, -1 error
  */
 int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data);
+int dap_ledger_tx_add_impl(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data);
+int dap_ledger_tx_utxo_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, bool a_from_mempool);
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash);
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_sha3_256_t *a_datum_hash);

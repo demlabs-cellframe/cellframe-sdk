@@ -19,6 +19,19 @@
 #include "chipmunk_snark.h"
 #include "chipmunk_pedersen.h"
 
+#define DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX 8
+
+typedef struct dap_chain_tx_anon_out_entry {
+    dap_chain_addr_t addr;
+    uint256_t value;
+    uint32_t out_idx;
+} dap_chain_tx_anon_out_entry_t;
+
+typedef struct dap_chain_tx_anon_out_manifest {
+    uint32_t count;
+    dap_chain_tx_anon_out_entry_t outs[DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX];
+} dap_chain_tx_anon_out_manifest_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -77,7 +90,8 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     const char *a_token_ticker,
     uint256_t a_amount,
     const dap_chain_addr_t *a_addr_to,
-    size_t a_anon_set);
+    size_t a_anon_set,
+    dap_chain_tx_anon_out_manifest_t *a_out_manifest);
 
 /**
  * Reveal anonymous balance (verify Pedersen commitment openings).
@@ -87,7 +101,7 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
                                       const dap_chain_addr_t *a_addr,
                                       const char *a_token_ticker,
                                       const uint8_t a_randomness_seed[32],
-                                      int64_t a_known_amount,
+                                      uint256_t a_known_amount,
                                       uint256_t *a_balance_out);
 
 #ifdef __cplusplus

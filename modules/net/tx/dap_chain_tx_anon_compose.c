@@ -123,7 +123,7 @@ static dap_chain_datum_t *s_anon_transfer_compose_cb(
     size_t l_anon_set = l_params->anon_set > 0 ? l_params->anon_set : 10;
     dap_chain_datum_t *l_datum = dap_chain_tx_anon_transfer_auto_ring(
         l_wallet, l_chain, l_params->token_ticker,
-        l_params->value, &l_params->addr_to, l_anon_set);
+        l_params->value, &l_params->addr_to, l_anon_set, NULL);
 
     dap_chain_wallet_close(l_wallet);
 

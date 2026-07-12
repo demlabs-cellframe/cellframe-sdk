@@ -457,14 +457,14 @@ uint8_t* dap_chain_datum_tx_item_get(const dap_chain_datum_tx_t *a_tx, int *a_it
             break;
         case TX_ITEM_TYPE_OUT_ALL:
             switch (*l_item) {
-            case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_COND: case TX_ITEM_TYPE_OUT_EXT: case TX_ITEM_TYPE_OUT_STD:
+            case TX_ITEM_TYPE_OUT: case TX_ITEM_TYPE_OUT_OLD: case TX_ITEM_TYPE_OUT_COND: case TX_ITEM_TYPE_OUT_EXT: case TX_ITEM_TYPE_OUT_STD: case TX_ITEM_TYPE_OUT_ANON:
                 break;
             default:
                 continue;
             } break;
         case TX_ITEM_TYPE_IN_ALL:
             switch (*l_item) {
-            case TX_ITEM_TYPE_IN: case TX_ITEM_TYPE_IN_COND: case TX_ITEM_TYPE_IN_EMS: case TX_ITEM_TYPE_IN_REWARD:
+            case TX_ITEM_TYPE_IN: case TX_ITEM_TYPE_IN_COND: case TX_ITEM_TYPE_IN_EMS: case TX_ITEM_TYPE_IN_REWARD: case TX_ITEM_TYPE_IN_ANON:
                 break;
             default:
                 continue;

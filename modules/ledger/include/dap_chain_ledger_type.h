@@ -172,14 +172,43 @@ const char *dap_ledger_anon_type_name(dap_ledger_anon_type_t a_type);
 /**
  * Create anonymous ledger context (SNARK + Pedersen + key image tracking).
  * Called automatically by dap_ledger_create() when ledger_type == ANON.
+ * @param a_ledger_name Ledger name for GDB persistence (required for anon ledgers).
  * @return Pointer to anon context, or NULL on error. Caller owns.
  */
-void *dap_ledger_anon_ctx_create(void);
+void *dap_ledger_anon_ctx_create(const char *a_ledger_name);
 
 /**
  * Free anonymous ledger context.
  */
 void dap_ledger_anon_ctx_free(void *a_ctx);
+
+/**
+ * Load persisted key images from GDB into the anonymous context.
+ * No-op if ledger cache is disabled or ledger is not anonymous.
+ */
+void dap_ledger_anon_key_images_load(dap_ledger_t *a_ledger);
+
+/**
+ * Erase persisted key images from GDB (ledger purge).
+ */
+void dap_ledger_anon_key_images_purge(dap_ledger_t *a_ledger);
+
+/**
+ * Verify anonymous TX cryptography (SNARK, range proofs, KI unused).
+ * Does not commit key images — use dap_ledger_anon_tx_key_images_commit on ledger add.
+ * @return 0 if valid, negative on error.
+ */
+int dap_ledger_anon_tx_verify(dap_ledger_t *a_ledger,
+                              dap_chain_datum_tx_t *a_tx,
+                              dap_hash_fast_t *a_tx_hash);
+
+/**
+ * Commit key images after a TX is accepted into the ledger.
+ * @return 0 on success, -EEXIST if double-spend, negative on other errors.
+ */
+int dap_ledger_anon_tx_key_images_commit(dap_ledger_t *a_ledger,
+                                         dap_chain_datum_tx_t *a_tx,
+                                         dap_hash_fast_t *a_tx_hash);
 
 #ifdef __cplusplus
 }

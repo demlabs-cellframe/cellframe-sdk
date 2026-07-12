@@ -384,7 +384,15 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_chipchain_pvt->new_round_delay          = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR, "new_round_delay", 10);
     l_chipchain_pvt->round_attempts_max       = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR, "round_attempts_max", 4);
     l_chipchain_pvt->round_attempt_timeout    = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR, "round_attempt_timeout", 10);
-    l_chipchain_pvt->start_validators_min     = l_chipchain_pvt->min_validators_count = l_validators_count;
+    l_chipchain_pvt->min_validators_count     = l_validators_count;
+    /* Floor for verifying already-sealed blocks. Raising min_validators_count
+     * (config or decree) must not invalidate historical seed/bootstrap blocks.
+     * New consensus rounds still require min_validators_count signatures. */
+    l_chipchain_pvt->start_validators_min     = dap_config_get_item_uint16_default(
+        a_chain_cfg, DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR, "bootstrap_min_validators_count",
+        l_validators_count);
+    if (!l_chipchain_pvt->start_validators_min)
+        l_chipchain_pvt->start_validators_min = l_validators_count;
 
     uint16_t i, l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_CHIPCHAIN_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
     dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
@@ -397,6 +405,17 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
             dap_strncpy(l_cert_name + l_dot_pos + l_pos2, ".pub", l_len - l_dot_pos - l_pos2);
             if ( !(l_cert_cur = dap_cert_find_by_name(l_cert_name)) ) {
+                /* validators_addrs must not outrun available auth_certs_prefix.N certs.
+                 * If we already loaded enough PoA validators, stop scanning instead of
+                 * aborting chain init (which drops the whole network). */
+                size_t l_loaded = dap_list_length(l_chipchain_pvt->poa_validators);
+                if (l_loaded >= l_validators_count) {
+                    log_it(L_WARNING,
+                           "Auth cert \"%s\" missing; stopping scan after %zu validators "
+                           "(min_validators_count=%u). Check validators_addrs vs auth_certs_prefix.",
+                           l_cert_name, l_loaded, l_validators_count);
+                    break;
+                }
                 if (i >= l_node_addrs_count)
                     log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
                 else
@@ -433,7 +452,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_chipchain_pvt->poa_validators = dap_list_append(l_chipchain_pvt->poa_validators, l_validator);
         log_it(L_MSG, "add validator addr "NODE_ADDR_FP_STR", signing addr %s", NODE_ADDR_FP_ARGS_S(l_signer_node_addr), dap_chain_addr_to_str_static(&l_signing_addr));
 
-        if (!l_chipchain_pvt->poa_mode) {
+        {
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, NULL, NULL,
                                                  l_weight, &l_signer_node_addr, l_validator->pkey);
@@ -891,8 +910,18 @@ static int s_callback_start(dap_chain_t *a_chain)
                                                       dap_guuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_chipchain),
                                                       l_sync_group, chipchain_PENALTY_TTL, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_TYPE_AUTONOMIC);
-    dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
-    dap_global_db_erase_table_sync(l_sync_group);
+    if (l_session->db_cluster) {
+        dap_link_manager_add_net_associate(l_net->pub.id.uint64, l_session->db_cluster->links_cluster);
+        dap_global_db_erase_table_sync(l_sync_group);
+    } else {
+        l_session->db_cluster = dap_global_db_cluster_by_group(dap_global_db_instance_get_default(), l_sync_group);
+        if (!l_session->db_cluster) {
+            log_it(L_ERROR, "Can't get penalty GlobalDB cluster for net %s", l_net->pub.name);
+            dap_list_free_full(l_validators, NULL);
+            DAP_DELETE(l_sync_group);
+            return -8;
+        }
+    }
     DAP_DELETE(l_sync_group);
 
 #ifdef DAP_CHAIN_CS_CHIPCHAIN_DIRECTIVE_SUPPORT
@@ -2709,12 +2738,22 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         log_it(L_WARNING, "Wrong packet destination address" NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_message->hdr.recv_addr));
         return false;
     }
-    dap_chain_chipchain_session_t *l_session;
-    dap_dl_foreach(s_session_items, l_session)
-        if (l_session->chain->net_id.uint64 == l_net->pub.id.uint64)
+    /* Match both net and chain: a net can run chipchain on zerochain + main.
+     * Picking the first net_id hit routes main START_SYNC into the zerochain
+     * session, which then drops the packet on chain_id mismatch (silent under
+     * non-DAP_DEBUG builds) and consensus never leaves START_SYNC. */
+    dap_chain_chipchain_session_t *l_session = NULL;
+    dap_chain_chipchain_session_t *l_it;
+    dap_dl_foreach(s_session_items, l_it) {
+        if (l_it->chain->net_id.uint64 == l_net->pub.id.uint64 &&
+            l_it->chain->id.uint64 == l_message->hdr.chain_id.uint64) {
+            l_session = l_it;
             break;
+        }
+    }
     if (!l_session) {
-        log_it(L_WARNING, "Session for net %s not found", l_net->pub.name);
+        log_it(L_WARNING, "Session for net %s chain_id 0x%" DAP_UINT64_FORMAT_x " not found",
+               l_net->pub.name, l_message->hdr.chain_id.uint64);
         a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         return false;
     }
@@ -3558,10 +3597,15 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
         return 0;
     }
 
-    // Legacy mode: individual signature verification
-    if (l_signs_count < l_chipchain_pvt->min_validators_count) {
+    // Legacy mode: individual signature verification.
+    // Use bootstrap floor for historical blocks — current min_validators_count
+    // applies to new rounds, not to re-validating already-sealed seed blocks.
+    uint16_t l_min_signs_required = l_chipchain_pvt->start_validators_min
+                                        ? l_chipchain_pvt->start_validators_min
+                                        : l_chipchain_pvt->min_validators_count;
+    if (l_signs_count < l_min_signs_required) {
         log_it(L_ERROR, "Corrupted block  %s: not enough signs: %zu of %hu", dap_hash_sha3_256_to_str_static(a_block_hash),
-                                    l_signs_count, l_chipchain_pvt->min_validators_count);
+                                    l_signs_count, l_min_signs_required);
         DAP_DELETE(l_signs);
         return -1;
     }
@@ -3647,9 +3691,9 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
         DAP_DELETE(l_block);
     else
         l_block->hdr.meta_n_datum_n_signs_size = l_block_original;
-    if (l_signs_verified_count < l_chipchain_pvt->min_validators_count) {
+    if (l_signs_verified_count < l_min_signs_required) {
         debug_if(l_chipchain_pvt->debug, L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
-                    dap_hash_sha3_256_to_str_static(a_block_hash), l_signs_verified_count, l_chipchain_pvt->min_validators_count);
+                    dap_hash_sha3_256_to_str_static(a_block_hash), l_signs_verified_count, l_min_signs_required);
         return l_ret ? l_ret : -4;
     }
     return 0;

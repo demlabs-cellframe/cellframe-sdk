@@ -2198,6 +2198,8 @@ int com_token(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply, int a_ve
 
 int dap_chain_ledger_cli_init(void)
 {
+    dap_chain_ledger_cli_error_codes_init();
+
     dap_cli_server_cmd_add("ledger", com_ledger, NULL,
                            "Ledger information",
                            -1,

@@ -499,6 +499,13 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
         return true;
     }
     int l_verify_datum = dap_chain_net_verify_datum_for_add(a_chain, a_datum, &l_datum_hash);
+    if (l_verify_datum == DAP_LEDGER_CHECK_ALREADY_CACHED) {
+        /* Datum is already in ledger — drop stale mempool copy instead of
+         * re-queuing it into the candidate block on every proc_all pass. */
+        if (a_ret)
+            *a_ret = 0;
+        return true;
+    }
     if (l_verify_datum != 0 &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
@@ -532,8 +539,12 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
     debug_if(g_dap_global_db_debug_more, L_INFO, "mempool_process_all: group '%s', force=%d, found %zu objects", l_gdb_group_mempool, a_force, l_objs_count);
     if (l_objs_count) {
         for (size_t i = 0; i < l_objs_count; i++) {
-            if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
+            if (l_objs[i].value_len < sizeof(dap_chain_datum_t)) {
+                /* Tombstone left by del_ex (ret code only) — purge so it does
+                 * not block mempool iteration or confuse datum find. */
+                dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
                 continue;
+            }
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
                 continue;

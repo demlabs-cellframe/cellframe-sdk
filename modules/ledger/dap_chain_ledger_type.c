@@ -43,16 +43,15 @@ static int s_open_tx_check(dap_ledger_t *a_ledger,
                             size_t a_tx_size,
                             dap_hash_fast_t *a_tx_hash)
 {
-    /* Delegate to existing UTXO verification */
-    return dap_ledger_tx_add_check(a_ledger, a_tx, a_tx_size, a_tx_hash);
+    (void)a_tx_size;
+    return dap_ledger_tx_utxo_check(a_ledger, a_tx, a_tx_hash, true);
 }
 
 static int s_open_tx_add(dap_ledger_t *a_ledger,
                           dap_chain_datum_tx_t *a_tx,
                           dap_hash_fast_t *a_tx_hash)
 {
-    /* Delegate to existing UTXO add */
-    return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, NULL);
+    return dap_ledger_tx_add_impl(a_ledger, a_tx, a_tx_hash, false, NULL);
 }
 
 static int s_open_tx_remove(dap_ledger_t *a_ledger,
@@ -96,13 +95,17 @@ typedef struct dap_ledger_anon_ctx {
     chipmunk_pedersen_params_t pedersen_params;
     dap_ledger_anon_key_image_t *key_images;
     pthread_rwlock_t key_images_rwlock;
+    char *ledger_name;
 } dap_ledger_anon_ctx_t;
 
 /* Initialize anonymous context */
-static dap_ledger_anon_ctx_t *s_anon_ctx_new(void)
+static dap_ledger_anon_ctx_t *s_anon_ctx_new(const char *a_ledger_name)
 {
     dap_ledger_anon_ctx_t *ctx = DAP_NEW_Z(dap_ledger_anon_ctx_t);
     if (!ctx) return NULL;
+
+    if (a_ledger_name)
+        ctx->ledger_name = dap_strdup(a_ledger_name);
 
     /* Initialize SNARK context */
     if (chipmunk_snark_init(&ctx->snark_ctx) != 0) {
@@ -137,14 +140,45 @@ static void s_anon_ctx_free(dap_ledger_anon_ctx_t *ctx)
         DAP_DELETE(l_item);
     }
     pthread_rwlock_destroy(&ctx->key_images_rwlock);
+    DAP_DELETE(ctx->ledger_name);
     DAP_DELETE(ctx);
+}
+
+static int s_key_image_gdb_persist(dap_ledger_t *a_ledger,
+                                    const dap_chain_hash_fast_t *a_image_hash,
+                                    const dap_chain_hash_fast_t *a_tx_hash)
+{
+    if (!a_ledger || !is_ledger_cached(PVT(a_ledger)))
+        return 0;
+
+    char *l_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_KEY_IMAGES_STR);
+    char l_key_str[DAP_HASH_SHA3_256_STR_SIZE];
+    dap_hash_fast_to_str(a_image_hash, l_key_str, sizeof(l_key_str));
+    int l_rc = dap_global_db_set(l_group, l_key_str, (byte_t *)a_tx_hash, sizeof(*a_tx_hash), false, NULL, NULL);
+    DAP_DELETE(l_group);
+    return l_rc ? -EIO : 0;
+}
+
+static void s_key_image_gdb_remove(dap_ledger_t *a_ledger,
+                                    const dap_chain_hash_fast_t *a_image_hash)
+{
+    if (!a_ledger || !is_ledger_cached(PVT(a_ledger)))
+        return;
+
+    char *l_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_KEY_IMAGES_STR);
+    char l_key_str[DAP_HASH_SHA3_256_STR_SIZE];
+    dap_hash_fast_to_str(a_image_hash, l_key_str, sizeof(l_key_str));
+    dap_global_db_del(l_group, l_key_str, NULL, NULL);
+    DAP_DELETE(l_group);
 }
 
 /* Add key image to tracking — atomic check-and-add under write lock
  * to prevent TOCTOU race between check and insertion. */
 static int s_key_image_add(dap_ledger_anon_ctx_t *ctx,
                             const dap_chain_hash_fast_t *image_hash,
-                            const dap_chain_hash_fast_t *tx_hash)
+                            const dap_chain_hash_fast_t *tx_hash,
+                            dap_ledger_t *a_ledger,
+                            bool a_persist)
 {
     dap_ledger_anon_key_image_t *l_item = DAP_NEW_Z(dap_ledger_anon_key_image_t);
     if (!l_item) return -ENOMEM;
@@ -164,12 +198,25 @@ static int s_key_image_add(dap_ledger_anon_ctx_t *ctx,
     dap_ht_add(ctx->key_images, image_hash, l_item);
     pthread_rwlock_unlock(&ctx->key_images_rwlock);
 
+    if (a_persist && a_ledger) {
+        int l_gdb_rc = s_key_image_gdb_persist(a_ledger, image_hash, tx_hash);
+        if (l_gdb_rc != 0) {
+            pthread_rwlock_wrlock(&ctx->key_images_rwlock);
+            dap_ht_del(ctx->key_images, l_item);
+            pthread_rwlock_unlock(&ctx->key_images_rwlock);
+            DAP_DELETE(l_item);
+            return l_gdb_rc;
+        }
+    }
+
     return 0;
 }
 
 /* Remove key image from tracking (TX rollback) */
 static void s_key_image_remove(dap_ledger_anon_ctx_t *ctx,
-                                const dap_chain_hash_fast_t *image_hash)
+                                const dap_chain_hash_fast_t *image_hash,
+                                dap_ledger_t *a_ledger,
+                                bool a_persist)
 {
     pthread_rwlock_wrlock(&ctx->key_images_rwlock);
     dap_ledger_anon_key_image_t *l_item = NULL;
@@ -177,18 +224,60 @@ static void s_key_image_remove(dap_ledger_anon_ctx_t *ctx,
     if (l_item) {
         dap_ht_del(ctx->key_images, l_item);
         DAP_DELETE(l_item);
+        if (a_persist && a_ledger)
+            s_key_image_gdb_remove(a_ledger, image_hash);
     }
     pthread_rwlock_unlock(&ctx->key_images_rwlock);
+}
+
+static int s_key_image_check_unused(dap_ledger_anon_ctx_t *ctx,
+                                    const dap_chain_hash_fast_t *image_hash)
+{
+    dap_ledger_anon_key_image_t *l_existing = NULL;
+
+    pthread_rwlock_rdlock(&ctx->key_images_rwlock);
+    dap_ht_find(ctx->key_images, image_hash, sizeof(dap_chain_hash_fast_t), l_existing);
+    pthread_rwlock_unlock(&ctx->key_images_rwlock);
+    return l_existing ? -EEXIST : 0;
+}
+
+static int s_anon_tx_key_images_commit(dap_ledger_anon_ctx_t *a_anon,
+                                       dap_chain_datum_tx_t *a_tx,
+                                       const dap_hash_fast_t *a_tx_hash,
+                                       dap_ledger_t *a_ledger)
+{
+    const dap_chain_tx_key_image_t **l_images = NULL;
+    size_t l_image_count = 0;
+    int l_rc = dap_chain_datum_tx_get_key_images(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx),
+                                                 &l_images, &l_image_count);
+    if (l_rc != 0) {
+        DAP_DELETE(l_images);
+        return l_rc;
+    }
+
+    for (size_t i = 0; i < l_image_count; ++i) {
+        dap_chain_hash_fast_t l_image_hash;
+        dap_hash_fast(l_images[i]->image, sizeof(l_images[i]->image), &l_image_hash);
+
+        l_rc = s_key_image_add(a_anon, &l_image_hash, a_tx_hash, a_ledger, true);
+        if (l_rc != 0) {
+            log_it(L_WARNING, "Failed to commit key image: %d", l_rc);
+            DAP_DELETE(l_images);
+            return l_rc;
+        }
+    }
+    DAP_DELETE(l_images);
+    return 0;
 }
 
 /* -------------------------------------------------------------------------
  * Anonymous TX verification
  * ---------------------------------------------------------------------- */
 
-static int s_anon_tx_check(dap_ledger_t *a_ledger,
-                            dap_chain_datum_tx_t *a_tx,
-                            size_t a_tx_size,
-                            dap_hash_fast_t *a_tx_hash)
+static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
+                                    dap_chain_datum_tx_t *a_tx,
+                                    dap_hash_fast_t *a_tx_hash,
+                                    bool a_commit_key_images)
 {
     if (!a_ledger || !a_tx || !a_tx_hash) return -EINVAL;
 
@@ -199,11 +288,9 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
         return -EINVAL;
     }
 
-    /* 1. Check basic TX structure (same as open ledger) */
-    int l_rc = dap_ledger_tx_add_check(a_ledger, a_tx, a_tx_size, a_tx_hash);
-    if (l_rc != 0) return l_rc;
+    int l_rc = 0;
 
-    /* 2. Verify SNARK ring membership proofs from IN_ANON items.
+    /* Verify SNARK ring membership proofs from IN_ANON items.
      * Proofs are embedded in IN_ANON items (not standalone ANON_PROOF items).
      * Ring public keys follow the IN_ANON struct as variable-length data. */
     const uint8_t *l_item_snark = a_tx->tx_items;
@@ -308,15 +395,20 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
         dap_chain_hash_fast_t l_image_hash;
         dap_hash_fast(l_images[i]->image, sizeof(l_images[i]->image), &l_image_hash);
 
-        int l_add_rc = s_key_image_add(l_anon, &l_image_hash, a_tx_hash);
-        if (l_add_rc == -EEXIST) {
+        int l_ki_rc;
+        if (a_commit_key_images)
+            l_ki_rc = s_key_image_add(l_anon, &l_image_hash, a_tx_hash, a_ledger, true);
+        else
+            l_ki_rc = s_key_image_check_unused(l_anon, &l_image_hash);
+
+        if (l_ki_rc == -EEXIST) {
             log_it(L_WARNING, "Double-spend attempt detected: key image already used");
             DAP_DELETE(l_images);
             return -EINVAL;
-        } else if (l_add_rc != 0) {
-            log_it(L_WARNING, "Failed to record key image: %d", l_add_rc);
+        } else if (l_ki_rc != 0) {
+            log_it(L_WARNING, "Key image check failed: %d", l_ki_rc);
             DAP_DELETE(l_images);
-            return l_add_rc;
+            return l_ki_rc;
         }
     }
     DAP_DELETE(l_images);
@@ -354,38 +446,55 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
     return 0; /* Valid anonymous TX */
 }
 
+int dap_ledger_anon_tx_verify(dap_ledger_t *a_ledger,
+                              dap_chain_datum_tx_t *a_tx,
+                              dap_hash_fast_t *a_tx_hash)
+{
+    return s_anon_tx_crypto_verify(a_ledger, a_tx, a_tx_hash, false);
+}
+
+int dap_ledger_anon_tx_key_images_commit(dap_ledger_t *a_ledger,
+                                         dap_chain_datum_tx_t *a_tx,
+                                         dap_hash_fast_t *a_tx_hash)
+{
+    if (!a_ledger || !a_tx || !a_tx_hash)
+        return -EINVAL;
+
+    dap_ledger_private_t *l_pvt = PVT(a_ledger);
+    dap_ledger_anon_ctx_t *l_anon = (dap_ledger_anon_ctx_t *)l_pvt->anon_data;
+    if (!l_anon) {
+        log_it(L_ERROR, "Anonymous context not initialized");
+        return -EINVAL;
+    }
+
+    return s_anon_tx_key_images_commit(l_anon, a_tx, a_tx_hash, a_ledger);
+}
+
+static int s_anon_tx_check(dap_ledger_t *a_ledger,
+                            dap_chain_datum_tx_t *a_tx,
+                            size_t a_tx_size,
+                            dap_hash_fast_t *a_tx_hash)
+{
+    (void)a_tx_size;
+
+    int l_rc = dap_ledger_tx_utxo_check(a_ledger, a_tx, a_tx_hash, true);
+    if (l_rc)
+        return l_rc;
+
+    if (dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size))
+        return dap_ledger_anon_tx_verify(a_ledger, a_tx, a_tx_hash);
+
+    return DAP_LEDGER_CHECK_OK;
+}
+
 static int s_anon_tx_add(dap_ledger_t *a_ledger,
                           dap_chain_datum_tx_t *a_tx,
                           dap_hash_fast_t *a_tx_hash)
 {
-    if (!a_ledger || !a_tx || !a_tx_hash) return -EINVAL;
+    if (!a_ledger || !a_tx || !a_tx_hash)
+        return -EINVAL;
 
-    dap_ledger_private_t *l_pvt = PVT(a_ledger);
-    dap_ledger_anon_ctx_t *l_anon = (dap_ledger_anon_ctx_t *)l_pvt->anon_data;
-
-    /* Key images were already atomically recorded during s_anon_tx_check()
-     * (which calls s_key_image_add() under write lock). No need to add again. */
-
-    /* 1. Add TX to ledger — key images already committed in check phase */
-    int l_rc = dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, NULL);
-    if (l_rc != 0) {
-        /* TX add failed — roll back key images recorded during check phase */
-        if (l_anon) {
-            const dap_chain_tx_key_image_t **l_rb_images = NULL;
-            size_t l_rb_count = 0;
-            if (dap_chain_datum_tx_get_key_images(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx), &l_rb_images, &l_rb_count) == 0 && l_rb_images) {
-                for (size_t i = 0; i < l_rb_count; ++i) {
-                    dap_chain_hash_fast_t l_rb_hash;
-                    dap_hash_fast(l_rb_images[i]->image, sizeof(l_rb_images[i]->image), &l_rb_hash);
-                    s_key_image_remove(l_anon, &l_rb_hash);
-                }
-                DAP_DELETE(l_rb_images);
-            }
-        }
-        return l_rc;
-    }
-
-    return 0;
+    return dap_ledger_tx_add_impl(a_ledger, a_tx, a_tx_hash, false, NULL);
 }
 
 static int s_anon_tx_remove(dap_ledger_t *a_ledger,
@@ -404,6 +513,8 @@ static int s_anon_tx_remove(dap_ledger_t *a_ledger,
         pthread_rwlock_wrlock(&l_anon->key_images_rwlock);
         dap_ht_foreach(l_anon->key_images, l_item, l_tmp) {
             if (dap_hash_fast_compare(&l_item->tx_hash, a_tx_hash)) {
+                if (a_ledger)
+                    s_key_image_gdb_remove(a_ledger, &l_item->image_hash);
                 dap_ht_del(l_anon->key_images, l_item);
                 DAP_DELETE(l_item);
             }
@@ -576,9 +687,57 @@ const char *dap_ledger_anon_type_name(dap_ledger_anon_type_t a_type)
  * Public anon context API
  * ---------------------------------------------------------------------- */
 
-void *dap_ledger_anon_ctx_create(void)
+void *dap_ledger_anon_ctx_create(const char *a_ledger_name)
 {
-    return (void *)s_anon_ctx_new();
+    return (void *)s_anon_ctx_new(a_ledger_name);
+}
+
+void dap_ledger_anon_key_images_load(dap_ledger_t *a_ledger)
+{
+    if (!a_ledger || PVT(a_ledger)->ledger_type != DAP_LEDGER_TYPE_ANON || !PVT(a_ledger)->anon_data)
+        return;
+    if (!is_ledger_cached(PVT(a_ledger)))
+        return;
+
+    dap_ledger_anon_ctx_t *l_anon = (dap_ledger_anon_ctx_t *)PVT(a_ledger)->anon_data;
+    char *l_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_KEY_IMAGES_STR);
+    size_t l_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_count);
+    DAP_DELETE(l_group);
+    if (!l_objs)
+        return;
+
+    for (size_t i = 0; i < l_count; ++i) {
+        if (l_objs[i].value_len != sizeof(dap_chain_hash_fast_t))
+            continue;
+        dap_chain_hash_fast_t l_image_hash = {};
+        dap_hash_fast_from_str(l_objs[i].key, &l_image_hash);
+        dap_chain_hash_fast_t l_tx_hash = *(dap_chain_hash_fast_t *)l_objs[i].value;
+        s_key_image_add(l_anon, &l_image_hash, &l_tx_hash, a_ledger, false);
+    }
+    dap_global_db_objs_delete(l_objs, l_count);
+}
+
+void dap_ledger_anon_key_images_purge(dap_ledger_t *a_ledger)
+{
+    if (!a_ledger || !is_ledger_cached(PVT(a_ledger)))
+        return;
+
+    char *l_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_KEY_IMAGES_STR);
+    dap_global_db_erase_table(l_group, NULL, NULL);
+    DAP_DELETE(l_group);
+
+    dap_ledger_anon_ctx_t *l_anon = (dap_ledger_anon_ctx_t *)PVT(a_ledger)->anon_data;
+    if (!l_anon)
+        return;
+
+    dap_ledger_anon_key_image_t *l_item, *l_tmp;
+    pthread_rwlock_wrlock(&l_anon->key_images_rwlock);
+    dap_ht_foreach(l_anon->key_images, l_item, l_tmp) {
+        dap_ht_del(l_anon->key_images, l_item);
+        DAP_DELETE(l_item);
+    }
+    pthread_rwlock_unlock(&l_anon->key_images_rwlock);
 }
 
 void dap_ledger_anon_ctx_free(void *a_ctx)

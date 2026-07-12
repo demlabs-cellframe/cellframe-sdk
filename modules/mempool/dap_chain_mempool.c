@@ -66,6 +66,7 @@
 #include "dap_chain_wallet.h"  // For dap_chain_wallet_get_list_tx_outs_with_val
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_anon.h"
 #include "dap_chain_datum_tx_items.h"
 // REMOVED: dap_chain_block_tx.h - deprecated wrapper functions removed to break mempool <-> blocks cycle
 // REMOVED: dap_chain_wallet.h - dead include, not used
@@ -300,24 +301,40 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_sha3_256_t *
         
         // Check each TX in mempool
         for (size_t i = 0; i < l_objs_count; i++) {
+            if (l_objs[i].value_len < sizeof(dap_chain_datum_t))
+                continue;
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
                 continue;
-            
+            if (dap_chain_datum_size(l_datum) != l_objs[i].value_len)
+                continue;
+
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-            
-            // Check all inputs
+
+            // Check all inputs (plain, conditional, and anonymous)
             byte_t *l_item = NULL;
             size_t l_item_size = 0;
             TX_ITEM_ITER_TX(l_item, l_item_size, l_tx) {
-                if (*l_item != TX_ITEM_TYPE_IN && *l_item != TX_ITEM_TYPE_IN_COND)
-                    continue;
-                
-                dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t *)l_item;
-                if (dap_hash_sha3_256_compare(&l_in->header.tx_prev_hash, a_out_hash) &&
-                    l_in->header.tx_out_prev_idx == a_out_idx) {
-                    dap_global_db_objs_delete(l_objs, l_objs_count);
-                    return true;  // Found: output is spent
+                switch (*l_item) {
+                case TX_ITEM_TYPE_IN:
+                case TX_ITEM_TYPE_IN_COND: {
+                    dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t *)l_item;
+                    if (dap_hash_sha3_256_compare(&l_in->header.tx_prev_hash, a_out_hash) &&
+                            l_in->header.tx_out_prev_idx == a_out_idx) {
+                        dap_global_db_objs_delete(l_objs, l_objs_count);
+                        return true;
+                    }
+                } break;
+                case TX_ITEM_TYPE_IN_ANON: {
+                    const dap_chain_tx_in_anon_t *l_in_anon = (const dap_chain_tx_in_anon_t *)l_item;
+                    if (dap_hash_sha3_256_compare((dap_hash_sha3_256_t *)&l_in_anon->prev_hash, a_out_hash) &&
+                            l_in_anon->prev_out_idx == a_out_idx) {
+                        dap_global_db_objs_delete(l_objs, l_objs_count);
+                        return true;
+                    }
+                } break;
+                default:
+                    break;
                 }
             }
         }

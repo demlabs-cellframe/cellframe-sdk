@@ -161,6 +161,11 @@ struct chain_sync_context {
     dap_chain_cell_t        *cur_cell;
     dap_hash_sha3_256_t         requested_atom_hash;
     uint64_t                requested_atom_num;
+    /* Consecutive SYNCED_CHAIN replies while local chain is still empty.
+     * Empty peers must not short-circuit sync when chain is expected to have data. */
+    uint32_t                empty_sync_retries;
+    /* Keep cur_chain across s_restart_sync_chains (empty-peer retry). */
+    bool                    retry_current_chain_only;
 };
 
 /**
@@ -3042,8 +3047,42 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
             break;
         }
         log_it(L_DEBUG, "Got SYNCED_CHAIN paket to %s chain net %s", l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
-        l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
-        l_net_pvt->sync_context.cur_chain->atom_num_last = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
+        {
+            dap_chain_t *l_chain = l_net_pvt->sync_context.cur_chain;
+            uint64_t l_local_atoms = l_chain->callback_count_atom(l_chain);
+            if (l_local_atoms == 0) {
+                /* Cold start (no static genesis): empty peers are normal — accept.
+                 * Joining a sealed chain: empty peer must not stop sync — try others. */
+                bool l_expect_atoms = false;
+                if (l_chain->config) {
+                    const char *l_sg = dap_config_get_item_str_default(l_chain->config, "blocks",
+                                                                       "static_genesis_block", NULL);
+                    l_expect_atoms = dap_config_get_item_bool_default(l_chain->config, "blocks",
+                                                                      "is_static_genesis_block", false)
+                                     && l_sg && l_sg[0];
+                }
+                if (l_expect_atoms) {
+                    dap_cluster_t *l_cluster = dap_cluster_by_mnemonim(l_net->pub.name);
+                    size_t l_links = l_cluster ? dap_cluster_members_count(l_cluster) : 0;
+                    uint32_t l_retry = ++l_net_pvt->sync_context.empty_sync_retries;
+                    if (l_links > 1 && l_retry < l_links) {
+                        log_it(L_WARNING, "Got SYNCED_CHAIN for still-empty chain %s from "
+                               NODE_ADDR_FP_STR " (retry %u/%zu), trying another link. Net %s",
+                               l_chain->name, NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
+                               l_retry, l_links, l_net->pub.name);
+                        l_net_pvt->sync_context.retry_current_chain_only = true;
+                        l_chain->state = CHAIN_SYNC_STATE_ERROR;
+                        break;
+                    }
+                    log_it(L_NOTICE, "Accepting empty SYNCED_CHAIN for chain %s after %u retries. Net %s",
+                           l_chain->name, l_retry, l_net->pub.name);
+                }
+            }
+            l_net_pvt->sync_context.empty_sync_retries = 0;
+            l_net_pvt->sync_context.retry_current_chain_only = false;
+            l_chain->state = CHAIN_SYNC_STATE_SYNCED;
+            l_chain->atom_num_last = l_local_atoms;
+        }
         break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS: {
@@ -3151,18 +3190,53 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net)
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
 
     dap_cluster_t *l_cluster = dap_cluster_by_mnemonim(a_net->pub.name);
-    if (!dap_cluster_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
-        dap_stream_ch_del_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
+    dap_cluster_node_addr_t l_prev_link = l_net_pvt->sync_context.current_link;
+    if (!dap_cluster_node_addr_is_blank(&l_prev_link)) {
+        dap_stream_ch_del_notifier(&l_prev_link, DAP_CHAIN_CH_ID,
                                     DAP_STREAM_PKT_DIR_IN, s_ch_in_pkt_callback, a_net);
-        dap_stream_ch_del_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
+        dap_stream_ch_del_notifier(&l_prev_link, DAP_CHAIN_CH_ID,
                                     DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback, a_net);
     }
-    l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
+    /* Prefer a permanent link when bootstrapping an empty chain — random
+     * selection often hits fresh full/master peers that reply SYNCED at height 0. */
+    l_net_pvt->sync_context.current_link = (dap_cluster_node_addr_t){};
+    {
+        bool l_need_bootstrap = false;
+        dap_chain_t *l_ch = NULL;
+        dap_dl_foreach(a_net->pub.chains, l_ch) {
+            if (l_ch->callback_count_atom && l_ch->callback_count_atom(l_ch) == 0) {
+                l_need_bootstrap = true;
+                break;
+            }
+        }
+        if (l_need_bootstrap && l_net_pvt->permanent_links_addrs_count && l_cluster) {
+            uint16_t l_start = (uint16_t)(dap_random_uint16() % l_net_pvt->permanent_links_addrs_count);
+            for (uint16_t i = 0; i < l_net_pvt->permanent_links_addrs_count; i++) {
+                uint16_t l_idx = (uint16_t)((l_start + i) % l_net_pvt->permanent_links_addrs_count);
+                dap_cluster_node_addr_t l_cand = l_net_pvt->permanent_links_addrs[l_idx];
+                if (dap_cluster_node_addr_is_blank(&l_cand))
+                    continue;
+                if (l_cand.uint64 == l_prev_link.uint64)
+                    continue; /* skip peer that just gave us empty SYNCED */
+                if (dap_cluster_member_find_unsafe(l_cluster, &l_cand)) {
+                    l_net_pvt->sync_context.current_link = l_cand;
+                    break;
+                }
+            }
+        }
+    }
+    if (dap_cluster_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
+        l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
     if (dap_cluster_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
         log_it(L_DEBUG, "No links in net %s cluster", a_net->pub.name);
         return -2;     // No links in cluster
     }
-    l_net_pvt->sync_context.cur_chain = a_net->pub.chains;
+    /* Empty-peer retry: keep the current chain, do not rewind to the first one. */
+    bool l_keep_chain = l_net_pvt->sync_context.retry_current_chain_only
+                        && l_net_pvt->sync_context.cur_chain;
+    l_net_pvt->sync_context.retry_current_chain_only = false;
+    if (!l_keep_chain)
+        l_net_pvt->sync_context.cur_chain = a_net->pub.chains;
     if (!l_net_pvt->sync_context.cur_chain) {
         log_it(L_ERROR, "No chains in net %s", a_net->pub.name);
         return -3;
@@ -3171,9 +3245,13 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net)
                                 DAP_STREAM_PKT_DIR_IN, s_ch_in_pkt_callback, a_net);
     dap_stream_ch_add_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
                                 DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback, a_net);
-    dap_chain_t *l_chain = NULL;
-    dap_dl_foreach(a_net->pub.chains, l_chain) {
-        l_chain->state = CHAIN_SYNC_STATE_IDLE;
+    if (l_keep_chain) {
+        l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_IDLE;
+    } else {
+        dap_chain_t *l_chain = NULL;
+        dap_dl_foreach(a_net->pub.chains, l_chain) {
+            l_chain->state = CHAIN_SYNC_STATE_IDLE;
+        }
     }
     l_net_pvt->sync_context.stage_last_activity = dap_time_now();
     return 0;

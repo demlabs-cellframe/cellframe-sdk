@@ -45,6 +45,8 @@
 #include "dap_chain_utxo.h"
 
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_pvt.h"
+#include "dap_chain_ledger_type.h"
 #include "dap_chain_ledger_cli.h"
 #include "dap_chain_ledger_cli_compat.h"
 #include "dap_chain_ledger_cli_error_codes.h"
@@ -58,7 +60,10 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_srv.h"
 #include "dap_chain_datum_tx_create.h"
+#include "dap_chain_datum_tx_anon.h"
 #include "dap_chain_tx_anon_create.h"
+#include "dap_chain_wallet_cache.h"
+#include "dap_hash.h"
 
 #define LOG_TAG "chain_net_tx_cli"
 
@@ -69,6 +74,42 @@
 
 #define dap_cli_error_get_code(x) (x)
 #define dap_cli_error_get_str(x)  #x
+
+static void s_seed_anon_out_manifest(const dap_chain_datum_t *a_datum,
+                                     const dap_chain_hash_fast_t *a_hash,
+                                     const dap_chain_tx_anon_out_manifest_t *a_manifest)
+{
+    if (!a_datum || !a_hash || !a_manifest || !a_manifest->count)
+        return;
+
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
+    uint32_t l_out_idx = 0;
+    uint8_t *l_item = NULL;
+    size_t l_size = 0;
+
+    TX_ITEM_ITER_TX(l_item, l_size, l_tx) {
+        if (*l_item == TX_ITEM_TYPE_OUT_ANON) {
+            const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
+            for (uint32_t i = 0; i < a_manifest->count; ++i) {
+                if (dap_chain_addr_compare(&l_out->addr, &a_manifest->outs[i].addr))
+                    dap_chain_wallet_cache_seed_anon_out_for_addr(&l_out->addr, l_out->token_ticker,
+                        a_hash, l_out_idx, a_manifest->outs[i].value);
+            }
+        }
+        switch (*l_item) {
+        case TX_ITEM_TYPE_OUT_OLD:
+        case TX_ITEM_TYPE_OUT:
+        case TX_ITEM_TYPE_OUT_EXT:
+        case TX_ITEM_TYPE_OUT_STD:
+        case TX_ITEM_TYPE_OUT_ANON:
+        case TX_ITEM_TYPE_OUT_COND:
+            ++l_out_idx;
+            break;
+        default:
+            break;
+        }
+    }
+}
 
 static dap_chain_wallet_t *s_wallet_open(const char *a_wallet_name)
 {
@@ -516,6 +557,11 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
     }
     /* Anonymous transaction mode */
     bool l_anonymous = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-anonymous", NULL);
+    if (l_anonymous && (!l_ledger || PVT(l_ledger)->ledger_type != DAP_LEDGER_TYPE_ANON)) {
+        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID,
+            "Anonymous transactions require ledger type 'anon'");
+        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID;
+    }
     const char *l_anon_set_str = NULL;
     size_t l_anon_set = 10; /* Default ring size for anonymous TX */
     if (l_anonymous) {
@@ -535,10 +581,13 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         }
     }
 
-    /* Fee is required for standard TX, optional for anonymous TX */
-    if (!l_anonymous && IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (l_fee_str && strcmp(l_fee_str, "0")))) {
-        dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256, "tx_create requires parameter '-fee' to be valid uint256");
-        return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256;
+    /* Fee is required for standard TX unless explicitly set to 0; optional for anonymous TX */
+    if (!l_anonymous && IS_ZERO_256(l_value_fee)) {
+        const bool l_fee_explicit_zero = l_fee_str && strcmp(l_fee_str, "0") == 0;
+        if (!l_fee_explicit_zero) {
+            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256, "tx_create requires parameter '-fee' to be valid uint256");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256;
+        }
     }
 
     if((!l_from_wallet_name && !l_emission_hash_str)||(l_from_wallet_name && l_emission_hash_str)) {
@@ -819,8 +868,9 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         }
 
         /* Create anonymous TX via dap_chain_tx_anon_transfer_auto_ring() */
+        dap_chain_tx_anon_out_manifest_t l_anon_manifest = { };
         dap_chain_datum_t *l_anon_datum = dap_chain_tx_anon_transfer_auto_ring(
-            l_anon_wallet, l_chain, l_token_ticker, l_value[0], l_addr_to[0], l_anon_set);
+            l_anon_wallet, l_chain, l_token_ticker, l_value[0], l_addr_to[0], l_anon_set, &l_anon_manifest);
         dap_enc_key_delete(l_anon_key);
         dap_chain_wallet_close(l_anon_wallet);
 
@@ -864,21 +914,21 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
 
         /* Add to mempool */
         char *l_anon_hash_str = dap_chain_mempool_datum_add(l_anon_datum, l_chain, l_hash_out_type);
+        if (l_anon_hash_str && l_anon_manifest.count) {
+            dap_chain_hash_fast_t l_anon_hash = {};
+            dap_hash_fast_from_str(l_anon_hash_str, &l_anon_hash);
+            s_seed_anon_out_manifest(l_anon_datum, &l_anon_hash, &l_anon_manifest);
+        }
         DAP_DELETE(l_anon_datum);
 
         dap_json_t *l_jobj_result = dap_json_object_new();
-        dap_json_t *l_jobj_transfer_status = NULL;
-        dap_json_t *l_jobj_tx_hash = NULL;
         if (l_anon_hash_str) {
-            l_jobj_transfer_status = dap_json_object_new_string("Ok");
-            l_jobj_tx_hash = dap_json_object_new_string(l_anon_hash_str);
-            dap_json_object_add_object(l_jobj_result, "transfer", l_jobj_transfer_status);
-            dap_json_object_add_object(l_jobj_result, "hash", l_jobj_tx_hash);
-            dap_json_object_add_object(l_jobj_result, "anonymous", dap_json_object_new_string("true"));
+            dap_json_object_add_string(l_jobj_result, "transfer", "Ok");
+            dap_json_object_add_string(l_jobj_result, "hash", l_anon_hash_str);
+            dap_json_object_add_string(l_jobj_result, "anonymous", "true");
             DAP_DELETE(l_anon_hash_str);
         } else {
-            l_jobj_transfer_status = dap_json_object_new_string("False");
-            dap_json_object_add_object(l_jobj_result, "transfer", l_jobj_transfer_status);
+            dap_json_object_add_string(l_jobj_result, "transfer", "False");
             l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
         }
         dap_json_array_add(a_json_arr_reply, l_jobj_result);
@@ -2029,6 +2079,8 @@ int com_tx_cond_unspent_find(int a_argc, char **a_argv, dap_json_t *a_json_arr_r
 
 int dap_chain_net_tx_cli_init(void)
 {
+    dap_chain_ledger_cli_error_codes_init();
+
     dap_cli_server_cmd_add("tx_create", com_tx_create, NULL,
                            "Create transaction (standard or anonymous)",
                            -1,

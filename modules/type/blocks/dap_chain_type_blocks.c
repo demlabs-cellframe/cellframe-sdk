@@ -830,7 +830,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
             size_t l_offset = 0;
             dap_json_object_add_int(json_obj_inf, a_version == 1 ? "Metadata: count" : "metadata_count", l_block->hdr.meta_count);
             dap_json_t *json_arr_meta_out = dap_json_array_new();
-            dap_json_array_add(a_json_arr_reply, json_obj_inf);
             for (uint32_t i=0; i < l_block->hdr.meta_count; i++) {
                 dap_json_t *json_obj_meta = dap_json_object_new();
                 dap_chain_block_meta_t *l_meta = (dap_chain_block_meta_t *)(l_block->meta_n_datum_n_sign + l_offset);
@@ -938,9 +937,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 const char *l_hash_str = !dap_strcmp(l_hash_out_type, "base58") ?
                         dap_enc_base58_encode_hash_to_str_static(&l_pkey_hash) :
                         dap_hash_sha3_256_to_str_static(&l_pkey_hash);
-                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_json_object_new_string(dap_sign_type_to_str( l_sign->header.type )));
-                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "size" : "sig_size",dap_json_object_new_uint64(l_sign_size));
-                dap_json_object_add_object(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash",dap_json_object_new_string(l_hash_str));
+                dap_json_object_add_string(json_obj_sign, a_version == 1 ? "type" : "sig_type", dap_sign_type_to_str(l_sign->header.type));
+                dap_json_object_add_uint64(json_obj_sign, a_version == 1 ? "size" : "sig_size", l_sign_size);
+                dap_json_object_add_string(json_obj_sign, a_version == 1 ? "pkey_hash" : "sig_pkey_hash", l_hash_str);
                 dap_pkey_t *l_pkey = dap_pkey_get_from_sign(l_sign);
                 uint256_t l_reward = l_chain->callback_calc_reward(l_chain, &l_block_cache->block_hash, l_pkey);
                 DAP_DELETE(l_pkey);
@@ -956,6 +955,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, dap_json_t *a_json_arr_reply
                 dap_json_array_add(a_json_arr_reply, json_arr_sign_out);
             else
                 dap_json_object_add_object(json_obj_inf, "signs", json_arr_sign_out);
+            dap_json_array_add(a_json_arr_reply, json_obj_inf);
         } break;
 
         case SUBCMD_LIST:{

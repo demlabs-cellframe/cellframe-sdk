@@ -132,6 +132,11 @@ dap_chain_wallet_cache_iter_t *dap_chain_wallet_cache_iter_create(dap_chain_addr
 void dap_chain_wallet_cache_iter_delete(dap_chain_wallet_cache_iter_t *a_iter);
 dap_chain_datum_tx_t *dap_chain_wallet_cache_iter_get(dap_chain_wallet_cache_iter_t *a_iter, dap_chain_wallet_getting_type_t a_type);
 
+void dap_chain_wallet_cache_seed_anon_out(const dap_chain_hash_fast_t *a_tx_hash, uint32_t a_out_idx, uint256_t a_value);
+void dap_chain_wallet_cache_seed_anon_out_for_addr(const dap_chain_addr_t *a_addr, const char *a_token_ticker,
+                                                   const dap_chain_hash_fast_t *a_tx_hash, uint32_t a_out_idx,
+                                                   uint256_t a_value);
+
 
 #ifdef __cplusplus
 }

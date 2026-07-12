@@ -38,6 +38,21 @@
 
 #define LOG_TAG "dap_chain_datum_tx_items"
 
+static size_t s_anon_tx_item_size(const byte_t *a_item, size_t a_max_size)
+{
+    if (!a_item)
+        return 0;
+    if (a_max_size && a_max_size < 8)
+        return 0;
+    uint32_t l_total = 0;
+    memcpy(&l_total, a_item + 4, sizeof(l_total));
+    if (l_total < 8)
+        return 0;
+    if (a_max_size && l_total > a_max_size)
+        return 0;
+    return l_total;
+}
+
 /**
  * Get item type by item name
  *
@@ -148,6 +163,12 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
                                         ((dap_chain_datum_tx_receipt_t*)a_item)->size < a_max_size ) ? 
                                         ((dap_chain_datum_tx_receipt_t*)a_item)->size : 0;
     }
+    case TX_ITEM_TYPE_IN_ANON:
+    case TX_ITEM_TYPE_OUT_ANON:
+    case TX_ITEM_TYPE_KEY_IMAGE:
+    case TX_ITEM_TYPE_ANON_PROOF:
+    case TX_ITEM_TYPE_PEDERSEN_COMMIT:
+        return s_anon_tx_item_size(a_item, a_max_size);
     default: return 0;
     }
 #undef m_tx_item_size

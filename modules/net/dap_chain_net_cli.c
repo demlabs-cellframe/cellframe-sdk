@@ -20,7 +20,8 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_tx.h"                // tx module exports include/
 #include "dap_chain_net_srv.h"               // srv/base exports include/
-#include "dap_chain_net_cli_error_codes.h"  // Error codes registration
+#include "dap_chain_net_cli_error_codes.h"
+#include "dap_chain_ledger_cli_error_codes.h"  // Error codes registration
 #include "dap_chain_net_node_list.h"         // For dap_chain_node_list_ip_check, dap_chain_net_node_list_request
 #include "dap_chain_node_rpc.h"              // For dap_chain_node_rpc_* functions
 #include "dap_chain_node_sync_client.h"      // For dap_chain_node_sync_handshake
@@ -1151,6 +1152,7 @@ static int s_cli_chain(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, 
 int dap_chain_net_cli_init(void)
 {
     dap_chain_net_cli_error_codes_init();
+    dap_chain_ledger_cli_error_codes_init();
     
     dap_cli_server_cmd_add("chain", s_cli_chain, NULL,
                            "Chain operations",
