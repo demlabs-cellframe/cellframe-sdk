@@ -396,7 +396,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
     if (PVT(a_ledger)->ledger_type != DAP_LEDGER_TYPE_ANON &&
             dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size))
-        return DAP_LEDGER_TX_CHECK_ANON_ITEM_FORBIDDEN;
+        return DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED;
 
 /*
  * Steps of checking for current transaction tx2 and every previous transaction tx1:
