@@ -54,7 +54,9 @@ typedef int (*dap_ledger_type_tx_check_cb_t)(
     dap_hash_fast_t *a_tx_hash);
 
 /**
- * TX addition callback.
+ * TX commit callback — type-specific side effects after UTXO checks pass
+ * (e.g. anonymous key-image commit). Invoked from dap_ledger_tx_add_impl
+ * immediately before the TX is inserted into the ledger cache.
  * @return 0 on success, negative on error.
  */
 typedef int (*dap_ledger_type_tx_add_cb_t)(
@@ -209,6 +211,14 @@ int dap_ledger_anon_tx_verify(dap_ledger_t *a_ledger,
 int dap_ledger_anon_tx_key_images_commit(dap_ledger_t *a_ledger,
                                          dap_chain_datum_tx_t *a_tx,
                                          dap_hash_fast_t *a_tx_hash);
+
+/**
+ * Dispatch type-specific TX commit hooks (tx_add callback).
+ * Called from dap_ledger_tx_add_impl after balance/UTXO checks pass.
+ */
+int dap_ledger_type_tx_add_commit(dap_ledger_t *a_ledger,
+                                  dap_chain_datum_tx_t *a_tx,
+                                  dap_hash_fast_t *a_tx_hash);
 
 #ifdef __cplusplus
 }

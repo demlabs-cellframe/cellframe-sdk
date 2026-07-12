@@ -2112,12 +2112,11 @@ int dap_ledger_tx_add_impl(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
         }
     }
 
-    if (PVT(a_ledger)->ledger_type == DAP_LEDGER_TYPE_ANON &&
-            dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size)) {
-        int l_ki_rc = dap_ledger_anon_tx_key_images_commit(a_ledger, a_tx, &l_tx_hash);
-        if (l_ki_rc != 0) {
-            log_it(L_WARNING, "Anonymous TX %s: key image commit failed: %d", l_tx_hash_str, l_ki_rc);
-            l_ret = l_ki_rc;
+    {
+        int l_commit_rc = dap_ledger_type_tx_add_commit(a_ledger, a_tx, &l_tx_hash);
+        if (l_commit_rc != 0) {
+            log_it(L_WARNING, "TX %s: type commit hook failed: %d", l_tx_hash_str, l_commit_rc);
+            l_ret = l_commit_rc;
             goto FIN;
         }
     }
@@ -2483,14 +2482,17 @@ FIN:
 
 int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
-    if (a_from_threshold || a_datum_index_data)
-        return dap_ledger_tx_add_impl(a_ledger, a_tx, a_tx_hash, a_from_threshold, a_datum_index_data);
+    return dap_ledger_tx_add_impl(a_ledger, a_tx, a_tx_hash, a_from_threshold, a_datum_index_data);
+}
 
-    const dap_ledger_type_desc_t *l_desc = dap_ledger_type_get_by_enum((dap_ledger_type_t)PVT(a_ledger)->ledger_type);
-    if (l_desc && l_desc->tx_add)
-        return l_desc->tx_add(a_ledger, a_tx, a_tx_hash);
+int dap_ledger_tx_verify_and_commit(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data)
+{
+    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
+    int l_check = dap_ledger_tx_add_check(a_ledger, a_tx, l_tx_size, a_tx_hash);
+    if (l_check)
+        return l_check;
 
-    return dap_ledger_tx_add_impl(a_ledger, a_tx, a_tx_hash, false, NULL);
+    return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, a_from_threshold, a_datum_index_data);
 }
 
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
@@ -2508,12 +2510,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_h
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
 
-    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-    int l_check = dap_ledger_tx_add_check(a_ledger, a_tx, l_tx_size, a_tx_hash);
-    if (l_check)
-        return l_check;
-
-    return dap_ledger_tx_add_impl(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
+    return dap_ledger_tx_verify_and_commit(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
 
 static void s_ledger_stake_lock_cache_update(dap_ledger_t *a_ledger, dap_ledger_stake_lock_item_t *a_stake_lock_item)

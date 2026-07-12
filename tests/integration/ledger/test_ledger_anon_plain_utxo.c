@@ -97,6 +97,40 @@ static void test_anon_ledger_orchestrator_rejects_anon_without_inputs(void)
     s_destroy_ledger(l_ledger);
 }
 
+static void test_tx_load_matches_mempool_check_path(void)
+{
+    dap_ledger_t *l_ledger = s_create_ledger(DAP_LEDGER_TYPE_ANON);
+    dap_assert(l_ledger != NULL, "anon ledger create succeeds");
+
+    dap_chain_datum_tx_t *l_tx = s_make_stub_anon_tx();
+    dap_hash_sha3_256_t l_hash = {};
+    dap_hash_sha3_256(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_hash);
+
+    int l_check = dap_ledger_tx_add_check(l_ledger, l_tx, dap_chain_datum_tx_get_size(l_tx), &l_hash);
+    int l_load = dap_ledger_tx_load(l_ledger, l_tx, &l_hash, NULL);
+    dap_assert(l_check == l_load, "block/sync tx_load matches mempool tx_add_check for anon stub");
+
+    DAP_DELETE(l_tx);
+    s_destroy_ledger(l_ledger);
+}
+
+static void test_open_ledger_tx_load_rejects_anon_items(void)
+{
+    dap_ledger_t *l_ledger = s_create_ledger(DAP_LEDGER_TYPE_OPEN);
+    dap_assert(l_ledger != NULL, "open ledger create succeeds");
+
+    dap_chain_datum_tx_t *l_tx = s_make_stub_anon_tx();
+    dap_hash_sha3_256_t l_hash = {};
+    dap_hash_sha3_256(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_hash);
+
+    int l_load = dap_ledger_tx_load(l_ledger, l_tx, &l_hash, NULL);
+    dap_assert(l_load == DAP_LEDGER_TX_CHECK_ANON_ITEM_FORBIDDEN,
+               "open ledger tx_load rejects anon TX items");
+
+    DAP_DELETE(l_tx);
+    s_destroy_ledger(l_ledger);
+}
+
 int main(void)
 {
     dap_set_appname("test_ledger_anon_plain_utxo");
@@ -106,6 +140,8 @@ int main(void)
     test_anon_ledger_create_has_anon_data();
     test_open_ledger_rejects_anon_items();
     test_anon_ledger_orchestrator_rejects_anon_without_inputs();
+    test_tx_load_matches_mempool_check_path();
+    test_open_ledger_tx_load_rejects_anon_items();
 
     log_it(L_INFO, "=== test_ledger_anon_plain_utxo PASSED ===");
     dap_common_deinit();

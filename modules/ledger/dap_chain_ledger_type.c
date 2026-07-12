@@ -53,7 +53,10 @@ static int s_open_tx_add(dap_ledger_t *a_ledger,
                           dap_chain_datum_tx_t *a_tx,
                           dap_hash_fast_t *a_tx_hash)
 {
-    return dap_ledger_tx_add_impl(a_ledger, a_tx, a_tx_hash, false, NULL);
+    (void)a_ledger;
+    (void)a_tx;
+    (void)a_tx_hash;
+    return 0;
 }
 
 static int s_open_tx_remove(dap_ledger_t *a_ledger,
@@ -650,7 +653,24 @@ static int s_anon_tx_add(dap_ledger_t *a_ledger,
         return -EINVAL;
     }
 
-    return dap_ledger_tx_add_impl(a_ledger, a_tx, a_tx_hash, false, NULL);
+    if (!dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size))
+        return 0;
+
+    return dap_ledger_anon_tx_key_images_commit(a_ledger, a_tx, a_tx_hash);
+}
+
+int dap_ledger_type_tx_add_commit(dap_ledger_t *a_ledger,
+                                  dap_chain_datum_tx_t *a_tx,
+                                  dap_hash_fast_t *a_tx_hash)
+{
+    if (!a_ledger || !a_tx || !a_tx_hash)
+        return -EINVAL;
+
+    const dap_ledger_type_desc_t *l_desc =
+        dap_ledger_type_get_by_enum((dap_ledger_type_t)PVT(a_ledger)->ledger_type);
+    if (l_desc && l_desc->tx_add)
+        return l_desc->tx_add(a_ledger, a_tx, a_tx_hash);
+    return 0;
 }
 
 static int s_anon_tx_remove(dap_ledger_t *a_ledger,
