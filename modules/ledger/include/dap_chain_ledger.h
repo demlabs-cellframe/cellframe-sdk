@@ -322,7 +322,6 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL,
     DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE,
     DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN,
-    DAP_LEDGER_TX_CHECK_ANON_ITEM_FORBIDDEN,
     DAP_LEDGER_TX_CHECK_MIXED_ANON_TX,
     DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED,
     /* Emisssion check return codes */
@@ -500,7 +499,6 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_TIMELOCK_ILLEGAL: return "Usage of timed locked out is forbidden for this tx";
     case DAP_LEDGER_TX_CHECK_EVENT_VERIFY_FAILURE: return "Event verification failure";
     case DAP_LEDGER_TX_CHECK_STAKE_LOCK_LEGACY_FORBIDDEN: return "Legacy stakes are not accepted from mempool anymore!";
-    case DAP_LEDGER_TX_CHECK_ANON_ITEM_FORBIDDEN: return "Anonymous transaction items are forbidden on open ledger";
     case DAP_LEDGER_TX_CHECK_MIXED_ANON_TX: return "Transaction mixes standard and anonymous inputs";
     case DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED: return "Anonymous TX item types (IN_ANON/OUT_ANON/KEY_IMAGE) are mistyped for open ledger";
     /* Emisssion check return codes */

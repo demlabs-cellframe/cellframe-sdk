@@ -33,9 +33,7 @@ typedef enum dap_ledger_type {
 
 /* Anonymous ledger backend types */
 typedef enum dap_ledger_anon_type {
-    DAP_LEDGER_ANON_CHIPMUNK_SNARK = 0,  /* Chipmunk lattice-based SNARK (default) */
-    DAP_LEDGER_ANON_MRNG,                 /* MRNG threshold ring (O(log N)) */
-    DAP_LEDGER_ANON_LRS,                  /* LRS linkable ring (O(N)) */
+    DAP_LEDGER_ANON_CHIPMUNK_SNARK = 0,  /* Chipmunk lattice-based SNARK */
     DAP_LEDGER_ANON_MAX
 } dap_ledger_anon_type_t;
 

@@ -54,6 +54,7 @@ static int s_open_tx_add(dap_ledger_t *a_ledger,
                           dap_chain_datum_tx_t *a_tx,
                           dap_hash_fast_t *a_tx_hash)
 {
+    /* No type-specific add needed: UTXO state is updated in the shared dap_ledger_tx_add_impl() path */
     (void)a_ledger;
     (void)a_tx;
     (void)a_tx_hash;
@@ -63,7 +64,7 @@ static int s_open_tx_add(dap_ledger_t *a_ledger,
 static int s_open_tx_remove(dap_ledger_t *a_ledger,
                              dap_hash_fast_t *a_tx_hash)
 {
-    /* Open ledger: no type-specific cleanup needed on TX removal */
+    /* No type-specific cleanup needed: UTXO rollback is handled by the shared dap_ledger_tx_remove() */
     (void)a_ledger; (void)a_tx_hash;
     return 0;
 }
@@ -882,9 +883,7 @@ const char *dap_ledger_anon_type_name(dap_ledger_anon_type_t a_type)
 {
     switch (a_type) {
     case DAP_LEDGER_ANON_CHIPMUNK_SNARK: return "chipmunk_snark";
-    case DAP_LEDGER_ANON_MRNG:           return "mrng";
-    case DAP_LEDGER_ANON_LRS:            return "lrs";
-    default: return "unknown";
+    default:                             return "unknown";
     }
 }
 

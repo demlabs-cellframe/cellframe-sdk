@@ -16,8 +16,6 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain.h"
 #include "dap_chain_datum_tx.h"
-#include "chipmunk_snark.h"
-#include "chipmunk_pedersen.h"
 
 #define DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX 8
 
@@ -35,18 +33,6 @@ typedef struct dap_chain_tx_anon_out_manifest {
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* Anonymous TX creation context — DEPRECATED: use ledger's anon_data instead */
-typedef struct dap_chain_tx_anon_context {
-    chipmunk_snark_ctx_t snark_ctx;
-    chipmunk_pedersen_params_t pedersen_params;
-    bool initialized;
-} dap_chain_tx_anon_context_t __attribute__((deprecated("Use ledger's anon_data instead")));
-
-/* Init/deinit — DEPRECATED: crypto context is per-ledger, initialized in dap_ledger_anon_ctx_create() */
-int dap_chain_tx_anon_init(void) __attribute__((deprecated("No-op: ledger handles its own crypto context")));
-void dap_chain_tx_anon_deinit(void) __attribute__((deprecated("No-op: ledger handles its own crypto context")));
-dap_chain_tx_anon_context_t *dap_chain_tx_anon_get_context(void) __attribute__((deprecated("Use ledger's anon_data instead")));
 
 /**
  * Create anonymous transfer. Algorithm auto-detected from wallet key type.

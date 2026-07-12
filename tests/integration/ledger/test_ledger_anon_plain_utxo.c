@@ -90,8 +90,8 @@ static void test_anon_ledger_orchestrator_rejects_anon_without_inputs(void)
 
     /* Routed through type_desc → s_anon_tx_check → utxo structural + crypto verify */
     int l_rc = dap_ledger_tx_add_check(l_ledger, l_tx, dap_chain_datum_tx_get_size(l_tx), &l_hash);
-    dap_assert(l_rc != DAP_LEDGER_CHECK_OK && l_rc != DAP_LEDGER_TX_CHECK_ANON_ITEM_FORBIDDEN,
-               "anon orchestrator rejects incomplete anon TX (not open-forbidden)");
+    dap_assert(l_rc != DAP_LEDGER_CHECK_OK,
+               "anon orchestrator rejects incomplete anon TX");
 
     DAP_DELETE(l_tx);
     s_destroy_ledger(l_ledger);

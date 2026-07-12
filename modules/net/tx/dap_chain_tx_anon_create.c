@@ -238,23 +238,6 @@ static int s_find_signer_in_ring(const dap_chain_tx_anon_algo_t *algo,
     return 0;
 }
 
-int dap_chain_tx_anon_init(void)
-{
-    /* No-op: crypto context is per-ledger, initialized in dap_ledger_anon_ctx_create() */
-    return 0;
-}
-
-void dap_chain_tx_anon_deinit(void)
-{
-    /* No-op: crypto context is freed per-ledger in dap_ledger_anon_ctx_free() */
-}
-
-dap_chain_tx_anon_context_t *dap_chain_tx_anon_get_context(void)
-{
-    /* Deprecated: use ledger's anon_data instead */
-    return NULL;
-}
-
 /* Forward declaration */
 static void s_bind_key_image_to_utxo(uint8_t *a_ki, size_t a_ki_size,
                                      const dap_chain_hash_fast_t *a_prev_hash,
@@ -376,6 +359,13 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (!l_ledger_init || !l_ledger_init->_internal) return NULL;
     dap_ledger_anon_ctx_t *l_anon_init = (dap_ledger_anon_ctx_t *)((dap_ledger_private_t *)l_ledger_init->_internal)->anon_data;
     if (!l_anon_init) return NULL;
+
+    /* Only chipmunk_snark algo is currently supported for TX creation.
+     * LRS and other algos will fail at verification time — reject early. */
+    if (a_algo != &s_algo_chipmunk_ring) {
+        log_it(L_ERROR, "Algo '%s' is not supported for TX creation (only chipmunk_snark)", a_algo->name);
+        return NULL;
+    }
 
     size_t pk_sz = a_algo->pk_size();
     lotrs_params_t l_par = { .d = 512, .q = 3168257, .k = 6, .l = 3 };
