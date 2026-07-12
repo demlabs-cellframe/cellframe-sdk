@@ -959,10 +959,14 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
     dap_ledger_type_init();
 
     if (l_ledger_pvt->ledger_type == DAP_LEDGER_TYPE_ANON) {
-        log_it(L_INFO, "Ledger '%s' created in ANONYMOUS mode (backend: %s)",
-               l_ledger->name,
-               l_ledger_pvt->anon_type == 0 ? "chipmunk_snark" :
-               l_ledger_pvt->anon_type == 1 ? "mrng" : "lrs");
+        if (l_ledger_pvt->anon_type != 0) {
+            log_it(L_ERROR, "Ledger '%s': unsupported anon_type %d. Only chipmunk_snark (0) is supported.",
+                   l_ledger->name, l_ledger_pvt->anon_type);
+            dap_ledger_handle_free(l_ledger);
+            return NULL;
+        }
+        log_it(L_INFO, "Ledger '%s' created in ANONYMOUS mode (backend: chipmunk_snark)",
+               l_ledger->name);
 
         /* Initialize anonymous context */
         l_ledger_pvt->anon_data = dap_ledger_anon_ctx_create(l_ledger->name);

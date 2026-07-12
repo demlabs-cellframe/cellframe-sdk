@@ -1981,8 +1981,9 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
                 } else if (strcmp(l_anon_type_str, "lrs") == 0) {
                     l_opts->anon_type = 2;
                 } else {
-                    log_it(L_WARNING, "Unknown anon_type '%s', using chipmunk_snark", l_anon_type_str);
-                    l_opts->anon_type = 0;
+                    log_it(L_ERROR, "Unsupported anon_type '%s'. Only 'chipmunk_snark' is currently supported.", l_anon_type_str);
+                    DAP_DELETE(l_opts);
+                    return -1;
                 }
             } else {
                 l_opts->anon_type = 0;  /* default: chipmunk_snark */
