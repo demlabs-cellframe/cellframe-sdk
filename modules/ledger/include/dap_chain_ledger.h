@@ -553,6 +553,7 @@ bool dap_ledger_has_chain_id(dap_ledger_t *a_ledger, dap_chain_id_t a_chain_id);
 // Getters for ledger identification
 const char *dap_ledger_get_name(dap_ledger_t *a_ledger);
 dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger);
+uint8_t dap_ledger_get_type(dap_ledger_t *a_ledger);
 
 /**
  * @brief Find ledger by name

@@ -15,7 +15,19 @@
 #include "dap_chain_tx_compose_api.h"
 #include "dap_cli_server.h"  // For dap_cli_server_cmd_find_option_val
 #include "dap_chain_common.h" // For CHAIN_TYPE_TX
-// NO wallet/net/mempool includes - access via ledger callbacks only!
+#include "dap_chain_ledger_type.h"
+
+/* Must match anon_transfer_compose_params_t in dap_chain_tx_anon_compose.c */
+typedef struct {
+    const char *wallet_name;
+    const char *chain_name;
+    const char *token_ticker;
+    uint256_t value;
+    dap_chain_addr_t addr_to;
+    size_t anon_set;
+    uint256_t fee;
+    const char *hash_out_type;
+} anon_transfer_compose_params_t;
 
 #define LOG_TAG "ledger_cli_tx"
 
@@ -58,6 +70,21 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-H", &l_hash_out_type);
+    
+    // Anonymous TX parameters (auto-detected from ledger type)
+    const char *l_anon_set_str = NULL;
+    size_t l_anon_set = 10;
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-anon_set", &l_anon_set_str);
+    if (l_anon_set_str) {
+        l_anon_set = (size_t)strtoul(l_anon_set_str, NULL, 10);
+        if (l_anon_set < 8 || l_anon_set > 64) {
+            dap_json_rpc_error_add(a_json_arr_reply,
+                dap_cli_error_code_get("LEDGER_TX_CREATE_VALUE_INVALID"),
+                "Parameter '-anon_set' must be between 8 and 64");
+            return dap_cli_error_code_get("LEDGER_TX_CREATE_VALUE_INVALID");
+        }
+    }
+    bool l_anonymous = false;
     
     if (!l_hash_out_type) {
         l_hash_out_type = "hex";
@@ -125,6 +152,97 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
             "Invalid destination address: %s", l_to_addr_str);
         return dap_cli_error_code_get("LEDGER_TX_CREATE_DEST_ADDR_INVALID");
     }
+    
+    // Auto-detect anonymous mode from ledger type
+    l_anonymous = (dap_ledger_get_type(l_ledger) == DAP_LEDGER_TYPE_ANON);
+    
+    /* ===== Anonymous TX branch ===== */
+    if (l_anonymous) {
+        // Resolve chain name (default to "main" for anonymous TX)
+        const char *l_anon_chain_name = l_chain_name ? l_chain_name : "main";
+        
+        // Prepare anonymous transfer compose parameters
+        anon_transfer_compose_params_t l_anon_params = {
+            .wallet_name = l_from_wallet,
+            .chain_name = l_anon_chain_name,
+            .token_ticker = l_token_ticker,
+            .value = l_value,
+            .addr_to = *l_addr_to,
+            .anon_set = l_anon_set,
+            .fee = l_fee,
+            .hash_out_type = l_hash_out_type
+        };
+        
+        log_it(L_INFO, "Creating anonymous transfer TX: wallet=%s, chain=%s, token=%s, anon_set=%zu",
+               l_from_wallet, l_anon_chain_name, l_token_ticker, l_anon_set);
+        
+        dap_chain_datum_t *l_datum = dap_chain_tx_compose_create(
+            "anon_transfer",
+            l_ledger,
+            NULL,  // Anonymous TX does its own UTXO search internally
+            &l_anon_params
+        );
+        
+        DAP_DELETE(l_addr_to);
+        
+        if (!l_datum) {
+            dap_json_rpc_error_add(a_json_arr_reply,
+                dap_cli_error_code_get("LEDGER_TX_CREATE_FAILED"),
+                "Failed to create anonymous transaction. Check logs for details "
+                "(wallet key type must be sig_chipmunk_ring or sig_chipmunk_lrs, "
+                "insufficient balance, or SNARK error)");
+            return dap_cli_error_code_get("LEDGER_TX_CREATE_FAILED");
+        }
+        
+        // Get default TX chain from ledger registry
+        dap_chain_t *l_chain = NULL;
+        dap_chain_info_t *l_chain_info = NULL, *l_tmp = NULL;
+        dap_ht_foreach(l_ledger->chains_registry, l_chain_info, l_tmp) {
+            if (l_chain_info->chain_type == CHAIN_TYPE_TX) {
+                l_chain = (dap_chain_t *)l_chain_info->chain_ptr;
+                break;
+            }
+        }
+        
+        if (!l_chain) {
+            DAP_DELETE(l_datum);
+            dap_json_rpc_error_add(a_json_arr_reply,
+                dap_cli_error_code_get("LEDGER_CHAIN_NOT_FOUND"),
+                "No TX chain found in network");
+            return dap_cli_error_code_get("LEDGER_CHAIN_NOT_FOUND");
+        }
+        
+        // Add to mempool via ledger callback
+        if (!l_ledger->mempool_add_datum_callback) {
+            DAP_DELETE(l_datum);
+            dap_json_rpc_error_add(a_json_arr_reply,
+                dap_cli_error_code_get("LEDGER_MEMPOOL_FAILED"),
+                "Mempool callback not set");
+            return dap_cli_error_code_get("LEDGER_MEMPOOL_FAILED");
+        }
+        
+        char *l_hash_str = l_ledger->mempool_add_datum_callback(l_datum, l_chain, l_hash_out_type);
+        DAP_DELETE(l_datum);
+        
+        if (!l_hash_str) {
+            dap_json_rpc_error_add(a_json_arr_reply,
+                dap_cli_error_code_get("LEDGER_TX_CREATE_MEMPOOL_ADD_FAILED"),
+                "Failed to add anonymous transaction to mempool");
+            return dap_cli_error_code_get("LEDGER_TX_CREATE_MEMPOOL_ADD_FAILED");
+        }
+        
+        dap_json_t *l_result = dap_json_object_new();
+        dap_json_object_add_string(l_result, "status", "success");
+        dap_json_object_add_string(l_result, "tx_hash", l_hash_str);
+        dap_json_object_add_string(l_result, "anonymous", "true");
+        dap_json_array_add(a_json_arr_reply, l_result);
+        
+        DAP_DELETE(l_hash_str);
+        
+        log_it(L_NOTICE, "Anonymous transaction created successfully");
+        return 0;
+    }
+    /* ===== End anonymous TX branch ===== */
     
     // Get source address from wallet using ledger callback
     const dap_chain_addr_t *l_addr_from = NULL;

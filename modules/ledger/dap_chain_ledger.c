@@ -1025,6 +1025,16 @@ dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger)
     return a_ledger ? a_ledger->net_id : (dap_chain_net_id_t){0};
 }
 
+/**
+ * @brief Get ledger type (0=open, 1=anon)
+ */
+uint8_t dap_ledger_get_type(dap_ledger_t *a_ledger)
+{
+    if (!a_ledger || !a_ledger->_internal)
+        return 0;
+    return PVT(a_ledger)->ledger_type;
+}
+
 // s_ledger_registry declared at file top
 
 /**

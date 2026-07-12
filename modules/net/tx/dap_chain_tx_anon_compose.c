@@ -31,20 +31,9 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_tx_compose_api.h"
 #include "dap_chain_tx_anon_create.h"
+#include "dap_chain_tx_anon_compose.h"
 
 #define LOG_TAG "chain_tx_anon_compose"
-
-/* Anonymous transfer compose parameters */
-typedef struct {
-    const char *wallet_name;
-    const char *chain_name;
-    const char *token_ticker;
-    uint256_t value;
-    dap_chain_addr_t addr_to;
-    size_t anon_set;
-    uint256_t fee;
-    const char *hash_out_type;
-} anon_transfer_compose_params_t;
 
 /**
  * @brief Compose callback for anonymous transfer transactions.
