@@ -76,7 +76,7 @@ static inline int dap_chain_tx_in_ems_unpack(const uint8_t *a_wire, size_t a_wir
 {
     if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_TX_IN_EMS_HDR_WIRE_SIZE)
         return -1;
-    dap_deserialize_result_t l_r = dap_deserialize_from_buffer_raw(
+    dap_deserialize_result_t l_r = dap_deserialize_from_buffer_raw_zero(
         &g_dap_chain_tx_in_ems_schema, a_wire, a_wire_size, a_mem, NULL);
     return l_r.error_code;
 }
