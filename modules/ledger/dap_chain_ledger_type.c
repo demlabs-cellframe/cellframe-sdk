@@ -262,18 +262,30 @@ static int s_anon_tx_key_images_commit(dap_ledger_anon_ctx_t *a_anon,
         return l_rc;
     }
 
+    /* Track committed images for rollback on partial failure */
+    size_t l_committed = 0;
+    dap_chain_hash_fast_t *l_committed_hashes = l_image_count > 0
+        ? DAP_NEW_Z_COUNT(dap_chain_hash_fast_t, l_image_count)
+        : NULL;
+
     for (size_t i = 0; i < l_image_count; ++i) {
         dap_chain_hash_fast_t l_image_hash;
         dap_hash_fast(l_images[i]->image, sizeof(l_images[i]->image), &l_image_hash);
 
         l_rc = s_key_image_add(a_anon, &l_image_hash, a_tx_hash, a_ledger, true);
         if (l_rc != 0) {
-            log_it(L_WARNING, "Failed to commit key image: %d", l_rc);
-            DAP_DELETE(l_images);
+            log_it(L_WARNING, "Failed to commit key image %zu/%zu: %d, rolling back %zu committed",
+                   i, l_image_count, l_rc, l_committed);
+            /* Rollback: remove all previously committed KIs for this TX */
+            for (size_t j = 0; j < l_committed; ++j)
+                s_key_image_remove(a_anon, &l_committed_hashes[j], a_ledger, true);
+            DAP_DEL_MULTY(l_committed_hashes, l_images);
             return l_rc;
         }
+        if (l_committed_hashes)
+            l_committed_hashes[l_committed++] = l_image_hash;
     }
-    DAP_DELETE(l_images);
+    DAP_DEL_MULTY(l_committed_hashes, l_images);
     return 0;
 }
 
@@ -906,6 +918,23 @@ void dap_ledger_anon_key_images_load(dap_ledger_t *a_ledger)
         dap_chain_hash_fast_t l_image_hash = {};
         dap_hash_fast_from_str(l_objs[i].key, &l_image_hash);
         dap_chain_hash_fast_t l_tx_hash = *(dap_chain_hash_fast_t *)l_objs[i].value;
+
+        /* Integrity check: verify that the TX which spent this KI still exists in the ledger.
+         * If not (crash, corruption, incomplete rollback), remove orphaned KI. */
+        dap_ledger_tx_item_t *l_tx_item = NULL;
+        pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
+        dap_ht_find(PVT(a_ledger)->ledger_items, &l_tx_hash, sizeof(dap_chain_hash_fast_t), l_tx_item);
+        pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
+        if (!l_tx_item) {
+            /* TX not found — KI is orphaned. Remove from GDB. */
+            log_it(L_WARNING, "Orphaned KI %s references missing TX %s, removing",
+                   l_objs[i].key, dap_hash_fast_to_str_static(&l_tx_hash));
+            char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_KEY_IMAGES_STR);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
+            DAP_DELETE(l_gdb_group);
+            continue;
+        }
+
         s_key_image_add(l_anon, &l_image_hash, &l_tx_hash, a_ledger, false);
     }
     dap_global_db_objs_delete(l_objs, l_count);
