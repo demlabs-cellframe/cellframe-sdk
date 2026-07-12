@@ -1344,9 +1344,19 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     return l_err_num;
 }
 
-int dap_ledger_tx_utxo_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, bool a_from_mempool)
+/* Canonical UTXO pre-add check (001 plain-TX canary on anon ledger).
+ * B2 will strip anon-specific branches into a dedicated structural helper. */
+static int s_utxo_tx_cache_check(dap_ledger_t *a_ledger,
+                                 dap_chain_datum_tx_t *a_tx,
+                                 dap_hash_sha3_256_t *a_tx_hash,
+                                 bool a_from_mempool)
 {
     return s_tx_cache_check(a_ledger, a_tx, a_tx_hash, false, NULL, NULL, NULL, NULL, NULL, NULL, false, a_from_mempool);
+}
+
+int dap_ledger_tx_utxo_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_sha3_256_t *a_tx_hash, bool a_from_mempool)
+{
+    return s_utxo_tx_cache_check(a_ledger, a_tx, a_tx_hash, a_from_mempool);
 }
 
 /**

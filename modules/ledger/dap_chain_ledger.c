@@ -956,7 +956,9 @@ dap_ledger_t *dap_ledger_create(dap_ledger_create_options_t *a_options)
     l_ledger_pvt->anon_type = a_options->anon_type;
     l_ledger_pvt->anon_data = NULL;
 
-    if (l_ledger_pvt->ledger_type == 1) { /* anon */
+    dap_ledger_type_init();
+
+    if (l_ledger_pvt->ledger_type == DAP_LEDGER_TYPE_ANON) {
         log_it(L_INFO, "Ledger '%s' created in ANONYMOUS mode (backend: %s)",
                l_ledger->name,
                l_ledger_pvt->anon_type == 0 ? "chipmunk_snark" :

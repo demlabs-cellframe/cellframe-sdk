@@ -608,12 +608,25 @@ int dap_ledger_anon_tx_key_images_commit(dap_ledger_t *a_ledger,
     return s_anon_tx_key_images_commit(l_anon, a_tx, a_tx_hash, a_ledger);
 }
 
+/**
+ * Anon ledger TX check orchestrator (WS-B4).
+ * Plain TX  → full UTXO cache check (001 bootstrap canary).
+ * Anon TX   → UTXO structural + SNARK/range/KI verify + Pedersen conservation.
+ */
 static int s_anon_tx_check(dap_ledger_t *a_ledger,
                             dap_chain_datum_tx_t *a_tx,
                             size_t a_tx_size,
                             dap_hash_fast_t *a_tx_hash)
 {
     (void)a_tx_size;
+
+    if (!a_ledger || !a_tx || !a_tx_hash)
+        return DAP_LEDGER_CHECK_INVALID_ARGS;
+
+    if (!PVT(a_ledger)->anon_data) {
+        log_it(L_ERROR, "Anonymous ledger '%s' has no anon context", a_ledger->name);
+        return DAP_LEDGER_CHECK_INVALID_ARGS;
+    }
 
     int l_rc = dap_ledger_tx_utxo_check(a_ledger, a_tx, a_tx_hash, true);
     if (l_rc)
@@ -631,6 +644,11 @@ static int s_anon_tx_add(dap_ledger_t *a_ledger,
 {
     if (!a_ledger || !a_tx || !a_tx_hash)
         return -EINVAL;
+
+    if (!PVT(a_ledger)->anon_data) {
+        log_it(L_ERROR, "Anonymous ledger '%s' has no anon context", a_ledger->name);
+        return -EINVAL;
+    }
 
     return dap_ledger_tx_add_impl(a_ledger, a_tx, a_tx_hash, false, NULL);
 }
@@ -753,6 +771,7 @@ int dap_ledger_type_register(const dap_ledger_type_desc_t *a_desc)
 
 const dap_ledger_type_desc_t *dap_ledger_type_get(const char *a_name)
 {
+    dap_ledger_type_init();
     if (!a_name) return NULL;
     for (size_t i = 0; i < s_type_count; ++i) {
         if (strcmp(s_type_registry[i].name, a_name) == 0) {
@@ -764,6 +783,7 @@ const dap_ledger_type_desc_t *dap_ledger_type_get(const char *a_name)
 
 const dap_ledger_type_desc_t *dap_ledger_type_get_by_enum(dap_ledger_type_t a_type)
 {
+    dap_ledger_type_init();
     for (size_t i = 0; i < s_type_count; ++i) {
         if (s_type_registry[i].type == a_type) {
             return &s_type_registry[i];

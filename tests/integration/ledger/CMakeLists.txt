@@ -52,3 +52,25 @@ add_test(
     NAME ledger-integration-test
     COMMAND ledger-integration-test
 )
+
+# Test 3: Anon ledger plain-UTXO orchestrator (I2 / WS-B4)
+project(ledger-anon-plain-utxo-test)
+
+add_executable(${PROJECT_NAME}
+    test_ledger_anon_plain_utxo.c
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(${PROJECT_NAME}
+    dap_test
+    dap_sdk
+    cellframe_sdk
+)
+
+add_test(
+    NAME ledger-anon-plain-utxo-test
+    COMMAND ledger-anon-plain-utxo-test
+)
