@@ -1125,12 +1125,16 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         } break;
         case TX_ITEM_TYPE_OUT_COND: {
             dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)it;
-            if (!( l_token = l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE ? a_ledger->native_ticker : l_main_ticker )) {
+            if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                l_token = l_main_ticker ? l_main_ticker : a_ledger->native_ticker;
+            else if (!( l_token = l_main_ticker )) {
                 l_err_num = DAP_LEDGER_TX_CHECK_NO_MAIN_TICKER;
                 break;
             }
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
+            if (l_fee_check && l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
             if (l_tax_check && l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
                     SUBTRACT_256_256(l_taxed_value, l_value, &l_taxed_value)) {
                 log_it(L_WARNING, "Fee is greater than sum of inputs");
@@ -1879,7 +1883,7 @@ int dap_ledger_tx_add_impl(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
             if (l_verificator && l_verificator->callback_in_add)
                 l_verificator->callback_in_add(a_ledger, a_tx, &l_tx_hash, l_bound_item->cond);
             l_cur_token_ticker = l_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE ?
-                                           a_ledger->native_ticker : l_main_token_ticker;
+                    (*l_main_token_ticker ? l_main_token_ticker : a_ledger->native_ticker) : l_main_token_ticker;
         } break;
 
         default:
@@ -2006,7 +2010,7 @@ int dap_ledger_tx_add_impl(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                 l_verificator->callback_out_add(a_ledger, a_tx, &l_tx_hash, l_cond);
             l_value = l_cond->header.value;
             l_cur_token_ticker = l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE ?
-                                                            a_ledger->native_ticker : l_main_token_ticker;
+                    (*l_main_token_ticker ? l_main_token_ticker : a_ledger->native_ticker) : l_main_token_ticker;
             l_balance_update = false;
         } break;
         default:

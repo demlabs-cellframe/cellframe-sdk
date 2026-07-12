@@ -322,6 +322,8 @@ uint8_t* dap_chain_datum_tx_item_get(const dap_chain_datum_tx_t *a_tx, int *a_it
         byte_t *a_iter, dap_chain_tx_item_type_t a_type, size_t *a_item_out_size);
 // Get Nth item of pointed type
 uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx);
+// Index of an output item among TX_ITEM_TYPE_OUT_ALL (matches get_nth / ledger out_metadata)
+int dap_chain_datum_tx_out_all_index(dap_chain_datum_tx_t *a_tx, const uint8_t *a_item);
 // Get all item from transaction by type
 dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);
 // Get conditional out item with it's idx

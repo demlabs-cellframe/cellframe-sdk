@@ -52,7 +52,7 @@ typedef struct {
  * This is invoked via dap_chain_tx_compose_create("anon_transfer", ...).
  *
  * The callback opens the wallet, validates the key type, calls
- * dap_chain_tx_anon_transfer_auto_ring(), optionally adds a fee output,
+ * dap_chain_tx_anon_transfer_auto_ring(), optionally with Pedersen fee OUT_ANON,
  * and returns the constructed datum (caller adds to mempool).
  *
  * @param a_ledger        Ledger handle (used for network/chain resolution)
@@ -123,42 +123,13 @@ static dap_chain_datum_t *s_anon_transfer_compose_cb(
     size_t l_anon_set = l_params->anon_set > 0 ? l_params->anon_set : 10;
     dap_chain_datum_t *l_datum = dap_chain_tx_anon_transfer_auto_ring(
         l_wallet, l_chain, l_params->token_ticker,
-        l_params->value, &l_params->addr_to, l_anon_set, NULL);
+        l_params->value, &l_params->addr_to, l_anon_set, l_params->fee, NULL);
 
     dap_chain_wallet_close(l_wallet);
 
     if (!l_datum) {
         log_it(L_ERROR, "Failed to create anonymous TX via dap_chain_tx_anon_transfer_auto_ring");
         return NULL;
-    }
-
-    /* Add fee as OUT_STD item if specified */
-    if (!IS_ZERO_256(l_params->fee)) {
-        size_t l_tx_size = l_datum->header.data_size;
-        dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_tx_size);
-        if (l_tx) {
-            memcpy(l_tx, l_datum->data, l_tx_size);
-
-            dap_chain_addr_t l_fee_addr = {};
-            dap_chain_tx_out_std_t *l_fee_out = DAP_NEW_Z(dap_chain_tx_out_std_t);
-            if (l_fee_out) {
-                l_fee_out->type = TX_ITEM_TYPE_OUT_STD;
-                l_fee_out->version = 1;
-                l_fee_out->addr = l_fee_addr;
-                l_fee_out->value = l_params->fee;
-                memcpy((char *)l_fee_out->token, l_params->token_ticker,
-                       strnlen(l_params->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX));
-
-                if (dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_fee_out) == 1) {
-                    size_t l_new_size = dap_chain_datum_tx_get_size(l_tx);
-                    dap_chain_datum_t *l_new_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_new_size);
-                    DAP_DELETE(l_datum);
-                    l_datum = l_new_datum;
-                }
-                DAP_DELETE(l_fee_out);
-            }
-            DAP_DELETE(l_tx);
-        }
     }
 
     log_it(L_INFO, "Anonymous TX compose created: wallet=%s, chain=%s, ticker=%s, anon_set=%zu",

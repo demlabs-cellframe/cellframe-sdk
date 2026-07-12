@@ -870,7 +870,8 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         /* Create anonymous TX via dap_chain_tx_anon_transfer_auto_ring() */
         dap_chain_tx_anon_out_manifest_t l_anon_manifest = { };
         dap_chain_datum_t *l_anon_datum = dap_chain_tx_anon_transfer_auto_ring(
-            l_anon_wallet, l_chain, l_token_ticker, l_value[0], l_addr_to[0], l_anon_set, &l_anon_manifest);
+            l_anon_wallet, l_chain, l_token_ticker, l_value[0], l_addr_to[0], l_anon_set,
+            l_value_fee, &l_anon_manifest);
         dap_enc_key_delete(l_anon_key);
         dap_chain_wallet_close(l_anon_wallet);
 
@@ -881,35 +882,6 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
             DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
             DAP_DEL_MULTY(l_addr_to, l_value);
             return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
-        }
-
-        /* Add fee as a standard OUT_STD item if fee > 0.
-         * Must extract TX from datum first since add_item may REALLOC. */
-        if (!IS_ZERO_256(l_value_fee)) {
-            size_t l_tx_size = l_anon_datum->header.data_size;
-            dap_chain_datum_tx_t *l_anon_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_tx_size);
-            if (l_anon_tx) {
-                memcpy(l_anon_tx, l_anon_datum->data, l_tx_size);
-                /* Fee goes to miners/validators — use blank addr as fee sink */
-                dap_chain_addr_t l_fee_addr = {};
-                dap_chain_tx_out_std_t *l_fee_out = DAP_NEW_Z(dap_chain_tx_out_std_t);
-                if (l_fee_out) {
-                    l_fee_out->type = TX_ITEM_TYPE_OUT_STD;
-                    l_fee_out->version = 1;
-                    l_fee_out->addr = l_fee_addr;
-                    l_fee_out->value = l_value_fee;
-                    memcpy((char *)l_fee_out->token, l_token_ticker,
-                           strnlen(l_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX));
-                    if (dap_chain_datum_tx_add_item(&l_anon_tx, (const uint8_t *)l_fee_out) == 1) {
-                        size_t l_new_size = dap_chain_datum_tx_get_size(l_anon_tx);
-                        dap_chain_datum_t *l_new_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_anon_tx, l_new_size);
-                        DAP_DELETE(l_anon_datum);
-                        l_anon_datum = l_new_datum;
-                    }
-                    DAP_DELETE(l_fee_out);
-                }
-                DAP_DELETE(l_anon_tx);
-            }
         }
 
         /* Add to mempool */

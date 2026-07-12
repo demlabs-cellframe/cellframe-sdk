@@ -91,6 +91,7 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     uint256_t a_amount,
     const dap_chain_addr_t *a_addr_to,
     size_t a_anon_set,
+    uint256_t a_fee,
     dap_chain_tx_anon_out_manifest_t *a_out_manifest);
 
 /**

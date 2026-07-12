@@ -2107,66 +2107,57 @@ dap_list_t *dap_ledger_get_utxo_for_value(
         
         dap_chain_datum_tx_t *l_tx = l_tx_item->tx;
         
-        // Iterate through all outputs in the transaction
         byte_t *l_tx_item_ptr = NULL;
         size_t l_tx_item_size = 0;
-        uint32_t l_out_idx = 0;
         TX_ITEM_ITER_TX(l_tx_item_ptr, l_tx_item_size, l_tx) {
             if (*l_tx_item_ptr != TX_ITEM_TYPE_OUT && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_EXT
-                && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_STD) {
+                    && *l_tx_item_ptr != TX_ITEM_TYPE_OUT_STD)
                 continue;
-            }
-            
-            // Get output address and value
+
             dap_chain_addr_t l_out_addr = {};
             uint256_t l_out_value = {};
             const char *l_out_token = NULL;
-            
+
             if (*l_tx_item_ptr == TX_ITEM_TYPE_OUT) {
                 dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_tx_item_ptr;
                 l_out_addr = l_out->addr;
                 l_out_value = l_out->header.value;
                 l_out_token = l_tx_item->cache_data.token_ticker;
-            } else if (*l_tx_item_ptr == TX_ITEM_TYPE_OUT_EXT) { // TX_ITEM_TYPE_OUT_EXT
+            } else if (*l_tx_item_ptr == TX_ITEM_TYPE_OUT_EXT) {
                 dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_tx_item_ptr;
                 l_out_addr = l_out_ext->addr;
                 l_out_value = l_out_ext->header.value;
                 l_out_token = l_out_ext->token;
-            } else { // TX_ITEM_TYPE_OUT_STD (v6.0)
+            } else {
                 dap_chain_tx_out_std_t *l_out_std = (dap_chain_tx_out_std_t *)l_tx_item_ptr;
                 l_out_addr = l_out_std->addr;
                 l_out_value = l_out_std->value;
                 l_out_token = l_out_std->token;
             }
-            
-            // Check if output matches our criteria
-            if (!dap_chain_addr_compare(&l_out_addr, a_addr_from)) {
-                l_out_idx++;
+
+            if (!dap_chain_addr_compare(&l_out_addr, a_addr_from)
+                    || dap_strcmp(l_out_token, a_token_ticker))
                 continue;
-            }
-            
-            if (dap_strcmp(l_out_token, a_token_ticker) != 0) {
-                l_out_idx++;
+
+            int l_out_idx = dap_chain_datum_tx_out_all_index(l_tx, l_tx_item_ptr);
+            if (l_out_idx < 0
+                    || dap_ledger_tx_hash_is_used_out_item(a_ledger, &l_tx_item->tx_hash_fast, (uint32_t)l_out_idx, NULL))
                 continue;
-            }
-            
-            // Found matching output - add to list
+
             dap_chain_tx_used_out_t *l_used_out = DAP_NEW_Z(dap_chain_tx_used_out_t);
             if (!l_used_out) {
                 log_it(L_ERROR, "Memory allocation failed");
                 break;
             }
-            
+
             l_used_out->tx_prev_hash = l_tx_item->tx_hash_fast;
-            l_used_out->tx_out_prev_idx = l_out_idx;
+            l_used_out->tx_out_prev_idx = (uint32_t)l_out_idx;
             l_used_out->value = l_out_value;
             l_used_out->addr = l_out_addr;
-            l_out_idx++;
-            
+
             l_list_used_outs = dap_list_append(l_list_used_outs, l_used_out);
             SUM_256_256(l_value_transfer, l_out_value, &l_value_transfer);
-            
-            // Check if we have enough
+
             if (compare256(l_value_transfer, a_value_need) >= 0) {
                 *a_value_found = l_value_transfer;
                 pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);

@@ -510,6 +510,21 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
     return NULL;
 }
 
+int dap_chain_datum_tx_out_all_index(dap_chain_datum_tx_t *a_tx, const uint8_t *a_item)
+{
+    if (!a_tx || !a_item)
+        return -1;
+    uint8_t *l_item = NULL;
+    size_t l_size = 0;
+    int i = 0, l_idx = 0;
+    TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, i, a_tx) {
+        if (l_item == a_item)
+            return l_idx;
+        ++l_idx;
+    }
+    return -1;
+}
+
 /**
  * Get tx_out_cond item from transaction
  *

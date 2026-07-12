@@ -780,7 +780,7 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                                     dap_hash_sha3_256_t *a_tx_hash, dap_hash_sha3_256_t *a_atom_hash, int a_ret_code, char* a_main_token_ticker,
                                     dap_chain_srv_uid_t a_srv_uid, dap_chain_tx_tag_action_type_t a_action, char a_cache_op)
 {
-    int l_ret_val = 0, l_items_cnt = 0, l_out_idx = -1;
+    int l_ret_val = 0, l_items_cnt = 0;
     bool l_multichannel = false;
 #define m_check_addr(addr) (                                                                                    \
     !dap_chain_addr_is_blank(&addr) && (                                                                        \
@@ -964,19 +964,22 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
         default:
             switch (a_cache_op) {
             case 'a': {
+                int l_out_all_idx = dap_chain_datum_tx_out_all_index(a_tx, l_tx_item);
+                if (l_out_all_idx < 0)
+                    break;
                 dap_wallet_tx_cache_output_t *l_out = NULL;
-                dap_wallet_tx_cache_output_t l_sought_out = { .tx_out_idx = l_out_idx };
+                dap_wallet_tx_cache_output_t l_sought_out = { .tx_out_idx = l_out_all_idx };
                 dap_list_t *l_out_item = dap_list_find(l_wallet_tx_item->tx_wallet_outputs, &l_sought_out, s_out_idx_cmp);
                 if ( !l_out_item ) {
                     l_out = DAP_NEW(dap_wallet_tx_cache_output_t);
-                    *l_out = (dap_wallet_tx_cache_output_t){ .tx_out = l_tx_item, .tx_out_idx = l_out_idx };
+                    *l_out = (dap_wallet_tx_cache_output_t){ .tx_out = l_tx_item, .tx_out_idx = l_out_all_idx };
                     l_wallet_tx_item->tx_wallet_outputs = dap_list_append(l_wallet_tx_item->tx_wallet_outputs, l_out);
                 } else 
                     l_out = l_out_item->data;
                 /* Add unspent out to cache */ 
                 if (!a_ret_code) {
                     dap_wallet_cache_unspent_outs_t *l_item = NULL;
-                    unspent_cache_hh_key l_key = { .tx_hash = *a_tx_hash, .out_idx = l_out_idx };
+                    unspent_cache_hh_key l_key = { .tx_hash = *a_tx_hash, .out_idx = l_out_all_idx };
                     dap_ht_find(l_wallet_item->unspent_outputs, &l_key, sizeof(unspent_cache_hh_key), l_item);
                     if ( !l_item ) {
                         l_item = DAP_NEW(dap_wallet_cache_unspent_outs_t);
@@ -1000,11 +1003,14 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                 }
             } break;
             case 'd': {
+                int l_out_all_idx = dap_chain_datum_tx_out_all_index(a_tx, l_tx_item);
+                if (l_out_all_idx < 0)
+                    break;
                 if ( !l_wallet_item->wallet_txs ) {
                     dap_ht_del(s_wallets_cache, l_wallet_item);
                     DAP_DELETE(l_wallet_item);
                 }            
-                unspent_cache_hh_key key = { .tx_hash = *a_tx_hash, .out_idx = l_out_idx };
+                unspent_cache_hh_key key = { .tx_hash = *a_tx_hash, .out_idx = l_out_all_idx };
                 dap_wallet_cache_unspent_outs_t *l_item = NULL;
                 dap_ht_find(l_wallet_item->unspent_outputs, &key, sizeof(unspent_cache_hh_key), l_item);
                 if (l_item) {
@@ -1018,19 +1024,6 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             break;
         }
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-
-        switch (*l_tx_item) {
-        case TX_ITEM_TYPE_OUT_OLD:
-        case TX_ITEM_TYPE_OUT:
-        case TX_ITEM_TYPE_OUT_EXT:
-        case TX_ITEM_TYPE_OUT_STD:
-        case TX_ITEM_TYPE_OUT_ANON:
-        case TX_ITEM_TYPE_OUT_COND:
-            ++l_out_idx;
-            break;
-        default:
-            break;
-        }
     }
     return l_ret_val;
 }

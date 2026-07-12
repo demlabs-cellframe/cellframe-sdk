@@ -374,6 +374,8 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     const void *a_ring,
     size_t a_ring_size,
     const dap_chain_tx_anon_algo_t *a_algo,
+    uint256_t a_fee,
+    const dap_chain_addr_t *a_fee_addr,
     dap_chain_tx_anon_out_manifest_t *a_out_manifest)
 {
     if (a_out_manifest)
@@ -431,10 +433,20 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(a_wallet, l_ledger->net_id);
     if (!l_wallet_addr) { dap_enc_key_delete(l_key); return NULL; }
 
+    uint256_t l_required = a_amount;
+    if (!IS_ZERO_256(a_fee)) {
+        if (SUM_256_256(l_required, a_fee, &l_required)) {
+            log_it(L_ERROR, "Anonymous TX amount + fee overflow");
+            dap_enc_key_delete(l_key);
+            DAP_DELETE(l_wallet_addr);
+            return NULL;
+        }
+    }
+
     dap_chain_hash_fast_t l_prev_hash;
     uint32_t l_prev_idx = 0;
     uint256_t l_input_value = uint256_0;
-    l_rc = s_find_utxo(l_ledger, l_wallet_addr, a_token_ticker, a_amount,
+    l_rc = s_find_utxo(l_ledger, l_wallet_addr, a_token_ticker, l_required,
                        &l_prev_hash, &l_prev_idx, &l_input_value);
     dap_chain_addr_t l_change_addr = *l_wallet_addr;
     DAP_DELETE(l_wallet_addr);
@@ -447,9 +459,22 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
     s_bind_key_image_to_utxo(l_ki, sizeof(l_ki), &l_prev_hash, l_prev_idx);
 
+    uint256_t l_spent = a_amount;
+    if (!IS_ZERO_256(a_fee)) {
+        if (SUM_256_256(l_spent, a_fee, &l_spent)) {
+            log_it(L_ERROR, "Anonymous TX spent amount overflow");
+            dap_enc_key_delete(l_key);
+            return NULL;
+        }
+    }
+    if (compare256(l_input_value, l_spent) < 0) {
+        log_it(L_ERROR, "Insufficient UTXO value for anonymous transfer (need amount+fee)");
+        dap_enc_key_delete(l_key);
+        return NULL;
+    }
     uint256_t l_change = uint256_0;
-    if (compare256(l_input_value, a_amount) > 0)
-        SUBTRACT_256_256(l_input_value, a_amount, &l_change);
+    if (compare256(l_input_value, l_spent) > 0)
+        SUBTRACT_256_256(l_input_value, l_spent, &l_change);
 
     /* 6–7. Recipient OUT_ANON (Pedersen commitment + range proof) */
     if (!s_amount_valid(a_amount)) {
@@ -520,6 +545,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         a_out_manifest->outs[a_out_manifest->count++] =
             (dap_chain_tx_anon_out_entry_t){ .addr = *a_addr_to, .value = a_amount, .out_idx = 0 };
 
+    uint32_t l_out_idx = 1;
     if (!IS_ZERO_256(l_change)) {
         dap_chain_tx_out_anon_t l_change_out;
         if (s_build_out_anon(&l_change_addr, a_token_ticker, l_change, &l_change_out) != 0) {
@@ -532,7 +558,28 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_change_out);
         if (a_out_manifest && a_out_manifest->count < DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX)
             a_out_manifest->outs[a_out_manifest->count++] =
-                (dap_chain_tx_anon_out_entry_t){ .addr = l_change_addr, .value = l_change, .out_idx = 1 };
+                (dap_chain_tx_anon_out_entry_t){ .addr = l_change_addr, .value = l_change, .out_idx = l_out_idx };
+        ++l_out_idx;
+    }
+
+    if (!IS_ZERO_256(a_fee)) {
+        const dap_chain_addr_t *l_fee_dst = a_fee_addr;
+        dap_chain_addr_t l_fee_blank = {};
+        if (!l_fee_dst || dap_chain_addr_is_blank(l_fee_dst))
+            l_fee_dst = &l_fee_blank;
+
+        dap_chain_tx_out_anon_t l_fee_out;
+        if (s_build_out_anon(l_fee_dst, a_token_ticker, a_fee, &l_fee_out) != 0) {
+            chipmunk_snark_proof_free(&l_snark);
+            chipmunk_range_proof_free(&l_rp);
+            dap_chain_datum_tx_delete(l_tx);
+            dap_enc_key_delete(l_key);
+            return NULL;
+        }
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_fee_out);
+        if (a_out_manifest && a_out_manifest->count < DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX)
+            a_out_manifest->outs[a_out_manifest->count++] =
+                (dap_chain_tx_anon_out_entry_t){ .addr = *l_fee_dst, .value = a_fee, .out_idx = l_out_idx };
     }
 
     /* KEY_IMAGE */
@@ -580,7 +627,7 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer(
     }
 
     return s_anon_transfer_generic(a_wallet, a_chain, a_token_ticker, a_amount,
-                                    a_addr_to, a_ring, a_ring_size, l_algo, NULL);
+                                    a_addr_to, a_ring, a_ring_size, l_algo, uint256_0, NULL, NULL);
 }
 
 /* --- Public API: algorithm from config --- */
@@ -601,7 +648,7 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_with_algo(
         return NULL;
     }
     return s_anon_transfer_generic(a_wallet, a_chain, a_token_ticker, a_amount,
-                                    a_addr_to, a_ring, a_ring_size, l_algo, NULL);
+                                    a_addr_to, a_ring, a_ring_size, l_algo, uint256_0, NULL, NULL);
 }
 
 /* --- Auto-ring selection (algorithm-agnostic) --- */
@@ -674,6 +721,7 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     uint256_t a_amount,
     const dap_chain_addr_t *a_addr_to,
     size_t a_anon_set,
+    uint256_t a_fee,
     dap_chain_tx_anon_out_manifest_t *a_out_manifest)
 {
     if (!a_wallet || !a_chain || !a_token_ticker || !a_addr_to) return NULL;
@@ -751,9 +799,10 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
         return NULL;
     }
 
+    dap_chain_addr_t l_fee_addr = l_ledger->fee_addr;
     dap_chain_datum_t *l_datum = s_anon_transfer_generic(
         a_wallet, a_chain, a_token_ticker, a_amount, a_addr_to,
-        l_ring, l_idx, l_algo, a_out_manifest);
+        l_ring, l_idx, l_algo, a_fee, &l_fee_addr, a_out_manifest);
 
     DAP_DELETE(l_ring);
     dap_enc_key_delete(l_wallet_key);

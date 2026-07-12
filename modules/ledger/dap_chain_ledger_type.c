@@ -12,9 +12,11 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_datum_tx_anon.h"
+#include "dap_chain_datum_tx.h"
 #include "chipmunk_snark.h"
 #include "chipmunk_pedersen.h"
 #include "chipmunk_range_proof.h"
+#include "chipmunk.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_hash.h"
@@ -274,6 +276,138 @@ static int s_anon_tx_key_images_commit(dap_ledger_anon_ctx_t *a_anon,
  * Anonymous TX verification
  * ---------------------------------------------------------------------- */
 
+static bool s_pedersen_commit_equal(const chipmunk_pedersen_commit_t *a_lhs,
+                                    const chipmunk_pedersen_commit_t *a_rhs)
+{
+    if (!a_lhs || !a_rhs)
+        return false;
+
+    for (uint32_t i = 0; i < CHIPMUNK_PEDERSEN_K; ++i) {
+        for (uint32_t k = 0; k < CHIPMUNK_N; ++k) {
+            int32_t l_diff = a_lhs->C[i].coeffs[k] - a_rhs->C[i].coeffs[k];
+            l_diff %= CHIPMUNK_Q;
+            if (l_diff < 0)
+                l_diff += CHIPMUNK_Q;
+            if (l_diff != 0)
+                return false;
+        }
+    }
+    return true;
+}
+
+static void s_anon_input_commit_seed(uint8_t a_seed[32],
+                                     const dap_chain_hash_fast_t *a_prev_hash,
+                                     uint32_t a_prev_out_idx)
+{
+    uint8_t l_buf[sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t) + 24];
+    size_t l_off = 0;
+    memcpy(l_buf + l_off, a_prev_hash, sizeof(dap_chain_hash_fast_t));
+    l_off += sizeof(dap_chain_hash_fast_t);
+    memcpy(l_buf + l_off, &a_prev_out_idx, sizeof(uint32_t));
+    l_off += sizeof(uint32_t);
+    memcpy(l_buf + l_off, "chipchain-anon-input-v1", 23);
+    l_off += 23;
+    dap_hash_sha3_256_raw(a_seed, l_buf, l_off);
+}
+
+static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
+                                             dap_ledger_anon_ctx_t *a_anon,
+                                             dap_chain_datum_tx_t *a_tx)
+{
+    const dap_chain_tx_in_anon_t *l_in_anon = NULL;
+    const uint8_t *l_item = a_tx->tx_items;
+    size_t l_offset = 0;
+    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
+
+    while (l_offset < l_tx_size) {
+        if (*l_item == TX_ITEM_TYPE_IN_ANON) {
+            l_in_anon = (const dap_chain_tx_in_anon_t *)l_item;
+            break;
+        }
+        uint32_t l_item_size = *(const uint32_t *)(l_item + 4);
+        if (l_item_size == 0)
+            break;
+        l_item += l_item_size;
+        l_offset += l_item_size;
+    }
+    if (!l_in_anon)
+        return -EINVAL;
+
+    dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger,
+        (const dap_hash_sha3_256_t *)&l_in_anon->prev_hash);
+    if (!l_prev_tx)
+        return -EINVAL;
+
+    void *l_prev_out = dap_chain_datum_tx_item_get_nth(l_prev_tx, TX_ITEM_TYPE_OUT_ALL,
+                                                       l_in_anon->prev_out_idx);
+    if (!l_prev_out)
+        return -EINVAL;
+
+    chipmunk_pedersen_commit_t l_input_commit;
+    memset(&l_input_commit, 0, sizeof(l_input_commit));
+
+    switch (*(uint8_t *)l_prev_out) {
+    case TX_ITEM_TYPE_OUT_STD: {
+        const dap_chain_tx_out_std_t *l_out = (const dap_chain_tx_out_std_t *)l_prev_out;
+        uint8_t l_seed[32], l_amount[CHIPMUNK_PEDERSEN_VALUE_BYTES];
+        s_anon_input_commit_seed(l_seed, &l_in_anon->prev_hash, l_in_anon->prev_out_idx);
+        memset(l_amount, 0, sizeof(l_amount));
+        memcpy(l_amount, &l_out->value, sizeof(l_out->value));
+        if (chipmunk_pedersen_commit(&l_input_commit, &a_anon->pedersen_params,
+                                     l_amount, l_seed) != 0)
+            return -EINVAL;
+    } break;
+    case TX_ITEM_TYPE_OUT_EXT: {
+        const dap_chain_tx_out_ext_t *l_out = (const dap_chain_tx_out_ext_t *)l_prev_out;
+        uint8_t l_seed[32], l_amount[CHIPMUNK_PEDERSEN_VALUE_BYTES];
+        s_anon_input_commit_seed(l_seed, &l_in_anon->prev_hash, l_in_anon->prev_out_idx);
+        memset(l_amount, 0, sizeof(l_amount));
+        memcpy(l_amount, &l_out->header.value, sizeof(l_out->header.value));
+        if (chipmunk_pedersen_commit(&l_input_commit, &a_anon->pedersen_params,
+                                     l_amount, l_seed) != 0)
+            return -EINVAL;
+    } break;
+    case TX_ITEM_TYPE_OUT_ANON: {
+        const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_prev_out;
+        memcpy(&l_input_commit, &l_out->commitment, sizeof(l_input_commit));
+    } break;
+    default:
+        log_it(L_WARNING, "Anonymous TX spends unsupported output type 0x%02x", *(uint8_t *)l_prev_out);
+        return -EINVAL;
+    }
+
+    chipmunk_pedersen_commit_t l_outputs_sum;
+    memset(&l_outputs_sum, 0, sizeof(l_outputs_sum));
+    bool l_has_out_anon = false;
+
+    l_item = a_tx->tx_items;
+    l_offset = 0;
+    while (l_offset < l_tx_size) {
+        if (*l_item == TX_ITEM_TYPE_OUT_ANON) {
+            const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
+            chipmunk_pedersen_commit_t l_out_commit;
+            memcpy(&l_out_commit, &l_out->commitment, sizeof(l_out_commit));
+            if (!l_has_out_anon) {
+                memcpy(&l_outputs_sum, &l_out_commit, sizeof(l_outputs_sum));
+                l_has_out_anon = true;
+            } else {
+                chipmunk_pedersen_add(&l_outputs_sum, &l_outputs_sum, &l_out_commit);
+            }
+        }
+        uint32_t l_item_size = *(const uint32_t *)(l_item + 4);
+        if (l_item_size == 0)
+            break;
+        l_item += l_item_size;
+        l_offset += l_item_size;
+    }
+
+    if (!l_has_out_anon || !s_pedersen_commit_equal(&l_input_commit, &l_outputs_sum)) {
+        log_it(L_WARNING, "Pedersen conservation check failed for anonymous TX");
+        return -EINVAL;
+    }
+    return 0;
+}
+
 static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                                     dap_chain_datum_tx_t *a_tx,
                                     dap_hash_fast_t *a_tx_hash,
@@ -442,6 +576,10 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
         l_item += l_item_size;
         l_offset += l_item_size;
     }
+
+    l_rc = s_anon_pedersen_conservation_verify(a_ledger, l_anon, a_tx);
+    if (l_rc != 0)
+        return l_rc;
 
     return 0; /* Valid anonymous TX */
 }
