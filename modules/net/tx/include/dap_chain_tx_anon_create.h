@@ -36,17 +36,17 @@ typedef struct dap_chain_tx_anon_out_manifest {
 extern "C" {
 #endif
 
-/* Anonymous TX creation context */
+/* Anonymous TX creation context — DEPRECATED: use ledger's anon_data instead */
 typedef struct dap_chain_tx_anon_context {
     chipmunk_snark_ctx_t snark_ctx;
     chipmunk_pedersen_params_t pedersen_params;
     bool initialized;
-} dap_chain_tx_anon_context_t;
+} dap_chain_tx_anon_context_t __attribute__((deprecated("Use ledger's anon_data instead")));
 
-/* Init/deinit */
-int dap_chain_tx_anon_init(void);
-void dap_chain_tx_anon_deinit(void);
-dap_chain_tx_anon_context_t *dap_chain_tx_anon_get_context(void);
+/* Init/deinit — DEPRECATED: crypto context is per-ledger, initialized in dap_ledger_anon_ctx_create() */
+int dap_chain_tx_anon_init(void) __attribute__((deprecated("No-op: ledger handles its own crypto context")));
+void dap_chain_tx_anon_deinit(void) __attribute__((deprecated("No-op: ledger handles its own crypto context")));
+dap_chain_tx_anon_context_t *dap_chain_tx_anon_get_context(void) __attribute__((deprecated("Use ledger's anon_data instead")));
 
 /**
  * Create anonymous transfer. Algorithm auto-detected from wallet key type.

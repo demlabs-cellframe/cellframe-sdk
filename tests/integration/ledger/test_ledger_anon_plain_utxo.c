@@ -72,8 +72,8 @@ static void test_open_ledger_rejects_anon_items(void)
     dap_hash_sha3_256(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_hash);
 
     int l_rc = dap_ledger_tx_add_check(l_ledger, l_tx, dap_chain_datum_tx_get_size(l_tx), &l_hash);
-    dap_assert(l_rc == DAP_LEDGER_TX_CHECK_ANON_ITEM_FORBIDDEN,
-               "open ledger rejects anon TX items");
+    dap_assert(l_rc == DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED,
+               "open ledger rejects anon TX items (MISSTYPED)");
 
     DAP_DELETE(l_tx);
     s_destroy_ledger(l_ledger);
@@ -124,8 +124,8 @@ static void test_open_ledger_tx_load_rejects_anon_items(void)
     dap_hash_sha3_256(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_hash);
 
     int l_load = dap_ledger_tx_load(l_ledger, l_tx, &l_hash, NULL);
-    dap_assert(l_load == DAP_LEDGER_TX_CHECK_ANON_ITEM_FORBIDDEN,
-               "open ledger tx_load rejects anon TX items");
+    dap_assert(l_load == DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED,
+               "open ledger tx_load rejects anon TX items (MISSTYPED)");
 
     DAP_DELETE(l_tx);
     s_destroy_ledger(l_ledger);

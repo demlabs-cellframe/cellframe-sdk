@@ -994,10 +994,8 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
         return 0;
     }
 
-    dap_ledger_anon_ctx_t *s_anon_init = (dap_ledger_anon_ctx_t *)l_pvt->anon_data;
-    if (!s_anon_init) return -EINVAL;
-
-    if (!s_anon_init) return -EINVAL;
+    dap_ledger_anon_ctx_t *l_anon_ctx = (dap_ledger_anon_ctx_t *)l_pvt->anon_data;
+    if (!l_anon_ctx) return -EINVAL;
     if (!s_amount_valid(a_known_amount)) return -EINVAL;
 
     uint8_t l_amount_bytes[CHIPMUNK_PEDERSEN_VALUE_BYTES];
@@ -1005,7 +1003,7 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
 
     chipmunk_pedersen_commit_t l_expected_commit;
     int rc = chipmunk_pedersen_commit(&l_expected_commit,
-                                       &s_anon_init->pedersen_params,
+                                       &l_anon_ctx->pedersen_params,
                                        l_amount_bytes,
                                        (const uint8_t *)a_randomness_seed);
     if (rc != 0) {

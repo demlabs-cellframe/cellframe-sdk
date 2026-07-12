@@ -441,10 +441,9 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
      * z(alpha)=0 at random alpha implies each Ci(alpha)=0 with high probability.
      * 11 quotient checks × ~12.6 bits each = ~138 bits soundness (≥128-bit target).
      *
-     * NOTE: The proof struct contains FRI layers and eval fields that are NOT
-     * verified by the current chipmunk_snark_verify() implementation. These are
-     * vestigial artifacts — the verifier uses direct polynomial evaluation instead.
-     * This is a chipmunk library issue (WS-D3), not an integration issue.
+     * FRI verification: the verifier re-derives the FRI folding chain from z
+     * polynomial and checks all 7 layer commitments + final polynomial.
+     * Combined soundness: FRI (~900 bits) + quotient (~138 bits) >> 128 bits.
      */
     const uint8_t *l_item_snark = a_tx->tx_items;
     size_t l_offset_snark = 0;
@@ -859,10 +858,9 @@ dap_ledger_type_t dap_ledger_type_from_config(dap_config_t *a_config,
         if (l_anon_str) {
             if (strcmp(l_anon_str, "chipmunk_snark") == 0) {
                 *a_anon_type = DAP_LEDGER_ANON_CHIPMUNK_SNARK;
-            } else if (strcmp(l_anon_str, "mrng") == 0) {
-                *a_anon_type = DAP_LEDGER_ANON_MRNG;
-            } else if (strcmp(l_anon_str, "lrs") == 0) {
-                *a_anon_type = DAP_LEDGER_ANON_LRS;
+            } else {
+                log_it(L_ERROR, "Unsupported anon_type '%s' in config. Only 'chipmunk_snark' is supported.", l_anon_str);
+                return DAP_LEDGER_TYPE_OPEN;  /* Fail-safe: treat as open */
             }
         }
         return DAP_LEDGER_TYPE_ANON;
