@@ -257,6 +257,103 @@ size_t s_tokenizer_count(dap_ledger_tokenizer_t *a_list)
 }
 
 /**
+ * Open ledger: verify transaction signature.
+ * Anon TX on anon ledger skips this (SNARK proofs replace signatures).
+ * @return 0 if valid, negative on error
+ */
+static int s_open_tx_check_signature(dap_ledger_t *a_ledger,
+                                      dap_chain_datum_tx_t *a_tx,
+                                      dap_hash_sha3_256_t *a_tx_hash,
+                                      bool a_from_threshold)
+{
+    if (a_from_threshold || dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true))
+        return 0;
+    if (dap_chain_datum_tx_verify_sign(a_tx, 0))
+        return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+    return 0;
+}
+
+/**
+ * Open ledger: verify value conservation and fee.
+ * Checks sum(ins) == sum(outs) per token ticker, and fee >= fee_value.
+ * Anon TX on anon ledger skips this (Pedersen conservation handles it).
+ * @return 0 if valid, negative on error
+ */
+static int s_open_tx_check_conservation(dap_ledger_t *a_ledger,
+                                         dap_ledger_tokenizer_t *a_values_from_prev_tx,
+                                         dap_ledger_tokenizer_t *a_values_from_cur_tx,
+                                         uint256_t a_fee_sum,
+                                         uint256_t a_taxed_value,
+                                         uint256_t a_tax_sum,
+                                         dap_chain_addr_t a_sovereign_addr,
+                                         uint256_t a_sovereign_tax,
+                                         bool a_fee_check,
+                                         bool a_tax_check,
+                                         dap_chain_datum_tx_t *a_tx,
+                                         dap_hash_sha3_256_t *a_tx_hash)
+{
+    int l_err_num = DAP_LEDGER_CHECK_OK;
+
+    // Value conservation: sum(ins) == sum(outs) per token
+    if (s_tokenizer_count(a_values_from_prev_tx) != s_tokenizer_count(a_values_from_cur_tx)) {
+        log_it(L_ERROR, "Token tickers IN and OUT mismatch: %zu != %zu",
+                s_tokenizer_count(a_values_from_prev_tx), s_tokenizer_count(a_values_from_cur_tx));
+        l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
+    } else {
+        dap_ledger_tokenizer_t *l_value_cur = NULL, *l_res = NULL;
+        dap_sl_foreach(a_values_from_prev_tx, l_value_cur) {
+            l_res = s_tokenizer_find(a_values_from_cur_tx, l_value_cur->token_ticker);
+            if (!l_res || !EQUAL_256(l_res->sum, l_value_cur->sum)) {
+                if (g_debug_ledger) {
+                    char *l_balance = dap_chain_balance_coins_print(l_res ? l_res->sum : uint256_0),
+                         *l_balance_cur = dap_chain_balance_coins_print(l_value_cur->sum);
+                    log_it(L_ERROR, "Sum of values of out items from current tx (%s) is not equal outs from previous txs (%s) for token %s",
+                            l_balance, l_balance_cur, l_value_cur->token_ticker);
+                    DAP_DEL_MULTY(l_balance, l_balance_cur);
+                }
+                l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
+                break;
+            }
+        }
+    }
+    if (l_err_num && dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true))
+        l_err_num = 0;
+
+    // Fee check
+    if (!l_err_num && a_fee_check) {
+        if (compare256(a_fee_sum, a_ledger->fee_value) == -1 &&
+                !dap_ledger_tx_poa_signed(a_ledger->poa_keys, a_tx)) {
+            char *l_current_fee = dap_chain_balance_coins_print(a_fee_sum);
+            char *l_expected_fee = dap_chain_balance_coins_print(a_ledger->fee_value);
+            log_it(L_WARNING, "Fee value is invalid, expected %s pointed %s", l_expected_fee, l_current_fee);
+            l_err_num = DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE;
+            DAP_DEL_Z(l_current_fee);
+            DAP_DEL_Z(l_expected_fee);
+        }
+        if (a_tax_check && SUBTRACT_256_256(a_taxed_value, a_fee_sum, &a_taxed_value)) {
+            log_it(L_WARNING, "Fee is greater than sum of inputs");
+            l_err_num = DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
+        }
+    }
+
+    // Sovereign tax check
+    if (a_tax_check && !l_err_num) {
+        uint256_t l_expected_tax = {};
+        MULT_256_COIN(a_taxed_value, a_sovereign_tax, &l_expected_tax);
+        if (compare256(a_tax_sum, l_expected_tax) == -1) {
+            char *l_current_tax_str = dap_chain_balance_coins_print(a_tax_sum);
+            char *l_expected_tax_str = dap_chain_balance_coins_print(l_expected_tax);
+            log_it(L_WARNING, "Tax value is invalid, expected %s pointed %s", l_expected_tax_str, l_current_tax_str);
+            l_err_num = DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX;
+            DAP_DEL_Z(l_current_tax_str);
+            DAP_DEL_Z(l_expected_tax_str);
+        }
+    }
+
+    return l_err_num;
+}
+
+/**
  * Checking a new transaction before adding to the cache
  *
  * return 0 OK, otherwise error
@@ -327,13 +424,15 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
     int l_err_num = DAP_LEDGER_CHECK_OK;
     int l_prev_tx_count = 0;
-    const bool l_anon_ledger_tx = PVT(a_ledger)->ledger_type == DAP_LEDGER_TYPE_ANON &&
-            dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size);
+    const bool l_is_anon_tx = dap_chain_datum_tx_is_anonymous(
+        (const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size);
 
-    // 1. Verify signature in current transaction (anonymous TX on anon ledger uses SNARK proofs instead)
-    if (!l_anon_ledger_tx && !a_from_threshold && !dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true) &&
-            dap_chain_datum_tx_verify_sign(a_tx, 0))
-        return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+    // 1. Verify signature (open ledger only; anon uses SNARK proofs instead)
+    if (!l_is_anon_tx) {
+        int l_sig_rc = s_open_tx_check_signature(a_ledger, a_tx, a_tx_hash, a_from_threshold);
+        if (l_sig_rc)
+            return l_sig_rc;
+    }
 
     // ----------------------------------------------------------------
     // find all 'in' && 'in_cond' && 'in_ems' && 'in_reward'  items in current transaction
@@ -1214,62 +1313,13 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             SUM_256_256(l_tax_sum, l_value, &l_tax_sum);
     }
 
-    // Check for transaction consistency (sum(ins) == sum(outs))
-    if ( !l_err_num && !l_anon_ledger_tx ) {
-        if ( s_tokenizer_count(l_values_from_prev_tx) != s_tokenizer_count(l_values_from_cur_tx) ) {
-            log_it(L_ERROR, "Token tickers IN and OUT mismatch: %zu != %zu",
-                            s_tokenizer_count(l_values_from_prev_tx), s_tokenizer_count(l_values_from_cur_tx));
-            l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
-        } else {
-            dap_sl_foreach(l_values_from_prev_tx, l_value_cur) {
-                l_res = s_tokenizer_find(l_values_from_cur_tx, l_value_cur->token_ticker);
-                if ( !l_res || !EQUAL_256(l_res->sum, l_value_cur->sum) ) {
-                    if (g_debug_ledger) {
-                        char *l_balance = dap_chain_balance_coins_print(l_res ? l_res->sum : uint256_0), 
-                             *l_balance_cur = dap_chain_balance_coins_print(l_value_cur->sum);
-                        log_it(L_ERROR, "Sum of values of out items from current tx (%s) is not equal outs from previous txs (%s) for token %s",
-                                l_balance, l_balance_cur, l_value_cur->token_ticker);
-                        DAP_DEL_MULTY(l_balance, l_balance_cur);
-                    }
-                    l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
-                    break;
-                }
-            }
-        }
-        if (l_err_num && dap_ledger_datum_is_enforced(a_ledger, a_tx_hash, true))
-            l_err_num = 0;
-    }
-
-    // 7. Check the network fee
-    if (!l_err_num && l_fee_check && !l_anon_ledger_tx) {
-        // Check for PoA-cert-signed "service" no-tax tx
-        if (compare256(l_fee_sum, a_ledger->fee_value) == -1 &&
-                !dap_ledger_tx_poa_signed(a_ledger->poa_keys, a_tx)) {
-            char *l_current_fee = dap_chain_balance_coins_print(l_fee_sum);
-            char *l_expected_fee = dap_chain_balance_coins_print(a_ledger->fee_value);
-            log_it(L_WARNING, "Fee value is invalid, expected %s pointed %s", l_expected_fee, l_current_fee);
-            l_err_num = DAP_LEDGER_TX_CHECK_NOT_ENOUGH_FEE;
-            DAP_DEL_Z(l_current_fee);
-            DAP_DEL_Z(l_expected_fee);
-        }
-        if (l_tax_check && SUBTRACT_256_256(l_taxed_value, l_fee_sum, &l_taxed_value)) {
-            log_it(L_WARNING, "Fee is greater than sum of inputs");
-            l_err_num = DAP_LEDGER_CHECK_INTEGER_OVERFLOW;
-        }
-    }
-
-    // 8. Check sovereign tax
-    if (l_tax_check && !l_err_num) {
-        uint256_t l_expected_tax = {};
-        MULT_256_COIN(l_taxed_value, l_sovereign_tax, &l_expected_tax);
-        if (compare256(l_tax_sum, l_expected_tax) == -1) {
-            char *l_current_tax_str = dap_chain_balance_coins_print(l_tax_sum);
-            char *l_expected_tax_str = dap_chain_balance_coins_print(l_expected_tax);
-            log_it(L_WARNING, "Tax value is invalid, expected %s pointed %s", l_expected_tax_str, l_current_tax_str);
-            l_err_num = DAP_LEDGER_TX_CHECK_NOT_ENOUGH_TAX;
-            DAP_DEL_Z(l_current_tax_str);
-            DAP_DEL_Z(l_expected_tax_str);
-        }
+    // Check for transaction consistency (open ledger: sum(ins)==sum(outs) + fee; anon: Pedersen conservation)
+    if (!l_err_num && !l_is_anon_tx) {
+        l_err_num = s_open_tx_check_conservation(a_ledger,
+            l_values_from_prev_tx, l_values_from_cur_tx,
+            l_fee_sum, l_taxed_value, l_tax_sum,
+            l_sovereign_addr, l_sovereign_tax, l_fee_check, l_tax_check,
+            a_tx, a_tx_hash);
     }
 
     if (!l_err_num) {
