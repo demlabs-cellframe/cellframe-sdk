@@ -35,6 +35,7 @@
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
+#include "dap_chain_net.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
@@ -1931,18 +1932,19 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                 // Send it to notificator listeners
 #ifndef DAP_CHAIN_BLOCKS_TEST
-                if (!dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id))){
-#endif
-                    dap_list_t *l_iter;
-                    DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
-                        dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
-                        dap_chain_block_cache_t *l_tmp = l_bcache_last;
-                        int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
-                        for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
-                        if (l_checked_atoms_cnt == 0 && l_tmp)
-                            l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
-                    }    
-#ifndef DAP_CHAIN_BLOCKS_TEST
+                {
+                    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+                    if (l_net && !dap_chain_net_get_load_mode(l_net) && dap_chain_net_get_state(l_net) != NET_STATE_SYNC_CHAINS) {
+                        dap_list_t *l_iter;
+                        DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
+                            dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
+                            dap_chain_block_cache_t *l_tmp = l_bcache_last;
+                            int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
+                            for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
+                            if (l_checked_atoms_cnt == 0 && l_tmp)
+                                l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
+                        }
+                    }
                 }
 #endif
                 return ATOM_ACCEPT;
@@ -1967,18 +1969,19 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                         // Send it to notificator listeners
 #ifndef DAP_CHAIN_BLOCKS_TEST
-                        if (!dap_chain_net_get_load_mode( dap_chain_net_by_id(a_chain->net_id))){
-#endif
-                            dap_list_t *l_iter;
-                            DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
-                                dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
-                                dap_chain_block_cache_t *l_tmp = l_bcache_last;
-                                int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
-                                for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
-                                if (l_checked_atoms_cnt == 0 && l_tmp)
-                                    l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
-                            }    
-#ifndef DAP_CHAIN_BLOCKS_TEST
+                        {
+                            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+                            if (l_net && !dap_chain_net_get_load_mode(l_net) && dap_chain_net_get_state(l_net) != NET_STATE_SYNC_CHAINS) {
+                                dap_list_t *l_iter;
+                                DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
+                                    dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
+                                    dap_chain_block_cache_t *l_tmp = l_bcache_last;
+                                    int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
+                                    for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
+                                    if (l_checked_atoms_cnt == 0 && l_tmp)
+                                        l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
+                                }
+                            }
                         }
 #endif
                     }

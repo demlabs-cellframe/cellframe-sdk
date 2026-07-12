@@ -412,6 +412,7 @@ int dap_chain_net_init()
 {
     dap_ledger_init();
     dap_chain_ch_init();
+    dap_chain_ch_set_sync_progress_callback(dap_chain_net_sync_touch_progress);
     dap_chain_net_anchor_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
@@ -2820,6 +2821,13 @@ DAP_INLINE dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net
     return PVT(a_net)->state;
 }
 
+void dap_chain_net_sync_touch_progress(dap_chain_net_id_t a_net_id)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (l_net)
+        PVT(l_net)->sync_context.last_progress_activity = dap_time_now();
+}
+
 dap_chain_cell_id_t *dap_chain_net_get_cur_cell( dap_chain_net_t *a_net)
 {
     return  PVT(a_net)->node_info ? &PVT(a_net)->node_info->cell_id: 0;
@@ -4044,7 +4052,7 @@ static bool s_sync_process_start_request_owner_proc_cb(void *a_arg)
 
 static void s_sync_process_start_request_dispatch(dap_chain_net_t *a_net, sync_start_req_arg_t *a_arg)
 {
-    if (!s_sync_dispatch_to_owner(a_net, a_arg, s_sync_process_start_request_owner_cb, s_sync_process_start_request_owner_proc_cb))
+    if (!dap_proc_thread_callback_add(NULL, s_sync_process_start_request_owner_proc_cb, a_arg))
         return;
     log_it(L_CRITICAL, "Can't schedule start-request owner phase for net %s", a_net->pub.name);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
@@ -4261,7 +4269,6 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         break;
     }
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN:
-        l_net_pvt->sync_context.last_progress_activity = dap_time_now();
         break;
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY:
     default:
