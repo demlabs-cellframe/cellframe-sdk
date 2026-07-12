@@ -280,8 +280,8 @@ static int s_anon_tx_key_images_commit(dap_ledger_anon_ctx_t *a_anon,
  * Anonymous TX verification
  * ---------------------------------------------------------------------- */
 
-static bool s_pedersen_commit_equal(const chipmunk_pedersen_commit_t *a_lhs,
-                                    const chipmunk_pedersen_commit_t *a_rhs)
+bool dap_ledger_pedersen_commit_equal(const chipmunk_pedersen_commit_t *a_lhs,
+                                       const chipmunk_pedersen_commit_t *a_rhs)
 {
     if (!a_lhs || !a_rhs)
         return false;
@@ -405,7 +405,7 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
         l_offset += l_item_size;
     }
 
-    if (!l_has_out_anon || !s_pedersen_commit_equal(&l_input_commit, &l_outputs_sum)) {
+    if (!l_has_out_anon || !dap_ledger_pedersen_commit_equal(&l_input_commit, &l_outputs_sum)) {
         log_it(L_WARNING, "Pedersen conservation check failed for anonymous TX");
         return -EINVAL;
     }

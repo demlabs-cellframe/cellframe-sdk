@@ -33,6 +33,10 @@ typedef struct dap_ledger_anon_ctx {
     char *ledger_name;
 } dap_ledger_anon_ctx_t;
 
+/* Compare two Pedersen commitments for equality (modular arithmetic) */
+bool dap_ledger_pedersen_commit_equal(const chipmunk_pedersen_commit_t *a_lhs,
+                                       const chipmunk_pedersen_commit_t *a_rhs);
+
 #ifdef __cplusplus
 }
 #endif

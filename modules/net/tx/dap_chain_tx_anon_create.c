@@ -948,21 +948,20 @@ static int s_find_utxo(dap_ledger_t *a_ledger,
     return -ENOENT;
 }
 /*
- * Reveal anonymous balance: verify Pedersen commitment opening.
+ * Reveal anonymous balance: scan ledger for OUT_ANON at address,
+ * verify Pedersen commitment openings, sum unspent verified amounts.
  *
- * The user provides the amount and randomness seed for each TX they created.
- * The ledger verifies that Com(amount; r) matches the stored commitment.
- *
- * For a practical implementation, the randomness should be derived
- * deterministically from: user_secret_key || tx_hash || output_index.
- * This way the user only needs to remember their secret key.
+ * The user provides the amount and randomness seed. The ledger scans
+ * all unspent OUT_ANON outputs at the address and verifies that
+ * Com(amount; seed) matches the stored commitment. Matching outputs
+ * are summed to produce the total verified balance.
  *
  * @param a_ledger The ledger.
  * @param a_addr Address to check.
  * @param a_token_ticker Token ticker.
  * @param a_randomness_seed Seed used when creating Pedersen commitments.
  * @param a_known_amount The amount the user claims to have committed.
- * @param a_balance_out Output: verified balance.
+ * @param a_balance_out Output: verified balance (sum of matching unspent outputs).
  * @return 0 on success, negative on error.
  */
 int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
@@ -988,6 +987,7 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
     if (!l_anon_ctx) return -EINVAL;
     if (!s_amount_valid(a_known_amount)) return -EINVAL;
 
+    /* Compute expected Pedersen commitment from known amount + seed */
     uint8_t l_amount_bytes[CHIPMUNK_PEDERSEN_VALUE_BYTES];
     s_uint256_to_bytes(a_known_amount, l_amount_bytes);
 
@@ -1001,9 +1001,73 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
         return rc;
     }
 
-    *a_balance_out = a_known_amount;
+    /* Scan ledger for unspent OUT_ANON at the address.
+     * For each OUT_ANON matching address + token: compare commitment.
+     * If commitment matches, the output is verified — add to balance. */
+    uint256_t l_verified_balance = uint256_0;
+    size_t l_verified_count = 0;
 
-    log_it(L_INFO, "Anonymous balance revealed: %s for address (commitment verified)",
-           dap_uint256_to_const_char(a_known_amount, NULL));
+    /* Iterate all TXs in the ledger via the ledger items hash table */
+    dap_ledger_tx_item_t *l_tx_item = NULL, *l_tmp = NULL;
+    pthread_rwlock_rdlock(&l_pvt->ledger_rwlock);
+    dap_ht_foreach(l_pvt->ledger_items, l_tx_item, l_tmp) {
+        dap_chain_datum_tx_t *l_tx = l_tx_item->tx;
+        if (!l_tx) continue;
+
+        /* Check if this TX has been fully spent (n_outs_used == n_outs) */
+        if (l_tx_item->cache_data.n_outs_used >= l_tx_item->cache_data.n_outs)
+            continue;
+
+        /* Iterate TX outputs looking for OUT_ANON at our address */
+        const uint8_t *l_item = l_tx->tx_items;
+        size_t l_offset = 0;
+        size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+        uint32_t l_out_idx = 0;
+
+        while (l_offset < l_tx_size) {
+            if (*l_item == TX_ITEM_TYPE_OUT_ANON) {
+                const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
+
+                /* Match address and token ticker */
+                if (dap_chain_addr_compare(&l_out->addr, a_addr) &&
+                    !dap_strcmp(l_out->token_ticker, a_token_ticker)) {
+
+                    /* Check if this output is already spent */
+                    bool l_spent = false;
+                    if (l_out_idx < l_tx_item->cache_data.n_outs) {
+                        dap_hash_sha3_256_t l_zero_hash = {};
+                        if (!dap_hash_fast_compare(&l_tx_item->out_metadata[l_out_idx].tx_spent_hash_fast, &l_zero_hash))
+                            l_spent = true;
+                    }
+
+                    if (!l_spent) {
+                        /* Compare commitment (copy from packed struct to avoid alignment issues) */
+                        chipmunk_pedersen_commit_t l_stored_commit;
+                        memcpy(&l_stored_commit, &l_out->commitment, sizeof(l_stored_commit));
+                        if (dap_ledger_pedersen_commit_equal(&l_stored_commit, &l_expected_commit)) {
+                            SUM_256_256(l_verified_balance, a_known_amount, &l_verified_balance);
+                            l_verified_count++;
+                        }
+                    }
+                }
+                l_out_idx++;
+            }
+            uint32_t l_item_size = *(const uint32_t *)(l_item + 4);
+            if (l_item_size == 0) break;
+            l_item += l_item_size;
+            l_offset += l_item_size;
+        }
+    }
+    pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
+
+    if (l_verified_count == 0) {
+        log_it(L_WARNING, "No unspent OUT_ANON found at address with matching commitment");
+        return -ENOENT;
+    }
+
+    *a_balance_out = l_verified_balance;
+
+    log_it(L_INFO, "Anonymous balance revealed: %s (%zu matching outputs) for address",
+           dap_uint256_to_const_char(l_verified_balance, NULL), l_verified_count);
     return 0;
 }
