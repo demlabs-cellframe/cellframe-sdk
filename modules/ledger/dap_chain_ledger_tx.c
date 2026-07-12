@@ -2448,6 +2448,9 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         }
     }
 
+    // Type-specific cleanup (e.g. key image removal for anon ledgers)
+    dap_ledger_type_tx_remove_commit(a_ledger, a_tx_hash);
+
     // Clear & destroy item
     for (uint32_t i = 0; i < l_tx_item->cache_data.n_outs; i++)
         dap_list_free_full(l_tx_item->out_metadata[i].trackers, dap_ledger_colour_clear_callback);

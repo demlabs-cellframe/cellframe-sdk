@@ -62,7 +62,9 @@ static int s_open_tx_add(dap_ledger_t *a_ledger,
 static int s_open_tx_remove(dap_ledger_t *a_ledger,
                              dap_hash_fast_t *a_tx_hash)
 {
-    return dap_ledger_tx_remove(a_ledger, NULL, a_tx_hash);
+    /* Open ledger: no type-specific cleanup needed on TX removal */
+    (void)a_ledger; (void)a_tx_hash;
+    return 0;
 }
 
 static int s_open_calc_balance(dap_ledger_t *a_ledger,
@@ -673,6 +675,19 @@ int dap_ledger_type_tx_add_commit(dap_ledger_t *a_ledger,
     return 0;
 }
 
+int dap_ledger_type_tx_remove_commit(dap_ledger_t *a_ledger,
+                                      dap_hash_fast_t *a_tx_hash)
+{
+    if (!a_ledger || !a_tx_hash)
+        return -EINVAL;
+
+    const dap_ledger_type_desc_t *l_desc =
+        dap_ledger_type_get_by_enum((dap_ledger_type_t)PVT(a_ledger)->ledger_type);
+    if (l_desc && l_desc->tx_remove)
+        return l_desc->tx_remove(a_ledger, a_tx_hash);
+    return 0;
+}
+
 static int s_anon_tx_remove(dap_ledger_t *a_ledger,
                              dap_hash_fast_t *a_tx_hash)
 {
@@ -698,7 +713,7 @@ static int s_anon_tx_remove(dap_ledger_t *a_ledger,
         pthread_rwlock_unlock(&l_anon->key_images_rwlock);
     }
 
-    return dap_ledger_tx_remove(a_ledger, NULL, a_tx_hash);
+    return 0;
 }
 
 static int s_anon_calc_balance(dap_ledger_t *a_ledger,

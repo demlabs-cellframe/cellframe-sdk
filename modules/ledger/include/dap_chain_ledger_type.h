@@ -217,8 +217,16 @@ int dap_ledger_anon_tx_key_images_commit(dap_ledger_t *a_ledger,
  * Called from dap_ledger_tx_add_impl after balance/UTXO checks pass.
  */
 int dap_ledger_type_tx_add_commit(dap_ledger_t *a_ledger,
-                                  dap_chain_datum_tx_t *a_tx,
-                                  dap_hash_fast_t *a_tx_hash);
+                                   dap_chain_datum_tx_t *a_tx,
+                                   dap_hash_fast_t *a_tx_hash);
+
+/**
+ * Dispatch type-specific TX removal hooks (tx_remove callback).
+ * Called from dap_ledger_tx_remove for type-specific cleanup
+ * (e.g. key image removal for anon ledgers).
+ */
+int dap_ledger_type_tx_remove_commit(dap_ledger_t *a_ledger,
+                                      dap_hash_fast_t *a_tx_hash);
 
 #ifdef __cplusplus
 }
