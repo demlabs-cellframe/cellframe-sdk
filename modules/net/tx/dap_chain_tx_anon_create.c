@@ -506,7 +506,15 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     l_statement.message = l_msg_buf;
     l_statement.message_size = l_off;
 
-    /* 9. SNARK proof — use per-ledger anon context */
+    /* 9. SNARK proof — use per-ledger anon context
+     * The prover constructs:
+     *   - indicator polynomial b (one-hot: b[signer]=1)
+     *   - constraint polynomial z encoding ring membership (C3), binary (C1),
+     *     single-signer (C2), and lattice binding (C4)
+     *   - quotient polynomial q = z/(X-alpha)
+     *   - FRI commitment layers (vestigial — verifier uses direct eval)
+     * Ring membership is embedded in C3: sum(b_i*H(pk_i)) = H(pk_signer).
+     * Verifier checks z(alpha)=0 via quotient relation at 11 random points. */
     chipmunk_snark_proof_t l_snark;
     memset(&l_snark, 0, sizeof(l_snark));
     l_rc = chipmunk_snark_prove(&l_snark, &l_anon_init->snark_ctx, &l_statement, &l_witness);
