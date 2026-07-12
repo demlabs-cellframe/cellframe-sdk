@@ -804,6 +804,20 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
  * @param a_node_role
  * @return dap_chain_net_t*
  */
+
+/* Callback for ledger get_cur_cell — returns real cell_id from network node_info */
+static dap_chain_cell_id_t s_net_cur_cell_cb(dap_ledger_t *a_ledger)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_ledger->net_id);
+    if (l_net) {
+        dap_chain_cell_id_t *l_cell = dap_chain_net_get_cur_cell(l_net);
+        if (l_cell)
+            return *l_cell;
+    }
+    dap_chain_cell_id_t l_zero = {.uint64 = 0};
+    return l_zero;
+}
+
 static dap_chain_net_t *s_net_new(const char *a_net_name, dap_config_t *a_cfg)
 {
     dap_return_val_if_fail(a_cfg, NULL);
@@ -2008,6 +2022,9 @@ int s_chain_net_preload(dap_chain_net_t *a_net)
         
         // Set ledger callbacks and context
         a_net->pub.ledger->load_mode = true;
+
+        // Set cell_id callback so ledger/decrees use real cell_id instead of zero
+        dap_ledger_set_get_cur_cell_callback(a_net->pub.ledger, s_net_cur_cell_cb);
 
         // Register all chains with the ledger
         dap_chain_t *l_chain = NULL;

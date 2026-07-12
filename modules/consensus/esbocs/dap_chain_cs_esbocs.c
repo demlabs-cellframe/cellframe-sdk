@@ -40,6 +40,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_json.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"  // Stake module is now compiled and working!
 #include "dap_chain_ledger.h"
+
+/* Forward declaration — defined in dap_chain_net.c */
+extern int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_sha3_256_t *a_datum_hash);
 #include "dap_cli_server.h"
 #include "dap_sign.h"
 #include "dap_link_manager.h"
@@ -3286,6 +3289,33 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
             log_it(L_WARNING, "Can't process non-hardfork block %s with generation meta", dap_hash_sha3_256_to_str_static(a_block_hash));
             return -303;
         }
+
+        /* Verify all datums in the block candidate before consensus votes.
+         * This ensures validators reject blocks containing invalid TXs (including
+         * malformed anonymous TXs) at the voting stage, not just after commit. */
+        {
+            size_t l_datums_count = 0;
+            dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
+            if (l_datums) {
+                for (size_t i = 0; i < l_datums_count; ++i) {
+                    if (!l_datums[i]) continue;
+                    if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
+                        dap_hash_sha3_256_t l_datum_hash = {};
+                        dap_hash_sha3_256(l_datums[i], dap_chain_datum_size(l_datums[i]), &l_datum_hash);
+                        int l_verify_rc = dap_chain_net_verify_datum_for_add(
+                            a_blocks->chain, l_datums[i], &l_datum_hash);
+                        if (l_verify_rc != 0 && l_verify_rc != DAP_LEDGER_CHECK_ALREADY_CACHED) {
+                            log_it(L_WARNING, "Block candidate %s: datum #%zu failed verification (rc=%d)",
+                                   dap_hash_sha3_256_to_str_static(a_block_hash), i, l_verify_rc);
+                            DAP_DELETE(l_datums);
+                            return -6;
+                        }
+                    }
+                }
+                DAP_DELETE(l_datums);
+            }
+        }
+
         return 0;
     }
 
