@@ -1364,7 +1364,9 @@ static void s_db_calc_sync_hash(dap_chain_chipchain_session_t *a_session)
 {
     dap_chain_addr_t l_addr_blank = c_dap_chain_addr_blank;
     l_addr_blank.net_id = a_session->chain->net_id;
-    dap_chain_net_srv_stake_mark_validator_active(&l_addr_blank, true);  // Mark all validators active for now
+    /* Reset all validators to active, then apply penalties from GDB.
+     * This is necessary because penalty group may have changed since last sync. */
+    dap_chain_net_srv_stake_mark_validator_active(&l_addr_blank, true);
     char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
     size_t l_penalties_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);

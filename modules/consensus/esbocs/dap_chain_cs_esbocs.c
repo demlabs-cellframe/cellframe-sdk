@@ -372,7 +372,10 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->new_round_delay          = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "new_round_delay", 10);
     l_esbocs_pvt->round_attempts_max       = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout    = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
-    l_esbocs_pvt->start_validators_min     = l_esbocs_pvt->min_validators_count = l_validators_count;
+    l_esbocs_pvt->start_validators_min     = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "bootstrap_min_validators_count", l_validators_count);
+    l_esbocs_pvt->min_validators_count     = l_validators_count;
+    if (!l_esbocs_pvt->start_validators_min)
+        l_esbocs_pvt->start_validators_min = l_validators_count;
 
     uint16_t i, l_auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "auth_certs_count", l_node_addrs_count);
     dap_chain_net_t *l_net = dap_chain_net_api_by_id(a_chain->net_id);
@@ -1302,7 +1305,9 @@ static void s_db_calc_sync_hash(dap_chain_esbocs_session_t *a_session)
 {
     dap_chain_addr_t l_addr_blank = c_dap_chain_addr_blank;
     l_addr_blank.net_id = a_session->chain->net_id;
-    dap_chain_net_srv_stake_mark_validator_active(&l_addr_blank, true);  // Mark all validators active for now
+    /* Reset all validators to active, then apply penalties from GDB.
+     * This is necessary because penalty group may have changed since last sync. */
+    dap_chain_net_srv_stake_mark_validator_active(&l_addr_blank, true);
     char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
     size_t l_penalties_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_penalty_group, &l_penalties_count);
@@ -3295,7 +3300,12 @@ static int s_callback_block_verify(dap_chain_type_blocks_t *a_blocks, dap_chain_
         return -2;
     }
 
-    if (l_signs_count < l_esbocs_pvt->min_validators_count) {
+    // Use bootstrap floor for historical blocks — current min_validators_count
+    // applies to new rounds, not to re-validating already-sealed seed blocks.
+    uint16_t l_min_signs_required = l_esbocs_pvt->start_validators_min
+                                        ? l_esbocs_pvt->start_validators_min
+                                        : l_esbocs_pvt->min_validators_count;
+    if (l_signs_count < l_min_signs_required) {
         log_it(L_ERROR, "Corrupted block  %s: not enough signs: %zu of %hu", dap_hash_sha3_256_to_str_static(a_block_hash),
                                     l_signs_count, l_esbocs_pvt->min_validators_count);
         DAP_DELETE(l_signs);
