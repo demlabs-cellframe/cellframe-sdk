@@ -88,6 +88,8 @@
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_node.h"
+#include "dap_client.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_arbitrage.h"
@@ -103,6 +105,7 @@
 #include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_srv_voting.h"
 #include "dap_global_db_cluster.h"
@@ -358,6 +361,15 @@ static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static int s_link_manager_link_request(uint64_t a_net_id);
 static int s_link_manager_link_count_changed();
 
+static void s_link_manager_configure_handshake(dap_client_t *a_client, dap_stream_node_addr_t *a_addr, uint64_t a_net_id)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_net || !a_client || !a_addr)
+        return;
+    bool l_legacy = dap_chain_node_peer_needs_legacy_handshake(l_net, a_addr);
+    dap_client_configure_p2p_handshake(a_client, l_legacy);
+}
+
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = s_link_manager_callback_connected,
     .disconnected   = s_link_manager_callback_disconnected,
@@ -365,6 +377,7 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .fill_net_info  = s_link_manager_fill_net_info,
     .link_request   = s_link_manager_link_request,
     .link_count_changed = s_link_manager_link_count_changed,
+    .configure_handshake = s_link_manager_configure_handshake,
 };
 
 // State machine switchs here
@@ -581,16 +594,18 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     dap_chain_net_t * l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_return_if_pass(!l_net);
 
-    debug_if(s_debug_more, L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
+    log_it(L_INFO, "Established connection with %s."NODE_ADDR_FP_STR, l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_link->addr));
 
     s_net_control_event_emit_async(l_net, DAP_CHAIN_NET_CONTROL_EVENT_LINK_CONNECTED, 0);
     dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
                                                      .net_id  = l_net->pub.id };
-    if(dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_STREAM_CH_CHAIN_NET_ID, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
-                                   &l_announce, sizeof(l_announce))) {
-                                   dap_link_manager_accounting_link_in_net(l_net->pub.id.uint64, &a_link->addr, false);
-                                   }
+    if (dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_STREAM_CH_CHAIN_NET_ID,
+                                       DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
+                                       &l_announce, sizeof(l_announce)) != 0)
+        log_it(L_WARNING, "ANNOUNCE to " NODE_ADDR_FP_STR " failed, accounting link directly",
+               NODE_ADDR_FP_ARGS_S(a_link->addr));
+    dap_link_manager_accounting_link_in_net(l_net->pub.id.uint64, &a_link->addr, true);
 }
 
 static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
@@ -718,15 +733,29 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
         }
     }
     dap_chain_node_info_t *l_node_info = NULL;
+    dap_chain_net_t *l_cfg_net = NULL;
     if (!l_host || !l_host[0] || !l_port) {
         for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
-            if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) ))
+            if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) )) {
+                l_cfg_net = net;
                 break;
+            }
         }
         if (!l_node_info)
             return -3;
         l_host = l_node_info->ext_host;
         l_port = l_node_info->ext_port;
+    } else {
+        for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
+            if (dap_chain_net_get_state(l_net) > NET_STATE_OFFLINE) {
+                l_cfg_net = l_net;
+                break;
+            }
+        }
+    }
+    if (l_cfg_net && a_link->uplink.client) {
+        bool l_legacy = dap_chain_node_peer_needs_legacy_handshake(l_cfg_net, &a_link->addr);
+        dap_client_configure_p2p_handshake(a_link->uplink.client, l_legacy);
     }
     a_link->uplink.ready = !dap_link_manager_link_update(&a_link->addr, l_host, l_port);
     return DAP_DELETE(l_node_info), 0;
@@ -1017,6 +1046,8 @@ void dap_chain_net_load_all()
         pthread_join(l_tids[i], NULL);
     }
     dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+    if (dap_chain_srv_pay_cache_init())
+        log_it(L_WARNING, "SRV_PAY cache initialization failed");
 }
 
 dap_string_t* dap_cli_list_net()
@@ -1926,6 +1957,7 @@ static int s_cmp_cfg_pri(dap_config_t *cfg1, dap_config_t *cfg2) {
  */
 void dap_chain_net_deinit()
 {
+    dap_chain_srv_pay_cache_deinit();
     dap_link_manager_deinit();
     dap_chain_net_balancer_deinit();
     dap_chain_net_t *l_net, *l_tmp;
@@ -2184,22 +2216,28 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     }
     HASH_CLEAR(hh, l_all_chain_configs);
     // LEDGER model
+    const bool l_is_light_node = (PVT(l_net)->node_role.enums == NODE_ROLE_LIGHT);
     uint16_t l_ledger_flags = 0;
     switch ( PVT( l_net )->node_role.enums ) {
     case NODE_ROLE_LIGHT:
-        //break;
-        PVT( l_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
+        l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS | DAP_LEDGER_CACHE_ENABLED;
+        break;
     case NODE_ROLE_FULL:
         l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
         if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
             l_ledger_flags |= DAP_LEDGER_CACHE_ENABLED;
+        break;
     default:
-        l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
+        break;
     }
-    if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true))
+    if (PVT(l_net)->node_role.enums != NODE_ROLE_LIGHT)
+        l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
+    if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true) && !l_is_light_node)
         l_ledger_flags |= DAP_LEDGER_MAPPED;
 
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+        if (l_is_light_node)
+            l_chain->skip_disk_persist = true;
         if (l_chain->callback_load_from_gdb) {
             l_ledger_flags &= ~DAP_LEDGER_MAPPED;
             l_ledger_flags |= DAP_LEDGER_THRESHOLD_ENABLED;
@@ -2256,11 +2294,20 @@ static void *s_net_load(void *a_arg)
         dap_chain_net_srv_stake_purge(l_net);
     }*/
 
-    // load chains
+    // load chains (light nodes skip local BC files — wallet cache is filled from sync updates)
     dap_chain_t *l_chain = l_net->pub.chains;
-    clock_t l_chain_load_start_time; 
-    l_chain_load_start_time = clock(); 
-    while (l_chain) {
+    clock_t l_chain_load_start_time;
+    l_chain_load_start_time = clock();
+    const bool l_light_node = (l_net_pvt->node_role.enums == NODE_ROLE_LIGHT);
+    if (l_light_node) {
+        log_it(L_INFO, "Light node role: skipping local chain file load for net %s (wallet-balance sync only)",
+               l_net->pub.name);
+        while (l_chain) {
+            l_chain->state = CHAIN_SYNC_STATE_IDLE;
+            l_chain->atom_num_last = 0;
+            l_chain = l_chain->next;
+        }
+    } else while (l_chain) {
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         if (!dap_chain_load_all(l_chain)) {
@@ -3604,7 +3651,7 @@ static DAP_INLINE void s_net_control_event_apply(dap_chain_net_t *a_net, dap_cha
     dap_return_if_pass(!a_net || !a_net_pvt);
     switch (a_event) {
     case DAP_CHAIN_NET_CONTROL_EVENT_LINK_CONNECTED:
-        if (a_net_pvt->state == NET_STATE_LINKS_CONNECTING &&
+        if ((a_net_pvt->state == NET_STATE_LINKS_CONNECTING || a_net_pvt->state == NET_STATE_LINKS_PREPARE) &&
                 dap_link_manager_established_uplinks_count(a_net->pub.id.uint64) >= dap_link_manager_required_links_count(a_net->pub.id.uint64))
             a_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
         break;

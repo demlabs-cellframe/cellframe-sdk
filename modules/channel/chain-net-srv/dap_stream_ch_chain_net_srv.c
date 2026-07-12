@@ -462,16 +462,25 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
 
     log_it(L_DEBUG, "Got service request from user %s", dap_chain_hash_fast_to_str_static(&a_request->hdr.client_pkey_hash));
 
+    if (!l_srv) {
+        log_it(L_ERROR, "Service uid=0x%016"DAP_UINT64_FORMAT_x" not found in hash table",
+               a_request->hdr.srv_uid.uint64);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+        if (a_ch)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+        return false;
+    }
+
     if (dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
-        if (l_srv && l_srv->allow_free_srv) {
+        if (l_srv->allow_free_srv) {
             log_it(L_INFO, "No order hash in request, but allow_free_srv=true — continuing as free service");
         } else {
-            log_it( L_ERROR, "No order hash in request. l_srv=%p, allow_free_srv=%d, srv_uid=0x%016"DAP_UINT64_FORMAT_x,
-                   (void*)l_srv, l_srv ? l_srv->allow_free_srv : -1, a_request->hdr.srv_uid.uint64);
+            log_it(L_ERROR, "No order hash in request. allow_free_srv=false, srv_uid=0x%016"DAP_UINT64_FORMAT_x,
+                   a_request->hdr.srv_uid.uint64);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
             if(a_ch)
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-            if (l_srv && l_srv->callbacks.response_error)
+            if (l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
             return false;
         }
@@ -492,9 +501,7 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         return false;
     }
 
-    if (!l_srv) {
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
-    } else if (l_srv->decree_disabled) {
+    if (l_srv->decree_disabled) {
         log_it(L_WARNING, "Service uid=0x%016"DAP_UINT64_FORMAT_x" is disabled by decree in net %s",
                l_srv->uid.uint64, l_net->pub.name);
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_DISABLED;

@@ -1346,6 +1346,7 @@ static srv_pay_owner_index_t *s_srv_pay_owner_index = NULL;
 static pthread_rwlock_t s_srv_pay_cache_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 // Cache enabled flag (from config)
 static bool s_srv_pay_cache_enabled = false;
+static bool s_srv_pay_cache_initialized = false;
 
 static void s_srv_pay_ledger_tx_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
                                        dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode,
@@ -1695,29 +1696,39 @@ static void s_srv_pay_ledger_tx_notify(void *a_arg, dap_ledger_t *a_ledger, dap_
 
 int dap_chain_srv_pay_cache_init(void)
 {
+    if (s_srv_pay_cache_initialized)
+        return 0;
+
     // Read cache enabled flag from config
     s_srv_pay_cache_enabled = dap_config_get_item_bool_default(g_config, "srv_pay", "cache_enabled", true);
-    
+
     if (!s_srv_pay_cache_enabled)
     {
         log_it(L_INFO, "SRV_PAY cache disabled by config");
+        s_srv_pay_cache_initialized = true;
         return 0;
     }
-    
-    // Register ledger notifier for all networks
+
+    // Register ledger notifier for all networks (must run after dap_chain_net_load_all)
     int l_net_count = 0;
     dap_chain_net_t *l_net = dap_chain_net_iter_start();
     for (; l_net; l_net = dap_chain_net_iter_next(l_net))
     {
+        if (!l_net->pub.ledger)
+            continue;
         dap_ledger_tx_add_notify(l_net->pub.ledger, s_srv_pay_ledger_tx_notify, l_net);
         l_net_count++;
     }
+    s_srv_pay_cache_initialized = true;
     log_it(L_INFO, "SRV_PAY cache initialized, registered for %d networks", l_net_count);
     return 0;
 }
 
 void dap_chain_srv_pay_cache_deinit(void)
 {
+    if (!s_srv_pay_cache_initialized)
+        return;
+
     pthread_rwlock_wrlock(&s_srv_pay_cache_rwlock);
 
     // Free all entries
@@ -1740,6 +1751,8 @@ void dap_chain_srv_pay_cache_deinit(void)
     s_srv_pay_owner_index = NULL;
 
     pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
+    s_srv_pay_cache_enabled = false;
+    s_srv_pay_cache_initialized = false;
     log_it(L_INFO, "SRV_PAY cache deinitialized");
 }
 

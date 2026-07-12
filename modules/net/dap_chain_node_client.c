@@ -71,7 +71,9 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
 #include "dap_stream_pkt.h"
+#include "dap_chain_node.h"
 #include "dap_chain_node_client.h"
+#include "dap_client.h"
 
 #define LOG_TAG "dap_chain_node_client"
 
@@ -307,6 +309,12 @@ static bool s_node_client_connect_impl(dap_chain_node_client_t *a_node_client,
     a_node_client->client = dap_client_new(s_stage_status_error_callback, a_node_client);
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
+    /* P2P HTTP handshake mode is chosen per peer version (≤5.7 legacy, ≥5.8 modern). */
+    if (a_node_client->net && a_node_client->client
+            && (!a_node_client->desired_trans_type || a_node_client->desired_trans_type == DAP_NET_TRANS_HTTP)) {
+        bool l_legacy = dap_chain_node_peer_needs_legacy_handshake(a_node_client->net, &a_node_client->info->address);
+        dap_client_configure_p2p_handshake(a_node_client->client, l_legacy);
+    }
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
     /* Propagate desired transport type from node client to DAP client */
     if (a_node_client->desired_trans_type) {

@@ -519,6 +519,8 @@ const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
  */
 int dap_chain_save_all(dap_chain_t *l_chain)
 {
+    if (l_chain && l_chain->skip_disk_persist)
+        return 0;
     int l_ret = 0;
     pthread_rwlock_rdlock(&l_chain->cell_rwlock);
     dap_chain_cell_t *l_item = NULL, *l_item_tmp = NULL;
