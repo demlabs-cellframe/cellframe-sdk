@@ -74,3 +74,47 @@ add_test(
     NAME ledger-anon-plain-utxo-test
     COMMAND ledger-anon-plain-utxo-test
 )
+
+# Test 4: Key Image integrity (I2 / WS-C1/C2)
+project(ledger-ki-integrity-test)
+
+add_executable(${PROJECT_NAME}
+    test_ki_integrity.c
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(${PROJECT_NAME}
+    dap_test
+    dap_sdk
+    cellframe_sdk
+)
+
+add_test(
+    NAME ledger-ki-integrity-test
+    COMMAND ledger-ki-integrity-test
+)
+
+# Test 5: Mempool/block verify parity (I2 / WS-B5)
+project(ledger-mempool-block-parity-test)
+
+add_executable(${PROJECT_NAME}
+    test_mempool_block_verify_parity.c
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_link_libraries(${PROJECT_NAME}
+    dap_test
+    dap_sdk
+    cellframe_sdk
+)
+
+add_test(
+    NAME ledger-mempool-block-parity-test
+    COMMAND ledger-mempool-block-parity-test
+)
