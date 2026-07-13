@@ -10,8 +10,11 @@
 #include "dap_chain_ledger_type.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx_anon.h"
 #include "dap_chain_common.h"
 #include "dap_hash.h"
+
+#include <string.h>
 
 #define LOG_TAG "test_ledger_anon_plain_utxo"
 
@@ -38,10 +41,11 @@ static void s_destroy_ledger(dap_ledger_t *a_ledger)
 static dap_chain_datum_tx_t *s_make_stub_anon_tx(void)
 {
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    dap_chain_tx_in_anon_t l_in = {
-        .hdr = { .type = TX_ITEM_TYPE_IN_ANON, .size = sizeof(l_in) },
-        .ring_size = 0,
-    };
+    dap_chain_tx_in_anon_t l_in;
+    memset(&l_in, 0, sizeof(l_in));
+    l_in.hdr.type = TX_ITEM_TYPE_IN_ANON;
+    l_in.hdr.size = sizeof(l_in);
+    l_in.ring_size = 0;
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_in);
     return l_tx;
 }
