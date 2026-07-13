@@ -256,6 +256,7 @@ struct chain_sync_context {
 
 #define DAP_CHAIN_NET_SYNC_MISS_COUNT_MAX 200        // Max MISS packets before sync from zero
 #define DAP_CHAIN_NET_SYNC_SEND_RETRY_MAX 2          // Max CHAIN_REQ send retries before restart
+#define DAP_CHAIN_NET_SYNC_WAITING_RETRY_TIMEOUT 60  // Retry CHAIN_REQ if WAITING without RX (sec)
 #define DAP_CHAIN_NET_STATE_REPEAT_GUARD 64          // Max immediate FSM repeats in one run
 #define DAP_CHAIN_NET_NOTIFIER_DRAIN_WAIT_ATTEMPTS 5000 // Max notifier drain poll iterations on net delete
 #define DAP_CHAIN_NET_NOTIFIER_DRAIN_WAIT_NS 1000000 // Notifier drain poll interval in nanoseconds
@@ -3851,11 +3852,14 @@ static int s_sync_send_chain_req(dap_chain_net_t *a_net, dap_chain_net_pvt_t *a_
     a_net_pvt->sync_context.req_send_retry_count = 0;
     a_net_pvt->sync_context.requested_atom_hash = a_request->hash_from;
     a_net_pvt->sync_context.requested_atom_num = a_request->num_from;
-    dap_time_t l_now = dap_time_now();
-    a_net_pvt->sync_context.stage_last_activity = l_now;
-    a_net_pvt->sync_context.last_progress_activity = l_now;
+    a_net_pvt->sync_context.stage_last_activity = dap_time_now();
     DAP_DELETE(l_chain_pkt);
     return 0;
+}
+
+static DAP_INLINE bool s_sync_links_ready(uint64_t a_net_id)
+{
+    return dap_link_manager_established_uplinks_count(a_net_id) >= dap_link_manager_required_links_count(a_net_id);
 }
 
 static void s_sync_process_chain_miss_rewind_owner_cb(void *a_arg)
@@ -4482,6 +4486,13 @@ static void s_sync_timer_callback(void *a_arg)
     s_sync_heavy_ops_retry_pending(l_net);
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) // if offline no need sync
         return;
+    if (l_net_pvt->state == NET_STATE_LINKS_CONNECTING &&
+            s_sync_links_ready(l_net->pub.id.uint64))
+        l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
+    if (l_net_pvt->state_target != NET_STATE_OFFLINE &&
+            l_net_pvt->state != NET_STATE_OFFLINE &&
+            !s_sync_links_ready(l_net->pub.id.uint64))
+        return;
     dap_time_t l_now = dap_time_now();
     dap_chain_sync_state_t l_state_forming = CHAIN_SYNC_STATE_IDLE;
     dap_chain_net_sync_restart_reason_t l_restart_reason = DAP_CHAIN_NET_SYNC_RESTART_REASON_UNSPECIFIED;
@@ -4556,6 +4567,14 @@ static void s_sync_timer_callback(void *a_arg)
             return;
         break;
     case CHAIN_SYNC_STATE_WAITING:
+        if (l_now - l_net_pvt->sync_context.last_rx_activity > DAP_CHAIN_NET_SYNC_WAITING_RETRY_TIMEOUT) {
+            log_it(L_WARNING, "Chain %s of net %s WAITING without RX for %u sec, retry CHAIN_REQ",
+                   l_chain->name, l_net->pub.name, DAP_CHAIN_NET_SYNC_WAITING_RETRY_TIMEOUT);
+            l_chain->state = CHAIN_SYNC_STATE_IDLE;
+            atomic_store_explicit(&l_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
+            l_state_forming = CHAIN_SYNC_STATE_IDLE;
+            break;
+        }
         return;
     default:
         break;

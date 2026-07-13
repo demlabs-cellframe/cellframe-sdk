@@ -871,7 +871,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 l_ch_chain->sync_context = l_context;
                 l_ch_chain->idle_ack_counter = s_sync_ack_window_size;
-                dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
+                dap_proc_thread_callback_add(NULL, s_chain_iter_callback, l_context);
                 l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_uuid);
                 break;
             }
@@ -980,7 +980,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                               dap_min(l_ack_num + s_sync_ack_window_size, l_context->num_last),
                               memory_order_release);
         if (atomic_exchange(&l_context->state, SYNC_STATE_READY) == SYNC_STATE_IDLE)
-            dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
+            dap_proc_thread_callback_add(NULL, s_chain_iter_callback, l_context);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
