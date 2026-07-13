@@ -50,6 +50,7 @@
 
 #define LOG_TAG "dap_chain_node"
 
+// Debug flag for node operations (read from config: node.debug_more)
 static bool s_debug_more = false;
 #define DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION 2
 typedef struct dap_chain_node_net_states_info_v1 {

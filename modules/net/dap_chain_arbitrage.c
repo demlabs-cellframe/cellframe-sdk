@@ -103,11 +103,9 @@ bool dap_chain_arbitrage_tx_is_arbitrage(dap_chain_datum_tx_t *a_tx)
         l_tx_items_pos += l_item_size;
     }
 
-    // Log if TSD item was found but arbitrage marker was not
-    if (l_found_tsd_item) {
-        log_it(L_DEBUG, "TX has TSD item but no arbitrage marker found");
-    }
-    
+    debug_if(s_arbitrage_debug_more() && l_found_tsd_item, L_DEBUG,
+             "TX has TSD item but no arbitrage marker found");
+
     return false;  // No arbitrage marker found
 }
 

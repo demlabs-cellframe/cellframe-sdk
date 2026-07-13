@@ -134,7 +134,6 @@ void dap_chain_node_cli_cmd_init(dap_config_t *a_config)
     }
 }
 
-
 int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 static int _cmd_tx_cond_create(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 static int _cmd_tx_cond_refill(int a_argc, char **a_argv, void **a_str_reply, int a_version);
@@ -2852,7 +2851,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                         DAP_DELETE(l_gdb_group_mempool);
                         return -6;
                     }else{
-                        debug_if(s_debug_more, L_DEBUG,"Sign %zu passed", i);
+                        debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Existing sign %zu passed verification", i);
                     }
                     l_signs_size += l_sign_size;
                     l_actual_signs_count++;
@@ -2864,6 +2863,8 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                            l_actual_signs_count, l_current_signs_count, l_datum_hash_out_str);
                 }
                 l_datum_token->signs_total = l_actual_signs_count;
+                debug_if(s_debug_more, L_DEBUG, "[TOKEN_DECL_SIGN] Restored signs_total=%u after verification (total sign size=%zu)",
+                         l_datum_token->signs_total, l_signs_size);
                 debug_if(s_debug_more, L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
 
