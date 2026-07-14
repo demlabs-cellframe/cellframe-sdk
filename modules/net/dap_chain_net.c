@@ -2026,16 +2026,50 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     // Synchronously going to offline state
     l_net_pvt->state = l_net_pvt->state_target = NET_STATE_OFFLINE;
     s_net_states_proc(a_net);
-    dap_global_db_cluster_t *l_mempool = l_net_pvt->mempool_clusters;
-    while (l_mempool) {
-        dap_global_db_cluster_t *l_next = l_mempool->next;
-        dap_global_db_cluster_delete(l_mempool);
-        l_mempool = l_next;
+    /* Delete GlobalDB clusters belonging to this net.
+     *
+     * WARNING: mempool_clusters->next follows the dbi->clusters linked list
+     * (prev/next are shared fields in dap_global_db_cluster_t). That list
+     * contains ALL clusters across ALL nets plus the global/local pseudo-
+     * clusters. Iterating via next would walk into other nets' clusters and
+     * cause double-free. Also, after dap_global_db_cluster_delete the
+     * prev/next pointers of neighbours are modified, invalidating any
+     * previously saved 'next' pointer.
+     *
+     * Instead, use dap_chain_net_get_mempool_cluster() to resolve each chain's
+     * mempool cluster, then delete it. This is safe because the function
+     * walks the chain list and follows mempool_clusters->next the same way
+     * clusters were created. */
+    {
+        dap_chain_t *l_tmp, *l_chain = NULL;
+        /* Collect mempool cluster pointers first, since after delete the
+         * dbi->clusters linked list (and thus mempool_clusters->next) is
+         * modified. We iterate pub.chains backwards so earlier entries
+         * remain valid for later lookups. */
+        size_t l_chain_count = 0;
+        DL_COUNT(a_net->pub.chains, l_chain, l_chain_count);
+        dap_global_db_cluster_t **l_mempools = DAP_CALLOC(l_chain_count, sizeof(dap_global_db_cluster_t *));
+        if (l_mempools) {
+            size_t l_idx = 0;
+            DL_FOREACH(a_net->pub.chains, l_chain) {
+                l_mempools[l_idx++] = dap_chain_net_get_mempool_cluster(l_chain);
+            }
+            for (size_t i = 0; i < l_chain_count; i++) {
+                if (l_mempools[i])
+                    dap_global_db_cluster_delete(l_mempools[i]);
+            }
+            DAP_DELETE(l_mempools);
+        }
     }
+    l_net_pvt->mempool_clusters = NULL;  /* all mempool clusters deleted */
     dap_global_db_cluster_delete(l_net_pvt->orders_cluster);
+    l_net_pvt->orders_cluster = NULL;
     dap_global_db_cluster_delete(l_net_pvt->nodes_cluster);
+    l_net_pvt->nodes_cluster = NULL;
     dap_global_db_cluster_delete(l_net_pvt->nodes_states);
+    l_net_pvt->nodes_states = NULL;
     dap_global_db_cluster_delete(l_net_pvt->common_orders);
+    l_net_pvt->common_orders = NULL;
 
     DAP_DELETE(l_net_pvt->node_info);
     if (a_net->pub.ledger) {
