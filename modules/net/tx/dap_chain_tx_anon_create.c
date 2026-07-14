@@ -554,15 +554,13 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_hash_sha3_256_raw(l_commit_hash.raw, (const uint8_t *)&l_commit, sizeof(l_commit));
 
     uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
-    size_t l_off = 0;
-    memcpy(l_msg_buf + l_off, a_addr_to, sizeof(dap_chain_addr_t)); l_off += sizeof(dap_chain_addr_t);
-    memcpy(l_msg_buf + l_off, l_commit_hash.raw, 32); l_off += 32;
-    size_t l_tl = strnlen(a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
-    memcpy(l_msg_buf + l_off, a_token_ticker, l_tl); l_off += l_tl;
-    memcpy(l_msg_buf + l_off, l_ki_hash.raw, 32); l_off += 32;
-    memcpy(l_msg_buf + l_off, l_rp_hash.raw, 32); l_off += 32;
+    ssize_t l_msg_size = dap_chain_anon_snark_build_message(l_msg_buf, sizeof(l_msg_buf),
+                                                              a_addr_to, &l_commit_hash,
+                                                              a_token_ticker, &l_ki_hash, &l_rp_hash);
+    if (l_msg_size < 0)
+        return NULL;
     l_statement.message = l_msg_buf;
-    l_statement.message_size = l_off;
+    l_statement.message_size = (size_t)l_msg_size;
 
     /* 9. SNARK proof — use per-ledger anon context
      * The prover constructs:
@@ -1146,12 +1144,10 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
             continue;
 
         /* Iterate TX outputs looking for OUT_ANON at our address */
-        const uint8_t *l_item = l_tx->tx_items;
-        size_t l_offset = 0;
-        size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
         uint32_t l_out_idx = 0;
-
-        while (l_offset < l_tx_size) {
+        const uint8_t *l_item;
+        size_t l_item_size;
+        TX_ITEM_ITER_TX(l_item, l_item_size, l_tx) {
             if (*l_item == TX_ITEM_TYPE_OUT_ANON) {
                 const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
 
@@ -1179,10 +1175,6 @@ int dap_chain_tx_anon_reveal_balance(dap_ledger_t *a_ledger,
                 }
                 l_out_idx++;
             }
-            uint32_t l_item_size = *(const uint32_t *)(l_item + 4);
-            if (l_item_size == 0) break;
-            l_item += l_item_size;
-            l_offset += l_item_size;
         }
     }
     pthread_rwlock_unlock(&l_pvt->ledger_rwlock);

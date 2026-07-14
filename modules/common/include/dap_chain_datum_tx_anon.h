@@ -211,6 +211,30 @@ void dap_chain_anon_input_commit_seed(uint8_t a_seed[32],
                                        const dap_chain_hash_fast_t *a_prev_hash,
                                        uint32_t a_prev_out_idx);
 
+/**
+ * Build SNARK message binding: addr || commit_hash || ticker || ki_hash || rp_hash.
+ *
+ * Used by both compose side (chipmunk_snark_prove) and verify side
+ * (chipmunk_snark_verify) to ensure the Fiat-Shamir transcript binds the
+ * proof to the same statement.  The message layout MUST match on both
+ * sides or proof verification will fail.
+ *
+ * @param a_out          Output buffer (at least sizeof(dap_chain_addr_t) + 32*3 + DAP_CHAIN_TICKER_SIZE_MAX).
+ * @param a_out_size     Size of output buffer.
+ * @param a_addr         Recipient address.
+ * @param a_commit_hash SHA-256 of the Pedersen commitment.
+ * @param a_ticker       Token ticker string (NUL-terminated).
+ * @param a_ki_hash      SHA-256 of the key image.
+ * @param a_rp_hash      SHA-256 of the range proof.
+ * @return              Number of bytes written, or negative on error.
+ */
+ssize_t dap_chain_anon_snark_build_message(uint8_t *a_out, size_t a_out_size,
+                                           const dap_chain_addr_t *a_addr,
+                                           const dap_hash_sha3_256_t *a_commit_hash,
+                                           const char *a_ticker,
+                                           const dap_hash_sha3_256_t *a_ki_hash,
+                                           const dap_hash_sha3_256_t *a_rp_hash);
+
 #ifdef __cplusplus
 }
 #endif

@@ -304,20 +304,15 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
                                              dap_chain_datum_tx_t *a_tx)
 {
     const dap_chain_tx_in_anon_t *l_in_anon = NULL;
-    const uint8_t *l_item = a_tx->tx_items;
-    size_t l_offset = 0;
-    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-
-    while (l_offset < l_tx_size) {
-        if (*l_item == TX_ITEM_TYPE_IN_ANON) {
-            l_in_anon = (const dap_chain_tx_in_anon_t *)l_item;
-            break;
+    {
+        const uint8_t *l_item;
+        size_t l_item_size;
+        TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+            if (*l_item == TX_ITEM_TYPE_IN_ANON) {
+                l_in_anon = (const dap_chain_tx_in_anon_t *)l_item;
+                break;
+            }
         }
-        uint32_t l_item_size = *(const uint32_t *)(l_item + 4);
-        if (l_item_size == 0)
-            break;
-        l_item += l_item_size;
-        l_offset += l_item_size;
     }
     if (!l_in_anon)
         return -EINVAL;
@@ -369,25 +364,22 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
     memset(&l_outputs_sum, 0, sizeof(l_outputs_sum));
     bool l_has_out_anon = false;
 
-    l_item = a_tx->tx_items;
-    l_offset = 0;
-    while (l_offset < l_tx_size) {
-        if (*l_item == TX_ITEM_TYPE_OUT_ANON) {
-            const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
-            chipmunk_pedersen_commit_t l_out_commit;
-            memcpy(&l_out_commit, &l_out->commitment, sizeof(l_out_commit));
-            if (!l_has_out_anon) {
-                memcpy(&l_outputs_sum, &l_out_commit, sizeof(l_outputs_sum));
-                l_has_out_anon = true;
-            } else {
-                chipmunk_pedersen_add(&l_outputs_sum, &l_outputs_sum, &l_out_commit);
+    {
+        const uint8_t *l_item;
+        size_t l_item_size;
+        TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+            if (*l_item == TX_ITEM_TYPE_OUT_ANON) {
+                const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
+                chipmunk_pedersen_commit_t l_out_commit;
+                memcpy(&l_out_commit, &l_out->commitment, sizeof(l_out_commit));
+                if (!l_has_out_anon) {
+                    memcpy(&l_outputs_sum, &l_out_commit, sizeof(l_outputs_sum));
+                    l_has_out_anon = true;
+                } else {
+                    chipmunk_pedersen_add(&l_outputs_sum, &l_outputs_sum, &l_out_commit);
+                }
             }
         }
-        uint32_t l_item_size = *(const uint32_t *)(l_item + 4);
-        if (l_item_size == 0)
-            break;
-        l_item += l_item_size;
-        l_offset += l_item_size;
     }
 
     if (!l_has_out_anon || !dap_ledger_pedersen_commit_equal(&l_input_commit, &l_outputs_sum)) {
@@ -431,12 +423,11 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
      * polynomial and checks all 7 layer commitments + final polynomial.
      * Combined soundness: FRI (~900 bits) + quotient (~138 bits) >> 128 bits.
      */
-    const uint8_t *l_item_snark = a_tx->tx_items;
-    size_t l_offset_snark = 0;
-    size_t l_tx_size_snark = dap_chain_datum_tx_get_size(a_tx);
+    const uint8_t *l_item_snark;
+    size_t l_item_size_snark;
     bool l_found_anon_in = false;
 
-    while (l_offset_snark < l_tx_size_snark) {
+    TX_ITEM_ITER_TX(l_item_snark, l_item_size_snark, a_tx) {
         uint8_t l_type_snark = *l_item_snark;
         if (l_type_snark == TX_ITEM_TYPE_IN_ANON) {
             const dap_chain_tx_in_anon_t *l_in_anon = (const dap_chain_tx_in_anon_t *)l_item_snark;
@@ -457,17 +448,13 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
              * Must match the prover's construction exactly. */
             const dap_chain_tx_out_anon_t *l_out_anon = NULL;
             {
-                const uint8_t *l_item_scan = a_tx->tx_items;
-                size_t l_off_scan = 0;
-                while (l_off_scan < l_tx_size_snark) {
-                    if (*l_item_scan == TX_ITEM_TYPE_OUT_ANON) {
-                        l_out_anon = (const dap_chain_tx_out_anon_t *)l_item_scan;
+                const uint8_t *l_scan_item;
+                size_t l_scan_size;
+                TX_ITEM_ITER_TX(l_scan_item, l_scan_size, a_tx) {
+                    if (*l_scan_item == TX_ITEM_TYPE_OUT_ANON) {
+                        l_out_anon = (const dap_chain_tx_out_anon_t *)l_scan_item;
                         break;
                     }
-                    uint32_t l_is = *(const uint32_t *)(l_item_scan + 4);
-                    if (l_is == 0) break;
-                    l_item_scan += l_is;
-                    l_off_scan += l_is;
                 }
             }
             if (!l_out_anon) {
@@ -489,15 +476,16 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             dap_hash_sha3_256_raw(l_ver_commit_hash.raw, (const uint8_t *)&l_ver_commit, sizeof(l_ver_commit));
 
             uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
-            size_t l_msg_off = 0;
-            memcpy(l_msg_buf + l_msg_off, &l_out_anon->addr, sizeof(dap_chain_addr_t)); l_msg_off += sizeof(dap_chain_addr_t);
-            memcpy(l_msg_buf + l_msg_off, l_ver_commit_hash.raw, 32); l_msg_off += 32;
-            size_t l_tl = strnlen(l_out_anon->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
-            memcpy(l_msg_buf + l_msg_off, l_out_anon->token_ticker, l_tl); l_msg_off += l_tl;
-            memcpy(l_msg_buf + l_msg_off, l_ver_ki_hash.raw, 32); l_msg_off += 32;
-            memcpy(l_msg_buf + l_msg_off, l_ver_rp_hash.raw, 32); l_msg_off += 32;
+            ssize_t l_msg_size = dap_chain_anon_snark_build_message(
+                l_msg_buf, sizeof(l_msg_buf),
+                &l_out_anon->addr, &l_ver_commit_hash,
+                l_out_anon->token_ticker, &l_ver_ki_hash, &l_ver_rp_hash);
+            if (l_msg_size < 0) {
+                log_it(L_WARNING, "SNARK message build failed: %zd", l_msg_size);
+                return -EINVAL;
+            }
             l_statement.message = l_msg_buf;
-            l_statement.message_size = l_msg_off;
+            l_statement.message_size = (size_t)l_msg_size;
 
             /* Verify SNARK proof (copy from packed struct to avoid alignment issues) */
             chipmunk_snark_proof_t l_proof_copy;
@@ -508,11 +496,6 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                 return -EINVAL;
             }
         }
-        uint32_t l_item_size_snark = *(const uint32_t *)(l_item_snark + 4);
-        if (l_item_size_snark == 0) break;
-        if (l_offset_snark + l_item_size_snark > l_tx_size_snark) break;
-        l_item_snark += l_item_size_snark;
-        l_offset_snark += l_item_size_snark;
     }
 
     if (!l_found_anon_in) {
@@ -552,33 +535,27 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
     DAP_DELETE(l_images);
 
     /* 4. Verify Pedersen commitments and range proofs on outputs */
-    const uint8_t *l_item = a_tx->tx_items;
-    size_t l_offset = 0;
-    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
+    {
+        const uint8_t *l_item;
+        size_t l_item_size;
+        TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+            if (*l_item == TX_ITEM_TYPE_OUT_ANON) {
+                const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
 
-    while (l_offset < l_tx_size) {
-        uint8_t l_type = *l_item;
-        if (l_type == TX_ITEM_TYPE_OUT_ANON) {
-            const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
-
-            /* Verify range proof (copy from packed struct to avoid alignment issues) */
-            chipmunk_range_proof_t l_rp_copy;
-            chipmunk_pedersen_commit_t l_commit_copy;
-            memcpy(&l_rp_copy, &l_out->range_proof, sizeof(l_rp_copy));
-            memcpy(&l_commit_copy, &l_out->commitment, sizeof(l_commit_copy));
-            l_rc = chipmunk_range_proof_verify(&l_rp_copy,
-                                                &l_anon->pedersen_params,
-                                                &l_commit_copy);
-            if (l_rc != 1) {
-                log_it(L_WARNING, "Range proof verification failed for anonymous output");
-                return -EINVAL;
+                /* Verify range proof (copy from packed struct to avoid alignment issues) */
+                chipmunk_range_proof_t l_rp_copy;
+                chipmunk_pedersen_commit_t l_commit_copy;
+                memcpy(&l_rp_copy, &l_out->range_proof, sizeof(l_rp_copy));
+                memcpy(&l_commit_copy, &l_out->commitment, sizeof(l_commit_copy));
+                l_rc = chipmunk_range_proof_verify(&l_rp_copy,
+                                                    &l_anon->pedersen_params,
+                                                    &l_commit_copy);
+                if (l_rc != 1) {
+                    log_it(L_WARNING, "Range proof verification failed for anonymous output");
+                    return -EINVAL;
+                }
             }
         }
-        uint32_t l_item_size = *(const uint32_t *)(l_item + 4);
-        if (l_item_size == 0) break;
-        if (l_offset + l_item_size > l_tx_size) break;
-        l_item += l_item_size;
-        l_offset += l_item_size;
     }
 
     l_rc = s_anon_pedersen_conservation_verify(a_ledger, l_anon, a_tx);

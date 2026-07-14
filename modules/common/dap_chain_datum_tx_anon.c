@@ -148,3 +148,26 @@ void dap_chain_anon_input_commit_seed(uint8_t a_seed[32],
     l_off += 23;
     dap_hash_sha3_256_raw(a_seed, l_buf, l_off);
 }
+
+ssize_t dap_chain_anon_snark_build_message(uint8_t *a_out, size_t a_out_size,
+                                           const dap_chain_addr_t *a_addr,
+                                           const dap_hash_sha3_256_t *a_commit_hash,
+                                           const char *a_ticker,
+                                           const dap_hash_sha3_256_t *a_ki_hash,
+                                           const dap_hash_sha3_256_t *a_rp_hash)
+{
+    size_t l_needed = sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32;
+    if (!a_out || a_out_size < l_needed)
+        return -ENOMEM;
+    if (!a_addr || !a_commit_hash || !a_ticker || !a_ki_hash || !a_rp_hash)
+        return -EINVAL;
+
+    size_t l_off = 0;
+    memcpy(a_out + l_off, a_addr, sizeof(dap_chain_addr_t)); l_off += sizeof(dap_chain_addr_t);
+    memcpy(a_out + l_off, a_commit_hash->raw, 32); l_off += 32;
+    size_t l_tl = strnlen(a_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    memcpy(a_out + l_off, a_ticker, l_tl); l_off += l_tl;
+    memcpy(a_out + l_off, a_ki_hash->raw, 32); l_off += 32;
+    memcpy(a_out + l_off, a_rp_hash->raw, 32); l_off += 32;
+    return (ssize_t)l_off;
+}
