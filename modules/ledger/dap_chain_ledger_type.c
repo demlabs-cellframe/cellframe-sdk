@@ -299,21 +299,6 @@ bool dap_ledger_pedersen_commit_equal(const chipmunk_pedersen_commit_t *a_lhs,
     return true;
 }
 
-static void s_anon_input_commit_seed(uint8_t a_seed[32],
-                                     const dap_chain_hash_fast_t *a_prev_hash,
-                                     uint32_t a_prev_out_idx)
-{
-    uint8_t l_buf[sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t) + 24];
-    size_t l_off = 0;
-    memcpy(l_buf + l_off, a_prev_hash, sizeof(dap_chain_hash_fast_t));
-    l_off += sizeof(dap_chain_hash_fast_t);
-    memcpy(l_buf + l_off, &a_prev_out_idx, sizeof(uint32_t));
-    l_off += sizeof(uint32_t);
-    memcpy(l_buf + l_off, "chipchain-anon-input-v1", 23);
-    l_off += 23;
-    dap_hash_sha3_256_raw(a_seed, l_buf, l_off);
-}
-
 static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
                                              dap_ledger_anon_ctx_t *a_anon,
                                              dap_chain_datum_tx_t *a_tx)
@@ -354,7 +339,7 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
     case TX_ITEM_TYPE_OUT_STD: {
         const dap_chain_tx_out_std_t *l_out = (const dap_chain_tx_out_std_t *)l_prev_out;
         uint8_t l_seed[32], l_amount[CHIPMUNK_PEDERSEN_VALUE_BYTES];
-        s_anon_input_commit_seed(l_seed, &l_in_anon->prev_hash, l_in_anon->prev_out_idx);
+        dap_chain_anon_input_commit_seed(l_seed, &l_in_anon->prev_hash, l_in_anon->prev_out_idx);
         memset(l_amount, 0, sizeof(l_amount));
         memcpy(l_amount, &l_out->value, sizeof(l_out->value));
         if (chipmunk_pedersen_commit(&l_input_commit, &a_anon->pedersen_params,
@@ -364,7 +349,7 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
     case TX_ITEM_TYPE_OUT_EXT: {
         const dap_chain_tx_out_ext_t *l_out = (const dap_chain_tx_out_ext_t *)l_prev_out;
         uint8_t l_seed[32], l_amount[CHIPMUNK_PEDERSEN_VALUE_BYTES];
-        s_anon_input_commit_seed(l_seed, &l_in_anon->prev_hash, l_in_anon->prev_out_idx);
+        dap_chain_anon_input_commit_seed(l_seed, &l_in_anon->prev_hash, l_in_anon->prev_out_idx);
         memset(l_amount, 0, sizeof(l_amount));
         memcpy(l_amount, &l_out->header.value, sizeof(l_out->header.value));
         if (chipmunk_pedersen_commit(&l_input_commit, &a_anon->pedersen_params,

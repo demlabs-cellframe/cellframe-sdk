@@ -199,6 +199,18 @@ int dap_chain_datum_tx_get_snark_proofs(const uint8_t *a_tx_items, size_t a_item
                                          const dap_chain_tx_anon_proof_t ***a_proofs,
                                          size_t *a_count);
 
+/**
+ * Compute deterministic input blinding seed for Pedersen conservation.
+ *
+ * Used by both compose side (to derive anchor output blinding) and
+ * verify side (to reconstruct input Pedersen commitment).
+ *
+ * seed = SHA256(prev_hash || prev_out_idx || "chipchain-anon-input-v1")
+ */
+void dap_chain_anon_input_commit_seed(uint8_t a_seed[32],
+                                       const dap_chain_hash_fast_t *a_prev_hash,
+                                       uint32_t a_prev_out_idx);
+
 #ifdef __cplusplus
 }
 #endif

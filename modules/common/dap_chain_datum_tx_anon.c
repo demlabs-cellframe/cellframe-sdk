@@ -7,6 +7,7 @@
 
 #include "dap_chain_datum_tx_anon.h"
 #include "dap_common.h"
+#include "dap_hash_sha3.h"
 
 #include <string.h>
 #include <errno.h>
@@ -131,4 +132,19 @@ int dap_chain_datum_tx_get_snark_proofs(const uint8_t *a_tx_items, size_t a_item
     *a_proofs = l_proofs;
     *a_count = l_count;
     return 0;
+}
+
+void dap_chain_anon_input_commit_seed(uint8_t a_seed[32],
+                                       const dap_chain_hash_fast_t *a_prev_hash,
+                                       uint32_t a_prev_out_idx)
+{
+    uint8_t l_buf[sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t) + 24];
+    size_t l_off = 0;
+    memcpy(l_buf + l_off, a_prev_hash, sizeof(dap_chain_hash_fast_t));
+    l_off += sizeof(dap_chain_hash_fast_t);
+    memcpy(l_buf + l_off, &a_prev_out_idx, sizeof(uint32_t));
+    l_off += sizeof(uint32_t);
+    memcpy(l_buf + l_off, "chipchain-anon-input-v1", 23);
+    l_off += 23;
+    dap_hash_sha3_256_raw(a_seed, l_buf, l_off);
 }
