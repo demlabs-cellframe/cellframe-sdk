@@ -1526,7 +1526,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     if (!l_session) {
         log_it(L_INFO, "No session found");
         dap_enc_key_delete(PVT(l_esbocs)->blocks_sign_key);
-        DAP_DEL_MULTY(PVT(l_esbocs)->block_sign_pkey, PVT(l_esbocs)->collecting_addr, l_esbocs->_pvt, a_blocks->_inheritor);
+        DAP_DEL_MULTY(PVT(l_esbocs)->block_sign_pkey, PVT(l_esbocs)->collecting_addr, l_esbocs->_pvt);
         return;
     }
     l_session->cs_timer = false;
@@ -1598,7 +1598,8 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     DAP_DELETE(l_session->mempool_gdb_group);
     dap_enc_key_delete(PVT(l_esbocs)->blocks_sign_key);
     DAP_DEL_MULTY(PVT(l_esbocs)->block_sign_pkey, PVT(l_esbocs)->collecting_addr, l_esbocs->_pvt);
-    DAP_DEL_MULTY(l_session, a_blocks->_inheritor); // a_blocks->_inheritor - l_esbocs
+    DAP_DEL_MULTY(l_session); /* a_blocks->_inheritor (l_esbocs) is freed by the generic
+                                  s_callback_delete in dap_chain_cs_blocks.c:1627 */
 }
 
 static void *s_callback_list_copy(const void *a_validator, UNUSED_ARG void *a_data)

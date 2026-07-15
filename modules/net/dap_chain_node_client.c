@@ -58,7 +58,6 @@
 #include "dap_uuid.h"
 #include "dap_client.h"
 #include "dap_client_fsm.h"
-#include "dap_client_esocket.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net_srv.h"
@@ -71,7 +70,9 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
 #include "dap_stream_pkt.h"
+#include "dap_chain_node.h"
 #include "dap_chain_node_client.h"
+#include "dap_client.h"
 
 #define LOG_TAG "dap_chain_node_client"
 
@@ -149,8 +150,9 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
                     l_node_client->info->ext_host,
                     l_node_client->info->ext_port);
-        l_node_client->esocket_uuid = DAP_CLIENT_FSM(a_client) && DAP_CLIENT_FSM(a_client)->esocket
-                                     ? DAP_CLIENT_FSM(a_client)->esocket->stream_es->uuid : 0;
+        dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_client);
+        l_node_client->esocket_uuid = (l_fsm && l_fsm->trans_ctx && l_fsm->trans_ctx->stream)
+                                     ? l_fsm->trans_ctx->stream->esocket_uuid : 0;
         // set callbacks for R and N channels
         if (a_client->active_channels) {
             size_t l_channels_count = dap_strlen(a_client->active_channels);
@@ -307,7 +309,17 @@ static bool s_node_client_connect_impl(dap_chain_node_client_t *a_node_client,
     a_node_client->client = dap_client_new(s_stage_status_error_callback, a_node_client);
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
+    /* P2P HTTP handshake mode is chosen per peer version (≤5.7 legacy, ≥5.8 modern). */
+    if (a_node_client->net && a_node_client->client
+            && (!a_node_client->desired_trans_type || a_node_client->desired_trans_type == DAP_NET_TRANS_HTTP)) {
+        bool l_legacy = dap_chain_node_peer_needs_legacy_handshake(a_node_client->net, &a_node_client->info->address);
+        dap_client_configure_p2p_handshake(a_node_client->client, l_legacy);
+    }
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
+    /* Propagate desired transport type from node client to DAP client */
+    if (a_node_client->desired_trans_type) {
+        dap_client_set_trans_type(a_node_client->client, a_node_client->desired_trans_type);
+    }
     if (a_node_client->net) {
         const char *l_auth_cert_name = dap_config_get_item_str(a_node_client->net->pub.config, "general", "auth_cert");
         if (l_auth_cert_name)
@@ -415,9 +427,15 @@ void s_close_on_worker_callback(void *a_arg)
 
 void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client)
 {
-    if (a_node_client->client)
-        dap_worker_exec_callback_on(DAP_CLIENT_FSM(a_node_client->client)->worker, s_close_on_worker_callback, a_node_client);
-    else
+    if (a_node_client->client) {
+        dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_node_client->client);
+        if (l_fsm)
+            l_fsm->is_removing = true;
+        if (l_fsm && l_fsm->worker)
+            dap_worker_exec_callback_on(l_fsm->worker, s_close_on_worker_callback, a_node_client);
+        else
+            dap_chain_node_client_close_unsafe(a_node_client);
+    } else
         dap_chain_node_client_close_unsafe(a_node_client);
 }
 

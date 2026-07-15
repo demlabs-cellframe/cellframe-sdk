@@ -462,15 +462,25 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
 
     log_it(L_DEBUG, "Got service request from user %s", dap_chain_hash_fast_to_str_static(&a_request->hdr.client_pkey_hash));
 
+    if (!l_srv) {
+        log_it(L_ERROR, "Service uid=0x%016"DAP_UINT64_FORMAT_x" not found in hash table",
+               a_request->hdr.srv_uid.uint64);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
+        if (a_ch)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+        return false;
+    }
+
     if (dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
-        if (l_srv && l_srv->allow_free_srv) {
+        if (l_srv->allow_free_srv) {
             log_it(L_INFO, "No order hash in request, but allow_free_srv=true — continuing as free service");
         } else {
-            log_it( L_ERROR, "No order hash in request.");
+            log_it(L_ERROR, "No order hash in request. allow_free_srv=false, srv_uid=0x%016"DAP_UINT64_FORMAT_x,
+                   a_request->hdr.srv_uid.uint64);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NO_ORDER_HASH;
             if(a_ch)
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-            if (l_srv && l_srv->callbacks.response_error)
+            if (l_srv->callbacks.response_error)
                 l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
             return false;
         }
@@ -492,6 +502,9 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
     }
 
     if (!l_srv) {
+        log_it(L_ERROR, "Service uid=0x%016"DAP_UINT64_FORMAT_x" not registered in net %s "
+               "(plugin not loaded or disabled — check plugins enabled and srv-vpn.cfg [srv_vpn] enabled=true)",
+               a_request->hdr.srv_uid.uint64, l_net->pub.name);
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
     } else if (l_srv->decree_disabled) {
         log_it(L_WARNING, "Service uid=0x%016"DAP_UINT64_FORMAT_x" is disabled by decree in net %s",
@@ -508,7 +521,20 @@ static bool s_service_start(dap_stream_ch_t *a_ch , dap_stream_ch_chain_net_srv_
         }
     }
 
+    if (!l_srv_session && !l_err.code) {
+        log_it(L_ERROR, "Service uid=0x%016"DAP_UINT64_FORMAT_x" in net %s: no stream service session "
+               "(channel R session missing on stream)",
+               a_request->hdr.srv_uid.uint64, l_net->pub.name);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_REQUEST_INTERNAL_ERROR;
+    }
+
     if (l_err.code || !l_srv_session) {
+        if (l_err.code) {
+            log_it(L_ERROR, "Service REQUEST rejected: code=0x%08X, net_id=0x%016"DAP_UINT64_FORMAT_x", "
+                   "srv_uid=0x%016"DAP_UINT64_FORMAT_x", srv=%p, session=%p",
+                   l_err.code, l_err.net_id.uint64, l_err.srv_uid.uint64,
+                   (void *)l_srv, (void *)l_srv_session);
+        }
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
         if (l_srv && l_srv->callbacks.response_error)
@@ -805,7 +831,17 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         return false;
     dap_chain_net_srv_stream_session_t *l_srv_session = NULL;
     if (a_ch) {
-        l_srv_session = a_ch->stream && a_ch->stream->session ? a_ch->stream->session->_inheritor : NULL;
+        l_srv_session = a_ch->stream && a_ch->stream->session ?
+                        (dap_chain_net_srv_stream_session_t *)a_ch->stream->session->_inheritor : NULL;
+        /* Safety: create session inheritor if not yet set up.
+         * This can happen when the channel is created before the session
+         * is fully initialized (e.g., during STREAM_CONNECTED before
+         * STREAM_SESSION completes). */
+        if (a_ch->stream && a_ch->stream->session && !a_ch->stream->session->_inheritor) {
+            dap_chain_net_srv_stream_session_create(a_ch->stream->session);
+            l_srv_session = (dap_chain_net_srv_stream_session_t *)a_ch->stream->session->_inheritor;
+            log_it(L_INFO, "Created service session inheritor on-the-fly for channel '%c'", a_ch->proc->id);
+        }
     }
     if (!l_srv_session) {
         log_it( L_ERROR, "Not defined service session, switching off packet input process");
@@ -883,8 +919,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         }
         l_request->err_code = 0;
 
-        dap_strncpy(l_request->host_send, a_ch->stream->trans_ctx && a_ch->stream->trans_ctx->esocket
-                    ? a_ch->stream->trans_ctx->esocket->remote_addr_str : "unknown", DAP_HOSTADDR_STRLEN);
+        dap_strncpy(l_request->host_send,
+                    a_ch->stream->trans_ctx && a_ch->stream->trans_ctx->remote_addr_str[0]
+                    ? a_ch->stream->trans_ctx->remote_addr_str : "unknown",
+                    DAP_HOSTADDR_STRLEN);
         l_request->recv_time2 = dap_nanotime_now();
 
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request,

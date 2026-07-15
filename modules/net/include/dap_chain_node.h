@@ -87,6 +87,9 @@ int dap_chain_node_info_save(dap_chain_net_t * l_net,dap_chain_node_info_t *node
 int dap_chain_node_info_del(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *l_net, dap_chain_node_addr_t *address);
 
+/** True if peer cellframe-node is 5.7 or older (legacy HTTP enc_init only). */
+bool dap_chain_node_peer_needs_legacy_handshake(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr);
+
 int dap_chain_node_init();
 int dap_chain_node_list_clean_init();
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);

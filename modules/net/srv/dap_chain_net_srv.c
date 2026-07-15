@@ -1104,11 +1104,14 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
             l_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
         }
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
+        log_it(L_NOTICE, "Service registered in hash table: uid=0x%016"DAP_UINT64_FORMAT_X" (total=%u)",
+               l_srv->uid.uint64, HASH_COUNT(s_srv_list));
         dap_stream_ch_chain_net_srv_init(l_srv);
         if (l_net)
             dap_ledger_tx_add_notify(l_net->pub.ledger, dap_stream_ch_chain_net_srv_tx_cond_added_cb, NULL);
     }else{
-        log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
+        log_it(L_NOTICE, "Service already present with uid 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
+        l_srv = l_sdata->srv;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
     return l_srv;
@@ -1220,6 +1223,9 @@ dap_chain_net_srv_t *dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, &a_uid, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     pthread_mutex_unlock(&s_srv_list_mutex);
+    if (!l_sdata)
+        log_it(L_WARNING, "dap_chain_net_srv_get: uid=0x%016"DAP_UINT64_FORMAT_X" NOT FOUND (total=%u)",
+               a_uid.uint64, HASH_COUNT(s_srv_list));
     return (l_sdata) ? l_sdata->srv : NULL;
 }
 
@@ -1340,6 +1346,7 @@ static srv_pay_owner_index_t *s_srv_pay_owner_index = NULL;
 static pthread_rwlock_t s_srv_pay_cache_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 // Cache enabled flag (from config)
 static bool s_srv_pay_cache_enabled = false;
+static bool s_srv_pay_cache_initialized = false;
 
 static void s_srv_pay_ledger_tx_notify(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
                                        dap_hash_fast_t *a_tx_hash, dap_chan_ledger_notify_opcodes_t a_opcode,
@@ -1689,29 +1696,39 @@ static void s_srv_pay_ledger_tx_notify(void *a_arg, dap_ledger_t *a_ledger, dap_
 
 int dap_chain_srv_pay_cache_init(void)
 {
+    if (s_srv_pay_cache_initialized)
+        return 0;
+
     // Read cache enabled flag from config
     s_srv_pay_cache_enabled = dap_config_get_item_bool_default(g_config, "srv_pay", "cache_enabled", true);
-    
+
     if (!s_srv_pay_cache_enabled)
     {
         log_it(L_INFO, "SRV_PAY cache disabled by config");
+        s_srv_pay_cache_initialized = true;
         return 0;
     }
-    
-    // Register ledger notifier for all networks
+
+    // Register ledger notifier for all networks (must run after dap_chain_net_load_all)
     int l_net_count = 0;
     dap_chain_net_t *l_net = dap_chain_net_iter_start();
     for (; l_net; l_net = dap_chain_net_iter_next(l_net))
     {
+        if (!l_net->pub.ledger)
+            continue;
         dap_ledger_tx_add_notify(l_net->pub.ledger, s_srv_pay_ledger_tx_notify, l_net);
         l_net_count++;
     }
+    s_srv_pay_cache_initialized = true;
     log_it(L_INFO, "SRV_PAY cache initialized, registered for %d networks", l_net_count);
     return 0;
 }
 
 void dap_chain_srv_pay_cache_deinit(void)
 {
+    if (!s_srv_pay_cache_initialized)
+        return;
+
     pthread_rwlock_wrlock(&s_srv_pay_cache_rwlock);
 
     // Free all entries
@@ -1734,6 +1751,8 @@ void dap_chain_srv_pay_cache_deinit(void)
     s_srv_pay_owner_index = NULL;
 
     pthread_rwlock_unlock(&s_srv_pay_cache_rwlock);
+    s_srv_pay_cache_enabled = false;
+    s_srv_pay_cache_initialized = false;
     log_it(L_INFO, "SRV_PAY cache deinitialized");
 }
 
