@@ -2005,6 +2005,23 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
         DAP_DELETE(l_block_cache);
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+        // During sync, accept atoms even if PREV hash doesn't match (server may be on different fork)
+        dap_chain_net_t *l_sync_net = dap_chain_net_by_id(a_chain->net_id);
+        if (l_sync_net && dap_chain_net_get_state(l_sync_net) == NET_STATE_SYNC_CHAINS) {
+            l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size, PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
+            if (l_block_cache) {
+                pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+                ++PVT(l_blocks)->blocks_count;
+                HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
+                HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
+                s_add_atom_datums(l_blocks, l_block_cache);
+                dap_chain_atom_notify(dap_chain_cell_find_by_id(a_chain, l_block->hdr.cell_id), &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
+                pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                log_it(L_NOTICE, "Sync: accepted block %s with non-matching PREV (fork from server)",
+                       dap_hash_fast_to_str_static(&l_block_hash));
+                return ATOM_ACCEPT;
+            }
+        }
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         return ATOM_REJECT;
     }
@@ -2141,6 +2158,15 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     int ret = ATOM_MOVE_TO_THRESHOLD;
 // Parse metadata
     bool l_is_genesis = dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_GENESIS);
+    // Fallback: treat block as genesis if chain is empty and hash matches static genesis hash
+    // This handles the case where the genesis block is received from network without GENESIS metadata
+    if (!l_is_genesis && !PVT(l_blocks)->blocks &&
+            !dap_hash_fast_is_blank(&PVT(l_blocks)->static_genesis_block_hash) &&
+            dap_hash_fast_compare(&PVT(l_blocks)->static_genesis_block_hash, a_atom_hash)) {
+        log_it(L_NOTICE, "Block %s matches static genesis hash, treating as genesis (chain empty)",
+                    dap_hash_fast_to_str_static(a_atom_hash));
+        l_is_genesis = true;
+    }
     // genesis or seed mode
     if (l_is_genesis) {
         if (PVT(l_blocks)->blocks) {
@@ -2208,6 +2234,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             }
             if (ret == ATOM_MOVE_TO_THRESHOLD) {
                 // search block and previous block in main branch
+                debug_if(s_debug_more, L_DEBUG, "Block %s PREV hash doesn't match last block, checking recent %" DAP_UINT64_FORMAT_U " blocks and %zu forked branches",
+                         dap_hash_fast_to_str_static(a_atom_hash), PVT(l_blocks)->block_confirm_cnt, PVT(l_blocks)->forked_br_cnt);
                 unsigned l_checked_atoms_cnt = PVT(l_blocks)->block_confirm_cnt;
                 for (dap_chain_block_cache_t *l_tmp = l_bcache_last; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--){
                     if(dap_hash_fast_compare(&l_tmp->block_hash, &l_block_hash)){
@@ -2227,6 +2255,20 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                         break;
                     }
                 }
+                // If not found in last N blocks, try hash table lookup for O(1) search
+                if (ret == ATOM_MOVE_TO_THRESHOLD) {
+                    dap_chain_block_cache_t *l_found = NULL;
+                    HASH_FIND(hh, PVT(l_blocks)->blocks, &l_block_prev_hash, sizeof(dap_hash_fast_t), l_found);
+                    if (l_found) {
+                        if (l_found->hh.next) {
+                            debug_if(s_debug_more, L_DEBUG, "Found PREV in hash table (not last), creating fork");
+                            ret = ATOM_FORK;
+                        } else {
+                            debug_if(s_debug_more, L_DEBUG, "Found PREV in hash table (last block), accepting");
+                            ret = ATOM_ACCEPT;
+                        }
+                    }
+                }
             }
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         }
@@ -2239,13 +2281,28 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             struct cs_blocks_hal_item *l_hash_found = NULL;
             HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
             if (!l_hash_found) {
-                log_it(L_WARNING, "Block %s rejected by block verificator", dap_hash_fast_to_str_static(a_atom_hash));
+                int l_verify_ret = l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, a_atom_size);
+                log_it(L_WARNING, "Block %s rejected by block verificator (ret=%d, signs=%zu, min=%hu)",
+                       dap_hash_fast_to_str_static(a_atom_hash), l_verify_ret, 0, 0);
                 return ATOM_REJECT;
             }
         }
     } else if (ret == ATOM_MOVE_TO_THRESHOLD) {
-        debug_if(s_debug_more,L_DEBUG,"%s","Can't find valid previous block in chain or forked branches.");
-        return ATOM_REJECT;
+        // During sync, trust the server: accept atoms even if PREV hash not found locally.
+        // The server sends atoms from its chain which may be on a different fork branch.
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        if (l_net && dap_chain_net_get_state(l_net) == NET_STATE_SYNC_CHAINS) {
+            debug_if(s_debug_more, L_DEBUG, "Block %s PREV not found during sync, accepting from server",
+                     dap_hash_fast_to_str_static(a_atom_hash));
+            ret = ATOM_ACCEPT;
+        } else {
+            dap_chain_block_cache_t *l_last = HASH_LAST(PVT(l_blocks)->blocks);
+            log_it(L_WARNING, "Block %s rejected: PREV hash not found (net_state=%d, last=%s)",
+                   dap_hash_fast_to_str_static(a_atom_hash),
+                   l_net ? dap_chain_net_get_state(l_net) : -1,
+                   l_last ? dap_hash_fast_to_str_static(&l_last->block_hash) : "(none)");
+            return ATOM_REJECT;
+        }
     }
     return ret;
 }

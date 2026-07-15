@@ -236,6 +236,7 @@ struct chain_sync_context {
     _Atomic bool            heavy_ops_pending_ledger_load_end; // Deferred ledger finalization request
     _Atomic bool            heavy_ops_pending_wallet_cache_load; // Deferred wallet cache load request
     uint8_t                 req_send_retry_count;   // Counter for consecutive CHAIN_REQ send failures
+    uint8_t                 waiting_retry_count;    // Per-network WAITING state retry counter
     bool                    sync_from_zero;         // Flag to start sync from zero (blank hash, num 0)
     _Atomic uint64_t        session_id;             // Current sync session ID
     sync_notifier_arg_t     *in_notifier_arg;       // Input notifier context for current link
@@ -3822,6 +3823,8 @@ static int s_sync_send_chain_req(dap_chain_net_t *a_net, dap_chain_net_pvt_t *a_
                                  dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id,
                                  dap_chain_ch_sync_request_t *a_request, const char *a_label)
 {
+    log_it(L_INFO, "s_sync_send_chain_req ENTER: net %s chain %s to " NODE_ADDR_FP_STR " label '%s'",
+           a_net->pub.name, a_chain->name, NODE_ADDR_FP_ARGS_S(a_net_pvt->sync_context.current_link), a_label);
     dap_chain_ch_pkt_t *l_chain_pkt = dap_chain_ch_pkt_new(a_net->pub.id, a_chain->id, a_cell_id,
                                                             a_request, sizeof(*a_request), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
     if (!l_chain_pkt) {
@@ -3853,6 +3856,11 @@ static int s_sync_send_chain_req(dap_chain_net_t *a_net, dap_chain_net_pvt_t *a_
     a_net_pvt->sync_context.requested_atom_hash = a_request->hash_from;
     a_net_pvt->sync_context.requested_atom_num = a_request->num_from;
     a_net_pvt->sync_context.stage_last_activity = dap_time_now();
+    a_net_pvt->sync_context.last_rx_activity = dap_time_now();
+    log_it(L_INFO, "CHAIN_REQ sent to " NODE_ADDR_FP_STR " for net %s chain %s: hash %s, num %" DAP_UINT64_FORMAT_U,
+           NODE_ADDR_FP_ARGS_S(a_net_pvt->sync_context.current_link),
+           a_net->pub.name, a_chain->name,
+           dap_hash_fast_to_str_static(&a_request->hash_from), a_request->num_from);
     DAP_DELETE(l_chain_pkt);
     return 0;
 }
@@ -4157,8 +4165,8 @@ static DAP_INLINE bool s_sync_pkt_validate_context(dap_chain_net_t *a_net, dap_s
 
 static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const void *a_data, size_t a_data_size, void *a_arg)
 {
-    debug_if(s_debug_more, L_DEBUG, "Got IN sync packet type %hhu size %zu from addr " NODE_ADDR_FP_STR,
-                                                           a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+    log_it(L_INFO, "IN sync packet type 0x%02X size %zu from " NODE_ADDR_FP_STR,
+                                                            a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
     sync_notifier_arg_t *l_notifier_arg = a_arg;
     dap_chain_net_t *l_net = NULL;
     if (!s_sync_notifier_try_enter(l_notifier_arg, &l_net))
@@ -4364,8 +4372,17 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
                 break;
             }
         }
-        if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
-            l_net_pvt->sync_context.current_link = l_links_addrs[0];
+        // If previous link not found but we had one, keep it to avoid switching servers mid-sync.
+        // Different servers may have different chain histories, causing PREV hash mismatches.
+        if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
+            if (!dap_stream_node_addr_is_blank(&l_prev_link)) {
+                log_it(L_WARNING, "Previous sync link " NODE_ADDR_FP_STR " not in uplinks list for net %s, keeping it to avoid server switch",
+                       NODE_ADDR_FP_ARGS_S(l_prev_link), a_net->pub.name);
+                l_net_pvt->sync_context.current_link = l_prev_link;
+            } else {
+                l_net_pvt->sync_context.current_link = l_links_addrs[0];
+            }
+        }
     } else
         l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
     DAP_DELETE(l_links_addrs);
@@ -4414,7 +4431,19 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     atomic_store_explicit(&l_net_pvt->sync_context.miss_rewind_in_progress, false, memory_order_release);
     atomic_store_explicit(&l_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
     l_net_pvt->sync_context.req_send_retry_count = 0;
+    l_net_pvt->sync_context.waiting_retry_count = 0;
     l_net_pvt->sync_context.sync_from_zero = dap_chain_net_get_flag_sync_from_zero(a_net);
+    // Force sync from zero if any chain is empty (no genesis block loaded)
+    if (!l_net_pvt->sync_context.sync_from_zero) {
+        dap_chain_t *l_chain_check = NULL;
+        DL_FOREACH(a_net->pub.chains, l_chain_check) {
+            if (!l_chain_check->callback_load_from_gdb && l_chain_check->callback_count_atom && !l_chain_check->callback_count_atom(l_chain_check)) {
+                log_it(L_WARNING, "Chain %s in net %s is empty, forcing sync from zero", l_chain_check->name, a_net->pub.name);
+                l_net_pvt->sync_context.sync_from_zero = true;
+                break;
+            }
+        }
+    }
     dap_chain_net_set_flag_sync_from_zero(a_net, false);
     dap_time_t l_now = dap_time_now();
     l_net_pvt->sync_context.stage_last_activity = l_now;
@@ -4531,7 +4560,8 @@ static void s_sync_timer_callback(void *a_arg)
                 l_restart_reason = DAP_CHAIN_NET_SYNC_RESTART_REASON_ACTIVITY_TIMEOUT;
                 s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_timeout_liveness_count);
             } else if (l_now - l_net_pvt->sync_context.last_progress_activity > l_net_pvt->sync_context.sync_progress_timeout) {
-                log_it(L_WARNING, "Chain %s of net %s sync progress timeout", l_chain->name, l_net->pub.name);
+                log_it(L_WARNING, "Chain %s of net %s sync progress timeout, will sync from zero", l_chain->name, l_net->pub.name);
+                dap_chain_net_set_flag_sync_from_zero(l_net, true);
                 l_state_forming = CHAIN_SYNC_STATE_ERROR;
                 l_restart_reason = DAP_CHAIN_NET_SYNC_RESTART_REASON_PROGRESS_TIMEOUT;
                 s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_timeout_progress_count);
@@ -4554,6 +4584,17 @@ static void s_sync_timer_callback(void *a_arg)
 
     switch (l_state_forming) {
     case CHAIN_SYNC_STATE_ERROR:
+        if (dap_chain_net_get_flag_sync_from_zero(l_net)) {
+            log_it(L_NOTICE, "Purging chain data for net %s before sync from zero (reason: %s)",
+                   l_net->pub.name, s_sync_restart_reason_to_str(l_restart_reason));
+            dap_ledger_purge(l_net->pub.ledger, false);
+            dap_chain_t *l_purge_chain = NULL;
+            DL_FOREACH(l_net->pub.chains, l_purge_chain) {
+                if (l_purge_chain->callback_purge)
+                    l_purge_chain->callback_purge(l_purge_chain);
+                dap_chain_cell_delete_all_and_free_file(l_purge_chain);
+            }
+        }
         if (s_restart_sync_chains(l_net, l_restart_reason)) {
             log_it(L_WARNING, "Can't start sync chains in net %s, wait next attempt", l_net->pub.name);
             return;
@@ -4568,9 +4609,28 @@ static void s_sync_timer_callback(void *a_arg)
         break;
     case CHAIN_SYNC_STATE_WAITING:
         if (l_now - l_net_pvt->sync_context.last_rx_activity > DAP_CHAIN_NET_SYNC_WAITING_RETRY_TIMEOUT) {
-            log_it(L_WARNING, "Chain %s of net %s WAITING without RX for %u sec, retry CHAIN_REQ",
-                   l_chain->name, l_net->pub.name, DAP_CHAIN_NET_SYNC_WAITING_RETRY_TIMEOUT);
+            uint32_t l_retries = ++l_net_pvt->sync_context.waiting_retry_count;
+            log_it(L_WARNING, "Chain %s of net %s WAITING without RX for %u sec, retry CHAIN_REQ (attempt %u)",
+                   l_chain->name, l_net->pub.name, DAP_CHAIN_NET_SYNC_WAITING_RETRY_TIMEOUT, l_retries);
+            if (l_retries >= 3) {
+                log_it(L_WARNING, "Too many WAITING retries (%u) for net %s, forcing full sync restart with reconnect",
+                       l_retries, l_net->pub.name);
+                l_net_pvt->sync_context.waiting_retry_count = 0;
+                // Purge chain data so genesis block can be accepted during sync from zero
+                log_it(L_NOTICE, "Purging chain data for net %s before sync from zero", l_net->pub.name);
+                dap_ledger_purge(l_net->pub.ledger, false);
+                dap_chain_t *l_purge_chain = NULL;
+                DL_FOREACH(l_net->pub.chains, l_purge_chain) {
+                    if (l_purge_chain->callback_purge)
+                        l_purge_chain->callback_purge(l_purge_chain);
+                    dap_chain_cell_delete_all_and_free_file(l_purge_chain);
+                }
+                dap_chain_net_set_flag_sync_from_zero(l_net, true);
+                s_restart_sync_chains(l_net, DAP_CHAIN_NET_SYNC_RESTART_REASON_ACTIVITY_TIMEOUT);
+                return;
+            }
             l_chain->state = CHAIN_SYNC_STATE_IDLE;
+            l_net_pvt->sync_context.last_rx_activity = l_now;
             atomic_store_explicit(&l_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
             l_state_forming = CHAIN_SYNC_STATE_IDLE;
             break;
