@@ -80,11 +80,14 @@ static bool s_node_version_is_legacy_only(const char *a_version)
     int l_major = 0, l_minor = 0;
     if (sscanf(a_version, "%d.%d", &l_major, &l_minor) < 2)
         return true;
-    if (l_major < 5)
-        return true;
-    if (l_major > 5)
-        return false;
-    return l_minor <= 7;
+    // Modern Dilithium-based enc_init handshake has been supported since
+    // Cellframe 5.0.  Versions >= 5.0 should use modern handshake; the
+    // enc_legacy_auto_fallback in the client FSM covers any 5.x peer that
+    // genuinely doesn't understand modern enc_init (it fails once, then
+    // retries with legacy MSRLN).  This avoids treating 5.7-x nodes — which
+    // are current KelVPN network members — as legacy, which would skip the
+    // Dilithium signature and trigger ERROR_STREAM_NOT_AUTHORIZED.
+    return l_major < 5;
 }
 
 bool dap_chain_node_peer_needs_legacy_handshake(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr)
@@ -101,9 +104,17 @@ bool dap_chain_node_peer_needs_legacy_handshake(dap_chain_net_t *a_net, dap_stre
     byte_t *l_data = dap_global_db_get_sync(l_gdb_group, l_key, &l_data_size, NULL, NULL);
     DAP_DELETE(l_gdb_group);
     if (!l_data || l_data_size < sizeof(uint16_t) + 16) {
-        log_it(L_INFO, "Peer " NODE_ADDR_FP_STR " version unknown → legacy handshake",
+        // Peer version unknown — GDB not synced yet (cold start).
+        // Default to MODERN handshake: we carry Dilithium signatures that let the
+        // peer authenticate us and populate session->node_addr.  Legacy handshake
+        // sends NO signature, so the peer sees an unauthenticated stream and rejects
+        // ANNOUNCE/sync with ERROR_STREAM_NOT_AUTHORIZED — which blocks GDB sync and
+        // creates a chicken-and-egg deadlock.  Truly old peers (< 5.0) that don't
+        // understand modern enc_init are handled by enc_legacy_auto_fallback in the
+        // client FSM: modern attempt fails once, then it retries with legacy MSRLN.
+        log_it(L_INFO, "Peer " NODE_ADDR_FP_STR " version unknown → modern handshake (auto-fallback to legacy on failure)",
                NODE_ADDR_FP_ARGS_S(*a_addr));
-        return DAP_DELETE(l_data), true;
+        return DAP_DELETE(l_data), false;
     }
 
     dap_chain_node_net_states_info_t *l_info = (dap_chain_node_net_states_info_t *)l_data;
