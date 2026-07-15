@@ -169,6 +169,8 @@ typedef struct dap_chain {
     char *net_name;
     bool is_datum_pool_proc;
     bool is_mapped;
+    /** When true, chain atoms are kept in memory only (light node role). */
+    bool skip_disk_persist;
     atomic_int load_progress; 
     // Nested cells (hashtab by cell_id)
     dap_chain_cell_t *cells;

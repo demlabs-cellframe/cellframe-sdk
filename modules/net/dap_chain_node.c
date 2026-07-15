@@ -50,6 +50,7 @@
 
 #define LOG_TAG "dap_chain_node"
 
+// Debug flag for node operations (read from config: node.debug_more)
 static bool s_debug_more = false;
 #define DAP_CHAIN_NODE_NET_STATES_INFO_CURRENT_VERSION 2
 typedef struct dap_chain_node_net_states_info_v1 {
@@ -70,11 +71,53 @@ typedef struct dap_chain_node_net_states_info {
 
 #define node_info_v1_shift ( sizeof(uint16_t) + 16 + sizeof(dap_chain_node_role_t) )
 
+static const char s_states_group[] = ".nodes.states";
+
+static bool s_node_version_is_legacy_only(const char *a_version)
+{
+    if (!a_version || !a_version[0])
+        return true;
+    int l_major = 0, l_minor = 0;
+    if (sscanf(a_version, "%d.%d", &l_major, &l_minor) < 2)
+        return true;
+    if (l_major < 5)
+        return true;
+    if (l_major > 5)
+        return false;
+    return l_minor <= 7;
+}
+
+bool dap_chain_node_peer_needs_legacy_handshake(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr)
+{
+    if (!a_net || !a_addr || !a_addr->uint64)
+        return true;
+
+    char *l_gdb_group = dap_strdup_printf("%s%s", a_net->pub.gdb_groups_prefix, s_states_group);
+    if (!l_gdb_group)
+        return true;
+
+    const char *l_key = dap_stream_node_addr_to_str_static(*a_addr);
+    size_t l_data_size = 0;
+    byte_t *l_data = dap_global_db_get_sync(l_gdb_group, l_key, &l_data_size, NULL, NULL);
+    DAP_DELETE(l_gdb_group);
+    if (!l_data || l_data_size < sizeof(uint16_t) + 16) {
+        log_it(L_INFO, "Peer " NODE_ADDR_FP_STR " version unknown → legacy handshake",
+               NODE_ADDR_FP_ARGS_S(*a_addr));
+        return DAP_DELETE(l_data), true;
+    }
+
+    dap_chain_node_net_states_info_t *l_info = (dap_chain_node_net_states_info_t *)l_data;
+    bool l_legacy = s_node_version_is_legacy_only(l_info->version_node);
+    log_it(L_INFO, "Peer " NODE_ADDR_FP_STR " version '%s' → %s handshake",
+           NODE_ADDR_FP_ARGS_S(*a_addr), l_info->version_node, l_legacy ? "legacy" : "modern");
+    DAP_DELETE(l_data);
+    return l_legacy;
+}
+
 static const uint64_t s_cmp_delta_timestamp = (uint64_t)1000 /*sec*/ * (uint64_t)1000000000;
 static const uint64_t s_cmp_delta_event = 0;
 static const uint64_t s_cmp_delta_atom = 10;
 static const uint64_t s_timer_update_states_info = 10 /*sec*/ * 1000;
-static const char s_states_group[] = ".nodes.states";
 static bool s_node_list_auto_update = true;
 static size_t s_node_list_record_ttl = 3600 * 3;
 

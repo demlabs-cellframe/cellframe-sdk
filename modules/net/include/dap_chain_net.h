@@ -162,6 +162,11 @@ dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
 
 // Get inintial authorized nodes pointed by config
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
+
+DAP_STATIC_INLINE bool dap_chain_net_is_light_role(dap_chain_net_t *a_net)
+{
+    return a_net && dap_chain_net_get_role(a_net).enums == NODE_ROLE_LIGHT;
+}
 dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net);
 bool dap_chain_net_is_my_node_authorized(dap_chain_net_t *a_net);
 dap_stream_node_addr_t *dap_chain_net_get_authorized_nodes(dap_chain_net_t *a_net, size_t *a_nodes_count);
@@ -177,6 +182,7 @@ uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
 int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port);
 
 void dap_chain_net_purge(dap_chain_net_t *l_net);
+void dap_chain_net_sync_touch_progress(dap_chain_net_id_t a_net_id);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool

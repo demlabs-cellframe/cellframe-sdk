@@ -171,6 +171,13 @@ const char* const s_error_type_to_string[] = {
     [DAP_CHAIN_CH_ERROR_INTERNAL]                       = "INTERNAL_ERROR"
 };
 
+static dap_chain_ch_sync_progress_cb_t s_sync_progress_cb = NULL;
+
+void dap_chain_ch_set_sync_progress_callback(dap_chain_ch_sync_progress_cb_t a_cb)
+{
+    s_sync_progress_cb = a_cb;
+}
+
 /**
  * @brief dap_chain_ch_init
  * @return
@@ -580,6 +587,19 @@ struct atom_processing_args {
     byte_t data[];
 };
 
+static void s_sync_send_chain_ack(dap_stream_node_addr_t a_addr, const dap_chain_ch_pkt_t *a_chain_pkt)
+{
+    uint64_t l_ack_num = ((uint32_t)a_chain_pkt->hdr.num_hi << 16) | a_chain_pkt->hdr.num_lo;
+    dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(a_chain_pkt->hdr.net_id, a_chain_pkt->hdr.chain_id, a_chain_pkt->hdr.cell_id,
+                                                     &l_ack_num, sizeof(uint64_t), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
+    if (!l_pkt)
+        return;
+    dap_stream_ch_pkt_send_by_addr(&a_addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
+    DAP_DELETE(l_pkt);
+    debug_if(s_debug_more, L_DEBUG, "Out: early CHAIN_ACK to " NODE_ADDR_FP_STR " num %" DAP_UINT64_FORMAT_U,
+                                    NODE_ADDR_FP_ARGS_S(a_addr), l_ack_num);
+}
+
 /**
  * @brief s_sync_in_chains_callback
  * @param a_thread dap_proc_thread_t
@@ -612,6 +632,8 @@ static bool s_sync_in_chains_callback(void *a_arg)
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",
             dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
+        if (s_sync_progress_cb)
+            s_sync_progress_cb(l_chain_pkt->hdr.net_id);
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
@@ -619,6 +641,8 @@ static bool s_sync_in_chains_callback(void *a_arg)
     case ATOM_ACCEPT:
         debug_if(s_debug_more, L_INFO, "Accepted atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
+        if (s_sync_progress_cb)
+            s_sync_progress_cb(l_chain_pkt->hdr.net_id);
         break;
     case ATOM_REJECT: {
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
@@ -627,6 +651,8 @@ static bool s_sync_in_chains_callback(void *a_arg)
     case ATOM_FORK: {
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s added to a fork branch.", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
+        if (s_sync_progress_cb)
+            s_sync_progress_cb(l_chain_pkt->hdr.net_id);
         break;
     }
     default:
@@ -756,13 +782,14 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             break;
         }
         l_args->addr = a_ch->stream->node;
-        l_args->ack_req = true;
+        l_args->ack_req = false;
+        s_sync_send_chain_ack(a_ch->stream->node, l_chain_pkt);
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         debug_if(s_debug_more, L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U ", atom id %" DAP_UINT64_FORMAT_U,
                                         dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size, 
                                         l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                         (uint64_t)(((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo));
-        dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
+        dap_proc_thread_callback_add(NULL, s_sync_in_chains_callback, l_args);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: {
@@ -1483,7 +1510,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         debug_if(s_debug_legacy, L_INFO, "In: CHAIN_OLD pkt: atom hash %s (size %zd)",
                                          dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size);
-        dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
+        dap_proc_thread_callback_add(NULL, s_sync_in_chains_callback, l_args);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS: {

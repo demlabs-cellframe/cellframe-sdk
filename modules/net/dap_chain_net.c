@@ -88,6 +88,8 @@
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_node.h"
+#include "dap_client.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_arbitrage.h"
@@ -103,6 +105,7 @@
 #include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_srv_voting.h"
 #include "dap_global_db_cluster.h"
@@ -358,6 +361,15 @@ static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static int s_link_manager_link_request(uint64_t a_net_id);
 static int s_link_manager_link_count_changed();
 
+static void s_link_manager_configure_handshake(dap_client_t *a_client, dap_stream_node_addr_t *a_addr, uint64_t a_net_id)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_net || !a_client || !a_addr)
+        return;
+    bool l_legacy = dap_chain_node_peer_needs_legacy_handshake(l_net, a_addr);
+    dap_client_configure_p2p_handshake(a_client, l_legacy);
+}
+
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = s_link_manager_callback_connected,
     .disconnected   = s_link_manager_callback_disconnected,
@@ -365,6 +377,7 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .fill_net_info  = s_link_manager_fill_net_info,
     .link_request   = s_link_manager_link_request,
     .link_count_changed = s_link_manager_link_count_changed,
+    .configure_handshake = s_link_manager_configure_handshake,
 };
 
 // State machine switchs here
@@ -412,6 +425,7 @@ int dap_chain_net_init()
 {
     dap_ledger_init();
     dap_chain_ch_init();
+    dap_chain_ch_set_sync_progress_callback(dap_chain_net_sync_touch_progress);
     dap_chain_net_anchor_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
@@ -581,16 +595,22 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
     dap_chain_net_t * l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_return_if_pass(!l_net);
 
-    debug_if(s_debug_more, L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
+    log_it(L_INFO, "Established connection with %s."NODE_ADDR_FP_STR, l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_link->addr));
+
+    dap_chain_net_state_t l_state = PVT(l_net)->state;
+    if (l_state != NET_STATE_LINKS_CONNECTING && l_state != NET_STATE_LINKS_PREPARE)
+        return;
 
     s_net_control_event_emit_async(l_net, DAP_CHAIN_NET_CONTROL_EVENT_LINK_CONNECTED, 0);
     dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
                                                      .net_id  = l_net->pub.id };
-    if(dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_STREAM_CH_CHAIN_NET_ID, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
-                                   &l_announce, sizeof(l_announce))) {
-                                   dap_link_manager_accounting_link_in_net(l_net->pub.id.uint64, &a_link->addr, false);
-                                   }
+    if (dap_stream_ch_pkt_send_by_addr(&a_link->addr, DAP_STREAM_CH_CHAIN_NET_ID,
+                                       DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
+                                       &l_announce, sizeof(l_announce)) != 0)
+        log_it(L_WARNING, "ANNOUNCE to " NODE_ADDR_FP_STR " failed, accounting link directly",
+               NODE_ADDR_FP_ARGS_S(a_link->addr));
+    dap_link_manager_accounting_link_in_net(l_net->pub.id.uint64, &a_link->addr, true);
 }
 
 static bool s_net_check_link_is_permanent(dap_chain_net_t *a_net, dap_stream_node_addr_t a_addr)
@@ -667,6 +687,13 @@ int s_link_manager_link_request(uint64_t a_net_id)
         return -2;
     if (l_net_pvt->state == NET_STATE_LINKS_PREPARE)
         s_net_control_event_emit_async(l_net, DAP_CHAIN_NET_CONTROL_EVENT_LINKS_CONNECTING, 0);
+    /* === TEMP_DEBUG_LINKS_CONNECTING: START (temporary, remove after investigation) === */
+    log_it(L_INFO, "[TEMP_DEBUG] link_request net %s state=%s established=%zu required=%zu needed=%zu",
+           l_net->pub.name, c_net_states[l_net_pvt->state],
+           dap_link_manager_established_uplinks_count(a_net_id),
+           dap_link_manager_required_links_count(a_net_id),
+           dap_link_manager_needed_links_count(a_net_id));
+    /* === TEMP_DEBUG_LINKS_CONNECTING: END === */
     struct request_link_info *l_balancer_link = s_balancer_link_from_cfg(l_net);
     if (!l_balancer_link)
         return log_it(L_ERROR, "Can't process balancer link %s request in net %s", 
@@ -718,15 +745,29 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
         }
     }
     dap_chain_node_info_t *l_node_info = NULL;
+    dap_chain_net_t *l_cfg_net = NULL;
     if (!l_host || !l_host[0] || !l_port) {
         for (dap_chain_net_t *net = s_nets_by_name; net; net = net->hh.next) {
-            if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) ))
+            if (( l_node_info = dap_chain_node_info_read(net, &a_link->addr) )) {
+                l_cfg_net = net;
                 break;
+            }
         }
         if (!l_node_info)
             return -3;
         l_host = l_node_info->ext_host;
         l_port = l_node_info->ext_port;
+    } else {
+        for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
+            if (dap_chain_net_get_state(l_net) > NET_STATE_OFFLINE) {
+                l_cfg_net = l_net;
+                break;
+            }
+        }
+    }
+    if (l_cfg_net && a_link->uplink.client) {
+        bool l_legacy = dap_chain_node_peer_needs_legacy_handshake(l_cfg_net, &a_link->addr);
+        dap_client_configure_p2p_handshake(a_link->uplink.client, l_legacy);
     }
     a_link->uplink.ready = !dap_link_manager_link_update(&a_link->addr, l_host, l_port);
     return DAP_DELETE(l_node_info), 0;
@@ -1017,6 +1058,8 @@ void dap_chain_net_load_all()
         pthread_join(l_tids[i], NULL);
     }
     dap_timerfd_delete_mt(l_load_notify_timer->worker, l_load_notify_timer->esocket_uuid);
+    if (dap_chain_srv_pay_cache_init())
+        log_it(L_WARNING, "SRV_PAY cache initialization failed");
 }
 
 dap_string_t* dap_cli_list_net()
@@ -1926,6 +1969,7 @@ static int s_cmp_cfg_pri(dap_config_t *cfg1, dap_config_t *cfg2) {
  */
 void dap_chain_net_deinit()
 {
+    dap_chain_srv_pay_cache_deinit();
     dap_link_manager_deinit();
     dap_chain_net_balancer_deinit();
     dap_chain_net_t *l_net, *l_tmp;
@@ -1982,16 +2026,50 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     // Synchronously going to offline state
     l_net_pvt->state = l_net_pvt->state_target = NET_STATE_OFFLINE;
     s_net_states_proc(a_net);
-    dap_global_db_cluster_t *l_mempool = l_net_pvt->mempool_clusters;
-    while (l_mempool) {
-        dap_global_db_cluster_t *l_next = l_mempool->next;
-        dap_global_db_cluster_delete(l_mempool);
-        l_mempool = l_next;
+    /* Delete GlobalDB clusters belonging to this net.
+     *
+     * WARNING: mempool_clusters->next follows the dbi->clusters linked list
+     * (prev/next are shared fields in dap_global_db_cluster_t). That list
+     * contains ALL clusters across ALL nets plus the global/local pseudo-
+     * clusters. Iterating via next would walk into other nets' clusters and
+     * cause double-free. Also, after dap_global_db_cluster_delete the
+     * prev/next pointers of neighbours are modified, invalidating any
+     * previously saved 'next' pointer.
+     *
+     * Instead, use dap_chain_net_get_mempool_cluster() to resolve each chain's
+     * mempool cluster, then delete it. This is safe because the function
+     * walks the chain list and follows mempool_clusters->next the same way
+     * clusters were created. */
+    {
+        dap_chain_t *l_tmp, *l_chain = NULL;
+        /* Collect mempool cluster pointers first, since after delete the
+         * dbi->clusters linked list (and thus mempool_clusters->next) is
+         * modified. We iterate pub.chains backwards so earlier entries
+         * remain valid for later lookups. */
+        size_t l_chain_count = 0;
+        DL_COUNT(a_net->pub.chains, l_chain, l_chain_count);
+        dap_global_db_cluster_t **l_mempools = DAP_CALLOC(l_chain_count, sizeof(dap_global_db_cluster_t *));
+        if (l_mempools) {
+            size_t l_idx = 0;
+            DL_FOREACH(a_net->pub.chains, l_chain) {
+                l_mempools[l_idx++] = dap_chain_net_get_mempool_cluster(l_chain);
+            }
+            for (size_t i = 0; i < l_chain_count; i++) {
+                if (l_mempools[i])
+                    dap_global_db_cluster_delete(l_mempools[i]);
+            }
+            DAP_DELETE(l_mempools);
+        }
     }
+    l_net_pvt->mempool_clusters = NULL;  /* all mempool clusters deleted */
     dap_global_db_cluster_delete(l_net_pvt->orders_cluster);
+    l_net_pvt->orders_cluster = NULL;
     dap_global_db_cluster_delete(l_net_pvt->nodes_cluster);
+    l_net_pvt->nodes_cluster = NULL;
     dap_global_db_cluster_delete(l_net_pvt->nodes_states);
+    l_net_pvt->nodes_states = NULL;
     dap_global_db_cluster_delete(l_net_pvt->common_orders);
+    l_net_pvt->common_orders = NULL;
 
     DAP_DELETE(l_net_pvt->node_info);
     if (a_net->pub.ledger) {
@@ -2184,22 +2262,28 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     }
     HASH_CLEAR(hh, l_all_chain_configs);
     // LEDGER model
+    const bool l_is_light_node = (PVT(l_net)->node_role.enums == NODE_ROLE_LIGHT);
     uint16_t l_ledger_flags = 0;
     switch ( PVT( l_net )->node_role.enums ) {
     case NODE_ROLE_LIGHT:
-        //break;
-        PVT( l_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
+        l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS | DAP_LEDGER_CACHE_ENABLED;
+        break;
     case NODE_ROLE_FULL:
         l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
         if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
             l_ledger_flags |= DAP_LEDGER_CACHE_ENABLED;
+        break;
     default:
-        l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
+        break;
     }
-    if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true))
+    if (PVT(l_net)->node_role.enums != NODE_ROLE_LIGHT)
+        l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
+    if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true) && !l_is_light_node)
         l_ledger_flags |= DAP_LEDGER_MAPPED;
 
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+        if (l_is_light_node)
+            l_chain->skip_disk_persist = true;
         if (l_chain->callback_load_from_gdb) {
             l_ledger_flags &= ~DAP_LEDGER_MAPPED;
             l_ledger_flags |= DAP_LEDGER_THRESHOLD_ENABLED;
@@ -2256,11 +2340,20 @@ static void *s_net_load(void *a_arg)
         dap_chain_net_srv_stake_purge(l_net);
     }*/
 
-    // load chains
+    // load chains (light nodes skip local BC files — wallet cache is filled from sync updates)
     dap_chain_t *l_chain = l_net->pub.chains;
-    clock_t l_chain_load_start_time; 
-    l_chain_load_start_time = clock(); 
-    while (l_chain) {
+    clock_t l_chain_load_start_time;
+    l_chain_load_start_time = clock();
+    const bool l_light_node = (l_net_pvt->node_role.enums == NODE_ROLE_LIGHT);
+    if (l_light_node) {
+        log_it(L_INFO, "Light node role: skipping local chain file load for net %s (wallet-balance sync only)",
+               l_net->pub.name);
+        while (l_chain) {
+            l_chain->state = CHAIN_SYNC_STATE_IDLE;
+            l_chain->atom_num_last = 0;
+            l_chain = l_chain->next;
+        }
+    } else while (l_chain) {
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         if (!dap_chain_load_all(l_chain)) {
@@ -2807,6 +2900,13 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net,
 DAP_INLINE dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net)
 {
     return PVT(a_net)->state;
+}
+
+void dap_chain_net_sync_touch_progress(dap_chain_net_id_t a_net_id)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (l_net)
+        PVT(l_net)->sync_context.last_progress_activity = dap_time_now();
 }
 
 dap_chain_cell_id_t *dap_chain_net_get_cur_cell( dap_chain_net_t *a_net)
@@ -3604,9 +3704,16 @@ static DAP_INLINE void s_net_control_event_apply(dap_chain_net_t *a_net, dap_cha
     dap_return_if_pass(!a_net || !a_net_pvt);
     switch (a_event) {
     case DAP_CHAIN_NET_CONTROL_EVENT_LINK_CONNECTED:
-        if (a_net_pvt->state == NET_STATE_LINKS_CONNECTING &&
+        if ((a_net_pvt->state == NET_STATE_LINKS_CONNECTING || a_net_pvt->state == NET_STATE_LINKS_PREPARE) &&
                 dap_link_manager_established_uplinks_count(a_net->pub.id.uint64) >= dap_link_manager_required_links_count(a_net->pub.id.uint64))
             a_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
+        /* === TEMP_DEBUG_LINKS_CONNECTING: START (temporary, remove after investigation) === */
+        else if (a_net_pvt->state == NET_STATE_LINKS_CONNECTING)
+            log_it(L_INFO, "[TEMP_DEBUG] %s still NET_STATE_LINKS_CONNECTING: established %zu/%zu after LINK_CONNECTED",
+                   a_net->pub.name,
+                   dap_link_manager_established_uplinks_count(a_net->pub.id.uint64),
+                   dap_link_manager_required_links_count(a_net->pub.id.uint64));
+        /* === TEMP_DEBUG_LINKS_CONNECTING: END === */
         break;
     case DAP_CHAIN_NET_CONTROL_EVENT_LINKS_COUNT_CHANGED:
         UNUSED(a_links_count);
@@ -3621,6 +3728,9 @@ static DAP_INLINE void s_net_control_event_apply(dap_chain_net_t *a_net, dap_cha
         break;
     case DAP_CHAIN_NET_CONTROL_EVENT_LINKS_CONNECTING:
         a_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+        /* === TEMP_DEBUG_LINKS_CONNECTING: START (temporary, remove after investigation) === */
+        dap_link_manager_log_uplinks_connecting_diag(a_net->pub.id.uint64);
+        /* === TEMP_DEBUG_LINKS_CONNECTING: END === */
         break;
     case DAP_CHAIN_NET_CONTROL_EVENT_SYNC_CONTEXT_RESET:
         s_sync_session_advance(a_net_pvt);
@@ -3932,12 +4042,6 @@ static DAP_INLINE bool s_sync_start_req_try_set_in_progress(dap_chain_net_pvt_t 
                                                    memory_order_acq_rel, memory_order_relaxed);
 }
 
-static DAP_INLINE void s_sync_start_req_clear_if_session(dap_chain_net_pvt_t *a_net_pvt, uint64_t a_session_id)
-{
-    if (s_sync_session_get(a_net_pvt) == a_session_id)
-        atomic_store_explicit(&a_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
-}
-
 static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_start_req_arg_t *a_arg)
 {
     dap_return_if_pass(!a_net || !a_arg);
@@ -3971,11 +4075,28 @@ static void s_sync_process_start_request_owner_cb(void *a_arg)
         dap_chain_cell_id_t l_cell_id = l_net_pvt->sync_context.cur_cell
                                         ? l_net_pvt->sync_context.cur_cell->id
                                         : c_dap_chain_cell_id_null;
+        dap_chain_sync_state_t l_chain_state = l_net_pvt->sync_context.cur_chain
+                                               ? l_net_pvt->sync_context.cur_chain->state
+                                               : CHAIN_SYNC_STATE_IDLE;
+        if (l_chain_state == CHAIN_SYNC_STATE_ERROR && l_net_pvt->sync_context.cur_chain &&
+                l_net_pvt->sync_context.cur_chain->id.uint64 == l_arg->chain_id.uint64 &&
+                l_arg->session_id == s_sync_session_get(l_net_pvt) &&
+                l_cell_id.uint64 == l_arg->cell_id.uint64) {
+            dap_chain_t *l_err_chain = l_net_pvt->sync_context.cur_chain;
+            log_it(L_WARNING, "Chain %s of net %s recovered from ERROR for CHAIN_REQ retry",
+                               l_err_chain->name, l_net->pub.name);
+            l_err_chain->state = CHAIN_SYNC_STATE_IDLE;
+            l_chain_state = CHAIN_SYNC_STATE_IDLE;
+        }
         if (l_arg->session_id != s_sync_session_get(l_net_pvt) || !l_net_pvt->sync_context.cur_chain ||
                 l_net_pvt->sync_context.cur_chain->id.uint64 != l_arg->chain_id.uint64 ||
-                l_net_pvt->sync_context.cur_chain->state != CHAIN_SYNC_STATE_WAITING ||
+                (l_chain_state != CHAIN_SYNC_STATE_IDLE && l_chain_state != CHAIN_SYNC_STATE_WAITING) ||
                 l_cell_id.uint64 != l_arg->cell_id.uint64) {
             s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_stale_drop_count);
+            log_it(L_WARNING, "Stale start CHAIN_REQ dropped for net %s chain 0x%016" DAP_UINT64_FORMAT_x
+                               " session %" DAP_UINT64_FORMAT_U "/%" DAP_UINT64_FORMAT_U " state %d",
+                               l_net->pub.name, l_arg->chain_id.uint64,
+                               l_arg->session_id, s_sync_session_get(l_net_pvt), (int)l_chain_state);
         } else {
             dap_chain_t *l_chain = l_net_pvt->sync_context.cur_chain;
             switch ((sync_start_req_prepare_status_t)l_arg->prepare_status) {
@@ -3987,7 +4108,8 @@ static void s_sync_process_start_request_owner_cb(void *a_arg)
                                 NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
                                 l_net->pub.name, l_chain->name,
                                 dap_hash_fast_to_str_static(&l_arg->request.hash_from), l_arg->last_num);
-                s_sync_send_chain_req(l_net, l_net_pvt, l_chain, l_cell_id, &l_arg->request, "CHAIN_REQ");
+                if (!s_sync_send_chain_req(l_net, l_net_pvt, l_chain, l_cell_id, &l_arg->request, "CHAIN_REQ"))
+                    l_chain->state = CHAIN_SYNC_STATE_WAITING;
                 break;
             }
             case SYNC_START_REQ_PREPARE_ERROR:
@@ -3998,7 +4120,7 @@ static void s_sync_process_start_request_owner_cb(void *a_arg)
                 break;
             }
         }
-        s_sync_start_req_clear_if_session(l_net_pvt, l_arg->session_id);
+        atomic_store_explicit(&l_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
     }
     DAP_DELETE(l_arg);
 }
@@ -4011,11 +4133,11 @@ static bool s_sync_process_start_request_owner_proc_cb(void *a_arg)
 
 static void s_sync_process_start_request_dispatch(dap_chain_net_t *a_net, sync_start_req_arg_t *a_arg)
 {
-    if (!s_sync_dispatch_to_owner(a_net, a_arg, s_sync_process_start_request_owner_cb, s_sync_process_start_request_owner_proc_cb))
+    if (!dap_proc_thread_callback_add(NULL, s_sync_process_start_request_owner_proc_cb, a_arg))
         return;
     log_it(L_CRITICAL, "Can't schedule start-request owner phase for net %s", a_net->pub.name);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    s_sync_start_req_clear_if_session(l_net_pvt, a_arg->session_id);
+    atomic_store_explicit(&l_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
     if (s_sync_session_get(l_net_pvt) == a_arg->session_id &&
             l_net_pvt->sync_context.cur_chain &&
             l_net_pvt->sync_context.cur_chain->id.uint64 == a_arg->chain_id.uint64)
@@ -4228,7 +4350,6 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
         break;
     }
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN:
-        l_net_pvt->sync_context.last_progress_activity = dap_time_now();
         break;
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY:
     default:
@@ -4269,6 +4390,14 @@ lb_exit:
     s_sync_notifier_leave(l_notifier_arg);
 }
 
+
+static dap_chain_t *s_sync_first_unsynced_chain(dap_chain_net_t *a_net)
+{
+    dap_chain_t *l_chain;
+    dap_return_val_if_pass(!a_net, NULL);
+    for (l_chain = a_net->pub.chains; l_chain && l_chain->state == CHAIN_SYNC_STATE_SYNCED; l_chain = l_chain->next) {}
+    return l_chain;
+}
 
 static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_restart_reason_t a_reason)
 {
@@ -4319,11 +4448,10 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     DAP_DELETE(l_links_addrs);
     if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
         debug_if(s_debug_more, L_DEBUG, "No links in net %s cluster", a_net->pub.name);
-        return -2;     // No links in cluster
+        return -7;     // No links in cluster
     }
     s_sync_timer_rebind_owner_async(a_net);
-    l_net_pvt->sync_context.cur_chain = a_net->pub.chains;
-    if (!l_net_pvt->sync_context.cur_chain) {
+    if (!a_net->pub.chains) {
         log_it(L_ERROR, "No chains in net %s", a_net->pub.name);
         return -3;
     }
@@ -4352,9 +4480,10 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     l_net_pvt->sync_context.notifier_link = l_net_pvt->sync_context.current_link;
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(a_net->pub.chains, l_chain) {
-        if (l_chain->state != CHAIN_SYNC_STATE_ERROR)
+        if (l_chain->state != CHAIN_SYNC_STATE_SYNCED)
             l_chain->state = CHAIN_SYNC_STATE_IDLE;
     }
+    l_net_pvt->sync_context.cur_chain = s_sync_first_unsynced_chain(a_net);
     l_net_pvt->sync_context.cur_cell = NULL;
     l_net_pvt->sync_context.requested_atom_hash = (dap_hash_fast_t){};
     l_net_pvt->sync_context.requested_atom_num = 0;
@@ -4457,6 +4586,13 @@ static void s_sync_timer_callback(void *a_arg)
         l_chain = l_net_pvt->sync_context.cur_chain;
     } else {
         l_state_forming = l_chain->state;
+        if (l_chain->state == CHAIN_SYNC_STATE_IDLE &&
+                atomic_load_explicit(&l_net_pvt->sync_context.start_req_in_progress, memory_order_acquire) &&
+                l_now - l_net_pvt->sync_context.stage_last_activity > 30) {
+            log_it(L_WARNING, "Chain %s of net %s start CHAIN_REQ dispatch timeout, retry",
+                               l_chain->name, l_net->pub.name);
+            atomic_store_explicit(&l_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
+        }
         if (l_net_pvt->sync_split_timeouts) {
             if (l_now - l_net_pvt->sync_context.last_rx_activity > l_net_pvt->sync_context.sync_activity_timeout) {
                 // check if need restart sync chains (emergency mode)
@@ -4492,6 +4628,8 @@ static void s_sync_timer_callback(void *a_arg)
             log_it(L_WARNING, "Can't start sync chains in net %s, wait next attempt", l_net->pub.name);
             return;
         }
+        if (!l_net_pvt->sync_context.cur_chain)
+            return;
         break;
     case CHAIN_SYNC_STATE_SYNCED:
         l_net_pvt->sync_context.cur_chain = s_switch_sync_chain(l_net);
@@ -4503,6 +4641,9 @@ static void s_sync_timer_callback(void *a_arg)
     default:
         break;
     }
+
+    if (!l_net_pvt->sync_context.cur_chain)
+        return;
 
     if (l_net_pvt->sync_context.cur_chain->callback_load_from_gdb) {
         // This type of chain is GDB based and not synced by chains protocol
@@ -4518,17 +4659,17 @@ static void s_sync_timer_callback(void *a_arg)
                                        l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
         return;
     }
+    l_net_pvt->sync_context.stage_last_activity = l_now;
     bool l_sync_from_zero = l_net_pvt->sync_context.sync_from_zero;
     l_net_pvt->sync_context.sync_from_zero = false;
     if (l_sync_from_zero)
         s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_sync_from_zero_count);
-    l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_WAITING;
     uint64_t l_session_id = s_sync_session_get(l_net_pvt);
     sync_start_req_arg_t *l_start_req_arg = DAP_NEW_Z(sync_start_req_arg_t);
     if (!l_start_req_arg) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-        s_sync_start_req_clear_if_session(l_net_pvt, l_session_id);
-        l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_ERROR;
+        atomic_store_explicit(&l_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
+        l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_IDLE;
         return;
     }
     l_start_req_arg->net_id = l_net->pub.id;
@@ -4540,8 +4681,8 @@ static void s_sync_timer_callback(void *a_arg)
         log_it(L_CRITICAL, "Can't offload start CHAIN_REQ processing for net %s chain %s",
                            l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
         DAP_DELETE(l_start_req_arg);
-        s_sync_start_req_clear_if_session(l_net_pvt, l_session_id);
-        l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_ERROR;
+        atomic_store_explicit(&l_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
+        l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_IDLE;
     }
 }
 
