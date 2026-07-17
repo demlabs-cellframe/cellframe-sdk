@@ -683,10 +683,10 @@ enum {
 
 if ( a_pass )
 {
-    /* New protected wallets are always v3 (salted SHA3). v2 stays readable for master files. */
+    /* V3: ChaCha20-Poly1305 AEAD with SHA3-256(password || SHA3-256(wallet_name)) key */
     dap_hash_sha3_256_t l_hash;
     dap_hash_password_with_salt(a_pass, a_wallet->name, &l_hash);
-    if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, (const char *)l_hash.raw, DAP_HASH_SHA3_256_SIZE, 0)) )
+    if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_CHACHA20_POLY1305, NULL, 0, (const char *)l_hash.raw, DAP_HASH_SHA3_256_SIZE, 0)) )
         return  log_it(L_ERROR, "Error create key context"), -EINVAL;
     dap_memwipe(l_hash.raw, sizeof(l_hash));
 }
@@ -709,7 +709,7 @@ if ( a_pass )
     l_cp = a_wallet->name[0] ? a_wallet->name : "DefaultWalletName";
 
     a_wallet->version  = a_pass ? DAP_WALLET$K_VER_3 : DAP_WALLET$K_VER_1;
-    a_wallet->type     = a_pass ? DAP_WALLET$K_TYPE_GOST89 : DAP_WALLET$K_TYPE_PLAIN;
+    a_wallet->type     = a_pass ? DAP_WALLET$K_TYPE_CHACHA20_POLY1305 : DAP_WALLET$K_TYPE_PLAIN;
     a_wallet->name_len = (uint16_t)strnlen(l_cp, DAP_WALLET$SZ_NAME);
 
     uint8_t l_hdr_wire[DAP_CHAIN_WALLET_FILE_FIXED_WIRE_SIZE];
@@ -1014,10 +1014,10 @@ uint8_t l_cert_hdr_wire[DAP_CHAIN_WALLET_CERT_HDR_WIRE_SIZE];
         }
         else if ( l_wallet->version == DAP_WALLET$K_VER_3 )
         {
-            /* v3: SHA3-256(SHA3(password) || SHA3(wallet_name)) */
+            /* v3: ChaCha20-Poly1305 AEAD, key = SHA3-256(SHA3(password) || SHA3(wallet_name)) */
             dap_hash_sha3_256_t l_hash;
             dap_hash_password_with_salt(l_pass, l_wallet->name, &l_hash);
-            if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, (const char *)l_hash.raw, DAP_HASH_SHA3_256_SIZE, 0)) ) {
+            if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_CHACHA20_POLY1305, NULL, 0, (const char *)l_hash.raw, DAP_HASH_SHA3_256_SIZE, 0)) ) {
                 dap_memwipe(l_hash.raw, sizeof(l_hash));
                 log_it(L_ERROR, "Error create key context");
                 dap_fileclose(l_fh);
