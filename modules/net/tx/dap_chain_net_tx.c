@@ -1246,7 +1246,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             }
             
             // Read owner public key hashes array
-            dap_json_t *l_json_pkey_hashes = dap_json_object_get_object(a_json_item_obj, "owner_pkey_hashes");
+            dap_json_t *l_json_pkey_hashes = dap_json_object_get_array(a_json_item_obj, "owner_pkey_hashes");
             if(!l_json_pkey_hashes || !dap_json_is_array(l_json_pkey_hashes)) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
