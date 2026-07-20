@@ -3705,17 +3705,19 @@ static DAP_INLINE void s_net_control_event_apply(dap_chain_net_t *a_net, dap_cha
 {
     dap_return_if_pass(!a_net || !a_net_pvt);
     switch (a_event) {
-    case DAP_CHAIN_NET_CONTROL_EVENT_LINK_CONNECTED:
-        if ((a_net_pvt->state == NET_STATE_LINKS_CONNECTING || a_net_pvt->state == NET_STATE_LINKS_PREPARE) &&
-                dap_link_manager_established_uplinks_count(a_net->pub.id.uint64) >= dap_link_manager_required_links_count(a_net->pub.id.uint64))
-            a_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
-        /* === TEMP_DEBUG_LINKS_CONNECTING: START (temporary, remove after investigation) === */
-        else if (a_net_pvt->state == NET_STATE_LINKS_CONNECTING)
-            log_it(L_INFO, "[TEMP_DEBUG] %s still NET_STATE_LINKS_CONNECTING: established %zu/%zu after LINK_CONNECTED",
-                   a_net->pub.name,
-                   dap_link_manager_established_uplinks_count(a_net->pub.id.uint64),
-                   dap_link_manager_required_links_count(a_net->pub.id.uint64));
-        /* === TEMP_DEBUG_LINKS_CONNECTING: END === */
+    case DAP_CHAIN_NET_CONTROL_EVENT_LINK_CONNECTED: {
+            size_t l_est = dap_link_manager_established_uplinks_count(a_net->pub.id.uint64);
+            size_t l_req = dap_link_manager_required_links_count(a_net->pub.id.uint64);
+            bool l_state_ok = (a_net_pvt->state == NET_STATE_LINKS_CONNECTING || a_net_pvt->state == NET_STATE_LINKS_PREPARE);
+            bool l_count_ok = (l_est >= l_req);
+            log_it(L_INFO, "[TEMP_DEBUG] LINK_CONNECTED: %s state=%s est=%zu req=%zu state_ok=%d count_ok=%d",
+                   a_net->pub.name, c_net_states[a_net_pvt->state], l_est, l_req, l_state_ok, l_count_ok);
+            if (l_state_ok && l_count_ok) {
+                a_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
+                log_it(L_INFO, "[TEMP_DEBUG] %s → NET_STATE_LINKS_ESTABLISHED (est=%zu req=%zu)",
+                       a_net->pub.name, l_est, l_req);
+            }
+        }
         break;
     case DAP_CHAIN_NET_CONTROL_EVENT_LINKS_COUNT_CHANGED:
         UNUSED(a_links_count);
@@ -4246,8 +4248,10 @@ static DAP_INLINE bool s_sync_pkt_validate_context(dap_chain_net_t *a_net, dap_s
 
 static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const void *a_data, size_t a_data_size, void *a_arg)
 {
-    log_it(L_INFO, "IN sync packet type 0x%02X size %zu from " NODE_ADDR_FP_STR,
-                                                            a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+    log_it(L_INFO, "[TEMP_DEBUG] s_ch_in_pkt_callback: type=%hhu size=%zu from=" NODE_ADDR_FP_STR,
+                   a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+    debug_if(s_debug_more, L_DEBUG, "Got IN sync packet type %hhu size %zu from addr " NODE_ADDR_FP_STR,
+                                                           a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
     sync_notifier_arg_t *l_notifier_arg = a_arg;
     dap_chain_net_t *l_net = NULL;
     if (!s_sync_notifier_try_enter(l_notifier_arg, &l_net))
@@ -4531,6 +4535,10 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     l_net_pvt->sync_context.last_rx_activity = l_now;
     l_net_pvt->sync_context.last_progress_activity = l_now;
     s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_restart_count);
+    log_it(L_INFO, "[TEMP_DEBUG] sync restart %s: session=%" DAP_UINT64_FORMAT_U " current_link=" NODE_ADDR_FP_STR
+           " uplinks=%zu downlinks=%zu prev_link=" NODE_ADDR_FP_STR,
+           a_net->pub.name, l_session_id, NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link),
+           l_uplinks_count, l_downlinks_count, NODE_ADDR_FP_ARGS_S(l_prev_link));
     uint8_t l_restart_reason = atomic_load_explicit(&l_net_pvt->sync_context.diag_restart_reason_last, memory_order_relaxed);
     debug_if(s_debug_more, L_DEBUG, "Sync diag for net %s: session=%" DAP_UINT64_FORMAT_U
                                      " restarts=%" DAP_UINT64_FORMAT_U
