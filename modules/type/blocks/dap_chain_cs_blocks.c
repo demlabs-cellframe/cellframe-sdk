@@ -2889,8 +2889,10 @@ static dap_chain_atom_ptr_t s_callback_atom_add_from_treshold(dap_chain_t *a_cha
         .conflicting = 0,
     };
 
-    /* Multiple passes: promoting one block may unblock others */
-    for (int l_pass = 0; l_pass < 3; l_pass++) {
+    /* Multiple passes: promoting one block may unblock its children.
+     * With ~490K blocks in threshold, we need many passes to cascade
+     * through sequential chains. 100 passes × 1M slot scan ≈ 400ms. */
+    for (int l_pass = 0; l_pass < 100; l_pass++) {
         int l_promoted_before = darg.promoted;
         threshold_mmap_iter(l_ctx, s_drain_cb, &darg);
         int l_promoted_this_pass = darg.promoted - l_promoted_before;
