@@ -4499,19 +4499,17 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
          * so the peer starts from ITER_OP_FIRST and covers ALL events. */
         if (l_local_count < l_peer_num_last) {
             l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_IDLE;
-            /* Force sync_from_zero on next prepare(): the 5.7 sender's
-             * ITER_OP_NEXT wrapped around and skipped events. Starting from
-             * blank hash forces ITER_OP_FIRST to cover ALL events. */
-            l_net_pvt->sync_context.sync_no_progress_count++;
-            l_net_pvt->sync_context.max_atom_num_seen = 0;
-            l_net_pvt->sync_context.prev_max_atom_num_seen = 0;
-            /* Clear threshold blacklist so previously-evicted events can be
-             * re-accepted on the next sync attempt. */
+            /* Don't force sync_from_zero — let the next session resume from
+             * the last accepted block's hash. The 5.7 sender's ITER_OP_NEXT
+             * will continue from that position in hash-table order, visiting
+             * NEW blocks not reached in the previous pass. sync_from_zero
+             * would re-visit ALL blocks from ITER_OP_FIRST — all already in
+             * chain or threshold — finding nothing new. */
             if (l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist)
                 l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist(l_net_pvt->sync_context.cur_chain);
             log_it(L_NOTICE, "Chain %s net %s: SYNCED_CHAIN but local_count=%" DAP_UINT64_FORMAT_U
                    " < peer_last=%" DAP_UINT64_FORMAT_U ". "
-                   "Peer's ITER_OP_NEXT skipped events. Will restart with blank-hash.",
+                   "Resuming from last hash to cover more events.",
                     l_net_pvt->sync_context.cur_chain->name, l_net->pub.name,
                     l_local_count, l_peer_num_last);
         } else {
