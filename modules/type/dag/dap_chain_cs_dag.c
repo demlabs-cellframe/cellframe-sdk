@@ -67,7 +67,7 @@ typedef struct dap_chain_cs_dag_event_item {
     uint64_t event_number;
     int ret_code;
     char *mapped_region;
-    UT_hash_handle hh, hh_select, hh_datums;
+    UT_hash_handle hh, hh_select, hh_datums, hh_num;
 } dap_chain_cs_dag_event_item_t;
 
 typedef struct dap_chain_cs_dag_blocked {
@@ -79,6 +79,7 @@ typedef struct dap_chain_cs_dag_blocked {
 typedef struct dap_chain_cs_dag_pvt {
     pthread_mutex_t events_mutex;
     dap_chain_cs_dag_event_item_t * events;
+    dap_chain_cs_dag_event_item_t * events_by_num;   /* Secondary index keyed by event_number (hh_num) */
     dap_chain_cs_dag_event_item_t * datums;
     dap_chain_cs_dag_event_item_t * events_treshold;
     dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
@@ -100,6 +101,7 @@ static dap_chain_cs_dag_event_item_t *s_dag_proc_treshold(dap_chain_cs_dag_t *a_
 // Atomic element organization callbacks
 static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash, bool a_atom_new);                      //    Accept new event in dag
 static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t * a_chain, size_t *a_event_size_out);                    //    Accept new event in dag from treshold
+static void s_chain_callback_clear_threshold_blacklist(dap_chain_t *a_chain);  // Clear removed_events_from_treshold
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash);                   //    Verify new event in dag
 static size_t s_chain_callback_atom_get_static_hdr_size(void);                               //    Get dag event header size
 
@@ -138,6 +140,7 @@ static uint64_t s_dap_chain_callback_get_count_tx_decrease(dap_chain_t *a_chain)
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
+static uint64_t s_dap_chain_callback_get_count_atom_threshold(dap_chain_t *a_chain);
 static json_object *s_dap_chain_callback_atom_to_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, const char *a_hash_out_type, int a_version);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
@@ -213,6 +216,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&PVT(l_dag)->events_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
+    PVT(l_dag)->events_by_num = NULL;
 
     a_chain->callback_delete = s_chain_cs_dag_delete;
     a_chain->callback_purge = s_dap_chain_cs_dag_purge;
@@ -221,6 +225,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_add = s_chain_callback_atom_add ;  // Accept new element in chain
     a_chain->callback_atom_add_from_treshold = s_chain_callback_atom_add_from_treshold;  // Accept new elements in chain from treshold
     a_chain->callback_atom_verify = s_chain_callback_atom_verify ;  // Verify new element in chain
+    a_chain->callback_clear_threshold_blacklist = s_chain_callback_clear_threshold_blacklist;  // Clear blacklist on sync restart
     a_chain->callback_atom_get_hdr_static_size = s_chain_callback_atom_get_static_hdr_size; // Get dag event hdr size
 
     a_chain->callback_atom_iter_create = s_chain_callback_atom_iter_create;
@@ -251,6 +256,8 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_count_tx_decrease = s_dap_chain_callback_get_count_tx_decrease;
     // Get atom count in chain
     a_chain->callback_count_atom = s_dap_chain_callback_get_count_atom;
+    // Get atom count in threshold queue
+    a_chain->callback_count_atom_threshold = s_dap_chain_callback_get_count_atom_threshold;
     // Get atom list in chain
     a_chain->callback_get_atoms = s_callback_get_atoms;
     a_chain->callback_atom_dump_json = s_dap_chain_callback_atom_to_json;
@@ -307,6 +314,12 @@ static void s_chain_cs_dag_start(dap_chain_t *a_chain)
     dap_return_if_pass(!a_chain || !a_chain->_inheritor);
     dap_chain_cs_dag_t *l_dag = a_chain->_inheritor;
     dap_return_if_pass(!PVT(l_dag));
+    /* Clear threshold blacklist on startup. Events that were evicted from the
+     * threshold (2h timer) before the node shut down are permanently blocked
+     * from re-entry. Clearing on start allows them to be re-accepted during
+     * the first sync session, preventing the chain from getting stuck at
+     * a count lower than the network's. */
+    s_chain_callback_clear_threshold_blacklist(a_chain);
     PVT(l_dag)->treshold_free_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_threshold_free, l_dag);
 }
 
@@ -356,6 +369,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
     HASH_CLEAR(hh_datums, l_dag_pvt->datums);
+    HASH_CLEAR(hh_num, l_dag_pvt->events_by_num);
     dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
     // Clang bug at this, l_event_current should change at every loop cycle
     HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
@@ -491,6 +505,47 @@ static int s_sort_event_item(dap_chain_cs_dag_event_item_t* a, dap_chain_cs_dag_
 }
 
 /**
+ * @brief s_chain_callback_clear_threshold_blacklist Clear removed_events_from_treshold.
+ * When sync restarts (sync_from_zero or blank-hash), events that were previously
+ * evicted from the threshold (2h timer) must be allowed back in. Without this,
+ * those events are permanently rejected (ATOM_REJECT) and the chain can never
+ * reach the peer's full event count.
+ */
+static void s_chain_callback_clear_threshold_blacklist(dap_chain_t *a_chain)
+{
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    dap_chain_cs_dag_pvt_t *l_pvt = PVT(l_dag);
+    int l_count = 0;
+    pthread_mutex_lock(&l_pvt->events_mutex);
+    /* Clear removed_events_from_treshold (blacklist): events evicted by the
+     * 2h timer are permanently rejected unless cleared on sync restart. */
+    dap_chain_cs_dag_blocked_t *l_it, *l_tmp;
+    HASH_ITER(hh, l_pvt->removed_events_from_treshold, l_it, l_tmp) {
+        HASH_DEL(l_pvt->removed_events_from_treshold, l_it);
+        DAP_DELETE(l_it);
+        l_count++;
+    }
+    /* Clear events_treshold_conflicted: events moved here during threshold drain
+     * because their parent was also in conflicted (cascade). Without clearing,
+     * sync_from_zero re-delivers the same events but verify still finds their
+     * parents in conflicted → cascade again → no progress. Free the event
+     * data too since it won't be needed (will be re-downloaded from peer). */
+    int l_conflicted_count = 0;
+    dap_chain_cs_dag_event_item_t *l_ev, *l_ev_tmp;
+    HASH_ITER(hh, l_pvt->events_treshold_conflicted, l_ev, l_ev_tmp) {
+        HASH_DEL(l_pvt->events_treshold_conflicted, l_ev);
+        if (!l_ev->mapped_region)
+            DAP_DELETE(l_ev->event);
+        DAP_DELETE(l_ev);
+        l_conflicted_count++;
+    }
+    pthread_mutex_unlock(&l_pvt->events_mutex);
+    if (l_count || l_conflicted_count)
+        log_it(L_NOTICE, "Cleared %d entries from threshold blacklist and %d from conflicted list for chain %s",
+               l_count, l_conflicted_count, a_chain->name);
+}
+
+/**
  * @brief s_chain_callback_atom_add Accept new event in dag
  * @param a_chain DAG object
  * @param a_atom
@@ -593,11 +648,18 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
         
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
+            /* Renumber events after reorder */
             dap_chain_cs_dag_event_item_t *it = PVT(l_dag)->events;
-            for (uint64_t i = 0; it; it = it->hh.next)  // renumber chain events
+            for (uint64_t i = 0; it; it = it->hh.next)
                 it->event_number = ++i;
-        } else
+            /* Rebuild events_by_num index after renumbering */
+            HASH_CLEAR(hh_num, PVT(l_dag)->events_by_num);
+            for (it = PVT(l_dag)->events; it; it = it->hh.next)
+                HASH_ADD(hh_num, PVT(l_dag)->events_by_num, event_number, sizeof(uint64_t), it);
+        } else {
             HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
+            HASH_ADD(hh_num, PVT(l_dag)->events_by_num, event_number, sizeof(uint64_t), l_event_item);
+        }
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
         dap_chain_atom_notify(l_cell, &l_event_item->hash, (const byte_t *)l_event_item->event, l_event_item->event_size, l_event->header.ts_created);
         dap_chain_atom_add_from_threshold(a_chain);
@@ -949,53 +1011,72 @@ int dap_chain_cs_dag_event_verify_hashes_with_treshold(dap_chain_cs_dag_t * a_da
  * @brief s_dag_proc_treshold
  * @param a_dag
  * @returns true if some atoms were moved from threshold to events
+ *
+ * Processes ALL ready items from threshold in a single pass (no break after first promote).
+ * This turns the cascade drain from O(N²) to O(N) — critical for large chains (488K+ atoms).
  */
 dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
 {
     bool res = false;
+    dap_chain_cs_dag_event_item_t *l_last_promoted = NULL;
     dap_chain_cs_dag_event_item_t * l_event_item = NULL, * l_event_item_tmp = NULL;
     pthread_mutex_lock(&PVT(a_dag)->events_mutex);
     int l_count = HASH_COUNT(PVT(a_dag)->events_treshold);
     debug_if(s_debug_more, L_DEBUG, "*** %d events in threshold", l_count);
-    HASH_ITER(hh, PVT(a_dag)->events_treshold, l_event_item, l_event_item_tmp) {
-        dap_dag_threshold_verification_res_t ret = dap_chain_cs_dag_event_verify_hashes_with_treshold(a_dag, l_event_item->event);
-        if (ret == DAP_THRESHOLD_OK) {
-            debug_if(s_debug_more, L_DEBUG, "Processing event (threshold): %s...",
-                    dap_chain_hash_fast_to_str_static(&l_event_item->hash));
-            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_dag->chain, l_event_item->event->header.cell_id);
-            if ( !l_event_item->mapped_region ) {
-                if ( dap_chain_atom_save(l_cell, (const byte_t*)l_event_item->event, l_event_item->event_size, NULL) < 0 ) {
-                    log_it(L_CRITICAL, "Can't move atom from threshold to file");
-                    res = false;
-                    break;
-                } else if (a_dag->chain->is_mapped) {
-                    l_event_item->event = (dap_chain_cs_dag_event_t*)( l_cell->map_pos += sizeof(uint64_t) );
-                    l_cell->map_pos += l_event_item->event_size;
+    /* Multiple passes: promoting one item may unblock others that were already
+     * iterated past. Limit to 3 passes to avoid pathological cases. */
+    for (int l_pass = 0; l_pass < 3; l_pass++) {
+        int l_promoted_this_pass = 0, l_rejected_this_pass = 0, l_conflicting_this_pass = 0;
+        HASH_ITER(hh, PVT(a_dag)->events_treshold, l_event_item, l_event_item_tmp) {
+            dap_dag_threshold_verification_res_t ret = dap_chain_cs_dag_event_verify_hashes_with_treshold(a_dag, l_event_item->event);
+            if (ret == DAP_THRESHOLD_OK) {
+                debug_if(s_debug_more, L_DEBUG, "Processing event (threshold): %s...",
+                        dap_chain_hash_fast_to_str_static(&l_event_item->hash));
+                dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_dag->chain, l_event_item->event->header.cell_id);
+                if ( !l_event_item->mapped_region ) {
+                    if ( dap_chain_atom_save(l_cell, (const byte_t*)l_event_item->event, l_event_item->event_size, NULL) < 0 ) {
+                        log_it(L_CRITICAL, "Can't move atom from threshold to file");
+                        break;
+                    } else if (a_dag->chain->is_mapped) {
+                        l_event_item->event = (dap_chain_cs_dag_event_t*)( l_cell->map_pos += sizeof(uint64_t) );
+                        l_cell->map_pos += l_event_item->event_size;
+                    }
                 }
+                int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, l_event_item);
+                HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
+                if (!l_add_res) {
+                    HASH_ADD(hh, PVT(a_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
+                    HASH_ADD(hh_num, PVT(a_dag)->events_by_num, event_number, sizeof(uint64_t), l_event_item);
+                    s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
+                    debug_if(s_debug_more, L_INFO, "... moved from threshold to chain");
+                    dap_chain_atom_notify(l_cell, &l_event_item->hash, (byte_t *)l_event_item->event, l_event_item->event_size, l_event_item->event->header.ts_created);
+                    res = true;
+                    l_last_promoted = l_event_item;
+                    l_promoted_this_pass++;
+                } else {
+                    debug_if(s_debug_more, L_WARNING, "... rejected with ledger code %d", l_add_res);
+                    /* If the chain is mapped, l_event_item->event now points into the mapped region
+                     * (set above when is_mapped is true). Do not free it. */
+                    if (!l_event_item->mapped_region && !a_dag->chain->is_mapped)
+                        DAP_DELETE(l_event_item->event);
+                    DAP_DELETE(l_event_item);
+                    l_rejected_this_pass++;
+                }
+                /* Don't break — continue processing other ready items in this pass */
+            } else if (ret == DAP_THRESHOLD_CONFLICTING) {
+                HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
+                HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash, sizeof (l_event_item->hash), l_event_item);
+                l_conflicting_this_pass++;
             }
-            int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, l_event_item);
-            HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
-            if (!l_add_res) {
-                HASH_ADD(hh, PVT(a_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
-                s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
-                debug_if(s_debug_more, L_INFO, "... moved from threshold to chain");
-                dap_chain_atom_notify(l_cell, &l_event_item->hash, (byte_t *)l_event_item->event, l_event_item->event_size, l_event_item->event->header.ts_created);
-                res = true;
-            } else {
-                // TODO clear other threshold items linked with this one
-                debug_if(s_debug_more, L_WARNING, "... rejected with ledger code %d", l_add_res);
-                if (!l_event_item->mapped_region)
-                    DAP_DELETE(l_event_item->event);
-                DAP_DELETE(l_event_item);
-            }
-            break;
-        } else if (ret == DAP_THRESHOLD_CONFLICTING) {
-            HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
-            HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash, sizeof (l_event_item->hash), l_event_item);
         }
+        log_it(L_NOTICE, "Threshold drain pass %d: threshold_before=%d promoted=%d rejected=%d conflicting=%d events_after=%d threshold_after=%d",
+               l_pass + 1, l_count, l_promoted_this_pass, l_rejected_this_pass, l_conflicting_this_pass,
+               HASH_COUNT(PVT(a_dag)->events), HASH_COUNT(PVT(a_dag)->events_treshold));
+        if (!l_promoted_this_pass)
+            break;  /* No items promoted in this pass — no point doing more passes */
     }
     pthread_mutex_unlock(&PVT(a_dag)->events_mutex);
-    return res ? l_event_item : NULL;
+    return res ? l_last_promoted : NULL;
 }
 
 /**
@@ -1195,9 +1276,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_by_num(dap_chain_atom
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain);
     dap_chain_cs_dag_event_item_t *l_event_item = NULL;
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-    for (l_event_item = PVT(l_dag)->events; l_event_item; l_event_item = l_event_item->hh.next)
-        if (l_event_item->event_number == a_atom_num)
-            break;
+    HASH_FIND(hh_num, PVT(l_dag)->events_by_num, &a_atom_num, sizeof(uint64_t), l_event_item);
     if (l_event_item) {
         a_atom_iter->cur_item = l_event_item;
         a_atom_iter->cur = l_event_item->event;
@@ -2157,6 +2236,15 @@ static uint64_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain)
     dap_chain_cs_dag_t  *l_dag = DAP_CHAIN_CS_DAG(a_chain);
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
     uint64_t l_count = HASH_COUNT(PVT(l_dag)->events);
+    pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+    return l_count;
+}
+
+static uint64_t s_dap_chain_callback_get_count_atom_threshold(dap_chain_t *a_chain)
+{
+    dap_chain_cs_dag_t  *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    pthread_mutex_lock(&PVT(l_dag)->events_mutex);
+    uint64_t l_count = HASH_COUNT(PVT(l_dag)->events_treshold);
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     return l_count;
 }

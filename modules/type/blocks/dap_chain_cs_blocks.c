@@ -36,6 +36,7 @@
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_net.h"
+#include "dap_chain_cs_blocks_mmap.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
@@ -91,6 +92,7 @@ typedef struct dap_chain_cs_blocks_pvt {
 
     pthread_rwlock_t rwlock;
     struct cs_blocks_hal_item *hal;
+    threshold_mmap_ctx_t *threshold_ctx;          // mmap'd persistent threshold for out-of-order blocks
     // Number of blocks for one block confirmation
     uint64_t block_confirm_cnt;
 } dap_chain_cs_blocks_pvt_t;
@@ -173,7 +175,9 @@ static dap_chain_block_t *s_block_create(dap_chain_cs_blocks_t *a_blocks, size_t
 
 //Work with atoms
 static uint64_t s_callback_count_atom(dap_chain_t *a_chain);
+static uint64_t s_callback_count_atom_threshold(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
+static dap_chain_atom_ptr_t s_callback_atom_add_from_treshold(dap_chain_t *a_chain, size_t *a_event_size_out);
 // Get TXs callbacks
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain);
 static uint64_t s_callback_count_tx_increase(dap_chain_t *a_chain);
@@ -324,9 +328,11 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_purge = s_callback_cs_blocks_purge;
 
     a_chain->callback_count_atom = s_callback_count_atom;
+    a_chain->callback_count_atom_threshold = s_callback_count_atom_threshold;
     a_chain->callback_get_atoms = s_callback_get_atoms;
     a_chain->callback_count_tx = s_callback_count_txs;
     a_chain->callback_count_tx_increase = s_callback_count_tx_increase;
+    a_chain->callback_atom_add_from_treshold = s_callback_atom_add_from_treshold;
     a_chain->callback_count_tx_decrease = s_callback_count_tx_decrease;
     a_chain->callback_get_txs = s_callback_get_txs;
 
@@ -375,6 +381,20 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
         }
         dap_chain_hash_fast_from_str(l_hard_accept_list[i], &l_hal_item->hash);
         HASH_ADD(hh, l_cs_blocks_pvt->hal, hash, sizeof(l_hal_item->hash), l_hal_item);
+    }
+
+    /* Initialize mmap'd persistent threshold.
+     * DAP_CHAIN_PVT(a_chain)->file_storage_dir is not set yet at this point,
+     * so we read the path directly from config. */
+    const char *l_cfg_storage_dir = dap_config_get_item_str_default(a_chain_config, "files", "storage_dir", NULL);
+    if (l_cfg_storage_dir) {
+        char *l_storage_dir = dap_config_get_item_path(a_chain_config, "files", "storage_dir");
+        if (l_storage_dir) {
+            l_cs_blocks_pvt->threshold_ctx = threshold_mmap_init(l_storage_dir, a_chain->name);
+            if (!l_cs_blocks_pvt->threshold_ctx)
+                log_it(L_WARNING, "Cannot init mmap threshold for chain %s, threshold disabled", a_chain->name);
+            DAP_DELETE(l_storage_dir);
+        }
     }
 
     return 0;
@@ -1617,6 +1637,11 @@ static void s_callback_delete(dap_chain_t * a_chain)
 {
     s_callback_cs_blocks_purge(a_chain);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    /* Destroy mmap'd threshold before tearing down the rest */
+    if (PVT(l_blocks)->threshold_ctx) {
+        threshold_mmap_destroy(PVT(l_blocks)->threshold_ctx);
+        PVT(l_blocks)->threshold_ctx = NULL;
+    }
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     if(l_blocks->callback_delete )
         l_blocks->callback_delete(l_blocks);
@@ -1926,8 +1951,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
                 s_add_atom_datums(l_blocks, l_block_cache);
                 dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
-                dap_chain_atom_add_from_threshold(a_chain);
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                /* NOTE: Do NOT call dap_chain_atom_add_from_threshold() here.
+                 * The drain calls callback_atom_add which re-acquires the rwlock,
+                 * causing deadlock. The threshold is drained at sync restart,
+                 * SYNCED_CHAIN, and periodic sync points instead. */
 
                 dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                 // Send it to notificator listeners
@@ -1998,8 +2026,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
             s_add_atom_datums(l_blocks, l_block_cache);
             dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
-            dap_chain_atom_add_from_threshold(a_chain);
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+            /* NOTE: Do NOT call dap_chain_atom_add_from_threshold() here.
+                 * Deadlock risk — drain runs at sync restart and SYNCED_CHAIN instead. */
             return ret;
         }
 
@@ -2008,14 +2037,40 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         return ATOM_REJECT;
     }
-    case ATOM_MOVE_TO_THRESHOLD:
-        // TODO: reimplement and enable threshold for blocks
-/*      {
-            debug_if(s_debug_more, L_DEBUG, "Verified atom %p: THRESHOLDED", a_atom);
+    case ATOM_MOVE_TO_THRESHOLD: {
+        /* Store block in mmap'd persistent threshold until its parent arrives.
+         * Survives node restart. Zero-copy reads during drain. */
+        threshold_mmap_ctx_t *l_ctx = PVT(l_blocks)->threshold_ctx;
+        if (!l_ctx) {
+            debug_if(s_debug_more, L_WARNING, "No threshold ctx, dropping block %s",
+                     dap_chain_hash_fast_to_str_static(&l_block_hash));
+            ret = ATOM_REJECT;
             break;
         }
-*/
-        ret = ATOM_REJECT;
+        int l_add_res = threshold_mmap_add(l_ctx, &l_block_hash, a_atom, a_atom_size);
+        if (l_add_res < 0) {
+            log_it(L_ERROR, "Cannot add block %s to mmap threshold",
+                   dap_chain_hash_fast_to_str_static(&l_block_hash));
+            ret = ATOM_REJECT;
+            break;
+        }
+        if (l_add_res == 1) {
+            debug_if(s_debug_more, L_DEBUG, "Block %s already in threshold, skipping",
+                     dap_chain_hash_fast_to_str_static(&l_block_hash));
+        } else {
+            debug_if(s_debug_more, L_INFO, "Block %s moved to threshold (threshold_size=%" DAP_UINT64_FORMAT_U ")",
+                     dap_chain_hash_fast_to_str_static(&l_block_hash), threshold_mmap_count(l_ctx));
+        }
+        ret = ATOM_MOVE_TO_THRESHOLD;
+        /* Drain every 100 blocks: a previously-thresholded block may now
+         * be promotable because its parent was accepted since the last drain. */
+        if (a_chain->callback_atom_add_from_treshold &&
+                (threshold_mmap_count(l_ctx) % 100 == 0)) {
+            while (a_chain->callback_atom_add_from_treshold(a_chain, NULL))
+                ;
+        }
+        break;
+    }
     case ATOM_REJECT:
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p with hash %s: REJECTED", a_atom, dap_chain_hash_fast_to_str_static(&l_block_hash));
         break;
@@ -2244,8 +2299,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             }
         }
     } else if (ret == ATOM_MOVE_TO_THRESHOLD) {
-        debug_if(s_debug_more,L_DEBUG,"%s","Can't find valid previous block in chain or forked branches.");
-        return ATOM_REJECT;
+        debug_if(s_debug_more,L_DEBUG,"%s","Can't find valid previous block in chain or forked branches. Moving to threshold for later retry.");
+        return ATOM_MOVE_TO_THRESHOLD;
     }
     return ret;
 }
@@ -2760,6 +2815,97 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 }
 
 /**
+ * @brief s_callback_atom_add_from_treshold Drain the blocks threshold queue.
+ *        Tries to add each thresholded block to the chain. If its parent is
+ *        now present the block is accepted and removed from threshold.
+ * @param a_chain Chain object
+ * @param a_event_size_out Optional output for block size
+ * @return Pointer to accepted block data, or NULL if nothing promoted
+ */
+/* Context for the drain iterator callback */
+struct drain_iter_arg {
+    dap_chain_t *chain;
+    dap_chain_cs_blocks_t *blocks;
+    size_t *event_size_out;
+    int promoted;
+    int conflicting;
+};
+
+static int s_drain_cb(const dap_chain_hash_fast_t *hash, const void *data,
+                      size_t size, void *arg)
+{
+    struct drain_iter_arg *darg = (struct drain_iter_arg *)arg;
+    dap_hash_fast_t l_hash = *hash;
+    dap_chain_atom_verify_res_t l_res = darg->chain->callback_atom_add(
+            darg->chain, data, size, &l_hash, false);
+    switch (l_res) {
+    case ATOM_ACCEPT:
+    case ATOM_FORK:
+        threshold_mmap_del(PVT(darg->blocks)->threshold_ctx, hash);
+        if (darg->event_size_out)
+            *darg->event_size_out = size;
+        debug_if(s_debug_more, L_INFO, "Block %s promoted from threshold (threshold_after=%" DAP_UINT64_FORMAT_U ")",
+                 dap_hash_fast_to_str_static(&l_hash),
+                 threshold_mmap_count(PVT(darg->blocks)->threshold_ctx));
+        darg->promoted++;
+        break;
+    case ATOM_MOVE_TO_THRESHOLD:
+        /* Still waiting for parent — keep in threshold */
+        break;
+    case ATOM_PASS:
+        /* Already in chain — remove from threshold */
+        threshold_mmap_del(PVT(darg->blocks)->threshold_ctx, hash);
+        break;
+    case ATOM_REJECT:
+        /* Permanently rejected — remove from threshold */
+        threshold_mmap_del(PVT(darg->blocks)->threshold_ctx, hash);
+        darg->conflicting++;
+        break;
+    default:
+        break;
+    }
+    return 0;  /* Continue iteration */
+}
+
+static dap_chain_atom_ptr_t s_callback_atom_add_from_treshold(dap_chain_t *a_chain, size_t *a_event_size_out)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    if (!l_blocks || !PVT(l_blocks)->threshold_ctx)
+        return NULL;
+    threshold_mmap_ctx_t *l_ctx = PVT(l_blocks)->threshold_ctx;
+    if (threshold_mmap_count(l_ctx) == 0)
+        return NULL;
+    /* Reentrancy guard: callback_atom_add (called from drain) may call
+     * dap_chain_atom_add_from_threshold which re-enters this function. */
+    if (l_ctx->drain_in_progress)
+        return NULL;
+    l_ctx->drain_in_progress = true;
+
+    struct drain_iter_arg darg = {
+        .chain = a_chain,
+        .blocks = l_blocks,
+        .event_size_out = a_event_size_out,
+        .promoted = 0,
+        .conflicting = 0,
+    };
+
+    /* Multiple passes: promoting one block may unblock its children.
+     * With ~490K blocks in threshold, we need many passes to cascade
+     * through sequential chains. 100 passes × 1M slot scan ≈ 400ms. */
+    for (int l_pass = 0; l_pass < 100; l_pass++) {
+        int l_promoted_before = darg.promoted;
+        threshold_mmap_iter(l_ctx, s_drain_cb, &darg);
+        int l_promoted_this_pass = darg.promoted - l_promoted_before;
+        log_it(L_NOTICE, "Blocks threshold drain pass %d: promoted=%d conflicting=%d threshold_after=%" DAP_UINT64_FORMAT_U,
+               l_pass + 1, l_promoted_this_pass, darg.conflicting, threshold_mmap_count(l_ctx));
+        if (!l_promoted_this_pass)
+            break;
+    }
+    l_ctx->drain_in_progress = false;
+    return darg.promoted ? (dap_chain_atom_ptr_t)1 : NULL;
+}
+
+/**
  * @brief s_callback_count_atom Gets the number of blocks
  * @param a_chain Chain object
  * @return size_t
@@ -2771,6 +2917,20 @@ static uint64_t s_callback_count_atom(dap_chain_t *a_chain)
     uint64_t l_ret = 0;
     l_ret = PVT(l_blocks)->blocks_count;
     return l_ret;
+}
+
+/**
+ * @brief s_callback_count_atom_threshold Gets the number of blocks
+ *        currently in the threshold queue (waiting for parent blocks).
+ * @param a_chain Chain object
+ * @return Number of blocks in threshold
+ */
+static uint64_t s_callback_count_atom_threshold(dap_chain_t *a_chain)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    if (!l_blocks || !PVT(l_blocks)->threshold_ctx)
+        return 0;
+    return threshold_mmap_count(PVT(l_blocks)->threshold_ctx);
 }
 
 /**
