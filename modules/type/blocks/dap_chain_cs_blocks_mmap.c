@@ -417,7 +417,7 @@ static int s_grow_index(threshold_mmap_ctx_t *ctx)
            " slots (%" DAP_UINT64_FORMAT_U " bytes)", old_cap, new_cap, new_file_size);
 
     /* Create a temporary new index file */
-    char new_path[1024];
+    char new_path[1024 + 4];  /* path[1024] + ".new" */
     snprintf(new_path, sizeof(new_path), "%s.new", ctx->index->path);
 
     dap_mmap_file_t *new_index = dap_mmap_file_open(new_path, true, false);

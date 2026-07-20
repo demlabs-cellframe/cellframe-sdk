@@ -4600,6 +4600,170 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                          l_atom_num, l_net->pub.name);
             }
         }
+        break;
+    case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY: {
+        /* Parse the summary payload to get the peer's atom count.
+         * This is used in SYNCED_CHAIN handler to detect when the peer
+         * finished iteration but we still lack events (ITER_OP_NEXT skip). */
+        size_t l_summary_data_size = l_chain_pkt ? (size_t)l_chain_pkt->hdr.data_size : 0;
+        if (l_summary_data_size >= sizeof(dap_chain_ch_summary_t)) {
+            dap_chain_ch_summary_t *l_sum = (dap_chain_ch_summary_t *)l_chain_pkt->data;
+            if (l_net_pvt->sync_context.cur_chain &&
+                    l_sum->num_last > l_net_pvt->sync_context.cur_chain->atom_num_last) {
+                l_net_pvt->sync_context.cur_chain->atom_num_last = l_sum->num_last;
+                debug_if(s_debug_more, L_DEBUG, "CHAIN_SUMMARY updated atom_num_last to %" DAP_UINT64_FORMAT_U
+                         " for chain %s net %s", l_sum->num_last,
+                         l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
+            }
+        }
+        break;
+    }
+    default:
+        break;
+    }
+lb_exit:
+    s_sync_notifier_leave(l_notifier_arg);
+}
+
+static void s_ch_out_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const void *a_data, size_t a_data_size, void *a_arg)
+{
+    (void)a_data;
+    sync_notifier_arg_t *l_notifier_arg = a_arg;
+    dap_chain_net_t *l_net = NULL;
+    if (!s_sync_notifier_try_enter(l_notifier_arg, &l_net))
+        return;
+    dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    uint64_t l_notifier_session_id = s_sync_notifier_session_get(l_notifier_arg);
+    if (l_notifier_session_id != s_sync_session_get(l_net_pvt)) {
+        s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_stale_drop_count);
+        debug_if(s_debug_more, L_DEBUG, "Ignoring stale OUT sync packet type %hhu for net %s, session %" DAP_UINT64_FORMAT_U
+                                        " != %" DAP_UINT64_FORMAT_U,
+                                        a_type, l_net->pub.name, l_notifier_session_id, s_sync_session_get(l_net_pvt));
+        goto lb_exit;
+    }
+    if (!l_net_pvt->sync_context.cur_chain)
+        goto lb_exit;
+    switch (a_type) {
+    case DAP_CHAIN_CH_PKT_TYPE_ERROR:
+        l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_ERROR;
+        break;
+    default:
+        break;
+    }
+    debug_if(s_debug_more, L_DEBUG, "Sent OUT sync packet type %hhu size %zu to addr " NODE_ADDR_FP_STR,
+                                    a_type, a_data_size, NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+lb_exit:
+    s_sync_notifier_leave(l_notifier_arg);
+}
+
+
+static dap_chain_t *s_sync_first_unsynced_chain(dap_chain_net_t *a_net)
+{
+    dap_chain_t *l_chain;
+    dap_return_val_if_pass(!a_net, NULL);
+    for (l_chain = a_net->pub.chains; l_chain && l_chain->state == CHAIN_SYNC_STATE_SYNCED; l_chain = l_chain->next) {}
+    return l_chain;
+}
+
+static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_restart_reason_t a_reason)
+{
+    // sanity check
+    dap_return_val_if_pass(!a_net, -1);
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    a_reason = s_sync_restart_reason_norm(a_reason);
+    atomic_store_explicit(&l_net_pvt->sync_context.diag_restart_reason_last, a_reason, memory_order_relaxed);
+    s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_restart_reason_count[a_reason]);
+
+    dap_cluster_t *l_cluster = dap_cluster_by_mnemonim(a_net->pub.name);
+    if (!l_cluster) {
+        log_it(L_WARNING, "No cluster for net %s", a_net->pub.name);
+        return -2;
+    }
+    if (!dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.notifier_link)) {
+        if (l_net_pvt->sync_context.in_notifier_arg)
+            dap_stream_ch_del_notifier(&l_net_pvt->sync_context.notifier_link, DAP_CHAIN_CH_ID,
+                                        DAP_STREAM_PKT_DIR_IN, s_ch_in_pkt_callback,
+                                        l_net_pvt->sync_context.in_notifier_arg);
+        if (l_net_pvt->sync_context.out_notifier_arg)
+            dap_stream_ch_del_notifier(&l_net_pvt->sync_context.notifier_link, DAP_CHAIN_CH_ID,
+                                        DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback,
+                                        l_net_pvt->sync_context.out_notifier_arg);
+    }
+    dap_stream_node_addr_t l_prev_link = l_net_pvt->sync_context.current_link;
+    uint64_t l_session_id = s_sync_session_advance(l_net_pvt);
+    size_t l_uplinks_count = 0, l_downlinks_count = 0;
+    dap_stream_node_addr_t *l_links_addrs = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64,
+                                                                                  &l_uplinks_count,
+                                                                                  &l_downlinks_count,
+                                                                                  true);
+    if (l_links_addrs && (l_uplinks_count + l_downlinks_count)) {
+        size_t l_links_count = l_uplinks_count + l_downlinks_count;
+        l_net_pvt->sync_context.current_link.uint64 = 0;
+        if (!dap_stream_node_addr_is_blank(&l_prev_link)) {
+            /* Round-robin: find the previous link in the list and pick the NEXT one.
+             * This ensures we try a different sender after each restart, which is
+             * critical when one sender is stalled or unresponsive. */
+            for (size_t i = 0; i < l_links_count; ++i) {
+                if (l_links_addrs[i].uint64 != l_prev_link.uint64)
+                    continue;
+                l_net_pvt->sync_context.current_link = l_links_addrs[(i + 1) % l_links_count];
+                break;
+            }
+        }
+        if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
+            l_net_pvt->sync_context.current_link = l_links_addrs[0];
+    } else
+        l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
+    DAP_DELETE(l_links_addrs);
+    if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
+        debug_if(s_debug_more, L_DEBUG, "No links in net %s cluster", a_net->pub.name);
+        return -7;     // No links in cluster
+    }
+    s_sync_timer_rebind_owner_async(a_net);
+    if (!a_net->pub.chains) {
+        log_it(L_ERROR, "No chains in net %s", a_net->pub.name);
+        return -3;
+    }
+    if (!l_net_pvt->sync_context.in_notifier_arg)
+        l_net_pvt->sync_context.in_notifier_arg = DAP_NEW_Z(sync_notifier_arg_t);
+    if (!l_net_pvt->sync_context.out_notifier_arg)
+        l_net_pvt->sync_context.out_notifier_arg = DAP_NEW_Z(sync_notifier_arg_t);
+    if (!l_net_pvt->sync_context.in_notifier_arg || !l_net_pvt->sync_context.out_notifier_arg) {
+        log_it(L_ERROR, "Can't allocate sync notifier context in net %s", a_net->pub.name);
+        return -4;
+    }
+    s_sync_notifier_activate(l_net_pvt->sync_context.in_notifier_arg, a_net, l_session_id);
+    s_sync_notifier_activate(l_net_pvt->sync_context.out_notifier_arg, a_net, l_session_id);
+    if (dap_stream_ch_add_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
+                                    DAP_STREAM_PKT_DIR_IN, s_ch_in_pkt_callback, l_net_pvt->sync_context.in_notifier_arg)) {
+        log_it(L_ERROR, "Can't add IN sync notifier for net %s", a_net->pub.name);
+        return -5;
+    }
+    if (dap_stream_ch_add_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
+                                    DAP_STREAM_PKT_DIR_OUT, s_ch_out_pkt_callback, l_net_pvt->sync_context.out_notifier_arg)) {
+        dap_stream_ch_del_notifier(&l_net_pvt->sync_context.current_link, DAP_CHAIN_CH_ID,
+                                    DAP_STREAM_PKT_DIR_IN, s_ch_in_pkt_callback, l_net_pvt->sync_context.in_notifier_arg);
+        log_it(L_ERROR, "Can't add OUT sync notifier for net %s", a_net->pub.name);
+        return -6;
+    }
+    l_net_pvt->sync_context.notifier_link = l_net_pvt->sync_context.current_link;
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(a_net->pub.chains, l_chain) {
+        if (l_chain->state != CHAIN_SYNC_STATE_SYNCED)
+            l_chain->state = CHAIN_SYNC_STATE_IDLE;
+    }
+    /* Drain threshold queues before starting new sync — atoms that arrived out
+     * of order in previous attempts may be waiting there */
+    DL_FOREACH(a_net->pub.chains, l_chain) {
+        if (l_chain->callback_atom_add_from_treshold) {
+            int l_drain = 0;
+            while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
+                l_drain++;
+            if (l_drain)
+                log_it(L_NOTICE, "Drained %d atoms from threshold for chain %s before sync restart",
+                        l_drain, l_chain->name);
+        }
+    }
     l_net_pvt->sync_context.cur_chain = s_sync_first_unsynced_chain(a_net);
     l_net_pvt->sync_context.cur_cell = NULL;
     l_net_pvt->sync_context.requested_atom_hash = (dap_hash_fast_t){};
@@ -4798,7 +4962,7 @@ static void s_sync_timer_callback(void *a_arg)
                 s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_timeout_liveness_count);
             } else if (l_rx_idle > l_net_pvt->sync_context.sync_activity_timeout) {
                 /* Case 4: Safety net — absolute timeout exceeded. */
-                log_it(L_WARNING, "Chain %s of net %s sync liveness timeout (%.0fs > %" PRIu32 "s)",
+                log_it(L_WARNING, "Chain %s of net %s sync liveness timeout (%.0fs > %" PRIu64 "s)",
                                l_chain->name, l_net->pub.name, (double)l_rx_idle,
                                l_net_pvt->sync_context.sync_activity_timeout);
                 if (l_chain->callback_atom_add_from_treshold &&
@@ -4810,7 +4974,7 @@ static void s_sync_timer_callback(void *a_arg)
                 s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_timeout_liveness_count);
             } else if (l_progress_idle > l_net_pvt->sync_context.sync_progress_timeout) {
                 /* Case 4: Progress safety net. */
-                log_it(L_WARNING, "Chain %s of net %s sync progress timeout (%.0fs > %" PRIu32 "s)",
+                log_it(L_WARNING, "Chain %s of net %s sync progress timeout (%.0fs > %" PRIu64 "s)",
                                l_chain->name, l_net->pub.name, (double)l_progress_idle,
                                l_net_pvt->sync_context.sync_progress_timeout);
                 if (l_chain->callback_atom_add_from_treshold &&
