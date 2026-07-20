@@ -4139,23 +4139,26 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
              * driven, set by B.2 in s_sync_timer_callback) OR max_atom_num_seen == 0
              * (peer never delivered anything, set by B.2 when last_rx_activity aged out). */
             bool l_stalled = false;
-            if (l_net_pvt->sync_context.sync_no_progress_count > 0) {
+            /* Only declare stall if the peer has NOT delivered any new atoms
+             * in the current session. If max_atom_num_seen > 0, the peer IS
+             * delivering data — don't interrupt it with sync_from_zero.
+             * Stall only fires when:
+             * 1. sync_no_progress_count > 0 AND max_atom_num_seen == 0 (peer never
+             *    responded), OR
+             * 2. max_atom_num_seen > 0 but didn't grow since last prepare AND
+             *    sync_no_progress_count > 0 (peer stopped mid-session) */
+            if (l_net_pvt->sync_context.sync_no_progress_count > 0 &&
+                    l_net_pvt->sync_context.max_atom_num_seen == 0) {
+                /* Peer never delivered anything — genuine stall */
                 l_stalled = true;
-            } else if (l_net_pvt->sync_context.max_atom_num_seen > 0 &&
+            } else if (l_net_pvt->sync_context.sync_no_progress_count > 0 &&
+                    l_net_pvt->sync_context.max_atom_num_seen > 0 &&
                     l_net_pvt->sync_context.max_atom_num_seen == l_net_pvt->sync_context.prev_max_atom_num_seen) {
-                /* max_atom_num_seen did not grow since last prepare — peer delivered
-                 * no new atoms this round. Stall. */
+                /* Peer delivered data before but stopped — stall */
                 l_stalled = true;
             }
-            /* Note: max_atom_num_seen == 0 (no data received yet) is NOT treated
-             * as a stall. On the first prepare after restart, data hasn't arrived
-             * yet — declaring stall here would force sync_from_zero, reset max_seen
-             * to 0 again, and create an infinite loop (max_seen=0 → stalled →
-             * sync_from_zero → reset → max_seen=0 → stalled → ...).
-             * Instead, let the sync session run normally. If the peer never
-             * delivers data, the propolka/timeout mechanism will detect it and
-             * set sync_no_progress_count > 0, which triggers stall on the
-             * NEXT prepare. */
+            /* Note: max_atom_num_seen > 0 with sync_no_progress_count == 0 is
+             * NOT a stall — the peer is actively delivering. Let it continue. */
             if (l_stalled) {
                 /* Force sync from zero (blank hash). The peer's CHAIN_REQ handler
                  * detects blank hash via dap_hash_fast_is_blank() and starts
@@ -4529,7 +4532,10 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                  l_net_pvt->sync_context.cur_chain->name,
                  (unsigned long)l_net_pvt->sync_context.cur_chain->atom_num_last,
                  (unsigned long)l_peer_num_last, (unsigned long)l_local_count);
-        l_net_pvt->sync_context.sync_no_progress_count++;
+        /* Don't increment sync_no_progress_count here — with the new stall
+         * detection, sync_no_progress_count > 0 causes stall if max_atom_num_seen
+         * is 0. After SYNCED_CHAIN, max_atom_num_seen gets reset to 0 on chain
+         * switch, which would immediately trigger a false stall. */
         l_net_pvt->sync_context.last_progress_activity = dap_time_now();
         break;
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_MISS: {
