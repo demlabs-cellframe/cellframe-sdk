@@ -4845,6 +4845,7 @@ static void s_sync_timer_callback(void *a_arg)
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) // if offline no need sync
         return;
     dap_time_t l_now = dap_time_now();
+
     /* Periodic sync-state snapshot for diagnostics (every ~60s). Helps correlate
      * peer replies, diag counters, and stall state without enabling debug logs. */
     static dap_time_t s_last_diag_snapshot = 0;
@@ -4888,6 +4889,15 @@ static void s_sync_timer_callback(void *a_arg)
         l_chain = l_net_pvt->sync_context.cur_chain;
     } else {
         l_state_forming = l_chain->state;
+        /* Periodic threshold drain — promote blocks whose parents just arrived.
+         * Without this, blocks only drain at SYNCED_CHAIN or sync restart
+         * (~60s intervals), causing the chain to stall between events. */
+        if (l_chain->callback_atom_add_from_treshold &&
+                l_chain->callback_count_atom_threshold &&
+                l_chain->callback_count_atom_threshold(l_chain) > 0) {
+            while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
+                ;
+        }
         if (l_chain->state == CHAIN_SYNC_STATE_IDLE &&
                 atomic_load_explicit(&l_net_pvt->sync_context.start_req_in_progress, memory_order_acquire) &&
                 l_now - l_net_pvt->sync_context.stage_last_activity > 30) {
@@ -4964,21 +4974,20 @@ static void s_sync_timer_callback(void *a_arg)
                 l_state_forming = CHAIN_SYNC_STATE_ERROR;
                 l_restart_reason = DAP_CHAIN_NET_SYNC_RESTART_REASON_PROGRESS_TIMEOUT;
                 s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_timeout_progress_count);
-            } else if (l_rx_idle > 15 && l_stall_rounds > l_net_pvt->sync_context.chain_req_ping_count &&
-                       l_net_pvt->sync_context.chain_req_ping_count < 4) {
+            } else if (l_rx_idle > 60 && l_net_pvt->sync_context.chain_req_ping_count < 4) {
                 /* Case 2: Прополка — peer stopped sending data.
-                 * Force chain to IDLE so the timer sends a fresh CHAIN_REQ.
-                 * The stall detection in prepare() will force sync_from_zero
-                 * if this is the 2nd+ round without new atoms.
-                 * Each прополка advances chain_req_ping_count; after 4 прополки
-                 * (~60s) we fall through to Case 3 (peer switch). */
+                 * 60s interval: blocks chains have many out-of-order blocks
+                 * and the sender (5.7 ITER_OP_NEXT) is slow. 15s was too
+                 * aggressive — it killed sessions before the peer could
+                 * deliver enough data for the threshold drain to promote
+                 * blocks. Now we wait 60s, then retry CHAIN_REQ. */
                 log_it(L_NOTICE, "Chain %s of net %s: прополка %hhu/4 — peer idle %.0fs, forcing CHAIN_REQ retry",
                                l_chain->name, l_net->pub.name,
                                l_net_pvt->sync_context.chain_req_ping_count + 1, (double)l_rx_idle);
                 l_chain->state = CHAIN_SYNC_STATE_IDLE;
                 l_net_pvt->sync_context.chain_req_ping_count++;
                 l_net_pvt->sync_context.stage_last_activity = l_now;
-            } else if (l_rx_idle > 15 && l_net_pvt->sync_context.chain_req_ping_count >= 4) {
+            } else if (l_rx_idle > 60 && l_net_pvt->sync_context.chain_req_ping_count >= 4) {
                 /* Case 3: 4 прополки without data — switch peer. */
                 log_it(L_WARNING, "Chain %s of net %s: 4 прополки без результата (%.0fs idle), switching peer",
                                l_chain->name, l_net->pub.name, (double)l_rx_idle);
