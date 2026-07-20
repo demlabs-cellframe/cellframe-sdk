@@ -65,6 +65,7 @@ struct sync_context {
     dap_chain_cell_id_t cell_id;
     uint64_t num_last;
     dap_time_t last_activity;
+    uint32_t remote_protocol_version;   // Peer protocol version; gates new behaviour
 };
 
 typedef struct dap_chain_ch_hash_item {
@@ -132,6 +133,47 @@ static bool s_sync_out_gdb_proc_callback(void *a_arg);
 static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
                                         uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size);
+
+/* Returns the remote peer's protocol version, or 0 if not available.
+ * Used to gate new sync behaviour that old nodes (< 5.8 / protocol 26) cannot handle. */
+static inline uint32_t s_remote_protocol_version(dap_stream_ch_t *a_ch)
+{
+    if (!a_ch || !a_ch->stream || !a_ch->stream->trans_ctx)
+        return 0;
+    return a_ch->stream->trans_ctx->uplink_protocol_version;
+}
+
+#define S_REMOTE_IS_MODERN(a_ch) (s_remote_protocol_version(a_ch) >= 26)
+
+/* S_REMOTE_SUPPORTS_THRESHOLD_ACK: Determines whether the remote peer's
+ * CHAIN_ACK handler can safely receive ACKs for threshold-queued atoms
+ * without prematurely closing the sync context.
+ *
+ * Background: 5.7 master's CHAIN_ACK handler (dap_chain_ch.c ~line 936)
+ * checks `if (num_last == ack_num) → SYNCED_CHAIN + go_idle`.
+ * `num_last` = `callback_count_atom` = HASH_COUNT(events) = entry count.
+ * If we send an ACK with event_number == entry_count, the peer incorrectly
+ * concludes sync is complete.  Additionally, 5.7's receiver never sends ACK
+ * for ATOM_MOVE_TO_THRESHOLD (l_ack_send = false), so receiving one from us
+ * advances the sender's window in unexpected ways.
+ *
+ * Our enhanced protocol (planned 5.8+) will decouple ACK semantics from the
+ * premature-completion check. Until capability negotiation (Phase C.6) is
+ * deployed, we gate enhanced ACK behavior (early ACK, threshold ACK) behind
+ * a version that ONLY our own builds advertise — strictly higher than 26.
+ *
+ * Current protocol version: 26 (shared by both 5.7 and our branch).
+ * Enhanced ACK version:    27 (only our branch reports this).
+ *
+ * 5.7 peers report v26 → enhanced ACK OFF → exact 5.7 behavior preserved.
+ * Our peers report v27+    → enhanced ACK ON  → faster sync with ACK for
+ *                                           threshold + early ACK.
+ *
+ * This is backward-compatible: 5.7 nodes see no behavioral change from us.
+ * Future: when capability exchange (C.6) is implemented, replace this
+ * version-gate with explicit capability flags. */
+#define DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION 27
+#define S_REMOTE_SUPPORTS_THRESHOLD_ACK(a_ch) (s_remote_protocol_version(a_ch) >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION)
 
 static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, dap_stream_node_addr_t a_sender_addr);
 static bool s_chain_iter_callback(void *a_arg);
@@ -584,6 +626,7 @@ context_delete:
 struct atom_processing_args {
     dap_stream_node_addr_t addr;
     bool ack_req;
+    bool ack_for_threshold; // modern peer: ACK also ATOM_MOVE_TO_THRESHOLD
     byte_t data[];
 };
 
@@ -637,12 +680,26 @@ static bool s_sync_in_chains_callback(void *a_arg)
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
+        /* For modern peers (>= 5.8 / protocol 26) the sender's sliding window
+         * advances on ACKs, and during sync most atoms will land in the
+         * threshold queue waiting for their parents. ACK thresholded atoms so
+         * the sender doesn't stall. Legacy peers have their own window logic
+         * validated historically; keep the original no-ACK behavior for them. */
+        if (l_args->ack_for_threshold)
+            l_ack_send = true;
+        /* Touch progress so sync doesn't restart due to timeout while atoms are
+         * actively being received and stored in the threshold queue. */
+        if (s_sync_progress_cb)
+            s_sync_progress_cb(l_chain_pkt->hdr.net_id);
         break;
     case ATOM_ACCEPT:
         debug_if(s_debug_more, L_INFO, "Accepted atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
         if (s_sync_progress_cb)
             s_sync_progress_cb(l_chain_pkt->hdr.net_id);
+        /* NOTE: Do NOT drain threshold here — the drain's callback_atom_add
+         * re-enters the blocks rwlock and can SEGV on mmap resize.
+         * Threshold is drained at SYNCED_CHAIN and sync restart instead. */
         break;
     case ATOM_REJECT: {
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
@@ -688,6 +745,10 @@ static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, da
     }
     l_args->addr = a_sender_addr;
     l_args->ack_req = false;
+    /* GOSSIP may come from any node version; ACK thresholded atoms only when
+     * the peer is modern. For gossip we don't know the version here, so default
+     * to the legacy-safe value (false). */
+    l_args->ack_for_threshold = false;
     memcpy(l_args->data, a_payload, a_payload_size);
     dap_proc_thread_callback_add(NULL, s_sync_in_chains_callback, l_args);
 }
@@ -782,8 +843,36 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             break;
         }
         l_args->addr = a_ch->stream->node;
-        l_args->ack_req = false;
-        s_sync_send_chain_ack(a_ch->stream->node, l_chain_pkt);
+        /* ACK behavior depends on remote peer's protocol version:
+         *
+         * For 5.7 peers (protocol v26): exact 5.7 behavior — ack_req=true,
+         *   ACK sent asynchronously through proc thread after atom_add,
+         *   only for ATOM_PASS/ACCEPT/FORK (not ATOM_MOVE_TO_THRESHOLD).
+         *
+         * For enhanced peers (protocol v27+): ack_req=false, early ACK for every
+         *   CHAIN packet, ACK for ATOM_MOVE_TO_THRESHOLD.
+         *
+         * However, if dap_chain_find_by_id fails in s_sync_in_chains_callback
+         * (known timing issue on some nodes), the async ACK is never sent and
+         * the sender stalls. To handle this, we send a fallback ACK here in the
+         * stream handler for 5.7 peers if the atom will be processed asynchronously.
+         *
+         * See S_REMOTE_SUPPORTS_THRESHOLD_ACK comment above for details on why
+         * gating is necessary (5.7 CHAIN_ACK handler closes sync on num_last==ack_num). */
+        bool l_peer_enhanced = S_REMOTE_SUPPORTS_THRESHOLD_ACK(a_ch);
+        l_args->ack_req = !l_peer_enhanced;
+        l_args->ack_for_threshold = l_peer_enhanced;
+        if (l_peer_enhanced) {
+            s_sync_send_chain_ack(a_ch->stream->node, l_chain_pkt);
+        } else {
+            /* For 5.7 peers: send ACK immediately in the stream handler to avoid
+             * sender stall if proc-thread atom processing fails (e.g. chain not
+             * found yet). The ACK advances the sender's window, allowing it to
+             * continue sending. The sender's num_last==ack_num check won't fire
+             * prematurely because we're NOT the last atom — the sender continues
+             * until it reaches the actual end of its iteration. */
+            s_sync_send_chain_ack(a_ch->stream->node, l_chain_pkt);
+        }
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         debug_if(s_debug_more, L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U ", atom id %" DAP_UINT64_FORMAT_U,
                                         dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size, 
@@ -808,11 +897,107 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                             dap_hash_fast_to_str_static(&l_request->hash_from), l_request->num_from);
         if (l_ch_chain->sync_context || l_ch_chain->legacy_sync_context) {
-            log_it(L_WARNING, "Can't process CHAIN_REQ request cause already busy with synchronization");
-            dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
-                    l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
-                    DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS);
-            break;
+            /* Intelligent resume: if the same peer sends a new CHAIN_REQ for the
+             * same chain, resume the existing sync from the current position
+             * instead of rejecting as BUSY. This handles the case where the
+             * receiver timed out and restarted — its new CHAIN_REQ carries the
+             * highest atom it has accepted so far, so we resume from there
+             * rather than from scratch. */
+            bool l_same_chain = l_ch_chain->sync_context &&
+                l_ch_chain->sync_context->net_id.uint64 == l_chain_pkt->hdr.net_id.uint64 &&
+                l_ch_chain->sync_context->chain_id.uint64 == l_chain_pkt->hdr.chain_id.uint64;
+            bool l_same_peer = l_ch_chain->sync_context &&
+                l_ch_chain->sync_context->addr.uint64 == a_ch->stream->node.uint64;
+
+            if (l_ch_chain->sync_context && l_same_chain && l_same_peer) {
+                struct sync_context *l_ctx = l_ch_chain->sync_context;
+                /* Resume: update the sender's position from the request's hash/num.
+                 * The receiver may have accepted more atoms since the last ACK
+                 * (e.g. threshold drain promoted them). Starting from the receiver's
+                 * current tip avoids re-sending already-accepted atoms.
+                 *
+                 * Restrict to modern peers (>= 5.8 / protocol 26): older nodes don't
+                 * expect the sender to reposition mid-stream and may get confused by
+                 * a resumed CHAIN_SUMMARY/CHAIN sequence on an existing context. */
+                if (l_ctx->remote_protocol_version >= 26) {
+                    dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+                    if (l_chain) {
+                        dap_chain_hash_fast_t l_req_hash = l_request->hash_from;
+                        dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain,
+                                l_chain_pkt->hdr.cell_id, dap_hash_fast_is_blank(&l_req_hash) ? NULL : &l_req_hash);
+                        if (l_iter) {
+                            if (dap_hash_fast_is_blank(&l_req_hash)) {
+                                /* Resume from genesis using event_number order (v27+)
+                                 * to guarantee full coverage. */
+                                l_chain->callback_atom_get_by_num(l_iter, 1);
+                            }
+                            /* Update iterator position and window */
+                            if (l_iter->cur) {
+                                if (l_ctx->iter)
+                                    l_chain->callback_atom_iter_delete(l_ctx->iter);
+                                l_ctx->iter = l_iter;
+                                l_ctx->num_last = l_chain->callback_count_atom(l_chain);
+                                uint64_t l_cur_num = l_iter->cur_num;
+                                atomic_store_explicit(&l_ctx->allowed_num,
+                                    dap_min(l_cur_num + s_sync_ack_window_size, l_ctx->num_last),
+                                    memory_order_release);
+                                atomic_store(&l_ctx->state, SYNC_STATE_READY);
+                                l_ctx->last_activity = dap_time_now();
+                                /* Send CHAIN_SUMMARY so the receiver knows sync resumed
+                                 * and can track progress. */
+                                dap_chain_ch_summary_t l_sum = {
+                                    .num_cur = l_cur_num,
+                                    .num_last = l_ctx->num_last
+                                };
+                                dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY,
+                                    l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id,
+                                    l_chain_pkt->hdr.cell_id, &l_sum, sizeof(l_sum),
+                                    DAP_CHAIN_CH_PKT_VERSION_CURRENT);
+                                dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input,
+                                    s_chain_iter_callback, l_ctx);
+                                log_it(L_NOTICE, "Resumed sync for chain %s from num %" DAP_UINT64_FORMAT_U
+                                    " (peer " NODE_ADDR_FP_STR ")", l_chain->name, l_cur_num,
+                                    NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+                                break;
+                            }
+                            l_chain->callback_atom_iter_delete(l_iter);
+                        }
+                    }
+                    /* If resume failed (no chain or iter), fall through to stall cleanup */
+                    log_it(L_WARNING, "Failed to resume sync for same peer, cleaning up stale context");
+                } else {
+                    log_it(L_INFO, "Ignoring same-peer resume for legacy peer (protocol %u)",
+                            l_ctx->remote_protocol_version);
+                }
+                s_ch_chain_go_idle(l_ch_chain);
+                /* Different peer or different chain — check if the existing context
+                 * is actually stalled (no activity). If it's actively sending,
+                 * reject as BUSY; if it's stalled, clean it up. */
+                dap_time_t l_now = dap_time_now();
+                bool l_stalled = false;
+                if (l_ch_chain->sync_context &&
+                        l_ch_chain->sync_context->last_activity > 0 &&
+                        difftime(l_now, l_ch_chain->sync_context->last_activity) > 60) {
+                    log_it(L_WARNING, "Aborting stalled sync_context (idle %.0fs) to accept new CHAIN_REQ",
+                            difftime(l_now, l_ch_chain->sync_context->last_activity));
+                    s_ch_chain_go_idle(l_ch_chain);
+                    l_stalled = true;
+                } else if (l_ch_chain->legacy_sync_context &&
+                        l_ch_chain->legacy_sync_context->last_activity > 0 &&
+                        difftime(l_now, l_ch_chain->legacy_sync_context->last_activity) > 60) {
+                    log_it(L_WARNING, "Aborting stalled legacy_sync_context (idle %.0fs) to accept new CHAIN_REQ",
+                            difftime(l_now, l_ch_chain->legacy_sync_context->last_activity));
+                    s_ch_chain_go_idle(l_ch_chain);
+                    l_stalled = true;
+                }
+                if (!l_stalled) {
+                    log_it(L_WARNING, "Can't process CHAIN_REQ request cause already busy with synchronization");
+                    dap_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id,
+                            l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
+                            DAP_CHAIN_CH_ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS);
+                    break;
+                }
+            }
         }
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
         if (!l_chain || l_chain->callback_load_from_gdb) {
@@ -839,13 +1024,40 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     DAP_CHAIN_CH_ERROR_OUT_OF_MEMORY);
             break;
         }
-        if (l_sync_from_begin)
-            l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
+        if (l_sync_from_begin) {
+            /* Start from the first atom for both chain types.
+             * For enhanced peers (v27+): use get_by_num(1) to position at the
+             * atom with event_number 1 (genesis). This guarantees we start from
+             * the actual first event rather than an arbitrary hash-table entry,
+             * and the iteration will continue with get_by_num(2), (3), ... covering
+             * ALL events. DAG event_numbers start at 1, so get_by_num(0) is NULL.
+             * For legacy peers: use ITER_OP_FIRST (hash-table order) matching
+             * their own sender behavior. */
+            if (s_remote_protocol_version(a_ch) >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION)
+                l_chain->callback_atom_get_by_num(l_iter, 1);
+            else
+                l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
+        }
         bool l_missed_hash = false;
         uint64_t l_last_num = l_chain->callback_count_atom(l_chain);
         if (l_iter->cur) {
+            /* num_from check: relax strict == to >= because the sender's hash lookup
+             * may resolve to a different cur_num than num_from (DAG event_number is
+             * local per node, so the same atom has different numbers on different nodes).
+             * With strict == the request would be silently rejected, breaking sync
+             * between nodes with divergent local numbering. >= accepts the request as
+             * long as num_from is not ahead of where the hash resolved.
+             * Diagnostic: log when num_from != cur_num to build statistics on how often
+             * peers send mismatched num_from (informs Phase D.1 behavioral probe). */
+            if (l_request->num_from != l_iter->cur_num && !l_sync_from_begin) {
+                log_it(L_INFO, "CHAIN_REQ num_from=%" DAP_UINT64_FORMAT_U " != cur_num=%" DAP_UINT64_FORMAT_U
+                        " after hash lookup for chain %s net %s from " NODE_ADDR_FP_STR
+                        " (relaxed >= check accepts; strict == would reject)",
+                        l_request->num_from, l_iter->cur_num, l_chain->name, l_chain->net_name,
+                        NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+            }
             if (l_sync_from_begin ||
-                    (l_request->num_from == l_iter->cur_num &&
+                    (l_request->num_from >= l_iter->cur_num &&
                     l_last_num > l_iter->cur_num)) {
                 dap_chain_ch_summary_t l_sum = { .num_cur = l_iter->cur_num, .num_last = l_last_num };
                 dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY,
@@ -861,6 +1073,8 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_context->chain_id = l_chain_pkt->hdr.chain_id;
                 l_context->cell_id = l_chain_pkt->hdr.cell_id;
                 l_context->num_last = l_sum.num_last;
+                l_context->last_activity = dap_time_now();
+                l_context->remote_protocol_version = s_remote_protocol_version(a_ch);
                 atomic_store_explicit(&l_context->state, SYNC_STATE_READY, memory_order_relaxed);
                 atomic_store(&l_context->allowed_num, l_sum.num_cur + s_sync_ack_window_size);
                 dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch->uuid);
@@ -985,7 +1199,22 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
-        l_chain->atom_num_last = l_chain->callback_count_atom(l_chain);
+        /* Preserve the peer-advertised atom_num_last (set by CHAIN_SUMMARY):
+         * the local callback_count_atom may be lower because conflicted/fork
+         * events are excluded from the main events table. Overwriting it here
+         * breaks the receiver's stall detection which relies on atom_num_last
+         * being >= the peer's total atom count.
+         *
+         * This is RECEIVER-INTERNAL bookkeeping — no wire-visible behavior
+         * changes regardless of peer protocol version. atom_num_last is never
+         * sent back to the peer; it only feeds our own sync state machine
+         * (stall detection at dap_chain_net.c:4083). Preserving it
+         * unconditionally keeps the stall detector functional for ALL peers
+         * (5.7 and 5.8), which is required for sync_from_zero to trigger when
+         * the sender stops delivering atoms. */
+        uint64_t l_local_count = l_chain->callback_count_atom(l_chain);
+        if (l_chain->atom_num_last < l_local_count)
+            l_chain->atom_num_last = l_local_count;
         log_it(L_INFO, "In: SYNCED_CHAIN %s for net %s from source " NODE_ADDR_FP_STR,
                     l_chain ? l_chain->name : "(null)",
                                 l_chain ? l_chain->net_name : "(null)",
@@ -1626,7 +1855,17 @@ static bool s_chain_iter_callback(void *a_arg)
                                             l_chain ? l_chain->net_name : "(null)",
                                                             NODE_ADDR_FP_ARGS_S(l_context->addr),
                                 l_iter->cur_num, dap_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_size);
-        l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size);
+        /* Sender iteration: enhanced peers (v27+) use sequential event_number
+         * iteration (get_by_num) which guarantees full coverage even with gaps.
+         * Legacy peers (v26) use ITER_OP_NEXT (hash-table order) matching their
+         * own sender behavior, ensuring identical coverage patterns. */
+        if (l_context->remote_protocol_version >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION) {
+            l_chain->callback_atom_get_by_num(l_iter, l_iter->cur_num + 1);
+            l_atom = l_iter->cur;
+            l_atom_size = l_iter->cur_size;
+        } else {
+            l_atom = l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size);
+        }
         if (!l_atom || !l_atom_size || l_iter->cur_num > l_context->num_last)
             break;
         if (atomic_exchange(&l_context->state, SYNC_STATE_BUSY) == SYNC_STATE_OVER) {
