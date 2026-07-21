@@ -523,7 +523,8 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             }
         } else
 #endif
-        ftruncate(fileno(a_cell->file_storage), l_pos);
+        if (ftruncate(fileno(a_cell->file_storage), l_pos) != 0)
+            log_it(L_WARNING, "ftruncate failed");
     }
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     log_it(L_INFO, "Loaded %" DAP_UINT64_FORMAT_U " atoms in cell %s", q, a_cell->file_storage_path);

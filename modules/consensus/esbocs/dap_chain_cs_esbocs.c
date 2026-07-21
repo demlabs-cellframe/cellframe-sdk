@@ -4077,7 +4077,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     // Skip signature verification during chain sync for performance
     // Master branch nodes have consistent validator sets; develop nodes may not
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_blocks->chain->net_id);
-    int l_state = l_net ? dap_chain_net_get_state(l_net) : -1;
+    dap_chain_net_state_t l_state = l_net ? dap_chain_net_get_state(l_net) : (dap_chain_net_state_t)-1;
     if (l_net && l_state == NET_STATE_SYNC_CHAINS) {
         return 0;
     }

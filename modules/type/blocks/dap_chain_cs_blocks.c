@@ -2337,7 +2337,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
             if (!l_hash_found) {
                 int l_verify_ret = l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, a_atom_size);
-                log_it(L_WARNING, "Block %s rejected by block verificator (ret=%d, signs=%zu, min=%hu)",
+                log_it(L_WARNING, "Block %s rejected by block verificator (ret=%d, signs=%d, min=%d)",
                        dap_hash_fast_to_str_static(a_atom_hash), l_verify_ret, 0, 0);
                 return ATOM_REJECT;
             }

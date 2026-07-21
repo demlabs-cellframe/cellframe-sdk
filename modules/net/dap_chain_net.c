@@ -5104,13 +5104,13 @@ static void s_sync_timer_callback(void *a_arg)
         break;
     case CHAIN_SYNC_STATE_WAITING:
         if (l_now - l_net_pvt->sync_context.last_rx_activity > DAP_CHAIN_NET_SYNC_WAITING_RETRY_TIMEOUT) {
-            uint32_t l_retries = ++l_net_pvt->sync_context.waiting_retry_count;
+            uint32_t l_retries = ++l_net_pvt->sync_context.chain_req_ping_count;
             log_it(L_WARNING, "Chain %s of net %s WAITING without RX for %u sec, retry CHAIN_REQ (attempt %u)",
                    l_chain->name, l_net->pub.name, DAP_CHAIN_NET_SYNC_WAITING_RETRY_TIMEOUT, l_retries);
             if (l_retries >= 3) {
                 log_it(L_WARNING, "Too many WAITING retries (%u) for net %s, forcing full sync restart with reconnect",
                        l_retries, l_net->pub.name);
-                l_net_pvt->sync_context.waiting_retry_count = 0;
+                l_net_pvt->sync_context.chain_req_ping_count = 0;
                 // Purge chain data so genesis block can be accepted during sync from zero
                 log_it(L_NOTICE, "Purging chain data for net %s before sync from zero", l_net->pub.name);
                 dap_ledger_purge(l_net->pub.ledger, false);
