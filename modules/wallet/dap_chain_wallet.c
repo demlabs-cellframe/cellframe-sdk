@@ -867,8 +867,8 @@ dap_chain_wallet_t *dap_chain_wallet_open_from_buffer (
     /* Validate input */
     if (!a_data || a_data_len < DAP_CHAIN_WALLET_FILE_FIXED_WIRE_SIZE) {
         if (a_out_stat) *a_out_stat = 1;
-        return log_it(L_ERROR, "dap_chain_wallet_open_from_buffer: buffer too small (%zu < %d)",
-                      a_data_len, DAP_CHAIN_WALLET_FILE_FIXED_WIRE_SIZE), NULL;
+        return log_it(L_ERROR, "dap_chain_wallet_open_from_buffer: buffer too small (%zu < %zu)",
+                      a_data_len, (size_t)DAP_CHAIN_WALLET_FILE_FIXED_WIRE_SIZE), NULL;
     }
 
     /* Helper: safe memcpy from buffer with bounds check */
