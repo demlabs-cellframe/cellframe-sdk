@@ -85,7 +85,7 @@ static inline int dap_chain_cell_file_header_unpack(const uint8_t *a_wire, size_
     if (a_wire_size < DAP_CHAIN_CELL_FILE_HEADER_WIRE_SIZE)
         return -1;
     dap_deserialize_result_t l_r =
-        dap_deserialize_from_buffer_raw(&g_dap_chain_cell_file_header_schema, a_wire, a_wire_size, a_mem, NULL);
+        dap_deserialize_from_buffer_raw_zero(&g_dap_chain_cell_file_header_schema, a_wire, a_wire_size, a_mem, NULL);
     return l_r.error_code;
 }
 

@@ -267,8 +267,8 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
     dap_chain_block_t * l_block = *a_block_ptr;
     assert(l_block);
     assert(a_datum_hash);
-    if(a_block_size>=sizeof (l_block->hdr)){
-        log_it(L_ERROR, "Corrupted block, block size %zd is lesser than block header size %zd", a_block_size,sizeof (l_block->hdr));
+    if(a_block_size < sizeof(*l_block)){
+        log_it(L_ERROR, "Corrupted block, block size %zd is lesser than block header size %zd", a_block_size, sizeof(*l_block));
         return 0;
     }
     size_t l_offset = s_block_get_datum_offset(l_block,a_block_size);

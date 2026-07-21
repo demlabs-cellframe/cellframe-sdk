@@ -260,6 +260,12 @@ if (CELLFRAME_MODULES MATCHES "ledger")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_ledger)
 endif()
 
+# Wallet shared + cache (needed for wallet_shared emit/refill/take composition)
+if (CELLFRAME_MODULES MATCHES "chains")
+    message("[+] Module 'wallet-shared'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_wallet_shared dap_chain_wallet_cache)
+endif()
+
 # Networking
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")

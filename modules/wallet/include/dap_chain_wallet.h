@@ -41,6 +41,10 @@ typedef struct dap_chain_wallet{
     uint64_t    flags;                                                      /* See DAP_WALLET$M_FL_* constants */
     void        *_internal;
     void        *_inheritor;
+    /* File meta (appended to keep offsetof(_internal/_inheritor) stable vs pre-v3 layout) */
+    uint32_t    version;                                                    /* File format: DAP_WALLET$K_VER_* */
+    uint8_t     type;                                                       /* File type: DAP_WALLET$K_TYPE_* */
+    uint16_t    name_len;                                                   /* Name length on disk (set on save/load) */
 } dap_chain_wallet_t;
 
 
@@ -90,6 +94,7 @@ dap_chain_wallet_t * dap_chain_wallet_create_with_pass(const char * a_wallet_nam
 
 dap_chain_wallet_t  *dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_sign_type_t a_sig_type, const char *a_pass); // Creates new one if not found
 dap_chain_wallet_t  *dap_chain_wallet_open_file(const char * a_file_name, const char *a_pass, unsigned int *a_out_stat);
+dap_chain_wallet_t  *dap_chain_wallet_open_from_buffer(const uint8_t *a_data, size_t a_data_len, const char *a_pass, unsigned int *a_out_stat);
 dap_chain_wallet_t *dap_chain_wallet_open(const char * a_wallet_name, const char * a_wallets_path, unsigned int * a_out_stat);
 dap_chain_wallet_t *dap_chain_wallet_open_ext(const char * a_wallet_name, const char * a_wallets_path, const char *pass);
 int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass);
