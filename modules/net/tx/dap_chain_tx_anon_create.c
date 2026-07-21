@@ -662,19 +662,19 @@ static dap_chain_datum_t *s_anon_transfer_generic(
             chipmunk_poly_t l_r_tmp[CHIPMUNK_LRS_K];
             chipmunk_pedersen_derive_blinding(l_r_tmp, l_bob_seed);
             for (uint32_t j = 0; j < CHIPMUNK_LRS_K; ++j)
-                chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j]);
+                chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j], (uint64_t)CHIPMUNK_Q);
         }
         if (!IS_ZERO_256(l_change)) {
             chipmunk_poly_t l_r_tmp[CHIPMUNK_LRS_K];
             chipmunk_pedersen_derive_blinding(l_r_tmp, l_change_seed);
             for (uint32_t j = 0; j < CHIPMUNK_LRS_K; ++j)
-                chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j]);
+                chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j], (uint64_t)CHIPMUNK_Q);
         }
         if (!IS_ZERO_256(a_fee)) {
             chipmunk_poly_t l_r_tmp[CHIPMUNK_LRS_K];
             chipmunk_pedersen_derive_blinding(l_r_tmp, l_fee_seed);
             for (uint32_t j = 0; j < CHIPMUNK_LRS_K; ++j)
-                chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j]);
+                chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j], (uint64_t)CHIPMUNK_Q);
         }
 
         chipmunk_poly_t l_r_anchor[CHIPMUNK_LRS_K];
