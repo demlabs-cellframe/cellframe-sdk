@@ -204,6 +204,7 @@ typedef struct dap_chain {
     dap_chain_callback_atom_t callback_atom_add;
     dap_chain_callback_atom_form_treshold_t callback_atom_add_from_treshold;
     dap_chain_callback_atom_verify_t callback_atom_verify;
+    dap_chain_callback_t callback_clear_threshold_blacklist; // Clear removed_events_from_treshold on sync restart
 
     dap_chain_callback_add_datums_t callback_add_datums;
     dap_chain_callback_atom_get_hdr_size_t callback_atom_get_hdr_static_size; // Get atom header's size
@@ -229,6 +230,7 @@ typedef struct dap_chain {
     dap_chain_callback_get_count_tx_decrease callback_count_tx_decrease;
     dap_chain_callback_get_list callback_get_txs;
     dap_chain_callback_get_count callback_count_atom;
+    dap_chain_callback_get_count callback_count_atom_threshold; // Pending atoms in threshold queue (DAG only)
     dap_chain_callback_get_list callback_get_atoms;
 
     // Consensus specific callbacks
