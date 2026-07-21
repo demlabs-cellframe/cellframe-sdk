@@ -315,6 +315,12 @@ if (CELLFRAME_MODULES MATCHES "cs-esbocs")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_esbocs)
 endif()
 
+# ChipChain consensus for blocks
+if (CELLFRAME_MODULES MATCHES "cs-chipchain")
+    message("[+] Module 'cs-chipchain'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_chipchain)
+endif()
+
 # PoW consensus for blocks
 if (CELLFRAME_MODULES MATCHES "cs-block-pow")
     message("[+] Module 'cs-block-pow'")
