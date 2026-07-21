@@ -835,6 +835,27 @@ static int s_callback_stop(dap_chain_t *a_chain)
     return 0;
 }
 
+/**
+ * @brief Timer callback that waits for this node to appear in the nodelist.
+ * Once found, stops itself and calls s_callback_start to begin consensus.
+ */
+static void s_session_wait_for_nodelist(void *a_arg)
+{
+    dap_chain_chipchain_session_t *l_session = a_arg;
+    dap_chain_net_t *l_net = dap_chain_net_api_by_id(l_session->chain->net_id);
+    if (!l_net) return;
+
+    dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_session->my_addr);
+    if (l_node_info) {
+        DAP_DELETE(l_node_info);
+        /* Node is now in nodelist — stop this timer and start consensus */
+        log_it(L_INFO, "Node "NODE_ADDR_FP_STR" found in nodelist for net:%s — starting consensus",
+               NODE_ADDR_FP_ARGS_S(l_session->my_addr), l_net->pub.name);
+        l_session->cs_timer = false; /* stop this deferred timer */
+        s_callback_start(l_session->chain);
+    }
+}
+
 static int s_callback_start(dap_chain_t *a_chain)
 {
     dap_chain_chipchain_session_t *l_session = NULL;
@@ -905,6 +926,16 @@ static int s_callback_start(dap_chain_t *a_chain)
         log_it(L_WARNING, "This node address "NODE_ADDR_FP_STR" is not yet present in nodelist. "
                           "Consensus will start when node is added via 'node add' or auto-announce",
                           NODE_ADDR_FP_ARGS_S(l_session->my_addr));
+        /* Defer consensus start — start a lightweight timer that waits for
+         * the node to appear in the nodelist.  Once it does, the timer
+         * re-invokes s_callback_start which will proceed normally. */
+        l_session->cs_timer = !dap_proc_thread_timer_add(l_session->proc_thread,
+                                                         s_session_wait_for_nodelist, l_session, 2000);
+        DAP_CHAIN_PVT(a_chain)->cs_started = false;
+        log_it(L_INFO, "Consensus start deferred for net:%s, chain:%s — waiting for nodelist entry",
+               a_chain->net_name, a_chain->name);
+        dap_list_free_full(l_validators, NULL);
+        return 0;
     } else {
         DAP_DELETE(l_node_info);
     }
