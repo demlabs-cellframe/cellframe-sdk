@@ -35,14 +35,15 @@
 
 
 enum    {
-    DAP_WALLET$K_TYPE_PLAIN = 0,                                            /* 0x00 - uncompressed and unencrypted */
-    DAP_WALLET$K_TYPE_GOST89 = 1,                                           /* Encrypted with the GOST 89 */
+    DAP_WALLET$K_TYPE_PLAIN              = 0,                               /* 0x00 - uncompressed and unencrypted */
+    DAP_WALLET$K_TYPE_GOST89             = 1,                               /* Encrypted with the GOST 89 (V1/V2 legacy) */
+    DAP_WALLET$K_TYPE_CHACHA20_POLY1305  = 2,                               /* Encrypted with ChaCha20-Poly1305 AEAD (V3) */
 };
 
 enum    {
     DAP_WALLET$K_VER_1 = 1,                                                 /* Unprotected / legacy insecure password */
     DAP_WALLET$K_VER_2 = 2,                                                 /* Protected: GOST + raw password (master-compatible) */
-    DAP_WALLET$K_VER_3 = 3,                                                 /* Protected: GOST + SHA3-256(password||salt(wallet_name)) */
+    DAP_WALLET$K_VER_3 = 3,                                                 /* Protected: ChaCha20-Poly1305 AEAD + SHA3-256(password||salt(wallet_name)) */
 };
 
 
