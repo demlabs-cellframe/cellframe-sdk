@@ -3495,13 +3495,13 @@ int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_ne
             }
             PVT(a_net)->state = NET_STATE_LINKS_CONNECTING;
         }
-        if (a_new_state == NET_STATE_ONLINE) {        
-            PVT(a_net)->sync_context.current_link.uint64 = 0;
-            PVT(a_net)->sync_context.cur_chain = NULL;
-            PVT(a_net)->sync_context.cur_cell = NULL;
-            dap_dl_foreach(a_net->pub.chains, l_chain)
-                dap_chain_cs_start(l_chain);
-        }
+    }
+    if (a_new_state == NET_STATE_ONLINE) {
+        PVT(a_net)->sync_context.current_link.uint64 = 0;
+        PVT(a_net)->sync_context.cur_chain = NULL;
+        PVT(a_net)->sync_context.cur_cell = NULL;
+        dap_dl_foreach(a_net->pub.chains, l_chain)
+            dap_chain_cs_start(l_chain);
     }
     return dap_proc_thread_callback_add(NULL, s_net_states_proc, a_net);
 }
