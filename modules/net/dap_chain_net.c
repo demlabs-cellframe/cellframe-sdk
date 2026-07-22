@@ -4145,7 +4145,7 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
      * promotes them, advancing last_num — so the resume hash points to a
      * higher position, covering new blocks instead of re-requesting the same
      * ones. Critical for sync_from_zero=false path. */
-    if (l_chain->callback_atom_add_from_treshold) {
+    if (l_chain->callback_atom_add_from_treshold && l_chain->sequential_atoms) {
         int l_drained = 0;
         while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
             l_drained++;
@@ -4186,6 +4186,11 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
         if (l_chain->callback_atom_add_from_treshold &&
                 l_chain->atom_num_last > a_arg->last_num) {
             /* Stall detection for ALL chain types.
+             * For DAG chains: stall detection + sync_from_zero=true causes
+             * the peer to restart from ITER_OP_FIRST. Previously-sent events
+             * are rejected as duplicates (ATOM_PASS), then NEW events are
+             * accepted. Each pass covers ~770 new events (pack_size=10 ×
+             * 90s timeout). After ~5 passes, all 3840 events are synced.
              *
              * For blocks chains with sequential_atoms=true, sync_from_zero is
              * still needed when all peers send CHAIN_MISS (our last block is
@@ -4607,13 +4612,11 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
          * so the peer starts from ITER_OP_FIRST and covers ALL events. */
         if (l_local_count < l_peer_num_last) {
             l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_IDLE;
-            /* Resume from last accepted hash (sync_from_zero=false).
-             * The pre-sync drain in s_sync_process_start_request_prepare
-             * promotes threshold blocks before building the CHAIN_REQ,
-             * so last_num advances and the resume hash covers new blocks.
-             * sync_from_zero=true causes the peer to start from ITER_OP_FIRST
-             * each time, covering the SAME hash-table subset. */
-            l_net_pvt->sync_context.sync_from_zero = false;
+            /* Force sync_from_zero so the peer starts from ITER_OP_FIRST.
+             * For DAG chains: covers full hash table (duplicates rejected).
+             * For blocks chains: pre-sync drain advances last_num, so
+             * each pass covers new blocks. */
+            l_net_pvt->sync_context.sync_from_zero = true;
             if (l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist)
                 l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist(l_net_pvt->sync_context.cur_chain);
             log_it(L_NOTICE, "Chain %s net %s: SYNCED_CHAIN but local_count=%" DAP_UINT64_FORMAT_U
