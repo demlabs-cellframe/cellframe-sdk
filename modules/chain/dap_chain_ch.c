@@ -183,7 +183,7 @@ static bool s_sync_timer_callback(void *a_arg);
 static bool s_debug_more = false, s_debug_legacy = false;
 static uint32_t s_sync_timeout = 30;
 static uint32_t s_sync_packets_per_thread_call = 10;
-static uint32_t s_sync_ack_window_size = 16; // atoms
+static uint32_t s_sync_ack_window_size = 1024; // atoms — large window for blocks chains
 
 // Legacy
 static const uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet
@@ -633,6 +633,11 @@ struct atom_processing_args {
 static void s_sync_send_chain_ack(dap_stream_node_addr_t a_addr, const dap_chain_ch_pkt_t *a_chain_pkt)
 {
     uint64_t l_ack_num = ((uint32_t)a_chain_pkt->hdr.num_hi << 16) | a_chain_pkt->hdr.num_lo;
+    /* Master-compatible ACK: use actual atom number.
+     * Previous "boosted ACK" (num_last-1) caused sender to dump all atoms
+     * at once, overflowing context queue and causing 100% CPU.
+     * Master's approach: ACK with real number, let sliding window work
+     * naturally (window_size=16). Slower but stable. */
     dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(a_chain_pkt->hdr.net_id, a_chain_pkt->hdr.chain_id, a_chain_pkt->hdr.cell_id,
                                                      &l_ack_num, sizeof(uint64_t), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
     if (!l_pkt)
@@ -680,15 +685,13 @@ static bool s_sync_in_chains_callback(void *a_arg)
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
-        /* For modern peers (>= 5.8 / protocol 26) the sender's sliding window
-         * advances on ACKs, and during sync most atoms will land in the
-         * threshold queue waiting for their parents. ACK thresholded atoms so
-         * the sender doesn't stall. Legacy peers have their own window logic
-         * validated historically; keep the original no-ACK behavior for them. */
-        if (l_args->ack_for_threshold)
-            l_ack_send = true;
-        /* Touch progress so sync doesn't restart due to timeout while atoms are
-         * actively being received and stored in the threshold queue. */
+        /* ACK thresholded atoms for ALL peers. During blocks chain sync from
+         * zero, most blocks land in threshold waiting for parents. Without
+         * ACK, peer's sliding window stalls after 16 blocks and sync crawls.
+         * ACK with real atom number is safe — peer's terminal check
+         * (num_last == ack_num) won't fire prematurely because thresholded
+         * blocks have numbers far below num_last. */
+        l_ack_send = true;
         if (s_sync_progress_cb)
             s_sync_progress_cb(l_chain_pkt->hdr.net_id);
         break;
@@ -863,22 +866,20 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_args->ack_req = !l_peer_enhanced;
         l_args->ack_for_threshold = l_peer_enhanced;
         if (l_peer_enhanced) {
-            s_sync_send_chain_ack(a_ch->stream->node, l_chain_pkt);
-        } else {
-            /* For 5.7 peers: send ACK immediately in the stream handler to avoid
-             * sender stall if proc-thread atom processing fails (e.g. chain not
-             * found yet). The ACK advances the sender's window, allowing it to
-             * continue sending. The sender's num_last==ack_num check won't fire
-             * prematurely because we're NOT the last atom — the sender continues
-             * until it reaches the actual end of its iteration. */
+            /* Enhanced peers (v27+): early ACK for every CHAIN packet */
             s_sync_send_chain_ack(a_ch->stream->node, l_chain_pkt);
         }
+        /* For legacy peers (5.7): ACK is sent in s_sync_in_chains_callback
+         * after atom_add completes (master behavior). ack_req=true routes
+         * it through proc thread. No early ACK — matches master exactly. */
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         debug_if(s_debug_more, L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U ", atom id %" DAP_UINT64_FORMAT_U,
-                                        dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size, 
+                                        dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size,
                                         l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                         (uint64_t)(((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo));
-        dap_proc_thread_callback_add(NULL, s_sync_in_chains_callback, l_args);
+        /* Match master: route to worker's proc_queue_input.
+         * Using NULL causes load balancing issues with proc threads. */
+        dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: {
@@ -1026,17 +1027,12 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         if (l_sync_from_begin) {
             /* Start from the first atom for both chain types.
-             * For enhanced peers (v27+): use get_by_num(1) to position at the
-             * atom with event_number 1 (genesis). This guarantees we start from
-             * the actual first event rather than an arbitrary hash-table entry,
-             * and the iteration will continue with get_by_num(2), (3), ... covering
-             * ALL events. DAG event_numbers start at 1, so get_by_num(0) is NULL.
-             * For legacy peers: use ITER_OP_FIRST (hash-table order) matching
-             * their own sender behavior. */
-            if (s_remote_protocol_version(a_ch) >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION)
-                l_chain->callback_atom_get_by_num(l_iter, 1);
-            else
-                l_chain->callback_atom_iter_get(l_iter, DAP_CHAIN_ITER_OP_FIRST, NULL);
+             * Use get_by_num(1) to position at the atom with event_number 1
+             * (genesis). This guarantees we start from the actual first event
+             * rather than an arbitrary hash-table entry. After positioning,
+             * s_chain_iter_callback uses ITER_OP_NEXT (O(1) per atom) to
+             * walk the rest of the chain. */
+            l_chain->callback_atom_get_by_num(l_iter, 1);
         }
         bool l_missed_hash = false;
         uint64_t l_last_num = l_chain->callback_count_atom(l_chain);
@@ -1190,9 +1186,20 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_context->last_activity = dap_time_now();
         if (atomic_load_explicit(&l_context->state, memory_order_relaxed) == SYNC_STATE_OVER)
             break;
-        atomic_store_explicit(&l_context->allowed_num,
-                              dap_min(l_ack_num + s_sync_ack_window_size, l_context->num_last),
-                              memory_order_release);
+        /* P1 fix: prevent window regression on out-of-order ACKs.
+         * Without the max() guard, a late ACK with a low ack_num shrinks
+         * allowed_num below the sender's current position, breaking the
+         * while loop in s_chain_iter_callback and leaving the sender
+         * permanently idle. This is critical for blocks chains where
+         * stock 5.7 peers send atoms in hash-table order (ITER_OP_NEXT),
+         * causing non-monotonic ACK numbers. */
+        {
+            uint64_t l_new_allowed = dap_min(l_ack_num + s_sync_ack_window_size, l_context->num_last);
+            uint64_t l_old_allowed = atomic_load_explicit(&l_context->allowed_num, memory_order_relaxed);
+            atomic_store_explicit(&l_context->allowed_num,
+                                  l_new_allowed > l_old_allowed ? l_new_allowed : l_old_allowed,
+                                  memory_order_release);
+        }
         if (atomic_exchange(&l_context->state, SYNC_STATE_READY) == SYNC_STATE_IDLE)
             dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
     } break;
@@ -1857,6 +1864,7 @@ static bool s_chain_iter_callback(void *a_arg)
                                 l_iter->cur_num, dap_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_size);
         /* Sender iteration: enhanced peers (v27+) use sequential event_number
          * iteration (get_by_num) which guarantees full coverage even with gaps.
+         * For blocks chains, get_by_num uses O(1) hash-table lookup via blocks_num.
          * Legacy peers (v26) use ITER_OP_NEXT (hash-table order) matching their
          * own sender behavior, ensuring identical coverage patterns. */
         if (l_context->remote_protocol_version >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION) {

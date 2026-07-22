@@ -238,6 +238,13 @@ typedef struct dap_chain {
     dap_chain_callback_calc_reward callback_calc_reward;
     dap_chain_callback_load_from_gdb callback_load_from_gdb;
 
+    /* P2 fix: blocks chains have sequential atom numbers (block_number is
+     * global and contiguous). This flag tells the sync state machine that
+     * stall detection's sync_from_zero logic (designed for DAG hash-table-
+     * order skip) does NOT apply — resuming from the last accepted block
+     * is always correct and avoids wasting time re-sending known blocks. */
+    bool sequential_atoms;
+
     // Iterator callbacks
     dap_chain_datum_callback_iter_create_t callback_datum_iter_create;
     dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_first;

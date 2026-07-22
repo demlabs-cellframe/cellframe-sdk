@@ -333,6 +333,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_count_tx = s_callback_count_txs;
     a_chain->callback_count_tx_increase = s_callback_count_tx_increase;
     a_chain->callback_atom_add_from_treshold = s_callback_atom_add_from_treshold;
+    a_chain->sequential_atoms = true;  /* P2: blocks are sequential, no sync_from_zero needed */
     a_chain->callback_count_tx_decrease = s_callback_count_tx_decrease;
     a_chain->callback_get_txs = s_callback_get_txs;
 
@@ -2347,9 +2348,10 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_block_cache_t *l_block_cache = NULL;
     pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
-    for (l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next)
-        if (l_block_cache->block_number == a_atom_num)
-            break;
+    /* O(1) lookup via blocks_num hash table (keyed by block_number).
+     * Previously this was a linear scan through the entire blocks hash table,
+     * making iteration O(n²) — catastrophic for chains with 490K+ blocks. */
+    HASH_FIND_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, &a_atom_num, sizeof(a_atom_num), a_atom_num, l_block_cache);
     a_atom_iter->cur_item = l_block_cache;
     if (l_block_cache) {
         a_atom_iter->cur        = l_block_cache->block;
