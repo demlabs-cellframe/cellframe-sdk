@@ -4140,6 +4140,18 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
     a_arg->request = (dap_chain_ch_sync_request_t){};
     a_arg->last_num = 0;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    /* Drain threshold before resume check. Blocks received during the previous
+     * sync session may have landed in threshold (parent missing). Draining
+     * promotes them, advancing last_num — so the resume hash points to a
+     * higher position, covering new blocks instead of re-requesting the same
+     * ones. Critical for sync_from_zero=false path. */
+    if (l_chain->callback_atom_add_from_treshold) {
+        int l_drained = 0;
+        while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
+            l_drained++;
+        if (l_drained)
+            log_it(L_NOTICE, "Pre-sync drain: promoted %d atoms from threshold for chain %s", l_drained, l_chain->name);
+    }
     if (!a_arg->sync_from_zero) {
         /* Use the locally accepted atom count for the sync request. The peer's
          * advertised num_last (stored in atom_num_last) is useful for progress
@@ -4595,13 +4607,13 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
          * so the peer starts from ITER_OP_FIRST and covers ALL events. */
         if (l_local_count < l_peer_num_last) {
             l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_IDLE;
-            /* Force sync_from_zero so the peer starts from ITER_OP_FIRST
-             * and covers the ENTIRE hash table. The drain above promotes
-             * threshold blocks, advancing last_num — so subsequent passes
-             * skip already-accepted blocks faster. Without sync_from_zero,
-             * the peer resumes from our stale hash position and only covers
-             * a subset of the hash table each pass. */
-            l_net_pvt->sync_context.sync_from_zero = true;
+            /* Resume from last accepted hash (sync_from_zero=false).
+             * The pre-sync drain in s_sync_process_start_request_prepare
+             * promotes threshold blocks before building the CHAIN_REQ,
+             * so last_num advances and the resume hash covers new blocks.
+             * sync_from_zero=true causes the peer to start from ITER_OP_FIRST
+             * each time, covering the SAME hash-table subset. */
+            l_net_pvt->sync_context.sync_from_zero = false;
             if (l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist)
                 l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist(l_net_pvt->sync_context.cur_chain);
             log_it(L_NOTICE, "Chain %s net %s: SYNCED_CHAIN but local_count=%" DAP_UINT64_FORMAT_U
@@ -4771,9 +4783,9 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
 
     /* Expand link pool from nodelist on every restart. This ensures we always
      * have fresh peers to choose from, not just the balancer's initial selection.
-     * Connects to up to 3 new peers from the nodelist if we're not already
-     * connected to them. */
-    dap_chain_net_nodelist_expand_links(a_net, 3);
+     * Try up to 10 new peers — most nodelist entries are unreachable, so we
+     * need to try many to find a few that work. */
+    dap_chain_net_nodelist_expand_links(a_net, 10);
 
     dap_cluster_t *l_cluster = dap_cluster_by_mnemonim(a_net->pub.name);
     if (!l_cluster) {
