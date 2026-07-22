@@ -4554,6 +4554,9 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                     l_local_count, l_peer_num_last);
         } else {
             l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
+            /* Mark sync session as successful for quality metrics */
+            if (!dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
+                dap_link_manager_finish_sync_session(&l_net_pvt->sync_context.current_link, true);
         }
         debug_if(s_debug_more, L_INFO, "Chain %s synced: atom_num_last=%lu (peer=%lu local_count=%lu)",
                  l_net_pvt->sync_context.cur_chain->name,
