@@ -4982,12 +4982,13 @@ static void s_sync_timer_callback(void *a_arg)
             dap_time_t l_rx_idle = l_now - l_net_pvt->sync_context.last_rx_activity;
             dap_time_t l_progress_idle = l_now - l_net_pvt->sync_context.last_progress_activity;
 
-            /* Use 30s liveness timeout for blocks chains. Peers send data in
-             * bursts (26s of continuous data, then silence). After 30s of
-             * silence we know the peer finished its pass and we need to
-             * restart with a new peer or sync_from_zero to get more data.
-             * 90s wastes 60s per cycle doing nothing. */
-            dap_time_t l_effective_timeout = l_chain->sequential_atoms ? 30 : l_net_pvt->sync_context.sync_activity_timeout;
+            /* Use 120s liveness timeout for blocks chains. With pack_size=10
+             * on stock 5.7 peers, sending 491K blocks takes many minutes.
+             * Short timeouts cause premature restarts that waste time
+             * re-establishing sessions and re-sending already-accepted blocks.
+             * 120s gives the peer enough time to send a meaningful batch.
+             * DAG chains use the default sync_activity_timeout (90s). */
+            dap_time_t l_effective_timeout = l_chain->sequential_atoms ? 120 : l_net_pvt->sync_context.sync_activity_timeout;
             if (l_rx_idle > l_effective_timeout) {
                 log_it(L_WARNING, "Chain %s of net %s sync liveness timeout (%.0fs > %" PRIu64 "s)",
                                l_chain->name, l_net->pub.name, (double)l_rx_idle,
