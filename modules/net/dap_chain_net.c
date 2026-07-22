@@ -4536,17 +4536,20 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
          * so the peer starts from ITER_OP_FIRST and covers ALL events. */
         if (l_local_count < l_peer_num_last) {
             l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_IDLE;
-            /* Force sync_from_zero AND immediate restart — don't wait for
-             * the 90s liveness timeout. Each peer's ITER_OP_NEXT pass covers
-             * only a subset of the hash table. We need to immediately request
-             * the next pass from a different peer (or same peer) to maximize
-             * coverage rate. Waiting 90s between passes wastes time. */
-            l_net_pvt->sync_context.sync_from_zero = true;
+            /* Do NOT force sync_from_zero! It makes peer restart from
+             * ITER_OP_FIRST, covering the SAME subset of the hash table
+             * each time. Instead, resume from our last accepted block's
+             * hash. The peer's ITER_OP_NEXT will start from a DIFFERENT
+             * position in the hash table, covering NEW blocks.
+             *
+             * Also clear threshold blacklist so blocks evicted from
+             * threshold can be re-tried. */
+            l_net_pvt->sync_context.sync_from_zero = false;
             if (l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist)
                 l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist(l_net_pvt->sync_context.cur_chain);
             log_it(L_NOTICE, "Chain %s net %s: SYNCED_CHAIN but local_count=%" DAP_UINT64_FORMAT_U
                    " < peer_last=%" DAP_UINT64_FORMAT_U ". "
-                   "Forcing sync_from_zero for full hash-table coverage.",
+                   "Resuming from last hash for different hash-table coverage.",
                     l_net_pvt->sync_context.cur_chain->name, l_net->pub.name,
                     l_local_count, l_peer_num_last);
         } else {

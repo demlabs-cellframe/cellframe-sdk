@@ -182,8 +182,8 @@ static bool s_sync_timer_callback(void *a_arg);
 
 static bool s_debug_more = false, s_debug_legacy = false;
 static uint32_t s_sync_timeout = 30;
-static uint32_t s_sync_packets_per_thread_call = 10;
-static uint32_t s_sync_ack_window_size = 1024; // atoms — large window for blocks chains
+static uint32_t s_sync_packets_per_thread_call = 50; // was 10 — 5x throughput increase for sync
+static uint32_t s_sync_ack_window_size = 4096; // atoms — large window for blocks chains (was 1024)
 
 // Legacy
 static const uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet
