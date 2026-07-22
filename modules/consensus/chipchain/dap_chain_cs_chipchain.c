@@ -788,6 +788,12 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     l_chipchain_pvt->block_sign_pkey = dap_pkey_from_enc_key(l_chipchain_pvt->blocks_sign_key);
     log_it(L_INFO, "Init chipchain session for net:%s, chain:%s (full start deferred to NET_STATE_ONLINE)", a_chain->net_name, a_chain->name);
+
+    /* If network is already ONLINE (chain created after genesis), start consensus now */
+    if (l_net && dap_chain_net_get_state(l_net) == NET_STATE_ONLINE) {
+        log_it(L_INFO, "Network already ONLINE for net:%s — starting consensus immediately", a_chain->net_name);
+        s_callback_start(a_chain);
+    }
     return 0;
 }
 
