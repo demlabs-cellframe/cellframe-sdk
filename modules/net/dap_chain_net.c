@@ -4536,15 +4536,13 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
          * so the peer starts from ITER_OP_FIRST and covers ALL events. */
         if (l_local_count < l_peer_num_last) {
             l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_IDLE;
-            /* Do NOT force sync_from_zero! It makes peer restart from
-             * ITER_OP_FIRST, covering the SAME subset of the hash table
-             * each time. Instead, resume from our last accepted block's
-             * hash. The peer's ITER_OP_NEXT will start from a DIFFERENT
-             * position in the hash table, covering NEW blocks.
-             *
-             * Also clear threshold blacklist so blocks evicted from
-             * threshold can be re-tried. */
-            l_net_pvt->sync_context.sync_from_zero = false;
+            /* Force sync_from_zero so the peer starts from ITER_OP_FIRST
+             * and covers the ENTIRE hash table. The drain above promotes
+             * threshold blocks, advancing last_num — so subsequent passes
+             * skip already-accepted blocks faster. Without sync_from_zero,
+             * the peer resumes from our stale hash position and only covers
+             * a subset of the hash table each pass. */
+            l_net_pvt->sync_context.sync_from_zero = true;
             if (l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist)
                 l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist(l_net_pvt->sync_context.cur_chain);
             log_it(L_NOTICE, "Chain %s net %s: SYNCED_CHAIN but local_count=%" DAP_UINT64_FORMAT_U
