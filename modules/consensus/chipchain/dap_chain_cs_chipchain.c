@@ -845,6 +845,12 @@ static void s_session_wait_for_nodelist(void *a_arg)
     dap_chain_net_t *l_net = dap_chain_net_api_by_id(l_session->chain->net_id);
     if (!l_net) return;
 
+    /* If consensus already started (e.g. by network state callback), stop polling */
+    if (DAP_CHAIN_PVT(l_session->chain)->cs_started) {
+        l_session->cs_timer = false;
+        return;
+    }
+
     dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, &l_session->my_addr);
     if (l_node_info) {
         DAP_DELETE(l_node_info);
