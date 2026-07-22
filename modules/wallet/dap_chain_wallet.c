@@ -134,9 +134,13 @@ dap_list_t* dap_chain_wallet_get_local_addr(){
  *  INPUTS:
  *      a_name:     A name of the wallet
  *      a_name_len: A length of the wallet's name
+ *      a_path:     Path to wallet directory (NULL → use config). Ignored when a_wallet is set.
  *      a_pass:     A password string
  *      a_pass_len: A length of the password string
  *      a_ttl:      A time  to live of the wallet's context, minutes
+ *      a_wallet:   Pre-opened wallet (e.g. from buffer). When non-NULL the function skips
+ *                  the file-based password verification and uses this wallet directly.
+ *                  Pass NULL for the traditional file-based path.
  *
  *  IMPLICITE OUTPUTS:
  *      s_wallet_n_pass
@@ -152,13 +156,14 @@ int     dap_chain_wallet_activate   (
                     const   char    *a_path,
                     const   char    *a_pass,
                         ssize_t      a_pass_len,
-                        unsigned     a_ttl
+                        unsigned     a_ttl,
+                    dap_chain_wallet_t *a_wallet
                                     )
 {
 int     l_rc, l_rc2;
 dap_chain_wallet_n_pass_t   l_rec = {0}, *l_prec = NULL;
-dap_chain_wallet_t  *l_wallet;
-char *c_wallets_path;
+dap_chain_wallet_t  *l_wallet = NULL;
+bool l_need_close = false;
 
     /* Sanity checks ... */
     if ( a_name_len > DAP_WALLET$SZ_NAME )
@@ -205,19 +210,30 @@ char *c_wallets_path;
 
 
     /*
-     * Check password by open/close BMF Wallet file
+     * Verify the wallet: if a pre-opened wallet is provided (e.g. from an in-memory buffer),
+     * use it directly; otherwise open from the filesystem to verify the password.
     */
-    if ( !(c_wallets_path = a_path ? (char *)a_path : (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
+    if ( a_wallet )
     {
-        memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;
-        return  log_it(L_ERROR, "Wallet's path has been not configured"), -EINVAL;
+        l_wallet = a_wallet;
+    }
+    else
+    {
+        char *c_wallets_path = a_path ? (char *)a_path : (char *) dap_chain_wallet_get_path(g_config);
+        if ( !c_wallets_path )
+        {
+            memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;
+            return  log_it(L_ERROR, "Wallet's path has been not configured"), -EINVAL;
+        }
+
+        if ( !(l_wallet = dap_chain_wallet_open (a_name, c_wallets_path, NULL)) )
+        {
+            memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;
+            return  log_it(L_ERROR, "Wallet's password is invalid, say <password> again"), -EAGAIN;
+        }
+        l_need_close = true;
     }
 
-    if ( !(l_wallet = dap_chain_wallet_open (a_name, c_wallets_path, NULL)) )
-    {
-        memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;    /* Say <what> again ?! */
-        return  log_it(L_ERROR, "Wallet's password is invalid, say <password> again"), -EAGAIN;
-    }
     if(!(l_wallet->flags & DAP_WALLET$M_FL_ACTIVE)) {
         dap_ht_find_str(s_wallet_n_pass, a_name, l_prec);
         dap_ht_del(s_wallet_n_pass, l_prec);
@@ -238,7 +254,8 @@ char *c_wallets_path;
         dap_json_object_free(l_json);
     }
 
-    dap_chain_wallet_close( l_wallet);
+    if ( l_need_close )
+        dap_chain_wallet_close( l_wallet);
 
     return  l_rc;
 }

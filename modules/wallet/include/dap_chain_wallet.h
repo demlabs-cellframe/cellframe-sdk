@@ -112,7 +112,7 @@ dap_enc_key_t *dap_chain_wallet_get_key(dap_chain_wallet_t *a_wallet, uint32_t a
 
 int dap_chain_wallet_save_file( dap_chain_wallet_t * a_wallet);
 
-int dap_chain_wallet_activate   (const char *a_name, ssize_t a_name_len, const char *a_path, const char *a_pass, ssize_t a_pass_len, unsigned a_ttl);
+int dap_chain_wallet_activate   (const char *a_name, ssize_t a_name_len, const char *a_path, const char *a_pass, ssize_t a_pass_len, unsigned a_ttl, dap_chain_wallet_t *a_wallet);
 int dap_chain_wallet_deactivate   (const char *a_name, ssize_t a_name_len);
 
 const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet);
