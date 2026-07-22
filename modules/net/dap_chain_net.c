@@ -4632,6 +4632,8 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                 debug_if(s_debug_more, L_DEBUG, "max_atom_num_seen updated to %" DAP_UINT64_FORMAT_U " for net %s",
                          l_atom_num, l_net->pub.name);
             }
+            /* Update link quality metrics for peer selection */
+            dap_link_manager_update_sync_metrics(&l_net_pvt->sync_context.current_link, 1, a_data_size);
         }
         break;
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY: {
@@ -4723,6 +4725,9 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
                                         l_net_pvt->sync_context.out_notifier_arg);
     }
     dap_stream_node_addr_t l_prev_link = l_net_pvt->sync_context.current_link;
+    /* Finish sync session metrics for the previous link (restart = not successful) */
+    if (!dap_stream_node_addr_is_blank(&l_prev_link))
+        dap_link_manager_finish_sync_session(&l_prev_link, false);
     uint64_t l_session_id = s_sync_session_advance(l_net_pvt);
     size_t l_uplinks_count = 0, l_downlinks_count = 0;
     dap_stream_node_addr_t *l_links_addrs = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64,
@@ -4732,19 +4737,30 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     if (l_links_addrs && (l_uplinks_count + l_downlinks_count)) {
         size_t l_links_count = l_uplinks_count + l_downlinks_count;
         l_net_pvt->sync_context.current_link.uint64 = 0;
-        if (!dap_stream_node_addr_is_blank(&l_prev_link)) {
-            /* Round-robin: find the previous link in the list and pick the NEXT one.
-             * This ensures we try a different sender after each restart, which is
-             * critical when one sender is stalled or unresponsive. */
+        /* Quality-based selection: try to pick the best peer first */
+        dap_stream_node_addr_t l_best = dap_link_manager_get_best_peer_for_net(a_net->pub.id.uint64);
+        if (!dap_stream_node_addr_is_blank(&l_best) && l_best.uint64 != l_prev_link.uint64) {
+            /* Verify the best peer is in the links list */
             for (size_t i = 0; i < l_links_count; ++i) {
-                if (l_links_addrs[i].uint64 != l_prev_link.uint64)
-                    continue;
-                l_net_pvt->sync_context.current_link = l_links_addrs[(i + 1) % l_links_count];
-                break;
+                if (l_links_addrs[i].uint64 == l_best.uint64) {
+                    l_net_pvt->sync_context.current_link = l_best;
+                    break;
+                }
             }
         }
-        if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
-            l_net_pvt->sync_context.current_link = l_links_addrs[0];
+        if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
+            /* Fallback: round-robin to ensure we try a different sender */
+            if (!dap_stream_node_addr_is_blank(&l_prev_link)) {
+                for (size_t i = 0; i < l_links_count; ++i) {
+                    if (l_links_addrs[i].uint64 != l_prev_link.uint64)
+                        continue;
+                    l_net_pvt->sync_context.current_link = l_links_addrs[(i + 1) % l_links_count];
+                    break;
+                }
+            }
+            if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link))
+                l_net_pvt->sync_context.current_link = l_links_addrs[0];
+        }
     } else
         l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
     DAP_DELETE(l_links_addrs);
