@@ -2063,10 +2063,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                      dap_chain_hash_fast_to_str_static(&l_block_hash), threshold_mmap_count(l_ctx));
         }
         ret = ATOM_MOVE_TO_THRESHOLD;
-        /* Drain every 100 blocks: a previously-thresholded block may now
-         * be promotable because its parent was accepted since the last drain. */
+        /* Drain every 500 blocks: a previously-thresholded block may now
+         * be promotable because its parent was accepted since the last drain.
+         * Reduced from 100 to 500 to decrease inline drain frequency during
+         * heavy sync. Drain also runs at sync restart and SYNCED_CHAIN. */
         if (a_chain->callback_atom_add_from_treshold &&
-                (threshold_mmap_count(l_ctx) % 100 == 0)) {
+                (threshold_mmap_count(l_ctx) % 500 == 0)) {
             while (a_chain->callback_atom_add_from_treshold(a_chain, NULL))
                 ;
         }
@@ -2892,9 +2894,11 @@ static dap_chain_atom_ptr_t s_callback_atom_add_from_treshold(dap_chain_t *a_cha
     };
 
     /* Multiple passes: promoting one block may unblock its children.
-     * With ~490K blocks in threshold, we need many passes to cascade
-     * through sequential chains. 100 passes × 1M slot scan ≈ 400ms. */
-    for (int l_pass = 0; l_pass < 100; l_pass++) {
+     * Limit to 10 passes per invocation to avoid stalling the proc thread.
+     * The drain is called frequently (every 500 blocks, at sync restart,
+     * at SYNCED_CHAIN) so cascading promotions will complete over multiple
+     * invocations. 10 passes × 1M slot scan ≈ 40ms. */
+    for (int l_pass = 0; l_pass < 10; l_pass++) {
         int l_promoted_before = darg.promoted;
         threshold_mmap_iter(l_ctx, s_drain_cb, &darg);
         int l_promoted_this_pass = darg.promoted - l_promoted_before;
