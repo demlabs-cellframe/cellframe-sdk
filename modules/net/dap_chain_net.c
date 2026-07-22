@@ -2695,6 +2695,65 @@ void dap_chain_net_add_nodelist_notify_callback(dap_chain_net_t *a_net, dap_stor
     dap_global_db_cluster_add_notify_callback(PVT(a_net)->nodes_cluster, a_callback, a_cb_arg);
 }
 
+/**
+ * @brief Scan nodelist for peers and connect to unconnected ones.
+ * Reads all peers from nodelist GDB, checks which ones we're not connected to,
+ * and tries to establish links. This expands our peer pool beyond the balancer's
+ * initial selection, giving us more peers to choose from for sync.
+ * @param a_net Network to scan
+ * @param a_max_connects Maximum new connections to attempt (0 = default 3)
+ */
+void dap_chain_net_nodelist_expand_links(dap_chain_net_t *a_net, int a_max_connects)
+{
+    dap_return_if_fail(a_net);
+    if (a_max_connects <= 0)
+        a_max_connects = 3;
+    size_t l_objs_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_objs_count);
+    if (!l_objs || !l_objs_count) {
+        debug_if(s_debug_more, L_DEBUG, "Nodelist empty for net %s", a_net->pub.name);
+        return;
+    }
+    /* Get current links */
+    size_t l_uplinks = 0, l_downlinks = 0;
+    dap_stream_node_addr_t *l_existing = dap_link_manager_get_net_links_addrs(
+            a_net->pub.id.uint64, &l_uplinks, &l_downlinks, false);
+    size_t l_existing_count = l_uplinks + l_downlinks;
+    int l_connected = 0;
+    for (size_t i = 0; i < l_objs_count && l_connected < a_max_connects; i++) {
+        if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_node_info_t))
+            continue;
+        dap_chain_node_info_t *l_info = (dap_chain_node_info_t *)l_objs[i].value;
+        if (l_info->address.uint64 == g_node_addr.uint64)
+            continue;
+        /* Skip if already connected */
+        bool l_already = false;
+        for (size_t j = 0; j < l_existing_count; j++) {
+            if (l_existing[j].uint64 == l_info->address.uint64) {
+                l_already = true;
+                break;
+            }
+        }
+        if (l_already)
+            continue;
+        char l_host[256] = {};
+        if (l_info->ext_host_len > 0 && l_info->ext_host_len < sizeof(l_host)) {
+            memcpy(l_host, l_info->ext_host, l_info->ext_host_len);
+            l_host[l_info->ext_host_len] = '\0';
+        }
+        if (!l_host[0])
+            continue;
+        log_it(L_NOTICE, "Nodelist expand: trying peer "NODE_ADDR_FP_STR" [%s:%u] for net %s",
+               NODE_ADDR_FP_ARGS_S(l_info->address), l_host, l_info->ext_port, a_net->pub.name);
+        if (dap_chain_net_link_add(a_net, &l_info->address, l_host, l_info->ext_port) == 0)
+            l_connected++;
+    }
+    DAP_DELETE(l_existing);
+    dap_global_db_objs_delete(l_objs, l_objs_count);
+    if (l_connected)
+        log_it(L_NOTICE, "Nodelist expand: connected to %d new peers for net %s", l_connected, a_net->pub.name);
+}
+
 void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
 {
     dap_global_db_cluster_add_notify_callback(PVT(a_net)->orders_cluster, a_callback, a_cb_arg);
@@ -4709,6 +4768,12 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     a_reason = s_sync_restart_reason_norm(a_reason);
     atomic_store_explicit(&l_net_pvt->sync_context.diag_restart_reason_last, a_reason, memory_order_relaxed);
     s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_restart_reason_count[a_reason]);
+
+    /* Expand link pool from nodelist on every restart. This ensures we always
+     * have fresh peers to choose from, not just the balancer's initial selection.
+     * Connects to up to 3 new peers from the nodelist if we're not already
+     * connected to them. */
+    dap_chain_net_nodelist_expand_links(a_net, 3);
 
     dap_cluster_t *l_cluster = dap_cluster_by_mnemonim(a_net->pub.name);
     if (!l_cluster) {
