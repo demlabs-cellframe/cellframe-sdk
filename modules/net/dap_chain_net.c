@@ -4131,6 +4131,9 @@ static DAP_INLINE bool s_sync_start_req_try_set_in_progress(dap_chain_net_pvt_t 
 static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_start_req_arg_t *a_arg)
 {
     dap_return_if_pass(!a_net || !a_arg);
+    /* Expand link pool from nodelist on every sync request prepare.
+     * This ensures fresh peers are always available, not just on restart. */
+    dap_chain_net_nodelist_expand_links(a_net, 3);
     a_arg->prepare_status = SYNC_START_REQ_PREPARE_STALE;
     dap_chain_t *l_chain = dap_chain_net_get_chain_by_id(a_net, a_arg->chain_id);
     if (!l_chain) {
