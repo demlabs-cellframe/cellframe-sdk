@@ -4140,6 +4140,20 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
     a_arg->request = (dap_chain_ch_sync_request_t){};
     a_arg->last_num = 0;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    /* If chain has events from a previous session but we haven't received
+     * any new data in this session (max_atom_num_seen==0), force
+     * sync_from_zero=true. Without this, the peer starts ITER_OP_NEXT from
+     * our last hash and only covers events AFTER that position in hash-table
+     * order — missing events before it. With sync_from_zero=true, the peer
+     * starts from ITER_OP_FIRST and covers the entire hash table. */
+    if (!a_arg->sync_from_zero && l_net_pvt->sync_context.max_atom_num_seen == 0) {
+        uint64_t l_last = l_chain->callback_count_atom(l_chain);
+        if (l_last > 0) {
+            a_arg->sync_from_zero = true;
+            log_it(L_NOTICE, "Chain %s has %lu atoms but no new data this session — forcing sync_from_zero",
+                   l_chain->name, (unsigned long)l_last);
+        }
+    }
     /* Drain threshold before resume check. Blocks received during the previous
      * sync session may have landed in threshold (parent missing). Draining
      * promotes them, advancing last_num — so the resume hash points to a
@@ -4183,14 +4197,15 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
          * Note: max_atom_num_seen may be 0 when sync runs through the legacy
          * handler in dap_chain_ch.c (which doesn't update sync_context). In that
          * case sync_no_progress_count tracks restart-without-progress. */
-        if (l_chain->callback_atom_add_from_treshold &&
+        if (l_chain->callback_atom_add_from_treshold && l_chain->sequential_atoms &&
                 l_chain->atom_num_last > a_arg->last_num) {
-            /* Stall detection for ALL chain types.
-             * For DAG chains: stall detection + sync_from_zero=true causes
-             * the peer to restart from ITER_OP_FIRST. Previously-sent events
-             * are rejected as duplicates (ATOM_PASS), then NEW events are
-             * accepted. Each pass covers ~770 new events (pack_size=10 ×
-             * 90s timeout). After ~5 passes, all 3840 events are synced.
+            /* Stall detection for BLOCKS chains only (sequential_atoms=true).
+             * DAG chains must NOT use stall detection — the stock 5.7 master
+             * doesn't have it, and forcing sync_from_zero on liveness timeout
+             * causes the peer to restart from ITER_OP_FIRST, re-sending the
+             * same hash-table subset instead of resuming from the last position.
+             * DAG chains rely on natural timeout-based restarts which resume
+             * from the last accepted hash, covering new events each pass.
              *
              * For blocks chains with sequential_atoms=true, sync_from_zero is
              * still needed when all peers send CHAIN_MISS (our last block is
@@ -4596,41 +4611,16 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
                 log_it(L_NOTICE, "Drained %d atoms from threshold queue for chain %s net %s after SYNCED_CHAIN",
                         l_drain_count, l_net_pvt->sync_context.cur_chain->name, l_net->pub.name);
         }
+        /* Match stock master: unconditionally mark as SYNCED.
+         * s_switch_sync_chain() moves to next chain. Remaining blocks
+         * covered by subsequent sessions with different peers/positions.
+         * Do NOT check local_count < peer_last or force sync_from_zero —
+         * that causes infinite restart loop on DAG chains. */
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
-        /* Use the peer-advertised num_last from CHAIN_SUMMARY if we've seen one,
-         * not the local callback_count_atom. For DAG chains, HASH_COUNT(events)
-         * may be lower than the peer's count because conflicted/fork events are
-         * excluded from the main table. Using the local count here causes an
-         * infinite restart loop: receiver asks for 3795, sender has 3840 but
-         * all remaining are conflicts, so sender sends SYNCED_CHAIN again. */
-        uint64_t l_peer_num_last = l_net_pvt->sync_context.cur_chain->atom_num_last;
-        uint64_t l_local_count = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
-        l_net_pvt->sync_context.cur_chain->atom_num_last = (l_peer_num_last > l_local_count) ? l_peer_num_last : l_local_count;
-        /* If the peer finished its iteration (SYNCED_CHAIN) but we still don't
-         * have all events, the peer's ITER_OP_NEXT skipped events before our
-         * hash_from position in hash-table order. Restart sync with blank-hash
-         * so the peer starts from ITER_OP_FIRST and covers ALL events. */
-        if (l_local_count < l_peer_num_last) {
-            l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_IDLE;
-            /* Force sync_from_zero so the peer starts from ITER_OP_FIRST.
-             * For DAG chains: covers full hash table (duplicates rejected).
-             * For blocks chains: pre-sync drain advances last_num, so
-             * each pass covers new blocks. */
-            l_net_pvt->sync_context.sync_from_zero = true;
-            if (l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist)
-                l_net_pvt->sync_context.cur_chain->callback_clear_threshold_blacklist(l_net_pvt->sync_context.cur_chain);
-            log_it(L_NOTICE, "Chain %s net %s: SYNCED_CHAIN but local_count=%" DAP_UINT64_FORMAT_U
-                   " < peer_last=%" DAP_UINT64_FORMAT_U ". "
-                   "Resuming from last hash for different hash-table coverage.",
-                    l_net_pvt->sync_context.cur_chain->name, l_net->pub.name,
-                    l_local_count, l_peer_num_last);
-        } else {
-            l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
-        }
-        debug_if(s_debug_more, L_INFO, "Chain %s synced: atom_num_last=%lu (peer=%lu local_count=%lu)",
+        l_net_pvt->sync_context.cur_chain->atom_num_last = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
+        debug_if(s_debug_more, L_INFO, "Chain %s synced: atom_num_last=%lu",
                  l_net_pvt->sync_context.cur_chain->name,
-                 (unsigned long)l_net_pvt->sync_context.cur_chain->atom_num_last,
-                 (unsigned long)l_peer_num_last, (unsigned long)l_local_count);
+                 (unsigned long)l_net_pvt->sync_context.cur_chain->atom_num_last);
         /* Don't increment sync_no_progress_count here — with the new stall
          * detection, sync_no_progress_count > 0 causes stall if max_atom_num_seen
          * is 0. After SYNCED_CHAIN, max_atom_num_seen gets reset to 0 on chain
