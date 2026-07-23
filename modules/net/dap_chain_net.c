@@ -4775,6 +4775,10 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
     // sanity check
     dap_return_val_if_pass(!a_net, -1);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    /* Expand link pool from nodelist on restart — adds fresh peers from
+     * nodelist GDB that aren't in the balancer's initial selection.
+     * Only on restart (not on every prepare) to minimize overhead. */
+    dap_chain_net_nodelist_expand_links(a_net, 3);
     a_reason = s_sync_restart_reason_norm(a_reason);
     atomic_store_explicit(&l_net_pvt->sync_context.diag_restart_reason_last, a_reason, memory_order_relaxed);
     s_sync_diag_counter_inc(&l_net_pvt->sync_context.diag_restart_reason_count[a_reason]);
