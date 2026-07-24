@@ -4197,7 +4197,7 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
          * Note: max_atom_num_seen may be 0 when sync runs through the legacy
          * handler in dap_chain_ch.c (which doesn't update sync_context). In that
          * case sync_no_progress_count tracks restart-without-progress. */
-        if (l_chain->callback_atom_add_from_treshold && l_chain->sequential_atoms &&
+        if (l_chain->callback_atom_add_from_treshold &&
                 l_chain->atom_num_last > a_arg->last_num) {
             /* Stall detection for BLOCKS chains only (sequential_atoms=true).
              * DAG chains must NOT use stall detection — the stock 5.7 master
