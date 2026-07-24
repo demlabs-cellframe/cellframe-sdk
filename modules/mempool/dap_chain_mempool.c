@@ -892,7 +892,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     MULT_256_256(dap_chain_uint256_from(a_tx_num), l_single_val, &l_value_need);
     uint256_t l_value_transfer = {}; // how many coins to transfer
     const char *l_balance; dap_uint256_to_char(l_value_need, &l_balance);
-    debug_if(s_debug_more, L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
+    debug_if(s_debug_more, L_DEBUG, "Create %zu transactions, summary %s", a_tx_num, l_balance);
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     dap_list_t *l_list_used_out = NULL;
     if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
@@ -1038,7 +1038,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         l_objs[i].value = (uint8_t *)l_datum;
         l_objs[i].value_len = dap_chain_datum_size(l_datum);
         l_objs[i].timestamp = dap_nanotime_now();
-        debug_if(s_debug_more, L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
+        debug_if(s_debug_more, L_DEBUG, "Prepared obj with key %s (value_len = %zu)",
                l_objs[i].key ? l_objs[i].key :"NULL" , l_objs[i].value_len );
         dap_chain_datum_tx_delete(l_tx_new);
 
