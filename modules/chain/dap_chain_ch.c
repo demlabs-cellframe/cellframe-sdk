@@ -32,6 +32,7 @@
 #include "dap_proc_thread.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
+#include "dap_chain_net.h"
 #include "dap_global_db_legacy.h"
 #include "dap_global_db_ch.h"
 #include "dap_stream.h"
@@ -704,7 +705,9 @@ static bool s_sync_in_chains_callback(void *a_arg)
          * Threshold is drained at SYNCED_CHAIN and sync restart instead. */
         break;
     case ATOM_REJECT: {
-        debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
+        uint64_t l_atom_num = ((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo;
+        log_it(L_WARNING, "Sync atom %" DAP_UINT64_FORMAT_U " (hash %s) for %s:%s REJECTED",
+               l_atom_num, dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         break;
     }
     case ATOM_FORK: {
@@ -722,10 +725,17 @@ static bool s_sync_in_chains_callback(void *a_arg)
         uint64_t l_ack_num = ((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo;
         dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id, l_chain_pkt->hdr.cell_id,
                                                          &l_ack_num, sizeof(uint64_t), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
-        dap_stream_ch_pkt_send_by_addr(&l_args->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
-        DAP_DELETE(l_pkt);
-        debug_if(s_debug_more, L_DEBUG, "Out: CHAIN_ACK %s for net %s to destination " NODE_ADDR_FP_STR " with num %" DAP_UINT64_FORMAT_U,
-                                         l_chain->name, l_chain->net_name, NODE_ADDR_FP_ARGS_S(l_args->addr), l_ack_num);
+        if (l_pkt) {
+            int l_send_ret = dap_stream_ch_pkt_send_by_addr(&l_args->addr, DAP_CHAIN_CH_ID, DAP_CHAIN_CH_PKT_TYPE_CHAIN_ACK, l_pkt, dap_chain_ch_pkt_get_size(l_pkt));
+            if (l_send_ret) {
+                log_it(L_WARNING, "Failed to send CHAIN_ACK for %s:%s num %" DAP_UINT64_FORMAT_U " to " NODE_ADDR_FP_STR " (ret=%d)",
+                       l_chain->net_name, l_chain->name, l_ack_num, NODE_ADDR_FP_ARGS_S(l_args->addr), l_send_ret);
+            }
+            DAP_DELETE(l_pkt);
+        }
+    } else if (l_args->ack_req) {
+        log_it(L_WARNING, "ACK not sent for %s:%s: ack_send=%d ack_req=%d atom_result=%d",
+               l_chain->net_name, l_chain->name, l_ack_send, l_args->ack_req, l_atom_add_res);
     }
     DAP_DELETE(l_args);
     return false;
@@ -738,6 +748,12 @@ static void s_gossip_payload_callback(void *a_payload, size_t a_payload_size, da
     if (a_payload_size <= sizeof(dap_chain_ch_pkt_t) ||
             a_payload_size != sizeof(dap_chain_ch_pkt_t) + l_chain_pkt->hdr.data_size) {
         log_it(L_WARNING, "Incorrect chain GOSSIP packet size");
+        return;
+    }
+    // Ignore gossip blocks during sync to prevent chain forks
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain_pkt->hdr.net_id);
+    if (l_net && dap_chain_net_get_state(l_net) == NET_STATE_SYNC_CHAINS) {
+        debug_if(s_debug_more, L_DEBUG, "Ignoring gossip block during sync for net %s", l_net->pub.name);
         return;
     }
     struct atom_processing_args *l_args = DAP_NEW_Z_SIZE(struct atom_processing_args, a_payload_size + sizeof(struct atom_processing_args));
@@ -1200,7 +1216,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                   memory_order_release);
         }
         if (atomic_exchange(&l_context->state, SYNC_STATE_READY) == SYNC_STATE_IDLE)
-            dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
+            dap_proc_thread_callback_add(NULL, s_chain_iter_callback, l_context);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {

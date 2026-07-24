@@ -4,7 +4,12 @@ project (dap_chain_cs_blocks)
 # Include LibraryHelpers for object library creation
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/LibraryHelpers.cmake)
   
-file(GLOB DAP_CHAIN_BLOCK_SRCS *.c)
+file(GLOB DAP_CHAIN_BLOCK_SRCS_OTHER *.c)
+list(FILTER DAP_CHAIN_BLOCK_SRCS_OTHER EXCLUDE REGEX ".*dap_chain_cs_blocks_mmap\\.c$")
+set(DAP_CHAIN_BLOCK_SRCS "")
+file(GLOB DAP_CHAIN_BLOCKS_MMAP dap_chain_cs_blocks_mmap.c)
+list(APPEND DAP_CHAIN_BLOCK_SRCS ${DAP_CHAIN_BLOCKS_MMAP})
+list(APPEND DAP_CHAIN_BLOCK_SRCS ${DAP_CHAIN_BLOCK_SRCS_OTHER})
 file(GLOB DAP_CHAIN_BLOCK_HEADERS include/*.h)
 
 # Create OBJECT library instead of STATIC
