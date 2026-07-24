@@ -685,13 +685,12 @@ static bool s_sync_in_chains_callback(void *a_arg)
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
-        /* ACK thresholded atoms for ALL peers. During blocks chain sync from
-         * zero, most blocks land in threshold waiting for parents. Without
-         * ACK, peer's sliding window stalls after 16 blocks and sync crawls.
-         * ACK with real atom number is safe — peer's terminal check
-         * (num_last == ack_num) won't fire prematurely because thresholded
-         * blocks have numbers far below num_last. */
-        l_ack_send = true;
+        /* ACK only for enhanced peers (v27+). Stock 5.7 peers (v26) would
+         * misinterpret the ACK: their CHAIN_ACK handler checks
+         * num_last == ack_num → SYNCED_CHAIN + go_idle, prematurely closing
+         * the sync session. Master does NOT ACK thresholded atoms at all. */
+        if (l_args->ack_for_threshold)
+            l_ack_send = true;
         if (s_sync_progress_cb)
             s_sync_progress_cb(l_chain_pkt->hdr.net_id);
         break;
