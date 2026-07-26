@@ -33,6 +33,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_datum_tx_pkey.h"
+#include "dap_chain_datum_tx_anon.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_time.h"
 
@@ -48,6 +49,31 @@ static size_t s_anon_tx_item_size(const byte_t *a_item, size_t a_max_size)
     memcpy(&l_total, a_item + 4, sizeof(l_total));
     if (l_total < 8)
         return 0;
+    /* P1-3 SECURITY FIX: enforce struct minimum for each anon item type.
+     * Without this, a malicious TX with hdr.size=16 for an IN_ANON item
+     * (whose key_image field alone is 9216 bytes) causes heap overread
+     * when any code dereferences the struct fields. */
+    uint8_t l_type = *a_item;
+    size_t l_struct_min = 8; /* default minimum = header */
+    switch (l_type) {
+    case TX_ITEM_TYPE_IN_ANON:
+        l_struct_min = sizeof(dap_chain_tx_in_anon_t);
+        break;
+    case TX_ITEM_TYPE_OUT_ANON:
+        l_struct_min = sizeof(dap_chain_tx_out_anon_t);
+        break;
+    case TX_ITEM_TYPE_KEY_IMAGE:
+        l_struct_min = sizeof(dap_chain_tx_key_image_t);
+        break;
+    default:
+        break;
+    }
+    if (l_total < l_struct_min) {
+        debug_if(g_debug_more, L_WARNING,
+                 "Anon TX item type 0x%02x: claimed size %u < struct minimum %zu",
+                 l_type, l_total, l_struct_min);
+        return 0;
+    }
     if (a_max_size && l_total > a_max_size)
         return 0;
     return l_total;

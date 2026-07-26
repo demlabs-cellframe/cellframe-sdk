@@ -887,12 +887,14 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
         return NULL;
     }
 
+    /* P1-2 SECURITY FIX: Collect ALL decoys first, then insert signer at a
+     * random position. The old code always placed the signer at index 0,
+     * breaking anonymity (an observer knows position 0 is the real signer). */
     size_t l_idx = 0;
-    s_ring_add_member(l_ring, &l_idx, a_anon_set, l_algo, l_signer_pk);
 
     /* Collect decoy pubkeys from stake validators (chipmunk keys only) */
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
-    for (dap_list_t *it = l_validators; it && l_idx < a_anon_set; it = it->next) {
+    for (dap_list_t *it = l_validators; it && l_idx < a_anon_set - 1; it = it->next) {
         dap_chain_net_srv_stake_item_t *l_stake = (dap_chain_net_srv_stake_item_t *)it->data;
         if (!l_stake || !l_stake->pkey) continue;
         uint8_t l_pk_buf[4096];
@@ -904,12 +906,31 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     }
     dap_list_free_full(l_validators, NULL);
 
-    if (l_idx < a_anon_set && s_ring_fill_decoys(l_ring, &l_idx, a_anon_set, l_algo) != 0) {
-        log_it(L_ERROR, "Failed to fill anonymous ring decoys (have %zu, need %zu)", l_idx, a_anon_set);
+    if (l_idx < a_anon_set - 1 && s_ring_fill_decoys(l_ring, &l_idx, a_anon_set - 1, l_algo) != 0) {
+        log_it(L_ERROR, "Failed to fill anonymous ring decoys (have %zu, need %zu)", l_idx, a_anon_set - 1);
         DAP_DELETE(l_ring);
         dap_enc_key_delete(l_wallet_key);
         return NULL;
     }
+
+    /* Insert signer at a cryptographically random position in [0, a_anon_set).
+     * Shift existing decoys to make room. This ensures the real signer's
+     * position is uniformly random and unpredictable. */
+    uint32_t l_signer_pos = 0;
+    uint8_t l_rand_buf[4];
+    if (dap_random_bytes(l_rand_buf, sizeof(l_rand_buf)) == 0)
+        memcpy(&l_signer_pos, l_rand_buf, 4);
+    l_signer_pos %= (uint32_t)a_anon_set;
+
+    /* Shift decoys from [l_signer_pos, l_idx) one slot right to make room */
+    if (l_signer_pos < l_idx) {
+        memmove(l_ring + (l_signer_pos + 1) * pk_sz,
+                l_ring + l_signer_pos * pk_sz,
+                (l_idx - l_signer_pos) * pk_sz);
+    }
+    /* Place signer at the random position */
+    memcpy(l_ring + l_signer_pos * pk_sz, l_signer_pk, pk_sz);
+    l_idx = a_anon_set; /* ring is now full */
 
     if (l_idx < CHIPMUNK_RING_N_MIN) {
         DAP_DELETE(l_ring);

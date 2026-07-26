@@ -438,11 +438,21 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             memset(&l_statement, 0, sizeof(l_statement));
             l_statement.ring_size = l_in_anon->ring_size;
 
-            /* Extract ring public keys from variable-length data after the struct */
+            /* Extract ring public keys from variable-length data after the struct.
+             * P0-4 SECURITY FIX: compare against ring_size * sizeof(key), not ring_size bytes.
+             * Original code compared byte count vs key count (off by sizeof factor 1424),
+             * allowing a malicious TX to pass with only 64 trailing bytes while the
+             * verifier then read 64*1424=91136 bytes off-heap. Also reject if the
+             * ring doesn't fit — the old code left l_statement.ring as NULL and
+             * verification proceeded into NULL dereference. */
             size_t l_ring_data_bytes = l_in_anon->hdr.size - sizeof(dap_chain_tx_in_anon_t);
-            if (l_in_anon->ring_size > 0 && l_ring_data_bytes >= l_in_anon->ring_size) {
-                l_statement.ring = (const chipmunk_lrs_public_key_t *)(l_item_snark + sizeof(dap_chain_tx_in_anon_t));
+            size_t l_ring_needed = (size_t)l_in_anon->ring_size * sizeof(chipmunk_lrs_public_key_t);
+            if (l_in_anon->ring_size == 0 || l_ring_data_bytes < l_ring_needed) {
+                log_it(L_WARNING, "IN_ANON ring_size=%u but only %zu bytes available (need %zu)",
+                       l_in_anon->ring_size, l_ring_data_bytes, l_ring_needed);
+                return -EINVAL;
             }
+            l_statement.ring = (const chipmunk_lrs_public_key_t *)(l_item_snark + sizeof(dap_chain_tx_in_anon_t));
 
             /* Reconstruct message: addr_to || commit_hash || ticker || ki_hash || rp_hash
              * Must match the prover's construction exactly. */
@@ -569,7 +579,16 @@ int dap_ledger_anon_tx_verify(dap_ledger_t *a_ledger,
                               dap_chain_datum_tx_t *a_tx,
                               dap_hash_fast_t *a_tx_hash)
 {
-    return s_anon_tx_crypto_verify(a_ledger, a_tx, a_tx_hash, false);
+    /* P1-1 SECURITY FIX (TOCTOU): The old code passed a_commit_key_images=false,
+     * which only CHECKED key images without committing them. The actual commit
+     * happened later in dap_ledger_anon_tx_key_images_commit during tx_add.
+     * Between check and commit, two concurrent TXs with the same key image
+     * could both pass verification → double-spend.
+     *
+     * Now: commit key images atomically during verification. If verification
+     * fails AFTER key images are committed, the caller must roll back.
+     * This closes the TOCTOU window because s_key_image_add uses a write lock. */
+    return s_anon_tx_crypto_verify(a_ledger, a_tx, a_tx_hash, true);
 }
 
 int dap_ledger_anon_tx_key_images_commit(dap_ledger_t *a_ledger,
@@ -613,8 +632,20 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
     if (l_rc)
         return l_rc;
 
-    if (dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size))
-        return dap_ledger_anon_tx_verify(a_ledger, a_tx, a_tx_hash);
+    if (dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size)) {
+        /* P0-1/P0-2 SECURITY: Anonymous TX crypto is currently UNSAFE.
+         * - Range proof verifier (chipmunk_range_proof.c) does not check the
+         *   Stern relation — any proof passes for any value.
+         * - SNARK verifier (chipmunk_snark.c) accepts z≡0,q≡0 — ring membership
+         *   is not proven, anyone can forge.
+         * Until Lantern-based range proof and rebuilt SNARK are integrated
+         * (Phase 2 of the security plan), anonymous TX MUST be rejected to
+         * prevent forged transactions from entering the ledger. */
+        log_it(L_WARNING, "Anonymous TX %s rejected: crypto verification disabled "
+               "(range proof and SNARK are known-broken, see security plan Phase 0/2)",
+               dap_hash_sha3_256_to_str_static(a_tx_hash));
+        return DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED;
+    }
 
     return DAP_LEDGER_CHECK_OK;
 }
