@@ -471,6 +471,12 @@ if(INSTALL_CELLFRAME_SDK)
             DESTINATION include/cellframe-sdk
             FILES_MATCHING PATTERN "*.h")
 
+    # Generate and install pkg-config file
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cellframe-sdk.pc.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/cellframe-sdk.pc" @ONLY)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cellframe-sdk.pc"
+            DESTINATION lib/pkgconfig)
+
     # Install DAP SDK headers (only if using embedded DAP SDK)
     if(NOT CELLFRAME_USING_EXTERNAL_DAP_SDK)
         install(DIRECTORY ${DAP_SDK_SOURCE_DIR}/module/core/include/
