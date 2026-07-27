@@ -95,7 +95,7 @@ static inline int dap_chain_tx_event_data_stake_ext_started_fixed_unpack(
     const uint8_t *a_wire, size_t a_wire_size, dap_chain_tx_event_data_stake_ext_started_fixed_mem_t *a_mem)
 {
     if (a_wire_size < DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_STARTED_FIXED_WIRE_SIZE) return -1;
-    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw_zero(
         &g_dap_chain_tx_event_data_stake_ext_started_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
     return r.error_code;
 }
@@ -120,7 +120,7 @@ static inline int dap_chain_tx_event_data_stake_ext_ended_fixed_unpack(
     const uint8_t *a_wire, size_t a_wire_size, dap_chain_tx_event_data_stake_ext_ended_fixed_mem_t *a_mem)
 {
     if (a_wire_size < DAP_CHAIN_TX_EVENT_DATA_STAKE_EXT_ENDED_FIXED_WIRE_SIZE) return -1;
-    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw_zero(
         &g_dap_chain_tx_event_data_stake_ext_ended_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
     return r.error_code;
 }

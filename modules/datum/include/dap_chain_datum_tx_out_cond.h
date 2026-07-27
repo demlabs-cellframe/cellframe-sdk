@@ -37,6 +37,7 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE = 0x02,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE = 0x03,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX = 0x05,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED = 0x07,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_EXT_LOCK = 0x08,
@@ -122,6 +123,18 @@ typedef struct dap_chain_tx_out_cond {
             byte_t          padding[4];
         } DAP_ALIGN_PACKED srv_stake_lock;
         struct {
+            dap_chain_net_id_t buy_net_id, sell_net_id;
+            char buy_token[DAP_CHAIN_TICKER_SIZE_MAX];
+            dap_chain_addr_t seller_addr;
+            dap_chain_hash_fast_t order_root_hash;
+            uint256_t rate;
+            uint8_t min_fill;       /* low 7 bits = percent, bit 7 = from_origin */
+            uint8_t version;
+            uint32_t flags;
+            uint8_t tx_type;
+            uint8_t _padding[7];
+        } DAP_ALIGN_PACKED srv_dex;
+        struct {
             uint32_t signers_minimum;
         } DAP_ALIGN_PACKED wallet_shared;
         struct {
@@ -176,7 +189,7 @@ static inline int dap_chain_tx_out_cond_hdr_unpack(const uint8_t *a_wire, size_t
 {
     if (!a_wire || !a_mem || a_wire_size < DAP_CHAIN_TX_OUT_COND_HDR_WIRE_SIZE)
         return -1;
-    dap_deserialize_result_t l_r = dap_deserialize_from_buffer_raw(
+    dap_deserialize_result_t l_r = dap_deserialize_from_buffer_raw_zero(
         &g_dap_chain_tx_out_cond_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
     return l_r.error_code;
 }
