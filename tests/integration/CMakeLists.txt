@@ -10,3 +10,6 @@ add_subdirectory(blocks)
 
 # Stake-ext tests
 add_subdirectory(service)
+
+# Stream defragmentation tests
+add_subdirectory(stream)
