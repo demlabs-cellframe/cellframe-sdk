@@ -14,11 +14,13 @@ cellframe_add_library(${PROJECT_NAME} ${DAP_COMMON_SRCS})
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC .)
 
-# Only depends on DAP SDK for basic types
-if(DAP_WASM)
-    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_net_common)
+# Only depends on DAP SDK for basic types (dap_link_libraries propagates includes for OBJECT libs)
+if(EMSCRIPTEN OR DAP_WASM)
+    target_include_directories(${PROJECT_NAME} PRIVATE
+        "${CMAKE_SOURCE_DIR}/dap-sdk/module/net/common/include")
+    dap_link_libraries(${PROJECT_NAME} INTERFACE dap_core dap_crypto dap_net_common)
 else()
-    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_global_db dap_link_manager)
+    dap_link_libraries(${PROJECT_NAME} INTERFACE dap_core dap_crypto dap_stream dap_global_db dap_link_manager)
 endif()
 
 if(INSTALL_SDK)

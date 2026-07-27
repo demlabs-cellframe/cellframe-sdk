@@ -91,7 +91,7 @@ static inline int dap_chain_net_ch_pkt_hdr_unpack(const uint8_t *a_wire, size_t 
                                                   dap_chain_net_ch_pkt_hdr_mem_t *a_mem)
 {
     if (a_wire_size < DAP_CHAIN_NET_CH_PKT_HDR_WIRE_SIZE) return -1;
-    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw_zero(
         &g_dap_chain_net_ch_pkt_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
     return r.error_code;
 }

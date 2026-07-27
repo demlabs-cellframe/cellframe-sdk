@@ -134,7 +134,7 @@ static inline int dap_chain_esbocs_message_hdr_unpack(const uint8_t *a_wire, siz
                                                       dap_chain_esbocs_message_hdr_mem_t *a_mem)
 {
     if (a_wire_size < DAP_CHAIN_ESBOCS_MESSAGE_HDR_WIRE_SIZE) return -1;
-    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw_zero(
         &g_dap_chain_esbocs_message_hdr_schema, a_wire, a_wire_size, a_mem, NULL);
     return r.error_code;
 }
@@ -216,7 +216,7 @@ static inline int dap_chain_esbocs_directive_fixed_unpack(const uint8_t *a_wire,
                                                           dap_chain_esbocs_directive_fixed_mem_t *a_mem)
 {
     if (a_wire_size < DAP_CHAIN_ESBOCS_DIRECTIVE_FIXED_WIRE_SIZE) return -1;
-    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw_zero(
         &g_dap_chain_esbocs_directive_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
     return r.error_code;
 }

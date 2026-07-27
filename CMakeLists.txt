@@ -260,6 +260,12 @@ if (CELLFRAME_MODULES MATCHES "ledger")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_ledger)
 endif()
 
+# Wallet shared + cache (needed for wallet_shared emit/refill/take composition)
+if (CELLFRAME_MODULES MATCHES "chains")
+    message("[+] Module 'wallet-shared'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_wallet_shared dap_chain_wallet_cache)
+endif()
+
 # Networking
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
@@ -464,6 +470,12 @@ if(INSTALL_CELLFRAME_SDK)
     install(DIRECTORY modules/
             DESTINATION include/cellframe-sdk
             FILES_MATCHING PATTERN "*.h")
+
+    # Generate and install pkg-config file
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cellframe-sdk.pc.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/cellframe-sdk.pc" @ONLY)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cellframe-sdk.pc"
+            DESTINATION lib/pkgconfig)
 
     # Install DAP SDK headers (only if using embedded DAP SDK)
     if(NOT CELLFRAME_USING_EXTERNAL_DAP_SDK)

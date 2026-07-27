@@ -35,13 +35,15 @@
 
 
 enum    {
-    DAP_WALLET$K_TYPE_PLAIN = 0,                                            /* 0x00 - uncompressed and unencrypted */
-    DAP_WALLET$K_TYPE_GOST89 = 1,                                           /* Encrypted with the GOST 89 */
+    DAP_WALLET$K_TYPE_PLAIN              = 0,                               /* 0x00 - uncompressed and unencrypted */
+    DAP_WALLET$K_TYPE_GOST89             = 1,                               /* Encrypted with the GOST 89 (V1/V2 legacy) */
+    DAP_WALLET$K_TYPE_CHACHA20_POLY1305  = 2,                               /* Encrypted with ChaCha20-Poly1305 AEAD (V3) */
 };
 
 enum    {
-    DAP_WALLET$K_VER_1 = 1,                                                 /* Wallet's file structure version, entry level */
-    DAP_WALLET$K_VER_2 = 2,                                                 /* BMF Level */
+    DAP_WALLET$K_VER_1 = 1,                                                 /* Unprotected / legacy insecure password */
+    DAP_WALLET$K_VER_2 = 2,                                                 /* Protected: GOST + raw password (master-compatible) */
+    DAP_WALLET$K_VER_3 = 3,                                                 /* Protected: ChaCha20-Poly1305 AEAD + SHA3-256(password||salt(wallet_name)) */
 };
 
 
@@ -63,54 +65,80 @@ typedef struct dap_chain_wallet_n_pass {
     dap_ht_handle_t hh;
 } dap_chain_wallet_n_pass_t;
 
-typedef struct dap_chain_wallet_cert_hdr{
+/*
+ * Cert record prefix on disk (8 bytes LE): uint32 type | uint32 cert_raw_size.
+ * Two uint32 are naturally 8B with or without packing — one type for wire + memory.
+ */
+typedef struct dap_chain_wallet_cert_hdr {
     uint32_t type;                                                          /* See DAP_WALLET$K_CERT/MAGIC ...constants */
-    uint32_t cert_raw_size; /// Certificate size
-} DAP_ALIGN_PACKED dap_chain_wallet_cert_hdr_t;
+    uint32_t cert_raw_size;                                                 /* Certificate size */
+} dap_chain_wallet_cert_hdr_t;
+_Static_assert(sizeof(dap_chain_wallet_cert_hdr_t) == 8,
+               "wallet cert_hdr size must stay 8 bytes");
 
-typedef struct dap_chain_wallet_cert{
+typedef struct dap_chain_wallet_cert {
     dap_chain_wallet_cert_hdr_t header;
-    dap_cert_file_t cert_raw; /// Raw certs data
-} DAP_ALIGN_PACKED dap_chain_wallet_cert_t;
-
-typedef struct dap_chain_wallet_file_hdr{
-    uint64_t    signature;
-    uint32_t    version;
-    uint8_t     type;                                                       /* See DAP_WALLET$K_TYPE_* constants */
-    uint64_t    padding;
-    uint16_t    wallet_len;                                                 /* Length of the follows wallet's name string */
-    char        wallet_name[];
-} DAP_ALIGN_PACKED dap_chain_wallet_file_hdr_t;
+    dap_cert_file_t cert_raw;                                               /* Raw certs data */
+} dap_chain_wallet_cert_t;
 
 /*
- * On-disk wallet file layout (variable-length, not representable as a C struct):
- *   [dap_chain_wallet_file_hdr_t header]  (includes wallet_name[] FAM)
- *   [uint8_t data[...]]                   (cert records follow the header)
+ * Wallet file fixed prefix on disk (23 bytes LE), then name[name_len], then certs:
+ *   uint64 signature | uint32 version | uint8 type | uint64 padding | uint16 name_len
  *
- * Access data via: (uint8_t*)hdr + sizeof(*hdr) + hdr->wallet_len
+ * Runtime I/O uses dap_serialize on dap_chain_wallet_t:
+ *   signature/padding — FLAG_CONST (wire only);
+ *   version/type/name_len — fields of dap_chain_wallet_t.
+ * Unpack does not memset the wallet (partial schema into a live object).
  */
+#define DAP_CHAIN_WALLET_FILE_FIXED_WIRE_SIZE \
+    (sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint8_t) + sizeof(uint64_t) + sizeof(uint16_t))
+_Static_assert(DAP_CHAIN_WALLET_FILE_FIXED_WIRE_SIZE == 23,
+               "wallet file fixed wire size must stay 23 bytes");
 
-#define DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE offsetof(dap_chain_wallet_file_hdr_t, wallet_name)
-typedef struct dap_chain_wallet_file_hdr_fixed_mem {
-    uint8_t bytes[DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE];
-} dap_chain_wallet_file_hdr_fixed_mem_t;
-#define DAP_CHAIN_WALLET_FILE_HDR_FIXED_MAGIC 0xCF5FF028U
-extern const dap_serialize_field_t g_dap_chain_wallet_file_hdr_fixed_fields[];
-extern const dap_serialize_schema_t g_dap_chain_wallet_file_hdr_fixed_schema;
-static inline int dap_chain_wallet_file_hdr_fixed_pack(const dap_chain_wallet_file_hdr_fixed_mem_t *a_mem,
-                                                       uint8_t *a_wire, size_t a_wire_size)
+#define DAP_CHAIN_WALLET_FILE_FIXED_MAGIC 0xCF5FF028U
+#define DAP_CHAIN_WALLET_CERT_HDR_MAGIC       0xCF5CCE78U
+#define DAP_CHAIN_WALLET_CERT_HDR_WIRE_SIZE   sizeof(dap_chain_wallet_cert_hdr_t)
+
+/* Backward-compatible aliases */
+#define DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE DAP_CHAIN_WALLET_FILE_FIXED_WIRE_SIZE
+#define DAP_CHAIN_WALLET_FILE_HDR_FIXED_MAGIC     DAP_CHAIN_WALLET_FILE_FIXED_MAGIC
+
+extern const dap_serialize_field_t g_dap_chain_wallet_file_fields[];
+extern const dap_serialize_schema_t g_dap_chain_wallet_file_schema;
+extern const dap_serialize_field_t g_dap_chain_wallet_cert_hdr_fields[];
+extern const dap_serialize_schema_t g_dap_chain_wallet_cert_hdr_schema;
+
+static inline int dap_chain_wallet_file_pack(const dap_chain_wallet_t *a_wallet,
+                                             uint8_t *a_wire, size_t a_wire_size)
 {
-    if (a_wire_size < DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE) return -1;
+    if (!a_wallet || a_wire_size < DAP_CHAIN_WALLET_FILE_FIXED_WIRE_SIZE) return -1;
     dap_serialize_result_t r = dap_serialize_to_buffer_raw(
-        &g_dap_chain_wallet_file_hdr_fixed_schema, a_mem, a_wire, a_wire_size, NULL);
+        &g_dap_chain_wallet_file_schema, a_wallet, a_wire, a_wire_size, NULL);
     return r.error_code;
 }
-static inline int dap_chain_wallet_file_hdr_fixed_unpack(const uint8_t *a_wire, size_t a_wire_size,
-                                                         dap_chain_wallet_file_hdr_fixed_mem_t *a_mem)
+static inline int dap_chain_wallet_file_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                               dap_chain_wallet_t *a_wallet)
 {
-    if (a_wire_size < DAP_CHAIN_WALLET_FILE_HDR_FIXED_WIRE_SIZE) return -1;
+    if (!a_wallet || a_wire_size < DAP_CHAIN_WALLET_FILE_FIXED_WIRE_SIZE) return -1;
+    /* raw = no memset: only version/type/name_len are written; CONST verifies sig/pad */
     dap_deserialize_result_t r = dap_deserialize_from_buffer_raw(
-        &g_dap_chain_wallet_file_hdr_fixed_schema, a_wire, a_wire_size, a_mem, NULL);
+        &g_dap_chain_wallet_file_schema, a_wire, a_wire_size, a_wallet, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_wallet_cert_hdr_pack(const dap_chain_wallet_cert_hdr_t *a_hdr,
+                                                 uint8_t *a_wire, size_t a_wire_size)
+{
+    if (!a_hdr || a_wire_size < DAP_CHAIN_WALLET_CERT_HDR_WIRE_SIZE) return -1;
+    dap_serialize_result_t r = dap_serialize_to_buffer_raw(
+        &g_dap_chain_wallet_cert_hdr_schema, a_hdr, a_wire, a_wire_size, NULL);
+    return r.error_code;
+}
+static inline int dap_chain_wallet_cert_hdr_unpack(const uint8_t *a_wire, size_t a_wire_size,
+                                                   dap_chain_wallet_cert_hdr_t *a_hdr)
+{
+    if (!a_hdr || a_wire_size < DAP_CHAIN_WALLET_CERT_HDR_WIRE_SIZE) return -1;
+    dap_deserialize_result_t r = dap_deserialize_from_buffer_raw_zero(
+        &g_dap_chain_wallet_cert_hdr_schema, a_wire, a_wire_size, a_hdr, NULL);
     return r.error_code;
 }
 
@@ -124,4 +152,3 @@ typedef struct dap_chain_wallet_internal
 #define DAP_CHAIN_WALLET_INTERNAL(a) (a ? (dap_chain_wallet_internal_t *) a->_internal : NULL)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a)
 #define DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(a) dap_chain_wallet_internal_t * l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t); a->_internal = l_wallet_internal
-

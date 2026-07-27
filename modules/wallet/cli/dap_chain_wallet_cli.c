@@ -672,7 +672,7 @@ static int com_tx_wallet(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                     l_rc = l_ttl_str ? strtoul(l_ttl_str, NULL, 10) : 60;
 
                     l_rc = cmd_num == CMD_WALLET_ACTIVATE
-                            ? dap_chain_wallet_activate(l_wallet_name, strlen(l_wallet_name), NULL, l_pass_str, strlen(l_pass_str), l_rc)
+                            ? dap_chain_wallet_activate(l_wallet_name, strlen(l_wallet_name), NULL, l_pass_str, strlen(l_pass_str), l_rc, NULL)
                             : dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name));
 
                     switch (l_rc) {

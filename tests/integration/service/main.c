@@ -23,9 +23,14 @@
 */
 
 #include "test_stake_ext.h"
+#include <dap_common.h>
+#include <dap_enc.h>
 
 int main(void)
 {
+    dap_set_appname("test_stake_ext");
+    dap_common_init(dap_get_appname(), NULL);
+    dap_enc_init();
     dap_chain_srv_stake_ext_test_run();
     return 0;
 }

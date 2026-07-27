@@ -104,7 +104,7 @@ dap_chain_datum_tx_t *dap_wallet_tx_create_transfer(
     }
     
     // Add output to recipient
-    if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_value) != 1) {
+    if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, a_value, a_token_ticker) != 1) {
         log_it(L_ERROR, "Failed to add output");
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
@@ -114,7 +114,7 @@ dap_chain_datum_tx_t *dap_wallet_tx_create_transfer(
     uint256_t l_change = {};
     SUBTRACT_256_256(l_value_found, l_total_need, &l_change);
     if (!IS_ZERO_256(l_change)) {
-        if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_change) != 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_change, a_token_ticker) != 1) {
             log_it(L_ERROR, "Failed to add change output");
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
