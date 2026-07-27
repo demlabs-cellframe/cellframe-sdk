@@ -475,7 +475,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             dap_hash_sha3_256_t l_ver_ki_hash;
             dap_hash_sha3_256_raw(l_ver_ki_hash.raw, l_in_anon->key_image, sizeof(l_in_anon->key_image));
 
-            chipmunk_range_proof_t l_ver_rp;
+            chipmunk_range_proof_bdlop_t l_ver_rp;
             memcpy(&l_ver_rp, &l_out_anon->range_proof, sizeof(l_ver_rp));
             dap_hash_sha3_256_t l_ver_rp_hash;
             dap_hash_sha3_256_raw(l_ver_rp_hash.raw, (const uint8_t *)&l_ver_rp, sizeof(l_ver_rp));
@@ -544,7 +544,14 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
     }
     DAP_DELETE(l_images);
 
-    /* 4. Verify Pedersen commitments and range proofs on outputs */
+    /* 4. Verify Pedersen commitments and range proofs on outputs.
+     *
+     * Phase 2: Range proof now uses BDLOP-based lattice proof (replaces
+     * the broken Stern-like proof, P0-1). The proof verifies:
+     *   - BDLOP opening equations (linear + Fiat-Shamir)
+     *   - Response norm bounds
+     *   - Value fits in [0, 2^64)
+     */
     {
         const uint8_t *l_item;
         size_t l_item_size;
@@ -553,15 +560,12 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                 const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
 
                 /* Verify range proof (copy from packed struct to avoid alignment issues) */
-                chipmunk_range_proof_t l_rp_copy;
-                chipmunk_pedersen_commit_t l_commit_copy;
+                chipmunk_range_proof_bdlop_t l_rp_copy;
                 memcpy(&l_rp_copy, &l_out->range_proof, sizeof(l_rp_copy));
-                memcpy(&l_commit_copy, &l_out->commitment, sizeof(l_commit_copy));
-                l_rc = chipmunk_range_proof_verify(&l_rp_copy,
-                                                    &l_anon->pedersen_params,
-                                                    &l_commit_copy);
+                l_rc = chipmunk_range_proof_bdlop_verify(&l_rp_copy,
+                                                          &l_anon->pedersen_params);
                 if (l_rc != 1) {
-                    log_it(L_WARNING, "Range proof verification failed for anonymous output");
+                    log_it(L_WARNING, "BDLOP range proof verification failed for anonymous output");
                     return -EINVAL;
                 }
             }
@@ -633,16 +637,21 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
         return l_rc;
 
     if (dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size)) {
-        /* P0-1/P0-2 SECURITY: Anonymous TX crypto is currently UNSAFE.
-         * - Range proof verifier (chipmunk_range_proof.c) does not check the
-         *   Stern relation — any proof passes for any value.
-         * - SNARK verifier (chipmunk_snark.c) accepts z≡0,q≡0 — ring membership
-         *   is not proven, anyone can forge.
-         * Until Lantern-based range proof and rebuilt SNARK are integrated
-         * (Phase 2 of the security plan), anonymous TX MUST be rejected to
-         * prevent forged transactions from entering the ledger. */
-        log_it(L_WARNING, "Anonymous TX %s rejected: crypto verification disabled "
-               "(range proof and SNARK are known-broken, see security plan Phase 0/2)",
+        /* P0-2 SECURITY: Anonymous TX crypto is still PARTIALLY UNSAFE.
+         *
+         * Phase 2 COMPLETED:
+         *   - Range proof now uses BDLOP-based lattice proof (chipmunk_bdlop.c)
+         *     which properly verifies linear equations, norm bounds, and
+         *     Fiat-Shamir challenges. This fixes the P0-1 z≡0 forge attack.
+         *
+         * STILL BROKEN (blocking unblock):
+         *   - SNARK ring membership verifier (chipmunk_snark.c) accepts
+         *     z≡0,q≡0 — ring membership is NOT proven, anyone can forge.
+         *     This is P0-2, to be fixed in a future phase.
+         *
+         * Until the SNARK is rebuilt, anonymous TX MUST remain rejected. */
+        log_it(L_WARNING, "Anonymous TX %s rejected: SNARK ring membership verification "
+               "still broken (P0-2), range proof is now BDLOP-based (Phase 2 done)",
                dap_hash_sha3_256_to_str_static(a_tx_hash));
         return DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED;
     }

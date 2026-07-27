@@ -315,9 +315,9 @@ static int s_build_out_anon(const dap_chain_addr_t *a_addr, const char *a_token_
     if (chipmunk_pedersen_commit(&l_commit, a_params, l_amount_bytes, l_rand) != 0)
         return -EIO;
 
-    chipmunk_range_proof_t l_rp;
+    chipmunk_range_proof_bdlop_t l_rp;
     memset(&l_rp, 0, sizeof(l_rp));
-    if (chipmunk_range_proof_prove(&l_rp, a_params, &l_commit, l_amount_bytes, l_rand) != 0)
+    if (chipmunk_range_proof_bdlop_prove(&l_rp, a_params, l_amount_bytes, l_rand) != 0)
         return -EIO;
 
     memset(a_out, 0, sizeof(*a_out));
@@ -352,9 +352,9 @@ static int s_build_out_anon_tracked(const dap_chain_addr_t *a_addr, const char *
     if (chipmunk_pedersen_commit(&l_commit, a_params, l_amount_bytes, a_out_seed) != 0)
         return -EIO;
 
-    chipmunk_range_proof_t l_rp;
+    chipmunk_range_proof_bdlop_t l_rp;
     memset(&l_rp, 0, sizeof(l_rp));
-    if (chipmunk_range_proof_prove(&l_rp, a_params, &l_commit, l_amount_bytes, a_out_seed) != 0)
+    if (chipmunk_range_proof_bdlop_prove(&l_rp, a_params, l_amount_bytes, a_out_seed) != 0)
         return -EIO;
 
     memset(a_out, 0, sizeof(*a_out));
@@ -388,10 +388,10 @@ static int s_build_out_anon_explicit(const dap_chain_addr_t *a_addr, const char 
     if (chipmunk_pedersen_commit_explicit(&l_commit, a_params, l_amount_bytes, a_r) != 0)
         return -EIO;
 
-    chipmunk_range_proof_t l_rp;
+    chipmunk_range_proof_bdlop_t l_rp;
     memset(&l_rp, 0, sizeof(l_rp));
-    if (chipmunk_range_proof_prove_explicit(&l_rp, a_params, &l_commit, l_amount_bytes,
-                                            a_r, a_rp_seed) != 0)
+    if (chipmunk_range_proof_bdlop_prove_explicit(&l_rp, a_params, l_amount_bytes,
+                                                   a_r, a_rp_seed) != 0)
         return -EIO;
 
     memset(a_out, 0, sizeof(*a_out));
@@ -535,7 +535,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     l_rc = s_build_out_anon_tracked(a_addr_to, a_token_ticker, a_amount, &l_out, &l_anon_init->pedersen_params, l_bob_seed);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
 
-    chipmunk_range_proof_t l_rp;
+    chipmunk_range_proof_bdlop_t l_rp;
     memcpy(&l_rp, &l_out.range_proof, sizeof(l_rp));
     chipmunk_pedersen_commit_t l_commit;
     memcpy(&l_commit, &l_out.commitment, sizeof(l_commit));
@@ -575,17 +575,17 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     memset(&l_snark, 0, sizeof(l_snark));
     l_rc = chipmunk_snark_prove(&l_snark, &l_anon_init->snark_ctx, &l_statement, &l_witness);
     dap_memwipe(&l_witness, sizeof(l_witness));
-    if (l_rc != 0) { chipmunk_range_proof_free(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (l_rc != 0) { chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
     /* 10. Build TX */
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    if (!l_tx) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_free(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_tx) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
     /* IN_ANON (variable-size: struct + ring public keys) */
     size_t l_ring_bytes = a_ring_size * pk_sz;
     size_t l_in_full_size = sizeof(dap_chain_tx_in_anon_t) + l_ring_bytes;
     uint8_t *l_in_buf = DAP_NEW_Z_SIZE(uint8_t, l_in_full_size);
-    if (!l_in_buf) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_free(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_in_buf) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
     dap_chain_tx_in_anon_t *l_in_ptr = (dap_chain_tx_in_anon_t *)l_in_buf;
     l_in_ptr->hdr.type = TX_ITEM_TYPE_IN_ANON; l_in_ptr->hdr.version = 1; l_in_ptr->hdr.size = l_in_full_size;
     l_in_ptr->prev_hash = l_prev_hash; l_in_ptr->prev_out_idx = l_prev_idx;
@@ -607,7 +607,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         dap_chain_tx_out_anon_t l_change_out;
         if (s_build_out_anon_tracked(&l_change_addr, a_token_ticker, l_change, &l_change_out, &l_anon_init->pedersen_params, l_change_seed) != 0) {
             chipmunk_snark_proof_free(&l_snark);
-            chipmunk_range_proof_free(&l_rp);
+            chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx);
             dap_enc_key_delete(l_key);
             return NULL;
@@ -629,7 +629,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         dap_chain_tx_out_anon_t l_fee_out;
         if (s_build_out_anon_tracked(l_fee_dst, a_token_ticker, a_fee, &l_fee_out, &l_anon_init->pedersen_params, l_fee_seed) != 0) {
             chipmunk_snark_proof_free(&l_snark);
-            chipmunk_range_proof_free(&l_rp);
+            chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx);
             dap_enc_key_delete(l_key);
             return NULL;
@@ -652,7 +652,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
         chipmunk_poly_t l_r_in[CHIPMUNK_LRS_K];
         if (chipmunk_pedersen_derive_blinding(l_r_in, l_input_seed) != 0) {
-            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_free(&l_rp);
+            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
         }
 
@@ -683,7 +683,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         /* Random seed for range-proof bit-level + Stern blinding */
         uint8_t l_anchor_rp_seed[32];
         if (dap_random_bytes(l_anchor_rp_seed, sizeof(l_anchor_rp_seed)) != 0) {
-            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_free(&l_rp);
+            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
         }
         dap_chain_addr_t l_anchor_addr = {};
@@ -691,7 +691,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         if (s_build_out_anon_explicit(&l_anchor_addr, a_token_ticker, uint256_0,
                                          &l_anchor_out, &l_anon_init->pedersen_params,
                                          l_r_anchor, l_anchor_rp_seed) != 0) {
-            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_free(&l_rp);
+            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
         }
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_anchor_out);
@@ -708,7 +708,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
 
     chipmunk_snark_proof_free(&l_snark);
-    chipmunk_range_proof_free(&l_rp);
+    chipmunk_range_proof_bdlop_wipe(&l_rp);
     dap_enc_key_delete(l_key);
 
     log_it(L_INFO, "Anonymous TX created: algo=%s, ring=%zu", a_algo->name, a_ring_size);

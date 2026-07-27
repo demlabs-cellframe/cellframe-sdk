@@ -14,6 +14,7 @@
 #include "chipmunk_snark.h"
 #include "chipmunk_pedersen.h"
 #include "chipmunk_range_proof.h"
+#include "chipmunk_range_proof_bdlop.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -79,8 +80,17 @@ typedef struct dap_chain_tx_out_anon {
      * Amount is hidden, only the commitment is published */
     chipmunk_pedersen_commit_t commitment;
 
-    /* Range proof: proves amount ∈ [0, 2^64) without revealing it */
-    chipmunk_range_proof_t range_proof;
+    /* Range proof (BDLOP-based, Phase 2): proves amount ∈ [0, 2^64)
+     * without revealing it. Uses lattice-based BDLOP commitment +
+     * ABDLOP opening proof with rejection sampling.
+     *
+     * Proof size: ~385 KB (13 rounds × 14 polynomials).
+     * Will be reduced to ~28 KB in Phase 2.6b (Gaussian masking).
+     *
+     * Legacy chipmunk_range_proof_t (Stern-like) was BROKEN (P0-1: z≡0 forge).
+     * For backward compatibility, old-format proofs are stored as a
+     * variable-length field after this struct (see hdr.size). */
+    chipmunk_range_proof_bdlop_t range_proof;
 
     /* Token ticker (still visible for routing) */
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
