@@ -66,9 +66,19 @@ typedef struct dap_chain_tx_in_anon {
      * without revealing j */
     chipmunk_snark_proof_t snark_proof;
 
+    /* Ring commit hash: SHA3-256 of serialized ring public keys.
+     * Used for ring dedup — if a ring with the same hash is already
+     * published in a previous TX, the ring keys can be omitted from
+     * this TX (looked up from GlobalDB ring cache instead).
+     *
+     * If ring_commit_hash is all zeros → ring keys are inline (trailing data).
+     * If ring_commit_hash is nonzero → ring keys are in GDB cache,
+     *   NOT included in trailing data. Saves ring_size × 1424 bytes per TX. */
+    dap_hash_sha3_256_t ring_commit_hash;
+
     /* Ring of public keys used for the proof */
     uint32_t ring_size;
-    /* Public keys follow this struct as variable-length data */
+    /* Public keys follow this struct as variable-length data (unless dedup'd) */
 } DAP_ALIGN_PACKED dap_chain_tx_in_anon_t;
 
 /* -------------------------------------------------------------------------

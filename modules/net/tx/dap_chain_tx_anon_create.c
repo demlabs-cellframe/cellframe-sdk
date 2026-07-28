@@ -593,6 +593,18 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     l_in_ptr->ring_size = (uint32_t)a_ring_size;
     memcpy(&l_in_ptr->snark_proof, &l_snark, sizeof(l_snark));
     memcpy(l_in_ptr->key_image, l_ki, sizeof(l_ki));
+
+    /* Phase 5: Ring dedup — compute ring_commit_hash and cache ring data.
+     * Ring is stored inline (hash=0) for now; future TX can reference
+     * this ring by hash (hash≠0) to save ~22KB per TX. */
+    memset(&l_in_ptr->ring_commit_hash, 0, sizeof(l_in_ptr->ring_commit_hash));
+    {
+        /* Cache the ring for future dedup */
+        dap_hash_sha3_256_t l_rch;
+        dap_hash_sha3_256_raw(l_rch.raw, (const uint8_t *)a_ring, l_ring_bytes);
+        dap_ledger_ring_cache_put(l_ledger_init, &l_rch, (const uint8_t *)a_ring, l_ring_bytes);
+    }
+
     memcpy(l_in_buf + sizeof(dap_chain_tx_in_anon_t), a_ring, l_ring_bytes);
     dap_chain_datum_tx_add_item(&l_tx, l_in_buf);
     DAP_DELETE(l_in_buf);

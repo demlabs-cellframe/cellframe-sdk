@@ -447,19 +447,49 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
              * verification proceeded into NULL dereference. */
             size_t l_ring_data_bytes = l_in_anon->hdr.size - sizeof(dap_chain_tx_in_anon_t);
             size_t l_ring_needed = (size_t)l_in_anon->ring_size * sizeof(chipmunk_lrs_public_key_t);
-            if (l_in_anon->ring_size == 0 || l_ring_data_bytes < l_ring_needed) {
-                log_it(L_WARNING, "IN_ANON ring_size=%u but only %zu bytes available (need %zu)",
-                       l_in_anon->ring_size, l_ring_data_bytes, l_ring_needed);
-                return -EINVAL;
-            }
-            /* Phase 8a: Enforce minimum ring size for anonymity.
-             * Rings smaller than 16 members provide insufficient anonymity. */
-            if (l_in_anon->ring_size < DAP_CHAIN_TX_ANON_MIN_RING_SIZE) {
-                log_it(L_WARNING, "IN_ANON ring_size=%u < minimum %u (insufficient anonymity set)",
+
+            /* Phase 8a: Enforce minimum ring size for anonymity. */
+            if (l_in_anon->ring_size == 0 || l_in_anon->ring_size < DAP_CHAIN_TX_ANON_MIN_RING_SIZE) {
+                log_it(L_WARNING, "IN_ANON ring_size=%u < minimum %u",
                        l_in_anon->ring_size, DAP_CHAIN_TX_ANON_MIN_RING_SIZE);
                 return -EINVAL;
             }
-            l_statement.ring = (const chipmunk_lrs_public_key_t *)(l_item_snark + sizeof(dap_chain_tx_in_anon_t));
+
+            /* Phase 5: Ring dedup support.
+             * If ring_commit_hash is nonzero, ring keys are in GDB cache
+             * (not inline). Otherwise, ring keys follow this struct. */
+            const chipmunk_lrs_public_key_t *l_ring_ptr = NULL;
+            uint8_t *l_ring_from_cache = NULL;
+            bool l_ring_hash_nonzero = false;
+            for (int i = 0; i < 32; ++i) {
+                if (l_in_anon->ring_commit_hash.raw[i] != 0) {
+                    l_ring_hash_nonzero = true;
+                    break;
+                }
+            }
+
+            if (l_ring_hash_nonzero) {
+                /* Ring dedup mode: fetch ring keys from GDB cache */
+                size_t l_cached_size = 0;
+                l_ring_from_cache = dap_ledger_ring_cache_get(
+                    a_ledger, &l_in_anon->ring_commit_hash, &l_cached_size);
+                if (!l_ring_from_cache || l_cached_size < l_ring_needed) {
+                    log_it(L_WARNING, "IN_ANON ring_commit_hash not found in cache or size mismatch");
+                    DAP_DELETE(l_ring_from_cache);
+                    return -EINVAL;
+                }
+                l_ring_ptr = (const chipmunk_lrs_public_key_t *)l_ring_from_cache;
+            } else {
+                /* Inline mode: ring keys follow the struct */
+                if (l_ring_data_bytes < l_ring_needed) {
+                    log_it(L_WARNING, "IN_ANON ring_size=%u but only %zu bytes available (need %zu)",
+                           l_in_anon->ring_size, l_ring_data_bytes, l_ring_needed);
+                    return -EINVAL;
+                }
+                l_ring_ptr = (const chipmunk_lrs_public_key_t *)
+                    (l_item_snark + sizeof(dap_chain_tx_in_anon_t));
+            }
+            l_statement.ring = l_ring_ptr;
 
             /* Reconstruct message: addr_to || commit_hash || ticker || ki_hash || rp_hash
              * Must match the prover's construction exactly. */
@@ -510,8 +540,11 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             l_rc = chipmunk_snark_verify(&l_proof_copy, &l_anon->snark_ctx, &l_statement);
             if (l_rc != 1) {
                 log_it(L_WARNING, "SNARK proof verification failed for IN_ANON: %d", l_rc);
+                DAP_DELETE(l_ring_from_cache);
                 return -EINVAL;
             }
+            /* Phase 5: Free ring cache data if fetched from GDB */
+            DAP_DELETE(l_ring_from_cache);
         }
     }
 

@@ -423,6 +423,7 @@ typedef struct dap_ledger_datum_iter_data {
 #define DAP_LEDGER_SPENT_TXS_STR           "spent_txs"
 #define DAP_LEDGER_BALANCES_STR            "balances"
 #define DAP_LEDGER_KEY_IMAGES_STR          "key_images"
+#define DAP_LEDGER_RING_CACHE_STR          "anon_rings"
 
 #ifdef __cplusplus
 extern "C" {
@@ -575,6 +576,18 @@ dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger);
 // is added, providing a deterministic but non-signer-controlled entropy source.
 void dap_ledger_set_tip_hash(dap_ledger_t *a_ledger, const dap_hash_sha3_256_t *a_hash);
 bool dap_ledger_get_tip_hash(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_out_hash);
+
+// Ring cache API — stores ring public keys keyed by their SHA3-256 hash.
+// Enables ring dedup: multiple TX can reference the same ring by hash
+// without repeating the ring keys (saves ~22KB per TX for ring_size=16).
+// Returns the ring data (caller must free) or NULL if not found.
+uint8_t *dap_ledger_ring_cache_get(dap_ledger_t *a_ledger,
+                                    const dap_hash_sha3_256_t *a_ring_hash,
+                                    size_t *a_out_size);
+// Stores ring data in cache. Returns 0 on success.
+int dap_ledger_ring_cache_put(dap_ledger_t *a_ledger,
+                               const dap_hash_sha3_256_t *a_ring_hash,
+                               const uint8_t *a_ring_data, size_t a_ring_size);
 
 // Configuration setters - called by net module to setup ledger context
 void dap_ledger_set_net_id(dap_ledger_t *a_ledger, dap_chain_net_id_t a_net_id);

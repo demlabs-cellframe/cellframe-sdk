@@ -1047,6 +1047,46 @@ bool dap_ledger_get_tip_hash(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_out_
     return true;
 }
 
+uint8_t *dap_ledger_ring_cache_get(dap_ledger_t *a_ledger,
+                                    const dap_hash_sha3_256_t *a_ring_hash,
+                                    size_t *a_out_size)
+{
+    if (!a_ledger || !a_ring_hash || !a_out_size)
+        return NULL;
+    char *l_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_RING_CACHE_STR);
+    if (!l_group) return NULL;
+
+    char l_key_str[70];
+    dap_hash_sha3_256_to_str(a_ring_hash, l_key_str, sizeof(l_key_str));
+
+    size_t l_val_size = 0;
+    uint8_t *l_data = dap_global_db_get_sync(l_group, l_key_str, &l_val_size, NULL, NULL);
+    DAP_DELETE(l_group);
+    if (!l_data || l_val_size == 0) {
+        *a_out_size = 0;
+        return NULL;
+    }
+    *a_out_size = l_val_size;
+    return l_data;
+}
+
+int dap_ledger_ring_cache_put(dap_ledger_t *a_ledger,
+                               const dap_hash_sha3_256_t *a_ring_hash,
+                               const uint8_t *a_ring_data, size_t a_ring_size)
+{
+    if (!a_ledger || !a_ring_hash || !a_ring_data || a_ring_size == 0)
+        return -EINVAL;
+    char *l_group = dap_ledger_get_gdb_group(a_ledger->name, DAP_LEDGER_RING_CACHE_STR);
+    if (!l_group) return -ENOMEM;
+
+    char l_key_str[70];
+    dap_hash_sha3_256_to_str(a_ring_hash, l_key_str, sizeof(l_key_str));
+
+    int l_rc = dap_global_db_set_sync(l_group, l_key_str, a_ring_data, a_ring_size, false);
+    DAP_DELETE(l_group);
+    return l_rc;
+}
+
 /**
  * @brief Get ledger type (0=open, 1=anon)
  */
