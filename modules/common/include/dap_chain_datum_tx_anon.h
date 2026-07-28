@@ -93,6 +93,17 @@ typedef struct dap_chain_tx_out_anon {
     /* Recipient address (can be stealth address for unlinkability) */
     dap_chain_addr_t addr;
 
+    /* Phase 6-full: Ephemeral public key for stealth addresses.
+     *
+     * When nonzero, recipient scans blockchain: computes
+     *   shared = H(scan_pk || ephemeral_pk)
+     *   derived_sk = spend_sk + H(shared)
+     *   derived_pk = A · derived_sk
+     * and checks if addr matches derived_pk.
+     *
+     * If all zeros → standard (non-stealth) output, addr is direct. */
+    uint8_t ephemeral_pk[CHIPMUNK_LRS_POLY_QPACK_BYTES];  /* 1408 bytes */
+
     /* Pedersen commitment to amount: C = A*r + encode(amount)
      * Amount is hidden, only the commitment is published */
     chipmunk_pedersen_commit_t commitment;
