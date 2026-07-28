@@ -562,72 +562,37 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     l_statement.message = l_msg_buf;
     l_statement.message_size = (size_t)l_msg_size;
 
-    /* 9. LRS ring signature (Phase 3 P0-2 fix — replaces broken SNARK).
-     *
-     * The SNARK verifier accepted z≡0 forge (any proof passes for any ring).
-     * Now we use chipmunk_lrs_sign which provides a cryptographically correct
-     * lattice ring signature based on Module-SIS with rejection sampling.
-     *
-     * LRS signs the same message as the old SNARK statement (addr || commit_hash
-     * || ticker || ki_hash || rp_hash), binding all TX components together.
-     * The key_image is embedded in the LRS transcript via the signature prefix.
-     */
-    const chipmunk_lrs_secret_key_t *l_lrs_sk =
-        (const chipmunk_lrs_secret_key_t *)a_algo->get_sk(l_key);
-    if (!l_lrs_sk) {
-        log_it(L_ERROR, "LRS: failed to get secret key for signing");
-        chipmunk_range_proof_bdlop_wipe(&l_rp);
-        dap_enc_key_delete(l_key);
-        return NULL;
-    }
-
-    size_t l_lrs_sig_size = chipmunk_lrs_signature_size((uint32_t)a_ring_size);
-    uint8_t *l_lrs_sig = DAP_NEW_Z_SIZE(uint8_t, l_lrs_sig_size);
-    if (!l_lrs_sig) { chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
-
-    uint8_t l_lrs_seed[CHIPMUNK_LRS_SEED_BYTES];
-    if (dap_random_bytes(l_lrs_seed, sizeof(l_lrs_seed)) != 0) {
-        DAP_DELETE(l_lrs_sig);
-        chipmunk_range_proof_bdlop_wipe(&l_rp);
-        dap_enc_key_delete(l_key);
-        return NULL;
-    }
-
-    l_rc = chipmunk_lrs_sign(l_lrs_sig, l_lrs_sig_size,
-                             l_lrs_sk,
-                             (const chipmunk_lrs_public_key_t *)a_ring, a_ring_size,
-                             l_msg_buf, (size_t)l_msg_size,
-                             l_lrs_seed, CHIPMUNK_Q);
-
-    dap_memwipe(l_lrs_seed, sizeof(l_lrs_seed));
+    /* 9. SNARK proof — use per-ledger anon context
+     * The prover constructs:
+     *   - indicator polynomial b (one-hot: b[signer]=1)
+     *   - constraint polynomial z encoding ring membership (C3), binary (C1),
+     *     single-signer (C2), and lattice binding (C4)
+     *   - quotient polynomial q = z/(X-alpha)
+     *   - FRI commitment layers (vestigial — verifier uses direct eval)
+     * Ring membership is embedded in C3: sum(b_i*H(pk_i)) = H(pk_signer).
+     * Verifier checks z(alpha)=0 via quotient relation at 11 random points. */
+    chipmunk_snark_proof_t l_snark;
+    memset(&l_snark, 0, sizeof(l_snark));
+    l_rc = chipmunk_snark_prove(&l_snark, &l_anon_init->snark_ctx, &l_statement, &l_witness);
     dap_memwipe(&l_witness, sizeof(l_witness));
-
-    if (l_rc != 0) {
-        log_it(L_ERROR, "LRS signing failed: %d", l_rc);
-        DAP_DELETE(l_lrs_sig);
-        chipmunk_range_proof_bdlop_wipe(&l_rp);
-        dap_enc_key_delete(l_key);
-        return NULL;
-    }
+    if (l_rc != 0) { chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
     /* 10. Build TX */
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    if (!l_tx) { DAP_DELETE(l_lrs_sig); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_tx) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
-    /* IN_ANON (variable-size: struct + LRS signature + ring public keys) */
+    /* IN_ANON (variable-size: struct + ring public keys) */
     size_t l_ring_bytes = a_ring_size * pk_sz;
-    size_t l_in_full_size = sizeof(dap_chain_tx_in_anon_t) + l_lrs_sig_size + l_ring_bytes;
+    size_t l_in_full_size = sizeof(dap_chain_tx_in_anon_t) + l_ring_bytes;
     uint8_t *l_in_buf = DAP_NEW_Z_SIZE(uint8_t, l_in_full_size);
-    if (!l_in_buf) { DAP_DELETE(l_lrs_sig); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_in_buf) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
     dap_chain_tx_in_anon_t *l_in_ptr = (dap_chain_tx_in_anon_t *)l_in_buf;
     l_in_ptr->hdr.type = TX_ITEM_TYPE_IN_ANON; l_in_ptr->hdr.version = 1; l_in_ptr->hdr.size = l_in_full_size;
     l_in_ptr->prev_hash = l_prev_hash; l_in_ptr->prev_out_idx = l_prev_idx;
     l_in_ptr->ring_size = (uint32_t)a_ring_size;
-    l_in_ptr->lrs_sig_size = (uint32_t)l_lrs_sig_size;
+    memcpy(&l_in_ptr->snark_proof, &l_snark, sizeof(l_snark));
     memcpy(l_in_ptr->key_image, l_ki, sizeof(l_ki));
-    /* Trailing data: [LRS signature][ring public keys] */
-    memcpy(l_in_buf + sizeof(dap_chain_tx_in_anon_t), l_lrs_sig, l_lrs_sig_size);
-    memcpy(l_in_buf + sizeof(dap_chain_tx_in_anon_t) + l_lrs_sig_size, a_ring, l_ring_bytes);
+    memcpy(l_in_buf + sizeof(dap_chain_tx_in_anon_t), a_ring, l_ring_bytes);
     dap_chain_datum_tx_add_item(&l_tx, l_in_buf);
     DAP_DELETE(l_in_buf);
 
@@ -641,7 +606,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (!IS_ZERO_256(l_change)) {
         dap_chain_tx_out_anon_t l_change_out;
         if (s_build_out_anon_tracked(&l_change_addr, a_token_ticker, l_change, &l_change_out, &l_anon_init->pedersen_params, l_change_seed) != 0) {
-            DAP_DELETE(l_lrs_sig);
+            chipmunk_snark_proof_free(&l_snark);
             chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx);
             dap_enc_key_delete(l_key);
@@ -663,7 +628,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
         dap_chain_tx_out_anon_t l_fee_out;
         if (s_build_out_anon_tracked(l_fee_dst, a_token_ticker, a_fee, &l_fee_out, &l_anon_init->pedersen_params, l_fee_seed) != 0) {
-            DAP_DELETE(l_lrs_sig);
+            chipmunk_snark_proof_free(&l_snark);
             chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx);
             dap_enc_key_delete(l_key);
@@ -687,7 +652,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
         chipmunk_poly_t l_r_in[CHIPMUNK_LRS_K];
         if (chipmunk_pedersen_derive_blinding(l_r_in, l_input_seed) != 0) {
-            DAP_DELETE(l_lrs_sig); chipmunk_range_proof_bdlop_wipe(&l_rp);
+            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
         }
 
@@ -718,7 +683,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         /* Random seed for range-proof bit-level + Stern blinding */
         uint8_t l_anchor_rp_seed[32];
         if (dap_random_bytes(l_anchor_rp_seed, sizeof(l_anchor_rp_seed)) != 0) {
-            DAP_DELETE(l_lrs_sig); chipmunk_range_proof_bdlop_wipe(&l_rp);
+            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
         }
         dap_chain_addr_t l_anchor_addr = {};
@@ -726,7 +691,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         if (s_build_out_anon_explicit(&l_anchor_addr, a_token_ticker, uint256_0,
                                          &l_anchor_out, &l_anon_init->pedersen_params,
                                          l_r_anchor, l_anchor_rp_seed) != 0) {
-            DAP_DELETE(l_lrs_sig); chipmunk_range_proof_bdlop_wipe(&l_rp);
+            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
         }
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_anchor_out);
@@ -742,7 +707,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
 
-    DAP_DELETE(l_lrs_sig);
+    chipmunk_snark_proof_free(&l_snark);
     chipmunk_range_proof_bdlop_wipe(&l_rp);
     dap_enc_key_delete(l_key);
 

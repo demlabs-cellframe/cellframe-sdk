@@ -423,46 +423,36 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
      * polynomial and checks all 7 layer commitments + final polynomial.
      * Combined soundness: FRI (~900 bits) + quotient (~138 bits) >> 128 bits.
      */
-    const uint8_t *l_item_lrs;
-    size_t l_item_size_lrs;
+    const uint8_t *l_item_snark;
+    size_t l_item_size_snark;
     bool l_found_anon_in = false;
 
-    TX_ITEM_ITER_TX(l_item_lrs, l_item_size_lrs, a_tx) {
-        uint8_t l_type_lrs = *l_item_lrs;
-        if (l_type_lrs == TX_ITEM_TYPE_IN_ANON) {
-            const dap_chain_tx_in_anon_t *l_in_anon = (const dap_chain_tx_in_anon_t *)l_item_lrs;
+    TX_ITEM_ITER_TX(l_item_snark, l_item_size_snark, a_tx) {
+        uint8_t l_type_snark = *l_item_snark;
+        if (l_type_snark == TX_ITEM_TYPE_IN_ANON) {
+            const dap_chain_tx_in_anon_t *l_in_anon = (const dap_chain_tx_in_anon_t *)l_item_snark;
             l_found_anon_in = true;
 
-            /* Phase 3 P0-2 fix: Verify LRS ring signature (replaces broken SNARK).
-             *
-             * Layout: [struct header][lrs_sig_data][ring_public_keys]
-             * The lrs_sig_size and ring_size fields tell us how many bytes each section is. */
+            /* Build statement from IN_ANON metadata and embedded ring */
+            chipmunk_snark_statement_t l_statement;
+            memset(&l_statement, 0, sizeof(l_statement));
+            l_statement.ring_size = l_in_anon->ring_size;
 
-            /* Validate sizes: lrs_sig_size + ring_keys must fit in trailing data */
-            size_t l_trailing_bytes = l_in_anon->hdr.size - sizeof(dap_chain_tx_in_anon_t);
+            /* Extract ring public keys from variable-length data after the struct.
+             * P0-4 SECURITY FIX: compare against ring_size * sizeof(key), not ring_size bytes.
+             * Original code compared byte count vs key count (off by sizeof factor 1424),
+             * allowing a malicious TX to pass with only 64 trailing bytes while the
+             * verifier then read 64*1424=91136 bytes off-heap. Also reject if the
+             * ring doesn't fit — the old code left l_statement.ring as NULL and
+             * verification proceeded into NULL dereference. */
+            size_t l_ring_data_bytes = l_in_anon->hdr.size - sizeof(dap_chain_tx_in_anon_t);
             size_t l_ring_needed = (size_t)l_in_anon->ring_size * sizeof(chipmunk_lrs_public_key_t);
-
-            /* P0-4 SECURITY FIX: validate ring_size and available bytes */
-            if (l_in_anon->ring_size == 0) {
-                log_it(L_WARNING, "IN_ANON ring_size=0");
+            if (l_in_anon->ring_size == 0 || l_ring_data_bytes < l_ring_needed) {
+                log_it(L_WARNING, "IN_ANON ring_size=%u but only %zu bytes available (need %zu)",
+                       l_in_anon->ring_size, l_ring_data_bytes, l_ring_needed);
                 return -EINVAL;
             }
-
-            /* Check for integer overflow: lrs_sig_size + ring_bytes */
-            if (l_in_anon->lrs_sig_size > l_trailing_bytes ||
-                l_ring_needed > l_trailing_bytes - l_in_anon->lrs_sig_size) {
-                log_it(L_WARNING, "IN_ANON: lrs_sig_size=%u + ring %zu bytes exceeds trailing %zu",
-                       l_in_anon->lrs_sig_size, l_ring_needed, l_trailing_bytes);
-                return -EINVAL;
-            }
-
-            /* Extract LRS signature from trailing data */
-            const uint8_t *l_lrs_sig = l_item_lrs + sizeof(dap_chain_tx_in_anon_t);
-            size_t l_lrs_sig_size = l_in_anon->lrs_sig_size;
-
-            /* Extract ring public keys after LRS signature */
-            const chipmunk_lrs_public_key_t *l_ring =
-                (const chipmunk_lrs_public_key_t *)(l_lrs_sig + l_lrs_sig_size);
+            l_statement.ring = (const chipmunk_lrs_public_key_t *)(l_item_snark + sizeof(dap_chain_tx_in_anon_t));
 
             /* Reconstruct message: addr_to || commit_hash || ticker || ki_hash || rp_hash
              * Must match the prover's construction exactly. */
@@ -501,24 +491,25 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                 &l_out_anon->addr, &l_ver_commit_hash,
                 l_out_anon->token_ticker, &l_ver_ki_hash, &l_ver_rp_hash);
             if (l_msg_size < 0) {
-                log_it(L_WARNING, "LRS message build failed: %zd", l_msg_size);
+                log_it(L_WARNING, "SNARK message build failed: %zd", l_msg_size);
                 return -EINVAL;
             }
+            l_statement.message = l_msg_buf;
+            l_statement.message_size = (size_t)l_msg_size;
 
-            /* Verify LRS ring signature (P0-2 fix: replaces broken SNARK z≡0 forge) */
-            l_rc = chipmunk_lrs_verify(l_lrs_sig, l_lrs_sig_size,
-                                        l_ring, l_in_anon->ring_size,
-                                        l_msg_buf, (size_t)l_msg_size,
-                                        CHIPMUNK_Q);
+            /* Verify SNARK proof (copy from packed struct to avoid alignment issues) */
+            chipmunk_snark_proof_t l_proof_copy;
+            memcpy(&l_proof_copy, &l_in_anon->snark_proof, sizeof(l_proof_copy));
+            l_rc = chipmunk_snark_verify(&l_proof_copy, &l_anon->snark_ctx, &l_statement);
             if (l_rc != 1) {
-                log_it(L_WARNING, "LRS ring signature verification failed for IN_ANON: %d", l_rc);
+                log_it(L_WARNING, "SNARK proof verification failed for IN_ANON: %d", l_rc);
                 return -EINVAL;
             }
         }
     }
 
     if (!l_found_anon_in) {
-        log_it(L_WARNING, "Anonymous TX has no IN_ANON items with LRS signatures");
+        log_it(L_WARNING, "Anonymous TX has no IN_ANON items with SNARK proofs");
         return -EINVAL;
     }
 
@@ -645,19 +636,25 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
     if (l_rc)
         return l_rc;
 
-    /* Phase 3 COMPLETED: Anonymous TX crypto is now SECURE.
-     *
-     * P0-1 (range proof): FIXED — BDLOP-based lattice proof with proper
-     *   Fiat-Shamir, norm bounds, and linear equation verification.
-     *
-     * P0-2 (ring membership): FIXED — replaced broken SNARK (z≡0 forge)
-     *   with cryptographically correct LRS (Linkable Ring Signature)
-     *   based on Module-SIS with rejection sampling.
-     *
-     * Anonymous transactions are now enabled. The full verification
-     * happens in s_anon_tx_crypto_verify (called from the UTXO check
-     * path), which verifies both the LRS ring signature and the BDLOP
-     * range proof. */
+    if (dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size)) {
+        /* P0-2 SECURITY: Anonymous TX crypto is still PARTIALLY UNSAFE.
+         *
+         * Phase 2 COMPLETED:
+         *   - Range proof now uses BDLOP-based lattice proof (chipmunk_bdlop.c)
+         *     which properly verifies linear equations, norm bounds, and
+         *     Fiat-Shamir challenges. This fixes the P0-1 z≡0 forge attack.
+         *
+         * STILL BROKEN (blocking unblock):
+         *   - SNARK ring membership verifier (chipmunk_snark.c) accepts
+         *     z≡0,q≡0 — ring membership is NOT proven, anyone can forge.
+         *     This is P0-2, to be fixed in a future phase.
+         *
+         * Until the SNARK is rebuilt, anonymous TX MUST remain rejected. */
+        log_it(L_WARNING, "Anonymous TX %s rejected: SNARK ring membership verification "
+               "still broken (P0-2), range proof is now BDLOP-based (Phase 2 done)",
+               dap_hash_sha3_256_to_str_static(a_tx_hash));
+        return DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED;
+    }
 
     return DAP_LEDGER_CHECK_OK;
 }

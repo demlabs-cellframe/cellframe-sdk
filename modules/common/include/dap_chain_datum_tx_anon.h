@@ -36,11 +36,7 @@ typedef struct dap_chain_tx_anon_hdr {
  * Anonymous Input (TX_ITEM_TYPE_IN_ANON = 0xb0)
  *
  * Replaces standard TX_ITEM_TYPE_IN for anonymous transactions.
- * Contains LRS (Linkable Ring Signature) for ring membership proof.
- *
- * Phase 3 (P0-2 fix): The broken SNARK proof (z≡0 forge) was replaced
- * with chipmunk_lrs_sign/verify, which provides cryptographically
- * correct ring membership proof based on Module-SIS.
+ * Contains SNARK ring membership proof instead of traditional signature.
  * ---------------------------------------------------------------------- */
 
 typedef struct dap_chain_tx_in_anon {
@@ -58,17 +54,14 @@ typedef struct dap_chain_tx_in_anon {
      * without revealing which key was used */
     uint8_t key_image[9216];        /* k=6 q-packed polynomials */
 
-    /* LRS ring membership proof (variable-length, follows after ring_size).
-     * Proves: "I know sk_j for pk_j in {pk_0, ..., pk_{N-1}}" without revealing j.
-     * Replaces the broken SNARK proof (P0-2: z≡0 forge). */
-    uint32_t lrs_sig_size;          /* Size of LRS signature in bytes */
+    /* SNARK ring membership proof
+     * Proves: "I know sk_j for pk_j in {pk_0, ..., pk_{N-1}}"
+     * without revealing j */
+    chipmunk_snark_proof_t snark_proof;
 
     /* Ring of public keys used for the proof */
     uint32_t ring_size;
-    /* Variable-length trailing data follows this struct:
-     *   [lrs_sig_data: lrs_sig_size bytes]
-     *   [ring_keys: ring_size * sizeof(chipmunk_lrs_public_key_t) bytes]
-     */
+    /* Public keys follow this struct as variable-length data */
 } DAP_ALIGN_PACKED dap_chain_tx_in_anon_t;
 
 /* -------------------------------------------------------------------------
