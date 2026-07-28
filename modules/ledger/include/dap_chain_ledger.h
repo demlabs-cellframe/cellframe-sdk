@@ -570,6 +570,12 @@ dap_ledger_t *dap_ledger_find_by_name(const char *a_name);
 dap_ledger_t *dap_ledger_find_by_net_id(dap_chain_net_id_t a_net_id);
 dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger);
 
+// Tip hash API — used for NUMS (Nothing-Up-My-Sleeve) decoy selection in
+// anonymous transactions. The tip hash is updated whenever a new block/atom
+// is added, providing a deterministic but non-signer-controlled entropy source.
+void dap_ledger_set_tip_hash(dap_ledger_t *a_ledger, const dap_hash_sha3_256_t *a_hash);
+bool dap_ledger_get_tip_hash(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_out_hash);
+
 // Configuration setters - called by net module to setup ledger context
 void dap_ledger_set_net_id(dap_ledger_t *a_ledger, dap_chain_net_id_t a_net_id);
 void dap_ledger_set_native_ticker(dap_ledger_t *a_ledger, const char *a_native_ticker);

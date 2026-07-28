@@ -2217,6 +2217,10 @@ int dap_ledger_tx_add_impl(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
     }
     if (!a_from_threshold && is_ledger_threshld(l_ledger_pvt))
         dap_ledger_pvt_threshold_txs_proc(a_ledger);
+
+    /* Update tip hash for NUMS decoy selection */
+    dap_ledger_set_tip_hash(a_ledger, a_tx_hash);
+
 FIN:
     if (l_trackers_mover)
         dap_list_free_full(l_trackers_mover, s_trackers_clear);

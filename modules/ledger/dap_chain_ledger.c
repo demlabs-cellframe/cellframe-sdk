@@ -1029,6 +1029,24 @@ dap_chain_net_id_t dap_ledger_get_net_id(dap_ledger_t *a_ledger)
     return a_ledger ? a_ledger->net_id : (dap_chain_net_id_t){0};
 }
 
+void dap_ledger_set_tip_hash(dap_ledger_t *a_ledger, const dap_hash_sha3_256_t *a_hash)
+{
+    if (!a_ledger || !a_ledger->_internal || !a_hash)
+        return;
+    PVT(a_ledger)->last_tip_hash = *a_hash;
+    PVT(a_ledger)->last_tip_hash_set = true;
+}
+
+bool dap_ledger_get_tip_hash(dap_ledger_t *a_ledger, dap_hash_sha3_256_t *a_out_hash)
+{
+    if (!a_ledger || !a_ledger->_internal || !a_out_hash)
+        return false;
+    if (!PVT(a_ledger)->last_tip_hash_set)
+        return false;
+    *a_out_hash = PVT(a_ledger)->last_tip_hash;
+    return true;
+}
+
 /**
  * @brief Get ledger type (0=open, 1=anon)
  */

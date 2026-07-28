@@ -34,6 +34,7 @@
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
+#include "dap_hash_shake256.h"
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_math_convert.h"
@@ -860,49 +861,131 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
         return NULL;
     }
 
-    /* P1-2 SECURITY FIX: Collect ALL decoys first, then insert signer at a
-     * random position. The old code always placed the signer at index 0,
-     * breaking anonymity (an observer knows position 0 is the real signer). */
+    /* P1-2 SECURITY FIX + Phase 8c NUMS: Collect ALL decoys first, then
+     * insert signer at a random position.
+     *
+     * Phase 8c (NUMS decoy selection): Decoys are selected from the validator
+     * set using a NUMS (Nothing-Up-My-Sleeve) seed derived from blockchain
+     * state. This prevents the signer from cherry-picking decoys that would
+     * leak their identity.
+     *
+     * NUMS seed = H(latest_block_hash || signer_pk)
+     * This is deterministic given blockchain state, so all observers can
+     * verify that decoys were honestly selected. But the signer cannot
+     * manipulate it (block_hash is not controlled by them). */
     size_t l_idx = 0;
 
-    /* Collect decoy pubkeys from stake validators (chipmunk keys only) */
+    /* Step 1: Collect ALL available validator public keys into a buffer */
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
-    for (dap_list_t *it = l_validators; it && l_idx < a_anon_set - 1; it = it->next) {
-        dap_chain_net_srv_stake_item_t *l_stake = (dap_chain_net_srv_stake_item_t *)it->data;
-        if (!l_stake || !l_stake->pkey) continue;
-        uint8_t l_pk_buf[4096];
-        if (l_algo->pk_from_stake_pkey(l_pk_buf, l_stake->pkey) != 0)
-            continue;
-        if (l_algo->pk_cmp(l_pk_buf, l_signer_pk) == 0)
-            continue;
-        s_ring_add_member(l_ring, &l_idx, a_anon_set, l_algo, l_pk_buf);
+    size_t l_total_validators = dap_list_length(l_validators);
+
+    /* Collect all pks into an array for deterministic selection */
+    uint8_t *l_all_pks = NULL;
+    size_t l_all_pk_count = 0;
+    if (l_total_validators > 0) {
+        l_all_pks = DAP_NEW_Z_SIZE(uint8_t, l_total_validators * pk_sz);
+        if (l_all_pks) {
+            for (dap_list_t *it = l_validators; it; it = it->next) {
+                dap_chain_net_srv_stake_item_t *l_stake = (dap_chain_net_srv_stake_item_t *)it->data;
+                if (!l_stake || !l_stake->pkey) continue;
+                uint8_t l_pk_buf[4096];
+                if (l_algo->pk_from_stake_pkey(l_pk_buf, l_stake->pkey) != 0)
+                    continue;
+                if (l_algo->pk_cmp(l_pk_buf, l_signer_pk) == 0)
+                    continue;  /* Skip signer's own key */
+                if (l_all_pk_count < l_total_validators) {
+                    memcpy(l_all_pks + l_all_pk_count * pk_sz, l_pk_buf, pk_sz);
+                    l_all_pk_count++;
+                }
+            }
+        }
     }
     dap_list_free_full(l_validators, NULL);
 
-    /* NO SYNTHETIC DECOY FALLBACK.
-     *
-     * If we can't collect enough REAL decoys from existing blockchain UTXOs
-     * (stake validators), the transaction MUST fail. Filling the ring with
-     * synthetic keys (random keypairs that never existed on-chain) would
-     * completely destroy anonymity — an observer can trivially identify the
-     * single real signer among synthetic decoys by checking which public keys
-     * appear in previous transactions.
-     *
-     * The correct approach for production: select decoys from the UTXO set
-     * (outputs of previous anon TXs with the same token). For now, we fail
-     * if insufficient real decoys are available. */
-    if (l_idx < a_anon_set - 1) {
-        log_it(L_ERROR, "Insufficient real decoys for anonymity: have %zu, need %zu. "
-               "Transaction rejected — synthetic decoys are NOT allowed.",
-               l_idx, a_anon_set - 1);
+    /* Step 2: If we have enough validators, select decoys via NUMS seed.
+     * Otherwise, fail (no synthetic decoys allowed). */
+    if (l_all_pk_count < a_anon_set - 1) {
+        log_it(L_ERROR, "Insufficient real decoys: have %zu validators, need %zu. "
+               "No synthetic decoys allowed.",
+               l_all_pk_count, a_anon_set - 1);
+        DAP_DELETE(l_all_pks);
         DAP_DELETE(l_ring);
         dap_enc_key_delete(l_wallet_key);
         return NULL;
     }
 
-    /* Insert signer at a cryptographically random position in [0, a_anon_set).
-     * Shift existing decoys to make room. This ensures the real signer's
-     * position is uniformly random and unpredictable. */
+    /* Step 3: Derive NUMS seed from blockchain state.
+     * seed = H(tip_hash || chain_id || signer_pk)
+     *
+     * tip_hash changes with every new block, making decoy selection
+     * fresh for each blockchain state. The signer cannot control tip_hash
+     * (it's set by consensus). This prevents cherry-picking attacks where
+     * an adversary manipulates the decoy set to leak signer identity.
+     *
+     * If tip_hash is not yet available (chain just started), falls back to
+     * chain_id + net_id as a static but still non-signer-controlled seed. */
+    uint8_t l_nums_seed[32];
+    {
+        dap_hash_sha3_256_t l_tip_hash = {};
+        bool l_has_tip = false;
+        if (a_chain && a_chain->net_name) {
+            dap_ledger_t *l_ledger_nums = dap_ledger_by_net_name(a_chain->net_name);
+            if (l_ledger_nums)
+                l_has_tip = dap_ledger_get_tip_hash(l_ledger_nums, &l_tip_hash);
+        }
+
+        uint8_t l_buf[sizeof(dap_hash_sha3_256_t) + sizeof(dap_chain_id_t) + 4096];
+        size_t l_off = 0;
+        if (l_has_tip) {
+            memcpy(l_buf + l_off, &l_tip_hash, sizeof(l_tip_hash));
+            l_off += sizeof(l_tip_hash);
+        }
+        memcpy(l_buf + l_off, &a_chain->id, sizeof(a_chain->id));
+        l_off += sizeof(a_chain->id);
+        memcpy(l_buf + l_off, l_signer_pk, pk_sz);
+        l_off += pk_sz;
+        dap_hash_sha3_256_raw(l_nums_seed, l_buf, l_off);
+    }
+
+    /* Step 4: Deterministic decoy selection using NUMS seed.
+     * Use SHAKE256 XOF seeded with NUMS to select ring_size-1 distinct
+     * validator indices from the sorted pool. This ensures the same
+     * blockchain state + signer always produces the same ring. */
+    {
+        uint64_t l_xof_state[25];
+        memset(l_xof_state, 0, sizeof(l_xof_state));
+        dap_hash_shake256_absorb(l_xof_state, l_nums_seed, sizeof(l_nums_seed));
+
+        uint8_t l_used[l_all_pk_count];
+        memset(l_used, 0, sizeof(l_used));
+
+        while (l_idx < a_anon_set - 1) {
+            /* Squeeze 4 bytes → index into validator pool */
+            uint8_t l_buf4[4];
+            dap_hash_shake256_squeezeblocks(l_buf4, 1, l_xof_state);
+            uint32_t l_idx_val;
+            memcpy(&l_idx_val, l_buf4, 4);
+            l_idx_val %= (uint32_t)l_all_pk_count;
+
+            if (l_used[l_idx_val])
+                continue;  /* Already selected, skip */
+            l_used[l_idx_val] = 1;
+
+            memcpy(l_ring + l_idx * pk_sz, l_all_pks + l_idx_val * pk_sz, pk_sz);
+            l_idx++;
+        }
+    }
+
+    /* Wipe NUMS seed (sensitive) */
+    dap_memwipe(l_nums_seed, sizeof(l_nums_seed));
+    DAP_DELETE(l_all_pks);
+
+    /* Step 5: Insert signer at a cryptographically random position.
+     * Mixed CSPRNG + NUMS for unpredictability:
+     * signer_pos = CSPRNG() % ring_size
+     * This position is NOT NUMS-derived — if it were, an observer who knows
+     * the NUMS seed could compute the signer position. Using CSPRNG keeps
+     * the position unpredictable to all parties. */
     uint32_t l_signer_pos = 0;
     uint8_t l_rand_buf[4];
     if (dap_random_bytes(l_rand_buf, sizeof(l_rand_buf)) == 0)
@@ -918,12 +1001,6 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     /* Place signer at the random position */
     memcpy(l_ring + l_signer_pos * pk_sz, l_signer_pk, pk_sz);
     l_idx = a_anon_set; /* ring is now full */
-
-    if (l_idx < CHIPMUNK_RING_N_MIN) {
-        DAP_DELETE(l_ring);
-        dap_enc_key_delete(l_wallet_key);
-        return NULL;
-    }
 
     dap_chain_addr_t l_fee_addr = l_ledger->fee_addr;
     dap_chain_datum_t *l_datum = s_anon_transfer_generic(

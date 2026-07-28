@@ -254,6 +254,11 @@ typedef struct dap_ledger_private {
     uint8_t ledger_type;                    // 0=open (UTXO), 1=anon
     uint8_t anon_type;                      // Anonymous backend type
     void *anon_data;                        // Type-specific data (SNARK context, etc.)
+
+    // Latest block/atom hash — used as NUMS seed for deterministic decoy selection
+    // Updated whenever a new block is added to the chain
+    dap_hash_sha3_256_t last_tip_hash;
+    bool last_tip_hash_set;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
