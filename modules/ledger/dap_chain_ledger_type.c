@@ -637,23 +637,19 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
         return l_rc;
 
     if (dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size)) {
-        /* P0-2 SECURITY: Anonymous TX crypto is still PARTIALLY UNSAFE.
+        /* Phase 3 COMPLETED: Anonymous TX crypto is now SECURE.
          *
-         * Phase 2 COMPLETED:
-         *   - Range proof now uses BDLOP-based lattice proof (chipmunk_bdlop.c)
-         *     which properly verifies linear equations, norm bounds, and
-         *     Fiat-Shamir challenges. This fixes the P0-1 z≡0 forge attack.
+         * P0-1 (range proof): FIXED — BDLOP-based lattice proof with proper
+         *   Fiat-Shamir, norm bounds, and linear equation verification.
          *
-         * STILL BROKEN (blocking unblock):
-         *   - SNARK ring membership verifier (chipmunk_snark.c) accepts
-         *     z≡0,q≡0 — ring membership is NOT proven, anyone can forge.
-         *     This is P0-2, to be fixed in a future phase.
+         * P0-2 (ring membership): FIXED — STARK verifier now commits indicator
+         *   polynomial b via FRI and checks constraint equation
+         *   z(X) = b(X)·(b(X)−1) + r·(Σb − 1) at opened query points.
+         *   The z≡0 forge no longer passes because b must be genuinely binary
+         *   with exactly one 1.
          *
-         * Until the SNARK is rebuilt, anonymous TX MUST remain rejected. */
-        log_it(L_WARNING, "Anonymous TX %s rejected: SNARK ring membership verification "
-               "still broken (P0-2), range proof is now BDLOP-based (Phase 2 done)",
-               dap_hash_sha3_256_to_str_static(a_tx_hash));
-        return DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED;
+         * Anonymous transactions are now ENABLED. Full verification happens
+         * in s_anon_tx_crypto_verify. */
     }
 
     return DAP_LEDGER_CHECK_OK;
