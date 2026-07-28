@@ -62,6 +62,7 @@
 #include "dap_chain_datum_tx_create.h"
 #include "dap_chain_datum_tx_anon.h"
 #include "dap_chain_tx_anon_create.h"
+#include "chipmunk_ring.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_hash.h"
 
@@ -568,9 +569,9 @@ int com_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply, int a
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-anon_set", &l_anon_set_str);
         if (l_anon_set_str) {
             l_anon_set = (size_t)strtoul(l_anon_set_str, NULL, 10);
-            if (l_anon_set < 8) {
+            if (l_anon_set < CHIPMUNK_RING_N_MIN) {
                 dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID,
-                    "Parameter '-anon_set' must be >= 8 (CHIPMUNK_RING_N_MIN)");
+                    "Parameter '-anon_set' must be >= " DAP_STRINGIFY(CHIPMUNK_RING_N_MIN) " (CHIPMUNK_RING_N_MIN)");
                 return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_HASH_INVALID;
             }
             if (l_anon_set > 64) {

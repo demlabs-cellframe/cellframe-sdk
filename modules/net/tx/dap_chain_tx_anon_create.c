@@ -799,35 +799,8 @@ static int s_ring_add_member(uint8_t *a_ring, size_t *a_idx, size_t a_ring_cap,
     return 0;
 }
 
-static int s_ring_fill_decoys(uint8_t *a_ring, size_t *a_idx, size_t a_ring_cap,
-                              const dap_chain_tx_anon_algo_t *a_algo)
-{
-    if (!a_ring || !a_idx || !a_algo || *a_idx >= a_ring_cap)
-        return -EINVAL;
-
-    /* sig_chipmunk_ring wallets store LRS key material; synthetic decoys use LRS keygen */
-    if (a_algo != &s_algo_lrs && a_algo != &s_algo_chipmunk_ring)
-        return -ENOTSUP;
-
-    while (*a_idx < a_ring_cap) {
-        uint8_t l_seed[CHIPMUNK_LRS_SEED_BYTES];
-        if (dap_random_bytes(l_seed, sizeof(l_seed)) != 0)
-            return -EIO;
-
-        chipmunk_lrs_public_key_t l_pk = {};
-        chipmunk_lrs_secret_key_t l_sk = {};
-        if (chipmunk_lrs_keypair_from_seeds(&l_pk, &l_sk, l_seed) != 0) {
-            dap_memwipe(l_seed, sizeof(l_seed));
-            return -EIO;
-        }
-        dap_memwipe(l_sk.x_seed, sizeof(l_sk.x_seed));
-        dap_memwipe(l_seed, sizeof(l_seed));
-
-        if (s_ring_add_member(a_ring, a_idx, a_ring_cap, a_algo, &l_pk) != 0)
-            return -ENOMEM;
-    }
-    return 0;
-}
+/* s_ring_fill_decoys REMOVED — synthetic decoys destroy anonymity.
+ * All ring members MUST be real keys from the blockchain. */
 
 dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     dap_chain_wallet_t *a_wallet,
@@ -906,8 +879,22 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     }
     dap_list_free_full(l_validators, NULL);
 
-    if (l_idx < a_anon_set - 1 && s_ring_fill_decoys(l_ring, &l_idx, a_anon_set - 1, l_algo) != 0) {
-        log_it(L_ERROR, "Failed to fill anonymous ring decoys (have %zu, need %zu)", l_idx, a_anon_set - 1);
+    /* NO SYNTHETIC DECOY FALLBACK.
+     *
+     * If we can't collect enough REAL decoys from existing blockchain UTXOs
+     * (stake validators), the transaction MUST fail. Filling the ring with
+     * synthetic keys (random keypairs that never existed on-chain) would
+     * completely destroy anonymity — an observer can trivially identify the
+     * single real signer among synthetic decoys by checking which public keys
+     * appear in previous transactions.
+     *
+     * The correct approach for production: select decoys from the UTXO set
+     * (outputs of previous anon TXs with the same token). For now, we fail
+     * if insufficient real decoys are available. */
+    if (l_idx < a_anon_set - 1) {
+        log_it(L_ERROR, "Insufficient real decoys for anonymity: have %zu, need %zu. "
+               "Transaction rejected — synthetic decoys are NOT allowed.",
+               l_idx, a_anon_set - 1);
         DAP_DELETE(l_ring);
         dap_enc_key_delete(l_wallet_key);
         return NULL;

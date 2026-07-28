@@ -32,6 +32,13 @@ typedef struct dap_chain_tx_anon_hdr {
     uint32_t size;                  /* Total item size */
 } DAP_ALIGN_PACKED dap_chain_tx_anon_hdr_t;
 
+/* Minimum ring size for anonymity.
+ * A ring with < 16 members provides weak anonymity — the signer is one of
+ * only a few candidates. 16 members gives anonymity set of 2^4, making
+ * correlation attacks significantly harder.
+ * (Monero uses ring_size=16 as its minimum since 2022.) */
+#define DAP_CHAIN_TX_ANON_MIN_RING_SIZE  16
+
 /* -------------------------------------------------------------------------
  * Anonymous Input (TX_ITEM_TYPE_IN_ANON = 0xb0)
  *

@@ -452,6 +452,13 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                        l_in_anon->ring_size, l_ring_data_bytes, l_ring_needed);
                 return -EINVAL;
             }
+            /* Phase 8a: Enforce minimum ring size for anonymity.
+             * Rings smaller than 16 members provide insufficient anonymity. */
+            if (l_in_anon->ring_size < DAP_CHAIN_TX_ANON_MIN_RING_SIZE) {
+                log_it(L_WARNING, "IN_ANON ring_size=%u < minimum %u (insufficient anonymity set)",
+                       l_in_anon->ring_size, DAP_CHAIN_TX_ANON_MIN_RING_SIZE);
+                return -EINVAL;
+            }
             l_statement.ring = (const chipmunk_lrs_public_key_t *)(l_item_snark + sizeof(dap_chain_tx_in_anon_t));
 
             /* Reconstruct message: addr_to || commit_hash || ticker || ki_hash || rp_hash
