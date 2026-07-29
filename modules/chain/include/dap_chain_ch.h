@@ -71,7 +71,7 @@ typedef enum dap_chain_ch_error_type {
 int dap_chain_ch_init(void);
 void dap_chain_ch_deinit(void);
 
-typedef void (*dap_chain_ch_sync_progress_cb_t)(dap_chain_net_id_t a_net_id);
+typedef void (*dap_chain_ch_sync_progress_cb_t)(dap_chain_net_id_t a_net_id, uint64_t a_atom_num);
 void dap_chain_ch_set_sync_progress_callback(dap_chain_ch_sync_progress_cb_t a_cb);
 
 void dap_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_ch_error_type_t a_error);

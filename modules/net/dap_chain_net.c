@@ -611,7 +611,15 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
            NODE_ADDR_FP_ARGS_S(a_link->addr));
 
     dap_chain_net_state_t l_state = PVT(l_net)->state;
-    if (l_state != NET_STATE_LINKS_CONNECTING && l_state != NET_STATE_LINKS_PREPARE)
+    /* Always account new links, even during SYNC_CHAINS or ONLINE.
+     * Without this, peers that connect after the initial link establishment
+     * phase are never added to the link cluster → dap_link_manager_get_net_links_addrs
+     * returns only the initial peers → sync FSM has stale peer list →
+     * CHAIN_REQ goes to peers that no longer respond.
+     * Master does NOT have this early return — it accounts ALL connections. */
+    if (l_state != NET_STATE_LINKS_CONNECTING && l_state != NET_STATE_LINKS_PREPARE &&
+        l_state != NET_STATE_LINKS_ESTABLISHED && l_state != NET_STATE_SYNC_CHAINS &&
+        l_state != NET_STATE_ONLINE)
         return;
 
     s_net_control_event_emit_async(l_net, DAP_CHAIN_NET_CONTROL_EVENT_LINK_CONNECTED, 0);
@@ -2979,13 +2987,37 @@ DAP_INLINE dap_chain_net_state_t dap_chain_net_get_state (dap_chain_net_t *a_net
     return PVT(a_net)->state;
 }
 
-void dap_chain_net_sync_touch_progress(dap_chain_net_id_t a_net_id)
+void dap_chain_net_sync_touch_progress(dap_chain_net_id_t a_net_id, uint64_t a_atom_num)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     if (l_net) {
+        dap_chain_net_pvt_t *l_pvt = PVT(l_net);
         dap_time_t l_now = dap_time_now();
-        PVT(l_net)->sync_context.last_rx_activity = l_now;
-        PVT(l_net)->sync_context.last_progress_activity = l_now;
+        l_pvt->sync_context.last_rx_activity = l_now;
+        l_pvt->sync_context.last_progress_activity = l_now;
+        /* For blocks chains: a_atom_num is the block number from the packet
+         * header (num_hi/num_lo). For DAG chains: a_atom_num may be 0
+         * (DAG events don't have sequential numbers). Use timestamp as
+         * monotonic proxy so max_atom_num_seen grows whenever atoms arrive. */
+        uint64_t l_seen = a_atom_num ? a_atom_num : (uint64_t)l_now;
+        if (l_seen > l_pvt->sync_context.max_atom_num_seen)
+            l_pvt->sync_context.max_atom_num_seen = l_seen;
+    }
+}
+
+/* Update max_atom_num_seen from the stream handler's proc-thread callback.
+ * The stream notifier (s_ch_in_pkt_callback) may not fire for CHAIN packets
+ * due to session mismatch, link rotation, or notifier lifecycle issues.
+ * Calling this from s_sync_in_chains_callback (which DOES fire reliably)
+ * ensures max_atom_num_seen tracks actual received atoms. */
+void dap_chain_net_sync_update_max_seen(dap_chain_net_id_t a_net_id, uint64_t a_atom_num)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (l_net) {
+        dap_chain_net_pvt_t *l_pvt = PVT(l_net);
+        if (a_atom_num > l_pvt->sync_context.max_atom_num_seen) {
+            l_pvt->sync_context.max_atom_num_seen = a_atom_num;
+        }
     }
 }
 
@@ -4151,20 +4183,6 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
     a_arg->request = (dap_chain_ch_sync_request_t){};
     a_arg->last_num = 0;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    /* If chain has events from a previous session but we haven't received
-     * any new data in this session (max_atom_num_seen==0), force
-     * sync_from_zero=true. Without this, the peer starts ITER_OP_NEXT from
-     * our last hash and only covers events AFTER that position in hash-table
-     * order — missing events before it. With sync_from_zero=true, the peer
-     * starts from ITER_OP_FIRST and covers the entire hash table. */
-    if (!a_arg->sync_from_zero && l_net_pvt->sync_context.max_atom_num_seen == 0) {
-        uint64_t l_last = l_chain->callback_count_atom(l_chain);
-        if (l_last > 0) {
-            a_arg->sync_from_zero = true;
-            log_it(L_NOTICE, "Chain %s has %lu atoms but no new data this session — forcing sync_from_zero",
-                   l_chain->name, (unsigned long)l_last);
-        }
-    }
     /* Drain threshold before resume check. Blocks received during the previous
      * sync session may have landed in threshold (parent missing). Draining
      * promotes them, advancing last_num — so the resume hash points to a
@@ -4208,15 +4226,21 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
          * Note: max_atom_num_seen may be 0 when sync runs through the legacy
          * handler in dap_chain_ch.c (which doesn't update sync_context). In that
          * case sync_no_progress_count tracks restart-without-progress. */
-        if (l_chain->callback_atom_add_from_treshold &&
+        if (!l_chain->sequential_atoms &&
+                l_chain->callback_atom_add_from_treshold &&
                 l_chain->atom_num_last > a_arg->last_num) {
-            /* Stall detection for BLOCKS chains only (sequential_atoms=true).
-             * DAG chains must NOT use stall detection — the stock 5.7 master
-             * doesn't have it, and forcing sync_from_zero on liveness timeout
-             * causes the peer to restart from ITER_OP_FIRST, re-sending the
-             * same hash-table subset instead of resuming from the last position.
-             * DAG chains rely on natural timeout-based restarts which resume
-             * from the last accepted hash, covering new events each pass.
+            /* Stall detection for DAG chains only (sequential_atoms=false).
+             * Blocks chains must NOT use stall detection — stock 5.7 sender
+             * iterates with ITER_OP_NEXT (hash-table order) and a window=16.
+             * Most received blocks are ATOM_PASS (already present), so
+             * max_atom_num_seen grows but current count doesn't. Stall
+             * detection forces sync_from_zero which resets the iteration
+             * position, causing the sender to re-traverse the same hash-table
+             * entries. For blocks chains, natural timeout-based restarts
+             * (progress_timeout) handle sync progression correctly.
+             * DAG chains need stall detection because peers can deliver
+             * events that all land in threshold (waiting for parents), and
+             * without stall detection the sync stalls permanently.
              *
              * For blocks chains with sequential_atoms=true, sync_from_zero is
              * still needed when all peers send CHAIN_MISS (our last block is
@@ -4246,80 +4270,31 @@ static void s_sync_process_start_request_prepare(dap_chain_net_t *a_net, sync_st
              * Also accept the original signals: sync_no_progress_count > 0 (timeout-
              * driven, set by B.2 in s_sync_timer_callback) OR max_atom_num_seen == 0
              * (peer never delivered anything, set by B.2 when last_rx_activity aged out). */
-            bool l_stalled = false;
-            /* Only declare stall if the peer has NOT delivered any new atoms
-             * in the current session. If max_atom_num_seen > 0, the peer IS
-             * delivering data — don't interrupt it with sync_from_zero.
-             * Stall only fires when:
-             * 1. sync_no_progress_count > 0 AND max_atom_num_seen == 0 (peer never
-             *    responded), OR
-             * 2. max_atom_num_seen > 0 but didn't grow since last prepare AND
-             *    sync_no_progress_count > 0 (peer stopped mid-session) */
-            if (l_net_pvt->sync_context.sync_no_progress_count > 0 &&
-                    l_net_pvt->sync_context.max_atom_num_seen == 0) {
-                /* Peer never delivered anything — genuine stall */
-                l_stalled = true;
-            } else if (l_net_pvt->sync_context.max_atom_num_seen > 0 &&
-                    l_net_pvt->sync_context.max_atom_num_seen == l_net_pvt->sync_context.prev_max_atom_num_seen) {
-                /* Peer delivered data before but max_atom_num_seen didn't grow
-                 * since last prepare — stall regardless of sync_no_progress_count.
-                 * This catches the case where peer sent a burst then stopped:
-                 * timer incremented sync_no_progress_count on liveness timeout,
-                 * then prepare ran and saw same max_atom_num_seen as before. */
-                l_stalled = true;
-            }
-            if (l_stalled) {
-                /* Force sync from zero (blank hash). The peer's CHAIN_REQ handler
-                 * detects blank hash via dap_hash_fast_is_blank() and starts
-                 * iteration from ITER_OP_FIRST — covering ALL events in the hash
-                 * table, not just those after our hash_from position.
-                 * Previously this didn't work because the state machine was stuck
-                 * at LINKS_ESTABLISHED (CAS race condition, now fixed). */
-                a_arg->sync_from_zero = true;
-                a_arg->request.hash_from = (dap_hash_fast_t){};
-                a_arg->request.num_from = 0;
-                /* Clear threshold blacklist: events evicted from threshold (2h timer)
-                 * are permanently rejected (ATOM_REJECT). On sync restart we must
-                 * allow them back so the chain can reach the peer's full count. */
-                if (l_chain->callback_clear_threshold_blacklist)
-                    l_chain->callback_clear_threshold_blacklist(l_chain);
-                uint8_t l_stall_count = l_net_pvt->sync_context.sync_no_progress_count;
-                uint64_t l_prev_seen = l_net_pvt->sync_context.max_atom_num_seen;
-                l_net_pvt->sync_context.sync_no_progress_count = 0;
-                l_net_pvt->sync_context.max_atom_num_seen = 0;
-                l_net_pvt->sync_context.prev_max_atom_num_seen = 0;
-                log_it(L_NOTICE, "DAG chain %s net %s: stall detected (restarts=%hhu, "
-                       "max_seen=%" DAP_UINT64_FORMAT_U ", prev_seen=%" DAP_UINT64_FORMAT_U
-                       ", last_num=%" DAP_UINT64_FORMAT_U ", atom_num_last=%" DAP_UINT64_FORMAT_U
-                       "), forcing sync from zero",
-                        l_chain->name, a_net->pub.name,
-                        l_stall_count, l_prev_seen, l_net_pvt->sync_context.prev_max_atom_num_seen,
-                        a_arg->last_num, l_chain->atom_num_last);
-            }
+            /* DAG stall detection DISABLED — matches stock 5.7 master behavior.
+             * Master has NO stall detection for DAG chains. It relies on the
+             * natural activity timeout (3×60s) → ERROR → restart → resume from
+             * last hash. The ACK fix (unconditional ACK for ATOM_MOVE_TO_THRESHOLD)
+             * ensures the peer's sliding window advances, allowing natural sync
+             * progression without forcing sync_from_zero.
+             *
+             * Previously, stall detection forced sync_from_zero which made the
+             * peer re-traverse already-delivered hash-table entries (most ATOM_PASS),
+             * wasting time and preventing zerochain completion (stuck at 3440/3840).
+             * With ACKs flowing, the peer can iterate the full hash table naturally. */
         }
         if (!a_arg->sync_from_zero) {
             /* Update prev_max_atom_num_seen for next prepare's stall comparison.
              * If max_atom_num_seen grew, this is real progress (peer delivered new atoms). */
             l_net_pvt->sync_context.prev_max_atom_num_seen = l_net_pvt->sync_context.max_atom_num_seen;
+            /* DO NOT resume from max_atom_num_seen for DAG chains. For DAG,
+             * event_number is LOCAL per node — our local hash at max_atom_num_seen
+             * maps to a different cur_num on the stock 5.7 sender's side. This
+             * breaks the sender's strict num_from == cur_num check → CHAIN_MISS.
+             * Master uses last accepted atom's hash/num which both nodes share.
+             * Only use max_atom_num_seen resume for enhanced peers (v27+) where
+             * our CHAIN_REQ handler uses relaxed >= check. */
             if (l_net_pvt->sync_context.max_atom_num_seen > a_arg->last_num) {
-                /* Peer delivered atoms we haven't accepted yet (in threshold queue).
-                 * Resume from the highest seen to avoid re-downloading. Reset stall
-                 * counter because the peer IS making progress (delivering new atoms). */
                 l_net_pvt->sync_context.sync_no_progress_count = 0;
-                dap_chain_atom_iter_t *l_iter = l_chain->callback_atom_iter_create(l_chain, a_arg->cell_id, NULL);
-                if (l_iter) {
-                    dap_chain_atom_ptr_t l_atom = l_chain->callback_atom_get_by_num(l_iter, l_net_pvt->sync_context.max_atom_num_seen);
-                    if (l_atom && l_iter->cur_hash) {
-                        a_arg->request.num_from = l_net_pvt->sync_context.max_atom_num_seen;
-                        a_arg->request.hash_from = *l_iter->cur_hash;
-                        a_arg->last_num = l_net_pvt->sync_context.max_atom_num_seen;
-                        log_it(L_NOTICE, "Resuming sync for chain %s net %s from highest seen atom %" DAP_UINT64_FORMAT_U
-                                " instead of last accepted %" DAP_UINT64_FORMAT_U,
-                                l_chain->name, a_net->pub.name,
-                                l_net_pvt->sync_context.max_atom_num_seen, a_arg->last_num);
-                    }
-                    l_chain->callback_atom_iter_delete(l_iter);
-                }
             } else {
                 /* max_atom_num_seen did not exceed last_num — no new atoms at all.
                  * Increment stall counter (also bumped by timeout path in B.2). */
@@ -4401,10 +4376,12 @@ static bool s_sync_process_start_request_owner_proc_cb(void *a_arg)
 
 static void s_sync_process_start_request_dispatch(dap_chain_net_t *a_net, sync_start_req_arg_t *a_arg)
 {
-    if (!dap_proc_thread_callback_add(NULL, s_sync_process_start_request_owner_proc_cb, a_arg))
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    dap_proc_thread_t *l_queue = l_net_pvt->sync_context.owner_worker
+        ? l_net_pvt->sync_context.owner_worker->proc_queue_input : NULL;
+    if (!dap_proc_thread_callback_add(l_queue, s_sync_process_start_request_owner_proc_cb, a_arg))
         return;
     log_it(L_CRITICAL, "Can't schedule start-request owner phase for net %s", a_net->pub.name);
-    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     atomic_store_explicit(&l_net_pvt->sync_context.start_req_in_progress, false, memory_order_release);
     if (s_sync_session_get(l_net_pvt) == a_arg->session_id &&
             l_net_pvt->sync_context.cur_chain &&
@@ -4628,7 +4605,15 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
          * Do NOT check local_count < peer_last or force sync_from_zero —
          * that causes infinite restart loop on DAG chains. */
         l_net_pvt->sync_context.cur_chain->state = CHAIN_SYNC_STATE_SYNCED;
-        l_net_pvt->sync_context.cur_chain->atom_num_last = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
+        /* Preserve the peer-advertised atom_num_last (set by CHAIN_SUMMARY).
+         * Overwriting with local count masks incomplete sync as 100% and causes
+         * s_sync_first_unsynced_chain to skip the chain forever. Keep the larger
+         * of the two values. */
+        {
+            uint64_t l_local_count = l_net_pvt->sync_context.cur_chain->callback_count_atom(l_net_pvt->sync_context.cur_chain);
+            if (l_net_pvt->sync_context.cur_chain->atom_num_last < l_local_count)
+                l_net_pvt->sync_context.cur_chain->atom_num_last = l_local_count;
+        }
         debug_if(s_debug_more, L_INFO, "Chain %s synced: atom_num_last=%lu",
                  l_net_pvt->sync_context.cur_chain->name,
                  (unsigned long)l_net_pvt->sync_context.cur_chain->atom_num_last);
@@ -4823,13 +4808,13 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
         // If previous link not found but we had one, keep it to avoid switching servers mid-sync.
         // Different servers may have different chain histories, causing PREV hash mismatches.
         if (dap_stream_node_addr_is_blank(&l_net_pvt->sync_context.current_link)) {
-            if (!dap_stream_node_addr_is_blank(&l_prev_link)) {
-                log_it(L_WARNING, "Previous sync link " NODE_ADDR_FP_STR " not in uplinks list for net %s, keeping it to avoid server switch",
-                       NODE_ADDR_FP_ARGS_S(l_prev_link), a_net->pub.name);
-                l_net_pvt->sync_context.current_link = l_prev_link;
-            } else {
-                l_net_pvt->sync_context.current_link = l_links_addrs[0];
-            }
+            /* Previous link not in uplinks list — pick a fresh one instead of
+             * keeping the stale link. Keeping stale link causes infinite
+             * "Can't add IN sync notifier" loop because the stream for that
+             * link no longer exists. */
+            l_net_pvt->sync_context.current_link = l_links_addrs[0];
+            debug_if(s_debug_more, L_INFO, "Previous sync link not in uplinks, selected fresh link " NODE_ADDR_FP_STR " for net %s",
+                     NODE_ADDR_FP_ARGS_S(l_net_pvt->sync_context.current_link), a_net->pub.name);
         }
     } else
         l_net_pvt->sync_context.current_link = dap_cluster_get_random_link(l_cluster);
@@ -4883,7 +4868,16 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
                         l_drain, l_chain->name);
         }
     }
-    l_net_pvt->sync_context.cur_chain = s_sync_first_unsynced_chain(a_net);
+    /* Match master: always start iteration from the FIRST chain.
+     * Using s_sync_first_unsynced_chain() here skips chains marked SYNCED,
+     * which permanently prevents re-iteration of partially-synced chains.
+     * Stock 5.7 peers send SYNCED_CHAIN when their hash-table iteration
+     * completes — but they may have traversed only a SUBSET of the table
+     * (window-bounded). The remaining blocks are delivered on SUBSEQUENT
+     * sync sessions. Master re-iterates ALL chains on every restart,
+     * including already-SYNCED ones, so peers re-send any missing blocks.
+     * s_switch_sync_chain() handles per-session iteration (chain->next). */
+    l_net_pvt->sync_context.cur_chain = a_net->pub.chains;
     l_net_pvt->sync_context.cur_cell = NULL;
     l_net_pvt->sync_context.requested_atom_hash = (dap_hash_fast_t){};
     l_net_pvt->sync_context.requested_atom_num = 0;
@@ -5118,15 +5112,14 @@ static void s_sync_timer_callback(void *a_arg)
     switch (l_state_forming) {
     case CHAIN_SYNC_STATE_ERROR:
         if (dap_chain_net_get_flag_sync_from_zero(l_net)) {
-            log_it(L_NOTICE, "Purging chain data for net %s before sync from zero (reason: %s)",
-                   l_net->pub.name, s_sync_restart_reason_to_str(l_restart_reason));
+            /* Purge ONLY the current chain — not all chains in net.
+             * Purging all chains destroys already-synced chains. */
+            log_it(L_NOTICE, "Purging chain %s data before sync from zero (reason: %s)",
+                   l_chain->name, s_sync_restart_reason_to_str(l_restart_reason));
             dap_ledger_purge(l_net->pub.ledger, false);
-            dap_chain_t *l_purge_chain = NULL;
-            DL_FOREACH(l_net->pub.chains, l_purge_chain) {
-                if (l_purge_chain->callback_purge)
-                    l_purge_chain->callback_purge(l_purge_chain);
-                dap_chain_cell_delete_all_and_free_file(l_purge_chain);
-            }
+            if (l_chain->callback_purge)
+                l_chain->callback_purge(l_chain);
+            dap_chain_cell_delete_all_and_free_file(l_chain);
         }
         if (s_restart_sync_chains(l_net, l_restart_reason)) {
             log_it(L_WARNING, "Can't start sync chains in net %s, wait next attempt", l_net->pub.name);
@@ -5154,21 +5147,14 @@ static void s_sync_timer_callback(void *a_arg)
             log_it(L_WARNING, "Chain %s of net %s WAITING without RX for %u sec, retry CHAIN_REQ (attempt %u)",
                    l_chain->name, l_net->pub.name, DAP_CHAIN_NET_SYNC_WAITING_RETRY_TIMEOUT, l_retries);
             if (l_retries >= 3) {
-                log_it(L_WARNING, "Too many WAITING retries (%u) for net %s, forcing full sync restart with reconnect",
+                log_it(L_WARNING, "Too many WAITING retries (%u) for net %s, forcing sync restart with peer rotation",
                        l_retries, l_net->pub.name);
                 l_net_pvt->sync_context.chain_req_ping_count = 0;
-                // Purge chain data so genesis block can be accepted during sync from zero
-                log_it(L_NOTICE, "Purging chain data for net %s before sync from zero", l_net->pub.name);
-                dap_ledger_purge(l_net->pub.ledger, false);
-                dap_chain_t *l_purge_chain = NULL;
-                DL_FOREACH(l_net->pub.chains, l_purge_chain) {
-                    if (l_purge_chain->callback_purge)
-                        l_purge_chain->callback_purge(l_purge_chain);
-                    dap_chain_cell_delete_all_and_free_file(l_purge_chain);
-                }
-                dap_chain_net_set_flag_sync_from_zero(l_net, true);
-                s_restart_sync_chains(l_net, DAP_CHAIN_NET_SYNC_RESTART_REASON_ACTIVITY_TIMEOUT);
-                return;
+                /* DO NOT purge chain data. Master never purges on WAITING timeout.
+                 * Just restart sync with a different peer. Chain data is preserved. */
+                l_chain->state = CHAIN_SYNC_STATE_ERROR;
+                l_restart_reason = DAP_CHAIN_NET_SYNC_RESTART_REASON_ACTIVITY_TIMEOUT;
+                break;
             }
             l_chain->state = CHAIN_SYNC_STATE_IDLE;
             l_net_pvt->sync_context.last_rx_activity = l_now;
@@ -5216,7 +5202,7 @@ static void s_sync_timer_callback(void *a_arg)
     l_start_req_arg->chain_id = l_net_pvt->sync_context.cur_chain->id;
     l_start_req_arg->cell_id = l_net_pvt->sync_context.cur_cell ? l_net_pvt->sync_context.cur_cell->id : c_dap_chain_cell_id_null;
     l_start_req_arg->sync_from_zero = l_sync_from_zero;
-    if (dap_proc_thread_callback_add(NULL, s_sync_process_start_request_cb, l_start_req_arg)) {
+    if (dap_proc_thread_callback_add(l_net_pvt->sync_context.owner_worker ? l_net_pvt->sync_context.owner_worker->proc_queue_input : NULL, s_sync_process_start_request_cb, l_start_req_arg)) {
         log_it(L_CRITICAL, "Can't offload start CHAIN_REQ processing for net %s chain %s",
                            l_net->pub.name, l_net_pvt->sync_context.cur_chain->name);
         DAP_DELETE(l_start_req_arg);
