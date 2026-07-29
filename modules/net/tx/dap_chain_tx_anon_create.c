@@ -583,19 +583,54 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_memwipe(&l_witness, sizeof(l_witness));
     if (l_rc != 0) { chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
+    /* 9b. LRS signature — lattice binding layer.
+     *
+     * Proves knowledge of short x with A_pk·x = P_j for some P_j in ring.
+     * This is the MODULE-LEVEL proof that STARK cannot provide (scalar FRI
+     * is incompatible with R_q negacyclic convolution).
+     *
+     * LRS uses the same message as STARK (binds all TX components together).
+     * The key image I = A_I·x is already computed above (l_ki). */
+    const chipmunk_lrs_secret_key_t *l_lrs_sk =
+        (const chipmunk_lrs_secret_key_t *)a_algo->get_sk(l_key);
+    size_t l_lrs_sig_size = chipmunk_lrs_signature_size((uint32_t)a_ring_size);
+    uint8_t *l_lrs_sig = DAP_NEW_Z_SIZE(uint8_t, l_lrs_sig_size);
+    if (!l_lrs_sig) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+
+    uint8_t l_lrs_seed[CHIPMUNK_LRS_SEED_BYTES];
+    if (dap_random_bytes(l_lrs_seed, sizeof(l_lrs_seed)) != 0) {
+        DAP_DELETE(l_lrs_sig);
+        chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key);
+        return NULL;
+    }
+
+    l_rc = chipmunk_lrs_sign(l_lrs_sig, l_lrs_sig_size,
+                             l_lrs_sk,
+                             (const chipmunk_lrs_public_key_t *)a_ring, a_ring_size,
+                             l_msg_buf, (size_t)l_msg_size,
+                             l_lrs_seed, CHIPMUNK_Q);
+    dap_memwipe(l_lrs_seed, sizeof(l_lrs_seed));
+    if (l_rc != 0) {
+        log_it(L_ERROR, "LRS sign failed: %d", l_rc);
+        DAP_DELETE(l_lrs_sig);
+        chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key);
+        return NULL;
+    }
+
     /* 10. Build TX */
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
-    /* IN_ANON (variable-size: struct + ring public keys) */
+    /* IN_ANON (variable-size: struct + LRS sig + ring public keys) */
     size_t l_ring_bytes = a_ring_size * pk_sz;
-    size_t l_in_full_size = sizeof(dap_chain_tx_in_anon_t) + l_ring_bytes;
+    size_t l_in_full_size = sizeof(dap_chain_tx_in_anon_t) + l_lrs_sig_size + l_ring_bytes;
     uint8_t *l_in_buf = DAP_NEW_Z_SIZE(uint8_t, l_in_full_size);
-    if (!l_in_buf) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_in_buf) { DAP_DELETE(l_lrs_sig); chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
     dap_chain_tx_in_anon_t *l_in_ptr = (dap_chain_tx_in_anon_t *)l_in_buf;
     l_in_ptr->hdr.type = TX_ITEM_TYPE_IN_ANON; l_in_ptr->hdr.version = 1; l_in_ptr->hdr.size = l_in_full_size;
     l_in_ptr->prev_hash = l_prev_hash; l_in_ptr->prev_out_idx = l_prev_idx;
     l_in_ptr->ring_size = (uint32_t)a_ring_size;
+    l_in_ptr->lrs_sig_size = (uint32_t)l_lrs_sig_size;
     memcpy(&l_in_ptr->snark_proof, &l_snark, sizeof(l_snark));
     memcpy(l_in_ptr->key_image, l_ki, sizeof(l_ki));
 
@@ -610,9 +645,12 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         dap_ledger_ring_cache_put(l_ledger_init, &l_rch, (const uint8_t *)a_ring, l_ring_bytes);
     }
 
-    memcpy(l_in_buf + sizeof(dap_chain_tx_in_anon_t), a_ring, l_ring_bytes);
+    /* Trailing data layout: [LRS signature][ring public keys] */
+    memcpy(l_in_buf + sizeof(dap_chain_tx_in_anon_t), l_lrs_sig, l_lrs_sig_size);
+    memcpy(l_in_buf + sizeof(dap_chain_tx_in_anon_t) + l_lrs_sig_size, a_ring, l_ring_bytes);
     dap_chain_datum_tx_add_item(&l_tx, l_in_buf);
     DAP_DELETE(l_in_buf);
+    DAP_DELETE(l_lrs_sig);
 
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_out);
     if (a_out_manifest && a_out_manifest->count < DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX)

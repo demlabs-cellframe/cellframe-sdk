@@ -61,10 +61,16 @@ typedef struct dap_chain_tx_in_anon {
      * without revealing which key was used */
     uint8_t key_image[9216];        /* k=6 q-packed polynomials */
 
-    /* SNARK ring membership proof
-     * Proves: "I know sk_j for pk_j in {pk_0, ..., pk_{N-1}}"
-     * without revealing j */
+    /* SNARK ring membership proof (anonymity layer).
+     * Proves indicator is one-hot binary via FRI polynomial identity.
+     * Does NOT prove knowledge of lattice secret — that's LRS below. */
     chipmunk_snark_proof_t snark_proof;
+
+    /* LRS signature (lattice binding layer).
+     * Proves knowledge of short x with A_pk·x = P_j for some P_j in ring.
+     * Module-level ring signature — binds indicator to actual lattice key.
+     * Variable-length, stored in trailing data after ring keys. */
+    uint32_t lrs_sig_size;
 
     /* Ring commit hash: SHA3-256 of serialized ring public keys.
      * Used for ring dedup — if a ring with the same hash is already

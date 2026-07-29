@@ -534,7 +534,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             l_statement.message = l_msg_buf;
             l_statement.message_size = (size_t)l_msg_size;
 
-            /* Verify SNARK proof (copy from packed struct to avoid alignment issues) */
+            /* Verify SNARK proof (anonymity layer — indicator is one-hot binary) */
             chipmunk_snark_proof_t l_proof_copy;
             memcpy(&l_proof_copy, &l_in_anon->snark_proof, sizeof(l_proof_copy));
             l_rc = chipmunk_snark_verify(&l_proof_copy, &l_anon->snark_ctx, &l_statement);
@@ -543,6 +543,42 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                 DAP_DELETE(l_ring_from_cache);
                 return -EINVAL;
             }
+
+            /* FIX 6: Verify LRS signature (lattice binding layer).
+             *
+             * SNARK proves indicator exists (anonymity). LRS proves knowledge
+             * of short x with A_pk·x = P_j for some P_j in ring (lattice binding).
+             * Together they provide: anonymity (which member hidden) + soundness
+             * (prover actually owns a lattice key in the ring).
+             *
+             * LRS signature is in trailing data: [LRS sig][ring keys] */
+            if (l_in_anon->lrs_sig_size > 0) {
+                /* Extract LRS signature from trailing data */
+                const uint8_t *l_lrs_sig;
+                const chipmunk_lrs_public_key_t *l_lrs_ring;
+
+                if (l_ring_hash_nonzero) {
+                    /* Ring from cache — LRS sig is first in trailing data */
+                    l_lrs_sig = l_item_snark + sizeof(dap_chain_tx_in_anon_t);
+                    l_lrs_ring = l_ring_ptr;
+                } else {
+                    /* Ring inline — LRS sig before ring keys in trailing data */
+                    l_lrs_sig = l_item_snark + sizeof(dap_chain_tx_in_anon_t);
+                    l_lrs_ring = (const chipmunk_lrs_public_key_t *)
+                        (l_lrs_sig + l_in_anon->lrs_sig_size);
+                }
+
+                l_rc = chipmunk_lrs_verify(l_lrs_sig, l_in_anon->lrs_sig_size,
+                                            l_lrs_ring, l_in_anon->ring_size,
+                                            l_msg_buf, (size_t)l_msg_size,
+                                            CHIPMUNK_Q);
+                if (l_rc != 1) {
+                    log_it(L_WARNING, "LRS signature verification failed for IN_ANON: %d", l_rc);
+                    DAP_DELETE(l_ring_from_cache);
+                    return -EINVAL;
+                }
+            }
+
             /* Phase 5: Free ring cache data if fetched from GDB */
             DAP_DELETE(l_ring_from_cache);
         }
