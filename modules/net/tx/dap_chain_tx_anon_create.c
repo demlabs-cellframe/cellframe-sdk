@@ -77,6 +77,11 @@ typedef struct dap_chain_tx_anon_algo {
 static const void *s_ring_get_pk(dap_enc_key_t *k) { return k->pub_key_data; }
 static const void *s_ring_get_sk(dap_enc_key_t *k) { return k->priv_key_data; }
 static size_t s_ring_pk_size(void) { return sizeof(chipmunk_ring_pk_t); }
+/* Raw byte comparison for qsort — canonical ordering of public keys */
+static int s_pk_cmp_raw(const void *a, const void *b) {
+    return memcmp(a, b, sizeof(chipmunk_lrs_public_key_t));
+}
+
 static int s_ring_pk_cmp(const void *a, const void *b) {
     const chipmunk_ring_pk_t *la = (const chipmunk_ring_pk_t *)a;
     const chipmunk_ring_pk_t *lb = (const chipmunk_ring_pk_t *)b;
@@ -891,7 +896,9 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false, NULL);
     size_t l_total_validators = dap_list_length(l_validators);
 
-    /* Collect all pks into an array for deterministic selection */
+    /* Collect all pks into an array for deterministic selection.
+     * MUST sort by canonical byte order — uthash iteration is non-deterministic
+     * across nodes, which would make NUMS decoy selection non-verifiable. */
     uint8_t *l_all_pks = NULL;
     size_t l_all_pk_count = 0;
     if (l_total_validators > 0) {
@@ -904,12 +911,14 @@ dap_chain_datum_t *dap_chain_tx_anon_transfer_auto_ring(
                 if (l_algo->pk_from_stake_pkey(l_pk_buf, l_stake->pkey) != 0)
                     continue;
                 if (l_algo->pk_cmp(l_pk_buf, l_signer_pk) == 0)
-                    continue;  /* Skip signer's own key */
+                    continue;
                 if (l_all_pk_count < l_total_validators) {
                     memcpy(l_all_pks + l_all_pk_count * pk_sz, l_pk_buf, pk_sz);
                     l_all_pk_count++;
                 }
             }
+            /* Sort the collected pks by canonical byte order */
+            qsort(l_all_pks, l_all_pk_count, pk_sz, s_pk_cmp_raw);
         }
     }
     dap_list_free_full(l_validators, NULL);
