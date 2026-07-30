@@ -234,6 +234,17 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(d
                                                                                size_t a_pkey_hashes_count, const char *a_tag_str);
 
 /**
+ * Create wallet_shared out_cond with support for both pkey_hashes and
+ * owner_addrs (TSD_ADDR entries). Master SDK uses this for bridge/desktop
+ * wallet operations. The non-_ext version delegates here with addrs=NULL.
+ */
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(
+    dap_chain_srv_uid_t a_srv_uid, uint256_t a_value, uint32_t a_signs_min,
+    dap_chain_addr_t *a_owner_addrs, size_t a_addrs_count,
+    dap_hash_fast_t *a_pkey_hashes, size_t a_pkey_hashes_count,
+    const char *a_tag_str);
+
+/**
  * Create item dap_chain_tx_sig_t
  *
  * return item, NULL Error

@@ -1316,15 +1316,55 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 }
             }
             
+            /* Read optional owner_addrs array (TSD_ADDR entries).
+             * Master reads these and passes to _ext which writes TSD_ADDR
+             * bytes. If we skip them, the reconstructed out_cond has no
+             * TSD_ADDR entries → chain verificator memcmp fails against
+             * the ledger's prev cond which was created by bridge via _ext. */
+            dap_chain_addr_t *l_owner_addrs = NULL;
+            size_t l_owner_addrs_count = 0;
+            dap_json_t *l_json_owner_addrs = NULL;
+            if (dap_json_object_get_ex(a_json_item_obj, "owner_addrs", &l_json_owner_addrs) && l_json_owner_addrs && dap_json_is_array(l_json_owner_addrs)) {
+                l_owner_addrs_count = dap_json_array_length(l_json_owner_addrs);
+                if (l_owner_addrs_count) {
+                    l_owner_addrs = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_owner_addrs_count * sizeof(dap_chain_addr_t));
+                    if (l_owner_addrs) {
+                        for (size_t j = 0; j < l_owner_addrs_count; j++) {
+                            dap_json_t *l_json_addr = dap_json_array_get_idx(l_json_owner_addrs, j);
+                            if (l_json_addr && dap_json_is_string(l_json_addr)) {
+                                const char *l_addr_str = dap_json_get_string(l_json_addr);
+                                dap_chain_addr_t *l_parsed = dap_chain_addr_from_str(l_addr_str);
+                                if (l_parsed) {
+                                    l_owner_addrs[j] = *l_parsed;
+                                    DAP_DELETE(l_parsed);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            /* Split pkey_hashes into [0..owner_addrs_count) and
+             * [owner_addrs_count..end). Master's JSON serializer places
+             * addr-derived hashes first, then standalone hashes. The
+             * _ext constructor needs them separated. */
+            dap_hash_sha3_256_t *l_standalone_hashes = l_pkey_hashes;
+            size_t l_standalone_count = l_pkey_hashes_count;
+            if (l_owner_addrs_count && l_pkey_hashes_count >= l_owner_addrs_count) {
+                l_standalone_hashes = l_pkey_hashes + l_owner_addrs_count;
+                l_standalone_count = l_pkey_hashes_count - l_owner_addrs_count;
+            }
+
             uint64_t l_srv_uid = 0;
             if (!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid))
                 // Default service for wallet shared
                 l_srv_uid = DAP_CHAIN_WALLET_SHARED_ID;
             
-            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared((dap_chain_srv_uid_t){.uint64 = l_srv_uid},
-                                                                                                             l_value, (uint32_t)l_min_sig_count, l_pkey_hashes,
-                                                                                                             l_pkey_hashes_count, l_tag_str);
-            DAP_DEL_MULTY(l_pkey_hashes, l_tag_str);
+            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(
+                (dap_chain_srv_uid_t){.uint64 = l_srv_uid}, l_value, (uint32_t)l_min_sig_count,
+                l_owner_addrs, l_owner_addrs_count,
+                l_standalone_hashes, l_standalone_count, l_tag_str);
+            DAP_DEL_MULTY(l_pkey_hashes, l_owner_addrs, l_tag_str);
             
             if(l_out_cond_item) {
                 SUM_256_256(*a_value_need, l_value, a_value_need);
