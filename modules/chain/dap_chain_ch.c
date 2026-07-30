@@ -908,9 +908,13 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                         dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size,
                                         l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                         (uint64_t)(((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo));
-        /* Match master: route to worker's proc_queue_input.
-         * Using NULL causes load balancing issues with proc threads. */
-        dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
+        /* Process CHAIN packet INLINE (not async via proc_queue_input).
+         * Master processes inline in the read callback — ACK is sent
+         * immediately, preventing the peer's sender from timing out.
+         * Async processing via proc_queue_input added 10-100ms latency
+         * per ACK, causing the peer's 30s sync_timeout to fire before
+         * enough ACKs arrived to advance the sliding window. */
+        s_sync_in_chains_callback(l_args);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: {
