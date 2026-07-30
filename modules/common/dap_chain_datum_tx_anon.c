@@ -88,7 +88,7 @@ int dap_chain_datum_tx_get_key_images(const uint8_t *a_tx_items, size_t a_items_
     return 0;
 }
 
-int dap_chain_datum_tx_get_snark_proofs(const uint8_t *a_tx_items, size_t a_items_size,
+int dap_chain_datum_tx_get_stark_proofs(const uint8_t *a_tx_items, size_t a_items_size,
                                          const dap_chain_tx_anon_proof_t ***a_proofs,
                                          size_t *a_count)
 {
@@ -149,7 +149,7 @@ void dap_chain_anon_input_commit_seed(uint8_t a_seed[32],
     dap_hash_sha3_256_raw(a_seed, l_buf, l_off);
 }
 
-ssize_t dap_chain_anon_snark_build_message(uint8_t *a_out, size_t a_out_size,
+ssize_t dap_chain_anon_stark_build_message(uint8_t *a_out, size_t a_out_size,
                                            const dap_chain_addr_t *a_addr,
                                            const dap_hash_sha3_256_t *a_commit_hash,
                                            const char *a_ticker,

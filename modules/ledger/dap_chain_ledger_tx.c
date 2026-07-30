@@ -258,7 +258,7 @@ size_t s_tokenizer_count(dap_ledger_tokenizer_t *a_list)
 
 /**
  * Open ledger: verify transaction signature.
- * Anon TX on anon ledger skips this (SNARK proofs replace signatures).
+ * Anon TX on anon ledger skips this (STARK proofs replace signatures).
  * @return 0 if valid, negative on error
  */
 static int s_open_tx_check_signature(dap_ledger_t *a_ledger,
@@ -427,7 +427,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     const bool l_is_anon_tx = dap_chain_datum_tx_is_anonymous(
         (const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size);
 
-    // 1. Verify signature (open ledger only; anon uses SNARK proofs instead)
+    // 1. Verify signature (open ledger only; anon uses STARK proofs instead)
     if (!l_is_anon_tx) {
         int l_sig_rc = s_open_tx_check_signature(a_ledger, a_tx, a_tx_hash, a_from_threshold);
         if (l_sig_rc)

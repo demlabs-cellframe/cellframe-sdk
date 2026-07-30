@@ -2,13 +2,13 @@
  * dap_chain_ledger_type.h — Ledger type abstraction layer.
  *
  * Provides a pluggable ledger backend system allowing networks to choose
- * between open (transparent UTXO) and anonymous (SNARK-based) ledgers.
+ * between open (transparent UTXO) and anonymous (STARK-based) ledgers.
  *
  * Usage in network config (.cfg):
  *   [ledger]
  *   type = "open"        ; default, transparent UTXO
- *   ; type = "anon"      ; anonymous ledger with SNARK proofs
- *   ; anon_type = "chipmunk_snark"  ; SNARK backend (default for anon)
+ *   ; type = "anon"      ; anonymous ledger with STARK proofs
+ *   ; anon_type = "chipmunk_stark"  ; STARK backend (default for anon)
  */
 
 #pragma once
@@ -27,13 +27,13 @@ extern "C" {
 
 typedef enum dap_ledger_type {
     DAP_LEDGER_TYPE_OPEN = 0,       /* Standard transparent UTXO ledger */
-    DAP_LEDGER_TYPE_ANON,           /* Anonymous ledger with SNARK proofs */
+    DAP_LEDGER_TYPE_ANON,           /* Anonymous ledger with STARK proofs */
     DAP_LEDGER_TYPE_MAX
 } dap_ledger_type_t;
 
 /* Anonymous ledger backend types */
 typedef enum dap_ledger_anon_type {
-    DAP_LEDGER_ANON_CHIPMUNK_SNARK = 0,  /* Chipmunk lattice-based SNARK */
+    DAP_LEDGER_ANON_CHIPMUNK_STARK = 0,  /* Chipmunk lattice-based STARK */
     DAP_LEDGER_ANON_MAX
 } dap_ledger_anon_type_t;
 
@@ -110,7 +110,7 @@ typedef struct dap_ledger_type_desc {
 
 /**
  * Initialize ledger type system.
- * Registers built-in types: "open" (UTXO) and "anon" (SNARK-based).
+ * Registers built-in types: "open" (UTXO) and "anon" (STARK-based).
  * @return 0 on success.
  */
 int dap_ledger_type_init(void);
@@ -170,7 +170,7 @@ const char *dap_ledger_type_name(dap_ledger_type_t a_type);
 const char *dap_ledger_anon_type_name(dap_ledger_anon_type_t a_type);
 
 /**
- * Create anonymous ledger context (SNARK + Pedersen + key image tracking).
+ * Create anonymous ledger context (STARK + Pedersen + key image tracking).
  * Called automatically by dap_ledger_create() when ledger_type == ANON.
  * @param a_ledger_name Ledger name for GDB persistence (required for anon ledgers).
  * @return Pointer to anon context, or NULL on error. Caller owns.
@@ -194,7 +194,7 @@ void dap_ledger_anon_key_images_load(dap_ledger_t *a_ledger);
 void dap_ledger_anon_key_images_purge(dap_ledger_t *a_ledger);
 
 /**
- * Verify anonymous TX cryptography (SNARK, range proofs, KI unused).
+ * Verify anonymous TX cryptography (STARK, range proofs, KI unused).
  * Does not commit key images — use dap_ledger_anon_tx_key_images_commit on ledger add.
  * @return 0 if valid, negative on error.
  */

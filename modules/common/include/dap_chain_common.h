@@ -255,13 +255,13 @@ enum dap_chain_tx_item_type {
     /// @brief Transaction: events
     TX_ITEM_TYPE_EVENT = 0xa0,         // Event
 
-    /// @brief Transaction: anonymous (SNARK-based)
-    TX_ITEM_TYPE_IN_ANON = 0xb0,       // Anonymous input with SNARK ring proof
+    /// @brief Transaction: anonymous (STARK-based)
+    TX_ITEM_TYPE_IN_ANON = 0xb0,       // Anonymous input with STARK ring proof
     TX_ITEM_TYPE_OUT_ANON = 0xb1,      // Anonymous output with Pedersen commitment
     TX_ITEM_TYPE_KEY_IMAGE = 0xb2,     // Key image for double-spend prevention
-    TX_ITEM_TYPE_ANON_PROOF = 0xb3,    // SNARK ring membership proof
+    TX_ITEM_TYPE_ANON_PROOF = 0xb3,    // STARK ring membership proof
     TX_ITEM_TYPE_PEDERSEN_COMMIT = 0xb4, // Pedersen commitment for confidential amount
-    TX_ITEM_TYPE_RING_KEYS = 0xb5,       // Ring public keys for SNARK verification
+    TX_ITEM_TYPE_RING_KEYS = 0xb5,       // Ring public keys for STARK verification
 
     /// @brief Virtual types for items enumearting
     TX_ITEM_TYPE_IN_EMS_VIRTUAL = 0xf1, // Virtual emission of delegated tokens with single conditional transaction

@@ -1,17 +1,17 @@
 /*
  * dap_chain_datum_tx_anon.h — Anonymous transaction item types.
  *
- * Defines structures for SNARK-based anonymous transactions:
+ * Defines structures for STARK-based anonymous transactions:
  * - Anonymous input (with ring membership proof)
  * - Anonymous output (with Pedersen commitment)
  * - Key image (for double-spend prevention)
- * - SNARK proof (ring membership ZKP)
+ * - STARK proof (ring membership ZKP)
  */
 
 #pragma once
 
 #include "dap_chain_common.h"
-#include "chipmunk_snark.h"
+#include "chipmunk_stark.h"
 #include "chipmunk_pedersen.h"
 #include "chipmunk_range_proof.h"
 #include "chipmunk_range_proof_bdlop.h"
@@ -43,7 +43,7 @@ typedef struct dap_chain_tx_anon_hdr {
  * Anonymous Input (TX_ITEM_TYPE_IN_ANON = 0xb0)
  *
  * Replaces standard TX_ITEM_TYPE_IN for anonymous transactions.
- * Contains SNARK ring membership proof instead of traditional signature.
+ * Contains STARK ring membership proof instead of traditional signature.
  * ---------------------------------------------------------------------- */
 
 typedef struct dap_chain_tx_in_anon {
@@ -61,10 +61,10 @@ typedef struct dap_chain_tx_in_anon {
      * without revealing which key was used */
     uint8_t key_image[9216];        /* k=6 q-packed polynomials */
 
-    /* SNARK ring membership proof (anonymity layer).
+    /* STARK ring membership proof (anonymity layer).
      * Proves indicator is one-hot binary via FRI polynomial identity.
      * Does NOT prove knowledge of lattice secret — that's LRS below. */
-    chipmunk_snark_proof_t snark_proof;
+    chipmunk_stark_proof_t stark_proof;
 
     /* LRS signature (lattice binding layer).
      * Proves knowledge of short x with A_pk·x = P_j for some P_j in ring.
@@ -148,16 +148,16 @@ typedef struct dap_chain_tx_key_image {
 } DAP_ALIGN_PACKED dap_chain_tx_key_image_t;
 
 /* -------------------------------------------------------------------------
- * SNARK Proof (TX_ITEM_TYPE_ANON_PROOF = 0xb3)
+ * STARK Proof (TX_ITEM_TYPE_ANON_PROOF = 0xb3)
  *
- * Standalone SNARK proof item for ring membership verification.
+ * Standalone STARK proof item for ring membership verification.
  * ---------------------------------------------------------------------- */
 
 typedef struct dap_chain_tx_anon_proof {
     dap_chain_tx_anon_hdr_t hdr;
 
-    /* SNARK proof data */
-    chipmunk_snark_proof_t proof;
+    /* STARK proof data */
+    chipmunk_stark_proof_t proof;
 
     /* Ring hash (for verifier to look up ring) */
     dap_chain_hash_fast_t ring_hash;
@@ -236,10 +236,10 @@ int dap_chain_datum_tx_get_key_images(const uint8_t *a_tx_items, size_t a_items_
                                        size_t *a_count);
 
 /**
- * Extract SNARK proofs from anonymous TX items.
+ * Extract STARK proofs from anonymous TX items.
  * @return 0 on success, negative on error.
  */
-int dap_chain_datum_tx_get_snark_proofs(const uint8_t *a_tx_items, size_t a_items_size,
+int dap_chain_datum_tx_get_stark_proofs(const uint8_t *a_tx_items, size_t a_items_size,
                                          const dap_chain_tx_anon_proof_t ***a_proofs,
                                          size_t *a_count);
 
@@ -256,10 +256,10 @@ void dap_chain_anon_input_commit_seed(uint8_t a_seed[32],
                                        uint32_t a_prev_out_idx);
 
 /**
- * Build SNARK message binding: addr || commit_hash || ticker || ki_hash || rp_hash.
+ * Build STARK message binding: addr || commit_hash || ticker || ki_hash || rp_hash.
  *
- * Used by both compose side (chipmunk_snark_prove) and verify side
- * (chipmunk_snark_verify) to ensure the Fiat-Shamir transcript binds the
+ * Used by both compose side (chipmunk_stark_prove) and verify side
+ * (chipmunk_stark_verify) to ensure the Fiat-Shamir transcript binds the
  * proof to the same statement.  The message layout MUST match on both
  * sides or proof verification will fail.
  *
@@ -272,7 +272,7 @@ void dap_chain_anon_input_commit_seed(uint8_t a_seed[32],
  * @param a_rp_hash      SHA-256 of the range proof.
  * @return              Number of bytes written, or negative on error.
  */
-ssize_t dap_chain_anon_snark_build_message(uint8_t *a_out, size_t a_out_size,
+ssize_t dap_chain_anon_stark_build_message(uint8_t *a_out, size_t a_out_size,
                                            const dap_chain_addr_t *a_addr,
                                            const dap_hash_sha3_256_t *a_commit_hash,
                                            const char *a_ticker,

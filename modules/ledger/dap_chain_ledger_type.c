@@ -4,7 +4,7 @@
  * Registers built-in ledger types (open/anon) and provides dispatch
  * to type-specific TX verification and processing.
  *
- * Anonymous backend: SNARK ring membership proof + key image double-spend
+ * Anonymous backend: STARK ring membership proof + key image double-spend
  * prevention + Pedersen commitments for confidential amounts.
  */
 
@@ -14,7 +14,7 @@
 #include "dap_chain_ledger_pvt.h"
 #include "dap_chain_datum_tx_anon.h"
 #include "dap_chain_datum_tx.h"
-#include "chipmunk_snark.h"
+#include "chipmunk_stark.h"
 #include "chipmunk_pedersen.h"
 #include "chipmunk_range_proof.h"
 #include "chipmunk.h"
@@ -87,7 +87,7 @@ static int s_open_emission_check(dap_ledger_t *a_ledger,
 }
 
 /* -------------------------------------------------------------------------
- * Built-in: Anonymous (SNARK) ledger
+ * Built-in: Anonymous (STARK) ledger
  * ---------------------------------------------------------------------- */
 
 /* Key image and anon context types are in dap_chain_ledger_anon_ctx.h */
@@ -101,9 +101,9 @@ static dap_ledger_anon_ctx_t *s_anon_ctx_new(const char *a_ledger_name)
     if (a_ledger_name)
         ctx->ledger_name = dap_strdup(a_ledger_name);
 
-    /* Initialize SNARK context */
-    if (chipmunk_snark_init(&ctx->snark_ctx) != 0) {
-        log_it(L_ERROR, "Failed to initialize SNARK context");
+    /* Initialize STARK context */
+    if (chipmunk_stark_init(&ctx->stark_ctx) != 0) {
+        log_it(L_ERROR, "Failed to initialize STARK context");
         DAP_DELETE(ctx);
         return NULL;
     }
@@ -112,7 +112,7 @@ static dap_ledger_anon_ctx_t *s_anon_ctx_new(const char *a_ledger_name)
     uint8_t l_seed[32] = "chipchain-pedersen-params-v1";
     if (chipmunk_pedersen_init(&ctx->pedersen_params, l_seed) != 0) {
         log_it(L_ERROR, "Failed to initialize Pedersen parameters");
-        chipmunk_snark_ctx_free(&ctx->snark_ctx);
+        chipmunk_stark_ctx_free(&ctx->stark_ctx);
         DAP_DELETE(ctx);
         return NULL;
     }
@@ -125,8 +125,8 @@ static dap_ledger_anon_ctx_t *s_anon_ctx_new(const char *a_ledger_name)
 static void s_anon_ctx_free(dap_ledger_anon_ctx_t *ctx)
 {
     if (!ctx) return;
-    /* Wipe SNARK context (contains secrets) */
-    chipmunk_snark_ctx_free(&ctx->snark_ctx);
+    /* Wipe STARK context (contains secrets) */
+    chipmunk_stark_ctx_free(&ctx->stark_ctx);
     /* Free key image hash table */
     dap_ledger_anon_key_image_t *l_item, *l_tmp;
     dap_ht_foreach(ctx->key_images, l_item, l_tmp) {
@@ -405,7 +405,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
 
     int l_rc = 0;
 
-    /* Verify SNARK ring membership proofs from IN_ANON items.
+    /* Verify STARK ring membership proofs from IN_ANON items.
      * Proofs are embedded in IN_ANON items (not standalone ANON_PROOF items).
      * Ring public keys follow the IN_ANON struct as variable-length data.
      *
@@ -423,18 +423,18 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
      * polynomial and checks all 7 layer commitments + final polynomial.
      * Combined soundness: FRI (~900 bits) + quotient (~138 bits) >> 128 bits.
      */
-    const uint8_t *l_item_snark;
-    size_t l_item_size_snark;
+    const uint8_t *l_item_stark;
+    size_t l_item_size_stark;
     bool l_found_anon_in = false;
 
-    TX_ITEM_ITER_TX(l_item_snark, l_item_size_snark, a_tx) {
-        uint8_t l_type_snark = *l_item_snark;
-        if (l_type_snark == TX_ITEM_TYPE_IN_ANON) {
-            const dap_chain_tx_in_anon_t *l_in_anon = (const dap_chain_tx_in_anon_t *)l_item_snark;
+    TX_ITEM_ITER_TX(l_item_stark, l_item_size_stark, a_tx) {
+        uint8_t l_type_stark = *l_item_stark;
+        if (l_type_stark == TX_ITEM_TYPE_IN_ANON) {
+            const dap_chain_tx_in_anon_t *l_in_anon = (const dap_chain_tx_in_anon_t *)l_item_stark;
             l_found_anon_in = true;
 
             /* Build statement from IN_ANON metadata and embedded ring */
-            chipmunk_snark_statement_t l_statement;
+            chipmunk_stark_statement_t l_statement;
             memset(&l_statement, 0, sizeof(l_statement));
             l_statement.ring_size = l_in_anon->ring_size;
 
@@ -487,7 +487,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                     return -EINVAL;
                 }
                 l_ring_ptr = (const chipmunk_lrs_public_key_t *)
-                    (l_item_snark + sizeof(dap_chain_tx_in_anon_t));
+                    (l_item_stark + sizeof(dap_chain_tx_in_anon_t));
             }
             l_statement.ring = l_ring_ptr;
 
@@ -523,30 +523,30 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             dap_hash_sha3_256_raw(l_ver_commit_hash.raw, (const uint8_t *)&l_ver_commit, sizeof(l_ver_commit));
 
             uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
-            ssize_t l_msg_size = dap_chain_anon_snark_build_message(
+            ssize_t l_msg_size = dap_chain_anon_stark_build_message(
                 l_msg_buf, sizeof(l_msg_buf),
                 &l_out_anon->addr, &l_ver_commit_hash,
                 l_out_anon->token_ticker, &l_ver_ki_hash, &l_ver_rp_hash);
             if (l_msg_size < 0) {
-                log_it(L_WARNING, "SNARK message build failed: %zd", l_msg_size);
+                log_it(L_WARNING, "STARK message build failed: %zd", l_msg_size);
                 return -EINVAL;
             }
             l_statement.message = l_msg_buf;
             l_statement.message_size = (size_t)l_msg_size;
 
-            /* Verify SNARK proof (anonymity layer — indicator is one-hot binary) */
-            chipmunk_snark_proof_t l_proof_copy;
-            memcpy(&l_proof_copy, &l_in_anon->snark_proof, sizeof(l_proof_copy));
-            l_rc = chipmunk_snark_verify(&l_proof_copy, &l_anon->snark_ctx, &l_statement);
+            /* Verify STARK proof (anonymity layer — indicator is one-hot binary) */
+            chipmunk_stark_proof_t l_proof_copy;
+            memcpy(&l_proof_copy, &l_in_anon->stark_proof, sizeof(l_proof_copy));
+            l_rc = chipmunk_stark_verify(&l_proof_copy, &l_anon->stark_ctx, &l_statement);
             if (l_rc != 1) {
-                log_it(L_WARNING, "SNARK proof verification failed for IN_ANON: %d", l_rc);
+                log_it(L_WARNING, "STARK proof verification failed for IN_ANON: %d", l_rc);
                 DAP_DELETE(l_ring_from_cache);
                 return -EINVAL;
             }
 
             /* FIX 6: Verify LRS signature (lattice binding layer).
              *
-             * SNARK proves indicator exists (anonymity). LRS proves knowledge
+             * STARK proves indicator exists (anonymity). LRS proves knowledge
              * of short x with A_pk·x = P_j for some P_j in ring (lattice binding).
              * Together they provide: anonymity (which member hidden) + soundness
              * (prover actually owns a lattice key in the ring).
@@ -559,11 +559,11 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
 
                 if (l_ring_hash_nonzero) {
                     /* Ring from cache — LRS sig is first in trailing data */
-                    l_lrs_sig = l_item_snark + sizeof(dap_chain_tx_in_anon_t);
+                    l_lrs_sig = l_item_stark + sizeof(dap_chain_tx_in_anon_t);
                     l_lrs_ring = l_ring_ptr;
                 } else {
                     /* Ring inline — LRS sig before ring keys in trailing data */
-                    l_lrs_sig = l_item_snark + sizeof(dap_chain_tx_in_anon_t);
+                    l_lrs_sig = l_item_stark + sizeof(dap_chain_tx_in_anon_t);
                     l_lrs_ring = (const chipmunk_lrs_public_key_t *)
                         (l_lrs_sig + l_in_anon->lrs_sig_size);
                 }
@@ -585,7 +585,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
     }
 
     if (!l_found_anon_in) {
-        log_it(L_WARNING, "Anonymous TX has no IN_ANON items with SNARK proofs");
+        log_it(L_WARNING, "Anonymous TX has no IN_ANON items with STARK proofs");
         return -EINVAL;
     }
 
@@ -691,7 +691,7 @@ int dap_ledger_anon_tx_key_images_commit(dap_ledger_t *a_ledger,
 /**
  * Anon ledger TX check orchestrator (WS-B4).
  * Plain TX  → full UTXO cache check (001 bootstrap canary).
- * Anon TX   → UTXO structural + SNARK/range/KI verify + Pedersen conservation.
+ * Anon TX   → UTXO structural + STARK/range/KI verify + Pedersen conservation.
  */
 static int s_anon_tx_check(dap_ledger_t *a_ledger,
                             dap_chain_datum_tx_t *a_tx,
@@ -845,8 +845,8 @@ static const dap_ledger_type_desc_t s_builtin_types[] = {
     {
         .type = DAP_LEDGER_TYPE_ANON,
         .name = "anon",
-        .anon_type = DAP_LEDGER_ANON_CHIPMUNK_SNARK,
-        .description = "Anonymous ledger with Chipmunk SNARK ring proofs",
+        .anon_type = DAP_LEDGER_ANON_CHIPMUNK_STARK,
+        .description = "Anonymous ledger with Chipmunk STARK ring proofs",
         .tx_check = s_anon_tx_check,
         .tx_add = s_anon_tx_add,
         .tx_remove = s_anon_tx_remove,
@@ -920,7 +920,7 @@ dap_ledger_type_t dap_ledger_type_from_config(dap_config_t *a_config,
 {
     if (!a_anon_type) return DAP_LEDGER_TYPE_OPEN;
 
-    *a_anon_type = DAP_LEDGER_ANON_CHIPMUNK_SNARK;  /* default */
+    *a_anon_type = DAP_LEDGER_ANON_CHIPMUNK_STARK;  /* default */
 
     if (!a_config) return DAP_LEDGER_TYPE_OPEN;
 
@@ -931,10 +931,10 @@ dap_ledger_type_t dap_ledger_type_from_config(dap_config_t *a_config,
         /* Read anon_type */
         const char *l_anon_str = dap_config_get_item_str(a_config, "ledger", "anon_type");
         if (l_anon_str) {
-            if (strcmp(l_anon_str, "chipmunk_snark") == 0) {
-                *a_anon_type = DAP_LEDGER_ANON_CHIPMUNK_SNARK;
+            if (strcmp(l_anon_str, "chipmunk_stark") == 0) {
+                *a_anon_type = DAP_LEDGER_ANON_CHIPMUNK_STARK;
             } else {
-                log_it(L_ERROR, "Unsupported anon_type '%s' in config. Only 'chipmunk_snark' is supported.", l_anon_str);
+                log_it(L_ERROR, "Unsupported anon_type '%s' in config. Only 'chipmunk_stark' is supported.", l_anon_str);
                 return DAP_LEDGER_TYPE_OPEN;  /* Fail-safe: treat as open */
             }
         }
@@ -956,7 +956,7 @@ const char *dap_ledger_type_name(dap_ledger_type_t a_type)
 const char *dap_ledger_anon_type_name(dap_ledger_anon_type_t a_type)
 {
     switch (a_type) {
-    case DAP_LEDGER_ANON_CHIPMUNK_SNARK: return "chipmunk_snark";
+    case DAP_LEDGER_ANON_CHIPMUNK_STARK: return "chipmunk_stark";
     default:                             return "unknown";
     }
 }

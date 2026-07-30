@@ -190,7 +190,7 @@ int ledger_cli_tx_create(int a_argc, char **a_argv, dap_json_t *a_json_arr_reply
                 dap_cli_error_code_get("LEDGER_TX_CREATE_FAILED"),
                 "Failed to create anonymous transaction. Check logs for details "
                 "(wallet key type must be sig_chipmunk_ring or sig_chipmunk_lrs, "
-                "insufficient balance, or SNARK error)");
+                "insufficient balance, or STARK error)");
             return dap_cli_error_code_get("LEDGER_TX_CREATE_FAILED");
         }
         

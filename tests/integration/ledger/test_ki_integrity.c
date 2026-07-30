@@ -38,7 +38,7 @@ static dap_ledger_t *s_create_anon_ledger(void)
         .flags = 0,
         .native_ticker = "CFN",
         .ledger_type = DAP_LEDGER_TYPE_ANON,
-        .anon_type = DAP_LEDGER_ANON_CHIPMUNK_SNARK,
+        .anon_type = DAP_LEDGER_ANON_CHIPMUNK_STARK,
     };
     snprintf(l_opts.name, sizeof(l_opts.name), "test_ki_%lu", (unsigned long)time(NULL));
     return dap_ledger_create(&l_opts);
@@ -106,7 +106,7 @@ static void test_anon_ctx_has_required_fields(void)
 
     /* Verify Pedersen params are initialized */
     dap_assert(l_anon->pedersen_params.initialized, "Pedersen params initialized");
-    dap_assert(l_anon->snark_ctx.initialized, "SNARK context initialized");
+    dap_assert(l_anon->stark_ctx.initialized, "STARK context initialized");
 
     /* Verify key_images hash table pointer exists (may be empty) */
     /* key_images is a dap_ht pointer — NULL means empty table, which is valid */

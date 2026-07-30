@@ -59,7 +59,7 @@ typedef struct dap_ledger_create_options {
     uint16_t flags;                    // Ledger flags
     const char *native_ticker;         // Native token ticker (default: NULL, must be set)
     uint8_t ledger_type;               // Ledger type: 0=open (default), 1=anon
-    uint8_t anon_type;                 // Anonymous backend: 0=chipmunk_snark (default), 1=mrng, 2=lrs
+    uint8_t anon_type;                 // Anonymous backend: 0=chipmunk_stark (default), 1=mrng, 2=lrs
 } dap_ledger_create_options_t;
 
 // Callback typedefs

@@ -1,7 +1,7 @@
 /*
  * dap_chain_tx_anon_create.h — Anonymous transaction creation API (algorithm-agnostic).
  *
- * Creates anonymous transactions with SNARK ring proofs, key images for
+ * Creates anonymous transactions with STARK ring proofs, key images for
  * double-spend prevention, and Pedersen commitments for confidential amounts.
  *
  * The signature algorithm is auto-detected from wallet key type or can be

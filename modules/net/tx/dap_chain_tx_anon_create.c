@@ -1,7 +1,7 @@
 /*
  * dap_chain_tx_anon_create.c — Anonymous transaction creation implementation.
  *
- * Creates transactions with SNARK ring proofs, key images, and Pedersen commitments.
+ * Creates transactions with STARK ring proofs, key images, and Pedersen commitments.
  * All stubs resolved: wallet key extraction, key image generation, UTXO lookup,
  * signer index, auto-ring selection, balance reveal.
  */
@@ -23,7 +23,7 @@
 #include "dap_chain_datum_tx_in.h"
 #include "dap_chain_net_srv_stake_common.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "chipmunk_snark.h"
+#include "chipmunk_stark.h"
 #include "chipmunk_pedersen.h"
 #include "chipmunk_range_proof.h"
 #include "chipmunk_ring.h"
@@ -48,7 +48,7 @@
 
 #define LOG_TAG "tx_anon_create"
 
-/* Crypto parameters (SNARK ctx, Pedersen params) are per-ledger,
+/* Crypto parameters (STARK ctx, Pedersen params) are per-ledger,
  * stored in PVT(ledger)->anon_data as dap_ledger_anon_ctx_t.
  * No global context — each network has its own parameters. */
 
@@ -69,8 +69,8 @@ typedef struct dap_chain_tx_anon_algo {
     int (*key_image)(uint8_t out[9216], const void *pk, const void *sk, const lotrs_params_t *par);
     /* Extract pk from stake pkey raw data */
     int (*pk_from_stake_pkey)(void *out_pk, const dap_pkey_t *pkey);
-    /* Populate SNARK witness secret_key polynomials from enc_key */
-    int (*populate_witness)(chipmunk_snark_witness_t *witness, dap_enc_key_t *key);
+    /* Populate STARK witness secret_key polynomials from enc_key */
+    int (*populate_witness)(chipmunk_stark_witness_t *witness, dap_enc_key_t *key);
 } dap_chain_tx_anon_algo_t;
 
 /* --- Chipmunk Ring adapter --- */
@@ -136,7 +136,7 @@ static int s_ring_pk_from_stake(void *out, const dap_pkey_t *pkey) {
     memcpy(out, pkey->pkey, sizeof(chipmunk_ring_pk_t));
     return 0;
 }
-static int s_ring_populate_witness(chipmunk_snark_witness_t *witness, dap_enc_key_t *key) {
+static int s_ring_populate_witness(chipmunk_stark_witness_t *witness, dap_enc_key_t *key) {
     const chipmunk_ring_sk_t *l_sk = (const chipmunk_ring_sk_t *)key->priv_key_data;
     if (!l_sk || !l_sk->s.polys) return -EINVAL;
     /* Copy l+k polynomials from the ring secret key polyvec into witness secret_key array.
@@ -183,7 +183,7 @@ static int s_lrs_pk_from_stake(void *out, const dap_pkey_t *pkey) {
     memcpy(out, pkey->pkey, sizeof(chipmunk_lrs_public_key_t));
     return 0;
 }
-static int s_lrs_populate_witness(chipmunk_snark_witness_t *witness, dap_enc_key_t *key) {
+static int s_lrs_populate_witness(chipmunk_stark_witness_t *witness, dap_enc_key_t *key) {
     /* LRS secret key is seed-based; derive witness polynomials from x_seed.
      * witness->secret_key[K*2] = {s0[0..K-1], s1[0..K-1]}.
      * For LRS, s0 = x (derived witness), s1 = 0 (LRS is one-sided). */
@@ -467,8 +467,8 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     int l_rc = s_find_signer_in_ring(a_algo, a_ring, a_ring_size, l_pk, &l_signer_idx);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
 
-    /* 3. SNARK witness */
-    chipmunk_snark_witness_t l_witness;
+    /* 3. STARK witness */
+    chipmunk_stark_witness_t l_witness;
     memset(&l_witness, 0, sizeof(l_witness));
     l_witness.signer_index = l_signer_idx;
     memset(&l_witness.indicator, 0, sizeof(l_witness.indicator));
@@ -476,7 +476,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (a_algo->populate_witness) {
         l_rc = a_algo->populate_witness(&l_witness, l_key);
         if (l_rc != 0) {
-            log_it(L_ERROR, "Failed to populate SNARK witness for algo %s", a_algo->name);
+            log_it(L_ERROR, "Failed to populate STARK witness for algo %s", a_algo->name);
             dap_enc_key_delete(l_key);
             return NULL;
         }
@@ -547,7 +547,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     memcpy(&l_commit, &l_out.commitment, sizeof(l_commit));
 
     /* 8. Statement: message includes key image hash and range proof hash for cross-component binding */
-    chipmunk_snark_statement_t l_statement;
+    chipmunk_stark_statement_t l_statement;
     memset(&l_statement, 0, sizeof(l_statement));
     l_statement.ring = (const chipmunk_lrs_public_key_t *)a_ring;
     l_statement.ring_size = a_ring_size;
@@ -560,7 +560,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_hash_sha3_256_raw(l_commit_hash.raw, (const uint8_t *)&l_commit, sizeof(l_commit));
 
     uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
-    ssize_t l_msg_size = dap_chain_anon_snark_build_message(l_msg_buf, sizeof(l_msg_buf),
+    ssize_t l_msg_size = dap_chain_anon_stark_build_message(l_msg_buf, sizeof(l_msg_buf),
                                                               a_addr_to, &l_commit_hash,
                                                               a_token_ticker, &l_ki_hash, &l_rp_hash);
     if (l_msg_size < 0)
@@ -568,7 +568,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     l_statement.message = l_msg_buf;
     l_statement.message_size = (size_t)l_msg_size;
 
-    /* 9. SNARK proof — use per-ledger anon context
+    /* 9. STARK proof — use per-ledger anon context
      * The prover constructs:
      *   - indicator polynomial b (one-hot: b[signer]=1)
      *   - constraint polynomial z encoding ring membership (C3), binary (C1),
@@ -577,9 +577,9 @@ static dap_chain_datum_t *s_anon_transfer_generic(
      *   - FRI commitment layers (vestigial — verifier uses direct eval)
      * Ring membership is embedded in C3: sum(b_i*H(pk_i)) = H(pk_signer).
      * Verifier checks z(alpha)=0 via quotient relation at 11 random points. */
-    chipmunk_snark_proof_t l_snark;
-    memset(&l_snark, 0, sizeof(l_snark));
-    l_rc = chipmunk_snark_prove(&l_snark, &l_anon_init->snark_ctx, &l_statement, &l_witness);
+    chipmunk_stark_proof_t l_stark;
+    memset(&l_stark, 0, sizeof(l_stark));
+    l_rc = chipmunk_stark_prove(&l_stark, &l_anon_init->stark_ctx, &l_statement, &l_witness);
     dap_memwipe(&l_witness, sizeof(l_witness));
     if (l_rc != 0) { chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
@@ -595,12 +595,12 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         (const chipmunk_lrs_secret_key_t *)a_algo->get_sk(l_key);
     size_t l_lrs_sig_size = chipmunk_lrs_signature_size((uint32_t)a_ring_size);
     uint8_t *l_lrs_sig = DAP_NEW_Z_SIZE(uint8_t, l_lrs_sig_size);
-    if (!l_lrs_sig) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_lrs_sig) { chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
     uint8_t l_lrs_seed[CHIPMUNK_LRS_SEED_BYTES];
     if (dap_random_bytes(l_lrs_seed, sizeof(l_lrs_seed)) != 0) {
         DAP_DELETE(l_lrs_sig);
-        chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key);
+        chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key);
         return NULL;
     }
 
@@ -613,25 +613,25 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (l_rc != 0) {
         log_it(L_ERROR, "LRS sign failed: %d", l_rc);
         DAP_DELETE(l_lrs_sig);
-        chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key);
+        chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key);
         return NULL;
     }
 
     /* 10. Build TX */
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    if (!l_tx) { chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_tx) { chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
 
     /* IN_ANON (variable-size: struct + LRS sig + ring public keys) */
     size_t l_ring_bytes = a_ring_size * pk_sz;
     size_t l_in_full_size = sizeof(dap_chain_tx_in_anon_t) + l_lrs_sig_size + l_ring_bytes;
     uint8_t *l_in_buf = DAP_NEW_Z_SIZE(uint8_t, l_in_full_size);
-    if (!l_in_buf) { DAP_DELETE(l_lrs_sig); chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_in_buf) { DAP_DELETE(l_lrs_sig); chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
     dap_chain_tx_in_anon_t *l_in_ptr = (dap_chain_tx_in_anon_t *)l_in_buf;
     l_in_ptr->hdr.type = TX_ITEM_TYPE_IN_ANON; l_in_ptr->hdr.version = 1; l_in_ptr->hdr.size = l_in_full_size;
     l_in_ptr->prev_hash = l_prev_hash; l_in_ptr->prev_out_idx = l_prev_idx;
     l_in_ptr->ring_size = (uint32_t)a_ring_size;
     l_in_ptr->lrs_sig_size = (uint32_t)l_lrs_sig_size;
-    memcpy(&l_in_ptr->snark_proof, &l_snark, sizeof(l_snark));
+    memcpy(&l_in_ptr->stark_proof, &l_stark, sizeof(l_stark));
     memcpy(l_in_ptr->key_image, l_ki, sizeof(l_ki));
 
     /* Phase 5: Ring dedup — compute ring_commit_hash and cache ring data.
@@ -662,7 +662,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (!IS_ZERO_256(l_change)) {
         dap_chain_tx_out_anon_t l_change_out;
         if (s_build_out_anon_tracked(&l_change_addr, a_token_ticker, l_change, &l_change_out, &l_anon_init->pedersen_params, l_change_seed) != 0) {
-            chipmunk_snark_proof_free(&l_snark);
+            chipmunk_stark_proof_free(&l_stark);
             chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx);
             dap_enc_key_delete(l_key);
@@ -684,7 +684,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
         dap_chain_tx_out_anon_t l_fee_out;
         if (s_build_out_anon_tracked(l_fee_dst, a_token_ticker, a_fee, &l_fee_out, &l_anon_init->pedersen_params, l_fee_seed) != 0) {
-            chipmunk_snark_proof_free(&l_snark);
+            chipmunk_stark_proof_free(&l_stark);
             chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx);
             dap_enc_key_delete(l_key);
@@ -708,7 +708,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
         chipmunk_poly_t l_r_in[CHIPMUNK_LRS_K];
         if (chipmunk_pedersen_derive_blinding(l_r_in, l_input_seed) != 0) {
-            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp);
+            chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
         }
 
@@ -739,7 +739,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         /* Random seed for range-proof bit-level + Stern blinding */
         uint8_t l_anchor_rp_seed[32];
         if (dap_random_bytes(l_anchor_rp_seed, sizeof(l_anchor_rp_seed)) != 0) {
-            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp);
+            chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
         }
         dap_chain_addr_t l_anchor_addr = {};
@@ -747,7 +747,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         if (s_build_out_anon_explicit(&l_anchor_addr, a_token_ticker, uint256_0,
                                          &l_anchor_out, &l_anon_init->pedersen_params,
                                          l_r_anchor, l_anchor_rp_seed) != 0) {
-            chipmunk_snark_proof_free(&l_snark); chipmunk_range_proof_bdlop_wipe(&l_rp);
+            chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp);
             dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
         }
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_anchor_out);
@@ -763,7 +763,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
 
-    chipmunk_snark_proof_free(&l_snark);
+    chipmunk_stark_proof_free(&l_stark);
     chipmunk_range_proof_bdlop_wipe(&l_rp);
     dap_enc_key_delete(l_key);
 

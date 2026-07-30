@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "chipmunk_snark.h"
+#include "chipmunk_stark.h"
 #include "chipmunk_pedersen.h"
 #include "dap_hash.h"
 
@@ -26,7 +26,7 @@ typedef struct dap_ledger_anon_key_image {
 
 /* Anonymous ledger context — one per anon ledger instance */
 typedef struct dap_ledger_anon_ctx {
-    chipmunk_snark_ctx_t snark_ctx;
+    chipmunk_stark_ctx_t stark_ctx;
     chipmunk_pedersen_params_t pedersen_params;
     dap_ledger_anon_key_image_t *key_images;
     pthread_rwlock_t key_images_rwlock;

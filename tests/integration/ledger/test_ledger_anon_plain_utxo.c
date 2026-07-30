@@ -25,7 +25,7 @@ static dap_ledger_t *s_create_ledger(uint8_t a_ledger_type)
         .flags = 0,
         .native_ticker = "CFN",
         .ledger_type = a_ledger_type,
-        .anon_type = DAP_LEDGER_ANON_CHIPMUNK_SNARK,
+        .anon_type = DAP_LEDGER_ANON_CHIPMUNK_STARK,
     };
     snprintf(l_opts.name, sizeof(l_opts.name), "test_ledger_%u", (unsigned)a_ledger_type);
     return dap_ledger_create(&l_opts);
