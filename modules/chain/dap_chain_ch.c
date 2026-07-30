@@ -908,12 +908,11 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                         dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size,
                                         l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                         (uint64_t)(((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo));
-        /* Process CHAIN packet INLINE (not async via proc_queue_input).
-         * Master processes inline in the read callback — ACK is sent
-         * immediately, preventing the peer's sender from timing out.
-         * Async processing via proc_queue_input added 10-100ms latency
-         * per ACK, causing the peer's 30s sync_timeout to fire before
-         * enough ACKs arrived to advance the sliding window. */
+        /* Process inline for immediate ACK delivery.  The previous segfaults
+         * were SIGBUS from corrupted mmap files (kill -9 during write), not
+         * from inline processing.  callback_atom_add is thread-safe (rwlock)
+         * and does not block indefinitely.  Inline processing matches master
+         * behavior and prevents ACK latency that causes peer timeouts. */
         s_sync_in_chains_callback(l_args);
     } break;
 

@@ -46,6 +46,7 @@
 #ifdef DAP_OS_UNIX
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #endif
@@ -4792,6 +4793,26 @@ static int s_restart_sync_chains(dap_chain_net_t *a_net, dap_chain_net_sync_rest
                                         l_net_pvt->sync_context.out_notifier_arg);
     }
     dap_stream_node_addr_t l_prev_link = l_net_pvt->sync_context.current_link;
+    /* Close stale connections: if the previous link's TCP send queue is
+     * backed up (>1MB), the peer is not reading our data.  Close the
+     * connection so the link_manager can establish a fresh one.  Without
+     * this, stale connections accumulate (7 connections × 4MB send queue)
+     * and CHAIN_REQ packets never reach the peer. */
+    if (!dap_stream_node_addr_is_blank(&l_prev_link)) {
+        dap_worker_t *l_w = NULL;
+        dap_events_socket_uuid_t l_es = dap_stream_find_by_addr(&l_prev_link, &l_w);
+        if (l_es && l_w) {
+            dap_events_socket_t *l_sock = dap_context_find(l_w->context, l_es);
+            if (l_sock && l_sock->socket > 0) {
+                int l_pending = 0;
+                if (ioctl(l_sock->socket, TIOCOUTQ, &l_pending) == 0 && l_pending > 1048576) {
+                    log_it(L_WARNING, "Stale connection to " NODE_ADDR_FP_STR ": send queue %d bytes, closing",
+                           NODE_ADDR_FP_ARGS_S(l_prev_link), l_pending);
+                    l_sock->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                }
+            }
+        }
+    }
     uint64_t l_session_id = s_sync_session_advance(l_net_pvt);
     size_t l_uplinks_count = 0, l_downlinks_count = 0;
     dap_stream_node_addr_t *l_links_addrs = dap_link_manager_get_net_links_addrs(a_net->pub.id.uint64,
