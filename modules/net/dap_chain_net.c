@@ -4512,16 +4512,16 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
     {
         dap_chain_net_state_t l_prev_state = l_net_pvt->state;
         if (l_prev_state != NET_STATE_OFFLINE && l_prev_state != NET_STATE_SYNC_CHAINS && l_prev_state != NET_STATE_ONLINE) {
-            size_t l_est = dap_link_manager_established_uplinks_count(l_net->pub.id.uint64);
-            size_t l_req = dap_link_manager_required_links_count(l_net->pub.id.uint64);
-            if (l_est >= l_req) {
-                l_net_pvt->state = NET_STATE_SYNC_CHAINS;
-                debug_if(s_debug_more, L_INFO, "%s: forced state to SYNC_CHAINS on sync packet receipt (was %s, links %zu/%zu)",
-                         l_net->pub.name, c_net_states[l_prev_state], l_est, l_req);
-            } else {
-                debug_if(s_debug_more, L_INFO, "%s: sync packet received but links not ready (%zu/%zu), staying in %s",
-                         l_net->pub.name, l_est, l_req, c_net_states[l_prev_state]);
-            }
+            /* Transition to SYNC_CHAINS unconditionally when sync packets
+             * arrive — master uses CAS on LINKS_ESTABLISHED.  Don't gate on
+             * required links count: the packet arrived, so at least 1 link
+             * is working.  Gating on required caused the node to stay in
+             * LINKS_ESTABLISHED forever when 1 of 3 required links drops
+             * intermittently. */
+            l_net_pvt->state = NET_STATE_SYNC_CHAINS;
+            s_net_states_proc(l_net);
+            debug_if(s_debug_more, L_INFO, "%s: forced state to SYNC_CHAINS on sync packet receipt (was %s)",
+                     l_net->pub.name, c_net_states[l_prev_state]);
         }
     }
 
