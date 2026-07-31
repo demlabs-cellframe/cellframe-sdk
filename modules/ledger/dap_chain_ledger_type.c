@@ -661,11 +661,17 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             if (*l_item == TX_ITEM_TYPE_OUT_ANON) {
                 const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_item;
 
-                /* Verify range proof (copy from packed struct to avoid alignment issues) */
+                /* Verify range proof — 9C FIX (F1+GAP-2+GAP-6):
+                 * Pass the OUT_ANON commitment so BDLOP opening verifies
+                 * knowledge of opening of the ACTUAL output commitment,
+                 * not the proof's internal self-generated commitment.
+                 * This closes: commitment-swap attack (F1) and
+                 * mod-Q value mismatch (GAP-6). */
                 chipmunk_range_proof_bdlop_t l_rp_copy;
                 memcpy(&l_rp_copy, &l_out->range_proof, sizeof(l_rp_copy));
                 l_rc = chipmunk_range_proof_bdlop_verify(&l_rp_copy,
-                                                          &l_anon->pedersen_params);
+                                                          &l_anon->pedersen_params,
+                                                          &l_out->commitment);
                 if (l_rc != 1) {
                     log_it(L_WARNING, "BDLOP range proof verification failed for anonymous output");
                     return -EINVAL;
