@@ -455,9 +455,13 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                 return -EINVAL;
             }
 
-            /* Phase 5: Ring dedup support.
-             * If ring_commit_hash is nonzero, ring keys are in GDB cache
-             * (not inline). Otherwise, ring keys follow this struct. */
+            /* 9A.4 FIX (F3): LRS signature is MANDATORY — reject if zero. */
+            if (l_in_anon->lrs_sig_size == 0) {
+                log_it(L_WARNING, "IN_ANON lrs_sig_size=0: lattice binding LRS is mandatory");
+                return -EINVAL;
+            }
+
+            /* Phase 5: Ring dedup support. */
             const chipmunk_lrs_public_key_t *l_ring_ptr = NULL;
             uint8_t *l_ring_from_cache = NULL;
             bool l_ring_hash_nonzero = false;
@@ -478,16 +482,30 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                     DAP_DELETE(l_ring_from_cache);
                     return -EINVAL;
                 }
+                /* 9A.6 FIX (GAP-3): Recompute SHA3(cached_ring) and verify == ring_commit_hash */
+                dap_hash_sha3_256_t l_recomputed_hash;
+                dap_hash_sha3_256_raw(l_recomputed_hash.raw, l_ring_from_cache, l_ring_needed);
+                uint8_t l_hash_diff = 0;
+                for (int i = 0; i < 32; ++i)
+                    l_hash_diff |= l_recomputed_hash.raw[i] ^ l_in_anon->ring_commit_hash.raw[i];
+                if (l_hash_diff != 0) {
+                    log_it(L_WARNING, "IN_ANON ring cache hash mismatch (poisoned cache?)");
+                    DAP_DELETE(l_ring_from_cache);
+                    return -EINVAL;
+                }
                 l_ring_ptr = (const chipmunk_lrs_public_key_t *)l_ring_from_cache;
             } else {
-                /* Inline mode: ring keys follow the struct */
-                if (l_ring_data_bytes < l_ring_needed) {
-                    log_it(L_WARNING, "IN_ANON ring_size=%u but only %zu bytes available (need %zu)",
-                           l_in_anon->ring_size, l_ring_data_bytes, l_ring_needed);
+                /* Inline mode: trailing data is [LRS sig][ring keys].
+                 * 9A.5 FIX (F6): ring pointer must skip past LRS signature. */
+                /* 9A.6 FIX (NEW-F): bounds check — lrs_sig_size + ring must fit in trailing data */
+                if (l_in_anon->lrs_sig_size > l_ring_data_bytes ||
+                    l_ring_needed > l_ring_data_bytes - l_in_anon->lrs_sig_size) {
+                    log_it(L_WARNING, "IN_ANON: lrs_sig_size=%u + ring %zu bytes exceeds trailing %zu",
+                           l_in_anon->lrs_sig_size, l_ring_needed, l_ring_data_bytes);
                     return -EINVAL;
                 }
                 l_ring_ptr = (const chipmunk_lrs_public_key_t *)
-                    (l_item_stark + sizeof(dap_chain_tx_in_anon_t));
+                    (l_item_stark + sizeof(dap_chain_tx_in_anon_t) + l_in_anon->lrs_sig_size);
             }
             l_statement.ring = l_ring_ptr;
 
@@ -544,32 +562,17 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                 return -EINVAL;
             }
 
-            /* FIX 6: Verify LRS signature (lattice binding layer).
+            /* 9A.7 FIX: LRS verification uses the SAME ring as STARK (l_ring_ptr).
+             * Previously LRS computed a separate l_lrs_ring pointer that could
+             * diverge from l_ring_ptr (NEW-A: ring equality gap). Now both
+             * STARK and LRS use the single canonical l_ring_ptr.
              *
-             * STARK proves indicator exists (anonymity). LRS proves knowledge
-             * of short x with A_pk·x = P_j for some P_j in ring (lattice binding).
-             * Together they provide: anonymity (which member hidden) + soundness
-             * (prover actually owns a lattice key in the ring).
-             *
-             * LRS signature is in trailing data: [LRS sig][ring keys] */
-            if (l_in_anon->lrs_sig_size > 0) {
-                /* Extract LRS signature from trailing data */
-                const uint8_t *l_lrs_sig;
-                const chipmunk_lrs_public_key_t *l_lrs_ring;
-
-                if (l_ring_hash_nonzero) {
-                    /* Ring from cache — LRS sig is first in trailing data */
-                    l_lrs_sig = l_item_stark + sizeof(dap_chain_tx_in_anon_t);
-                    l_lrs_ring = l_ring_ptr;
-                } else {
-                    /* Ring inline — LRS sig before ring keys in trailing data */
-                    l_lrs_sig = l_item_stark + sizeof(dap_chain_tx_in_anon_t);
-                    l_lrs_ring = (const chipmunk_lrs_public_key_t *)
-                        (l_lrs_sig + l_in_anon->lrs_sig_size);
-                }
-
+             * LRS sig is always at the start of trailing data (right after struct).
+             * Ring pointer was already computed above (skipping LRS sig in inline mode). */
+            {
+                const uint8_t *l_lrs_sig = l_item_stark + sizeof(dap_chain_tx_in_anon_t);
                 l_rc = chipmunk_lrs_verify(l_lrs_sig, l_in_anon->lrs_sig_size,
-                                            l_lrs_ring, l_in_anon->ring_size,
+                                            l_ring_ptr, l_in_anon->ring_size,
                                             l_msg_buf, (size_t)l_msg_size,
                                             CHIPMUNK_Q);
                 if (l_rc != 1) {
