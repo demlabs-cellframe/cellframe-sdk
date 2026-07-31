@@ -1386,7 +1386,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                              * Fail the whole item rather than emit a wrong cond. */
                             dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Bad owner_addrs entry at index %zu in OUT_COND_SUBTYPE_WALLET_SHARED", l_bad_addr_idx);
                             log_it(L_ERROR, "Json TX: bad owner_addrs entry at index %zu in OUT_COND_SUBTYPE_WALLET_SHARED", l_bad_addr_idx);
-                            DAP_DELETE(l_owner_addrs); DAP_DELETE(l_pkey_hashes);
+                            DAP_DELETE(l_owner_addrs); DAP_DELETE(l_pkey_hashes); DAP_DELETE(l_tag_str);
                             break;
                         }
                     }
@@ -1404,7 +1404,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             if (!l_hash_used) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Memory allocation error for hash_used");
                 log_it(L_ERROR, "Json TX: memory allocation error for hash_used");
-                DAP_DELETE(l_owner_addrs); DAP_DELETE(l_pkey_hashes);
+                DAP_DELETE(l_owner_addrs); DAP_DELETE(l_pkey_hashes); DAP_DELETE(l_tag_str);
                 break;
             }
             for (size_t a = 0; a < l_owner_addrs_count; a++) {
@@ -1424,7 +1424,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             if (l_pkey_hashes_count && !l_standalone_hashes) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Memory allocation error for standalone hashes");
                 log_it(L_ERROR, "Json TX: memory allocation error for standalone hashes");
-                DAP_DELETE(l_hash_used); DAP_DELETE(l_owner_addrs); DAP_DELETE(l_pkey_hashes);
+                DAP_DELETE(l_hash_used); DAP_DELETE(l_owner_addrs); DAP_DELETE(l_pkey_hashes); DAP_DELETE(l_tag_str);
                 break;
             }
             for (size_t h = 0; h < l_pkey_hashes_count; h++) {
