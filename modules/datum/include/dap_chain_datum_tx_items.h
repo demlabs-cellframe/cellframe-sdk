@@ -245,6 +245,15 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_e
     const char *a_tag_str);
 
 /**
+ * Create wallet_shared out_cond from raw pre-serialized TSD bytes.
+ * Used when JSON round-trip provides a base58 "params" field that preserves
+ * exact TSD byte content, avoiding decompose/recompose mismatch.
+ */
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_raw(
+    dap_chain_srv_uid_t a_srv_uid, uint256_t a_value, uint32_t a_signs_min,
+    const void *a_params, size_t a_params_size);
+
+/**
  * Create item dap_chain_tx_sig_t
  *
  * return item, NULL Error

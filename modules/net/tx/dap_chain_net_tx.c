@@ -1237,14 +1237,50 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
             }
-            
+
             uint64_t l_min_sig_count;
             if(!dap_json_object_get_uint64_ext(a_json_item_obj, "min_sig_count", &l_min_sig_count)) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: bad min_sig_count in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
             }
-            
+            if (l_min_sig_count > UINT32_MAX) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "min_sig_count %"DAP_UINT64_FORMAT_U" exceeds uint32 max in OUT_COND_SUBTYPE_WALLET_SHARED", l_min_sig_count);
+                log_it(L_ERROR, "Json TX: min_sig_count %"DAP_UINT64_FORMAT_U" exceeds uint32 max in OUT_COND_SUBTYPE_WALLET_SHARED", l_min_sig_count);
+                break;
+            }
+
+            uint64_t l_srv_uid = 0;
+            if (!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid))
+                l_srv_uid = DAP_CHAIN_WALLET_SHARED_ID;
+
+            /* If the JSON carries a base58 "params" field with raw TSD bytes,
+             * use them directly — this preserves exact TSD content across
+             * JSON round-trip and avoids the decompose/recompose mismatch
+             * that causes chain verificator return -11 (TSD memcmp failure).
+             * This matches how srv_pay, srv_xchange, and srv_stake_pos_delegate
+             * handle their "params" field. */
+            const char *l_params_str = dap_json_object_get_string(a_json_item_obj, "params");
+            if (l_params_str && *l_params_str) {
+                size_t l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
+                uint8_t *l_params = DAP_NEW_Z_SIZE(uint8_t, l_params_size);
+                if (l_params) {
+                    l_params_size = dap_enc_base58_decode(l_params_str, l_params);
+                    dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared_raw(
+                        (dap_chain_srv_uid_t){.uint64 = l_srv_uid}, l_value, (uint32_t)l_min_sig_count,
+                        l_params, l_params_size);
+                    DAP_DELETE(l_params);
+                    if (l_out_cond_item) {
+                        SUM_256_256(*a_value_need, l_value, a_value_need);
+                        return (uint8_t *)l_out_cond_item;
+                    }
+                    log_it(L_WARNING, "Json TX: wallet_shared _raw constructor failed, falling back to _ext");
+                }
+            }
+
+            /* Fallback: reconstruct TSD from decomposed JSON fields via _ext.
+             * Used when "params" is absent (e.g. old-format JSON). */
+
             // Read owner public key hashes array
             dap_json_t *l_json_pkey_hashes = dap_json_object_get_array(a_json_item_obj, "owner_pkey_hashes");
             if(!l_json_pkey_hashes || !dap_json_is_array(l_json_pkey_hashes)) {
@@ -1252,21 +1288,21 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 log_it(L_ERROR, "Json TX: bad owner_pkey_hashes in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
             }
-            
+
             size_t l_pkey_hashes_count = dap_json_array_length(l_json_pkey_hashes);
             if(l_pkey_hashes_count == 0) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Empty owner_pkey_hashes array in OUT_COND_SUBTYPE_WALLET_SHARED");
                 log_it(L_ERROR, "Json TX: empty owner_pkey_hashes array in OUT_COND_SUBTYPE_WALLET_SHARED");
                 break;
             }
-            
+
             dap_hash_sha3_256_t *l_pkey_hashes = DAP_NEW_Z_SIZE(dap_hash_sha3_256_t, l_pkey_hashes_count * sizeof(dap_hash_sha3_256_t));
             if(!l_pkey_hashes) {
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Memory allocation error for pkey_hashes");
                 log_it(L_ERROR, "Json TX: memory allocation error for pkey_hashes");
                 break;
             }
-            
+
             bool l_pkey_hashes_valid = true;
             for(size_t j = 0; j < l_pkey_hashes_count; j++) {
                 dap_json_t *l_json_hash = dap_json_array_get_idx(l_json_pkey_hashes, j);
@@ -1284,21 +1320,22 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                     break;
                 }
             }
-            
+
             if(!l_pkey_hashes_valid) {
                 DAP_DELETE(l_pkey_hashes);
                 break;
             }
-            
+
             // Read optional tags array
             char *l_tag_str = NULL;
             dap_json_t *l_json_tags = dap_json_object_get_object(a_json_item_obj, "tags");
             if(l_json_tags && dap_json_is_array(l_json_tags)) {
                 size_t l_tags_count = dap_json_array_length(l_json_tags);
                 if(l_tags_count > 0) {
-                    // form one string from all tags elements using dap_string_t
+                    // Write each tag as a separate TSD_STR — concatenate into
+                    // one string only as fallback (see _raw path for proper fix).
                     dap_string_t *l_tags_string = dap_string_new(NULL);
-                    
+
                     for(size_t j = 0; j < l_tags_count; j++) {
                         dap_json_t *l_json_tag = dap_json_array_get_idx(l_json_tags, j);
                         if(l_json_tag && dap_json_is_string(l_json_tag)) {
@@ -1315,57 +1352,93 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                     dap_string_free(l_tags_string, false);
                 }
             }
-            
-            /* Read optional owner_addrs array (TSD_ADDR entries).
-             * Master reads these and passes to _ext which writes TSD_ADDR
-             * bytes. If we skip them, the reconstructed out_cond has no
-             * TSD_ADDR entries → chain verificator memcmp fails against
-             * the ledger's prev cond which was created by bridge via _ext. */
+
+            // Read optional owner_addrs array (TSD_ADDR entries). Only successfully
+            // parsed addrs are kept; l_owner_addrs_count reflects the actual count
+            // (NOT the declared array length) so the hash split below is correct.
             dap_chain_addr_t *l_owner_addrs = NULL;
             size_t l_owner_addrs_count = 0;
+            size_t l_bad_addr_idx = 0;
             dap_json_t *l_json_owner_addrs = NULL;
             if (dap_json_object_get_ex(a_json_item_obj, "owner_addrs", &l_json_owner_addrs) && l_json_owner_addrs && dap_json_is_array(l_json_owner_addrs)) {
-                l_owner_addrs_count = dap_json_array_length(l_json_owner_addrs);
-                if (l_owner_addrs_count) {
-                    l_owner_addrs = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_owner_addrs_count * sizeof(dap_chain_addr_t));
+                size_t l_declared = dap_json_array_length(l_json_owner_addrs);
+                if (l_declared) {
+                    l_owner_addrs = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_declared * sizeof(dap_chain_addr_t));
                     if (l_owner_addrs) {
-                        for (size_t j = 0; j < l_owner_addrs_count; j++) {
+                        bool l_addr_valid = true;
+                        for (size_t j = 0; j < l_declared; j++) {
+                            l_bad_addr_idx = j;
                             dap_json_t *l_json_addr = dap_json_array_get_idx(l_json_owner_addrs, j);
-                            if (l_json_addr && dap_json_is_string(l_json_addr)) {
-                                const char *l_addr_str = dap_json_get_string(l_json_addr);
-                                dap_chain_addr_t *l_parsed = dap_chain_addr_from_str(l_addr_str);
-                                if (l_parsed) {
-                                    l_owner_addrs[j] = *l_parsed;
-                                    DAP_DELETE(l_parsed);
-                                }
+                            if (!l_json_addr || !dap_json_is_string(l_json_addr)) {
+                                l_addr_valid = false; break;
                             }
+                            const char *l_addr_str = dap_json_get_string(l_json_addr);
+                            dap_chain_addr_t *l_parsed = dap_chain_addr_from_str(l_addr_str);
+                            if (!l_parsed) {
+                                l_addr_valid = false; break;
+                            }
+                            l_owner_addrs[l_owner_addrs_count++] = *l_parsed;
+                            DAP_DELETE(l_parsed);
+                        }
+                        if (!l_addr_valid) {
+                            /* A malformed addr would corrupt the addr/hash split and
+                             * produce TSD that won't byte-match the ledger → -11.
+                             * Fail the whole item rather than emit a wrong cond. */
+                            dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Bad owner_addrs entry at index %zu in OUT_COND_SUBTYPE_WALLET_SHARED", l_bad_addr_idx);
+                            log_it(L_ERROR, "Json TX: bad owner_addrs entry at index %zu in OUT_COND_SUBTYPE_WALLET_SHARED", l_bad_addr_idx);
+                            DAP_DELETE(l_owner_addrs); DAP_DELETE(l_pkey_hashes);
+                            break;
                         }
                     }
                 }
             }
 
-            /* Split pkey_hashes into [0..owner_addrs_count) and
-             * [owner_addrs_count..end). Master's JSON serializer places
-             * addr-derived hashes first, then standalone hashes. The
-             * _ext constructor needs them separated. */
-            dap_hash_sha3_256_t *l_standalone_hashes = l_pkey_hashes;
-            size_t l_standalone_count = l_pkey_hashes_count;
-            if (l_owner_addrs_count && l_pkey_hashes_count >= l_owner_addrs_count) {
-                l_standalone_hashes = l_pkey_hashes + l_owner_addrs_count;
-                l_standalone_count = l_pkey_hashes_count - l_owner_addrs_count;
+            /* Split pkey_hashes by VALUE: each owner_addr carries a hash_fast that
+             * was emitted as a TSD_HASH alongside the addr's TSD_ADDR. The
+             * serializer flattens ALL TSD_HASH entries into one owner_pkey_hashes
+             * array (addr-derived first, standalone after). Match each addr's
+             * hash_fast against pkey_hashes to find and remove addr-derived
+             * entries; whatever remains is standalone. This is robust to ordering
+             * changes in _ext, unlike the previous position-based split. */
+            bool *l_hash_used = DAP_NEW_Z_SIZE(bool, l_pkey_hashes_count * sizeof(bool));
+            if (!l_hash_used) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Memory allocation error for hash_used");
+                log_it(L_ERROR, "Json TX: memory allocation error for hash_used");
+                DAP_DELETE(l_owner_addrs); DAP_DELETE(l_pkey_hashes);
+                break;
             }
+            for (size_t a = 0; a < l_owner_addrs_count; a++) {
+                for (size_t h = 0; h < l_pkey_hashes_count; h++) {
+                    if (!l_hash_used[h] && !memcmp(&l_owner_addrs[a].data.hash_fast,
+                                                   &l_pkey_hashes[h], sizeof(dap_hash_sha3_256_t))) {
+                        l_hash_used[h] = true;
+                        break;
+                    }
+                }
+            }
+            /* Collect standalone (unmatched) hashes into a compact array. */
+            dap_hash_sha3_256_t *l_standalone_hashes = l_pkey_hashes_count
+                ? DAP_NEW_Z_SIZE(dap_hash_sha3_256_t, l_pkey_hashes_count * sizeof(dap_hash_sha3_256_t))
+                : NULL;
+            size_t l_standalone_count = 0;
+            if (l_pkey_hashes_count && !l_standalone_hashes) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Memory allocation error for standalone hashes");
+                log_it(L_ERROR, "Json TX: memory allocation error for standalone hashes");
+                DAP_DELETE(l_hash_used); DAP_DELETE(l_owner_addrs); DAP_DELETE(l_pkey_hashes);
+                break;
+            }
+            for (size_t h = 0; h < l_pkey_hashes_count; h++) {
+                if (!l_hash_used[h])
+                    l_standalone_hashes[l_standalone_count++] = l_pkey_hashes[h];
+            }
+            DAP_DELETE(l_hash_used);
 
-            uint64_t l_srv_uid = 0;
-            if (!s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_srv_uid))
-                // Default service for wallet shared
-                l_srv_uid = DAP_CHAIN_WALLET_SHARED_ID;
-            
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(
                 (dap_chain_srv_uid_t){.uint64 = l_srv_uid}, l_value, (uint32_t)l_min_sig_count,
                 l_owner_addrs, l_owner_addrs_count,
                 l_standalone_hashes, l_standalone_count, l_tag_str);
-            DAP_DEL_MULTY(l_pkey_hashes, l_owner_addrs, l_tag_str);
-            
+            DAP_DEL_MULTY(l_pkey_hashes, l_owner_addrs, l_tag_str, l_standalone_hashes);
+
             if(l_out_cond_item) {
                 SUM_256_256(*a_value_need, l_value, a_value_need);
                 return (uint8_t *)l_out_cond_item;

@@ -522,18 +522,27 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_e
     l_item->tsd_size = l_tsd_total_size;
 
     byte_t *l_next_tsd_ptr = l_item->tsd;
+    byte_t *l_tsd_end = l_item->tsd + l_tsd_total_size;
     /* TSD_HASH for each owner addr (hash_fast of the address) */
-    for (size_t i = 0; i < a_addrs_count; i++)
+    for (size_t i = 0; i < a_addrs_count; i++) {
         l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_HASH, &a_owner_addrs[i].data.hash_fast, sizeof(dap_hash_fast_t));
+        if (!l_next_tsd_ptr || l_next_tsd_ptr > l_tsd_end) { DAP_DELETE(l_item); return NULL; }
+    }
     /* TSD_HASH for each standalone pkey hash */
-    for (size_t i = 0; i < a_pkey_hashes_count; i++)
+    for (size_t i = 0; i < a_pkey_hashes_count; i++) {
         l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_HASH, a_pkey_hashes + i, sizeof(dap_hash_fast_t));
+        if (!l_next_tsd_ptr || l_next_tsd_ptr > l_tsd_end) { DAP_DELETE(l_item); return NULL; }
+    }
     /* TSD_ADDR for each owner addr (full address, not just hash) */
-    for (size_t i = 0; i < a_addrs_count; i++)
+    for (size_t i = 0; i < a_addrs_count; i++) {
         l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_ADDR, a_owner_addrs + i, sizeof(dap_chain_addr_t));
+        if (!l_next_tsd_ptr || l_next_tsd_ptr > l_tsd_end) { DAP_DELETE(l_item); return NULL; }
+    }
     /* TSD_STR for tag (optional) */
-    if (a_tag_str)
+    if (a_tag_str) {
         l_next_tsd_ptr = dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_STR, (const void *)a_tag_str, strlen(a_tag_str) + 1);
+        if (!l_next_tsd_ptr || l_next_tsd_ptr > l_tsd_end) { DAP_DELETE(l_item); return NULL; }
+    }
 
     return l_item;
 }
@@ -544,6 +553,33 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared(d
 {
     return dap_chain_datum_tx_item_out_cond_create_wallet_shared_ext(a_srv_uid, a_value, a_signs_min,
                                                                      NULL, 0, a_pkey_hashes, a_pkey_hashes_count, a_tag_str);
+}
+
+/* Create wallet_shared out_cond from raw pre-serialized TSD bytes (base58
+ * "params" field from JSON).  This preserves exact TSD byte content across
+ * JSON round-trip, avoiding the decompose/recompose mismatch that causes
+ * chain verificator return -11 (TSD memcmp failure).
+ * Falls back to _ext if a_params is NULL. */
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_wallet_shared_raw(
+    dap_chain_srv_uid_t a_srv_uid, uint256_t a_value,
+    uint32_t a_signs_min,
+    const void *a_params, size_t a_params_size)
+{
+    if (a_params && a_params_size) {
+        dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(
+            dap_chain_tx_out_cond_t,
+            sizeof(dap_chain_tx_out_cond_t) + a_params_size, NULL);
+        l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+        l_item->header.value = a_value;
+        l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED;
+        l_item->header.srv_uid = a_srv_uid;
+        l_item->subtype.wallet_shared.signers_minimum = a_signs_min;
+        l_item->tsd_size = (uint32_t)a_params_size;
+        memcpy(l_item->tsd, a_params, a_params_size);
+        return l_item;
+    }
+    /* No raw params — caller should use _ext instead */
+    return NULL;
 }
 
 dap_chain_tx_sig_t *dap_chain_tx_sig_create(const dap_sign_t *a_sign)
