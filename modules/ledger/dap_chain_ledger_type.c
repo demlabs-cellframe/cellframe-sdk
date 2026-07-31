@@ -242,7 +242,7 @@ static int s_anon_tx_key_images_commit(dap_ledger_anon_ctx_t *a_anon,
 {
     const dap_chain_tx_key_image_t **l_images = NULL;
     size_t l_image_count = 0;
-    int l_rc = dap_chain_datum_tx_get_key_images(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx),
+    int l_rc = dap_chain_datum_tx_get_key_images(a_tx->tx_items, a_tx->header.tx_items_size,
                                                  &l_images, &l_image_count);
     if (l_rc != 0) {
         DAP_DELETE(l_images);

@@ -1,11 +1,14 @@
 /*
  * dap_chain_datum_tx_anon.c — Anonymous transaction item helpers.
  *
- * These helpers work on raw TX item byte arrays, without depending
- * on the datum module. The caller provides the item pointer and size.
+ * GAP-21 FIX: All hand-rolled item iterators replaced with canonical
+ * TX_ITEM_ITER macro (uses dap_chain_datum_item_tx_get_size which
+ * correctly handles all item types, not just anon items).
  */
 
 #include "dap_chain_datum_tx_anon.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_items.h"
 #include "dap_common.h"
 #include "dap_hash_sha3.h"
 
@@ -18,23 +21,19 @@ bool dap_chain_datum_tx_is_anonymous(const uint8_t *a_tx_items, size_t a_items_s
 {
     if (!a_tx_items || a_items_size == 0) return false;
 
-    const uint8_t *l_item = a_tx_items;
-    size_t l_offset = 0;
-
-    while (l_offset < a_items_size) {
+    /* GAP-21 FIX: Use canonical TX_ITEM_ITER instead of hand-rolled parser.
+     * The old parser assumed ALL items have uint32 size at offset 4 — only
+     * true for anon items, not for IN/OUT_STD. This caused garbage size reads
+     * and detection bypass. */
+    const uint8_t *l_item;
+    size_t l_item_size;
+    TX_ITEM_ITER(l_item, l_item_size, a_tx_items, a_items_size) {
         uint8_t l_type = *l_item;
         if (l_type == TX_ITEM_TYPE_IN_ANON || l_type == TX_ITEM_TYPE_OUT_ANON ||
             l_type == TX_ITEM_TYPE_KEY_IMAGE || l_type == TX_ITEM_TYPE_ANON_PROOF ||
             l_type == TX_ITEM_TYPE_PEDERSEN_COMMIT) {
             return true;
         }
-        /* Move to next item: type(1) + pad(3) + size(4) at offset 4 */
-        if (l_offset + 4 > a_items_size) break;
-        uint32_t l_item_size;
-        memcpy(&l_item_size, l_item + 4, sizeof(uint32_t));
-        if (l_item_size == 0) break;
-        l_item += l_item_size;
-        l_offset += l_item_size;
     }
 
     return false;
@@ -46,19 +45,13 @@ int dap_chain_datum_tx_get_key_images(const uint8_t *a_tx_items, size_t a_items_
 {
     if (!a_tx_items || !a_images || !a_count) return -EINVAL;
 
-    /* First pass: count */
+    /* GAP-21 FIX: Use canonical TX_ITEM_ITER for correct item traversal. */
+    /* First pass: count KEY_IMAGE items */
     size_t l_count = 0;
-    const uint8_t *l_item = a_tx_items;
-    size_t l_offset = 0;
-
-    while (l_offset < a_items_size) {
+    const uint8_t *l_item;
+    size_t l_item_size;
+    TX_ITEM_ITER(l_item, l_item_size, a_tx_items, a_items_size) {
         if (*l_item == TX_ITEM_TYPE_KEY_IMAGE) l_count++;
-        if (l_offset + 4 > a_items_size) break;
-        uint32_t l_item_size;
-        memcpy(&l_item_size, l_item + 4, sizeof(uint32_t));
-        if (l_item_size == 0) break;
-        l_item += l_item_size;
-        l_offset += l_item_size;
     }
 
     if (l_count == 0) { *a_images = NULL; *a_count = 0; return 0; }
@@ -67,20 +60,16 @@ int dap_chain_datum_tx_get_key_images(const uint8_t *a_tx_items, size_t a_items_
     if (!l_images) return -ENOMEM;
 
     /* Second pass: collect */
-    l_item = a_tx_items;
-    l_offset = 0;
     size_t l_idx = 0;
-
-    while (l_offset < a_items_size && l_idx < l_count) {
-        if (*l_item == TX_ITEM_TYPE_KEY_IMAGE) {
+    TX_ITEM_ITER(l_item, l_item_size, a_tx_items, a_items_size) {
+        if (*l_item == TX_ITEM_TYPE_KEY_IMAGE && l_idx < l_count) {
             l_images[l_idx++] = (const dap_chain_tx_key_image_t *)l_item;
         }
         if (l_offset + 4 > a_items_size) break;
         uint32_t l_item_size;
         memcpy(&l_item_size, l_item + 4, sizeof(uint32_t));
-        if (l_item_size == 0) break;
-        l_item += l_item_size;
-        l_offset += l_item_size;
+            l_images[l_idx++] = (const dap_chain_tx_key_image_t *)l_item;
+        }
     }
 
     *a_images = l_images;
@@ -94,18 +83,12 @@ int dap_chain_datum_tx_get_stark_proofs(const uint8_t *a_tx_items, size_t a_item
 {
     if (!a_tx_items || !a_proofs || !a_count) return -EINVAL;
 
+    /* GAP-21 FIX: Use canonical TX_ITEM_ITER. */
     size_t l_count = 0;
-    const uint8_t *l_item = a_tx_items;
-    size_t l_offset = 0;
-
-    while (l_offset < a_items_size) {
+    const uint8_t *l_item;
+    size_t l_item_size;
+    TX_ITEM_ITER(l_item, l_item_size, a_tx_items, a_items_size) {
         if (*l_item == TX_ITEM_TYPE_ANON_PROOF) l_count++;
-        if (l_offset + 4 > a_items_size) break;
-        uint32_t l_item_size;
-        memcpy(&l_item_size, l_item + 4, sizeof(uint32_t));
-        if (l_item_size == 0) break;
-        l_item += l_item_size;
-        l_offset += l_item_size;
     }
 
     if (l_count == 0) { *a_proofs = NULL; *a_count = 0; return 0; }
@@ -113,20 +96,11 @@ int dap_chain_datum_tx_get_stark_proofs(const uint8_t *a_tx_items, size_t a_item
     const dap_chain_tx_anon_proof_t **l_proofs = DAP_NEW_Z_COUNT(const dap_chain_tx_anon_proof_t *, l_count);
     if (!l_proofs) return -ENOMEM;
 
-    l_item = a_tx_items;
-    l_offset = 0;
     size_t l_idx = 0;
-
-    while (l_offset < a_items_size && l_idx < l_count) {
-        if (*l_item == TX_ITEM_TYPE_ANON_PROOF) {
+    TX_ITEM_ITER(l_item, l_item_size, a_tx_items, a_items_size) {
+        if (*l_item == TX_ITEM_TYPE_ANON_PROOF && l_idx < l_count) {
             l_proofs[l_idx++] = (const dap_chain_tx_anon_proof_t *)l_item;
         }
-        if (l_offset + 4 > a_items_size) break;
-        uint32_t l_item_size;
-        memcpy(&l_item_size, l_item + 4, sizeof(uint32_t));
-        if (l_item_size == 0) break;
-        l_item += l_item_size;
-        l_offset += l_item_size;
     }
 
     *a_proofs = l_proofs;
