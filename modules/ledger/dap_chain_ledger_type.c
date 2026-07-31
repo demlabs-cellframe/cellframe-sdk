@@ -713,19 +713,22 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
         return l_rc;
 
     if (dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size)) {
-        /* Phase 3 COMPLETED: Anonymous TX crypto is now SECURE.
+        /* Phase 9A.0 FIX (GAP-13): WIRE crypto verification into production path.
          *
-         * P0-1 (range proof): FIXED — BDLOP-based lattice proof with proper
-         *   Fiat-Shamir, norm bounds, and linear equation verification.
+         * Previously this block was EMPTY — s_anon_tx_crypto_verify was never
+         * called, making ALL anon crypto (STARK, LRS, range proof, conservation)
+         * dead code in production. Any fabricated anon TX was accepted.
          *
-         * P0-2 (ring membership): FIXED — STARK verifier now commits indicator
-         *   polynomial b via FRI and checks constraint equation
-         *   z(X) = b(X)·(b(X)−1) + r·(Σb − 1) at opened query points.
-         *   The z≡0 forge no longer passes because b must be genuinely binary
-         *   with exactly one 1.
-         *
-         * Anonymous transactions are now ENABLED. Full verification happens
-         * in s_anon_tx_crypto_verify. */
+         * Now: call the full crypto verification (STARK + LRS + BDLOP range
+         * proof + Pedersen conservation + key image double-spend check).
+         * Key images are committed atomically (a_commit_key_images=true). */
+        dap_ledger_anon_ctx_t *l_anon = (dap_ledger_anon_ctx_t *)PVT(a_ledger)->anon_data;
+        l_rc = s_anon_tx_crypto_verify(a_ledger, a_tx, a_tx_hash, true);
+        if (l_rc != 0) {
+            log_it(L_WARNING, "Anonymous TX %s rejected: crypto verification failed (%d)",
+                   dap_hash_sha3_256_to_str_static(a_tx_hash), l_rc);
+            return DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED;
+        }
     }
 
     return DAP_LEDGER_CHECK_OK;
