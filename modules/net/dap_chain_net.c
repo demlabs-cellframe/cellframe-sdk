@@ -5009,8 +5009,13 @@ static void s_sync_timer_callback(void *a_arg)
     if (l_net_pvt->state == NET_STATE_LINKS_CONNECTING &&
             s_sync_links_ready(l_net->pub.id.uint64))
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
+    /* Only require links_ready for initial state transitions (LINKS_PREPARE,
+     * LINKS_CONNECTING, LINKS_ESTABLISHED).  Once we're in SYNC_CHAINS or
+     * ONLINE, keep running the sync timer even with fewer links. */
     if (l_net_pvt->state_target != NET_STATE_OFFLINE &&
             l_net_pvt->state != NET_STATE_OFFLINE &&
+            l_net_pvt->state != NET_STATE_SYNC_CHAINS &&
+            l_net_pvt->state != NET_STATE_ONLINE &&
             !s_sync_links_ready(l_net->pub.id.uint64))
         return;
     dap_time_t l_now = dap_time_now();
