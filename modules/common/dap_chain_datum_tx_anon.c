@@ -11,6 +11,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_common.h"
 #include "dap_hash_sha3.h"
+#include "dap_memwipe.h"
 
 #include <string.h>
 #include <errno.h>
@@ -63,11 +64,6 @@ int dap_chain_datum_tx_get_key_images(const uint8_t *a_tx_items, size_t a_items_
     size_t l_idx = 0;
     TX_ITEM_ITER(l_item, l_item_size, a_tx_items, a_items_size) {
         if (*l_item == TX_ITEM_TYPE_KEY_IMAGE && l_idx < l_count) {
-            l_images[l_idx++] = (const dap_chain_tx_key_image_t *)l_item;
-        }
-        if (l_offset + 4 > a_items_size) break;
-        uint32_t l_item_size;
-        memcpy(&l_item_size, l_item + 4, sizeof(uint32_t));
             l_images[l_idx++] = (const dap_chain_tx_key_image_t *)l_item;
         }
     }
@@ -144,4 +140,44 @@ ssize_t dap_chain_anon_stark_build_message(uint8_t *a_out, size_t a_out_size,
     memcpy(a_out + l_off, a_ki_hash->raw, 32); l_off += 32;
     memcpy(a_out + l_off, a_rp_hash->raw, 32); l_off += 32;
     return (ssize_t)l_off;
+}
+
+void dap_chain_anon_bind_key_image_to_utxo(uint8_t *a_ki_out, size_t a_ki_size,
+                                            const uint8_t *a_raw_ki, size_t a_raw_ki_size,
+                                            const dap_chain_hash_fast_t *a_prev_hash,
+                                            uint32_t a_prev_out_idx)
+{
+    if (!a_ki_out || !a_raw_ki || !a_prev_hash || a_ki_size < sizeof(dap_hash_sha3_256_t))
+        return;
+
+    /* Canonical binding:
+     *   SHA3-256( raw_ki || prev_hash(32) || prev_out_idx(4) )
+     * then keep first 32 bytes, zero the rest of a_ki_out.
+     *
+     * Build the preimage in a heap buffer because the raw I poly can be large
+     * (CHIPMUNK_LRS_POLY_QPACK_BYTES = 1408) and the compose side historically
+     * used a 9216-byte raw slot.
+     */
+    size_t l_buf_size = a_raw_ki_size + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t);
+    uint8_t *l_buf = DAP_NEW_Z_SIZE(uint8_t, l_buf_size);
+    if (!l_buf) {
+        /* OOM: zero the output so no stale secret leaks. */
+        memset(a_ki_out, 0, a_ki_size);
+        return;
+    }
+    size_t l_off = 0;
+    memcpy(l_buf + l_off, a_raw_ki, a_raw_ki_size);
+    l_off += a_raw_ki_size;
+    memcpy(l_buf + l_off, a_prev_hash, sizeof(dap_chain_hash_fast_t));
+    l_off += sizeof(dap_chain_hash_fast_t);
+    memcpy(l_buf + l_off, &a_prev_out_idx, sizeof(uint32_t));
+    l_off += sizeof(uint32_t);
+
+    dap_hash_sha3_256_raw(a_ki_out, l_buf, l_off);
+    if (a_ki_size > sizeof(dap_hash_sha3_256_t))
+        memset(a_ki_out + sizeof(dap_hash_sha3_256_t), 0,
+               a_ki_size - sizeof(dap_hash_sha3_256_t));
+
+    dap_memwipe(l_buf, l_buf_size);
+    DAP_DELETE(l_buf);
 }

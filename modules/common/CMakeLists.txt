@@ -23,6 +23,11 @@ else()
     dap_link_libraries(${PROJECT_NAME} INTERFACE dap_core dap_crypto dap_stream dap_global_db dap_link_manager)
 endif()
 
+# Phase 9D: dap_chain_datum_tx_anon.c includes "dap_chain_datum_tx.h" which
+# lives in the datum module. Link the datum target so its PUBLIC include dir
+# is propagated (CMake-resolved, no hardcoded #include paths).
+dap_link_libraries(${PROJECT_NAME} INTERFACE dap_chain_datum)
+
 if(INSTALL_SDK)
     INSTALL(FILES ${DAP_COMMON_HEADERS}
             DESTINATION include/modules/common/

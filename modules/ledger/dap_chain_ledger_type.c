@@ -17,6 +17,7 @@
 #include "chipmunk_stark.h"
 #include "chipmunk_pedersen.h"
 #include "chipmunk_range_proof.h"
+#include "chipmunk_lrs.h"
 #include "chipmunk.h"
 #include "dap_common.h"
 #include "dap_config.h"
@@ -603,6 +604,56 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                     DAP_DELETE(l_ring_from_cache);
                     return -EINVAL;
                 }
+
+                /* 9D FIX: Key-image binding — extract the link tag I from the
+                 * LRS signature, sanity-validate it, then re-bind it to the
+                 * spent UTXO and compare against the TX key_image field.
+                 *
+                 * Closes the KI-swap attack: previously the TX key_image was
+                 * trusted as-is and never cross-checked against the I poly
+                 * embedded inside the LRS signature. An attacker could ship a
+                 * valid LRS signature (with its own honest I) while declaring
+                 * an arbitrary TX key_image — letting them poison the key-image
+                 * DB or replay a different spend. Now the verifier recomputes
+                 * the expected TX key_image = SHA3(I || prev_hash || out_idx)
+                 * from the I the signature actually committed. */
+                uint8_t l_lrs_I[CHIPMUNK_LRS_POLY_QPACK_BYTES];
+                l_rc = chipmunk_lrs_extract_key_image(l_lrs_I, l_lrs_sig,
+                                                      (size_t)l_in_anon->lrs_sig_size);
+                if (l_rc != 0) {
+                    log_it(L_WARNING, "LRS key image extraction failed: %d", l_rc);
+                    DAP_DELETE(l_ring_from_cache);
+                    return -EINVAL;
+                }
+                /* Norm + degeneracy gate on the link tag itself. */
+                l_rc = chipmunk_lrs_key_image_validate(l_lrs_I,
+                                                       CHIPMUNK_LRS_WITNESS_BOUND,
+                                                       CHIPMUNK_Q);
+                if (l_rc != 0) {
+                    log_it(L_WARNING, "LRS key image failed sanity/norm gate: %d", l_rc);
+                    DAP_DELETE(l_ring_from_cache);
+                    return -EINVAL;
+                }
+
+                /* Recompute expected TX key_image from extracted I + UTXO. */
+                uint8_t l_expected_ki[9216];
+                memset(l_expected_ki, 0, sizeof(l_expected_ki));
+                dap_chain_anon_bind_key_image_to_utxo(l_expected_ki, sizeof(l_expected_ki),
+                                                      l_lrs_I, sizeof(l_lrs_I),
+                                                      &l_in_anon->prev_hash,
+                                                      l_in_anon->prev_out_idx);
+                /* Constant-time compare over the full 9216-byte field. */
+                uint8_t l_ki_diff = 0;
+                for (size_t b = 0; b < sizeof(l_expected_ki); ++b)
+                    l_ki_diff |= l_expected_ki[b] ^ l_in_anon->key_image[b];
+                if (l_ki_diff != 0) {
+                    log_it(L_WARNING, "TX key_image does not match LRS signature link tag "
+                                      "(KI-swap attempt?)");
+                    DAP_DELETE(l_ring_from_cache);
+                    return -EINVAL;
+                }
+                dap_memwipe(l_lrs_I, sizeof(l_lrs_I));
+                dap_memwipe(l_expected_ki, sizeof(l_expected_ki));
             }
 
             /* Phase 5: Free ring cache data if fetched from GDB */
@@ -666,12 +717,18 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                  * knowledge of opening of the ACTUAL output commitment,
                  * not the proof's internal self-generated commitment.
                  * This closes: commitment-swap attack (F1) and
-                 * mod-Q value mismatch (GAP-6). */
+                 * mod-Q value mismatch (GAP-6).
+                 *
+                 * Copy commitment into a local before taking its address:
+                 * dap_chain_tx_out_anon_t is DAP_ALIGN_PACKED, so
+                 * &l_out->commitment may be unaligned. */
                 chipmunk_range_proof_bdlop_t l_rp_copy;
                 memcpy(&l_rp_copy, &l_out->range_proof, sizeof(l_rp_copy));
+                chipmunk_pedersen_commit_t l_out_commit_copy;
+                memcpy(&l_out_commit_copy, &l_out->commitment, sizeof(l_out_commit_copy));
                 l_rc = chipmunk_range_proof_bdlop_verify(&l_rp_copy,
                                                           &l_anon->pedersen_params,
-                                                          &l_out->commitment);
+                                                          &l_out_commit_copy);
                 if (l_rc != 1) {
                     log_it(L_WARNING, "BDLOP range proof verification failed for anonymous output");
                     return -EINVAL;

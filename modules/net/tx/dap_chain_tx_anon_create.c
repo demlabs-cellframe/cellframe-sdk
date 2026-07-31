@@ -271,6 +271,10 @@ static bool s_amount_valid(uint256_t a_amount)
 /*
  * Wallet-level Chipmunk KI is signer-constant; mix in spent UTXO so each spend
  * commits a unique key image (multi anon TX from same wallet).
+ *
+ * Delegates to the shared dap_chain_anon_bind_key_image_to_utxo() so the
+ * compose-side binding is bit-identical to what the ledger verifier
+ * recomputes (Phase 9D: closes the KI-swap attack surface).
  */
 static void s_bind_key_image_to_utxo(uint8_t *a_ki, size_t a_ki_size,
                                      const dap_chain_hash_fast_t *a_prev_hash,
@@ -278,23 +282,9 @@ static void s_bind_key_image_to_utxo(uint8_t *a_ki, size_t a_ki_size,
 {
     if (!a_ki || !a_ki_size || !a_prev_hash)
         return;
-
-    uint8_t l_raw[9216];
-    size_t l_copy = a_ki_size < sizeof(l_raw) ? a_ki_size : sizeof(l_raw);
-    memcpy(l_raw, a_ki, l_copy);
-
-    uint8_t l_buf[sizeof(l_raw) + sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t)];
-    size_t l_off = 0;
-    memcpy(l_buf + l_off, l_raw, l_copy);
-    l_off += l_copy;
-    memcpy(l_buf + l_off, a_prev_hash, sizeof(dap_chain_hash_fast_t));
-    l_off += sizeof(dap_chain_hash_fast_t);
-    memcpy(l_buf + l_off, &a_prev_out_idx, sizeof(uint32_t));
-    l_off += sizeof(uint32_t);
-
-    dap_hash_sha3_256_raw(a_ki, l_buf, l_off);
-    if (a_ki_size > sizeof(dap_hash_sha3_256_t))
-        memset(a_ki + sizeof(dap_hash_sha3_256_t), 0, a_ki_size - sizeof(dap_hash_sha3_256_t));
+    dap_chain_anon_bind_key_image_to_utxo(a_ki, a_ki_size,
+                                          a_ki, a_ki_size,
+                                          a_prev_hash, a_prev_out_idx);
 }
 
 static void s_uint256_to_bytes(uint256_t a_amount, uint8_t a_out[CHIPMUNK_PEDERSEN_VALUE_BYTES])

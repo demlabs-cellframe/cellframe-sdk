@@ -279,6 +279,34 @@ ssize_t dap_chain_anon_stark_build_message(uint8_t *a_out, size_t a_out_size,
                                            const dap_hash_sha3_256_t *a_ki_hash,
                                            const dap_hash_sha3_256_t *a_rp_hash);
 
+/**
+ * Phase 9D: Bind a wallet-level key image to a specific UTXO.
+ *
+ * Given a raw signer-constant key image (the I poly = A_I·x produced by
+ * chipmunk_lrs_key_image, q-packed), mix in the spent UTXO coordinates so
+ * that each (signer, UTXO) pair commits a unique double-spend tag.
+ *
+ * The canonical binding is the first 32 bytes of:
+ *   SHA3-256( raw_key_image[a_ki_size] || prev_hash[32] || prev_out_idx[4] )
+ *
+ * The output buffer receives the 32-byte hash in its first 32 bytes; any
+ * bytes beyond that are zeroed (so callers can keep the full 9216-byte
+ * TX key_image layout). Used by both compose side (dap_chain_tx_anon_create)
+ * and verify side (dap_chain_ledger_type) to recompute the expected TX
+ * key_image from the link-tag embedded in the LRS signature.
+ *
+ * @param a_ki_out       Output buffer (>= max(32, a_ki_size) bytes).
+ * @param a_ki_size      Total size of a_ki_out (e.g. 9216 for the TX field).
+ * @param a_raw_ki       Raw signer-constant key image bytes.
+ * @param a_raw_ki_size  Number of bytes in a_raw_ki.
+ * @param a_prev_hash    Previous TX hash (the UTXO being spent).
+ * @param a_prev_out_idx Output index within the previous TX.
+ */
+void dap_chain_anon_bind_key_image_to_utxo(uint8_t *a_ki_out, size_t a_ki_size,
+                                            const uint8_t *a_raw_ki, size_t a_raw_ki_size,
+                                            const dap_chain_hash_fast_t *a_prev_hash,
+                                            uint32_t a_prev_out_idx);
+
 #ifdef __cplusplus
 }
 #endif
