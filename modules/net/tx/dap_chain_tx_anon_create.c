@@ -269,6 +269,24 @@ static bool s_amount_valid(uint256_t a_amount)
 }
 
 /*
+ * Wipe the range_proof field inside a packed dap_chain_tx_out_anon_t without
+ * taking the address of a packed member (which would be UB and trip
+ * -Werror=address-of-packed-member). Reads the field by byte offset from the
+ * struct base, copies to a naturally-aligned local, wipes, then writes back.
+ */
+static void s_wipe_out_range_proof(const dap_chain_tx_out_anon_t *a_out)
+{
+    if (!a_out)
+        return;
+    /* const_cast: we need to wipe the secret material in place. */
+    dap_chain_tx_out_anon_t *l_mut = (dap_chain_tx_out_anon_t *)(uintptr_t)a_out;
+    size_t l_off = offsetof(dap_chain_tx_out_anon_t, range_proof);
+    chipmunk_range_proof_bdlop_t *l_rp =
+        (chipmunk_range_proof_bdlop_t *)((uint8_t *)l_mut + l_off);
+    chipmunk_range_proof_bdlop_wipe(l_rp);
+}
+
+/*
  * Wallet-level Chipmunk KI is signer-constant; mix in spent UTXO so each spend
  * commits a unique key image (multi anon TX from same wallet).
  *
@@ -526,17 +544,153 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         dap_enc_key_delete(l_key);
         return NULL;
     }
+
+    /* ===================================================================
+     * Phase 9E: Build ALL outputs BEFORE signing so the signed message
+     * can bind the complete output set (and the full input UTXO set).
+     * Previously only the recipient output existed at sign-time, so the
+     * message could not commit to change/fee/anchor outputs — a proof
+     * minted for one output set could be replayed against a TX whose
+     * other outputs differed. Now every output commitment is hashed into
+     * outputs_commit_hash before STARK/LRS sign.
+     * =================================================================== */
+
+    /* --- Output 0: recipient (bob) --- */
     dap_chain_tx_out_anon_t l_out;
     uint8_t l_bob_seed[32];
     l_rc = s_build_out_anon_tracked(a_addr_to, a_token_ticker, a_amount, &l_out, &l_anon_init->pedersen_params, l_bob_seed);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
 
     chipmunk_range_proof_bdlop_t l_rp;
-    memcpy(&l_rp, &l_out.range_proof, sizeof(l_rp));
+    memcpy(&l_rp, (const uint8_t *)&l_out + offsetof(dap_chain_tx_out_anon_t, range_proof), sizeof(l_rp));
     chipmunk_pedersen_commit_t l_commit;
-    memcpy(&l_commit, &l_out.commitment, sizeof(l_commit));
+    memcpy(&l_commit, (const uint8_t *)&l_out + offsetof(dap_chain_tx_out_anon_t, commitment), sizeof(l_commit));
 
-    /* 8. Statement: message includes key image hash and range proof hash for cross-component binding */
+    /* --- Output 1 (optional): change --- */
+    bool l_has_change = !IS_ZERO_256(l_change);
+    dap_chain_tx_out_anon_t l_change_out;
+    uint8_t l_change_seed[32] = {};
+    if (l_has_change) {
+        l_rc = s_build_out_anon_tracked(&l_change_addr, a_token_ticker, l_change, &l_change_out,
+                                        &l_anon_init->pedersen_params, l_change_seed);
+        if (l_rc != 0) { chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    }
+
+    /* --- Output 2 (optional): fee --- */
+    bool l_has_fee = !IS_ZERO_256(a_fee);
+    dap_chain_tx_out_anon_t l_fee_out;
+    uint8_t l_fee_seed[32] = {};
+    const dap_chain_addr_t *l_fee_dst = NULL;
+    dap_chain_addr_t l_fee_blank = {};
+    if (l_has_fee) {
+        l_fee_dst = a_fee_addr;
+        if (!l_fee_dst || dap_chain_addr_is_blank(l_fee_dst))
+            l_fee_dst = &l_fee_blank;
+        l_rc = s_build_out_anon_tracked(l_fee_dst, a_token_ticker, a_fee, &l_fee_out,
+                                        &l_anon_init->pedersen_params, l_fee_seed);
+        if (l_rc != 0) {
+            if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+            chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        }
+    }
+
+    /* --- Output 3 (always): anchor (zero-value, closes Pedersen gap) --- */
+    /* Anchor blinding = r_input - r_bob - r_change - r_fee. All seeds known now. */
+    uint8_t l_anchor_rp_seed[32];
+    if (dap_random_bytes(l_anchor_rp_seed, sizeof(l_anchor_rp_seed)) != 0) {
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
+    uint8_t l_input_seed[32];
+    dap_chain_anon_input_commit_seed(l_input_seed, &l_prev_hash, l_prev_idx);
+    chipmunk_poly_t l_r_in[CHIPMUNK_LRS_K];
+    if (chipmunk_pedersen_derive_blinding(l_r_in, l_input_seed) != 0) {
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
+    chipmunk_poly_t l_r_sum[CHIPMUNK_LRS_K];
+    memset(l_r_sum, 0, sizeof(l_r_sum));
+    {
+        chipmunk_poly_t l_r_tmp[CHIPMUNK_LRS_K];
+        chipmunk_pedersen_derive_blinding(l_r_tmp, l_bob_seed);
+        for (uint32_t j = 0; j < CHIPMUNK_LRS_K; ++j)
+            chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j], (uint64_t)CHIPMUNK_Q);
+    }
+    if (l_has_change) {
+        chipmunk_poly_t l_r_tmp[CHIPMUNK_LRS_K];
+        chipmunk_pedersen_derive_blinding(l_r_tmp, l_change_seed);
+        for (uint32_t j = 0; j < CHIPMUNK_LRS_K; ++j)
+            chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j], (uint64_t)CHIPMUNK_Q);
+    }
+    if (l_has_fee) {
+        chipmunk_poly_t l_r_tmp[CHIPMUNK_LRS_K];
+        chipmunk_pedersen_derive_blinding(l_r_tmp, l_fee_seed);
+        for (uint32_t j = 0; j < CHIPMUNK_LRS_K; ++j)
+            chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j], (uint64_t)CHIPMUNK_Q);
+    }
+    chipmunk_poly_t l_r_anchor[CHIPMUNK_LRS_K];
+    chipmunk_pedersen_blinding_sub(l_r_anchor, l_r_in, l_r_sum);
+    dap_chain_addr_t l_anchor_addr = {};
+    dap_chain_tx_out_anon_t l_anchor_out;
+    if (s_build_out_anon_explicit(&l_anchor_addr, a_token_ticker, uint256_0,
+                                     &l_anchor_out, &l_anon_init->pedersen_params,
+                                     l_r_anchor, l_anchor_rp_seed) != 0) {
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
+    /* Wipe blinding polynomials now that the anchor output is built (9G secret-wipe scope). */
+    dap_memwipe(l_r_in, sizeof(l_r_in));
+    dap_memwipe(l_r_sum, sizeof(l_r_sum));
+    dap_memwipe(l_r_anchor, sizeof(l_r_anchor));
+
+    /* --- Collect all output commitments for outputs_commit_hash (9E) --- */
+    uint32_t l_out_count = 1u;  /* bob */
+    if (l_has_change) l_out_count++;
+    if (l_has_fee) l_out_count++;
+    l_out_count++;  /* anchor */
+
+    /* Concatenate commitments into a heap buffer for hashing.
+     * dap_chain_tx_out_anon_t is DAP_ALIGN_PACKED, so we read the
+     * commitment field by byte offset from the struct base to avoid
+     * taking the address of a packed member (which is UB / -Werror). */
+    size_t l_commits_bytes = (size_t)l_out_count * sizeof(chipmunk_pedersen_commit_t);
+    uint8_t *l_commits_buf = DAP_NEW_Z_SIZE(uint8_t, l_commits_bytes);
+    if (!l_commits_buf) {
+        s_wipe_out_range_proof(&l_anchor_out);
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
+    {
+        size_t l_off = 0;
+        size_t l_coff = offsetof(dap_chain_tx_out_anon_t, commitment);
+        memcpy(l_commits_buf + l_off, (const uint8_t *)&l_out + l_coff, sizeof(chipmunk_pedersen_commit_t)); l_off += sizeof(chipmunk_pedersen_commit_t);
+        if (l_has_change) { memcpy(l_commits_buf + l_off, (const uint8_t *)&l_change_out + l_coff, sizeof(chipmunk_pedersen_commit_t)); l_off += sizeof(chipmunk_pedersen_commit_t); }
+        if (l_has_fee) { memcpy(l_commits_buf + l_off, (const uint8_t *)&l_fee_out + l_coff, sizeof(chipmunk_pedersen_commit_t)); l_off += sizeof(chipmunk_pedersen_commit_t); }
+        memcpy(l_commits_buf + l_off, (const uint8_t *)&l_anchor_out + l_coff, sizeof(chipmunk_pedersen_commit_t));
+    }
+    dap_hash_sha3_256_t l_outputs_commit_hash;
+    dap_hash_sha3_256_raw(l_outputs_commit_hash.raw, l_commits_buf, l_commits_bytes);
+    dap_memwipe(l_commits_buf, l_commits_bytes);
+    DAP_DELETE(l_commits_buf);
+
+    /* --- Inputs UTXO hash: all IN_ANON prev_hash||out_idx (9E) --- */
+    dap_hash_sha3_256_t l_inputs_utxo_hash;
+    {
+        uint8_t l_in_buf[sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t)];
+        memcpy(l_in_buf, &l_prev_hash, sizeof(dap_chain_hash_fast_t));
+        memcpy(l_in_buf + sizeof(dap_chain_hash_fast_t), &l_prev_idx, sizeof(uint32_t));
+        dap_hash_sha3_256_raw(l_inputs_utxo_hash.raw, l_in_buf, sizeof(l_in_buf));
+    }
+
+    /* --- Ring commit hash (ring dedup) --- */
+    dap_hash_sha3_256_t l_ring_commit_hash;
+    memset(&l_ring_commit_hash, 0, sizeof(l_ring_commit_hash));  /* inline mode = zero */
+
+    /* 8. Statement: comprehensive chain-bound message (9E) */
     chipmunk_stark_statement_t l_statement;
     memset(&l_statement, 0, sizeof(l_statement));
     l_statement.ring = (const chipmunk_lrs_public_key_t *)a_ring;
@@ -546,15 +700,53 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_hash_sha3_256_raw(l_ki_hash.raw, (const uint8_t *)l_ki, sizeof(l_ki));
     dap_hash_sha3_256_t l_rp_hash;
     dap_hash_sha3_256_raw(l_rp_hash.raw, (const uint8_t *)&l_rp, sizeof(l_rp));
-    dap_hash_sha3_256_t l_commit_hash;
-    dap_hash_sha3_256_raw(l_commit_hash.raw, (const uint8_t *)&l_commit, sizeof(l_commit));
 
-    uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
-    ssize_t l_msg_size = dap_chain_anon_stark_build_message(l_msg_buf, sizeof(l_msg_buf),
-                                                              a_addr_to, &l_commit_hash,
-                                                              a_token_ticker, &l_ki_hash, &l_rp_hash);
-    if (l_msg_size < 0)
-        return NULL;
+    dap_chain_anon_msg_ctx_t l_msg_ctx;
+    memset(&l_msg_ctx, 0, sizeof(l_msg_ctx));
+    l_msg_ctx.chain_id = a_chain->id.uint64;
+    l_msg_ctx.net_id   = a_chain->net_id.uint64;
+    l_msg_ctx.ts_created = 0;  /* TX not yet created; will be set post-create below */
+    l_msg_ctx.outputs_commit_hash = l_outputs_commit_hash;
+    l_msg_ctx.out_anon_count = l_out_count;
+    l_msg_ctx.inputs_utxo_hash = l_inputs_utxo_hash;
+    l_msg_ctx.in_anon_count = 1u;
+    l_msg_ctx.ring_commit_hash = l_ring_commit_hash;
+    l_msg_ctx.ring_size = (uint32_t)a_ring_size;
+    l_msg_ctx.ephemeral_pk = NULL;  /* non-stealth for now */
+    l_msg_ctx.ephemeral_pk_size = 0;
+    l_msg_ctx.recipient_addr = a_addr_to;
+    l_msg_ctx.token_ticker = a_token_ticker;
+    l_msg_ctx.ki_hash = l_ki_hash;
+    l_msg_ctx.rp_hash = l_rp_hash;
+
+    /* Pre-create TX so we know ts_created before signing (9E chain binding). */
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    if (!l_tx) {
+        s_wipe_out_range_proof(&l_anchor_out);
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
+    l_msg_ctx.ts_created = l_tx->header.ts_created;
+
+    size_t l_msg_buf_size = dap_chain_anon_stark_message_v2_size();
+    uint8_t *l_msg_buf = DAP_NEW_Z_SIZE(uint8_t, l_msg_buf_size);
+    if (!l_msg_buf) {
+        dap_chain_datum_tx_delete(l_tx);
+        s_wipe_out_range_proof(&l_anchor_out);
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
+    ssize_t l_msg_size = dap_chain_anon_stark_build_message_v2(l_msg_buf, l_msg_buf_size, &l_msg_ctx);
+    if (l_msg_size < 0) {
+        DAP_DELETE(l_msg_buf);
+        dap_chain_datum_tx_delete(l_tx);
+        s_wipe_out_range_proof(&l_anchor_out);
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
     l_statement.message = l_msg_buf;
     l_statement.message_size = (size_t)l_msg_size;
 
@@ -571,7 +763,14 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     memset(&l_stark, 0, sizeof(l_stark));
     l_rc = chipmunk_stark_prove(&l_stark, &l_anon_init->stark_ctx, &l_statement, &l_witness);
     dap_memwipe(&l_witness, sizeof(l_witness));
-    if (l_rc != 0) { chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (l_rc != 0) {
+        DAP_DELETE(l_msg_buf);
+        dap_chain_datum_tx_delete(l_tx);
+        s_wipe_out_range_proof(&l_anchor_out);
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
 
     /* 9b. LRS signature — lattice binding layer.
      *
@@ -585,13 +784,23 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         (const chipmunk_lrs_secret_key_t *)a_algo->get_sk(l_key);
     size_t l_lrs_sig_size = chipmunk_lrs_signature_size((uint32_t)a_ring_size);
     uint8_t *l_lrs_sig = DAP_NEW_Z_SIZE(uint8_t, l_lrs_sig_size);
-    if (!l_lrs_sig) { chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_lrs_sig) {
+        chipmunk_stark_proof_free(&l_stark); DAP_DELETE(l_msg_buf);
+        dap_chain_datum_tx_delete(l_tx);
+        s_wipe_out_range_proof(&l_anchor_out);
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
 
     uint8_t l_lrs_seed[CHIPMUNK_LRS_SEED_BYTES];
     if (dap_random_bytes(l_lrs_seed, sizeof(l_lrs_seed)) != 0) {
-        DAP_DELETE(l_lrs_sig);
-        chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key);
-        return NULL;
+        DAP_DELETE(l_lrs_sig); chipmunk_stark_proof_free(&l_stark); DAP_DELETE(l_msg_buf);
+        dap_chain_datum_tx_delete(l_tx);
+        s_wipe_out_range_proof(&l_anchor_out);
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
     }
 
     l_rc = chipmunk_lrs_sign(l_lrs_sig, l_lrs_sig_size,
@@ -602,20 +811,32 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_memwipe(l_lrs_seed, sizeof(l_lrs_seed));
     if (l_rc != 0) {
         log_it(L_ERROR, "LRS sign failed: %d", l_rc);
-        DAP_DELETE(l_lrs_sig);
-        chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key);
-        return NULL;
+        DAP_DELETE(l_lrs_sig); chipmunk_stark_proof_free(&l_stark); DAP_DELETE(l_msg_buf);
+        dap_chain_datum_tx_delete(l_tx);
+        s_wipe_out_range_proof(&l_anchor_out);
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
     }
 
-    /* 10. Build TX */
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    if (!l_tx) { chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    /* Message no longer needed after both proofs are minted. */
+    dap_memwipe(l_msg_buf, (size_t)l_msg_size);
+    DAP_DELETE(l_msg_buf);
+
+    /* 10. Assemble TX — all outputs already built above. */
 
     /* IN_ANON (variable-size: struct + LRS sig + ring public keys) */
     size_t l_ring_bytes = a_ring_size * pk_sz;
     size_t l_in_full_size = sizeof(dap_chain_tx_in_anon_t) + l_lrs_sig_size + l_ring_bytes;
     uint8_t *l_in_buf = DAP_NEW_Z_SIZE(uint8_t, l_in_full_size);
-    if (!l_in_buf) { DAP_DELETE(l_lrs_sig); chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+    if (!l_in_buf) {
+        DAP_DELETE(l_lrs_sig); chipmunk_stark_proof_free(&l_stark);
+        dap_chain_datum_tx_delete(l_tx);
+        s_wipe_out_range_proof(&l_anchor_out);
+        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+    }
     dap_chain_tx_in_anon_t *l_in_ptr = (dap_chain_tx_in_anon_t *)l_in_buf;
     l_in_ptr->hdr.type = TX_ITEM_TYPE_IN_ANON; l_in_ptr->hdr.version = 1; l_in_ptr->hdr.size = l_in_full_size;
     l_in_ptr->prev_hash = l_prev_hash; l_in_ptr->prev_out_idx = l_prev_idx;
@@ -627,12 +848,10 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     /* Phase 5: Ring dedup — compute ring_commit_hash and cache ring data.
      * Ring is stored inline (hash=0) for now; future TX can reference
      * this ring by hash (hash≠0) to save ~22KB per TX. */
-    memset(&l_in_ptr->ring_commit_hash, 0, sizeof(l_in_ptr->ring_commit_hash));
+    memcpy(&l_in_ptr->ring_commit_hash, &l_ring_commit_hash, sizeof(l_ring_commit_hash));
     {
         /* Cache the ring for future dedup */
-        dap_hash_sha3_256_t l_rch;
-        dap_hash_sha3_256_raw(l_rch.raw, (const uint8_t *)a_ring, l_ring_bytes);
-        dap_ledger_ring_cache_put(l_ledger_init, &l_rch, (const uint8_t *)a_ring, l_ring_bytes);
+        dap_ledger_ring_cache_put(l_ledger_init, &l_ring_commit_hash, (const uint8_t *)a_ring, l_ring_bytes);
     }
 
     /* Trailing data layout: [LRS signature][ring public keys] */
@@ -642,106 +861,25 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     DAP_DELETE(l_in_buf);
     DAP_DELETE(l_lrs_sig);
 
+    /* OUT_ANON items — in canonical order: bob, change, fee, anchor. */
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_out);
     if (a_out_manifest && a_out_manifest->count < DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX)
         a_out_manifest->outs[a_out_manifest->count++] =
             (dap_chain_tx_anon_out_entry_t){ .addr = *a_addr_to, .value = a_amount, .out_idx = 0 };
 
-    uint32_t l_out_idx = 1;
-    uint8_t l_change_seed[32] = {};
-    if (!IS_ZERO_256(l_change)) {
-        dap_chain_tx_out_anon_t l_change_out;
-        if (s_build_out_anon_tracked(&l_change_addr, a_token_ticker, l_change, &l_change_out, &l_anon_init->pedersen_params, l_change_seed) != 0) {
-            chipmunk_stark_proof_free(&l_stark);
-            chipmunk_range_proof_bdlop_wipe(&l_rp);
-            dap_chain_datum_tx_delete(l_tx);
-            dap_enc_key_delete(l_key);
-            return NULL;
-        }
+    if (l_has_change) {
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_change_out);
         if (a_out_manifest && a_out_manifest->count < DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX)
             a_out_manifest->outs[a_out_manifest->count++] =
-                (dap_chain_tx_anon_out_entry_t){ .addr = l_change_addr, .value = l_change, .out_idx = l_out_idx };
-        ++l_out_idx;
+                (dap_chain_tx_anon_out_entry_t){ .addr = l_change_addr, .value = l_change, .out_idx = 1 };
     }
 
-    uint8_t l_fee_seed[32] = {};
-    if (!IS_ZERO_256(a_fee)) {
-        const dap_chain_addr_t *l_fee_dst = a_fee_addr;
-        dap_chain_addr_t l_fee_blank = {};
-        if (!l_fee_dst || dap_chain_addr_is_blank(l_fee_dst))
-            l_fee_dst = &l_fee_blank;
-
-        dap_chain_tx_out_anon_t l_fee_out;
-        if (s_build_out_anon_tracked(l_fee_dst, a_token_ticker, a_fee, &l_fee_out, &l_anon_init->pedersen_params, l_fee_seed) != 0) {
-            chipmunk_stark_proof_free(&l_stark);
-            chipmunk_range_proof_bdlop_wipe(&l_rp);
-            dap_chain_datum_tx_delete(l_tx);
-            dap_enc_key_delete(l_key);
-            return NULL;
-        }
+    if (l_has_fee) {
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_fee_out);
-        if (a_out_manifest && a_out_manifest->count < DAP_CHAIN_TX_ANON_OUT_MANIFEST_MAX)
-            a_out_manifest->outs[a_out_manifest->count++] =
-                (dap_chain_tx_anon_out_entry_t){ .addr = *l_fee_dst, .value = a_fee, .out_idx = l_out_idx };
     }
 
-    /* Anchor OUT_ANON: zero-value output whose blinding closes the Pedersen
-     * conservation gap.  r_anchor = r_input - r_bob - r_change - r_fee.
-     * Verify side reconstructs C_in(v_in, r_det) where r_det is derived from
-     * the deterministic seed; sum(C_out) = A*(r_bob+r_change+r_fee+r_anchor)
-     *                                    = A*r_det + encode(v_out_sum).
-     * Since v_out_sum == v_in, conservation holds. */
-    {
-        uint8_t l_input_seed[32];
-        dap_chain_anon_input_commit_seed(l_input_seed, &l_prev_hash, l_prev_idx);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_anchor_out);
 
-        chipmunk_poly_t l_r_in[CHIPMUNK_LRS_K];
-        if (chipmunk_pedersen_derive_blinding(l_r_in, l_input_seed) != 0) {
-            chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp);
-            dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
-        }
-
-        chipmunk_poly_t l_r_sum[CHIPMUNK_LRS_K];
-        memset(l_r_sum, 0, sizeof(l_r_sum));
-        {
-            chipmunk_poly_t l_r_tmp[CHIPMUNK_LRS_K];
-            chipmunk_pedersen_derive_blinding(l_r_tmp, l_bob_seed);
-            for (uint32_t j = 0; j < CHIPMUNK_LRS_K; ++j)
-                chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j], (uint64_t)CHIPMUNK_Q);
-        }
-        if (!IS_ZERO_256(l_change)) {
-            chipmunk_poly_t l_r_tmp[CHIPMUNK_LRS_K];
-            chipmunk_pedersen_derive_blinding(l_r_tmp, l_change_seed);
-            for (uint32_t j = 0; j < CHIPMUNK_LRS_K; ++j)
-                chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j], (uint64_t)CHIPMUNK_Q);
-        }
-        if (!IS_ZERO_256(a_fee)) {
-            chipmunk_poly_t l_r_tmp[CHIPMUNK_LRS_K];
-            chipmunk_pedersen_derive_blinding(l_r_tmp, l_fee_seed);
-            for (uint32_t j = 0; j < CHIPMUNK_LRS_K; ++j)
-                chipmunk_poly_add_q(&l_r_sum[j], &l_r_sum[j], &l_r_tmp[j], (uint64_t)CHIPMUNK_Q);
-        }
-
-        chipmunk_poly_t l_r_anchor[CHIPMUNK_LRS_K];
-        chipmunk_pedersen_blinding_sub(l_r_anchor, l_r_in, l_r_sum);
-
-        /* Random seed for range-proof bit-level + Stern blinding */
-        uint8_t l_anchor_rp_seed[32];
-        if (dap_random_bytes(l_anchor_rp_seed, sizeof(l_anchor_rp_seed)) != 0) {
-            chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp);
-            dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
-        }
-        dap_chain_addr_t l_anchor_addr = {};
-        dap_chain_tx_out_anon_t l_anchor_out;
-        if (s_build_out_anon_explicit(&l_anchor_addr, a_token_ticker, uint256_0,
-                                         &l_anchor_out, &l_anon_init->pedersen_params,
-                                         l_r_anchor, l_anchor_rp_seed) != 0) {
-            chipmunk_stark_proof_free(&l_stark); chipmunk_range_proof_bdlop_wipe(&l_rp);
-            dap_chain_datum_tx_delete(l_tx); dap_enc_key_delete(l_key); return NULL;
-        }
-        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_anchor_out);
-    }
 
     /* KEY_IMAGE */
     dap_chain_tx_key_image_t l_ki_item;
@@ -755,6 +893,15 @@ static dap_chain_datum_t *s_anon_transfer_generic(
 
     chipmunk_stark_proof_free(&l_stark);
     chipmunk_range_proof_bdlop_wipe(&l_rp);
+    /* 9G secret-wipe: wipe remaining output range proofs + Pedersen seeds. */
+    s_wipe_out_range_proof(&l_anchor_out);
+    if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
+    if (l_has_change) s_wipe_out_range_proof(&l_change_out);
+    dap_memwipe(l_bob_seed, sizeof(l_bob_seed));
+    dap_memwipe(l_change_seed, sizeof(l_change_seed));
+    dap_memwipe(l_fee_seed, sizeof(l_fee_seed));
+    dap_memwipe(l_anchor_rp_seed, sizeof(l_anchor_rp_seed));
+    dap_memwipe(l_input_seed, sizeof(l_input_seed));
     dap_enc_key_delete(l_key);
 
     log_it(L_INFO, "Anonymous TX created: algo=%s, ring=%zu", a_algo->name, a_ring_size);

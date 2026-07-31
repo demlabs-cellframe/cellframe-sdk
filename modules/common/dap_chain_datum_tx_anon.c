@@ -181,3 +181,103 @@ void dap_chain_anon_bind_key_image_to_utxo(uint8_t *a_ki_out, size_t a_ki_size,
     dap_memwipe(l_buf, l_buf_size);
     DAP_DELETE(l_buf);
 }
+
+/* ---- Phase 9E: Comprehensive chain-bound message ---- */
+
+/* Domain tag + field separators are length-prefixed so the parser is
+ * unambiguous (no variable-length field can masquerade as another). */
+#define ANON_MSG_V2_DOMAIN "chipchain-anon-msg-v2"
+
+size_t dap_chain_anon_stark_message_v2_size(void)
+{
+    /* Fixed-size canonical layout:
+     *   domain len-prefix(4) + domain(23)
+     *   chain_id(8) + net_id(8) + ts_created(8)
+     *   out_count(4) + outputs_commit_hash(32)
+     *   in_count(4)  + inputs_utxo_hash(32)
+     *   ring_commit_hash(32) + ring_size(4)
+     *   ephemeral_pk size-prefix(4) + up to 1408 bytes
+     *   recipient_addr(sizeof(dap_chain_addr_t))
+     *   token_ticker(DAP_CHAIN_TICKER_SIZE_MAX)
+     *   ki_hash(32) + rp_hash(32)
+     */
+    return 4u + (sizeof(ANON_MSG_V2_DOMAIN) - 1u)
+         + sizeof(uint64_t) * 3u
+         + sizeof(uint32_t) + 32u
+         + sizeof(uint32_t) + 32u
+         + 32u + sizeof(uint32_t)
+         + sizeof(uint32_t) + 1408u   /* worst-case ephemeral_pk */
+         + sizeof(dap_chain_addr_t)
+         + DAP_CHAIN_TICKER_SIZE_MAX
+         + 32u + 32u;
+}
+
+ssize_t dap_chain_anon_stark_build_message_v2(uint8_t *a_out, size_t a_out_size,
+                                               const dap_chain_anon_msg_ctx_t *a_ctx)
+{
+    if (!a_out || !a_ctx)
+        return -EINVAL;
+    if (a_ctx->ephemeral_pk && a_ctx->ephemeral_pk_size > 1408u)
+        return -EINVAL;
+
+    size_t l_needed = dap_chain_anon_stark_message_v2_size();
+    if (a_out_size < l_needed)
+        return -ENOMEM;
+
+    /* For the variable-length ephemeral_pk we use the actual size, not the
+     * worst case, so the byte layout is identical on both sides. */
+    size_t l_eph_size = a_ctx->ephemeral_pk ? a_ctx->ephemeral_pk_size : 0u;
+    size_t l_actual = 4u + (sizeof(ANON_MSG_V2_DOMAIN) - 1u)
+                    + sizeof(uint64_t) * 3u
+                    + sizeof(uint32_t) + 32u
+                    + sizeof(uint32_t) + 32u
+                    + 32u + sizeof(uint32_t)
+                    + sizeof(uint32_t) + l_eph_size
+                    + sizeof(dap_chain_addr_t)
+                    + DAP_CHAIN_TICKER_SIZE_MAX
+                    + 32u + 32u;
+
+    uint8_t *p = a_out;
+    uint32_t l_domain_len = (uint32_t)(sizeof(ANON_MSG_V2_DOMAIN) - 1u);
+    memcpy(p, &l_domain_len, 4u); p += 4u;
+    memcpy(p, ANON_MSG_V2_DOMAIN, l_domain_len); p += l_domain_len;
+
+    memcpy(p, &a_ctx->chain_id, sizeof(uint64_t)); p += sizeof(uint64_t);
+    memcpy(p, &a_ctx->net_id, sizeof(uint64_t));  p += sizeof(uint64_t);
+    memcpy(p, &a_ctx->ts_created, sizeof(uint64_t)); p += sizeof(uint64_t);
+
+    memcpy(p, &a_ctx->out_anon_count, sizeof(uint32_t)); p += sizeof(uint32_t);
+    memcpy(p, a_ctx->outputs_commit_hash.raw, 32u); p += 32u;
+
+    memcpy(p, &a_ctx->in_anon_count, sizeof(uint32_t)); p += sizeof(uint32_t);
+    memcpy(p, a_ctx->inputs_utxo_hash.raw, 32u); p += 32u;
+
+    memcpy(p, a_ctx->ring_commit_hash.raw, 32u); p += 32u;
+    memcpy(p, &a_ctx->ring_size, sizeof(uint32_t)); p += sizeof(uint32_t);
+
+    memcpy(p, &l_eph_size, sizeof(uint32_t)); p += sizeof(uint32_t);
+    if (l_eph_size) {
+        memcpy(p, a_ctx->ephemeral_pk, l_eph_size); p += l_eph_size;
+    }
+
+    /* Recipient addr: zero if absent so both sides agree. */
+    if (a_ctx->recipient_addr) {
+        memcpy(p, a_ctx->recipient_addr, sizeof(dap_chain_addr_t));
+    } else {
+        memset(p, 0, sizeof(dap_chain_addr_t));
+    }
+    p += sizeof(dap_chain_addr_t);
+
+    /* Token ticker: fixed-width, NUL-padded. */
+    memset(p, 0, DAP_CHAIN_TICKER_SIZE_MAX);
+    if (a_ctx->token_ticker) {
+        size_t l_tl = strnlen(a_ctx->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+        memcpy(p, a_ctx->token_ticker, l_tl);
+    }
+    p += DAP_CHAIN_TICKER_SIZE_MAX;
+
+    memcpy(p, a_ctx->ki_hash.raw, 32u); p += 32u;
+    memcpy(p, a_ctx->rp_hash.raw, 32u); p += 32u;
+
+    return (ssize_t)l_actual;
+}

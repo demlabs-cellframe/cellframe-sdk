@@ -533,44 +533,125 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             }
             l_statement.ring = l_ring_ptr;
 
-            /* Reconstruct message: addr_to || commit_hash || ticker || ki_hash || rp_hash
-             * Must match the prover's construction exactly. */
+            /* 9E: Reconstruct the comprehensive chain-bound message.
+             * Must match the prover's construction exactly. The verifier
+             * hashes ALL OUT_ANON commitments, ALL IN_ANON UTXO coords,
+             * ring_commit_hash, chain/net context, ts_created, ephemeral_pk,
+             * ticker, ki_hash, rp_hash — so a proof minted for one TX cannot
+             * be replayed against a TX that differs in any attacker-relevant
+             * field. */
+
+            /* Collect ALL OUT_ANON commitments + find first recipient out. */
             const dap_chain_tx_out_anon_t *l_out_anon = NULL;
+            uint32_t l_out_anon_count = 0;
+            /* First pass: count + size */
             {
-                const uint8_t *l_scan_item;
-                size_t l_scan_size;
-                TX_ITEM_ITER_TX(l_scan_item, l_scan_size, a_tx) {
-                    if (*l_scan_item == TX_ITEM_TYPE_OUT_ANON) {
-                        l_out_anon = (const dap_chain_tx_out_anon_t *)l_scan_item;
-                        break;
-                    }
+                const uint8_t *l_cnt_item;
+                size_t l_cnt_size;
+                TX_ITEM_ITER_TX(l_cnt_item, l_cnt_size, a_tx) {
+                    if (*l_cnt_item == TX_ITEM_TYPE_OUT_ANON)
+                        l_out_anon_count++;
                 }
             }
-            if (!l_out_anon) {
+            if (l_out_anon_count == 0) {
                 log_it(L_WARNING, "IN_ANON has no matching OUT_ANON");
                 return -EINVAL;
             }
+            /* Concatenate commitments for hashing. */
+            size_t l_commits_bytes = (size_t)l_out_anon_count * sizeof(chipmunk_pedersen_commit_t);
+            uint8_t *l_commits_buf = DAP_NEW_Z_SIZE(uint8_t, l_commits_bytes);
+            if (!l_commits_buf) return -ENOMEM;
+            {
+                const uint8_t *l_ci_item;
+                size_t l_ci_size;
+                size_t l_off = 0;
+                TX_ITEM_ITER_TX(l_ci_item, l_ci_size, a_tx) {
+                    if (*l_ci_item == TX_ITEM_TYPE_OUT_ANON) {
+                        const dap_chain_tx_out_anon_t *l_co = (const dap_chain_tx_out_anon_t *)l_ci_item;
+                        if (!l_out_anon) l_out_anon = l_co;  /* first = recipient */
+                        memcpy(l_commits_buf + l_off, &l_co->commitment, sizeof(chipmunk_pedersen_commit_t));
+                        l_off += sizeof(chipmunk_pedersen_commit_t);
+                    }
+                }
+            }
+            dap_hash_sha3_256_t l_outputs_commit_hash;
+            dap_hash_sha3_256_raw(l_outputs_commit_hash.raw, l_commits_buf, l_commits_bytes);
+            DAP_DELETE(l_commits_buf);
 
+            /* Collect ALL IN_ANON prev_hash||out_idx for inputs_utxo_hash. */
+            uint32_t l_in_anon_count = 0;
+            {
+                const uint8_t *l_cnt_item;
+                size_t l_cnt_size;
+                TX_ITEM_ITER_TX(l_cnt_item, l_cnt_size, a_tx) {
+                    if (*l_cnt_item == TX_ITEM_TYPE_IN_ANON)
+                        l_in_anon_count++;
+                }
+            }
+            size_t l_in_coords_bytes = (size_t)l_in_anon_count * (sizeof(dap_chain_hash_fast_t) + sizeof(uint32_t));
+            uint8_t *l_in_coords = l_in_coords_bytes ? DAP_NEW_Z_SIZE(uint8_t, l_in_coords_bytes) : NULL;
+            if (l_in_coords_bytes && !l_in_coords) return -ENOMEM;
+            {
+                const uint8_t *l_ii_item;
+                size_t l_ii_size;
+                size_t l_off = 0;
+                TX_ITEM_ITER_TX(l_ii_item, l_ii_size, a_tx) {
+                    if (*l_ii_item == TX_ITEM_TYPE_IN_ANON) {
+                        const dap_chain_tx_in_anon_t *l_ia = (const dap_chain_tx_in_anon_t *)l_ii_item;
+                        memcpy(l_in_coords + l_off, &l_ia->prev_hash, sizeof(dap_chain_hash_fast_t));
+                        l_off += sizeof(dap_chain_hash_fast_t);
+                        memcpy(l_in_coords + l_off, &l_ia->prev_out_idx, sizeof(uint32_t));
+                        l_off += sizeof(uint32_t);
+                    }
+                }
+            }
+            dap_hash_sha3_256_t l_inputs_utxo_hash;
+            dap_hash_sha3_256_raw(l_inputs_utxo_hash.raw, l_in_coords, l_in_coords_bytes);
+            DAP_DELETE(l_in_coords);
+
+            /* KI hash + RP hash (same as legacy). */
             dap_hash_sha3_256_t l_ver_ki_hash;
             dap_hash_sha3_256_raw(l_ver_ki_hash.raw, l_in_anon->key_image, sizeof(l_in_anon->key_image));
-
             chipmunk_range_proof_bdlop_t l_ver_rp;
             memcpy(&l_ver_rp, &l_out_anon->range_proof, sizeof(l_ver_rp));
             dap_hash_sha3_256_t l_ver_rp_hash;
             dap_hash_sha3_256_raw(l_ver_rp_hash.raw, (const uint8_t *)&l_ver_rp, sizeof(l_ver_rp));
 
-            chipmunk_pedersen_commit_t l_ver_commit;
-            memcpy(&l_ver_commit, &l_out_anon->commitment, sizeof(l_ver_commit));
-            dap_hash_sha3_256_t l_ver_commit_hash;
-            dap_hash_sha3_256_raw(l_ver_commit_hash.raw, (const uint8_t *)&l_ver_commit, sizeof(l_ver_commit));
+            /* Build the v2 message context. */
+            dap_chain_anon_msg_ctx_t l_msg_ctx;
+            memset(&l_msg_ctx, 0, sizeof(l_msg_ctx));
+            l_msg_ctx.chain_id = a_ledger->chain_ids_count ? a_ledger->chain_ids[0].uint64 : 0;
+            l_msg_ctx.net_id   = a_ledger->net_id.uint64;
+            l_msg_ctx.ts_created = a_tx->header.ts_created;
+            l_msg_ctx.outputs_commit_hash = l_outputs_commit_hash;
+            l_msg_ctx.out_anon_count = l_out_anon_count;
+            l_msg_ctx.inputs_utxo_hash = l_inputs_utxo_hash;
+            l_msg_ctx.in_anon_count = l_in_anon_count;
+            memcpy(&l_msg_ctx.ring_commit_hash, &l_in_anon->ring_commit_hash, sizeof(l_msg_ctx.ring_commit_hash));
+            l_msg_ctx.ring_size = l_in_anon->ring_size;
+            /* ephemeral_pk: stealth binding if nonzero. */
+            {
+                bool l_eph_nonzero = false;
+                for (size_t b = 0; b < sizeof(l_out_anon->ephemeral_pk); ++b) {
+                    if (l_out_anon->ephemeral_pk[b]) { l_eph_nonzero = true; break; }
+                }
+                if (l_eph_nonzero) {
+                    l_msg_ctx.ephemeral_pk = l_out_anon->ephemeral_pk;
+                    l_msg_ctx.ephemeral_pk_size = sizeof(l_out_anon->ephemeral_pk);
+                }
+            }
+            l_msg_ctx.recipient_addr = &l_out_anon->addr;
+            l_msg_ctx.token_ticker = l_out_anon->token_ticker;
+            l_msg_ctx.ki_hash = l_ver_ki_hash;
+            l_msg_ctx.rp_hash = l_ver_rp_hash;
 
-            uint8_t l_msg_buf[sizeof(dap_chain_addr_t) + 32 + DAP_CHAIN_TICKER_SIZE_MAX + 32 + 32];
-            ssize_t l_msg_size = dap_chain_anon_stark_build_message(
-                l_msg_buf, sizeof(l_msg_buf),
-                &l_out_anon->addr, &l_ver_commit_hash,
-                l_out_anon->token_ticker, &l_ver_ki_hash, &l_ver_rp_hash);
+            size_t l_msg_buf_size = dap_chain_anon_stark_message_v2_size();
+            uint8_t *l_msg_buf = DAP_NEW_Z_SIZE(uint8_t, l_msg_buf_size);
+            if (!l_msg_buf) return -ENOMEM;
+            ssize_t l_msg_size = dap_chain_anon_stark_build_message_v2(l_msg_buf, l_msg_buf_size, &l_msg_ctx);
             if (l_msg_size < 0) {
-                log_it(L_WARNING, "STARK message build failed: %zd", l_msg_size);
+                log_it(L_WARNING, "STARK v2 message build failed: %zd", l_msg_size);
+                DAP_DELETE(l_msg_buf);
                 return -EINVAL;
             }
             l_statement.message = l_msg_buf;
@@ -582,6 +663,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             l_rc = chipmunk_stark_verify(&l_proof_copy, &l_anon->stark_ctx, &l_statement);
             if (l_rc != 1) {
                 log_it(L_WARNING, "STARK proof verification failed for IN_ANON: %d", l_rc);
+                DAP_DELETE(l_msg_buf);
                 DAP_DELETE(l_ring_from_cache);
                 return -EINVAL;
             }
@@ -601,6 +683,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                                             CHIPMUNK_Q);
                 if (l_rc != 1) {
                     log_it(L_WARNING, "LRS signature verification failed for IN_ANON: %d", l_rc);
+                    DAP_DELETE(l_msg_buf);
                     DAP_DELETE(l_ring_from_cache);
                     return -EINVAL;
                 }
@@ -622,6 +705,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                                                       (size_t)l_in_anon->lrs_sig_size);
                 if (l_rc != 0) {
                     log_it(L_WARNING, "LRS key image extraction failed: %d", l_rc);
+                    DAP_DELETE(l_msg_buf);
                     DAP_DELETE(l_ring_from_cache);
                     return -EINVAL;
                 }
@@ -631,6 +715,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                                                        CHIPMUNK_Q);
                 if (l_rc != 0) {
                     log_it(L_WARNING, "LRS key image failed sanity/norm gate: %d", l_rc);
+                    DAP_DELETE(l_msg_buf);
                     DAP_DELETE(l_ring_from_cache);
                     return -EINVAL;
                 }
@@ -649,6 +734,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                 if (l_ki_diff != 0) {
                     log_it(L_WARNING, "TX key_image does not match LRS signature link tag "
                                       "(KI-swap attempt?)");
+                    DAP_DELETE(l_msg_buf);
                     DAP_DELETE(l_ring_from_cache);
                     return -EINVAL;
                 }
@@ -656,6 +742,8 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                 dap_memwipe(l_expected_ki, sizeof(l_expected_ki));
             }
 
+            /* Free the v2 message buffer (heap-allocated) and ring cache. */
+            DAP_DELETE(l_msg_buf);
             /* Phase 5: Free ring cache data if fetched from GDB */
             DAP_DELETE(l_ring_from_cache);
         }

@@ -256,6 +256,87 @@ void dap_chain_anon_input_commit_seed(uint8_t a_seed[32],
                                        uint32_t a_prev_out_idx);
 
 /**
+ * Phase 9E: Comprehensive, chain-bound signed message context.
+ *
+ * The STARK + LRS proofs sign a single message. For the proof system to be
+ * unforgeable that message must commit to EVERY attacker-relevant field of
+ * the transaction, plus the chain context that scopes the proof. Otherwise
+ * a proof minted for one TX can be replayed against a different TX that
+ * shares only the (addr, ki, rp) triple the legacy message covered.
+ *
+ * Canonical binding (SHA3-256 over domain-separated fields):
+ *   H( "chipchain-anon-msg-v2"
+ *      || chain_id(8) || net_id(8)
+ *      || ts_created(8)
+ *      || count_OUT_ANON(4) || H(all OUT_ANON commitments)
+ *      || count_IN_ANON(4)  || H(all IN_ANON prev_hash||out_idx)
+ *      || ring_commit_hash(32) || ring_size(4)
+ *      || ephemeral_pk(1408)
+ *      || token_ticker(DAP_CHAIN_TICKER_SIZE_MAX)
+ *      || recipient_addr(sizeof(dap_chain_addr_t))
+ *      || ki_hash(32) || rp_hash(32)
+ *    )
+ *
+ * The verifier re-derives exactly the same byte sequence from the TX items
+ * it actually validates, so a mismatch fails verification. Note:
+ *   - ts_created is taken from the TX header so the proof is bound to the
+ *     exact transaction it lives in (replay protection across time).
+ *   - chain_id/net_id make the proof chain-specific (cross-chain replay
+ *     protection).
+ *   - ring_commit_hash binds the ring set; ring_size is included so a
+ *     ring_commit_hash of all-zeros (inline mode) is still disambiguated
+ *     by the inline ring length.
+ *   - ephemeral_pk binds the stealth-address one-time key.
+ */
+typedef struct dap_chain_anon_msg_ctx {
+    /* Chain context */
+    uint64_t chain_id;          /* a_chain->id.uint64 */
+    uint64_t net_id;            /* a_chain->net_id.uint64 */
+    uint64_t ts_created;        /* tx->header.ts_created */
+
+    /* Output set: hash of concatenated OUT_ANON commitments, in TX order. */
+    dap_hash_sha3_256_t outputs_commit_hash;
+    uint32_t out_anon_count;
+
+    /* Input set: hash of concatenated (prev_hash || out_idx) for all IN_ANON,
+     * in TX order. */
+    dap_hash_sha3_256_t inputs_utxo_hash;
+    uint32_t in_anon_count;
+
+    /* Ring binding */
+    dap_hash_sha3_256_t ring_commit_hash;   /* from IN_ANON (zero if inline) */
+    uint32_t ring_size;
+
+    /* Stealth address binding */
+    const uint8_t *ephemeral_pk;            /* CHIPMUNK_LRS_POLY_QPACK_BYTES, or NULL */
+    size_t ephemeral_pk_size;
+
+    /* Legacy fields preserved for compatibility / human-readable binding */
+    const dap_chain_addr_t *recipient_addr;
+    const char *token_ticker;
+    dap_hash_sha3_256_t ki_hash;
+    dap_hash_sha3_256_t rp_hash;
+} dap_chain_anon_msg_ctx_t;
+
+/**
+ * Phase 9E: Build the comprehensive, chain-bound signed message.
+ *
+ * Writes the canonical message bytes into a_out. Both compose side
+ * (dap_chain_tx_anon_create) and verify side (dap_chain_ledger_type) MUST
+ * populate the context identically from the TX they are signing/verifying.
+ *
+ * @return bytes written on success, negative errno on error.
+ */
+ssize_t dap_chain_anon_stark_build_message_v2(uint8_t *a_out, size_t a_out_size,
+                                               const dap_chain_anon_msg_ctx_t *a_ctx);
+
+/**
+ * Phase 9E: Required output buffer size for build_message_v2.
+ * Callers may use this to size dynamic buffers.
+ */
+size_t dap_chain_anon_stark_message_v2_size(void);
+
+/**
  * Build STARK message binding: addr || commit_hash || ticker || ki_hash || rp_hash.
  *
  * Used by both compose side (chipmunk_stark_prove) and verify side
