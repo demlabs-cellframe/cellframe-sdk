@@ -3829,13 +3829,12 @@ static DAP_INLINE void s_net_control_event_apply(dap_chain_net_t *a_net, dap_cha
         break;
     case DAP_CHAIN_NET_CONTROL_EVENT_LINKS_COUNT_CHANGED:
         UNUSED(a_links_count);
-        /* Only drop back to LINKS_PREPARE if we haven't started syncing yet.
-         * If we're already in SYNC_CHAINS or ONLINE, the sync is in progress
-         * and a temporary link drop should NOT reset the state machine —
-         * the sync timer handles link failures via stall detection and
-         * round-robin peer switching. Resetting here would kill an active
-         * sync session and waste all progress. */
-        if (dap_link_manager_established_uplinks_count(a_net->pub.id.uint64) < dap_link_manager_required_links_count(a_net->pub.id.uint64) &&
+        /* Only drop to LINKS_PREPARE when ALL links are gone (0 established).
+         * With 1+ links, stay in current state — sync can proceed with
+         * a single peer.  Dropping to LINKS_PREPARE on every link count
+         * change below required caused endless oscillation between
+         * LINKS_PREPARE and LINKS_ESTABLISHED. */
+        if (dap_link_manager_established_uplinks_count(a_net->pub.id.uint64) == 0 &&
                 (a_net_pvt->state == NET_STATE_LINKS_ESTABLISHED ||
                  a_net_pvt->state == NET_STATE_LINKS_CONNECTING ||
                  a_net_pvt->state == NET_STATE_LINKS_PREPARE)) {
@@ -5007,16 +5006,17 @@ static void s_sync_timer_callback(void *a_arg)
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) // if offline no need sync
         return;
     if (l_net_pvt->state == NET_STATE_LINKS_CONNECTING &&
-            s_sync_links_ready(l_net->pub.id.uint64))
+            dap_link_manager_established_uplinks_count(l_net->pub.id.uint64) >= 1)
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
-    /* Only require links_ready for initial state transitions (LINKS_PREPARE,
-     * LINKS_CONNECTING, LINKS_ESTABLISHED).  Once we're in SYNC_CHAINS or
-     * ONLINE, keep running the sync timer even with fewer links. */
+    /* Only block sync timer when there are ZERO links.  A single link is
+     * sufficient for sync.  Required links count is a desired target, not
+     * a hard minimum. */
     if (l_net_pvt->state_target != NET_STATE_OFFLINE &&
             l_net_pvt->state != NET_STATE_OFFLINE &&
             l_net_pvt->state != NET_STATE_SYNC_CHAINS &&
             l_net_pvt->state != NET_STATE_ONLINE &&
-            !s_sync_links_ready(l_net->pub.id.uint64))
+            l_net_pvt->state != NET_STATE_LINKS_ESTABLISHED &&
+            dap_link_manager_established_uplinks_count(l_net->pub.id.uint64) == 0)
         return;
     dap_time_t l_now = dap_time_now();
 
