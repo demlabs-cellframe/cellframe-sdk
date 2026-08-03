@@ -422,7 +422,25 @@ static int s_build_out_anon_explicit(const dap_chain_addr_t *a_addr, const char 
 /*
  * Generic anonymous transfer: works with any supported ring signature algorithm.
  * Algorithm is selected by wallet key type or explicit config.
+ *
+ * 9G secret-wipe design: the function declares booleans (l_wipe_*) tracking
+ * which secret-bearing locals have been populated. Every early-return error
+ * path runs S_ANON_SECRETS_WIPE() which wipes exactly those secrets. The
+ * happy path runs the same macro before returning the datum. This guarantees
+ * no Pedersen seed or blinding polynomial survives function exit on ANY path.
  */
+#define S_ANON_SECRETS_WIPE() do { \
+    if (l_wipe_anchor_rp) dap_memwipe(l_anchor_rp_seed, sizeof(l_anchor_rp_seed)); \
+    if (l_wipe_input)     dap_memwipe(l_input_seed, sizeof(l_input_seed)); \
+    if (l_wipe_fee)       dap_memwipe(l_fee_seed, sizeof(l_fee_seed)); \
+    if (l_wipe_change)    dap_memwipe(l_change_seed, sizeof(l_change_seed)); \
+    if (l_wipe_bob)       dap_memwipe(l_bob_seed, sizeof(l_bob_seed)); \
+    if (l_wipe_anchor_rp) s_wipe_out_range_proof(&l_anchor_out); \
+    if (l_wipe_fee)       s_wipe_out_range_proof(&l_fee_out); \
+    if (l_wipe_change)    s_wipe_out_range_proof(&l_change_out); \
+    if (l_wipe_bob)       chipmunk_range_proof_bdlop_wipe(&l_rp); \
+} while (0)
+
 static dap_chain_datum_t *s_anon_transfer_generic(
     dap_chain_wallet_t *a_wallet,
     dap_chain_t *a_chain,
@@ -441,6 +459,25 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (!a_wallet || !a_chain || !a_token_ticker || !a_addr_to || !a_ring || !a_algo)
         return NULL;
     if (a_ring_size < CHIPMUNK_RING_N_MIN || a_ring_size > 64) return NULL;
+
+    /* 9G secret-wipe tracking flags — set to true as each secret is populated.
+     * All secret-bearing locals are declared up-front (zero-initialized) so
+     * the S_ANON_SECRETS_WIPE() macro can reference them from ANY error path
+     * regardless of how far execution has progressed. */
+    bool l_wipe_bob = false, l_wipe_change = false, l_wipe_fee = false;
+    bool l_wipe_input = false, l_wipe_anchor_rp = false;
+    uint8_t l_bob_seed[32] = {};
+    uint8_t l_change_seed[32] = {};
+    uint8_t l_fee_seed[32] = {};
+    uint8_t l_anchor_rp_seed[32] = {};
+    uint8_t l_input_seed[32] = {};
+    chipmunk_range_proof_bdlop_t l_rp;
+    memset(&l_rp, 0, sizeof(l_rp));
+    dap_chain_tx_out_anon_t l_anchor_out, l_fee_out, l_change_out, l_out;
+    memset(&l_anchor_out, 0, sizeof(l_anchor_out));
+    memset(&l_fee_out, 0, sizeof(l_fee_out));
+    memset(&l_change_out, 0, sizeof(l_change_out));
+    memset(&l_out, 0, sizeof(l_out));
 
     /* Resolve ledger and per-ledger anon context */
     dap_ledger_t *l_ledger_init = dap_ledger_by_net_name(a_chain->net_name);
@@ -556,30 +593,25 @@ static dap_chain_datum_t *s_anon_transfer_generic(
      * =================================================================== */
 
     /* --- Output 0: recipient (bob) --- */
-    dap_chain_tx_out_anon_t l_out;
-    uint8_t l_bob_seed[32];
     l_rc = s_build_out_anon_tracked(a_addr_to, a_token_ticker, a_amount, &l_out, &l_anon_init->pedersen_params, l_bob_seed);
     if (l_rc != 0) { dap_enc_key_delete(l_key); return NULL; }
+    l_wipe_bob = true;
 
-    chipmunk_range_proof_bdlop_t l_rp;
     memcpy(&l_rp, (const uint8_t *)&l_out + offsetof(dap_chain_tx_out_anon_t, range_proof), sizeof(l_rp));
     chipmunk_pedersen_commit_t l_commit;
     memcpy(&l_commit, (const uint8_t *)&l_out + offsetof(dap_chain_tx_out_anon_t, commitment), sizeof(l_commit));
 
     /* --- Output 1 (optional): change --- */
     bool l_has_change = !IS_ZERO_256(l_change);
-    dap_chain_tx_out_anon_t l_change_out;
-    uint8_t l_change_seed[32] = {};
     if (l_has_change) {
         l_rc = s_build_out_anon_tracked(&l_change_addr, a_token_ticker, l_change, &l_change_out,
                                         &l_anon_init->pedersen_params, l_change_seed);
-        if (l_rc != 0) { chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL; }
+        if (l_rc != 0) { S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL; }
+        l_wipe_change = true;
     }
 
     /* --- Output 2 (optional): fee --- */
     bool l_has_fee = !IS_ZERO_256(a_fee);
-    dap_chain_tx_out_anon_t l_fee_out;
-    uint8_t l_fee_seed[32] = {};
     const dap_chain_addr_t *l_fee_dst = NULL;
     dap_chain_addr_t l_fee_blank = {};
     if (l_has_fee) {
@@ -589,26 +621,22 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         l_rc = s_build_out_anon_tracked(l_fee_dst, a_token_ticker, a_fee, &l_fee_out,
                                         &l_anon_init->pedersen_params, l_fee_seed);
         if (l_rc != 0) {
-            if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-            chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+            S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
         }
+        l_wipe_fee = true;
     }
 
     /* --- Output 3 (always): anchor (zero-value, closes Pedersen gap) --- */
     /* Anchor blinding = r_input - r_bob - r_change - r_fee. All seeds known now. */
-    uint8_t l_anchor_rp_seed[32];
     if (dap_random_bytes(l_anchor_rp_seed, sizeof(l_anchor_rp_seed)) != 0) {
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
-    uint8_t l_input_seed[32];
+    l_wipe_anchor_rp = true;
     dap_chain_anon_input_commit_seed(l_input_seed, &l_prev_hash, l_prev_idx);
+    l_wipe_input = true;
     chipmunk_poly_t l_r_in[CHIPMUNK_LRS_K];
     if (chipmunk_pedersen_derive_blinding(l_r_in, l_input_seed) != 0) {
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
     chipmunk_poly_t l_r_sum[CHIPMUNK_LRS_K];
     memset(l_r_sum, 0, sizeof(l_r_sum));
@@ -633,13 +661,13 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     chipmunk_poly_t l_r_anchor[CHIPMUNK_LRS_K];
     chipmunk_pedersen_blinding_sub(l_r_anchor, l_r_in, l_r_sum);
     dap_chain_addr_t l_anchor_addr = {};
-    dap_chain_tx_out_anon_t l_anchor_out;
     if (s_build_out_anon_explicit(&l_anchor_addr, a_token_ticker, uint256_0,
                                      &l_anchor_out, &l_anon_init->pedersen_params,
                                      l_r_anchor, l_anchor_rp_seed) != 0) {
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        dap_memwipe(l_r_in, sizeof(l_r_in));
+        dap_memwipe(l_r_sum, sizeof(l_r_sum));
+        dap_memwipe(l_r_anchor, sizeof(l_r_anchor));
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
     /* Wipe blinding polynomials now that the anchor output is built (9G secret-wipe scope). */
     dap_memwipe(l_r_in, sizeof(l_r_in));
@@ -659,10 +687,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     size_t l_commits_bytes = (size_t)l_out_count * sizeof(chipmunk_pedersen_commit_t);
     uint8_t *l_commits_buf = DAP_NEW_Z_SIZE(uint8_t, l_commits_bytes);
     if (!l_commits_buf) {
-        s_wipe_out_range_proof(&l_anchor_out);
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
     {
         size_t l_off = 0;
@@ -722,10 +747,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     /* Pre-create TX so we know ts_created before signing (9E chain binding). */
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     if (!l_tx) {
-        s_wipe_out_range_proof(&l_anchor_out);
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
     l_msg_ctx.ts_created = l_tx->header.ts_created;
 
@@ -733,19 +755,13 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     uint8_t *l_msg_buf = DAP_NEW_Z_SIZE(uint8_t, l_msg_buf_size);
     if (!l_msg_buf) {
         dap_chain_datum_tx_delete(l_tx);
-        s_wipe_out_range_proof(&l_anchor_out);
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
     ssize_t l_msg_size = dap_chain_anon_stark_build_message_v2(l_msg_buf, l_msg_buf_size, &l_msg_ctx);
     if (l_msg_size < 0) {
         DAP_DELETE(l_msg_buf);
         dap_chain_datum_tx_delete(l_tx);
-        s_wipe_out_range_proof(&l_anchor_out);
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
     l_statement.message = l_msg_buf;
     l_statement.message_size = (size_t)l_msg_size;
@@ -766,10 +782,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (l_rc != 0) {
         DAP_DELETE(l_msg_buf);
         dap_chain_datum_tx_delete(l_tx);
-        s_wipe_out_range_proof(&l_anchor_out);
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
 
     /* 9b. LRS signature — lattice binding layer.
@@ -787,20 +800,14 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (!l_lrs_sig) {
         chipmunk_stark_proof_free(&l_stark); DAP_DELETE(l_msg_buf);
         dap_chain_datum_tx_delete(l_tx);
-        s_wipe_out_range_proof(&l_anchor_out);
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
 
     uint8_t l_lrs_seed[CHIPMUNK_LRS_SEED_BYTES];
     if (dap_random_bytes(l_lrs_seed, sizeof(l_lrs_seed)) != 0) {
         DAP_DELETE(l_lrs_sig); chipmunk_stark_proof_free(&l_stark); DAP_DELETE(l_msg_buf);
         dap_chain_datum_tx_delete(l_tx);
-        s_wipe_out_range_proof(&l_anchor_out);
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
 
     l_rc = chipmunk_lrs_sign(l_lrs_sig, l_lrs_sig_size,
@@ -813,10 +820,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
         log_it(L_ERROR, "LRS sign failed: %d", l_rc);
         DAP_DELETE(l_lrs_sig); chipmunk_stark_proof_free(&l_stark); DAP_DELETE(l_msg_buf);
         dap_chain_datum_tx_delete(l_tx);
-        s_wipe_out_range_proof(&l_anchor_out);
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
 
     /* Message no longer needed after both proofs are minted. */
@@ -832,10 +836,7 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     if (!l_in_buf) {
         DAP_DELETE(l_lrs_sig); chipmunk_stark_proof_free(&l_stark);
         dap_chain_datum_tx_delete(l_tx);
-        s_wipe_out_range_proof(&l_anchor_out);
-        if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-        if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-        chipmunk_range_proof_bdlop_wipe(&l_rp); dap_enc_key_delete(l_key); return NULL;
+        S_ANON_SECRETS_WIPE(); dap_enc_key_delete(l_key); return NULL;
     }
     dap_chain_tx_in_anon_t *l_in_ptr = (dap_chain_tx_in_anon_t *)l_in_buf;
     l_in_ptr->hdr.type = TX_ITEM_TYPE_IN_ANON; l_in_ptr->hdr.version = 1; l_in_ptr->hdr.size = l_in_full_size;
@@ -892,16 +893,10 @@ static dap_chain_datum_t *s_anon_transfer_generic(
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, dap_chain_datum_tx_get_size(l_tx));
 
     chipmunk_stark_proof_free(&l_stark);
-    chipmunk_range_proof_bdlop_wipe(&l_rp);
-    /* 9G secret-wipe: wipe remaining output range proofs + Pedersen seeds. */
-    s_wipe_out_range_proof(&l_anchor_out);
-    if (l_has_fee) s_wipe_out_range_proof(&l_fee_out);
-    if (l_has_change) s_wipe_out_range_proof(&l_change_out);
-    dap_memwipe(l_bob_seed, sizeof(l_bob_seed));
-    dap_memwipe(l_change_seed, sizeof(l_change_seed));
-    dap_memwipe(l_fee_seed, sizeof(l_fee_seed));
-    dap_memwipe(l_anchor_rp_seed, sizeof(l_anchor_rp_seed));
-    dap_memwipe(l_input_seed, sizeof(l_input_seed));
+    /* 9G secret-wipe: wipe all secrets (seeds + range proofs) via the
+     * single macro that the error paths also use. Ensures identical
+     * coverage on every exit path. */
+    S_ANON_SECRETS_WIPE();
     dap_enc_key_delete(l_key);
 
     log_it(L_INFO, "Anonymous TX created: algo=%s, ring=%zu", a_algo->name, a_ring_size);

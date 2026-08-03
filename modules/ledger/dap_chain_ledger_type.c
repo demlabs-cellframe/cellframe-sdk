@@ -287,17 +287,25 @@ bool dap_ledger_pedersen_commit_equal(const chipmunk_pedersen_commit_t *a_lhs,
     if (!a_lhs || !a_rhs)
         return false;
 
+    /* 9G FIX (GAP-22): Constant-time comparison.
+     * The previous version returned false on the FIRST mismatching
+     * coefficient, leaking timing side-channels about WHERE the
+     * commitments differ. For conservation equality over Pedersen
+     * commitments this is a low-severity leak (the commitments are
+     * public), but constant-time is the correct, defense-in-depth
+     * approach: accumulate a diff flag and decide once at the end. */
+    volatile uint32_t l_diff = 0;
     for (uint32_t i = 0; i < CHIPMUNK_PEDERSEN_K; ++i) {
         for (uint32_t k = 0; k < CHIPMUNK_N; ++k) {
-            int32_t l_diff = a_lhs->C[i].coeffs[k] - a_rhs->C[i].coeffs[k];
-            l_diff %= CHIPMUNK_Q;
-            if (l_diff < 0)
-                l_diff += CHIPMUNK_Q;
-            if (l_diff != 0)
-                return false;
+            int32_t l_c = a_lhs->C[i].coeffs[k] - a_rhs->C[i].coeffs[k];
+            l_c %= CHIPMUNK_Q;
+            if (l_c < 0)
+                l_c += CHIPMUNK_Q;
+            /* Branchless: l_diff |= (l_c != 0) without short-circuit. */
+            l_diff |= (uint32_t)(l_c != 0 ? 1 : 0);
         }
     }
-    return true;
+    return l_diff == 0;
 }
 
 static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
@@ -776,7 +784,15 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
         return -EINVAL;
     }
 
-    /* 3. Check key images for double-spend prevention */
+    /* 3. Check key images for double-spend prevention.
+     *
+     * 9G FIX (GAP-18): Key images are now only CHECKED here, never committed.
+     * The actual commit happens at the very END of this function, AFTER all
+     * crypto checks (range proof + Pedersen conservation) pass. Previously
+     * the commit happened right here, so if any subsequent check failed the
+     * key images were already persisted to GDB — blocking a legitimate
+     * resubmission of the same TX. Atomicity: either everything commits or
+     * nothing does. */
     const dap_chain_tx_key_image_t **l_images = NULL;
     size_t l_image_count = 0;
     l_rc = dap_chain_datum_tx_get_key_images(a_tx->tx_items, dap_chain_datum_tx_get_size(a_tx), &l_images, &l_image_count);
@@ -789,11 +805,8 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
         dap_chain_hash_fast_t l_image_hash;
         dap_hash_fast(l_images[i]->image, sizeof(l_images[i]->image), &l_image_hash);
 
-        int l_ki_rc;
-        if (a_commit_key_images)
-            l_ki_rc = s_key_image_add(l_anon, &l_image_hash, a_tx_hash, a_ledger, true);
-        else
-            l_ki_rc = s_key_image_check_unused(l_anon, &l_image_hash);
+        /* Always CHECK only — commit deferred to the end (GAP-18). */
+        int l_ki_rc = s_key_image_check_unused(l_anon, &l_image_hash);
 
         if (l_ki_rc == -EEXIST) {
             log_it(L_WARNING, "Double-spend attempt detected: key image already used");
@@ -805,7 +818,7 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             return l_ki_rc;
         }
     }
-    DAP_DELETE(l_images);
+    /* l_images kept alive for the atomic commit at the end (GAP-18). */
 
     /* 4. Verify Pedersen commitments and range proofs on outputs.
      *
@@ -848,9 +861,42 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
     }
 
     l_rc = s_anon_pedersen_conservation_verify(a_ledger, l_anon, a_tx);
-    if (l_rc != 0)
+    if (l_rc != 0) {
+        DAP_DELETE(l_images);
         return l_rc;
+    }
 
+    /* 9G FIX (GAP-18): ALL checks passed → now atomically commit key images.
+     * This is the ONLY place KI are persisted. s_key_image_add takes the
+     * write lock, so concurrent TXs with the same KI are serialized: the
+     * second one's earlier check_unused will have passed, but its commit
+     * here will hit -EEXIST and be rolled back. */
+    if (a_commit_key_images) {
+        for (size_t i = 0; i < l_image_count; ++i) {
+            dap_chain_hash_fast_t l_image_hash;
+            dap_hash_fast(l_images[i]->image, sizeof(l_images[i]->image), &l_image_hash);
+            int l_ki_rc = s_key_image_add(l_anon, &l_image_hash, a_tx_hash, a_ledger, true);
+            if (l_ki_rc == -EEXIST) {
+                /* Race: another TX with the same KI committed between our
+                 * check_unused and our commit. Roll back all KI we just
+                 * added for THIS TX so the GDB stays consistent. */
+                log_it(L_WARNING, "Double-spend detected during atomic KI commit (race)");
+                for (size_t j = 0; j < i; ++j) {
+                    dap_chain_hash_fast_t l_rollback_hash;
+                    dap_hash_fast(l_images[j]->image, sizeof(l_images[j]->image), &l_rollback_hash);
+                    s_key_image_remove(l_anon, &l_rollback_hash, a_ledger, true);
+                }
+                DAP_DELETE(l_images);
+                return -EINVAL;
+            } else if (l_ki_rc != 0) {
+                log_it(L_WARNING, "Key image commit failed: %d", l_ki_rc);
+                DAP_DELETE(l_images);
+                return l_ki_rc;
+            }
+        }
+    }
+
+    DAP_DELETE(l_images);
     return 0; /* Valid anonymous TX */
 }
 

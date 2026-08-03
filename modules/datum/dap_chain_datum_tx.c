@@ -75,11 +75,20 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
     dap_return_val_if_pass(!a_tx || !*a_tx || !(size = dap_chain_datum_item_tx_get_size(a_item, 0)), -1 );
     if ( *(byte_t*)a_item != TX_ITEM_TYPE_SIG && dap_chain_datum_tx_item_get(*a_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL) )
         return log_it(L_ERROR, "Can't add item, datum already signed"), -1;
+    /* 9G FIX (GAP-25): Guard uint32 overflow on tx_items_size.
+     * tx_items_size is a uint32_t; accumulating items larger than 4GiB
+     * would silently wrap. Not attacker-reachable from external input
+     * (this is the compose path), but a latent correctness bug. Reject
+     * before the wrap rather than persist a corrupt header. */
+    if (size > UINT32_MAX || (*a_tx)->header.tx_items_size > UINT32_MAX - (uint32_t)size) {
+        return log_it(L_ERROR, "Can't add item: tx_items_size would overflow uint32 (%u + %zu)",
+                      (*a_tx)->header.tx_items_size, size), -1;
+    }
     dap_chain_datum_tx_t *tx_new = DAP_REALLOC_RET_VAL_IF_FAIL( *a_tx, dap_chain_datum_tx_get_size(*a_tx) + size, -2 );
     memcpy((uint8_t*)tx_new->tx_items + tx_new->header.tx_items_size, a_item, size);
     tx_new->header.tx_items_size += size;
     *a_tx = tx_new;
-    
+
     return 1;
 }
 
