@@ -313,6 +313,22 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
                                              dap_chain_datum_tx_t *a_tx)
 {
     const dap_chain_tx_in_anon_t *l_in_anon = NULL;
+    /* 9H FIX (GAP-17): Extract the expected token ticker from the first
+     * OUT_ANON. Every input UTXO (prev_tx output) must carry the same
+     * ticker — a TX cannot spend tokens of type A and emit type B. */
+    char l_expected_ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1] = {};
+    {
+        const uint8_t *l_tk_item;
+        size_t l_tk_size;
+        TX_ITEM_ITER_TX(l_tk_item, l_tk_size, a_tx) {
+            if (*l_tk_item == TX_ITEM_TYPE_OUT_ANON) {
+                const dap_chain_tx_out_anon_t *l_oa = (const dap_chain_tx_out_anon_t *)l_tk_item;
+                memcpy(l_expected_ticker, l_oa->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                l_expected_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = '\0';
+                break;
+            }
+        }
+    }
     /* 9B.1 FIX (F2 CRITICAL): Sum ALL IN_ANON commitments (not just first).
      * Previous code broke on first IN_ANON → multi-input free money. */
     chipmunk_pedersen_commit_t l_inputs_sum;
@@ -341,9 +357,13 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
                 chipmunk_pedersen_commit_t l_input_commit;
                 memset(&l_input_commit, 0, sizeof(l_input_commit));
 
+                /* 9H FIX (GAP-17): Verify input UTXO ticker matches expected
+                 * (from the first OUT_ANON). Prevents cross-token spend → mint. */
+                const char *l_in_ticker = NULL;
                 switch (*(uint8_t *)l_prev_out) {
                 case TX_ITEM_TYPE_OUT_STD: {
                     const dap_chain_tx_out_std_t *l_out = (const dap_chain_tx_out_std_t *)l_prev_out;
+                    l_in_ticker = l_out->token;
                     uint8_t l_seed[32], l_amount[CHIPMUNK_PEDERSEN_VALUE_BYTES];
                     dap_chain_anon_input_commit_seed(l_seed, &l_in_anon->prev_hash, l_in_anon->prev_out_idx);
                     memset(l_amount, 0, sizeof(l_amount));
@@ -356,6 +376,7 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
                 } break;
                 case TX_ITEM_TYPE_OUT_EXT: {
                     const dap_chain_tx_out_ext_t *l_out = (const dap_chain_tx_out_ext_t *)l_prev_out;
+                    l_in_ticker = l_out->token;
                     uint8_t l_seed[32], l_amount[CHIPMUNK_PEDERSEN_VALUE_BYTES];
                     dap_chain_anon_input_commit_seed(l_seed, &l_in_anon->prev_hash, l_in_anon->prev_out_idx);
                     memset(l_amount, 0, sizeof(l_amount));
@@ -368,6 +389,7 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
                 } break;
                 case TX_ITEM_TYPE_OUT_ANON: {
                     const dap_chain_tx_out_anon_t *l_out = (const dap_chain_tx_out_anon_t *)l_prev_out;
+                    l_in_ticker = l_out->token_ticker;
                     memcpy(&l_input_commit, &l_out->commitment, sizeof(l_input_commit));
                 } break;
                 default:
@@ -375,6 +397,19 @@ static int s_anon_pedersen_conservation_verify(dap_ledger_t *a_ledger,
                            *(uint8_t *)l_prev_out);
                     DAP_DELETE(l_prev_tx);
                     return -EINVAL;
+                }
+
+                /* Cross-check input ticker vs expected. l_in_ticker points into
+                 * the prev_tx output; it's NUL-terminated within the packed
+                 * token[DAP_CHAIN_TICKER_SIZE_MAX] field (which we compare in
+                 * bounded fashion to be safe). */
+                if (l_in_ticker && l_expected_ticker[0]) {
+                    if (strncmp(l_expected_ticker, l_in_ticker, DAP_CHAIN_TICKER_SIZE_MAX) != 0) {
+                        log_it(L_WARNING, "Anonymous TX ticker mismatch: input '%s' vs output '%s'",
+                               l_in_ticker, l_expected_ticker);
+                        DAP_DELETE(l_prev_tx);
+                        return -EINVAL;
+                    }
                 }
 
                 DAP_DELETE(l_prev_tx);
@@ -993,6 +1028,45 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
                     log_it(L_WARNING, "Anonymous TX %s rejected: >2 IN_ANON items (DoS)",
                            dap_hash_sha3_256_to_str_static(a_tx_hash));
                     return DAP_LEDGER_TX_CHECK_ANON_ITEM_MISSTYPED;
+                }
+            }
+        }
+
+        /* 9H FIX (GAP-17): Token validation.
+         * - Every OUT_ANON must carry a non-empty, well-formed ticker.
+         * - All OUT_ANON tickers must match (no cross-token mixing in a
+         *   single anon TX).
+         * - The input UTXO (prev_tx) must carry the same ticker, so a
+         *   TX cannot spend tokens of type A and emit tokens of type B.
+         * Without this guard an attacker can fabricate OUT_ANON with an
+         * arbitrary ticker → mint tokens of any denomination. */
+        {
+            char l_expected_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = {};
+            bool l_ticker_set = false;
+            TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+                if (*l_item == TX_ITEM_TYPE_OUT_ANON) {
+                    const dap_chain_tx_out_anon_t *l_out =
+                        (const dap_chain_tx_out_anon_t *)l_item;
+                    /* NUL-terminate defensively (packed struct). */
+                    char l_ticker_buf[DAP_CHAIN_TICKER_SIZE_MAX + 1];
+                    memcpy(l_ticker_buf, l_out->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                    l_ticker_buf[DAP_CHAIN_TICKER_SIZE_MAX] = '\0';
+                    if (!dap_chain_datum_token_check_ticker(l_ticker_buf)) {
+                        log_it(L_WARNING, "Anonymous TX %s rejected: invalid/empty OUT_ANON ticker '%s'",
+                               dap_hash_sha3_256_to_str_static(a_tx_hash), l_ticker_buf);
+                        return DAP_LEDGER_CHECK_INVALID_TICKER;
+                    }
+                    if (!l_ticker_set) {
+                        strncpy(l_expected_ticker, l_ticker_buf, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+                        l_expected_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+                        l_ticker_set = true;
+                    } else if (strncmp(l_expected_ticker, l_ticker_buf, DAP_CHAIN_TICKER_SIZE_MAX) != 0) {
+                        log_it(L_WARNING, "Anonymous TX %s rejected: OUT_ANON ticker mismatch "
+                               "('%s' vs '%s') — cross-token mixing forbidden",
+                               dap_hash_sha3_256_to_str_static(a_tx_hash),
+                               l_expected_ticker, l_ticker_buf);
+                        return DAP_LEDGER_CHECK_INVALID_TICKER;
+                    }
                 }
             }
         }
