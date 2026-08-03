@@ -472,10 +472,17 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
             size_t l_ring_data_bytes = l_in_anon->hdr.size - sizeof(dap_chain_tx_in_anon_t);
             size_t l_ring_needed = (size_t)l_in_anon->ring_size * sizeof(chipmunk_lrs_public_key_t);
 
-            /* Phase 8a: Enforce minimum ring size for anonymity. */
+            /* Phase 8a: Enforce minimum ring size for anonymity.
+             * Phase 9F: Also enforce the upper bound BEFORE any crypto work
+             * to prevent DoS via huge fabricated rings. */
             if (l_in_anon->ring_size == 0 || l_in_anon->ring_size < DAP_CHAIN_TX_ANON_MIN_RING_SIZE) {
                 log_it(L_WARNING, "IN_ANON ring_size=%u < minimum %u",
                        l_in_anon->ring_size, DAP_CHAIN_TX_ANON_MIN_RING_SIZE);
+                return -EINVAL;
+            }
+            if (l_in_anon->ring_size > DAP_CHAIN_TX_ANON_MAX_RING_SIZE) {
+                log_it(L_WARNING, "IN_ANON ring_size=%u > maximum %u (DoS guard)",
+                       l_in_anon->ring_size, DAP_CHAIN_TX_ANON_MAX_RING_SIZE);
                 return -EINVAL;
             }
 
@@ -531,6 +538,21 @@ static int s_anon_tx_crypto_verify(dap_ledger_t *a_ledger,
                 l_ring_ptr = (const chipmunk_lrs_public_key_t *)
                     (l_item_stark + sizeof(dap_chain_tx_in_anon_t) + l_in_anon->lrs_sig_size);
             }
+
+            /* 9F FIX: Validate every ring member BEFORE any crypto work.
+             * Rejects rings containing malformed CLPKs (wrong magic, wrong
+             * params_id, nonzero reserved fields) that could trigger
+             * undefined behavior deep in the NTT/verify pipeline.
+             * Each chipmunk_lrs_public_key_validate() is O(1). */
+            for (uint32_t ri = 0; ri < l_in_anon->ring_size; ++ri) {
+                int l_pk_rc = chipmunk_lrs_public_key_validate(&l_ring_ptr[ri]);
+                if (l_pk_rc != 0) {
+                    log_it(L_WARNING, "IN_ANON ring member %u failed validation: %d", ri, l_pk_rc);
+                    DAP_DELETE(l_ring_from_cache);
+                    return -EINVAL;
+                }
+            }
+
             l_statement.ring = l_ring_ptr;
 
             /* 9E: Reconstruct the comprehensive chain-bound message.
@@ -890,6 +912,15 @@ static int s_anon_tx_check(dap_ledger_t *a_ledger,
         return l_rc;
 
     if (dap_chain_datum_tx_is_anonymous((const uint8_t *)a_tx->tx_items, a_tx->header.tx_items_size)) {
+        /* 9F FIX (DoS): Hard cap on serialized anon TX size. A single anon
+         * TX at max ring is already ~620KB; anything above 1MiB is either
+         * malicious or malformed. Reject at the wire gate before any crypto. */
+        if (a_tx_size > DAP_CHAIN_TX_ANON_MAX_TX_SIZE) {
+            log_it(L_WARNING, "Anonymous TX %s rejected: size %zu > max %u (DoS guard)",
+                   dap_hash_sha3_256_to_str_static(a_tx_hash), a_tx_size,
+                   DAP_CHAIN_TX_ANON_MAX_TX_SIZE);
+            return DAP_LEDGER_TX_CHECK_ANON_TX_TOO_LARGE;
+        }
         /* 9B.4 FIX (GAP-8 CRITICAL — token minting): Reject anon TX containing
          * non-anon outputs (OUT_STD/OUT_EXT/OUT_COND). Open-ledger conservation
          * is skipped for anon TX, and Pedersen conservation only sums OUT_ANON.

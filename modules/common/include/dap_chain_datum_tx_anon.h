@@ -39,6 +39,33 @@ typedef struct dap_chain_tx_anon_hdr {
  * (Monero uses ring_size=16 as its minimum since 2022.) */
 #define DAP_CHAIN_TX_ANON_MIN_RING_SIZE  16
 
+/* Phase 9F: Maximum ring size accepted by the ledger.
+ *
+ * The LRS primitive itself caps at CHIPMUNK_LRS_RING_MAX (64), but the
+ * ledger enforces the same upper bound explicitly and BEFORE any crypto
+ * work so an attacker cannot force O(ring_size × NTT) verification on a
+ * huge fabricated ring. Rings above this size are rejected at the wire
+ * gate, not deep inside chipmunk_lrs_verify.
+ *
+ * Kept in sync with CHIPMUNK_LRS_RING_MAX via the static assert below. */
+#define DAP_CHAIN_TX_ANON_MAX_RING_SIZE  64
+
+/* Phase 9F: Hard cap on the serialized size of an anonymous transaction.
+ *
+ * A single anon TX at max ring (64 × 1424-byte CLPK + 8.5KB LRS sig + 4
+ * OUT_ANON at ~61KB range proof each) is already ~620KB. 1 MiB leaves
+ * headroom for future multi-input expansion while bounding the worst-case
+ * verification cost per TX. Larger TXes are rejected at the wire gate. */
+#define DAP_CHAIN_TX_ANON_MAX_TX_SIZE    (1024u * 1024u)
+
+/* Phase 9F: Maximum number of anonymous transactions accepted per block.
+ *
+ * Each anon TX runs STARK (44 FRI queries) + LRS (ring-size NTTs) + BDLOP
+ * range proof verification. At max ring this is ~100ms of crypto per TX.
+ * Capping at 16/block bounds the per-block verification budget to ~1.6s
+ * while still allowing meaningful throughput. */
+#define DAP_CHAIN_TX_ANON_MAX_PER_BLOCK  16
+
 /* -------------------------------------------------------------------------
  * Anonymous Input (TX_ITEM_TYPE_IN_ANON = 0xb0)
  *
