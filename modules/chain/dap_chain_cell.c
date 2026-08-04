@@ -619,7 +619,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             dap_chain_atom_iter_t *l_pre = a_cell->chain->callback_atom_iter_create(
                                                 a_cell->chain, a_cell->id, NULL);
             dap_chain_atom_ptr_t  l_a;
-            uint64_t              l_sz = 0;
+            size_t                l_sz = 0;
             size_t                l_cap = 64;
             l_copies = DAP_NEW_Z_SIZE(_atom_copy_t, l_cap * sizeof(_atom_copy_t));
             for (l_a  = a_cell->chain->callback_atom_iter_get(l_pre, DAP_CHAIN_ITER_OP_FIRST, &l_sz);
@@ -668,7 +668,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         } else {
             dap_chain_atom_iter_t *l_atom_iter = a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id, NULL);
             dap_chain_atom_ptr_t l_atom;
-            uint64_t l_atom_size = 0;
+            size_t l_atom_size = 0;
             for (l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_FIRST, &l_atom_size);
                  l_atom && l_atom_size;
                  l_atom = a_cell->chain->callback_atom_iter_get(l_atom_iter, DAP_CHAIN_ITER_OP_NEXT, &l_atom_size))
