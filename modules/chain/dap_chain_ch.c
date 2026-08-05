@@ -1081,15 +1081,24 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
              * Diagnostic: log when num_from != cur_num to build statistics on how often
              * peers send mismatched num_from (informs Phase D.1 behavioral probe). */
             if (l_request->num_from != l_iter->cur_num && !l_sync_from_begin) {
+                bool l_is_enhanced = (s_remote_protocol_version(a_ch) >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION);
                 log_it(L_INFO, "CHAIN_REQ num_from=%" DAP_UINT64_FORMAT_U " != cur_num=%" DAP_UINT64_FORMAT_U
                         " after hash lookup for chain %s net %s from " NODE_ADDR_FP_STR
-                        " (relaxed >= check accepts; strict == would reject)",
+                        " (%s peer, %s check)",
                         l_request->num_from, l_iter->cur_num, l_chain->name, l_chain->net_name,
-                        NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+                        NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
+                        l_is_enhanced ? "enhanced" : "stock",
+                        l_is_enhanced ? "relaxed >=" : "strict ==");
             }
+            /* Enhanced peers (v27+): relaxed >= check handles DAG event_number
+             * divergence (same atom has different numbers on different nodes).
+             * Stock 5.7 (v26): strict == check matches master — the sender
+             * expects num_from == cur_num exactly. */
+            bool l_num_ok = (s_remote_protocol_version(a_ch) >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION)
+                ? (l_request->num_from >= l_iter->cur_num)
+                : (l_request->num_from == l_iter->cur_num);
             if (l_sync_from_begin ||
-                    (l_request->num_from >= l_iter->cur_num &&
-                    l_last_num > l_iter->cur_num)) {
+                    (l_num_ok && l_last_num > l_iter->cur_num)) {
                 dap_chain_ch_summary_t l_sum = { .num_cur = l_iter->cur_num, .num_last = l_last_num };
                 dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY,
                                                 l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id,

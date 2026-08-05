@@ -5146,10 +5146,13 @@ static void s_sync_timer_callback(void *a_arg)
     case CHAIN_SYNC_STATE_ERROR:
         if (dap_chain_net_get_flag_sync_from_zero(l_net)) {
             /* Purge ONLY the current chain — not all chains in net.
-             * Purging all chains destroys already-synced chains. */
+             * Purging all chains destroys already-synced chains.
+             * Also do NOT purge the ledger — it contains data from ALL chains
+             * (DAG + blocks). Purging it here destroys already-synced DAG data
+             * when re-syncing the main chain. The ledger will be rebuilt
+             * incrementally as atoms are re-processed during sync. */
             log_it(L_NOTICE, "Purging chain %s data before sync from zero (reason: %s)",
                    l_chain->name, s_sync_restart_reason_to_str(l_restart_reason));
-            dap_ledger_purge(l_net->pub.ledger, false);
             if (l_chain->callback_purge)
                 l_chain->callback_purge(l_chain);
             dap_chain_cell_delete_all_and_free_file(l_chain);
