@@ -396,10 +396,22 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
         log_it(L_INFO, "Closing node client to uplink "NODE_ADDR_FP_STR,
                         NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
 
+    log_it(L_INFO, "[CRASH_DIAG] close_unsafe: node_client=%p client=%p",
+           (void*)a_node_client, (void*)a_node_client->client);
+    if (a_node_client->client) {
+        dap_client_fsm_t *l_fsm = DAP_CLIENT_FSM(a_node_client->client);
+        log_it(L_INFO, "[CRASH_DIAG] close_unsafe: FSM=%p is_removing=%d _internal=%p worker=%p",
+               (void*)l_fsm, l_fsm ? l_fsm->is_removing : -1,
+               a_node_client->client->_internal,
+               l_fsm ? (void*)l_fsm->worker : NULL);
+    }
+
     if (a_node_client->sync_timer)
         dap_timerfd_delete_unsafe(a_node_client->sync_timer);
     if (a_node_client->reconnect_timer)
         dap_timerfd_delete_mt(a_node_client->reconnect_timer->worker, a_node_client->reconnect_timer->esocket_uuid);
+    log_it(L_INFO, "[CRASH_DIAG] close_unsafe: calling callbacks.delete=%p",
+           (void*)(uintptr_t)a_node_client->callbacks.delete);
     if (a_node_client->callbacks.delete)
         a_node_client->callbacks.delete(a_node_client, a_node_client->callbacks_arg);
 
@@ -411,12 +423,15 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
         }
     }
     // clean client
+    log_it(L_INFO, "[CRASH_DIAG] close_unsafe: deleting client=%p", (void*)a_node_client->client);
     if (a_node_client->client)
         dap_client_delete_unsafe(a_node_client->client);
+    log_it(L_INFO, "[CRASH_DIAG] close_unsafe: destroying mutex/cond, freeing node_client");
     pthread_cond_destroy(&a_node_client->wait_cond);
     pthread_mutex_destroy(&a_node_client->wait_mutex);
     DAP_DEL_Z(a_node_client->info);
     DAP_DELETE(a_node_client);
+    log_it(L_INFO, "[CRASH_DIAG] close_unsafe: DONE");
 }
 
 void s_close_on_worker_callback(void *a_arg)
