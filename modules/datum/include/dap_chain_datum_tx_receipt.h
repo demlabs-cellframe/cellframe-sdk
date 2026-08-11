@@ -136,13 +136,15 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create(dap_chain_srv_u
                                                                     uint64_t units, uint256_t value_datoshi, const void * a_ext, size_t a_ext_size, dap_hash_sha3_256_t *a_prev_tx_hash);
 
 dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t *a_receipt, dap_enc_key_t *a_key);
-dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size , uint16_t sign_position);
-uint32_t    dap_chain_datum_tx_receipt_utype_get(dap_chain_datum_tx_receipt_t *a_receipt);
-uint64_t    dap_chain_datum_tx_receipt_srv_uid_get(dap_chain_datum_tx_receipt_t *a_receipt);
-uint64_t    dap_chain_datum_tx_receipt_units_get(dap_chain_datum_tx_receipt_t *a_receipt);
-uint256_t   dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t *a_receipt);
-uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t *a_receipt);
-int dap_chain_datum_tx_receipt_check_size(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_control_size);
+/* H-SDK-1: read-only accessors take const — callers no longer need to
+ * cast away const to inspect a receipt. */
+dap_sign_t* dap_chain_datum_tx_receipt_sign_get(const dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size , uint16_t sign_position);
+uint32_t    dap_chain_datum_tx_receipt_utype_get(const dap_chain_datum_tx_receipt_t *a_receipt);
+uint64_t    dap_chain_datum_tx_receipt_srv_uid_get(const dap_chain_datum_tx_receipt_t *a_receipt);
+uint64_t    dap_chain_datum_tx_receipt_units_get(const dap_chain_datum_tx_receipt_t *a_receipt);
+uint256_t   dap_chain_datum_tx_receipt_value_get(const dap_chain_datum_tx_receipt_t *a_receipt);
+uint16_t dap_chain_datum_tx_receipt_signs_count(const dap_chain_datum_tx_receipt_t *a_receipt);
+int dap_chain_datum_tx_receipt_check_size(const dap_chain_datum_tx_receipt_t *a_receipt, size_t a_control_size);
 
 #ifdef __cplusplus
 }
