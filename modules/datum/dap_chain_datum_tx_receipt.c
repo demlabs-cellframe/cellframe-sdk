@@ -211,6 +211,9 @@ uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t *a_
 
 int dap_chain_datum_tx_receipt_check_size(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_control_size)
 {
+    // SDK-CRIT-2: NULL check must precede the version dereference below.
+    if (!a_receipt)
+        return -1;
     if(a_receipt->receipt_info.version == 2){
         dap_return_val_if_fail(a_receipt && a_control_size == a_receipt->size &&
                             a_control_size >= sizeof(dap_chain_datum_tx_receipt_t) + a_receipt->exts_size,

@@ -952,8 +952,18 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                                                                dap_chain_net_srv_price_t * a_price,
                                                                const void * a_ext, size_t a_ext_size, dap_hash_sha3_256_t *a_prev_tx_hash)
 {
+    // SDK-CRIT-1: guard against NULL srv/price and missing signing cert —
+    // a service initialized without a cert would segfault here.
+    if (!a_srv || !a_price || !a_srv->receipt_sign_cert) {
+        log_it(L_ERROR, "dap_chain_net_srv_issue_receipt: NULL srv/price/cert");
+        return NULL;
+    }
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
                     a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size, a_prev_tx_hash);
+    if (!l_receipt) {
+        log_it(L_ERROR, "dap_chain_net_srv_issue_receipt: receipt creation failed");
+        return NULL;
+    }
     // Sign with our wallet
     return dap_chain_datum_tx_receipt_sign_add(l_receipt, a_srv->receipt_sign_cert->enc_key);
 }
