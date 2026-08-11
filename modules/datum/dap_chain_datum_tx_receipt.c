@@ -92,19 +92,19 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
  * @param a_sign_position
  * @return
  */
-dap_sign_t *dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size, uint16_t a_sign_position)
+dap_sign_t *dap_chain_datum_tx_receipt_sign_get(const dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size, uint16_t a_sign_position)
 {
     if (dap_chain_datum_tx_receipt_check_size(a_receipt, a_receipt_size)) {
         log_it(L_WARNING, "Receipt size check error");
         return NULL;
     }
 
-    byte_t *l_receipt_exts_n_signs = NULL;
+    const byte_t *l_receipt_exts_n_signs = NULL;
     size_t l_offset = 0;
     size_t l_total_signs_size = 0;
 
     if (a_receipt->receipt_info.version < 2){
-        dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
+        const dap_chain_datum_tx_receipt_old_t *l_receipt_old = (const dap_chain_datum_tx_receipt_old_t*)a_receipt;
         l_offset = l_receipt_old->exts_size;
         l_total_signs_size = l_receipt_old->size - sizeof(dap_chain_datum_tx_receipt_old_t) - l_receipt_old->exts_size;
         l_receipt_exts_n_signs = l_receipt_old->exts_n_signs;
@@ -131,49 +131,49 @@ uint32_t dap_chain_datum_tx_receipt_type_get(dap_chain_datum_tx_receipt_t *a_rec
 {
     dap_return_val_if_fail(a_receipt, -1);
     if (a_receipt->receipt_info.version < 2){
-        dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
+        const dap_chain_datum_tx_receipt_old_t *l_receipt_old = (const dap_chain_datum_tx_receipt_old_t*)a_receipt;
         return l_receipt_old->receipt_info.units_type.enm;
     } else {
         return a_receipt->receipt_info.units_type.enm;
     }
 }
 
-uint64_t dap_chain_datum_tx_receipt_srv_uid_get(dap_chain_datum_tx_receipt_t *a_receipt)
+uint64_t dap_chain_datum_tx_receipt_srv_uid_get(const dap_chain_datum_tx_receipt_t *a_receipt)
 {
     dap_return_val_if_fail(a_receipt, -1)
     if (a_receipt->receipt_info.version < 2){
-        dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
+        const dap_chain_datum_tx_receipt_old_t *l_receipt_old = (const dap_chain_datum_tx_receipt_old_t*)a_receipt;
         return l_receipt_old->receipt_info.srv_uid.uint64;
     } else {
         return a_receipt->receipt_info.srv_uid.uint64;
     }
 }
 
-uint64_t dap_chain_datum_tx_receipt_units_get(dap_chain_datum_tx_receipt_t *a_receipt)
+uint64_t dap_chain_datum_tx_receipt_units_get(const dap_chain_datum_tx_receipt_t *a_receipt)
 {
     dap_return_val_if_fail(a_receipt, -1);
     if (a_receipt->receipt_info.version < 2){
-        dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
+        const dap_chain_datum_tx_receipt_old_t *l_receipt_old = (const dap_chain_datum_tx_receipt_old_t*)a_receipt;
         return l_receipt_old->receipt_info.units;
     } else {
         return a_receipt->receipt_info.units;
     }
 }
-uint256_t dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t *a_receipt)
+uint256_t dap_chain_datum_tx_receipt_value_get(const dap_chain_datum_tx_receipt_t *a_receipt)
 {
     dap_return_val_if_fail(a_receipt, uint256_0);
     if (a_receipt->receipt_info.version < 2){
-        dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
+        const dap_chain_datum_tx_receipt_old_t *l_receipt_old = (const dap_chain_datum_tx_receipt_old_t*)a_receipt;
         return l_receipt_old->receipt_info.value_datoshi;
     } else 
         return a_receipt->receipt_info.value_datoshi;
 }
 
-uint32_t dap_chain_datum_tx_receipt_utype_get(dap_chain_datum_tx_receipt_t *a_receipt)
+uint32_t dap_chain_datum_tx_receipt_utype_get(const dap_chain_datum_tx_receipt_t *a_receipt)
 {
     dap_return_val_if_fail(a_receipt, 0);
     if (a_receipt->receipt_info.version < 2){
-        dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
+        const dap_chain_datum_tx_receipt_old_t *l_receipt_old = (const dap_chain_datum_tx_receipt_old_t*)a_receipt;
         return l_receipt_old->receipt_info.units_type.uint32;
     } else {
         return a_receipt->receipt_info.units_type.uint32;
@@ -186,15 +186,15 @@ uint32_t dap_chain_datum_tx_receipt_utype_get(dap_chain_datum_tx_receipt_t *a_re
  * @param a_receipt_size
  * @return
  */
-uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t *a_receipt)
+uint16_t dap_chain_datum_tx_receipt_signs_count(const dap_chain_datum_tx_receipt_t *a_receipt)
 {
     uint16_t l_ret = 0;
     dap_return_val_if_fail(a_receipt, 0);
-    byte_t *l_receipt_signs = NULL;
+    const byte_t *l_receipt_signs = NULL;
     size_t l_receipt_size = 0;
 
     if (a_receipt->receipt_info.version < 2){
-        l_receipt_signs = ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->exts_n_signs + ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->exts_size;
+        l_receipt_signs = ((const dap_chain_datum_tx_receipt_old_t*)a_receipt)->exts_n_signs + ((const dap_chain_datum_tx_receipt_old_t*)a_receipt)->exts_size;
         l_receipt_size = ((dap_chain_datum_tx_receipt_old_t*)a_receipt)->size;
     } else {
         l_receipt_signs = a_receipt->exts_n_signs + a_receipt->exts_size;
@@ -209,7 +209,7 @@ uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t *a_
     return l_ret;
 }
 
-int dap_chain_datum_tx_receipt_check_size(dap_chain_datum_tx_receipt_t *a_receipt, size_t a_control_size)
+int dap_chain_datum_tx_receipt_check_size(const dap_chain_datum_tx_receipt_t *a_receipt, size_t a_control_size)
 {
     // SDK-CRIT-2: NULL check must precede the version dereference below.
     if (!a_receipt)
@@ -236,7 +236,7 @@ int dap_chain_datum_tx_receipt_check_size(dap_chain_datum_tx_receipt_t *a_receip
                                                     // Receipt is lagrer that two signs need
         return l_sign_offset == a_control_size ? 0 : (a_receipt->receipt_info.version ? -4 : 0);
     } else {
-        dap_chain_datum_tx_receipt_old_t *l_receipt_old = (dap_chain_datum_tx_receipt_old_t*)a_receipt;
+        const dap_chain_datum_tx_receipt_old_t *l_receipt_old = (const dap_chain_datum_tx_receipt_old_t*)a_receipt;
         dap_return_val_if_fail(a_receipt && a_control_size == l_receipt_old->size &&
             a_control_size >= sizeof(dap_chain_datum_tx_receipt_old_t) + l_receipt_old->exts_size,
             -1); // Main controls incosistentency
