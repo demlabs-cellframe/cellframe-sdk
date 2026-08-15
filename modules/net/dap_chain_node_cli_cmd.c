@@ -790,6 +790,12 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             return -DAP_CHAIN_NODE_CLI_COM_GLOBAL_DB_PARAM_ERR;
         }
 
+        const char *l_limit_str = NULL, *l_offset_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+        size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+
         size_t l_objs_count = 0;
         dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_group_str, &l_objs_count);
 
@@ -802,6 +808,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
         json_object* json_arr_keys = json_object_new_array();
         json_object* json_obj_keys = NULL;
         for(size_t i = 0; i < l_objs_count; i++) {
+            if (l_offset > 0) { --l_offset; continue; }
             char l_ts[64] = { '\0' };
             dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
             json_obj_keys = json_object_new_object();
@@ -810,6 +817,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply, int a_version)
             json_object_object_add(json_obj_keys, "type", json_object_new_string(
                                        dap_store_obj_get_type(l_objs + i) == DAP_GLOBAL_DB_OPTYPE_ADD ?  "record" : "hole"));
             json_object_array_add(json_arr_keys, json_obj_keys);
+            if (l_limit > 0 && !--l_limit)
+                break;
         }
         dap_store_obj_free(l_objs, l_objs_count);
 
@@ -7026,6 +7035,11 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-status", &l_status_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pkey_cert", &l_pkey_cert_str);
+    const char *l_limit_str = NULL, *l_offset_str = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+    size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+    size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
     // Parse status filter: all (default), spent, unspent
     enum { STATUS_ALL, STATUS_SPENT, STATUS_UNSPENT } l_status_filter = STATUS_ALL;
@@ -7123,8 +7137,8 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
                 continue;
 
             // Check if UT is spent: either marked as removed in cache, or OUT_COND is used
-            bool l_is_spent = l_entry->is_removed || 
-                dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, 
+            bool l_is_spent = l_entry->is_removed ||
+                dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger,
                     &l_entry->tail_hash, l_entry->prev_cond_idx, NULL);
 
             // Apply status filter
@@ -7143,6 +7157,8 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
                 if(!l_first_cond || memcmp(&l_first_cond->subtype.srv_pay.pkey_hash, &l_pkey_cert_hash, sizeof(dap_hash_fast_t)) != 0)
                     continue;
             }
+
+            if (l_offset > 0) { --l_offset; continue; }
 
             json_object *l_jobj_tx = json_object_new_object();
             json_object_object_add(l_jobj_tx, "tx_first",
@@ -7189,6 +7205,8 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
 
             json_object_array_add(l_jobj_tx_list, l_jobj_tx);
             l_filtered_count++;
+            if (l_limit > 0 && !--l_limit)
+                break;
         }
     }
     else
@@ -7299,6 +7317,8 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
                         continue;
                 }
 
+                if (l_offset > 0) { --l_offset; continue; }
+
                 // Build JSON
                 json_object *l_jobj_tx = json_object_new_object();
                 json_object_object_add(l_jobj_tx, "tx_first",
@@ -7347,6 +7367,8 @@ static int _cmd_tx_cond_list(int a_argc, char **a_argv, void **a_str_reply, UNUS
 
                 json_object_array_add(l_jobj_tx_list, l_jobj_tx);
                 l_filtered_count++;
+                if (l_limit > 0 && !--l_limit)
+                    break;
             }
             // Free UTHash entries
             processed_hash_t *l_entry, *l_tmp;

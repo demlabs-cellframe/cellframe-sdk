@@ -364,6 +364,12 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                 const char*  l_price_max_str = NULL;
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-price_max", &l_price_max_str);
 
+                const char *l_limit_str = NULL, *l_offset_str = NULL;
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-limit", &l_limit_str);
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-offset", &l_offset_str);
+                size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+                size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 uint256_t l_price_min = {};
@@ -404,14 +410,17 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                                                         &l_orders, &l_orders_num) )
                 {
                     json_obj_net_srv = json_object_new_object();
-                    json_object_object_add(json_obj_net_srv, "count", json_object_new_uint64(l_orders_num));
                     json_object* json_arr_out = json_object_new_array();
                     for (dap_list_t *l_temp = l_orders; l_temp; l_temp = l_temp->next){
+                        if (l_offset > 0) { --l_offset; continue; }
                         json_object* json_obj_order = json_object_new_object();
                         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*)l_temp->data;
                         dap_chain_net_srv_order_dump_to_json(l_order, json_obj_order, l_hash_out_type, l_net->pub.native_ticker, a_version);
                         json_object_array_add(json_arr_out, json_obj_order);
+                        if (l_limit > 0 && !--l_limit)
+                            break;
                     }
+                    json_object_object_add(json_obj_net_srv, "count", json_object_new_uint64(l_orders_num));
                     json_object_object_add(json_obj_net_srv, "orders", json_arr_out);
                     l_ret = 0;
                     dap_list_free_full(l_orders, NULL);
