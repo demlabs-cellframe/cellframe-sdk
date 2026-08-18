@@ -8746,6 +8746,10 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     // Check for arbitrage flag
     l_is_arbitrage = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-arbitrage", &l_arbitrage_str);
 
+    // Check for arbitrage unlock (from_arbitrage)
+    const char *l_from_arbitrage_str = NULL;
+    bool l_is_from_arbitrage = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_arbitrage", &l_from_arbitrage_str);
+
 
     if(l_tx_num_str)
         l_tx_num = strtoul(l_tx_num_str, NULL, 10);
@@ -8763,8 +8767,8 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256;
     }
 
-    if((!l_from_wallet_name && !l_emission_hash_str)||(l_from_wallet_name && l_emission_hash_str)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION, "tx_create requires one of parameters '-from_wallet' or '-from_emission'");
+    if((!l_from_wallet_name && !l_emission_hash_str && !l_from_arbitrage_str)||(l_from_wallet_name && l_emission_hash_str)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION, "tx_create requires one of parameters '-from_wallet', '-from_emission', or '-from_arbitrage'");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION;
     }
 
@@ -9077,8 +9081,46 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     } else {
         char *l_tx_hash_str = NULL;
         
+        // If arbitrage unlock (-from_arbitrage) is set
+        if (l_is_from_arbitrage && l_from_arbitrage_str) {
+            // Parse -from_arbitrage <tx_hash>:<out_idx>
+            char *l_sep = strchr(l_from_arbitrage_str, ':');
+            if (!l_sep) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                       "Invalid -from_arbitrage format. Expected: <tx_hash>:<out_idx>");
+                goto cleanup;
+            }
+            char l_tx_hash_buf[128] = {0};
+            size_t l_hash_len = l_sep - l_from_arbitrage_str;
+            if (l_hash_len >= sizeof(l_tx_hash_buf)) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                       "Transaction hash too long");
+                goto cleanup;
+            }
+            strncpy(l_tx_hash_buf, l_from_arbitrage_str, l_hash_len);
+            l_tx_hash_buf[l_hash_len] = '\0';
+            size_t l_out_idx = strtoul(l_sep + 1, NULL, 10);
+            
+            // Get the wallet address
+            dap_chain_wallet_t *l_wallet_from = NULL;
+            if (l_from_wallet_name) {
+                l_wallet_from = dap_chain_wallet_open(l_from_wallet_name, c_wallets_path, NULL);
+            }
+            const dap_chain_addr_t *l_addr_from_arb = l_wallet_from ? 
+                (const dap_chain_addr_t *)dap_chain_wallet_get_addr(l_wallet_from, l_net->pub.id) : l_addr_from;
+            
+            json_object **l_json_arr_reply = (json_object **)a_json_arr_reply;
+            l_tx_hash_str = dap_chain_arbitrage_cli_unlock_tx(
+                l_chain, l_net, l_wallet, l_priv_key, l_addr_from_arb, l_addr_to[0],
+                l_token_ticker, l_value[0], l_value_fee, l_hash_out_type,
+                l_time_unlock ? l_time_unlock[0] : 0, l_certs_str,
+                l_tx_hash_buf, l_out_idx, l_json_arr_reply, l_jobj_result);
+            
+            if (l_wallet_from && l_wallet_from != l_wallet)
+                dap_chain_wallet_close(l_wallet_from);
+        }
         // If arbitrage flag is set, use arbitrage module
-        if (l_is_arbitrage) {
+        else if (l_is_arbitrage) {
             json_object **l_json_arr_reply = (json_object **)a_json_arr_reply;
             l_tx_hash_str = dap_chain_arbitrage_cli_create_tx(
                 l_chain, l_net, l_wallet, l_priv_key, l_addr_from, l_addr_to,
@@ -9117,11 +9159,14 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         }
     }
     json_object_array_add(*a_json_arr_reply, l_jobj_result);
+cleanup:
     DAP_DELETE(l_addr_from);
     DAP_DEL_ARRAY(l_addr_to, l_addr_el_count);
     DAP_DEL_MULTY(l_addr_to, l_value);
-    dap_chain_wallet_close(l_wallet);
-    dap_enc_key_delete(l_priv_key);
+    if (l_wallet)
+        dap_chain_wallet_close(l_wallet);
+    if (l_priv_key)
+        dap_enc_key_delete(l_priv_key);
     return l_ret;
 }
 

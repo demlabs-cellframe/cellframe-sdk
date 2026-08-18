@@ -10,7 +10,8 @@
  * @note TX TSD types (0x00A0-0x00FF) reserved for transaction-level metadata
  *       to avoid conflicts with token TSD (0x0001-0x002F) and voting TSD (0x01-0x09)
  */
-#define DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE                     0x00A1  ///< Arbitrage transaction marker (changed from 0x0001 to avoid voting conflict)
+#define DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE                     0x00A1  ///< Arbitrage transaction marker
+#define DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE_LOCK                0x00A2  ///< Arbitrage lock: stores unlock pubkey hash (root node)
 
 typedef struct dap_chain_tx_tsd {
     struct {

@@ -103,3 +103,43 @@ char *dap_chain_arbitrage_cli_create_tx(
     json_object **a_json_arr_reply,
     json_object *a_jobj_result);
 
+/**
+ * @brief Unlock arbitrage output and send to address
+ * @details Spends from an arbitrage-locked UTXO, sending funds to specified address.
+ *          Requires root node certificate for authorization.
+ * @param a_chain Target chain
+ * @param a_net Network instance
+ * @param a_wallet Wallet instance
+ * @param a_priv_key Private key from wallet
+ * @param a_addr_from Sender's address (for fee payment)
+ * @param a_addr_to Destination address for unlocked funds
+ * @param a_token_ticker Token ticker
+ * @param a_value Transfer value
+ * @param a_value_fee Fee value
+ * @param a_hash_out_type Output hash type
+ * @param a_time_unlock Lock time (optional)
+ * @param a_certs_str Root node certificate for unlock authorization
+ * @param a_from_arbitrage_tx_hash Hash of the arbitrage TX to unlock from
+ * @param a_from_arbitrage_out_idx Output index in the arbitrage TX
+ * @param a_json_arr_reply JSON array for error responses
+ * @param a_jobj_result JSON object for result
+ * @return Transaction hash string or NULL on error
+ */
+char *dap_chain_arbitrage_cli_unlock_tx(
+    dap_chain_t *a_chain,
+    dap_chain_net_t *a_net,
+    dap_chain_wallet_t *a_wallet,
+    dap_enc_key_t *a_priv_key,
+    const dap_chain_addr_t *a_addr_from,
+    const dap_chain_addr_t *a_addr_to,
+    const char *a_token_ticker,
+    uint256_t a_value,
+    uint256_t a_value_fee,
+    const char *a_hash_out_type,
+    dap_time_t a_time_unlock,
+    const char *a_certs_str,
+    const char *a_from_arbitrage_tx_hash,
+    size_t a_from_arbitrage_out_idx,
+    json_object **a_json_arr_reply,
+    json_object *a_jobj_result);
+

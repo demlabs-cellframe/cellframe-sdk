@@ -490,6 +490,21 @@ char *dap_chain_arbitrage_cli_create_tx(
     // Create TSD list
     dap_list_t *l_tsd_list = dap_list_append(NULL, l_tsd_arbitrage);
     
+    // Add arbitrage lock TSD with root node pubkey hash for unlock authorization
+    // First root cert's pubkey hash is used as the unlock key
+    if (l_arbitrage_certs_count > 0 && l_arbitrage_certs[0] && l_arbitrage_certs[0]->enc_key) {
+        dap_hash_fast_t l_unlock_pkey_hash;
+        dap_hash_fast(l_arbitrage_certs[0]->enc_key->pub_key_data,
+                     l_arbitrage_certs[0]->enc_key->pub_key_data_size, &l_unlock_pkey_hash);
+        dap_chain_tx_tsd_t *l_tsd_lock = dap_chain_datum_tx_item_tsd_create(&l_unlock_pkey_hash,
+                                                                             DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE_LOCK,
+                                                                             sizeof(dap_hash_fast_t));
+        if (l_tsd_lock) {
+            l_tsd_list = dap_list_append(l_tsd_list, l_tsd_lock);
+            log_it(L_DEBUG, "Added arbitrage lock TSD with unlock pubkey hash");
+        }
+    }
+    
     // Create arbitrage transaction with multiple signatures if needed
     char *l_tx_hash_str = NULL;
     if (l_arbitrage_certs_count > 0) {
@@ -529,5 +544,215 @@ char *dap_chain_arbitrage_cli_create_tx(
     
     log_it(L_INFO, "Arbitrage transaction created: %s", l_tx_hash_str ? l_tx_hash_str : "FAILED");
     return l_tx_hash_str;
+}
+
+/**
+ * @brief Unlock arbitrage output and send to address
+ * @details Spends from an arbitrage-locked UTXO, sending funds to specified address.
+ *          Requires root node certificate for authorization.
+ */
+char *dap_chain_arbitrage_cli_unlock_tx(
+    dap_chain_t *a_chain,
+    dap_chain_net_t *a_net,
+    dap_chain_wallet_t *a_wallet,
+    dap_enc_key_t *a_priv_key,
+    const dap_chain_addr_t *a_addr_from,
+    const dap_chain_addr_t *a_addr_to,
+    const char *a_token_ticker,
+    uint256_t a_value,
+    uint256_t a_value_fee,
+    const char *a_hash_out_type,
+    dap_time_t a_time_unlock,
+    const char *a_certs_str,
+    const char *a_from_arbitrage_tx_hash,
+    size_t a_from_arbitrage_out_idx,
+    json_object **a_json_arr_reply,
+    json_object *a_jobj_result)
+{
+    if (!a_chain || !a_net || !a_priv_key || !a_addr_from || !a_addr_to || !a_certs_str || !a_from_arbitrage_tx_hash) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Invalid parameters for arbitrage unlock");
+        return NULL;
+    }
+
+    // Parse root node certificate for unlock authorization
+    dap_cert_t **l_certs = NULL;
+    size_t l_certs_count = 0;
+    dap_cert_parse_str_list(a_certs_str, &l_certs, &l_certs_count);
+    if (!l_certs_count || !l_certs) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Failed to parse root node certificate from -certs parameter");
+        return NULL;
+    }
+
+    // Find the arbitrage TX and verify it has arbitrage lock marker
+    dap_chain_hash_fast_t l_tx_hash;
+    if (dap_chain_hash_fast_from_str(a_from_arbitrage_tx_hash, &l_tx_hash)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Invalid transaction hash format");
+        DAP_DEL_Z(l_certs);
+        return NULL;
+    }
+
+    // Get the transaction from ledger
+    dap_ledger_t *l_ledger = a_net->pub.ledger;
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
+    if (!l_tx) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Transaction not found in ledger");
+        DAP_DEL_Z(l_certs);
+        return NULL;
+    }
+
+    // Check if TX has arbitrage marker
+    if (!dap_chain_arbitrage_tx_is_arbitrage(l_tx)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Transaction is not an arbitrage transaction");
+        DAP_DEL_Z(l_certs);
+        return NULL;
+    }
+
+    // Verify root node certificate has unlock authorization
+    // The unlock pubkey hash must match the one stored in the arbitrage lock TSD
+    bool l_unlock_authorized = false;
+    byte_t *l_tx_item = l_tx->tx_items;
+    size_t l_tx_items_pos = 0;
+    size_t l_tx_items_size = l_tx->header.tx_items_size;
+
+    while (l_tx_items_pos < l_tx_items_size) {
+        uint8_t *l_item = l_tx_item + l_tx_items_pos;
+        size_t l_item_size = dap_chain_datum_item_tx_get_size(l_item, l_tx_items_size - l_tx_items_pos);
+        if (!l_item_size) break;
+
+        dap_chain_tx_item_type_t l_type = *((uint8_t *)l_item);
+        if (l_type == TX_ITEM_TYPE_TSD) {
+            dap_chain_tx_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)l_item;
+            dap_tsd_t *l_tsd_data = (dap_tsd_t *)l_tsd->tsd;
+            size_t l_tsd_offset = 0;
+            size_t l_tsd_total_size = l_tsd->header.size;
+
+            while (l_tsd_offset < l_tsd_total_size) {
+                if (l_tsd_data->type == DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE_LOCK &&
+                    l_tsd_data->size == sizeof(dap_hash_fast_t)) {
+                    // Found lock TSD - check if cert's pubkey hash matches
+                    dap_hash_fast_t *l_lock_hash = (dap_hash_fast_t *)l_tsd_data->data;
+                    for (size_t i = 0; i < l_certs_count; i++) {
+                        if (l_certs[i] && l_certs[i]->enc_key) {
+                            dap_hash_fast_t l_cert_hash;
+                            dap_hash_fast(l_certs[i]->enc_key->pub_key_data,
+                                         l_certs[i]->enc_key->pub_key_data_size, &l_cert_hash);
+                            if (!memcmp(l_lock_hash, &l_cert_hash, sizeof(dap_hash_fast_t))) {
+                                l_unlock_authorized = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                l_tsd_offset += sizeof(dap_tsd_t) + l_tsd_data->size;
+                l_tsd_data = (dap_tsd_t *)(l_tsd->tsd + l_tsd_offset);
+            }
+        }
+        l_tx_items_pos += l_item_size;
+    }
+
+    if (!l_unlock_authorized) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Unlock not authorized: root node certificate does not match arbitrage lock");
+        DAP_DEL_Z(l_certs);
+        return NULL;
+    }
+
+    // Create input from the arbitrage UTXO
+    dap_chain_datum_tx_t *l_new_tx = dap_chain_datum_tx_create();
+    if (!l_new_tx) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Failed to create transaction");
+        DAP_DEL_Z(l_certs);
+        return NULL;
+    }
+
+    // Add input from arbitrage UTXO
+    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_hash, a_from_arbitrage_out_idx);
+    if (!l_in) {
+        dap_chain_datum_tx_delete(l_new_tx);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Failed to create input from arbitrage UTXO");
+        DAP_DEL_Z(l_certs);
+        return NULL;
+    }
+    dap_chain_datum_tx_add_item(&l_new_tx, l_in);
+    DAP_DELETE(l_in);
+
+    // Add output to destination address
+    if (dap_chain_datum_tx_add_out_ext_item(&l_new_tx, a_addr_to, a_value, a_token_ticker) != 1) {
+        dap_chain_datum_tx_delete(l_new_tx);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Failed to add output");
+        DAP_DEL_Z(l_certs);
+        return NULL;
+    }
+
+    // Add network fee output
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    if (l_net && !dap_chain_addr_is_blank(&l_net->pub.fee_addr)) {
+        uint256_t l_net_fee = {};
+        bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, NULL);
+        if (l_net_fee_used && !IS_ZERO_256(l_net_fee)) {
+            const char *l_native_ticker = l_net->pub.native_ticker;
+            if (dap_chain_datum_tx_add_out_ext_item(&l_new_tx, &l_net->pub.fee_addr, l_net_fee, l_native_ticker) != 1) {
+                dap_chain_datum_tx_delete(l_new_tx);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                       "Failed to add network fee output");
+                DAP_DEL_Z(l_certs);
+                return NULL;
+            }
+        }
+    }
+
+    // Add validator fee
+    if (!IS_ZERO_256(a_value_fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_new_tx, a_value_fee) != 1) {
+            dap_chain_datum_tx_delete(l_new_tx);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                   "Failed to add validator fee");
+            DAP_DEL_Z(l_certs);
+            return NULL;
+        }
+    }
+
+    // Add wallet signature (for fee payment)
+    if (dap_chain_datum_tx_add_sign_item(&l_new_tx, a_priv_key) != 1) {
+        dap_chain_datum_tx_delete(l_new_tx);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Failed to add wallet signature");
+        DAP_DEL_Z(l_certs);
+        return NULL;
+    }
+
+    // Add root node certificate signature (for unlock authorization)
+    for (size_t i = 0; i < l_certs_count; i++) {
+        if (l_certs[i] && l_certs[i]->enc_key) {
+            dap_chain_datum_tx_add_sign_item(&l_new_tx, l_certs[i]->enc_key);
+        }
+    }
+
+    // Pack and submit to mempool
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_new_tx);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_new_tx, l_tx_size);
+    dap_chain_datum_tx_delete(l_new_tx);
+
+    if (!l_datum) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                               "Failed to create datum from transaction");
+        DAP_DEL_Z(l_certs);
+        return NULL;
+    }
+
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, a_chain, a_hash_out_type);
+    DAP_DELETE(l_datum);
+    DAP_DEL_Z(l_certs);
+
+    log_it(L_INFO, "Arbitrage unlock transaction created: %s", l_ret ? l_ret : "FAILED");
+    return l_ret;
 }
 
