@@ -4425,11 +4425,18 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
      * regardless of the current state. The CAS approach fails when the state
      * oscillates between LINKS_PREPARE and LINKS_ESTABLISHED due to link
      * drops during the sync handshake, leaving the node stuck in
-     * LINKS_ESTABLISHED forever. */
-    if (l_net_pvt->state != NET_STATE_OFFLINE && l_net_pvt->state != NET_STATE_SYNC_CHAINS && l_net_pvt->state != NET_STATE_ONLINE) {
-        l_net_pvt->state = NET_STATE_SYNC_CHAINS;
+     * LINKS_ESTABLISHED forever.
+     * Excluded states:
+     * - OFFLINE: node is not connected, no sync needed
+     * - LOADING: disk loading in progress (s_net_load), sync must wait
+     *   until chains are loaded from disk and ledger is finalized
+     * - SYNC_CHAINS: already syncing, no transition needed
+     * - ONLINE: fully operational, no transition needed */
+    if (l_net_pvt->state != NET_STATE_OFFLINE && l_net_pvt->state != NET_STATE_LOADING &&
+            l_net_pvt->state != NET_STATE_SYNC_CHAINS && l_net_pvt->state != NET_STATE_ONLINE) {
         debug_if(s_debug_more, L_DEBUG, "%s: forced state to SYNC_CHAINS on sync packet receipt (was %s)",
                  l_net->pub.name, c_net_states[l_net_pvt->state]);
+        l_net_pvt->state = NET_STATE_SYNC_CHAINS;
     }
 
     switch (a_type) {

@@ -645,7 +645,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         
         dap_chain_cs_dag_event_item_t *l_tail = HASH_LAST(PVT(l_dag)->events);
         if (l_tail && l_tail->ts_created > l_event->header.ts_created) {
-            DAP_CHAIN_PVT(a_chain)->need_reorder = true;
+            /* Do NOT set need_reorder for DAG chains: dap_chain_save_all writes
+             * from cell atom lists, but DAG events live in the events hash table.
+             * The file-level reorder in s_net_load would purge the chain and reload
+             * from an empty saved file, destroying all data. In-memory ordering is
+             * already handled correctly by HASH_ADD_INORDER below. */
         
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
             /* Renumber events after reorder */
