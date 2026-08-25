@@ -333,6 +333,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_count_tx = s_callback_count_txs;
     a_chain->callback_count_tx_increase = s_callback_count_tx_increase;
     a_chain->callback_atom_add_from_treshold = s_callback_atom_add_from_treshold;
+    a_chain->sequential_atoms = true;  /* P2: blocks are sequential, no sync_from_zero needed */
     a_chain->callback_count_tx_decrease = s_callback_count_tx_decrease;
     a_chain->callback_get_txs = s_callback_get_txs;
 
@@ -2079,10 +2080,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                      dap_chain_hash_fast_to_str_static(&l_block_hash), threshold_mmap_count(l_ctx));
         }
         ret = ATOM_MOVE_TO_THRESHOLD;
-        /* Drain every 100 blocks: a previously-thresholded block may now
-         * be promotable because its parent was accepted since the last drain. */
+        /* Drain every 500 blocks: a previously-thresholded block may now
+         * be promotable because its parent was accepted since the last drain.
+         * Reduced from 100 to 500 to decrease inline drain frequency during
+         * heavy sync. Drain also runs at sync restart and SYNCED_CHAIN. */
         if (a_chain->callback_atom_add_from_treshold &&
-                (threshold_mmap_count(l_ctx) % 100 == 0)) {
+                (threshold_mmap_count(l_ctx) % 500 == 0)) {
             while (a_chain->callback_atom_add_from_treshold(a_chain, NULL))
                 ;
         }
@@ -2391,9 +2394,10 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_block_cache_t *l_block_cache = NULL;
     pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
-    for (l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next)
-        if (l_block_cache->block_number == a_atom_num)
-            break;
+    /* O(1) lookup via blocks_num hash table (keyed by block_number).
+     * Previously this was a linear scan through the entire blocks hash table,
+     * making iteration O(n²) — catastrophic for chains with 490K+ blocks. */
+    HASH_FIND_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, &a_atom_num, sizeof(a_atom_num), a_atom_num, l_block_cache);
     a_atom_iter->cur_item = l_block_cache;
     if (l_block_cache) {
         a_atom_iter->cur        = l_block_cache->block;
@@ -2934,9 +2938,11 @@ static dap_chain_atom_ptr_t s_callback_atom_add_from_treshold(dap_chain_t *a_cha
     };
 
     /* Multiple passes: promoting one block may unblock its children.
-     * With ~490K blocks in threshold, we need many passes to cascade
-     * through sequential chains. 100 passes × 1M slot scan ≈ 400ms. */
-    for (int l_pass = 0; l_pass < 100; l_pass++) {
+     * Limit to 10 passes per invocation to avoid stalling the proc thread.
+     * The drain is called frequently (every 500 blocks, at sync restart,
+     * at SYNCED_CHAIN) so cascading promotions will complete over multiple
+     * invocations. 10 passes × 1M slot scan ≈ 40ms. */
+    for (int l_pass = 0; l_pass < 10; l_pass++) {
         int l_promoted_before = darg.promoted;
         threshold_mmap_iter(l_ctx, s_drain_cb, &darg);
         int l_promoted_this_pass = darg.promoted - l_promoted_before;

@@ -183,8 +183,22 @@ static bool s_sync_timer_callback(void *a_arg);
 
 static bool s_debug_more = false, s_debug_legacy = false;
 static uint32_t s_sync_timeout = 30;
-static uint32_t s_sync_packets_per_thread_call = 10;
-static uint32_t s_sync_ack_window_size = 16; // atoms
+static uint32_t s_sync_packets_per_thread_call = 50; // enhanced peers (v27+)
+static uint32_t s_sync_ack_window_size = 4096;       // enhanced peers (v27+)
+/* Stock 5.7 (protocol v26) uses master-compatible values to avoid overwhelming
+ * the receiver's atom processing queue with large bursts. */
+static const uint32_t s_sync_packets_per_thread_call_legacy = 10;
+static const uint32_t s_sync_ack_window_size_legacy = 16;
+
+/* Return effective window/packets for the peer's protocol version */
+static inline uint32_t s_effective_window_size(struct sync_context *a_ctx) {
+    return (a_ctx && a_ctx->remote_protocol_version >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION)
+        ? s_sync_ack_window_size : s_sync_ack_window_size_legacy;
+}
+static inline uint32_t s_effective_packets_per_call(struct sync_context *a_ctx) {
+    return (a_ctx && a_ctx->remote_protocol_version >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION)
+        ? s_sync_packets_per_thread_call : s_sync_packets_per_thread_call_legacy;
+}
 
 // Legacy
 static const uint_fast16_t s_update_pack_size = 100; // Number of hashes packed into the one packet
@@ -634,6 +648,11 @@ struct atom_processing_args {
 static void s_sync_send_chain_ack(dap_stream_node_addr_t a_addr, const dap_chain_ch_pkt_t *a_chain_pkt)
 {
     uint64_t l_ack_num = ((uint32_t)a_chain_pkt->hdr.num_hi << 16) | a_chain_pkt->hdr.num_lo;
+    /* Master-compatible ACK: use actual atom number.
+     * Previous "boosted ACK" (num_last-1) caused sender to dump all atoms
+     * at once, overflowing context queue and causing 100% CPU.
+     * Master's approach: ACK with real number, let sliding window work
+     * naturally (window_size=16). Slower but stable. */
     dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(a_chain_pkt->hdr.net_id, a_chain_pkt->hdr.chain_id, a_chain_pkt->hdr.cell_id,
                                                      &l_ack_num, sizeof(uint64_t), DAP_CHAIN_CH_PKT_VERSION_CURRENT);
     if (!l_pkt)
@@ -670,6 +689,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
     dap_hash_fast_t l_atom_hash = { }; 
     dap_hash_fast(l_atom, l_atom_size, &l_atom_hash);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash, false);
+    uint64_t l_atom_num = ((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo;
     bool l_ack_send = false;
     switch (l_atom_add_res) {
     case ATOM_PASS:
@@ -677,33 +697,31 @@ static bool s_sync_in_chains_callback(void *a_arg)
             dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
         if (s_sync_progress_cb)
-            s_sync_progress_cb(l_chain_pkt->hdr.net_id);
+            s_sync_progress_cb(l_chain_pkt->hdr.net_id, l_atom_num);
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         debug_if(s_debug_more, L_INFO, "Thresholded atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
-        /* For modern peers (>= 5.8 / protocol 26) the sender's sliding window
-         * advances on ACKs, and during sync most atoms will land in the
-         * threshold queue waiting for their parents. ACK thresholded atoms so
-         * the sender doesn't stall. Legacy peers have their own window logic
-         * validated historically; keep the original no-ACK behavior for them. */
-        if (l_args->ack_for_threshold)
-            l_ack_send = true;
-        /* Touch progress so sync doesn't restart due to timeout while atoms are
-         * actively being received and stored in the threshold queue. */
+        /* ACK threshold atoms UNCONDITIONALLY — matching stock 5.7 master behavior.
+         * Master has no ack_for_threshold gate; it ACKs all accepted atoms including
+         * ATOM_MOVE_TO_THRESHOLD. Without ACK, the sender's sliding window fills up
+         * and sync stalls permanently (observed: zerochain stuck at 1522/3840).
+         *
+         * The ACK carries the SENDER's num_hi/num_lo from the CHAIN packet header
+         * (not our local event_number), so ack_num == num_last comparison on the
+         * sender side correctly reflects whether the sender has finished iterating.
+         * Premature SYNCED_CHAIN due to local vs remote numbering mismatch is not
+         * a risk because the number in the ACK is the sender's number. */
+        l_ack_send = true;
         if (s_sync_progress_cb)
-            s_sync_progress_cb(l_chain_pkt->hdr.net_id);
+            s_sync_progress_cb(l_chain_pkt->hdr.net_id, l_atom_num);
         break;
     case ATOM_ACCEPT:
         debug_if(s_debug_more, L_INFO, "Accepted atom with hash %s for %s:%s", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
         if (s_sync_progress_cb)
-            s_sync_progress_cb(l_chain_pkt->hdr.net_id);
-        /* NOTE: Do NOT drain threshold here — the drain's callback_atom_add
-         * re-enters the blocks rwlock and can SEGV on mmap resize.
-         * Threshold is drained at SYNCED_CHAIN and sync restart instead. */
+            s_sync_progress_cb(l_chain_pkt->hdr.net_id, l_atom_num);
         break;
     case ATOM_REJECT: {
-        uint64_t l_atom_num = ((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo;
         log_it(L_WARNING, "Sync atom %" DAP_UINT64_FORMAT_U " (hash %s) for %s:%s REJECTED",
                l_atom_num, dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         break;
@@ -712,7 +730,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s added to a fork branch.", dap_hash_fast_to_str_static(&l_atom_hash), l_chain->net_name, l_chain->name);
         l_ack_send = true;
         if (s_sync_progress_cb)
-            s_sync_progress_cb(l_chain_pkt->hdr.net_id);
+            s_sync_progress_cb(l_chain_pkt->hdr.net_id, l_atom_num);
         break;
     }
     default:
@@ -879,22 +897,23 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_args->ack_req = !l_peer_enhanced;
         l_args->ack_for_threshold = l_peer_enhanced;
         if (l_peer_enhanced) {
-            s_sync_send_chain_ack(a_ch->stream->node, l_chain_pkt);
-        } else {
-            /* For 5.7 peers: send ACK immediately in the stream handler to avoid
-             * sender stall if proc-thread atom processing fails (e.g. chain not
-             * found yet). The ACK advances the sender's window, allowing it to
-             * continue sending. The sender's num_last==ack_num check won't fire
-             * prematurely because we're NOT the last atom — the sender continues
-             * until it reaches the actual end of its iteration. */
+            /* Enhanced peers (v27+): early ACK for every CHAIN packet */
             s_sync_send_chain_ack(a_ch->stream->node, l_chain_pkt);
         }
+        /* For legacy peers (5.7): ACK is sent in s_sync_in_chains_callback
+         * after atom_add completes (master behavior). ack_req=true routes
+         * it through proc thread. No early ACK — matches master exactly. */
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         debug_if(s_debug_more, L_INFO, "In: CHAIN pkt: atom hash %s, size %zd, net id %" DAP_UINT64_FORMAT_U ", chain id %" DAP_UINT64_FORMAT_U ", atom id %" DAP_UINT64_FORMAT_U,
-                                        dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size, 
+                                        dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size,
                                         l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                         (uint64_t)(((uint32_t)l_chain_pkt->hdr.num_hi << 16) | l_chain_pkt->hdr.num_lo));
-        dap_proc_thread_callback_add(NULL, s_sync_in_chains_callback, l_args);
+        /* Process inline for immediate ACK delivery.  The previous segfaults
+         * were SIGBUS from corrupted mmap files (kill -9 during write), not
+         * from inline processing.  callback_atom_add is thread-safe (rwlock)
+         * and does not block indefinitely.  Inline processing matches master
+         * behavior and prevents ACK latency that causes peer timeouts. */
+        s_sync_in_chains_callback(l_args);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_CHAIN_REQ: {
@@ -932,10 +951,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                  * (e.g. threshold drain promoted them). Starting from the receiver's
                  * current tip avoids re-sending already-accepted atoms.
                  *
-                 * Restrict to modern peers (>= 5.8 / protocol 26): older nodes don't
-                 * expect the sender to reposition mid-stream and may get confused by
-                 * a resumed CHAIN_SUMMARY/CHAIN sequence on an existing context. */
-                if (l_ctx->remote_protocol_version >= 26) {
+                 * Restrict to enhanced peers (protocol >= 27): stock 5.7 nodes (v26)
+                 * don't expect the sender to reposition mid-stream and may get confused
+                 * by a resumed CHAIN_SUMMARY/CHAIN sequence on an existing context. */
+                if (l_ctx->remote_protocol_version >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION) {
                     dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                     if (l_chain) {
                         dap_chain_hash_fast_t l_req_hash = l_request->hash_from;
@@ -955,7 +974,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 l_ctx->num_last = l_chain->callback_count_atom(l_chain);
                                 uint64_t l_cur_num = l_iter->cur_num;
                                 atomic_store_explicit(&l_ctx->allowed_num,
-                                    dap_min(l_cur_num + s_sync_ack_window_size, l_ctx->num_last),
+                                    dap_min(l_cur_num + s_effective_window_size(l_ctx), l_ctx->num_last),
                                     memory_order_release);
                                 atomic_store(&l_ctx->state, SYNC_STATE_READY);
                                 l_ctx->last_activity = dap_time_now();
@@ -1041,14 +1060,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             break;
         }
         if (l_sync_from_begin) {
-            /* Start from the first atom for both chain types.
-             * For enhanced peers (v27+): use get_by_num(1) to position at the
-             * atom with event_number 1 (genesis). This guarantees we start from
-             * the actual first event rather than an arbitrary hash-table entry,
-             * and the iteration will continue with get_by_num(2), (3), ... covering
-             * ALL events. DAG event_numbers start at 1, so get_by_num(0) is NULL.
-             * For legacy peers: use ITER_OP_FIRST (hash-table order) matching
-             * their own sender behavior. */
+            /* Enhanced peers (v27+): use get_by_num(1) to position at event_number 1
+             * (genesis). This guarantees starting from the actual first event.
+             * Stock 5.7 peers (v26): use ITER_OP_FIRST to match their sender behavior
+             * exactly — avoids changing atom delivery order for legacy receivers. */
             if (s_remote_protocol_version(a_ch) >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION)
                 l_chain->callback_atom_get_by_num(l_iter, 1);
             else
@@ -1066,15 +1081,24 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
              * Diagnostic: log when num_from != cur_num to build statistics on how often
              * peers send mismatched num_from (informs Phase D.1 behavioral probe). */
             if (l_request->num_from != l_iter->cur_num && !l_sync_from_begin) {
+                bool l_is_enhanced = (s_remote_protocol_version(a_ch) >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION);
                 log_it(L_INFO, "CHAIN_REQ num_from=%" DAP_UINT64_FORMAT_U " != cur_num=%" DAP_UINT64_FORMAT_U
                         " after hash lookup for chain %s net %s from " NODE_ADDR_FP_STR
-                        " (relaxed >= check accepts; strict == would reject)",
+                        " (%s peer, %s check)",
                         l_request->num_from, l_iter->cur_num, l_chain->name, l_chain->net_name,
-                        NODE_ADDR_FP_ARGS_S(a_ch->stream->node));
+                        NODE_ADDR_FP_ARGS_S(a_ch->stream->node),
+                        l_is_enhanced ? "enhanced" : "stock",
+                        l_is_enhanced ? "relaxed >=" : "strict ==");
             }
+            /* Enhanced peers (v27+): relaxed >= check handles DAG event_number
+             * divergence (same atom has different numbers on different nodes).
+             * Stock 5.7 (v26): strict == check matches master — the sender
+             * expects num_from == cur_num exactly. */
+            bool l_num_ok = (s_remote_protocol_version(a_ch) >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION)
+                ? (l_request->num_from >= l_iter->cur_num)
+                : (l_request->num_from == l_iter->cur_num);
             if (l_sync_from_begin ||
-                    (l_request->num_from >= l_iter->cur_num &&
-                    l_last_num > l_iter->cur_num)) {
+                    (l_num_ok && l_last_num > l_iter->cur_num)) {
                 dap_chain_ch_summary_t l_sum = { .num_cur = l_iter->cur_num, .num_last = l_last_num };
                 dap_chain_ch_pkt_write_unsafe(a_ch, DAP_CHAIN_CH_PKT_TYPE_CHAIN_SUMMARY,
                                                 l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id,
@@ -1092,7 +1116,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_context->last_activity = dap_time_now();
                 l_context->remote_protocol_version = s_remote_protocol_version(a_ch);
                 atomic_store_explicit(&l_context->state, SYNC_STATE_READY, memory_order_relaxed);
-                atomic_store(&l_context->allowed_num, l_sum.num_cur + s_sync_ack_window_size);
+                atomic_store(&l_context->allowed_num, l_sum.num_cur + s_effective_window_size(l_context));
                 dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch->uuid);
                 if (!l_uuid) {
                     log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -1100,7 +1124,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     break;
                 }
                 l_ch_chain->sync_context = l_context;
-                l_ch_chain->idle_ack_counter = s_sync_ack_window_size;
+                l_ch_chain->idle_ack_counter = s_effective_window_size(l_context);
                 dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
                 l_ch_chain->sync_timer = dap_timerfd_start_on_worker(a_ch->stream_worker->worker, 1000, s_sync_timer_callback, l_uuid);
                 break;
@@ -1206,11 +1230,23 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         l_context->last_activity = dap_time_now();
         if (atomic_load_explicit(&l_context->state, memory_order_relaxed) == SYNC_STATE_OVER)
             break;
-        atomic_store_explicit(&l_context->allowed_num,
-                              dap_min(l_ack_num + s_sync_ack_window_size, l_context->num_last),
-                              memory_order_release);
+        /* P1 fix: prevent window regression on out-of-order ACKs.
+         * Without the max() guard, a late ACK with a low ack_num shrinks
+         * allowed_num below the sender's current position, breaking the
+         * while loop in s_chain_iter_callback and leaving the sender
+         * permanently idle. This is critical for blocks chains where
+         * stock 5.7 peers send atoms in hash-table order (ITER_OP_NEXT),
+         * causing non-monotonic ACK numbers. */
+        {
+            uint32_t l_win = s_effective_window_size(l_context);
+            uint64_t l_new_allowed = dap_min(l_ack_num + l_win, l_context->num_last);
+            uint64_t l_old_allowed = atomic_load_explicit(&l_context->allowed_num, memory_order_relaxed);
+            atomic_store_explicit(&l_context->allowed_num,
+                                  l_new_allowed > l_old_allowed ? l_new_allowed : l_old_allowed,
+                                  memory_order_release);
+        }
         if (atomic_exchange(&l_context->state, SYNC_STATE_READY) == SYNC_STATE_IDLE)
-            dap_proc_thread_callback_add(NULL, s_chain_iter_callback, l_context);
+            dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_chain_iter_callback, l_context);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
@@ -1755,7 +1791,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         memcpy(l_args->data, l_chain_pkt, l_ch_pkt->hdr.data_size);
         debug_if(s_debug_legacy, L_INFO, "In: CHAIN_OLD pkt: atom hash %s (size %zd)",
                                          dap_get_data_hash_str(l_chain_pkt->data, l_chain_pkt_data_size).s, l_chain_pkt_data_size);
-        dap_proc_thread_callback_add(NULL, s_sync_in_chains_callback, l_args);
+        dap_proc_thread_callback_add(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_args);
     } break;
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAINS: {
@@ -1873,6 +1909,7 @@ static bool s_chain_iter_callback(void *a_arg)
                                 l_iter->cur_num, dap_hash_fast_to_str_static(l_iter->cur_hash), l_iter->cur_size);
         /* Sender iteration: enhanced peers (v27+) use sequential event_number
          * iteration (get_by_num) which guarantees full coverage even with gaps.
+         * For blocks chains, get_by_num uses O(1) hash-table lookup via blocks_num.
          * Legacy peers (v26) use ITER_OP_NEXT (hash-table order) matching their
          * own sender behavior, ensuring identical coverage patterns. */
         if (l_context->remote_protocol_version >= DAP_CHAIN_CH_ENHANCED_ACK_MIN_VERSION) {
@@ -1888,7 +1925,7 @@ static bool s_chain_iter_callback(void *a_arg)
             atomic_store(&l_context->state, SYNC_STATE_OVER);
             return false;
         }
-        if (++l_cycles_count >= s_sync_packets_per_thread_call)
+        if (++l_cycles_count >= s_effective_packets_per_call(l_context))
             return true;
     }
     uint16_t l_state = l_atom && l_atom_size && l_iter->cur_num <= l_context->num_last

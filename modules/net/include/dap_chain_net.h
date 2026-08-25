@@ -180,9 +180,10 @@ int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_
 void dap_chain_net_remove_last_reward(dap_chain_net_t *a_net);
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num);
 int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port);
+void dap_chain_net_nodelist_expand_links(dap_chain_net_t *a_net, int a_max_connects);
 
 void dap_chain_net_purge(dap_chain_net_t *l_net);
-void dap_chain_net_sync_touch_progress(dap_chain_net_id_t a_net_id);
+void dap_chain_net_sync_touch_progress(dap_chain_net_id_t a_net_id, uint64_t a_atom_num);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
