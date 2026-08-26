@@ -2747,7 +2747,7 @@ void dap_chain_net_nodelist_expand_links(dap_chain_net_t *a_net, int a_max_conne
         if (l_already)
             continue;
         char l_host[256] = {};
-        if (l_info->ext_host_len > 0 && l_info->ext_host_len < sizeof(l_host)) {
+        if (l_info->ext_host_len > 0) {
             memcpy(l_host, l_info->ext_host, l_info->ext_host_len);
             l_host[l_info->ext_host_len] = '\0';
         }
