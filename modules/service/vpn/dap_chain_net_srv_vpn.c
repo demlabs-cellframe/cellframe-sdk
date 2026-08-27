@@ -1900,8 +1900,9 @@ static bool s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
-                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
-                    sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size) - sizeof(l_vpn_pkt->header);
+                // Write only the raw IP packet to TUN (skip VPN header), same as VPN_RECV on client side
+                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data,
+                    l_vpn_pkt->header.op_data.data_size);
                 l_srv_session->stats.bytes_sent += l_ret;
                 l_usage->client->bytes_sent += l_ret;
                 s_update_limits(a_ch, l_srv_session, l_usage, l_ret);
