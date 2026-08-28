@@ -1127,6 +1127,11 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 return NULL;
             }
             const char *l_seller_addr_str = dap_json_rpc_get_text(a_json_item_obj, "seller_addr");
+            if (!l_seller_addr_str) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad seller_addr in OUT_COND_SUBTYPE_SRV_XCHANGE");
+                log_it(L_ERROR, "Json TX: bad seller_addr in OUT_COND_SUBTYPE_SRV_XCHANGE");
+                return NULL;
+            }
 #ifndef DAP_CHAIN_TX_COMPOSE_TEST
                 dap_chain_addr_t *l_seller_addr = dap_chain_addr_from_str(l_seller_addr_str);
 #else
@@ -1135,6 +1140,11 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
                 if (dap_enc_base58_decode(l_seller_addr_str, l_seller_addr) != sizeof(dap_chain_addr_t))
                     return NULL;
 #endif
+            if (!l_seller_addr) {
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad seller_addr in OUT_COND_SUBTYPE_SRV_XCHANGE");
+                log_it(L_ERROR, "Json TX: bad seller_addr in OUT_COND_SUBTYPE_SRV_XCHANGE");
+                return NULL;
+            }
 
             const char *l_params_str = dap_json_rpc_get_text(a_json_item_obj, "params");
             uint8_t *l_params = NULL;
@@ -1282,7 +1292,8 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (json_object *a_json_ite
 
             dap_time_t l_time_staking = 0;
             const char* l_time_staking_str = dap_json_rpc_get_text(a_json_item_obj, "time_staking");
-            if (sscanf(l_time_staking_str, "%"DAP_UINT64_FORMAT_U, &l_time_staking) != 1 || !l_time_staking){
+            if (!l_time_staking_str ||
+                    sscanf(l_time_staking_str, "%"DAP_UINT64_FORMAT_U, &l_time_staking) != 1 || !l_time_staking){
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                 log_it(L_ERROR, "Json TX: bad time staking in DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
                 return NULL;
@@ -1618,7 +1629,16 @@ static uint8_t *s_dap_chain_net_tx_create_tsd_item(json_object *a_json_item_obj,
         return NULL;
     }
 
-    uint8_t *l_tsd_data = DAP_NEW_Z_SIZE(uint8_t, l_tsd_data_size+1);
+    // Buffer must be sized by the base58 input length, not by the caller-provided
+    // "data_size", because dap_enc_base58_decode() writes up to
+    // DAP_ENC_BASE58_DECODE_SIZE(strlen(input)) bytes regardless of caller intent.
+    size_t l_tsd_buf_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_tsd_data_str));
+    uint8_t *l_tsd_data = DAP_NEW_Z_SIZE(uint8_t, l_tsd_buf_size);
+    if (!l_tsd_data) {
+        log_it(L_ERROR, "Json TX: memory allocation error in TYPE_TSD");
+        dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: memory allocation error in TYPE_TSD");
+        return NULL;
+    }
     size_t l_tsd_data_size_decoded = dap_enc_base58_decode(l_tsd_data_str, l_tsd_data);
     if (l_tsd_data_size_decoded != l_tsd_data_size) {
         log_it(L_ERROR, "Json TX: data size in tsd section - %zu, expected - %"DAP_UINT64_FORMAT_U, l_tsd_data_size_decoded, l_tsd_data_size);
@@ -1656,10 +1676,18 @@ static uint8_t *s_dap_chain_net_tx_create_sig_item(json_object *a_json_item_obj,
     dap_json_rpc_get_uint64(a_json_item_obj, "sig_version", &l_version);
 
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
+    if (!l_tx_sig) {
+        if (a_jobj_arr_errors)
+                dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Memory allocation error for sign item");
+        log_it(L_ERROR, "Json TX: memory allocation error for sign item");
+        return NULL;
+    }
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
     l_tx_sig->header.version = l_version;
     l_tx_sig->header.sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE);
-    if ( l_tx_sig->header.sig_size  != l_sign_size || l_sign_size != dap_sign_get_size((dap_sign_t *)l_tx_sig->sig) ) {
+    // Guard against dap_sign_get_size() reading a dap_sign_t header out of the decoded buffer bounds
+    if ( l_tx_sig->header.sig_size < sizeof(dap_sign_t) ||
+            l_tx_sig->header.sig_size  != l_sign_size || l_sign_size != dap_sign_get_size((dap_sign_t *)l_tx_sig->sig) ) {
         if (a_jobj_arr_errors)
                 dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Sign size failed!");
         log_it(L_ERROR, "Json TX: sign verification failed!");
