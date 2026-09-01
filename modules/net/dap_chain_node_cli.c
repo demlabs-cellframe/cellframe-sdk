@@ -369,12 +369,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, NULL, "Make transaction",
             "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> [-to_addr <addr>] [-arbitrage] [-lock_before <unlock_time>] "
-            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value> [-certs <certs>]\n"
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> | -from_arbitrage <tx_hash>:<out_idx>} "
+            "[-cert <cert_name> | -wallet_fee <wallet_name>] -fee <value> [-certs <certs_list>]\n"
+            "\n"
             "OPTIONS:\n"
-            "  -arbitrage: Create arbitrage transaction (requires token owner signature, bypasses UTXO blocking)\n"
-            "              For arbitrage: -to_addr is optional and ignored, all outputs go to network fee address\n"
-            "  -certs: Comma-separated certificate names for arbitrage transactions\n"
-            "  -wallet_fee: Wallet for fee payment\n");
+            "  -arbitrage:         Create arbitrage transaction. Requires token owner signature (-certs).\n"
+            "                      Bypasses UTXO blocking. All outputs (including change) go to network fee address.\n"
+            "                      -to_addr is optional and ignored when -arbitrage is used.\n"
+            "  -from_arbitrage:    Unlock funds from an arbitrage lock. Format: <tx_hash>:<out_idx>\n"
+            "                      Requires the root node certificate that was used to lock the funds.\n"
+            "  -certs:             Comma-separated certificate names (required for -arbitrage, e.g. token_owner_cert)\n"
+            "  -wallet_fee:        Wallet for fee payment\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, NULL, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool",
