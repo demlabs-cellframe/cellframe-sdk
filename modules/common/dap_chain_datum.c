@@ -39,6 +39,7 @@
 #include "dap_sign.h"
 #include "dap_tsd.h"
 #include "dap_chain_wallet_shared.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_datum"
 
@@ -665,6 +666,27 @@ bool dap_chain_datum_dump_tx_json(json_object* a_json_arr_reply,
         : dap_chain_hash_fast_to_str_static(a_tx_hash)));
     json_object_object_add(json_obj_out, a_version == 1 ?  "tx created" : "tx_created", json_object_new_string(l_tmp_buf));
     json_object_object_add(json_obj_out, a_version == 1 ?  "token ticker" : "token_ticker", a_ticker ? json_object_new_string(a_ticker) : json_object_new_string(a_version == 1 ? "" : "empty"));
+
+    // Ledger status
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (l_net) {
+        dap_ledger_t *l_ledger = l_net->pub.ledger;
+        dap_ledger_tx_item_t *l_ledger_item = NULL;
+        dap_ledger_tx_find_datum_by_hash(l_ledger, a_tx_hash, &l_ledger_item, false);
+        if (l_ledger_item) {
+            json_object_object_add(json_obj_out, "status", json_object_new_string("ACCEPTED"));
+            json_object_object_add(json_obj_out, "ledger_rc", json_object_new_int(DAP_LEDGER_CHECK_OK));
+            json_object_object_add(json_obj_out, "ledger_rc_str", json_object_new_string(dap_ledger_check_error_str(DAP_LEDGER_CHECK_OK)));
+            json_object_object_add(json_obj_out, "n_outs", json_object_new_uint64(l_ledger_item->cache_data.n_outs));
+            json_object_object_add(json_obj_out, "n_outs_used", json_object_new_uint64(l_ledger_item->cache_data.n_outs_used));
+            if (l_ledger_item->cache_data.ts_spent)
+            json_object_object_add(json_obj_out, "ts_spent", json_object_new_uint64(l_ledger_item->cache_data.ts_spent));
+        } else {
+            json_object_object_add(json_obj_out, "status", json_object_new_string("DECLINED"));
+                json_object_object_add(json_obj_out, "ledger_rc", json_object_new_int(-1));
+                json_object_object_add(json_obj_out, "ledger_rc_str", json_object_new_string("Not found in ledger"));
+        }
+    }
 
     // Use the new unified function
     dap_chain_datum_dump_tx_items(json_arr_items, a_datum, a_hash_out_type, a_net_id, a_version, a_json_arr_reply);
