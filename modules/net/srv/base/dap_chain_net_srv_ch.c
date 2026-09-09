@@ -443,7 +443,8 @@ int dap_chain_net_srv_ch_grace_control(dap_chain_net_srv_t *a_net_srv, dap_hash_
         l_args->net_srv = l_net_srv;
         l_args->tx = l_tx;
 
-        dap_worker_exec_callback_on(l_item->grace->usage->client->stream_worker->worker, dap_chain_net_srv_ch_grace_control_mt, l_args);
+        if (dap_worker_exec_callback_on(l_item->grace->usage->client->stream_worker->worker, dap_chain_net_srv_ch_grace_control_mt, l_args) != 0)
+            DAP_DELETE(l_args);   /* confcall W56-F4: dropped post */
     }
     log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
     // Stop timer

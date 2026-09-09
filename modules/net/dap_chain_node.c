@@ -368,6 +368,7 @@ int dap_chain_node_list_clean_init() {
             }
             l_cluster->del_callback = s_node_list_autoclean_callback;
             l_cluster->del_arg = l_net->pub.name;
+            dap_global_db_cluster_unref(l_cluster);   /* confcall W56-F1: by_group returns a ref */
             log_it(L_DEBUG, "Node list clean inited for net %s", l_net->pub.name);
         }
     }

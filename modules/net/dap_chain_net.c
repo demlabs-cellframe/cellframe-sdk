@@ -579,7 +579,11 @@ int s_link_manager_link_request(uint64_t a_net_id)
     l_arg->host_addr = (const char*)l_balancer_link->addr;
     l_arg->host_port = l_balancer_link->port;
     l_arg->type = PVT(l_net)->balancer_type;
-    return dap_worker_exec_callback_on(dap_worker_get_auto(), dap_chain_net_balancer_request, l_arg), 0;
+    if (dap_worker_exec_callback_on(dap_worker_get_auto(), dap_chain_net_balancer_request, l_arg) != 0) {
+        DAP_DELETE(l_arg);   /* confcall W56-F4: dropped post */
+        return -6;
+    }
+    return 0;
 }
 
 
