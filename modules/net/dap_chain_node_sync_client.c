@@ -599,9 +599,15 @@ void dap_chain_node_sync_client_close(dap_chain_node_sync_client_t *a_client)
     }
     pthread_rwlock_unlock(&a_client->requests_lock);
     
-    // Close underlying client
-    if (a_client->client)
-        dap_client_delete_unsafe(a_client->client);
+    /* confcall W59-N5: this runs on the CALLER's thread — delete_unsafe
+     * freed the client (and its FSM) right here while the FSM thread could
+     * still be inside a stage callback on the raw dap_client_fsm_find
+     * pointer.  delete_mt sets is_removing, drains the FSM thread (W58-F6)
+     * and frees on the worker. */
+    if (a_client->client) {
+        dap_client_delete_mt(a_client->client);
+        a_client->client = NULL;
+    }
     
     // Destroy sync primitives
     pthread_mutex_destroy(&a_client->conn_mutex);
