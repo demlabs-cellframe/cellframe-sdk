@@ -31,6 +31,7 @@
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_datum_tx_pkey.h"
 #include "dap_chain_datum_tx_receipt.h"
@@ -91,6 +92,8 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str_short(con
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
     if(!dap_strcmp(a_subtype_str, "srv_pay"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY;
+    else if(!dap_strcmp(a_subtype_str, "srv_dex"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX;
     else if(!dap_strcmp(a_subtype_str, "srv_xchange"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
     else if(!dap_strcmp(a_subtype_str, "srv_stake_pos_delegate"))
@@ -136,22 +139,101 @@ size_t dap_chain_datum_item_tx_get_size(const byte_t *a_item, size_t a_max_size)
     case TX_ITEM_TYPE_SIG:           return m_tx_item_size_ext(dap_chain_tx_sig_t, header.sig_size);
     case TX_ITEM_TYPE_EVENT:  return m_tx_item_size_ext(dap_chain_tx_item_event_t, group_name_size);
     // Receipt size calculation is non-trivial...
-    case TX_ITEM_TYPE_RECEIPT_OLD:{
-        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version < 2)
-            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_old_t) < a_max_size && 
-                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size < a_max_size ) ? 
-                                    ((dap_chain_datum_tx_receipt_old_t*)a_item)->size : 0;
-    }
-    case TX_ITEM_TYPE_RECEIPT:{
-        if(((dap_chain_datum_tx_receipt_t*)a_item)->receipt_info.version == 2) 
-            return !a_max_size || ( sizeof(dap_chain_datum_tx_receipt_t) < a_max_size && 
-                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size < a_max_size ) ? 
-                                        ((dap_chain_datum_tx_receipt_t*)a_item)->size : 0;
+    case TX_ITEM_TYPE_RECEIPT_OLD:
+    case TX_ITEM_TYPE_RECEIPT: {
+        size_t l_version_offset = offsetof(dap_chain_datum_tx_receipt_t, receipt_info.version);
+        if (a_max_size && a_max_size <= l_version_offset)
+            return 0;
+        uint8_t l_version = a_item[l_version_offset];
+        size_t l_header;
+        uint64_t l_size;
+        if (*a_item == TX_ITEM_TYPE_RECEIPT_OLD && l_version < 2) {
+            l_header = sizeof(dap_chain_datum_tx_receipt_old_t);
+            if (a_max_size && a_max_size < l_header) return 0;
+            l_size = ((const dap_chain_datum_tx_receipt_old_t *)a_item)->size;
+        } else if (l_version == 2) {
+            l_header = sizeof(dap_chain_datum_tx_receipt_t);
+            if (a_max_size && a_max_size < l_header) return 0;
+            l_size = ((const dap_chain_datum_tx_receipt_t *)a_item)->size;
+        } else return 0;
+        return l_size >= l_header && l_size <= SIZE_MAX && (!a_max_size || l_size <= a_max_size) ? (size_t)l_size : 0;
     }
     default: return 0;
     }
 #undef m_tx_item_size
 #undef m_tx_item_size_ext
+}
+
+static size_t s_bounded_sign_size(const byte_t *a_data, size_t a_size)
+{
+    if (a_size < sizeof(dap_sign_t)) return 0;
+    dap_sign_hdr_t l_hdr;
+    memcpy(&l_hdr, a_data, sizeof(l_hdr));
+    size_t l_left = a_size - sizeof(dap_sign_t);
+    if (!l_hdr.sign_pkey_size || !l_hdr.sign_size || l_hdr.sign_pkey_size > l_left) return 0;
+    l_left -= l_hdr.sign_pkey_size;
+    if (l_hdr.sign_size > l_left) return 0;
+    return sizeof(dap_sign_t) + (size_t)l_hdr.sign_pkey_size + l_hdr.sign_size;
+}
+
+static bool s_bounded_tsd(const byte_t *a_data, size_t a_size)
+{
+    while (a_size) {
+        if (a_size < sizeof(dap_tsd_t)) return false;
+        const dap_tsd_t *l_tsd = (const dap_tsd_t *)a_data;
+        if (l_tsd->size > a_size - sizeof(dap_tsd_t)) return false;
+        size_t l_size = sizeof(dap_tsd_t) + l_tsd->size;
+        a_data += l_size;
+        a_size -= l_size;
+    }
+    return true;
+}
+
+bool dap_chain_datum_tx_validate_bounded(const void *a_data, size_t a_size)
+{
+    if (!a_data || a_size < sizeof(dap_chain_datum_tx_t)) return false;
+    const dap_chain_datum_tx_t *l_tx = a_data;
+    size_t l_left = a_size - sizeof(*l_tx);
+    if (l_left != l_tx->header.tx_items_size) return false;
+    const byte_t *l_item = l_tx->tx_items;
+    while (l_left) {
+        size_t l_size = dap_chain_datum_item_tx_get_size(l_item, l_left);
+        if (!l_size || l_size > l_left) return false;
+        /* Serializers consume these fixed wire fields as C strings. */
+#define m_bounded_string(t, field) memchr(((const t *)l_item)->field, 0, sizeof(((const t *)l_item)->field))
+        if (*l_item == TX_ITEM_TYPE_OUT_EXT && !m_bounded_string(dap_chain_tx_out_ext_t, token)) return false;
+        if (*l_item == TX_ITEM_TYPE_OUT_STD && !m_bounded_string(dap_chain_tx_out_std_t, token)) return false;
+        if (*l_item == TX_ITEM_TYPE_IN_EMS && !m_bounded_string(dap_chain_tx_in_ems_t, header.ticker)) return false;
+        if (*l_item == TX_ITEM_TYPE_OUT_COND &&
+            ((const dap_chain_tx_out_cond_t *)l_item)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE &&
+            !m_bounded_string(dap_chain_tx_out_cond_t, subtype.srv_xchange.buy_token)) return false;
+#undef m_bounded_string
+        if (*l_item == TX_ITEM_TYPE_SIG) {
+            const dap_chain_tx_sig_t *l_sig = (const dap_chain_tx_sig_t *)l_item;
+            if (!l_sig->header.sig_size || s_bounded_sign_size(l_sig->sig, l_sig->header.sig_size) != l_sig->header.sig_size) return false;
+        } else if (*l_item == TX_ITEM_TYPE_TSD) {
+            const dap_chain_tx_tsd_t *l_tsd = (const dap_chain_tx_tsd_t *)l_item;
+            if (l_tsd->header.size < sizeof(dap_tsd_t) || !s_bounded_tsd(l_tsd->tsd, l_tsd->header.size)) return false;
+        } else if (*l_item == TX_ITEM_TYPE_OUT_COND) {
+            const dap_chain_tx_out_cond_t *l_cond = (const dap_chain_tx_out_cond_t *)l_item;
+            if (!s_bounded_tsd(l_cond->tsd, l_cond->tsd_size)) return false;
+        } else if (*l_item == TX_ITEM_TYPE_RECEIPT || *l_item == TX_ITEM_TYPE_RECEIPT_OLD) {
+            const dap_chain_datum_tx_receipt_t *l_r = (const dap_chain_datum_tx_receipt_t *)l_item;
+            bool l_old = l_r->receipt_info.version < 2;
+            size_t l_header = l_old ? sizeof(dap_chain_datum_tx_receipt_old_t) : sizeof(*l_r);
+            uint64_t l_ext = l_old ? ((const dap_chain_datum_tx_receipt_old_t *)l_item)->exts_size : l_r->exts_size;
+            if (l_ext > l_size - l_header) return false;
+            size_t l_pos = l_header + (size_t)l_ext;
+            while (l_pos < l_size) {
+                size_t l_sign_size = s_bounded_sign_size(l_item + l_pos, l_size - l_pos);
+                if (!l_sign_size) return false;
+                l_pos += l_sign_size;
+            }
+        }
+        l_item += l_size;
+        l_left -= l_size;
+    }
+    return true;
 }
 
 /**

@@ -83,6 +83,9 @@ static inline int dap_chain_datum_tx_hdr_unpack(const uint8_t *a_wire, size_t a_
     return l_r.error_code;
 }
 
+/* Strict wire validation before any traversal of untrusted transaction bytes. */
+bool dap_chain_datum_tx_validate_bounded(const void *a_data, size_t a_size);
+
 #define TX_ITEM_ITER(item, item_size, data, total_size)                                                             \
     for ( byte_t *l_pos = (byte_t*)(data), *l_end = l_pos + (total_size) > l_pos ? l_pos + (total_size) : l_pos;    \
           !!( item = l_pos < l_end                                                                                  \

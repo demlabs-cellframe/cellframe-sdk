@@ -49,6 +49,24 @@
 #include "dap_json_rpc.h"
 
 #define LOG_TAG "dap_chain_net_tx"
+
+/* Legacy Base58 decoder uses input-sized VLAs and appends a NUL byte.
+ * Bound JSON fields before entering it; leading '1' bytes each decode to a byte. */
+#define TX_JSON_ENCODED_FIELD_MAX (64U * 1024U)
+static bool s_tx_json_base58(const char *a_text, void **a_out, size_t *a_size)
+{
+    size_t l_len = strnlen(a_text, TX_JSON_ENCODED_FIELD_MAX + 1);
+    if (!l_len || l_len > TX_JSON_ENCODED_FIELD_MAX) return false;
+    size_t l_capacity = l_len + 1;
+    void *l_data = DAP_NEW_Z_SIZE(uint8_t, l_capacity);
+    if (!l_data) return false;
+    size_t l_size = dap_enc_base58_decode(a_text, l_data);
+    if (!l_size || l_size >= l_capacity) { DAP_DELETE(l_data); return false; }
+    *a_out = l_data;
+    *a_size = l_size;
+    return true;
+}
+
 const dap_chain_addr_t c_dap_chain_addr_blank_1 = { };
 
 typedef struct cond_all_with_spends_by_srv_uid_arg{
@@ -992,9 +1010,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             uint8_t *l_params = NULL;
             size_t l_params_size = 0;
             if (l_params_str) {
-                l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
-                l_params = DAP_NEW_Z_SIZE(uint8_t, l_params_size);
-                l_params_size = dap_enc_base58_decode(l_params_str, l_params);
+                if (!s_tx_json_base58(l_params_str, (void **)&l_params, &l_params_size)) return NULL;
             }
 
             const char *l_pkey_hash_str = dap_json_object_get_string(a_json_item_obj, "pkey_hash");
@@ -1026,6 +1042,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
 
 
         } break;
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX:
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
 
             uint64_t l_srv_uid = 0;
@@ -1065,15 +1082,14 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                 return NULL;
             }
             const char *l_seller_addr_str = dap_json_object_get_string(a_json_item_obj, "seller_addr");
-            dap_chain_addr_t *l_seller_addr = dap_chain_addr_from_str(l_seller_addr_str);
+            dap_chain_addr_t *l_seller_addr = l_seller_addr_str ? dap_chain_addr_from_str(l_seller_addr_str) : NULL;
+            if (!l_seller_addr) return NULL;
 
             const char *l_params_str = dap_json_object_get_string(a_json_item_obj, "params");
             uint8_t *l_params = NULL;
             size_t l_params_size = 0;
             if (l_params_str) {
-                l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
-                l_params = DAP_NEW_Z_SIZE(uint8_t, l_params_size);
-                l_params_size = dap_enc_base58_decode(l_params_str, l_params);
+                if (!s_tx_json_base58(l_params_str, (void **)&l_params, &l_params_size)) return NULL;
             }
 
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_xchange((dap_chain_srv_uid_t){.uint64 = l_srv_uid},
@@ -1082,6 +1098,38 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
                                                                                                             l_token_buy, l_value_rate,
                                                                                                             l_seller_addr,
                                                                                                             l_params, l_params_size);
+            if (l_out_cond_item && l_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX) {
+                if (!l_seller_addr) { DAP_DELETE(l_out_cond_item); l_out_cond_item = NULL; }
+                else {
+                    memset(&l_out_cond_item->subtype, 0, sizeof(l_out_cond_item->subtype));
+                    l_out_cond_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX;
+                    l_out_cond_item->header.srv_uid.uint64 = 0xA;
+                    s_json_get_srv_uid(a_json_item_obj, "service_id", "service", &l_out_cond_item->header.srv_uid.uint64);
+                    l_out_cond_item->subtype.srv_dex.buy_net_id = l_buy_net_id;
+                    l_out_cond_item->subtype.srv_dex.sell_net_id = l_sell_net_id;
+                    dap_strncpy(l_out_cond_item->subtype.srv_dex.buy_token, l_token_buy, DAP_CHAIN_TICKER_SIZE_MAX);
+                    l_out_cond_item->subtype.srv_dex.seller_addr = *l_seller_addr;
+                    l_out_cond_item->subtype.srv_dex.rate = l_value_rate;
+                    const char *root = dap_json_object_get_string(a_json_item_obj, "order_root_hash");
+                    int64_t pct = 0, version = 0, flags = 0, tx_type = 1;
+                    dap_json_object_get_int64_ext(a_json_item_obj, "min_fill_pct", &pct);
+                    dap_json_object_get_int64_ext(a_json_item_obj, "version", &version);
+                    dap_json_object_get_int64_ext(a_json_item_obj, "flags", &flags);
+                    dap_json_object_get_int64_ext(a_json_item_obj, "tx_type", &tx_type);
+                    if (strlen(l_token_buy) >= DAP_CHAIN_TICKER_SIZE_MAX || pct < 0 || pct > 100 || version < 0 || version > 255 || flags < 0 || flags > UINT32_MAX || tx_type < 0 || tx_type > 255 ||
+                        (root && dap_chain_hash_fast_from_str(root, &l_out_cond_item->subtype.srv_dex.order_root_hash))) {
+                        DAP_DELETE(l_out_cond_item); l_out_cond_item = NULL;
+                    } else {
+                        l_out_cond_item->subtype.srv_dex.min_fill = pct | (dap_json_object_get_bool(a_json_item_obj, "min_from_origin") ? 0x80 : 0);
+                        l_out_cond_item->subtype.srv_dex.version = version;
+                        l_out_cond_item->subtype.srv_dex.flags = flags;
+                        l_out_cond_item->subtype.srv_dex.tx_type = tx_type;
+                        const char *expires = dap_json_object_get_string(a_json_item_obj, "ts_expires");
+                        if (expires && *expires && dap_strcmp(expires, "never") && sscanf(expires, "%"DAP_UINT64_FORMAT_U, &l_out_cond_item->header.ts_expires) != 1)
+                            l_out_cond_item->header.ts_expires = dap_time_from_str_rfc822(expires);
+                    }
+                }
+            }
             DAP_DELETE(l_params);
             DAP_DELETE(l_seller_addr);
             // Save value for using in In item
@@ -1184,9 +1232,7 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
             uint8_t *l_params = NULL;
             size_t l_params_size = 0;
             if (l_params_str) {
-                l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
-                l_params = DAP_NEW_Z_SIZE(uint8_t, l_params_size);
-                l_params_size = dap_enc_base58_decode(l_params_str, l_params);
+                if (!s_tx_json_base58(l_params_str, (void **)&l_params, &l_params_size)) return NULL;
             }
             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake_delegate((dap_chain_srv_uid_t){.uint64 = l_srv_uid}, l_value, l_signing_addr,
                                                                                                          &l_signer_node_addr, uint256_0, l_params, l_params_size);
@@ -1262,10 +1308,10 @@ static uint8_t *s_dap_chain_net_tx_create_out_cond_item (dap_json_t *a_json_item
              * handle their "params" field. */
             const char *l_params_str = dap_json_object_get_string(a_json_item_obj, "params");
             if (l_params_str && *l_params_str) {
-                size_t l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
-                uint8_t *l_params = DAP_NEW_Z_SIZE(uint8_t, l_params_size);
+                size_t l_params_size = 0;
+                uint8_t *l_params = NULL;
+                if (!s_tx_json_base58(l_params_str, (void **)&l_params, &l_params_size)) return NULL;
                 if (l_params) {
-                    l_params_size = dap_enc_base58_decode(l_params_str, l_params);
                     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_wallet_shared_raw(
                         (dap_chain_srv_uid_t){.uint64 = l_srv_uid}, l_value, (uint32_t)l_min_sig_count,
                         l_params, l_params_size);
@@ -1482,9 +1528,7 @@ static uint8_t *s_dap_chain_net_tx_create_receipt_item(dap_json_t *a_json_item_o
     char *l_params = NULL;
     size_t l_params_size = 0;
     if (l_params_str) {
-        l_params_size = DAP_ENC_BASE58_DECODE_SIZE(dap_strlen(l_params_str));
-        l_params = DAP_NEW_Z_SIZE(char, l_params_size);
-        l_params_size = dap_enc_base58_decode(l_params_str, l_params);
+        if (!s_tx_json_base58(l_params_str, (void **)&l_params, &l_params_size)) return NULL;
     }
     dap_hash_sha3_256_t l_prev_tx_hash = {};
     const char* l_prev_tx_hash_str = NULL;
@@ -1522,11 +1566,15 @@ static uint8_t *s_dap_chain_net_tx_create_tsd_item(dap_json_t *a_json_item_obj, 
         return NULL;
     }
 
-    uint8_t *l_tsd_data = DAP_NEW_Z_SIZE(uint8_t, l_tsd_data_size + 1);
-    size_t l_tsd_data_size_decoded = dap_enc_base58_decode(l_tsd_data_str, l_tsd_data);
+    if (l_tsd_type < 0 || l_tsd_type > UINT16_MAX ||
+        l_tsd_data_size > TX_JSON_ENCODED_FIELD_MAX ||
+        l_tsd_data_size > UINT32_MAX - sizeof(dap_tsd_t) - sizeof(dap_chain_tx_tsd_t)) return NULL;
+    uint8_t *l_tsd_data = NULL;
+    size_t l_tsd_data_size_decoded = 0;
+    if (!s_tx_json_base58(l_tsd_data_str, (void **)&l_tsd_data, &l_tsd_data_size_decoded)) return NULL;
     if (l_tsd_data_size_decoded != l_tsd_data_size) {
         log_it(L_ERROR, "Json TX: data size in tsd section - %zu, expected - %"DAP_UINT64_FORMAT_U, l_tsd_data_size_decoded, l_tsd_data_size);
-        dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: data size in tsd section - %zu, expected - %zu", l_tsd_data_size_decoded, l_tsd_data_size);
+        dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Json TX: data size in tsd section - %zu, expected - %"DAP_UINT64_FORMAT_U, l_tsd_data_size_decoded, l_tsd_data_size);
         DAP_DELETE(l_tsd_data);
         return NULL;
     }
@@ -1553,20 +1601,27 @@ uint8_t *s_dap_chain_net_tx_create_sig_item(dap_json_t *a_json_item_obj, dap_jso
     }
     uint64_t
         l_sign_size = 0,
-        l_sign_b64_strlen = strlen(l_sign_b64_str),
+        l_sign_b64_strlen = strnlen(l_sign_b64_str, UINT32_MAX),
         l_sign_decoded_size = DAP_ENC_BASE64_DECODE_SIZE(l_sign_b64_strlen);
     if ( !dap_json_object_get_uint64_ext(a_json_item_obj, "sig_size", &l_sign_size) )
         log_it(L_NOTICE, "Json TX: \"sig_size\" unspecified, will be calculated automatically");
 
+    if (l_sign_b64_strlen >= UINT32_MAX ||
+        l_sign_decoded_size > UINT32_MAX - sizeof(dap_chain_tx_sig_t) ||
+        l_sign_decoded_size > SIZE_MAX - sizeof(dap_chain_tx_sig_t)) return NULL;
     uint64_t l_version = 1;
     dap_json_object_get_uint64_ext(a_json_item_obj, "sig_version", &l_version);
 
     dap_chain_tx_sig_t *l_tx_sig = DAP_NEW_Z_SIZE(dap_chain_tx_sig_t, sizeof(dap_chain_tx_sig_t) + l_sign_decoded_size);
+    if (!l_tx_sig) return NULL;
     l_tx_sig->header.type = TX_ITEM_TYPE_SIG;
     l_tx_sig->header.version = l_version;
     l_tx_sig->header.sig_size = dap_enc_base64_decode(l_sign_b64_str, l_sign_b64_strlen, l_tx_sig->sig, DAP_ENC_DATA_TYPE_B64_URLSAFE);
 
-    if ( l_tx_sig->header.sig_size  != l_sign_size || l_sign_size != dap_sign_get_size((dap_sign_t *)l_tx_sig->sig) ) {
+    if ( l_tx_sig->header.sig_size < sizeof(dap_sign_t) ||
+         l_tx_sig->header.sig_size != l_sign_size ||
+         (uint64_t)sizeof(dap_sign_t) + ((dap_sign_t *)l_tx_sig->sig)->header.sign_size +
+             ((dap_sign_t *)l_tx_sig->sig)->header.sign_pkey_size != l_sign_size ) {
         dap_json_rpc_error_add(a_jobj_arr_errors, -1, "Sign size failed!");
         log_it(L_ERROR, "Json TX: sign verification failed!");
         DAP_DELETE(l_tx_sig);

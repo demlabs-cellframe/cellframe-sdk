@@ -200,6 +200,7 @@ extern "C" {
 
 DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_out_cond_subtype_t a_subtype){
     switch (a_subtype) {
+    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE";
@@ -219,6 +220,7 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
  */
 DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str_short(dap_chain_tx_out_cond_subtype_t a_subtype) {
     switch(a_subtype){
+        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX: return "srv_dex";
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: return "srv_pay";
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: return "srv_xchange";
         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: return "srv_stake_pos_delegate";
