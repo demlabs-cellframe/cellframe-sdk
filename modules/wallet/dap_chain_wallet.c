@@ -96,7 +96,9 @@ struct wallet_addr_cache {
 };
 
 struct wallet_addr_cache *s_wallet_addr_cache = NULL;
-void s_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name){
+void dap_chain_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name){
+    if (!a_addr || !a_wallet_name)
+        return;
     struct wallet_addr_cache *l_cache = DAP_NEW_Z_RET_IF_FAIL(struct wallet_addr_cache);
     dap_strncpy(l_cache->name, a_wallet_name, sizeof(l_cache->name));
     l_cache->addr = *a_addr;
@@ -1024,7 +1026,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (!dap_chain_wallet_addr_cache_get_name(l_addr))
-                s_wallet_addr_cache_add(l_addr, l_wallet->name);
+                dap_chain_wallet_addr_cache_add(l_addr, l_wallet->name);
             DAP_DELETE(l_addr);
         }
 

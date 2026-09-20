@@ -1486,20 +1486,28 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
             // Get list of all events
             const char *l_group_name = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_name);
-            
+            const char *l_limit_str = NULL, *l_offset_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+            size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
+
             json_object *l_json_obj_out = json_object_new_object();
             json_object *l_json_arr_events = json_object_new_array();
-            
+
             // Get events for specific group or all events
             dap_list_t *l_events = dap_ledger_event_get_list(l_ledger, l_group_name);
             if (l_events) {
                 for (dap_list_t *l_item = l_events; l_item; l_item = l_item->next) {
+                    if (l_offset > 0) { --l_offset; continue; }
                     dap_chain_tx_event_t *l_event = (dap_chain_tx_event_t *)l_item->data;
                     json_object *l_json_event = json_object_new_object();
                     dap_chain_datum_tx_event_to_json(l_json_event, l_event, l_hash_out_type);
                     json_object_array_add(l_json_arr_events, l_json_event);
+                    if (l_limit > 0 && !--l_limit)
+                        break;
                 }
-                
+
                 // Free the list and its elements
                 dap_list_free_full(l_events, dap_chain_datum_tx_event_delete);
             }
@@ -1583,7 +1591,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-history_limit", &l_history_limit_str);
         bool l_head = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-head", &l_head_str) ? true : false;
-        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
+        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
         size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
         int l_history_limit = l_history_limit_str ? atoi(l_history_limit_str) : DAP_LEDGER_UTXO_HISTORY_DEFAULT_LIMIT;
         if (l_net_str == NULL){

@@ -2136,6 +2136,11 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
             if (!l_addr_str)
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-seller", &l_addr_str);
+            const char *l_limit_str = NULL, *l_offset_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+            size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
             dap_chain_addr_t *l_addr = NULL;
             if (l_addr_str) {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
@@ -2195,6 +2200,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                 pthread_rwlock_unlock(&s_open_cache_rwlock);
                 for (dap_list_t *it = l_snap; it; it = it->next) {
                     xchange_open_order_snapshot_t *l_item = it->data;
+                    if (l_offset > 0) { --l_offset; continue; }
                     bool l_can_migrate = l_migrate_time_ok &&
                             dap_chain_net_srv_dex_pair_is_whitelisted(l_item->sell_token, l_item->sell_net_id,
                                                                       l_item->buy_token, l_item->buy_net_id);
@@ -2202,6 +2208,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                                                      &l_item->seller_addr, l_item->sell_token, l_item->buy_token,
                                                      l_item->rate, l_item->remain, l_can_migrate))
                         l_orders_count++;
+                    if (l_limit > 0 && !--l_limit)
+                        break;
                 }
                 for (dap_list_t *it = l_snap; it; it = it->next)
                     DAP_DELETE(it->data);
@@ -2232,6 +2240,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                     const char *l_buy = l_order_out->subtype.srv_xchange.buy_token;
                     if (!l_sell || !l_buy || !*l_buy)
                         continue;
+                    if (l_offset > 0) { --l_offset; continue; }
                     bool l_can_migrate = l_migrate_time_ok &&
                             dap_chain_net_srv_dex_pair_is_whitelisted(l_sell, l_order_out->subtype.srv_xchange.sell_net_id,
                                                                       l_buy, l_order_out->subtype.srv_xchange.buy_net_id);
@@ -2239,6 +2248,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, j
                                                      &l_order_out->subtype.srv_xchange.seller_addr, l_sell, l_buy,
                                                      l_final_out->subtype.srv_xchange.rate, l_final_out->header.value, l_can_migrate))
                         l_orders_count++;
+                    if (l_limit > 0 && !--l_limit)
+                        break;
                 }
                 for (dap_list_t *it = l_list; it; it = it->next)
                     DAP_DELETE(it->data);
@@ -3540,6 +3551,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
              */
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-status", &l_status_str);
+            const char *l_limit_str = NULL, *l_offset_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
+            size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+            size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
 
 
             /* Validate input arguments ... */
@@ -3604,14 +3620,17 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
 
                     if (l_time[1] && l_item->tx->header.ts_created > l_time[1])
                         break;
+                    if (l_offset > 0) { --l_offset; continue; }
                     json_object* json_obj_order = json_object_new_object();
-                    if (s_string_append_tx_cond_info_json(json_obj_order, l_net,  &l_item->seller_addr, 
+                    if (s_string_append_tx_cond_info_json(json_obj_order, l_net,  &l_item->seller_addr,
                             l_item->tx_type == TX_TYPE_EXCHANGE ?  &l_item->tx_info.exchange_info.buyer_addr : NULL,
                             l_item->tx, &l_item->hash, l_opt_status, false, true, true, a_version)){
 
                         json_object_array_add(json_arr_bl_out, json_obj_order);
                         l_show_tx_nr++;
                     }
+                    if (l_limit > 0 && !--l_limit)
+                        break;
                 }
                 json_object_array_add(*json_arr_reply, json_arr_bl_out);
             } else {
@@ -3622,11 +3641,14 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                     dap_list_t *l_datum_list = l_datum_list0;
                     while(l_datum_list) {
                         dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_datum_list->data)->data;
-                        if (l_time[0] && l_datum_tx->header.ts_created < l_time[0])
+                        if (l_time[0] && l_datum_tx->header.ts_created < l_time[0]) {
+                            l_datum_list = dap_list_next(l_datum_list);
                             continue;
+                        }
 
                         if (l_time[1] && l_datum_tx->header.ts_created > l_time[1])
                             break;
+                        if (l_offset > 0) { --l_offset; l_datum_list = dap_list_next(l_datum_list); continue; }
                         json_object* json_obj_order = json_object_new_object();
                         dap_hash_fast_t l_hash = {};
                         dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_hash);
@@ -3634,6 +3656,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply, int 
                             json_object_array_add(json_arr_bl_out, json_obj_order);
                             l_show_tx_nr++;
                         }
+                        if (l_limit > 0 && !--l_limit)
+                            break;
                         l_datum_list = dap_list_next(l_datum_list);
                     } 
                     json_object_array_add(*json_arr_reply, json_arr_bl_out);

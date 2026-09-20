@@ -169,6 +169,11 @@ static dex_net_fee_cache_t *s_dex_net_fee_tbl = NULL;
 
 #define DEX_PCT_DIV_DEFAULT 1000U
 
+// Default row cap for list-style CLI subcommands (history/orders) when the user
+// does not pass -limit. 0 still means "unlimited" inside the fetch helpers, so we
+// substitute a finite default here to avoid dumping the whole dataset.
+#define DEX_CLI_DEFAULT_LIMIT 1000
+
 /** @brief FEE_SET / pct_divisor state for one network. Caller must hold s_dex_cache_rwlock. */
 static inline dex_net_fee_cache_t *s_dex_get_srv_fee(dap_chain_net_id_t a_net_id)
 {
@@ -6219,6 +6224,7 @@ int dap_chain_net_srv_dex_init()
         "srv_dex orderbook -net <net_name> -pair <BASE/QUOTE>\n"
         "    [-depth <N>] [-tick_price <step>] [-tick <decimals>] [-cumulative]\n"
         "srv_dex orders -net <net_name> [-pair <BASE/QUOTE>] [-seller <addr>] [-limit <N>] [-offset <N>]\n"
+        "    -limit default 1000 if omitted (use -limit 0 for all)\n"
         "srv_dex pairs -net <net_name>\n"
         "srv_dex status -net <net_name> -pair <BASE/QUOTE> [-seller <addr>]\n"
         "\nAnalytics:\n"
@@ -6227,6 +6233,7 @@ int dap_chain_net_srv_dex_init()
         "    [-view events|summary|ohlc|volume|stats]\n"
         "      events(default):  [-type all|trade|market|targeted|order|update|cancel] [-limit <N>] [-offset <N>] [-tail]\n"
         "      summary:          [-type all|trade|market|targeted|order|update|cancel] [-limit <N>] [-offset <N>] [-tail]\n"
+        "    -limit default 1000 if omitted (use -limit 0 for all); applies to events/summary only\n"
         "      ohlc:            [-type market|trade] [-bucket <sec>] [-fill]\n"
         "      volume:          [-type market|targeted|trade] [-bucket <sec> [-fill]]\n"
         "      stats:           [-type market|trade] (default range: last 1d if -from/-to omitted)\n"
@@ -8763,7 +8770,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         const char *l_limit_str = NULL, *l_offset_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
-        int l_limit = l_limit_str ? atoi(l_limit_str) : 0, l_offset = l_offset_str ? atoi(l_offset_str) : 0;
+        int l_limit = l_limit_str ? atoi(l_limit_str) : DEX_CLI_DEFAULT_LIMIT, l_offset = l_offset_str ? atoi(l_offset_str) : 0;
 
         dap_time_t l_now_ts = dap_ledger_get_blockchain_time(l_net->pub.ledger);
         if (s_dex_cache_enabled) {
@@ -9703,7 +9710,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             DAP_DELETE(l_buyer_tmp);
         }
 
-        int l_limit = l_limit_str ? atoi(l_limit_str) : 0, l_offset = l_offset_str ? atoi(l_offset_str) : 0;
+        int l_limit = l_limit_str ? atoi(l_limit_str) : DEX_CLI_DEFAULT_LIMIT, l_offset = l_offset_str ? atoi(l_offset_str) : 0;
         enum { VIEW_EVENTS, VIEW_SUMMARY, VIEW_OHLC, VIEW_VOLUME, VIEW_STATS } l_view = VIEW_EVENTS;
         uint8_t l_filter_flags = 0;
         if (l_view_str) {

@@ -1294,12 +1294,18 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
         const char *l_token_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_str);
+        const char *l_limit_str = NULL, *l_offset_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+        size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
         pthread_rwlock_rdlock(&s_votings_rwlock);
         HASH_ITER(hh, s_votings, l_voting, l_tmp){
             if (l_voting->net_id.uint64 != l_net->pub.id.uint64)
                 continue;
             if (l_token_str && strcmp(l_token_str, l_voting->voting_params.token_ticker) != 0)
                 continue;
+            if (l_offset > 0) { --l_offset; continue; }
             json_object* json_obj_vote = json_object_new_object();
             json_object_object_add( json_obj_vote, "poll_tx",
                                     json_object_new_string(dap_chain_hash_fast_to_str_static(&l_voting->voting_hash)));            
@@ -1332,6 +1338,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             }
             json_object_object_add(json_obj_vote, "status", json_object_new_string(l_status_str));
             json_object_array_add(json_arr_voting_out, json_obj_vote);
+            if (l_limit > 0 && !--l_limit)
+                break;
         }
         pthread_rwlock_unlock(&s_votings_rwlock);
         json_object_array_add(*json_arr_reply, json_vote_out);
@@ -1358,6 +1366,11 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         }
 
         bool l_need_vote_list  = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-need_vote_list", NULL);
+        const char *l_limit_str = NULL, *l_offset_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-offset", &l_offset_str);
+        size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 1000;
+        size_t l_offset = l_offset_str ? strtoul(l_offset_str, NULL, 10) : 0;
         dap_hash_fast_t l_voting_hash = {};
         if (dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash)) {
             dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_VOTE_DUMP_HASH_PARAM_INVALID,
@@ -1387,6 +1400,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
 
         uint256_t l_total_weight = { };
         int l_votes_count = 0, i = 0;
+        size_t l_shown = 0;
         json_object* l_json_arr_vote_list = json_object_new_array();
         for (dap_list_t *l_vote_item = l_voting->votes; l_vote_item; l_vote_item = l_vote_item->next, ++l_votes_count) {
             dap_chain_net_vote_t *l_vote = l_vote_item->data;
@@ -1394,12 +1408,16 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             SUM_256_256(l_results[l_vote->answer_idx].weights, l_vote->weight, &l_results[l_vote->answer_idx].weights);
             SUM_256_256(l_total_weight, l_vote->weight, &l_total_weight);
             if (l_need_vote_list) {
-                json_object* l_json_obj = json_object_new_object();
-                json_object_object_add(l_json_obj, "vote_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_vote->vote_hash)));
-                json_object_object_add(l_json_obj, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_vote->pkey_hash)));
-                json_object_object_add(l_json_obj, "answer_idx", json_object_new_int(l_vote->answer_idx));
-                json_object_object_add(l_json_obj, "weight", json_object_new_string(dap_uint256_to_char(l_vote->weight, NULL)));
-                json_object_array_add(l_json_arr_vote_list, l_json_obj);
+                if (l_offset > 0) { --l_offset; continue; }
+                if (l_limit == 0 || l_shown < l_limit) {
+                    json_object* l_json_obj = json_object_new_object();
+                    json_object_object_add(l_json_obj, "vote_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_vote->vote_hash)));
+                    json_object_object_add(l_json_obj, "pkey_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_vote->pkey_hash)));
+                    json_object_object_add(l_json_obj, "answer_idx", json_object_new_int(l_vote->answer_idx));
+                    json_object_object_add(l_json_obj, "weight", json_object_new_string(dap_uint256_to_char(l_vote->weight, NULL)));
+                    json_object_array_add(l_json_arr_vote_list, l_json_obj);
+                    l_shown++;
+                }
             }
         }
 
