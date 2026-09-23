@@ -2013,7 +2013,14 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
 
     bool l_native_tx = !dap_strcmp(l_token_ticker, a_net->pub.native_ticker);
     dap_ledger_t *l_ledger = a_net->pub.ledger;
-    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs(l_ledger, l_token_ticker, l_addr_from, &l_value_transfer);
+    // Was always doing the full dap_ledger_get_list_tx_outs_unspent_by_addr ledger_items scan
+    // (P.13) for every single vote, unlike the sibling call sites in this same file (vote
+    // creation/cancel, lines ~1805/2299) which try the O(1) wallet-cache lookup first and only
+    // fall back to the full ledger scan on -101 (cache disabled/not yet loaded for this addr).
+    // Apply the same established fallback pattern here.
+    dap_list_t *l_list_used_out = NULL;
+    if (dap_chain_wallet_cache_tx_find_outs(a_net, l_token_ticker, l_addr_from, &l_list_used_out, &l_value_transfer) == -101)
+        l_list_used_out = dap_ledger_get_list_tx_outs(l_ledger, l_token_ticker, l_addr_from, &l_value_transfer);
     if (!l_list_used_out || (l_native_tx && compare256(l_value_transfer, l_total_fee) < 0)) {
         dap_list_free_full(l_list_used_out, NULL);
         return DAP_CHAIN_NET_VOTE_VOTING_NOT_ENOUGH_FUNDS_TO_TRANSFER;
