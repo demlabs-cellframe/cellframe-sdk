@@ -594,6 +594,12 @@ static const char *const s_cancel_all_error_str[] = {
 /* History cache (OHLCV) switches */
 static bool s_dex_history_enabled = false;                  // enabled via config
 static uint64_t s_dex_history_bucket_sec = DAP_SEC_PER_DAY; // default bucket size (daily)
+// Hard cap on number of OHLCV candles a single `history -view ohlc|volume` request may
+// generate. Without it a crawler requesting e.g. a year of history with -bucket 60 forces
+// the node to materialize ~525k JSON objects (and re-scan the same daily storage bucket
+// once per candle), which is the dominant cause of transient heap blow-up -> swap -> RPC
+// stalls under crawler load (see cellframe_node_rpc_overload_research_2026_09, sec. 12).
+static uint32_t s_dex_history_max_candles = 5000;
 
 /** @brief Calculate percentage: result = a * b / (100 * 10^precision) */
 static inline uint256_t s_calc_pct(const uint256_t a, const uint64_t b, const uint8_t a_precision)
@@ -3983,9 +3989,15 @@ static int s_history_foreach_trade_cache(const dex_pair_key_t *a_key, uint64_t a
                 }
             }
         } else {
+            // Cooperative cancellation: same all-buckets/all-events scan
+            // pattern as s_history_get_raw_events, shared by -view
+            // stats/summary. Bail out once the requesting client is gone.
+            size_t l_bucket_idx = 0;
             dex_hist_bucket_t *l_buck = NULL, *l_buck_tmp = NULL;
             HASH_ITER(hh, l_pair->buckets, l_buck, l_buck_tmp)
             {
+                if (!(++l_bucket_idx & 0x3F) && !dap_cli_server_client_is_alive())
+                    goto table_cache_ret;
                 dex_event_rec_t *l_rec, *l_rec_tmp;
                 HASH_ITER(hh, l_buck->events_idx, l_rec, l_rec_tmp)
                 {
@@ -4099,20 +4111,55 @@ static int s_history_build_ohlcv_series(const dex_pair_key_t *a_key, uint64_t a_
 
         if (l_used) {
             qsort(l_buckets, l_used, sizeof(*l_buckets), s_cmp_bucket_ptr_ts);
-            // Build output candles at requested granularity
-            // If no start time specified, use first bucket's ts for proper calendar alignment
-            uint64_t l_candle_start =
-                         s_hist_bucket_ts((a_ts_from && a_ts_from > l_buckets[0]->ts) ? a_ts_from : l_buckets[0]->ts, a_bucket_sec),
+            // Clamp the requested window to the pair's actual history: a crawler walking
+            // backwards day-by-day past the first recorded trade must get an instant empty
+            // reply instead of materializing thousands of empty candles for a range where
+            // no data ever existed.
+            uint64_t l_ts_from_eff = a_ts_from < l_buckets[0]->ts ? l_buckets[0]->ts : a_ts_from;
+            if (l_ts_from_eff > l_to_req) {
+                DAP_DELETE(l_buckets);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                return 0;
+            }
+            // Build output candles at requested granularity, calendar-aligned on the
+            // effective (clamped) start of the range.
+            uint64_t l_candle_start = s_hist_bucket_ts(l_ts_from_eff, a_bucket_sec),
                      l_prev_candle = 0;
+            uint64_t l_candles_total = (l_to_req - l_candle_start) / a_bucket_sec + 1;
+            if (l_candles_total > s_dex_history_max_candles) {
+                DAP_DELETE(l_buckets);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                return -3;
+            }
             uint256_t l_last_close = uint256_0;
-            for (uint64_t l_cs = l_candle_start; l_cs <= l_to_req; l_cs += a_bucket_sec) {
+            // Seek to the first storage bucket that can overlap the requested range, then
+            // advance it forward in lock-step with the candle loop instead of rescanning
+            // all storage buckets from the start for every single candle. Both the candle
+            // window start (l_cs) and l_from are monotonically non-decreasing across
+            // iterations, so l_bi only ever needs to move forward (was O(candles x
+            // buckets), now O(candles + buckets) for the common non-overlapping case).
+            size_t l_bi = 0;
+            while (l_bi < l_used && l_buckets[l_bi]->ts + s_dex_history_bucket_sec <= l_ts_from_eff)
+                ++l_bi;
+            uint64_t l_candle_idx = 0;
+            for (uint64_t l_cs = l_candle_start; l_cs <= l_to_req; l_cs += a_bucket_sec, ++l_candle_idx) {
+                // Cooperative cancellation: a crawler that has already
+                // disconnected shouldn't keep this thread grinding through
+                // thousands of candles under s_dex_cache_rwlock. Checked
+                // every 256 candles, not every one, to keep the mutex inside
+                // dap_cli_server_client_is_alive() off the hot path.
+                if (!(l_candle_idx & 0xFF) && !dap_cli_server_client_is_alive())
+                    break;
                 uint64_t l_from = l_cs < a_ts_from ? a_ts_from : l_cs, l_ce_full = l_cs + a_bucket_sec - 1,
                          l_to = l_ce_full < l_cs || l_ce_full > l_to_req ? l_to_req : l_ce_full;
                 if (l_to < l_from)
                     continue;
+                while (l_bi < l_used && l_buckets[l_bi]->ts + s_dex_history_bucket_sec <= l_from)
+                    ++l_bi;
                 dex_ohlcv_t l_ohlcv = {.ts = l_cs};
-                // Aggregate all overlapping storage buckets
-                for (size_t i = 0; i < l_used; i++) {
+                // Aggregate all overlapping storage buckets starting from the first one
+                // that has not fully elapsed before this candle's window.
+                for (size_t i = l_bi; i < l_used; i++) {
                     if (l_buckets[i]->ts > l_to)
                         break;
                     if (l_buckets[i]->ts + s_dex_history_bucket_sec <= l_from)
@@ -4264,9 +4311,18 @@ static int s_history_get_raw_events(dap_chain_net_t *a_net, const dex_pair_key_t
                 }
             }
         } else {
+            // Cooperative cancellation: this branch (no -order filter) walks
+            // every storage bucket and every event in it under
+            // s_dex_cache_rwlock — exactly the "-view events" crawler
+            // pattern from the production incident. Bail out early once the
+            // requesting client is gone rather than finishing the full scan
+            // (and later sort) for a reply nobody will read.
+            size_t l_bucket_idx = 0;
             dex_hist_bucket_t *l_buck = NULL, *l_buck_tmp = NULL;
             HASH_ITER(hh, l_pair->buckets, l_buck, l_buck_tmp)
             {
+                if (!(++l_bucket_idx & 0x3F) && !dap_cli_server_client_is_alive())
+                    break;
                 dex_event_rec_t *l_rec, *l_rec_tmp;
                 HASH_ITER(hh, l_buck->events_idx, l_rec, l_rec_tmp)
                 {
@@ -6198,6 +6254,7 @@ int dap_chain_net_srv_dex_init()
     // Read history cache switch and bucket size (default: daily buckets for storage efficiency)
     s_dex_history_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "history_cache", true);
     s_dex_history_bucket_sec = (uint64_t)dap_config_get_item_uint32_default(g_config, "srv_dex", "history_bucket_sec", DAP_SEC_PER_DAY);
+    s_dex_history_max_candles = dap_config_get_item_uint32_default(g_config, "srv_dex", "history_max_candles", s_dex_history_max_candles);
     if (!s_dex_history_bucket_sec)
         s_dex_history_bucket_sec = DAP_SEC_PER_DAY;
     log_it(L_INFO, "History cache: %s, bucket %us", s_dex_history_enabled ? "on" : "off", (unsigned)s_dex_history_bucket_sec);
@@ -6273,6 +6330,12 @@ int dap_chain_net_srv_dex_init()
         "                       [-net_base <net>] [-net_quote <net>]\n"
         "    <fee_opt>: -fee_pct <pct> | -fee_native <amount> | -fee_config <byte>\n"
         "               -fee_pct 2.0 = 2%% of INPUT, -fee_native 0.05 = 0.05 native\n");
+    // `history`/`orderbook`/`orders` are the most expensive and most heavily
+    // crawled read queries this service exposes (full history scans, depth-N
+    // order book snapshots); classify the whole command as HEAVY so the CLI
+    // dispatcher caps its concurrency separately from the rest of the RPC
+    // surface instead of letting a crawler burst exhaust the shared pool.
+    dap_cli_server_cmd_flags_set("srv_dex", DAP_CLI_CMD_FLAG_HEAVY);
     return 0;
 }
 
@@ -10042,6 +10105,14 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                                                                   l_buyer_str ? &l_buyer_addr : NULL,
                                                                   l_order_hash_str ? &l_order_root : NULL, l_filter_flags, l_arr)
                                    : 0;
+            if (l_count == -3) {
+                json_object_put(l_arr);
+                json_object_put(l_json_reply);
+                return dap_json_rpc_error_add(*json_arr_reply, -3,
+                                              "requested range/-bucket would produce more than %u candles, narrow -from/-to or increase -bucket",
+                                              s_dex_history_max_candles),
+                       -3;
+            }
             json_object_object_add(l_json_reply, "market_only", json_object_new_boolean(true));
             json_object_object_add(l_json_reply, l_want_ohlc ? "ohlc" : "volume", l_arr);
             if (l_bucket)

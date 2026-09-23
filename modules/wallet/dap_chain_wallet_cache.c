@@ -220,6 +220,30 @@ static void s_wallet_cache_clear_unspent(dap_wallet_cache_t *a_wallet_item)
     }
 }
 
+// Decides what an address unknown to the cache means in ALL mode: it's only
+// safe to report "genuinely empty wallet" (0) once the initial bulk load for
+// this net has finished. While bulk loading is still running, an unseen
+// address may simply not have been reached by the scan yet - reporting it as
+// empty makes every caller (dap_chain_net_tx_create_by_json among them, see
+// cellframe_node_rpc_overload_research_2026_09 sec. 10.1/9.3.2) skip the
+// ledger fallback entirely and fail compose with "not enough funds" for a
+// wallet that in fact has funds. -101 tells the caller "cache can't answer
+// yet, go check the ledger" instead - the same contract already used for the
+// is_loading and cache-not-populated cases right above each call site.
+static int s_wallet_cache_unknown_addr_ret_code(const dap_chain_addr_t *a_addr)
+{
+    if (s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)
+        return -101; // LOCAL/unexpected: address was never meant to be cached, ledger fallback path
+    if (s_bulk_loading_nets_has(a_addr->net_id.uint64)) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_addr->net_id);
+        debug_if(s_debug_more, L_DEBUG, "Wallet \"%s\" not yet seen, net %s is still bulk-loading",
+                 dap_chain_addr_to_str_static(a_addr), l_net ? l_net->pub.name : "?");
+        return -101;
+    }
+    log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
+    return 0;
+}
+
 static char * s_wallet_cache_type_to_str(dap_s_wallets_cache_type_t a_type)
 {
     switch (a_type){
@@ -452,13 +476,7 @@ int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_
         }
     } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
-            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
-            return 0;
-        } else {
-            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
+        return s_wallet_cache_unknown_addr_ret_code(a_addr);
     }
 
     dap_wallet_tx_cache_t *l_current_wallet_tx = NULL;
@@ -583,13 +601,7 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
         }
     } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
-            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
-            return 0;
-        } else {
-            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
+        return s_wallet_cache_unknown_addr_ret_code(a_addr);
     }
     
     dap_wallet_tx_cache_t *l_current_wallet_tx = NULL;
@@ -681,13 +693,7 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
         }
     } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
-            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
-            return 0;
-        } else {
-            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
+        return s_wallet_cache_unknown_addr_ret_code(a_addr);
     }
 
     dap_wallet_cache_unspent_outs_t *l_item_cur = NULL, *l_tmp = NULL;
@@ -784,13 +790,7 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
         }
     } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
-            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
-            return 0;
-        } else {
-            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
+        return s_wallet_cache_unknown_addr_ret_code(a_addr);
     }
 
     dap_wallet_cache_unspent_outs_t *l_item_cur = NULL, *l_tmp = NULL;

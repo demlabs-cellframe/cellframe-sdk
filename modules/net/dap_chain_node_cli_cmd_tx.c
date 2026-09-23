@@ -936,10 +936,18 @@ json_object *dap_db_history_tx_all(json_object* a_json_arr_reply, dap_chain_t *a
         iter_direc = a_head ? a_chain->callback_datum_iter_get_next
                             : a_chain->callback_datum_iter_get_prev;
         
+        uint64_t l_scan_idx = 0;
         for (dap_chain_datum_t *l_datum = iter_begin(l_datum_iter);
                                 l_datum;
                                 l_datum = iter_direc(l_datum_iter))
         {
+            // Cooperative cancellation: "tx_history -all" walks the whole
+            // chain one datum at a time; on a large chain that can run well
+            // past the point a disconnected client would notice. Checked
+            // every 4096 datums, not every one, to keep the liveness-check
+            // mutex off the hot path.
+            if (!(++l_scan_idx & 0xFFF) && !dap_cli_server_client_is_alive())
+                break;
             if (i_tmp >= l_arr_end)
                 break;
             if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)

@@ -2737,7 +2737,18 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                 if (!dap_strcmp(l_native_token, l_main_token)) {
                     SUM_256_256(l_value_need_check, l_value_need, &l_value_need_check);
                     SUM_256_256(l_value_need_check, l_value_need_fee, &l_value_need_check);
-                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
+                    // Wallet cache first (O(1) per candidate via the B1 mempool
+                    // spent-outs index), fall back to the full ledger scan only
+                    // when the cache can't answer (-101: disabled, LOCAL mode
+                    // and address not locally owned, or still bulk-loading -
+                    // see s_wallet_cache_unknown_addr_ret_code). This is the
+                    // main fix for the multi-minute tx_create_json compose
+                    // times documented in cellframe_node_rpc_overload_research_2026_09
+                    // sec. 2: without it this JSON-RPC path always did the
+                    // O(ledger) HASH_ITER that dap_chain_mempool.c's own
+                    // tx_create already avoided via this same pattern.
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need_check, &l_value_transfer) == -101)
+                        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
                                                                                                 l_addr_from, l_value_need_check, &l_value_transfer);
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -2750,7 +2761,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                     }
                 } else {
                     //CHECK value need
-                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_json_item_token, l_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
+                        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_json_item_token,
                                                                                                 l_addr_from, l_value_need, &l_value_transfer);
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -2762,7 +2774,8 @@ int dap_chain_net_tx_create_by_json(json_object *a_tx_json, dap_chain_net_t *a_n
                         continue;
                     }
                     //CHECK value fee
-                    l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_token,
+                    if (dap_chain_wallet_cache_tx_find_outs_with_val(a_net, l_native_token, l_addr_from, &l_list_used_out_fee, l_value_need_fee, &l_value_transfer_fee) == -101)
+                        l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_token,
                                                                                         l_addr_from, l_value_need_fee, &l_value_transfer_fee);
                     if(!l_list_used_out_fee) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");

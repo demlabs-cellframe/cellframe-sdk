@@ -68,6 +68,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_common.h"
+#include "dap_cli_server.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_common.h"
@@ -6281,7 +6282,17 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
     else if ( a_limit )
         a_out_value = &l_out_value;
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    // Cooperative cancellation: this is the full ledger_items scan behind
+    // tx_create_json (see cellframe_node_rpc_overload_research_2026_09, sec.
+    // 2) — on mainnet-sized ledgers it can run well past the point where the
+    // requesting CLI client has already disconnected. Checked every 4096
+    // items (mutex-guarded, so not on every single one) so an abandoned
+    // request lets go of ledger_rwlock quickly instead of finishing a scan
+    // for a reply nobody will read.
+    uint64_t l_item_idx = 0;
     HASH_ITER(hh, l_ledger_pvt->ledger_items, l_cur, l_tmp) {
+        if (!(++l_item_idx & 0xFFF) && !dap_cli_server_client_is_alive())
+            break;
         if ( l_cur->cache_data.ts_spent )
             continue;
         if ( a_token && dap_strcmp(l_cur->cache_data.token_ticker, a_token) && !l_cur->cache_data.multichannel )

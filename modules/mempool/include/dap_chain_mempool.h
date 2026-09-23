@@ -49,6 +49,15 @@ typedef struct dap_datum_mempool {
 int dap_datum_mempool_init(void);
 int dap_chain_mempool_delete_callback_init(void);
 
+// Builds and keeps current an in-memory index of mempool-tx spent outputs,
+// turning dap_chain_mempool_out_is_used() from an O(mempool size) GlobalDB
+// scan per call into an O(1) lookup. Must be called after networks/chains
+// are loaded (dap_chain_net_load_all()), NOT from dap_datum_mempool_init()
+// - see the comment on dap_chain_mempool_spent_index_init()'s definition for
+// why. Safe to skip: dap_chain_mempool_out_is_used() falls back to the full
+// scan if this was never called.
+int dap_chain_mempool_spent_index_init(void);
+
 extern const char* c_dap_datum_mempool_gdb_group;
 
 uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t *size);

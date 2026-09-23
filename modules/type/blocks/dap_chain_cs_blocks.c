@@ -1102,7 +1102,14 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
             if (!l_head)
                 l_block_cache = HASH_LAST(l_block_cache);             
-            for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
+            for ( uint64_t l_scan_idx = 0; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
+                // Cooperative cancellation: "block list" without -limit walks
+                // the whole chain under PVT(l_blocks)->rwlock. A disconnected
+                // crawler shouldn't keep this thread (and the lock) busy for
+                // the full traversal — checked every 4096 blocks, not every
+                // one, to keep the liveness-check mutex off the hot path.
+                if (!(++l_scan_idx & 0xFFF) && !dap_cli_server_client_is_alive())
+                    break;
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_head) {
                     if (l_to_time && l_ts < l_to_time)
