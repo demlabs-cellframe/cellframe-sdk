@@ -4585,9 +4585,13 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
                 char l_buff_ts[50] = {'\0'};
                 dap_time_to_str_rfc822(l_buff_ts, 50, l_atom_iter->cur_ts);
                 for (size_t i = 0; i < l_datum_count; i++) {
+                    // Bug fix: l_datums[i] already selects the i-th datum pointer into
+                    // l_datum; indexing it again as l_datum[i] treated it as an array of
+                    // dap_chain_datum_t starting at that pointer, reading i structs past the
+                    // actual datum for every i>0 - an out-of-bounds/garbage read.
                     dap_chain_datum_t *l_datum = l_datums[i];
-                    if (l_datum[i].header.type_id != DAP_CHAIN_DATUM_DECREE) continue;
-                    dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *) l_datum[i].data;
+                    if (l_datum->header.type_id != DAP_CHAIN_DATUM_DECREE) continue;
+                    dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *) l_datum->data;
                     if (l_decree->header.sub_type == a_decree_type) {
                         json_object *l_jobj_atom = json_object_new_object();
                         json_object *l_jobj_atom_create = json_object_new_string(l_buff_ts);
