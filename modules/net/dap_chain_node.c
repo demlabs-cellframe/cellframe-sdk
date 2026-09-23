@@ -681,9 +681,15 @@ dap_list_t *dap_chain_node_get_states_list_sort(dap_chain_net_t *a_net, dap_chai
             l_item->downlinks_count = l_node_info->info_v1.downlinks_count;
         }
         l_item->timestamp = l_state_timestamp;
-        l_ret = dap_list_insert_sorted(l_ret, (void *)l_item, s_node_states_info_cmp);
+        // Was dap_list_insert_sorted() per node (P.20): each insertion does a full linear
+        // scan to find its spot, making the whole loop O(N^2) in the node count. Append
+        // (O(1), tail-cached) and sort the whole list once at the end instead - same final
+        // order, since dap_list_sort's underlying merge sort is stable and s_node_states_info_cmp
+        // has no dependency on insertion order.
+        l_ret = dap_list_append(l_ret, (void *)l_item);
         DAP_DELETE(l_node_info);
     }
+    l_ret = dap_list_sort(l_ret, s_node_states_info_cmp);
     DAP_DELETE(l_gdb_group);
     dap_global_db_objs_delete(l_objs, l_node_count);
     return l_ret;
