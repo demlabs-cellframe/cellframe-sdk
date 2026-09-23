@@ -2533,8 +2533,11 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_
  */
 json_object *dap_ledger_token_info_by_name(dap_ledger_t *a_ledger, const char *a_token_ticker, int a_version, int a_history_limit)
 {
-    dap_ledger_token_item_t *l_token_item = NULL;
-    HASH_FIND_STR(PVT(a_ledger)->tokens, a_token_ticker, l_token_item);
+    // s_ledger_find_token() takes tokens_rwlock around the HASH_FIND: that table is
+    // mutated under wrlock elsewhere in this file (token add/update), so a bare
+    // unlocked HASH_FIND_STR here (as this used to be) races against it, same class
+    // of bug already fixed for blocks/dag hash tables and srv_stake's itemlist.
+    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token_ticker);
     if (l_token_item)
         return s_token_item_to_json(l_token_item, a_version, a_history_limit);
     return json_object_new_null();
@@ -3549,7 +3552,10 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
             char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
             if (!l_tickers) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
+                // Bug fix: this branch holds tokens_rwlock (locked above), not
+                // balance_accounts_rwlock (never taken here) - unlocking the wrong/
+                // never-locked mutex is undefined behavior and leaks tokens_rwlock held.
+                pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
                 return;
             }
             l_count = 0;
@@ -3564,6 +3570,11 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
             *a_tickers_size = l_count;
     }else{ // Calc only tokens from address balance
         dap_ledger_wallet_balance_t *wallet_balance, *tmp;
+        // Bug fix: balance_accounts_rwlock must guard the HASH_COUNT read too (the
+        // table is mutated under wrlock elsewhere), and must be held before any
+        // early-return unlock of it - previously HASH_COUNT ran unlocked and the
+        // alloc-failure path unlocked a mutex that wasn't locked yet (UB).
+        pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
         size_t l_count = HASH_COUNT(PVT(a_ledger)->balance_accounts);
         if(l_count && a_tickers){
             char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
@@ -3573,7 +3584,6 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
                 return;
             }
             l_count = 0;
-            pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
                 char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
                 if (!dap_strcmp(l_keys[0], dap_chain_addr_to_str_static(a_addr))) {
@@ -3582,9 +3592,9 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
                 }
                 dap_strfreev(l_keys);
             }
-            pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
             *a_tickers = l_tickers;
         }
+        pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
         if(a_tickers_size)
             *a_tickers_size = l_count;
     }
