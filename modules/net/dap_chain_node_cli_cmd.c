@@ -8106,72 +8106,107 @@ static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_ar
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_LEDGER_FOR_NET;
     }
 
-//    dap_string_t *l_reply_str = dap_string_new("");
     json_object *l_jobj_tx_list_cond_outs = json_object_new_array();
-    dap_list_t *l_tx_list = NULL;
-
-    dap_chain_net_get_tx_all(l_net, TX_SEARCH_TYPE_NET, s_tx_is_srv_pay_check, &l_tx_list);
     size_t l_tx_count = 0;
     uint256_t l_total_value = {};
-    for (dap_list_t *it = l_tx_list; it; it = it->next) {
-        tx_check_args_t *l_data_tx = (tx_check_args_t*)it->data;
-        if (l_data_tx->tx_hash.raw[0] == 0x5A && l_data_tx->tx_hash.raw[1] == 0xc1){
-            log_it(L_INFO, "found!");
+
+    // Was an unconditional dap_chain_net_get_tx_all() full ledger scan (P.25), building a
+    // dap_list_t of every SRV_PAY-cond TX in the net before filtering by owner/srv_uid/ticker
+    // one at a time - identical in spirit to _cmd_tx_cond_list's original full-scan path, which
+    // is now backed by the same srv_pay owner-indexed cache. Try that cache first here too (it's
+    // keyed by owner pkey_hash, exactly what this command already computes to compare against
+    // each candidate's signature) and only fall back to the full scan when it's disabled/empty.
+    dap_hash_fast_t l_owner_pkey_hash = {};
+    bool l_have_owner_hash = l_wallet_pkey && dap_pkey_get_hash(l_wallet_pkey, &l_owner_pkey_hash);
+    srv_pay_cache_list_t *l_cache_list = l_have_owner_hash ? dap_chain_srv_pay_cache_get(l_net, &l_owner_pkey_hash) : NULL;
+
+    if (l_cache_list && l_cache_list->count > 0) {
+        for (size_t i = 0; i < l_cache_list->count; i++) {
+            srv_pay_cache_entry_t *l_entry = l_cache_list->entries[i];
+            if (!l_entry || l_entry->is_removed || l_entry->srv_uid != l_srv_uid.uint64 ||
+                    IS_ZERO_256(l_entry->value) || dap_strcmp(l_entry->ticker, l_native_ticker))
+                continue;
+            if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_entry->tail_hash, l_entry->prev_cond_idx, NULL))
+                continue;
+
+            char *l_remain_coins_str = dap_chain_balance_to_coins(l_entry->value);
+            char *l_remain_datoshi_str = dap_chain_balance_print(l_entry->value);
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_entry->tail_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            json_object *l_jobj_remain = json_object_new_object();
+            json_object_object_add(l_jobj_remain, "coins", json_object_new_string(l_remain_coins_str));
+            json_object_object_add(l_jobj_remain, "datoshi", json_object_new_string(l_remain_datoshi_str));
+            json_object *l_jobj_tx = json_object_new_object();
+            json_object_object_add(l_jobj_tx, "hash", json_object_new_string(l_hash_str));
+            json_object_object_add(l_jobj_tx, "remain", l_jobj_remain);
+            json_object_object_add(l_jobj_tx, "ticker", json_object_new_string(l_native_ticker));
+            json_object_array_add(l_jobj_tx_list_cond_outs, l_jobj_tx);
+            l_tx_count++;
+            SUM_256_256(l_total_value, l_entry->value, &l_total_value);
         }
-        dap_chain_datum_tx_t *l_tx = l_data_tx->tx;
-        int l_prev_cond_idx = 0;
-        dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , &l_prev_cond_idx);
-        if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64 || IS_ZERO_256(l_out_cond->header.value))
-            continue;
+        dap_chain_srv_pay_cache_list_free(l_cache_list);
+    } else {
+        dap_chain_srv_pay_cache_list_free(l_cache_list);
+        dap_list_t *l_tx_list = NULL;
+        dap_chain_net_get_tx_all(l_net, TX_SEARCH_TYPE_NET, s_tx_is_srv_pay_check, &l_tx_list);
+        for (dap_list_t *it = l_tx_list; it; it = it->next) {
+            tx_check_args_t *l_data_tx = (tx_check_args_t*)it->data;
+            dap_chain_datum_tx_t *l_tx = l_data_tx->tx;
+            int l_prev_cond_idx = 0;
+            dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , &l_prev_cond_idx);
+            if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64 || IS_ZERO_256(l_out_cond->header.value))
+                continue;
 
-        if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_data_tx->tx_hash, l_prev_cond_idx, NULL)) {
-            continue;
+            if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_data_tx->tx_hash, l_prev_cond_idx, NULL)) {
+                continue;
+            }
+
+            const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_data_tx->tx_hash);
+            if (!l_tx_ticker) {
+                continue;
+            }
+            if (strcmp(l_native_ticker, l_tx_ticker)) {
+                continue;
+            }
+
+            // Check sign
+            dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond->header.subtype);
+            dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
+                ? l_tx
+                : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
+
+            if (!l_owner_tx)
+                continue;
+            dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+            dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
+
+
+            if (!dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign)) {
+                continue;
+            }
+
+            char *l_remain_datoshi_str = NULL;
+            char *l_remain_coins_str = NULL;
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_data_tx->tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            l_remain_coins_str = dap_chain_balance_to_coins(l_out_cond->header.value);
+            l_remain_datoshi_str = dap_chain_balance_print(l_out_cond->header.value);
+            json_object *l_jobj_hash = json_object_new_string(l_hash_str);
+            json_object *l_jobj_remain = json_object_new_object();
+            json_object *l_jobj_remain_coins = json_object_new_string(l_remain_coins_str);
+            json_object *l_jobj_remain_datoshi = json_object_new_string(l_remain_datoshi_str);
+            json_object_object_add(l_jobj_remain, "coins", l_jobj_remain_coins);
+            json_object_object_add(l_jobj_remain, "datoshi", l_jobj_remain_datoshi);
+            json_object *l_jobj_native_ticker = json_object_new_string(l_native_ticker);
+            json_object *l_jobj_tx = json_object_new_object();
+            json_object_object_add(l_jobj_tx, "hash", l_jobj_hash);
+            json_object_object_add(l_jobj_tx, "remain", l_jobj_remain);
+            json_object_object_add(l_jobj_tx, "ticker", l_jobj_native_ticker);
+            json_object_array_add(l_jobj_tx_list_cond_outs, l_jobj_tx);
+            l_tx_count++;
+            SUM_256_256(l_total_value, l_out_cond->header.value, &l_total_value);
         }
-
-        const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_data_tx->tx_hash);
-        if (!l_tx_ticker) {
-            continue;
-        }
-        if (strcmp(l_native_ticker, l_tx_ticker)) {
-            continue;
-        }
-
-        // Check sign
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond->header.subtype);
-        dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
-            ? l_tx
-            : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
-            
-        if (!l_owner_tx)
-            continue;
-        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
-
-
-        if (!dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign)) {
-            continue;
-        }
-
-        char *l_remain_datoshi_str = NULL;
-        char *l_remain_coins_str = NULL; 
-        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(&l_data_tx->tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        l_remain_coins_str = dap_chain_balance_to_coins(l_out_cond->header.value);
-        l_remain_datoshi_str = dap_chain_balance_print(l_out_cond->header.value);
-        json_object *l_jobj_hash = json_object_new_string(l_hash_str);
-        json_object *l_jobj_remain = json_object_new_object();
-        json_object *l_jobj_remain_coins = json_object_new_string(l_remain_coins_str);
-        json_object *l_jobj_remain_datoshi = json_object_new_string(l_remain_datoshi_str);
-        json_object_object_add(l_jobj_remain, "coins", l_jobj_remain_coins);
-        json_object_object_add(l_jobj_remain, "datoshi", l_jobj_remain_datoshi);
-        json_object *l_jobj_native_ticker = json_object_new_string(l_native_ticker);
-        json_object *l_jobj_tx = json_object_new_object();
-        json_object_object_add(l_jobj_tx, "hash", l_jobj_hash);
-        json_object_object_add(l_jobj_tx, "remain", l_jobj_remain);
-        json_object_object_add(l_jobj_tx, "ticker", l_jobj_native_ticker);
-        json_object_array_add(l_jobj_tx_list_cond_outs, l_jobj_tx);
-        l_tx_count++;
-        SUM_256_256(l_total_value, l_out_cond->header.value, &l_total_value);
+        dap_list_free_full(l_tx_list, NULL);
     }
     char *l_total_coins_str = dap_chain_balance_to_coins(l_total_value);
     char *l_total_datoshi_str = dap_chain_balance_print(l_total_value);
@@ -8186,7 +8221,6 @@ static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_ar
     json_object *l_jobj_ret = json_object_new_object();
     json_object_object_add(l_jobj_ret, "transactions_out_cond", l_jobj_tx_list_cond_outs);
     json_object_object_add(l_jobj_ret, "total", l_jobj_total);
-    dap_list_free_full(l_tx_list, NULL);
     json_object_array_add(*a_json_arr_reply, l_jobj_ret);
     DAP_DEL_Z(l_wallet_pkey);
     dap_chain_wallet_close(l_wallet);
