@@ -1788,15 +1788,6 @@ char *s_staker_order_create(dap_chain_net_t *a_net, uint256_t a_value, dap_hash_
     return l_order_hash_str;
 }
 
-static int time_compare_orders(const void *a, const void *b) {
-    dap_global_db_obj_t *obj_a = (dap_global_db_obj_t*)a;
-    dap_global_db_obj_t *obj_b = (dap_global_db_obj_t*)b;
-
-    if (obj_a->timestamp < obj_b->timestamp) return -1;
-    if (obj_a->timestamp > obj_b->timestamp) return 1;
-    return 0;
-}
-
 int json_object_compare_by_timestamp(const void *a, const void *b) {
     struct json_object *obj_a = *(struct json_object **)a;
     struct json_object *obj_b = *(struct json_object **)b;
@@ -2161,7 +2152,11 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, voi
                                         dap_chain_net_srv_order_get_common_group(l_net);
             size_t l_orders_count = 0;
             dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
-            qsort(l_orders, l_orders_count, sizeof(dap_global_db_obj_t), time_compare_orders);
+            // The per-group qsort by raw GDB timestamp used to run here (P.23), but its
+            // ordering was immediately discarded: entries are filtered/converted to JSON
+            // below and the final reply array is independently re-sorted by timestamp via
+            // json_object_array_sort()+json_object_compare_by_timestamp() further down. It
+            // was pure dead work (two full sorts of the raw group per "order list" call).
             for (size_t i = 0; i < l_orders_count; i++) {
                 const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
                 if (!l_order) {
@@ -4065,15 +4060,23 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
                             l_datum;
                             l_datum = iter_direc(l_datum_iter))
     {
-        dap_hash_fast_t l_ttx_hash = {0};
-        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-        dap_hash_fast(l_tx, l_datum->header.data_size, &l_ttx_hash);
-        const char *l_tx_token_ticker = NULL;        
         if (a_limit && i_tmp >= l_arr_end)
             break;
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
             // go to next datum
             continue;
+        dap_hash_fast_t l_ttx_hash = {0};
+        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+        // The iterator already computed and cached this datum's hash (cur_hash, set by
+        // s_datum_iter_fill()/its dag analogue) - reuse it instead of recomputing a fresh
+        // SHA3 over the whole tx body for *every* datum walked (P.23), including the ones
+        // filtered out just below by type/ticker/time. Recompute only as a fallback for any
+        // iterator implementation that doesn't provide cur_hash.
+        if (l_datum_iter && l_datum_iter->cur_hash)
+            l_ttx_hash = *l_datum_iter->cur_hash;
+        else
+            dap_hash_fast(l_tx, l_datum->header.data_size, &l_ttx_hash);
+        const char *l_tx_token_ticker = NULL;
         l_tx_token_ticker = l_datum_iter ? l_datum_iter->token_ticker
                                      : dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_ttx_hash);
                                      //dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_datum_hash);
