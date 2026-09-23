@@ -2952,7 +2952,12 @@ static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    for (dap_chain_block_datum_index_t *it = PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->datum_index;
+    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(DAP_CHAIN_CS_BLOCKS(a_chain));
+    // datum_index is mutated (HASH_ADD/HASH_DEL) under datums_rwlock from
+    // s_add_atom_datums()/s_delete_atom_datums(), so walking it must take
+    // the same lock, same as every other reader (s_callback_datum_find_by_hash() etc.)
+    pthread_rwlock_rdlock(&l_blocks_pvt->datums_rwlock);
+    for (dap_chain_block_datum_index_t *it = l_blocks_pvt->datum_index;
                 it && l_counter < l_end;
                 it = it->hh.next) {
         dap_chain_datum_t *l_datum = it->block_cache->datum[it->datum_index];
@@ -2961,6 +2966,7 @@ static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size
             l_list = dap_list_append(l_list, l_tx);
         }
     }
+    pthread_rwlock_unlock(&l_blocks_pvt->datums_rwlock);
     return l_list;
 }
 
