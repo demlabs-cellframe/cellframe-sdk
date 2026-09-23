@@ -471,7 +471,25 @@ static dap_ledger_t *dap_ledger_handle_new(void)
         return NULL;
     }
     // Initialize Read/Write Lock Attribute
+    // B4: default glibc rwlock policy prefers readers, which under a steady
+    // stream of RPC read-only queries (ledger list/tx_history/wallet info/
+    // tx_create_json UTXO scans, all rdlock) can starve the writer taking
+    // ledger_rwlock to add a new tx/block - i.e. new atoms land later than
+    // they should while readers keep flowing. Switch this specific lock
+    // (the one contended between chain sync and RPC reads) to
+    // writer-preferring; verified above that dap_ledger_tx_add() never
+    // takes ledger_rwlock recursively (no rdlock-then-rdlock/wrlock nesting
+    // on the same lock from the same thread), so this can't introduce a
+    // self-deadlock. glibc-only extension, hence the platform guard.
+#ifdef DAP_OS_LINUX
+    pthread_rwlockattr_t l_ledger_rwlock_attr;
+    pthread_rwlockattr_init(&l_ledger_rwlock_attr);
+    pthread_rwlockattr_setkind_np(&l_ledger_rwlock_attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+    pthread_rwlock_init(&l_ledger_pvt->ledger_rwlock, &l_ledger_rwlock_attr);
+    pthread_rwlockattr_destroy(&l_ledger_rwlock_attr);
+#else
     pthread_rwlock_init(&l_ledger_pvt->ledger_rwlock, NULL);
+#endif
     pthread_rwlock_init(&l_ledger_pvt->tokens_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->threshold_txs_rwlock , NULL);
     pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock , NULL);
@@ -5228,6 +5246,18 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     const char *l_cur_token_ticker = NULL;
 
     // Update balance: deducts
+    // B4: the loop below mutates cache_data (tx_hash_spent_fast[], n_outs_used,
+    // ts_spent) of *previously added* dap_ledger_tx_item_t entries - items
+    // already reachable from ledger_items and read by every other thread
+    // (dap_ledger_tx_find_datum_by_hash, s_ledger_tx_hash_is_used_out_item,
+    // dap_ledger_get_final_chain_tx_hash, RPC ledger/tx_history/wallet
+    // queries, ...) via a pointer obtained under a plain rdlock and then
+    // dereferenced *after* releasing it. Previously nothing here took
+    // ledger_rwlock at all, so a concurrent reader could observe a
+    // torn/partial cache_data update. Hold wrlock for the whole mutation
+    // loop, matching the lock already taken further down for the
+    // HASH_ADD_INORDER insert of the new tx item itself.
+    pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
     int l_spent_idx = 0;
     for (dap_list_t *it = l_list_bound_items; it; it = it->next) {
         dap_ledger_tx_bound_t *l_bound_item = it->data;
@@ -5346,6 +5376,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         if (l_prev_item_out->cache_data.n_outs_used == l_prev_item_out->cache_data.n_outs)
             l_prev_item_out->cache_data.ts_spent = a_tx->header.ts_created;
     }
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
 
 
     //Update balance : raise
