@@ -112,6 +112,53 @@ static dap_list_t *s_srv_stake_list = NULL;
 
 static bool s_debug_more = false;
 
+/* ============================================================================
+ * Fee validators cache (B3)
+ * ============================================================================
+ * dap_chain_net_srv_stake_get_fee_validators() is called once per
+ * DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE item during every tx compose
+ * (dap_chain_net_tx.c, both the legacy and JSON compose paths) purely to
+ * read the current minimum validator fee. It used to always re-scan the
+ * *entire* per-net service orders GDB group with dap_global_db_get_all_sync,
+ * deduplicate every order by validator pkey, sort all fees and compute
+ * min/max/average/median from scratch - on every single compose call, even
+ * though validator fee orders change on the order of minutes/hours, not
+ * per-transaction. See cellframe_node_rpc_overload_research_2026_09 sec.
+ * 10.2 (fee validators recomputed on every compose).
+ *
+ * Cached per net, invalidated by an orders-cluster notify callback: any
+ * ADD/DEL in the net's service orders group bumps the net's epoch, so the
+ * next call recomputes. Over-invalidating (the group also holds non-fee
+ * orders) is safe and cheap - it just costs one extra recompute; only
+ * under-invalidating (returning stale data) would be a correctness bug.
+ */
+typedef struct dap_srv_stake_fee_cache {
+    dap_chain_net_id_t net_id;
+    bool valid;
+    uint256_t min_fee, max_fee, average_fee, median_fee;
+    UT_hash_handle hh;
+} dap_srv_stake_fee_cache_t;
+
+static dap_srv_stake_fee_cache_t *s_fee_cache = NULL;
+static pthread_rwlock_t s_fee_cache_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
+// Cluster notify callback: any change in the net's service orders group
+// (fee orders among them) invalidates that net's cached fee stats. Does not
+// inspect a_obj - both ADD and DEL for any order type in this group are
+// cheap enough to just always invalidate, and filtering by srv_uid here
+// would require parsing the order out of a_obj, which is strictly more work
+// than the invalidation it would save.
+static void s_fee_cache_invalidate_notify(UNUSED_ARG dap_store_obj_t *a_obj, void *a_arg)
+{
+    dap_chain_net_id_t l_net_id = { .uint64 = (uint64_t)(uintptr_t)a_arg };
+    pthread_rwlock_wrlock(&s_fee_cache_rwlock);
+    dap_srv_stake_fee_cache_t *l_entry = NULL;
+    HASH_FIND(hh, s_fee_cache, &l_net_id, sizeof(l_net_id), l_entry);
+    if (l_entry)
+        l_entry->valid = false;
+    pthread_rwlock_unlock(&s_fee_cache_rwlock);
+}
+
 static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp, dap_chain_tx_tag_action_type_t *a_action)
 {
     // keydelegation open: have STAK_POS_DELEGATE out
@@ -216,6 +263,10 @@ int dap_chain_net_srv_stake_net_add(dap_chain_net_id_t a_net_id)
         DAP_DELETE(l_srv_stake);
         return -2;
     }
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (l_net)
+        dap_chain_net_srv_order_add_notify_callback(l_net, s_fee_cache_invalidate_notify,
+                                                     (void *)(uintptr_t)a_net_id.uint64);
     log_it(L_NOTICE, "Successfully added net ID 0x%016" DAP_UINT64_FORMAT_x, a_net_id.uint64);
     return 0;
 }
@@ -251,6 +302,13 @@ void dap_chain_net_srv_stake_pos_delegate_deinit()
         s_stake_net_clear(it);
     dap_list_free_full(s_srv_stake_list, NULL);
     s_srv_stake_list = NULL;
+    pthread_rwlock_wrlock(&s_fee_cache_rwlock);
+    dap_srv_stake_fee_cache_t *l_item, *l_tmp;
+    HASH_ITER(hh, s_fee_cache, l_item, l_tmp) {
+        HASH_DEL(s_fee_cache, l_item);
+        DAP_DELETE(l_item);
+    }
+    pthread_rwlock_unlock(&s_fee_cache_rwlock);
 }
 
 // Custom conditional output matching callback for staking
@@ -4061,6 +4119,20 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
                                                 uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee, uint256_t *a_median_fee)
 {
     dap_return_val_if_fail(a_net, false);
+
+    pthread_rwlock_rdlock(&s_fee_cache_rwlock);
+    dap_srv_stake_fee_cache_t *l_cached = NULL;
+    HASH_FIND(hh, s_fee_cache, &a_net->pub.id, sizeof(a_net->pub.id), l_cached);
+    if (l_cached && l_cached->valid) {
+        if (a_max_fee) *a_max_fee = l_cached->max_fee;
+        if (a_average_fee) *a_average_fee = l_cached->average_fee;
+        if (a_min_fee) *a_min_fee = l_cached->min_fee;
+        if (a_median_fee) *a_median_fee = l_cached->median_fee;
+        pthread_rwlock_unlock(&s_fee_cache_rwlock);
+        return true;
+    }
+    pthread_rwlock_unlock(&s_fee_cache_rwlock);
+
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
     size_t l_orders_count = 0;
     dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
@@ -4192,6 +4264,26 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         *a_median_fee = l_median;
     if (a_max_fee)
         *a_max_fee = l_max;
+
+    pthread_rwlock_wrlock(&s_fee_cache_rwlock);
+    dap_srv_stake_fee_cache_t *l_entry = NULL;
+    HASH_FIND(hh, s_fee_cache, &a_net->pub.id, sizeof(a_net->pub.id), l_entry);
+    if (!l_entry) {
+        l_entry = DAP_NEW_Z(dap_srv_stake_fee_cache_t);
+        if (l_entry) {
+            l_entry->net_id = a_net->pub.id;
+            HASH_ADD(hh, s_fee_cache, net_id, sizeof(l_entry->net_id), l_entry);
+        }
+    }
+    if (l_entry) {
+        l_entry->min_fee = l_min;
+        l_entry->max_fee = l_max;
+        l_entry->average_fee = l_average;
+        l_entry->median_fee = l_median;
+        l_entry->valid = true;
+    }
+    pthread_rwlock_unlock(&s_fee_cache_rwlock);
+
     return true;
 }
 
