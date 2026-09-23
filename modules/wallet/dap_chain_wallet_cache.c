@@ -1377,7 +1377,10 @@ dap_chain_wallet_cache_iter_t *dap_chain_wallet_cache_iter_create(dap_chain_addr
 {
     dap_chain_wallet_cache_iter_t *l_iter = NULL;
 
-    pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+    // Read-only lookup (HASH_FIND, no mutation of s_wallets_cache/wallet_txs) - a plain
+    // rdlock is enough here (P.14); the previous wrlock needlessly serialized every
+    // concurrent iterator creation/history read against every other reader.
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
     dap_wallet_cache_t *l_wallet_item = NULL, *l_tmp;
     HASH_FIND(hh, s_wallets_cache, &a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
     if (!l_wallet_item || !l_wallet_item->wallet_txs){
@@ -1407,15 +1410,19 @@ dap_chain_datum_tx_t *dap_chain_wallet_cache_iter_get(dap_chain_wallet_cache_ite
     if (!a_iter)
         return NULL;
         
+    // All four cases below only read cur_addr_cache/wallet_txs (HASH lookup or hh.next/prev
+    // traversal) into the iterator - no mutation of s_wallets_cache/wallet_txs happens here,
+    // so a rdlock is sufficient (P.14: was wrlock, serializing every concurrent history read
+    // against every other reader for no reason).
     switch (a_type){
         case DAP_CHAIN_WALLET_CACHE_GET_FIRST:{
-            pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+            pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
             dap_wallet_cache_t *l_wallet_cache = (dap_wallet_cache_t*)a_iter->cur_addr_cache;
             s_wallet_cache_iter_fill(a_iter, l_wallet_cache ? l_wallet_cache->wallet_txs : NULL);
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         } break;
         case DAP_CHAIN_WALLET_CACHE_GET_LAST:{
-            pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+            pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
             dap_wallet_cache_t *l_wallet_cache = (dap_wallet_cache_t*)a_iter->cur_addr_cache;
             dap_wallet_tx_cache_t *l_tx_cache = NULL;
             if (l_wallet_cache)
@@ -1424,14 +1431,14 @@ dap_chain_datum_tx_t *dap_chain_wallet_cache_iter_get(dap_chain_wallet_cache_ite
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         } break;
         case DAP_CHAIN_WALLET_CACHE_GET_NEXT:{
-            pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+            pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
             dap_wallet_tx_cache_t *l_tx_cache = a_iter->cur_item ? (dap_wallet_tx_cache_t*)a_iter->cur_item : NULL;
             l_tx_cache = l_tx_cache && l_tx_cache->hh.next ? l_tx_cache->hh.next : NULL;
             s_wallet_cache_iter_fill(a_iter, l_tx_cache);
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         } break;
         case DAP_CHAIN_WALLET_CACHE_GET_PREVIOUS:{
-            pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+            pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
             dap_wallet_tx_cache_t *l_tx_cache = a_iter->cur_item ? (dap_wallet_tx_cache_t*)a_iter->cur_item : NULL;
             l_tx_cache = l_tx_cache && l_tx_cache->hh.prev ? l_tx_cache->hh.prev : NULL;
             s_wallet_cache_iter_fill(a_iter, l_tx_cache);
