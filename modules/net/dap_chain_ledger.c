@@ -2171,6 +2171,49 @@ static bool s_pack_ledger_balance_info_json (json_object *a_json_arr_out, dap_le
         json_object_array_add(a_json_arr_out, json_obj_tx);
     return 0;
 }
+
+// D5: flat value-only snapshots of the fields s_pack_ledger_threshold_info_json/
+// s_pack_ledger_balance_info_json actually read, so dap_ledger_threshold_info()/
+// dap_ledger_balance_info() can collect the requested page under a short rdlock and
+// build all json_object's afterwards, instead of holding threshold_txs_rwlock/
+// balance_accounts_rwlock for the whole JSON serialization pass (same lock-held-
+// during-serialize class of issue already fixed for DEX in stage C1).
+typedef struct ledger_threshold_snapshot {
+    dap_hash_fast_t tx_hash_fast;
+    dap_time_t ts_created;
+    uint32_t tx_items_size;
+} ledger_threshold_snapshot_t;
+
+typedef struct ledger_balance_snapshot {
+    char *key;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t balance;
+} ledger_balance_snapshot_t;
+
+static bool s_pack_ledger_threshold_snapshot_json(json_object *a_json_arr_out, const ledger_threshold_snapshot_t *a_snap, int a_version)
+{
+    json_object *json_obj_tx = json_object_new_object();
+    if (!json_obj_tx)
+        return 1;
+    char l_tx_prev_hash_str[DAP_HASH_FAST_STR_SIZE] = {0};
+    char l_time[DAP_TIME_STR_SIZE] = {0};
+    dap_chain_hash_fast_to_str(&a_snap->tx_hash_fast, l_tx_prev_hash_str, sizeof(l_tx_prev_hash_str));
+    dap_time_to_str_rfc822(l_time, sizeof(l_time), a_snap->ts_created);
+    json_object_object_add(json_obj_tx, a_version == 1 ? "Ledger thresholded tx_hash_fast" : "tx_hash", json_object_new_string(l_tx_prev_hash_str));
+    json_object_object_add(json_obj_tx, "time_created", json_object_new_string(l_time));
+    json_object_object_add(json_obj_tx, "tx_item_size", json_object_new_int(a_snap->tx_items_size));
+    json_object_array_add(a_json_arr_out, json_obj_tx);
+    return 0;
+}
+
+static void s_pack_ledger_balance_snapshot_json(json_object *a_json_arr_out, const ledger_balance_snapshot_t *a_snap, int a_version)
+{
+    json_object *json_obj_tx = json_object_new_object();
+    json_object_object_add(json_obj_tx, a_version == 1 ? "Ledger balance key" : "balance_key", json_object_new_string(a_snap->key));
+    json_object_object_add(json_obj_tx, "token_ticker", json_object_new_string(a_snap->token_ticker));
+    json_object_object_add(json_obj_tx, "balance", json_object_new_string(dap_uint256_to_char(a_snap->balance, NULL)));
+    json_object_array_add(a_json_arr_out, json_obj_tx);
+}
 json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, dap_chain_hash_fast_t *a_threshold_hash, bool a_head, int a_version)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -2178,64 +2221,84 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger, size_t a_limit, s
     json_object *json_arr_out = json_object_new_array();
     if (!json_arr_out)
         return NULL;
-    uint32_t l_counter = 0;
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
     dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->threshold_txs),false);
 
-    pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     if (a_threshold_hash) {
+        // Single lookup, no page to build - a short rdlock around the HASH_FIND is enough,
+        // the JSON built here is tiny and value-only (found/not-found), no need for a snapshot.
+        pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
+        HASH_FIND(hh, l_ledger_pvt->threshold_txs, a_threshold_hash, sizeof(dap_hash_t), l_tx_item);
+        bool l_found = l_tx_item != NULL;
+        pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
         json_object *json_obj_tx = json_object_new_object();
         if (!json_obj_tx) {
-            pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
             json_object_put(json_arr_out);
             return NULL;
         }
-        HASH_FIND(hh, l_ledger_pvt->threshold_txs, a_threshold_hash, sizeof(dap_hash_t), l_tx_item);
-        if (l_tx_item) {
+        if (l_found)
             json_object_object_add(json_obj_tx, a_version == 1 ? "Hash was found in ledger tx threshold" : "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(a_threshold_hash)));
-            json_object_array_add(json_arr_out, json_obj_tx);
-        } else {
-            json_object_object_add(json_obj_tx, a_version == 1 ? "Hash wasn't found in ledger" : "tx_hash", json_object_new_string("empty"));
-            json_object_array_add(json_arr_out, json_obj_tx);
-        }
-    } else {
-        size_t i_tmp = 0;
-        if (a_head)
-        HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp) {
-            if (i_tmp < l_arr_start || i_tmp >= l_arr_end)
-            {
-                i_tmp++;                
-                continue;
-            }
-            i_tmp++;
-            if (s_pack_ledger_threshold_info_json(json_arr_out, l_tx_item, a_version)) {
-                pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-                json_object_put(json_arr_out);
-                return NULL;
-            }            
-            l_counter++;
-        }
         else
-        {
+            json_object_object_add(json_obj_tx, a_version == 1 ? "Hash wasn't found in ledger" : "tx_hash", json_object_new_string("empty"));
+        json_object_array_add(json_arr_out, json_obj_tx);
+    } else {
+        // D5: collect the requested page as flat POD snapshots under rdlock, release the
+        // lock, then build all json_object's - avoids holding threshold_txs_rwlock for the
+        // whole serialization pass (lock-held-during-serialize, same class as DEX C1).
+        // Snapshot capacity is l_arr_end - l_arr_start (dap_chain_set_offset_limit_json
+        // clamps l_arr_end to the table size when a_limit==0/"unlimited"), not a_limit itself.
+        size_t l_snap_cap = l_arr_end > l_arr_start ? l_arr_end - l_arr_start : 0;
+        ledger_threshold_snapshot_t *l_snap = l_snap_cap ? DAP_NEW_Z_COUNT(ledger_threshold_snapshot_t, l_snap_cap) : NULL;
+        size_t l_snap_count = 0;
+        size_t i_tmp = 0;
+        pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
+        if (a_head)
+            HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp) {
+                if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
+                    i_tmp++;
+                    continue;
+                }
+                i_tmp++;
+                if (l_snap && l_snap_count < l_snap_cap) {
+                    l_snap[l_snap_count++] = (ledger_threshold_snapshot_t){
+                        .tx_hash_fast = l_tx_item->tx_hash_fast,
+                        .ts_created = l_tx_item->cache_data.ts_created,
+                        .tx_items_size = l_tx_item->tx->header.tx_items_size
+                    };
+                }
+            }
+        else {
             l_tx_item = HASH_LAST(l_ledger_pvt->threshold_txs);
             for(; l_tx_item; l_tx_item = l_tx_item->hh.prev, i_tmp++){
                 if (i_tmp < l_arr_start || i_tmp >= l_arr_end)
                     continue;
-                if (s_pack_ledger_threshold_info_json(json_arr_out, l_tx_item, a_version)) {
-                    pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-                    json_object_put(json_arr_out);
-                    return NULL;
+                if (l_snap && l_snap_count < l_snap_cap) {
+                    l_snap[l_snap_count++] = (ledger_threshold_snapshot_t){
+                        .tx_hash_fast = l_tx_item->tx_hash_fast,
+                        .ts_created = l_tx_item->cache_data.ts_created,
+                        .tx_items_size = l_tx_item->tx->header.tx_items_size
+                    };
                 }
-                l_counter++;
             }
         }
+        pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
+
+        uint32_t l_counter = 0;
+        for (size_t i = 0; i < l_snap_count; i++) {
+            if (s_pack_ledger_threshold_snapshot_json(json_arr_out, &l_snap[i], a_version)) {
+                DAP_DELETE(l_snap);
+                json_object_put(json_arr_out);
+                return NULL;
+            }
+            l_counter++;
+        }
+        DAP_DELETE(l_snap);
         if (!l_counter) {
             json_object* json_obj_tx = json_object_new_object();
             json_object_object_add(json_obj_tx, "status", json_object_new_string("0 items in ledger tx threshold"));
             json_object_array_add(json_arr_out, json_obj_tx);
         }
-        pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
     }
 
     return json_arr_out;
@@ -2245,14 +2308,20 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     json_object * json_arr_out = json_object_new_array();
-    pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
-    uint32_t l_counter = 0;
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
     size_t l_arr_start = 0;
     size_t l_arr_end = 0;
     dap_chain_set_offset_limit_json(json_arr_out, &l_arr_start, &l_arr_end, a_limit, a_offset, HASH_COUNT(l_ledger_pvt->balance_accounts),false);
 
+    // D5: same snapshot-then-serialize pattern as dap_ledger_threshold_info() above -
+    // collect the requested page as flat POD snapshots (key is duplicated, since the
+    // original dap_ledger_wallet_balance_t.key string lives only as long as the item)
+    // under rdlock, then build json_object's after unlock.
+    size_t l_snap_cap = l_arr_end > l_arr_start ? l_arr_end - l_arr_start : 0;
+    ledger_balance_snapshot_t *l_snap = l_snap_cap ? DAP_NEW_Z_COUNT(ledger_balance_snapshot_t, l_snap_cap) : NULL;
+    size_t l_snap_count = 0;
     size_t i_tmp = 0;
+    pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
     if (a_head)
         HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_item, l_balance_tmp) {
             if (i_tmp < l_arr_start || i_tmp >= l_arr_end) {
@@ -2260,24 +2329,40 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger, size_t a_limit, siz
                 continue;
             }
             i_tmp++;
-            s_pack_ledger_balance_info_json(json_arr_out, l_balance_item, a_version);
-            l_counter +=1;
+            if (l_snap && l_snap_count < l_snap_cap) {
+                l_snap[l_snap_count].key = dap_strdup(l_balance_item->key);
+                dap_strncpy(l_snap[l_snap_count].token_ticker, l_balance_item->token_ticker, sizeof(l_snap[l_snap_count].token_ticker) - 1);
+                l_snap[l_snap_count].balance = l_balance_item->balance;
+                l_snap_count++;
+            }
         }
     else {
         l_balance_item = HASH_LAST(l_ledger_pvt->balance_accounts);
             for(; l_balance_item; l_balance_item = l_balance_item->hh.prev, i_tmp++){
                 if (i_tmp < l_arr_start || i_tmp >= l_arr_end)
                     continue;
-                s_pack_ledger_balance_info_json(json_arr_out, l_balance_item, a_version);
-                l_counter++;
+                if (l_snap && l_snap_count < l_snap_cap) {
+                    l_snap[l_snap_count].key = dap_strdup(l_balance_item->key);
+                    dap_strncpy(l_snap[l_snap_count].token_ticker, l_balance_item->token_ticker, sizeof(l_snap[l_snap_count].token_ticker) - 1);
+                    l_snap[l_snap_count].balance = l_balance_item->balance;
+                    l_snap_count++;
+                }
             }
     }
+    pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
+
+    uint32_t l_counter = 0;
+    for (size_t i = 0; i < l_snap_count; i++) {
+        s_pack_ledger_balance_snapshot_json(json_arr_out, &l_snap[i], a_version);
+        DAP_DELETE(l_snap[i].key);
+        l_counter++;
+    }
+    DAP_DELETE(l_snap);
     if (!l_counter){
         json_object* json_obj_tx = json_object_new_object();
         json_object_object_add(json_obj_tx, a_version == 1 ? "No items in ledger balance_accounts" : "info_status", json_object_new_string("empty"));
         json_object_array_add(json_arr_out, json_obj_tx);
     } 
-    pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
     return json_arr_out;
 }
 
