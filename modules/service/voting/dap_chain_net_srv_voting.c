@@ -91,6 +91,11 @@ typedef struct dap_chain_net_votings {
     dap_list_t *votes;
     dap_chain_net_id_t net_id;
 
+    // Guards `votes` (dap_list_t of dap_chain_net_vote_t): mutated (append/delete_link/free)
+    // from the ledger verificator/deleted-callback threads on every vote tx concurrently
+    // with CLI reads (poll dump/results/list) - previously had zero synchronization at all,
+    // same class of bug already found and fixed for srv_stake's itemlist.
+    pthread_rwlock_t votes_rwlock;
     pthread_rwlock_t s_tx_outs_rwlock;
     dap_chain_net_voting_cond_outs_t *voting_spent_cond_outs;
 
@@ -144,9 +149,16 @@ static void s_voting_restore_previous_vote(dap_ledger_t *a_ledger, dap_chain_net
                                            dap_time_t a_deleted_ts)
 {
     dap_return_if_fail(a_ledger && a_voting && a_deleted_hash && a_pkey_hash);
+    pthread_rwlock_rdlock(&a_voting->votes_rwlock);
+    bool l_already_voted = false;
     for (dap_list_t *it = a_voting->votes; it; it = it->next)
-        if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)it->data)->pkey_hash, a_pkey_hash))
-            return;
+        if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)it->data)->pkey_hash, a_pkey_hash)) {
+            l_already_voted = true;
+            break;
+        }
+    pthread_rwlock_unlock(&a_voting->votes_rwlock);
+    if (l_already_voted)
+        return;
 
     dap_hash_fast_t l_prev_vote_hash = {};
     dap_time_t l_prev_vote_ts = 0;
@@ -263,19 +275,21 @@ uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash
         return NULL;
     }
 
-    l_voting_results = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint64_t, dap_list_length(l_voting->voting_params.option_offsets_list), NULL);
+    size_t l_options_count = dap_list_length(l_voting->voting_params.option_offsets_list);
+    l_voting_results = DAP_NEW_Z_COUNT_RET_VAL_IF_FAIL(uint64_t, l_options_count, NULL);
 
-    dap_list_t* l_temp = l_voting->votes;
-    while(l_temp){
+    pthread_rwlock_rdlock(&l_voting->votes_rwlock);
+    for (dap_list_t *l_temp = l_voting->votes; l_temp; l_temp = l_temp->next) {
         dap_chain_net_vote_t* l_vote = l_temp->data;
-        if (l_vote->answer_idx >= dap_list_length(l_voting->voting_params.option_offsets_list))
+        // Was `continue` here, which skipped the l_temp = l_temp->next advance in the old
+        // while-loop form - an infinite loop if a vote ever had an out-of-range answer_idx.
+        // Rewritten as a for-loop so `continue` (now unreachable dead branch, kept for
+        // clarity) can no longer do that.
+        if (l_vote->answer_idx >= l_options_count)
             continue;
-
         l_voting_results[l_vote->answer_idx]++;
-
-        l_temp = l_temp->next;
     }
-
+    pthread_rwlock_unlock(&l_voting->votes_rwlock);
 
     return l_voting_results;
 }
@@ -321,6 +335,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
     l_item->voting_hash = *a_tx_hash;
     l_item->voting_params.voting_tx = a_tx_in;
     l_item->net_id = a_ledger->net->pub.id;
+    pthread_rwlock_init(&l_item->votes_rwlock, NULL);
     pthread_rwlock_init(&l_item->s_tx_outs_rwlock, NULL);
 
     dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
@@ -474,7 +489,10 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
                                                 l_vote_tx_item->answer_idx, dap_chain_hash_fast_to_str_static(a_tx_hash));
         return -6;
     }
-    if (l_voting->voting_params.votes_max_count && dap_list_length(l_voting->votes) >= l_voting->voting_params.votes_max_count){
+    pthread_rwlock_rdlock(&l_voting->votes_rwlock);
+    size_t l_votes_count = dap_list_length(l_voting->votes);
+    pthread_rwlock_unlock(&l_voting->votes_rwlock);
+    if (l_voting->voting_params.votes_max_count && l_votes_count >= l_voting->voting_params.votes_max_count){
         log_it(L_WARNING, "The required number of votes has been collected for poll %s", dap_chain_hash_fast_to_str_static(&l_voting->voting_hash));
         return -7;
     }
@@ -489,13 +507,23 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         return -10;
     }
 
+    // l_old_vote (a dap_list_t* node pointer into l_voting->votes) is found here under a
+    // short rdlock and used again later (in the a_apply block) without holding the lock
+    // continuously in between. That's safe: mutations of a given poll's votes list only
+    // ever happen from this same verificator callback, which the ledger invokes serially
+    // (ledger_rwlock wrlock is held by the ledger for the whole tx-add including verificator
+    // calls) - so there is exactly one writer at a time for this list, never a concurrent
+    // second writer that could delete/free the node found here. Concurrent CLI readers
+    // (poll dump/results/list) only ever read, never mutate.
     dap_list_t *l_old_vote = NULL;
+    pthread_rwlock_rdlock(&l_voting->votes_rwlock);
     for (dap_list_t *it = l_voting->votes; it; it = it->next) {
         if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)it->data)->pkey_hash, &l_pkey_hash)) {
-            dap_hash_fast_t *l_vote_hash = &((dap_chain_net_vote_t *)it->data)->vote_hash;
             if (!l_voting->voting_params.vote_changing_allowed) {
+                dap_hash_fast_t l_vote_hash = ((dap_chain_net_vote_t *)it->data)->vote_hash;
+                pthread_rwlock_unlock(&l_voting->votes_rwlock);
                 char l_vote_hash_str[DAP_HASH_FAST_STR_SIZE];
-                dap_hash_fast_to_str(l_vote_hash, l_vote_hash_str, DAP_HASH_FAST_STR_SIZE);
+                dap_hash_fast_to_str(&l_vote_hash, l_vote_hash_str, DAP_HASH_FAST_STR_SIZE);
                 log_it(L_WARNING, "The poll %s don't allow change your vote %s",
                        dap_hash_fast_to_str_static(&l_voting->voting_hash), l_vote_hash_str);
                 return -11;
@@ -504,6 +532,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             break;
         }
     }
+    pthread_rwlock_unlock(&l_voting->votes_rwlock);
 
     uint256_t l_weight = {};
     /*dap_time_t l_spent_cutoff_ts = 0;
@@ -659,6 +688,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         l_vote_item->answer_idx = l_vote_tx_item->answer_idx;
         l_vote_item->weight = l_weight;
 
+        pthread_rwlock_wrlock(&l_voting->votes_rwlock);
         if (l_old_vote) {
             // change vote & move it to the end of list
             log_it(L_NOTICE, "Vote %s of poll %s has been changed",
@@ -669,6 +699,7 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
             log_it(L_NOTICE, "Vote %s of poll %s has been accepted", dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(&l_voting->voting_hash));
         }
         l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
+        pthread_rwlock_unlock(&l_voting->votes_rwlock);
     }
     dap_list_free(l_tsd_list);
 
@@ -770,6 +801,7 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
 
         size_t l_cond_outs_removed = s_voting_cond_outs_delete_by_pkey(l_voting, &l_pkey_hash);
         bool l_vote_removed = false;
+        pthread_rwlock_wrlock(&l_voting->votes_rwlock);
         for (dap_list_t *l_vote = l_voting->votes; l_vote; l_vote = l_vote->next)
             if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_vote->data)->vote_hash, &l_hash)) {
                 DAP_DELETE(l_vote->data);
@@ -777,6 +809,7 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
                 l_vote_removed = true;
                 break;
             }
+        pthread_rwlock_unlock(&l_voting->votes_rwlock);
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
         char l_voting_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
         char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
@@ -1402,6 +1435,9 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         int l_votes_count = 0, i = 0;
         size_t l_shown = 0;
         json_object* l_json_arr_vote_list = json_object_new_array();
+        // Was walking l_voting->votes with no lock at all here (the original poll dump
+        // finding), racing s_vote_verificator's append/delete_link on every incoming vote tx.
+        pthread_rwlock_rdlock(&l_voting->votes_rwlock);
         for (dap_list_t *l_vote_item = l_voting->votes; l_vote_item; l_vote_item = l_vote_item->next, ++l_votes_count) {
             dap_chain_net_vote_t *l_vote = l_vote_item->data;
             ++l_results[l_vote->answer_idx].num_of_votes;
@@ -1420,6 +1456,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 }
             }
         }
+        pthread_rwlock_unlock(&l_voting->votes_rwlock);
 
         json_object* json_vote_out = json_object_new_object();
         json_object_object_add(json_vote_out, "poll_tx", json_object_new_string(l_hash_str));
@@ -1591,6 +1628,7 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
 
         dap_chain_tx_vote_t *l_vote = (dap_chain_tx_vote_t *)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_VOTE, NULL);
         if (l_vote && dap_hash_fast_compare(&l_vote->voting_hash, &a_voting->voting_hash)) {
+            pthread_rwlock_rdlock(&a_voting->votes_rwlock);
             for (dap_list_t *it = a_voting->votes; it; it = it->next) {
                 dap_chain_net_vote_t *l_net_vote = (dap_chain_net_vote_t *)it->data;
                 if (dap_hash_fast_compare(&l_net_vote->vote_hash, &l_vis_entry->tx_hash)) {
@@ -1598,9 +1636,11 @@ static int s_tx_is_spent(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash, dap
                         dap_hash_fast_compare(&l_net_vote->pkey_hash, a_pkey_hash))
                         break;
                     l_result = 1;
+                    pthread_rwlock_unlock(&a_voting->votes_rwlock);
                     goto cleanup;
                 }
             }
+            pthread_rwlock_unlock(&a_voting->votes_rwlock);
         }
 
         dap_list_t *l_ins_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN, NULL);
@@ -1924,7 +1964,10 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
     if (!l_voting || l_voting->net_id.uint64 != a_net->pub.id.uint64)
         return DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE;
 
-    if (l_voting->voting_params.votes_max_count && dap_list_length(l_voting->votes) >= l_voting->voting_params.votes_max_count)
+    pthread_rwlock_rdlock(&l_voting->votes_rwlock);
+    size_t l_votes_count = dap_list_length(l_voting->votes);
+    pthread_rwlock_unlock(&l_voting->votes_rwlock);
+    if (l_voting->voting_params.votes_max_count && l_votes_count >= l_voting->voting_params.votes_max_count)
         return DAP_CHAIN_NET_VOTE_VOTING_THIS_VOTING_HAVE_MAX_VALUE_VOTES;
 
     if (l_voting->voting_params.voting_expire && dap_time_now() > l_voting->voting_params.voting_expire)
@@ -1949,13 +1992,17 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
         l_pkey_hash = l_addr_from->data.hash_fast;
 
     bool l_vote_changed = false;
+    pthread_rwlock_rdlock(&l_voting->votes_rwlock);
     for (dap_list_t *it = l_voting->votes; it; it = it->next)
         if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)it->data)->pkey_hash, &l_pkey_hash)) {
-            if (!l_voting->voting_params.vote_changing_allowed)
+            if (!l_voting->voting_params.vote_changing_allowed) {
+                pthread_rwlock_unlock(&l_voting->votes_rwlock);
                 return DAP_CHAIN_NET_VOTE_VOTING_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE;
+            }
             l_vote_changed = true;
             break;
         }
+    pthread_rwlock_unlock(&l_voting->votes_rwlock);
 
     const char *l_token_ticker = l_voting->voting_params.token_ticker;
     uint256_t l_net_fee = {}, l_total_fee = a_fee, l_value_transfer, l_fee_transfer;
@@ -2114,6 +2161,7 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
     l_info->is_delegate_key_required = a_voting->voting_params.delegate_key_required;
     l_info->options.count_option = dap_list_length(a_voting->voting_params.option_offsets_list);
     dap_chain_net_vote_info_option_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_vote_info_option_t*, l_info->options.count_option);
+    pthread_rwlock_rdlock(&a_voting->votes_rwlock);
     for (uint64_t i = 0; i < l_info->options.count_option; i++){
         dap_list_t* l_option = dap_list_nth(a_voting->voting_params.option_offsets_list, (uint64_t)i);
         dap_chain_net_vote_option_t* l_vote_option = (dap_chain_net_vote_option_t*)l_option->data;
@@ -2135,6 +2183,7 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
         }
         l_options[i] = l_option_info;
     }
+    pthread_rwlock_unlock(&a_voting->votes_rwlock);
     l_info->options.options = l_options;
     return l_info;
 }
