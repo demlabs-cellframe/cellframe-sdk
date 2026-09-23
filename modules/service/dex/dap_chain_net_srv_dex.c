@@ -8574,6 +8574,55 @@ static json_object *s_dex_datum_to_json(dap_chain_datum_tx_t *a_tx, json_object 
     return a_json_reply;
 }
 
+// C1: flat value-only snapshot of one CMD_ORDERS row. dex_order_cache_entry_t
+// carries seller_addr_ptr/pair_key_ptr pointing into other cache indices
+// mutated under s_dex_cache_rwlock wrlock, so - same reasoning as
+// dex_hist_event_snapshot_t above for DEX history - the entry can't be
+// touched once the lock is released. min_fill_value still has to be
+// resolved under lock (s_dex_fetch_min_abs() itself reads cache structures
+// without taking the lock, relying on the caller already holding it), but
+// the json_object allocation for every row doesn't, so that part moves out.
+typedef struct dex_orders_row_snapshot {
+    char pair_buf[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 2];
+    bool has_pair;
+    bool is_ask;
+    dap_hash_fast_t root, tail;
+    uint256_t price, value_sell, locked_initial, min_fill_value;
+    uint64_t filled_pct;
+    uint8_t min_fill_pct;
+    bool min_fill_from_origin;
+    dap_chain_addr_t seller_addr;
+    dap_time_t ts_created, ts_expires;
+} dex_orders_row_snapshot_t;
+
+static void s_orders_row_snapshot_to_json(const dex_orders_row_snapshot_t *r, json_object *a_arr)
+{
+    json_object *o = json_object_new_object();
+    if (r->has_pair)
+        json_object_object_add(o, "pair", json_object_new_string(r->pair_buf));
+    json_object_object_add(o, "side", json_object_new_string(r->is_ask ? "ASK" : "BID"));
+    json_object_object_add(o, "root", json_object_new_string(dap_hash_fast_to_str_static(&r->root)));
+    json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&r->tail)));
+    json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(r->price).frac));
+    json_object_object_add(o, "value_sell", json_object_new_string(dap_uint256_to_char_ex(r->value_sell).frac));
+    json_object_object_add(o, "locked_initial", json_object_new_string(dap_uint256_to_char_ex(r->locked_initial).frac));
+    json_object_object_add(o, "filled_pct", json_object_new_int((int)r->filled_pct));
+    json_object_object_add(o, "min_fill_pct", json_object_new_int(r->min_fill_pct));
+    json_object_object_add(o, "min_fill_value", json_object_new_string(dap_uint256_to_char_ex(r->min_fill_value).frac));
+    if (r->min_fill_from_origin)
+        json_object_object_add(o, "min_fill_from_origin", json_object_new_boolean(true));
+    json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(&r->seller_addr)));
+    json_object_object_add(o, "ts", json_object_new_uint64(r->ts_created));
+    char l_ts_str[DAP_TIME_STR_SIZE];
+    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), r->ts_created);
+    json_object_object_add(o, "created", json_object_new_string(l_ts_str));
+    if (r->ts_expires) {
+        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), r->ts_expires);
+        json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
+    }
+    json_object_array_add(a_arr, o);
+}
+
 static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **json_arr_reply = (json_object **)a_str_reply;
@@ -8929,6 +8978,11 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
 
         dap_time_t l_now_ts = dap_ledger_get_blockchain_time(l_net->pub.ledger);
         if (s_dex_cache_enabled) {
+            // C1: collect flat snapshots under the lock (min_fill_value still
+            // resolved here - s_dex_fetch_min_abs() itself assumes the caller
+            // already holds s_dex_cache_rwlock), then build every json_object
+            // after unlocking. See dex_orders_row_snapshot_t above.
+            dap_list_t *l_rows = NULL;
             pthread_rwlock_rdlock(&s_dex_cache_rwlock);
             dex_pair_index_t *l_pi = NULL, *l_pi_tmp = NULL;
             HASH_ITER(hh, s_dex_pair_index, l_pi, l_pi_tmp)
@@ -8937,110 +8991,60 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     continue;
                 if (l_pair_str && (dap_strcmp(l_pi->key.token_quote, l_ticker_quote) || dap_strcmp(l_pi->key.token_base, l_ticker_base)))
                     continue;
-                char l_pair_buf[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 2];
+                char l_pair_buf[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 2] = {};
                 if (!l_pair_str)
                     snprintf(l_pair_buf, sizeof(l_pair_buf), "%s/%s", l_pi->key.token_base, l_pi->key.token_quote);
                 dex_order_cache_entry_t *l_entry = NULL, *l_tmp;
-                HASH_ITER(hh_pair_bucket, l_pi->asks, l_entry, l_tmp)
-                {
-                    if (l_entry->ts_expires && l_now_ts > l_entry->ts_expires)
-                        continue;
-                    if (l_seller_str && !dap_chain_addr_compare(l_entry->seller_addr_ptr, &l_seller_addr))
-                        continue;
-                    if (l_offset > 0) {
-                        --l_offset;
-                        continue;
-                    }
-                    json_object *o = json_object_new_object();
-                    if (!l_pair_str)
-                        json_object_object_add(o, "pair", json_object_new_string(l_pair_buf));
-                    json_object_object_add(o, "side", json_object_new_string("ASK"));
-                    json_object_object_add(o, "root", json_object_new_string(dap_hash_fast_to_str_static(&l_entry->level.match.root)));
-                    json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&l_entry->level.match.tail)));
-                    json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.rate).frac));
-                    json_object_object_add(o, "value_sell",
-                                           json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.value).frac));
-                    json_object_object_add(o, "locked_initial", json_object_new_string(dap_uint256_to_char_ex(l_entry->value_base).frac));
-                    json_object_object_add(o, "filled_pct",
-                                           json_object_new_int((int)s_calc_fill_pct(l_entry->value_base, l_entry->level.match.value, 0)));
-                    uint8_t l_mf = l_entry->level.match.min_fill, l_pct = l_mf & 0x7F;
-                    uint256_t l_min_exec = uint256_0;
-                    if (l_pct) {
-                        if ((l_mf & 0x80) && l_pct < 100) {
-                            if (s_dex_fetch_min_abs(l_net->pub.ledger, &l_entry->level.match.root, &l_min_exec))
-                                l_min_exec = uint256_0;
-                        } else
-                            l_min_exec = s_calc_pct(l_entry->level.match.value, l_pct, 0);
-                    }
-                    json_object_object_add(o, "min_fill_pct", json_object_new_int(l_pct));
-                    json_object_object_add(o, "min_fill_value", json_object_new_string(dap_uint256_to_char_ex(l_min_exec).frac));
-                    if (l_mf & 0x80)
-                        json_object_object_add(o, "min_fill_from_origin", json_object_new_boolean(true));
-                    json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(l_entry->seller_addr_ptr)));
-                    json_object_object_add(o, "ts", json_object_new_uint64(l_entry->ts_created));
-                    char l_ts_str[DAP_TIME_STR_SIZE];
-                    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_created);
-                    json_object_object_add(o, "created", json_object_new_string(l_ts_str));
-                    if (l_entry->ts_expires) {
-                        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_expires);
-                        json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
-                    }
-                    json_object_array_add(l_arr, o);
-                    if (l_limit > 0 && !--l_limit)
-                        goto cache_limit_reached;
-                }
-                HASH_ITER(hh_pair_bucket, l_pi->bids, l_entry, l_tmp)
-                {
-                    if (l_entry->ts_expires && l_now_ts > l_entry->ts_expires)
-                        continue;
-                    if (l_seller_str && !dap_chain_addr_compare(l_entry->seller_addr_ptr, &l_seller_addr))
-                        continue;
-                    if (l_offset > 0) {
-                        --l_offset;
-                        continue;
-                    }
-                    json_object *o = json_object_new_object();
-                    if (!l_pair_str)
-                        json_object_object_add(o, "pair", json_object_new_string(l_pair_buf));
-                    json_object_object_add(o, "side", json_object_new_string("BID"));
-                    json_object_object_add(o, "root", json_object_new_string(dap_hash_fast_to_str_static(&l_entry->level.match.root)));
-                    json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&l_entry->level.match.tail)));
-                    json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.rate).frac));
-                    json_object_object_add(o, "value_sell",
-                                           json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.value).frac));
-                    json_object_object_add(o, "locked_initial", json_object_new_string(dap_uint256_to_char_ex(l_entry->value_base).frac));
-                    json_object_object_add(o, "filled_pct",
-                                           json_object_new_int((int)s_calc_fill_pct(l_entry->value_base, l_entry->level.match.value, 0)));
-                    uint8_t l_mf = l_entry->level.match.min_fill, l_pct = l_mf & 0x7F;
-                    uint256_t l_min_exec = uint256_0;
-                    if (l_pct) {
-                        if ((l_mf & 0x80) && l_pct < 100) {
-                            if (s_dex_fetch_min_abs(l_net->pub.ledger, &l_entry->level.match.root, &l_min_exec))
-                                l_min_exec = uint256_0;
-                        } else {
-                            l_min_exec = s_calc_pct(l_entry->level.match.value, l_pct, 0);
+                for (int l_side_i = 0; l_side_i < 2; l_side_i++) {
+                    dex_order_cache_entry_t *l_side_head = l_side_i == 0 ? l_pi->asks : l_pi->bids;
+                    HASH_ITER(hh_pair_bucket, l_side_head, l_entry, l_tmp)
+                    {
+                        if (l_entry->ts_expires && l_now_ts > l_entry->ts_expires)
+                            continue;
+                        if (l_seller_str && !dap_chain_addr_compare(l_entry->seller_addr_ptr, &l_seller_addr))
+                            continue;
+                        if (l_offset > 0) {
+                            --l_offset;
+                            continue;
                         }
+                        dex_orders_row_snapshot_t *l_row = DAP_NEW_Z(dex_orders_row_snapshot_t);
+                        l_row->has_pair = !l_pair_str;
+                        if (l_row->has_pair)
+                            memcpy(l_row->pair_buf, l_pair_buf, sizeof(l_pair_buf));
+                        l_row->is_ask = (l_side_i == 0);
+                        l_row->root = l_entry->level.match.root;
+                        l_row->tail = l_entry->level.match.tail;
+                        l_row->price = l_entry->level.match.rate;
+                        l_row->value_sell = l_entry->level.match.value;
+                        l_row->locked_initial = l_entry->value_base;
+                        l_row->filled_pct = s_calc_fill_pct(l_entry->value_base, l_entry->level.match.value, 0);
+                        uint8_t l_mf = l_entry->level.match.min_fill, l_pct = l_mf & 0x7F;
+                        uint256_t l_min_exec = uint256_0;
+                        if (l_pct) {
+                            if ((l_mf & 0x80) && l_pct < 100) {
+                                if (s_dex_fetch_min_abs(l_net->pub.ledger, &l_entry->level.match.root, &l_min_exec))
+                                    l_min_exec = uint256_0;
+                            } else
+                                l_min_exec = s_calc_pct(l_entry->level.match.value, l_pct, 0);
+                        }
+                        l_row->min_fill_pct = l_pct;
+                        l_row->min_fill_value = l_min_exec;
+                        l_row->min_fill_from_origin = (l_mf & 0x80) != 0;
+                        if (l_entry->seller_addr_ptr)
+                            l_row->seller_addr = *l_entry->seller_addr_ptr;
+                        l_row->ts_created = l_entry->ts_created;
+                        l_row->ts_expires = l_entry->ts_expires;
+                        l_rows = dap_list_append(l_rows, l_row);
+                        if (l_limit > 0 && !--l_limit)
+                            goto cache_limit_reached;
                     }
-                    json_object_object_add(o, "min_fill_pct", json_object_new_int(l_pct));
-                    json_object_object_add(o, "min_fill_value", json_object_new_string(dap_uint256_to_char_ex(l_min_exec).frac));
-                    if (l_mf & 0x80)
-                        json_object_object_add(o, "min_fill_from_origin", json_object_new_boolean(true));
-                    json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(l_entry->seller_addr_ptr)));
-                    json_object_object_add(o, "ts", json_object_new_uint64(l_entry->ts_created));
-                    char l_ts_str[DAP_TIME_STR_SIZE];
-                    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_created);
-                    json_object_object_add(o, "created", json_object_new_string(l_ts_str));
-                    if (l_entry->ts_expires) {
-                        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_expires);
-                        json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
-                    }
-                    json_object_array_add(l_arr, o);
-                    if (l_limit > 0 && !--l_limit)
-                        goto cache_limit_reached;
                 }
             }
         cache_limit_reached:
             pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            for (dap_list_t *it = l_rows; it; it = it->next)
+                s_orders_row_snapshot_to_json((dex_orders_row_snapshot_t *)it->data, l_arr);
+            dap_list_free_full(l_rows, NULL);
             array_list_sort(json_object_get_array(l_arr), s_cmp_json_orders_by_ts);
         } else {
             // Check pair whitelist before scanning ledger (only if pair specified)
