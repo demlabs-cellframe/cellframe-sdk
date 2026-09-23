@@ -2871,7 +2871,13 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     uint256_t l_ret = uint256_0;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_block_cache_t *l_block_cache = NULL;
+    // Bare HASH_FIND against PVT(l_blocks)->blocks must not race with s_callback_atom_add /
+    // s_select_longest_branch, which restructure that same hash table's buckets under wrlock
+    // (HASH_DEL/HASH_ADD on fork reorg), so the lookup itself is done under rwlock, same as
+    // dap_chain_block_cache_get_by_hash()
+    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
     HASH_FIND(hh, PVT(l_blocks)->blocks, a_block_hash, sizeof(*a_block_hash), l_block_cache);
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     if (!l_block_cache)
         return l_ret;
     const dap_chain_block_t *l_block = l_block_cache->block;
@@ -2896,7 +2902,9 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     }
     dap_hash_fast_t l_prev_block_hash = l_block_cache->prev_hash;
     l_block_cache = NULL;
+    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
     HASH_FIND(hh, PVT(l_blocks)->blocks, &l_prev_block_hash, sizeof(l_prev_block_hash), l_block_cache);
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     if (!l_block_cache) {
         log_it(L_ERROR, "[%s] l_block_cache is NULL", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
