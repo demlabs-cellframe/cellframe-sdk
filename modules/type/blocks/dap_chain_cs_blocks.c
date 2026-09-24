@@ -2858,6 +2858,10 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 }
 
 static const dap_time_t s_block_timediff_unit_size = 60;
+// Cap on the time gap a single block is paid for: a prolonged network stall must not
+// concentrate the whole idle-period emission into one recovery block (stall-harvest
+// incentive). Excess idle time simply earns no reward
+#define DAP_REWARD_TIMEDIFF_CAP_UNITS 60
 
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey)
 {
@@ -2903,8 +2907,11 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     dap_time_t l_cur_time = dap_max(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
     if ( l_block_time > l_cur_time ) {
         dap_time_t l_time_diff = l_block_time - l_cur_time;
+        dap_time_t l_time_diff_cap = s_block_timediff_unit_size * DAP_REWARD_TIMEDIFF_CAP_UNITS;
+        if ( l_time_diff > l_time_diff_cap )
+            l_time_diff = l_time_diff_cap;
         if (MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret))
-            return log_it(L_ERROR, "[%s] Integer overflow while multiplication execution to calculate final reward", dap_chain_hash_fast_to_str_static(a_block_hash)), uint256_0;
+            return log_it(L_ERROR, "[%s] Integer overflow while multiplication execution to calculate final reward", dap_hash_fast_to_str_static(a_block_hash)), uint256_0;
     }
     DIV_256(l_ret, GET_256_FROM_64(s_block_timediff_unit_size * l_signs_count), &l_ret);
     return l_ret;
