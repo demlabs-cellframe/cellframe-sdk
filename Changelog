@@ -1,4 +1,36 @@
 
+Hotfix branch hotfix_esbocs_Sep_2026 (2026-09-24)
+
+## ESBOCS Consensus Security & Liveness Hotfix
+
+### Security
+ * Inactive stake (delegated but deactivated) no longer grants block signing rights:
+   block signers, START_SYNC senders and validator startup now require an active stake
+ * Committee signing rights are verified unconditionally: sync/round attempts and
+   excluded keys metadata is added to every block candidate, and any block carrying
+   this metadata is checked against the committee recomputed from it (submitter and
+   every signer). Blocks without the metadata (old history, outdated submitters) are
+   accepted as before for backward compatibility
+ * `check_signs_structure` flag no longer gates block verification (was off by
+   default, leaving the committee check disabled; on it broke chain loading)
+ * Emergency blocks: a signer must be an emergency validator or a member of the
+   declared committee (was effectively unchecked with the flag off)
+ * Fixed -Werror=maybe-uninitialized false positive in esbocs setter call (union
+   replaced by plain fields)
+
+### Liveness
+ * Empty block period (`empty_block_every_times`) defaults to 10 instead of disabled;
+   configurable via [esbocs] config section or decree
+ * Time-based empty block fallback: after `empty_block_every_times` x
+   (`new_round_delay` + `round_attempt_timeout`) seconds without an accepted block
+   the current submitter emits an empty block regardless of its personal counter,
+   so a run of dead-validator committee draws can no longer stall the chain for hours
+
+### Rewards
+ * Block reward time gap is capped at 60 nominal intervals (1 hour): a prolonged
+   network stall no longer concentrates the whole idle-period emission into a single
+   recovery block (stall-harvest incentive removed). Excess idle time earns no reward
+
 Version 2.1 
 
 ## New Features
