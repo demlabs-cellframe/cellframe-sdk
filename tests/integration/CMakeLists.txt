@@ -9,3 +9,6 @@ add_subdirectory(dex)
 
 # UTXO blocking integration tests
 add_subdirectory(utxo_blocking)
+
+# CLI backpressure / dead-client-check integration tests
+add_subdirectory(cli_backpressure)
