@@ -8113,11 +8113,15 @@ static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_ar
     // Was an unconditional dap_chain_net_get_tx_all() full ledger scan (P.25), building a
     // dap_list_t of every SRV_PAY-cond TX in the net before filtering by owner/srv_uid/ticker
     // one at a time - identical in spirit to _cmd_tx_cond_list's original full-scan path, which
-    // is now backed by the same srv_pay owner-indexed cache. Try that cache first here too (it's
-    // keyed by owner pkey_hash, exactly what this command already computes to compare against
-    // each candidate's signature) and only fall back to the full scan when it's disabled/empty.
+    // is now backed by the same srv_pay owner-indexed cache. Try that cache first here too. The
+    // cache is keyed by the hash dap_sign_get_pkey_hash() computes from the tx's own signature
+    // at cache-populate time (s_srv_pay_ledger_tx_notify) - dap_chain_wallet_get_pkey_hash() is
+    // the matching wallet-side helper (used by the sibling tx_cond list command for the same
+    // lookup), NOT the generic dap_pkey_get_hash(): for ECDSA keys the two differ, since
+    // dap_enc_key_get_pkey_hash() (which wallet_get_pkey_hash calls) hashes ECDSA pubkeys with a
+    // different function than the plain SHA3 dap_pkey_get_hash() uses.
     dap_hash_fast_t l_owner_pkey_hash = {};
-    bool l_have_owner_hash = l_wallet_pkey && dap_pkey_get_hash(l_wallet_pkey, &l_owner_pkey_hash);
+    bool l_have_owner_hash = !dap_chain_wallet_get_pkey_hash(l_wallet, &l_owner_pkey_hash);
     srv_pay_cache_list_t *l_cache_list = l_have_owner_hash ? dap_chain_srv_pay_cache_get(l_net, &l_owner_pkey_hash) : NULL;
 
     if (l_cache_list && l_cache_list->count > 0) {
