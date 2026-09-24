@@ -36,6 +36,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT   9
 #define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           DAP_CHAIN_ESBOCS_PROTOCOL_VERSION_CURRENT
 #define DAP_CHAIN_ESBOCS_CS_TYPE_STR                "esbocs"
+// Default empty block period (in empty rounds) when not set by config or decree.
+// A non-zero default keeps an idle chain alive and prevents long stall gaps
+#define DAP_CHAIN_ESBOCS_EMPTY_BLOCK_PERIOD_DEFAULT 10
 #define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          DAP_CHAIN_ESBOCS_CS_TYPE_STR
 #define DAP_CHAIN_CLUSTER_ID_ESBOCS                 0x8000
 
