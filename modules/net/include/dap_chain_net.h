@@ -126,6 +126,17 @@ int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
 #ifdef DAP_LEDGER_TEST
 int dap_chain_net_test_init();
+// Test-only counterpart to the mempool cluster registration
+// dap_chain_net_init() normally performs itself (see its DL_FOREACH over
+// a_net->pub.chains in dap_chain_net.c) - fixtures that build a
+// dap_chain_net_t by hand (test_net_fixture_create() et al.) create the
+// per-chain mempool GDB clusters but have no access to the private
+// dap_chain_net_pvt_t.mempool_clusters field to link them in, so
+// dap_chain_net_get_mempool_cluster()/dap_chain_add_mempool_notify_callback()
+// silently fail to find them for any hand-built test network. Call this
+// once per chain, in chain-list order, right after creating that chain's
+// mempool cluster.
+void dap_chain_net_test_set_mempool_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
 #endif
 
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }

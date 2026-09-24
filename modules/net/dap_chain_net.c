@@ -2037,6 +2037,20 @@ int dap_chain_net_test_init()
     HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
     return 0;
 }
+
+// See the doc comment on the declaration (dap_chain_net.h) for why this
+// exists: mirrors the DL_APPEND-by-position logic dap_chain_net_init() uses
+// internally (mempool_clusters only ever stores the head; every subsequent
+// chain's cluster is linked via the cluster's own ->next, so
+// dap_chain_net_get_mempool_cluster()'s DL_FOREACH-and-step still works as
+// long as clusters are registered in the same order as a_net->pub.chains).
+void dap_chain_net_test_set_mempool_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
+{
+    if (!a_net || !a_cluster)
+        return;
+    if (!PVT(a_net)->mempool_clusters)
+        PVT(a_net)->mempool_clusters = a_cluster;
+}
 #endif
 
 

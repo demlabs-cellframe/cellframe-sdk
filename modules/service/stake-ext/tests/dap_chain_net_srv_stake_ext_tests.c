@@ -854,6 +854,15 @@ void dap_srv_stake_ext_test_event_processing(void)
     dap_assert_PIF(l_result == 0, "Failed to update stake_ext status to ENDED");
     
     // Manually set winners information (simulating event processing with winners)
+    // Note: winners_ids is a flexible array member of a packed struct, so its
+    // address is taken via offsetof (see the same pattern in the production
+    // event handler) rather than "&l_ended_data->winners_ids" to avoid an
+    // unaligned-pointer warning under -Werror=address-of-packed-member.
+    uint32_t *l_winners_ids_ptr = (uint32_t *)((byte_t *)l_ended_data + offsetof(dap_chain_tx_event_data_ended_t, winners_ids));
+    l_result = dap_stake_ext_cache_set_winners_by_name(l_cache, l_group_name, l_event_ended.timestamp,
+                                                        l_ended_data->winners_cnt, l_winners_ids_ptr);
+    dap_assert_PIF(l_result == 0, "Failed to set winners for stake_ext");
+
     l_found_stake_ext = dap_stake_ext_cache_find_stake_ext_by_name(l_cache, l_group_name);
     dap_assert_PIF(l_found_stake_ext, "stake_ext should still exist after ENDED status change");
        
@@ -2693,7 +2702,7 @@ void dap_srv_stake_ext_test_thread_safety(void)
     
     
     // Summary of thread safety tests
-    dap_test_msg("");
+    dap_test_msg(" ");
     dap_test_msg("Thread Safety Test Summary:");
     dap_test_msg("- Test 1: Concurrent cache operations: passed");
     dap_test_msg("- Test 2: Resource locking simulation: passed"); 
