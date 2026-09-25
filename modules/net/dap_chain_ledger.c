@@ -471,25 +471,33 @@ static dap_ledger_t *dap_ledger_handle_new(void)
         return NULL;
     }
     // Initialize Read/Write Lock Attribute
-    // B4: default glibc rwlock policy prefers readers, which under a steady
-    // stream of RPC read-only queries (ledger list/tx_history/wallet info/
-    // tx_create_json UTXO scans, all rdlock) can starve the writer taking
-    // ledger_rwlock to add a new tx/block - i.e. new atoms land later than
-    // they should while readers keep flowing. Switch this specific lock
-    // (the one contended between chain sync and RPC reads) to
-    // writer-preferring; verified above that dap_ledger_tx_add() never
-    // takes ledger_rwlock recursively (no rdlock-then-rdlock/wrlock nesting
-    // on the same lock from the same thread), so this can't introduce a
-    // self-deadlock. glibc-only extension, hence the platform guard.
-#ifdef DAP_OS_LINUX
-    pthread_rwlockattr_t l_ledger_rwlock_attr;
-    pthread_rwlockattr_init(&l_ledger_rwlock_attr);
-    pthread_rwlockattr_setkind_np(&l_ledger_rwlock_attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
-    pthread_rwlock_init(&l_ledger_pvt->ledger_rwlock, &l_ledger_rwlock_attr);
-    pthread_rwlockattr_destroy(&l_ledger_rwlock_attr);
-#else
+    // B4 (reverted): switching this lock to PTHREAD_RWLOCK_PREFER_WRITER_
+    // NONRECURSIVE_NP caused a full node hang during chain sync (observed:
+    // stuck for 1.5h+ at a fixed backbone load percentage on a fresh node).
+    // Root cause: several read paths recursively take ledger_rwlock rdlock
+    // from the same thread while already holding it - e.g.
+    // dap_ledger_get_list_tx_outs_unspent_by_addr() holds rdlock over its
+    // HASH_ITER and, for OUT/OUT_OLD items, called
+    // dap_ledger_tx_get_token_ticker_by_hash() (a second, independent
+    // rdlock), and for OUT_COND items resolves the chain root via
+    // dap_ledger_get_first_chain_tx_hash()/dap_ledger_tx_find_by_hash()
+    // (another rdlock). Under the default reader-preferring glibc policy a
+    // recursive rdlock from the same thread is harmless (readers never
+    // block behind a pending writer). Under PREFER_WRITER_NONRECURSIVE,
+    // once a concurrent writer (e.g. dap_ledger_tx_add() adding a new tx
+    // from sync) is queued waiting for the lock, ALL subsequent rdlock
+    // attempts block behind it - including that same thread's own nested
+    // rdlock call several frames deeper. The scanning thread can then never
+    // release the outer rdlock the writer is waiting on: permanent
+    // self-deadlock between one thread's own nested lock acquisition and a
+    // concurrent writer. This is not a narrow, easily-audited set of call
+    // sites (multiple functions across this file take the lock and call
+    // other lock-taking helpers), so revert to the default (reader-
+    // preferring) policy rather than try to eliminate every recursive
+    // rdlock site under time pressure. The cache_data-mutation locking fix
+    // from B4 (broadened wrlock further down in dap_ledger_tx_add()) is
+    // independent of the lock's fairness policy and is kept as-is.
     pthread_rwlock_init(&l_ledger_pvt->ledger_rwlock, NULL);
-#endif
     pthread_rwlock_init(&l_ledger_pvt->tokens_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->threshold_txs_rwlock , NULL);
     pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock , NULL);
