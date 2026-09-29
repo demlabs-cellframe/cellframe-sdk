@@ -3544,9 +3544,12 @@ dap_chain_datum_token_emission_t *dap_ledger_token_emission_find(dap_ledger_t *a
     dap_ledger_token_emission_item_t *l_emission_item = NULL;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     for (dap_ledger_token_item_t *l_item = PVT(a_ledger)->tokens; l_item; l_item = l_item->hh.next) {
-         l_emission_item = s_emission_item_find(a_ledger, l_item->ticker, a_token_emission_hash, NULL);
-         if (l_emission_item)
-             break;
+        // Search the item directly: s_emission_item_find() would re-take tokens_rwlock on this thread
+        pthread_rwlock_rdlock(&l_item->token_emissions_rwlock);
+        HASH_FIND(hh, l_item->token_emissions, a_token_emission_hash, sizeof(*a_token_emission_hash), l_emission_item);
+        pthread_rwlock_unlock(&l_item->token_emissions_rwlock);
+        if (l_emission_item)
+            break;
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     return l_emission_item ? l_emission_item->datum_token_emission : NULL;
@@ -3725,12 +3728,28 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_datum_by_hash(dap_ledger_t *a_ledger, c
     return l_tx_ret;
 }
 
+// For callers that already hold ledger_rwlock: a nested rdlock on the same thread deadlocks as soon
+// as a writer is queued on writer-preferring rwlocks (macOS default).
+static dap_chain_datum_tx_t *s_tx_find_by_hash_locked(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash)
+{
+    if (dap_hash_fast_is_blank(a_tx_hash))
+        return NULL;
+    dap_ledger_tx_item_t *l_tx_item = NULL;
+    HASH_FIND(hh, PVT(a_ledger)->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_tx_item);
+    return l_tx_item ? l_tx_item->tx : NULL;
+}
+
+static dap_chain_datum_tx_t *s_tx_find_by_hash(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash, bool a_ledger_locked)
+{
+    return a_ledger_locked ? s_tx_find_by_hash_locked(a_ledger, a_tx_hash) : dap_ledger_tx_find_by_hash(a_ledger, a_tx_hash);
+}
+
 /*
  * Get first chain tx hash and optional OUT_COND pointer.
  */
-dap_hash_fast_t dap_ledger_get_first_chain_tx_hash_ex(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
-                                                      dap_chain_tx_out_cond_subtype_t a_cond_type,
-                                                      dap_chain_tx_out_cond_t **a_out_cond)
+static dap_hash_fast_t s_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                             dap_chain_tx_out_cond_subtype_t a_cond_type,
+                                             dap_chain_tx_out_cond_t **a_out_cond, bool a_ledger_locked)
 {
     dap_hash_fast_t l_hash = { }, l_hash_prev;
     dap_return_val_if_fail(a_ledger && a_tx, l_hash);
@@ -3766,7 +3785,7 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash_ex(dap_ledger_t *a_ledger, da
             l_hash_prev = l_in->header.tx_prev_hash;
             if (dap_hash_fast_is_blank(&l_hash_prev))
                 return l_hash_prev;
-            l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_prev);
+            l_prev_tx = s_tx_find_by_hash(a_ledger, &l_hash_prev, a_ledger_locked);
             if (!l_prev_tx)
                 return l_hash;
             int l_prev_idx = (int)l_in->header.tx_out_prev_idx;
@@ -3781,7 +3800,7 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash_ex(dap_ledger_t *a_ledger, da
                 l_root = l_root_i;
             l_in_cnt++;
             dap_chain_datum_tx_t *l_owner_tx =
-                dap_hash_fast_compare(&l_root_i, &l_hash_prev) ? l_prev_tx : dap_ledger_tx_find_by_hash(a_ledger, &l_root_i);
+                dap_hash_fast_compare(&l_root_i, &l_hash_prev) ? l_prev_tx : s_tx_find_by_hash(a_ledger, &l_root_i, a_ledger_locked);
             dap_chain_tx_sig_t *l_owner_sig =
                 l_owner_tx ? (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL) : NULL;
             dap_sign_t *l_owner_sign = l_owner_sig ? dap_chain_datum_tx_item_sign_get_sig(l_owner_sig) : NULL;
@@ -3798,7 +3817,7 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash_ex(dap_ledger_t *a_ledger, da
         l_hash_prev =  ((dap_chain_tx_in_cond_t *)l_iter)->header.tx_prev_hash;
         if ( dap_hash_fast_is_blank(&l_hash_prev) )
             return l_hash_prev;
-        if (( l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_hash_prev) ) &&
+        if (( l_prev_tx = s_tx_find_by_hash(a_ledger, &l_hash_prev, a_ledger_locked) ) &&
                 ( dap_chain_datum_tx_out_cond_get(l_prev_tx, a_cond_type, NULL) )) {
             l_hash = l_hash_prev;
         }
@@ -3806,10 +3825,17 @@ dap_hash_fast_t dap_ledger_get_first_chain_tx_hash_ex(dap_ledger_t *a_ledger, da
     return l_hash;
 }
 
+dap_hash_fast_t dap_ledger_get_first_chain_tx_hash_ex(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                      dap_chain_tx_out_cond_subtype_t a_cond_type,
+                                                      dap_chain_tx_out_cond_t **a_out_cond)
+{
+    return s_first_chain_tx_hash(a_ledger, a_tx, a_cond_type, a_out_cond, false);
+}
+
 dap_hash_fast_t dap_ledger_get_first_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
                                                    dap_chain_tx_out_cond_subtype_t a_cond_type)
 {
-    return dap_ledger_get_first_chain_tx_hash_ex(a_ledger, a_tx, a_cond_type, NULL);
+    return s_first_chain_tx_hash(a_ledger, a_tx, a_cond_type, NULL, false);
 }
 
 dap_hash_fast_t dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash, bool a_unspent_only)
@@ -5349,18 +5375,6 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     const char *l_cur_token_ticker = NULL;
 
     // Update balance: deducts
-    // B4: the loop below mutates cache_data (tx_hash_spent_fast[], n_outs_used,
-    // ts_spent) of *previously added* dap_ledger_tx_item_t entries - items
-    // already reachable from ledger_items and read by every other thread
-    // (dap_ledger_tx_find_datum_by_hash, s_ledger_tx_hash_is_used_out_item,
-    // dap_ledger_get_final_chain_tx_hash, RPC ledger/tx_history/wallet
-    // queries, ...) via a pointer obtained under a plain rdlock and then
-    // dereferenced *after* releasing it. Previously nothing here took
-    // ledger_rwlock at all, so a concurrent reader could observe a
-    // torn/partial cache_data update. Hold wrlock for the whole mutation
-    // loop, matching the lock already taken further down for the
-    // HASH_ADD_INORDER insert of the new tx item itself.
-    pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
     int l_spent_idx = 0;
     for (dap_list_t *it = l_list_bound_items; it; it = it->next) {
         dap_ledger_tx_bound_t *l_bound_item = it->data;
@@ -5454,6 +5468,11 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         if (!l_prev_item_out)
             continue;
 
+        // cache_data of an already added tx item is read by other threads under ledger_rwlock
+        // rdlock, so its mutation needs the wrlock. Keep the section limited to this mutation:
+        // the balance/wallet notifications and service callbacks above take other locks
+        // (wallet cache, service caches) that are held while calling back into the ledger.
+        pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
         l_prev_item_out->cache_data.tx_hash_spent_fast[l_bound_item->prev_out_idx] = *a_tx_hash;
         l_prev_item_out->cache_data.n_outs_used++;
         if (PVT(a_ledger)->cached) {
@@ -5478,8 +5497,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         // mark previous transactions as used with the extra timestamp
         if (l_prev_item_out->cache_data.n_outs_used == l_prev_item_out->cache_data.n_outs)
             l_prev_item_out->cache_data.ts_spent = a_tx->header.ts_created;
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     }
-    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
 
 
     //Update balance : raise
@@ -5811,6 +5830,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
 
         // add a used output 
         dap_ledger_tx_item_t *l_prev_item_out = l_bound_item->prev_item;
+        pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
         l_prev_item_out->cache_data.tx_hash_spent_fast[l_bound_item->prev_out_idx] = (dap_hash_fast_t){ };
         l_prev_item_out->cache_data.n_outs_used--;
         if (PVT(a_ledger)->cached) {
@@ -5834,6 +5854,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         // mark previous transactions as used with the extra timestamp
         if(l_prev_item_out->cache_data.n_outs_used != l_prev_item_out->cache_data.n_outs)
             l_prev_item_out->cache_data.ts_spent = 0;
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
 
         if (l_type == TX_ITEM_TYPE_IN || l_type == TX_ITEM_TYPE_IN_COND) {
             l_spent_idx++;
@@ -6442,14 +6463,14 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
                 if ( a_cond_only ) continue;
                 l_addr = ((dap_chain_tx_out_t*)l_item)->addr;
                 l_value = ((dap_chain_tx_out_t*)l_item)->header.value;
-                l_token = a_token ? dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_cur->tx_hash_fast) : NULL;
+                l_token = a_token ? l_cur->cache_data.token_ticker : NULL;
                 break;
             case TX_ITEM_TYPE_OUT_OLD:
                 ++l_out_idx;
                 if ( a_cond_only ) continue;
                 l_addr = ((dap_chain_tx_out_old_t*)l_item)->addr;
                 l_value = GET_256_FROM_64( ((dap_chain_tx_out_old_t*)l_item)->header.value );
-                l_token = a_token ? dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_cur->tx_hash_fast) : NULL;
+                l_token = a_token ? l_cur->cache_data.token_ticker : NULL;
                 break;
             case TX_ITEM_TYPE_OUT_EXT:
                 ++l_out_idx;
@@ -6486,9 +6507,9 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
             if ( a_token && dap_strcmp(l_token, a_token) )
                 continue;
             if ( a_cond_only ) {
-                dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, l_cur->tx, ((dap_chain_tx_out_cond_t*)l_item)->header.subtype);
+                dap_hash_fast_t l_owner_tx_hash = s_first_chain_tx_hash(a_ledger, l_cur->tx, ((dap_chain_tx_out_cond_t*)l_item)->header.subtype, NULL, true);
                 dap_chain_datum_tx_t *l_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
-                    ? l_cur->tx : dap_ledger_tx_find_by_hash(a_ledger, &l_owner_tx_hash);
+                    ? l_cur->tx : s_tx_find_by_hash_locked(a_ledger, &l_owner_tx_hash);
                 if ( !l_tx )
                     continue;
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
@@ -6725,9 +6746,9 @@ dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *
         // Don't return regular tx or spent conditions
         if (!ret || !dap_hash_fast_is_blank(&it->cache_data.tx_hash_spent_fast[l_out_idx]))
             continue;
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(a_ledger, it->tx, l_subtype);
+        dap_hash_fast_t l_owner_tx_hash = s_first_chain_tx_hash(a_ledger, it->tx, l_subtype, NULL, true);
         dap_chain_datum_tx_t *l_tx = dap_hash_fast_is_blank(&l_owner_tx_hash) ? it->tx
-                                                                              : dap_ledger_tx_find_by_hash(a_ledger, &l_owner_tx_hash);
+                                                                              : s_tx_find_by_hash_locked(a_ledger, &l_owner_tx_hash);
         if (!l_tx) {
             log_it(L_ERROR, "Can't find owner for tx %s", dap_hash_fast_to_str_static(&it->tx_hash_fast));
             continue;
