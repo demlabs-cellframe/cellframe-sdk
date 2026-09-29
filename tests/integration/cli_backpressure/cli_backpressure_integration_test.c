@@ -86,6 +86,7 @@
 #endif
 
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 #include "dap_config.h"
 #include "dap_cli_server.h"
@@ -156,7 +157,7 @@ static int s_client_connect(void)
     if (l_fd < 0)
         return -1;
     struct sockaddr_un l_addr = { .sun_family = AF_UNIX };
-    strncpy(l_addr.sun_path, s_sock_path, sizeof(l_addr.sun_path) - 1);
+    dap_strncpy(l_addr.sun_path, s_sock_path, sizeof(l_addr.sun_path) - 1);
     // The listener is bound+listen()'d synchronously inside
     // dap_cli_server_init() -> dap_server_listen_addr_add(), so the kernel
     // backlog already accepts connections by the time setup() returns;
