@@ -102,8 +102,8 @@ typedef struct dap_ledger_service_info {
 static dap_ledger_verificator_t *s_verificators;
 static dap_ledger_service_info_t *s_services;
 
-static  pthread_rwlock_t s_verificators_rwlock;
-static  pthread_rwlock_t s_services_rwlock;
+static  pthread_rwlock_t s_verificators_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+static  pthread_rwlock_t s_services_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static dap_chain_ledger_votings_callbacks_t s_voting_callbacks;
 
@@ -425,9 +425,6 @@ int dap_ledger_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
     
-    pthread_rwlock_init(&s_verificators_rwlock, NULL);
-    pthread_rwlock_init(&s_services_rwlock, NULL);
-
     //register native ledger services
     dap_chain_net_srv_uid_t l_uid_transfer = { .uint64 = DAP_CHAIN_NET_SRV_TRANSFER_ID };
     dap_ledger_service_add(l_uid_transfer, "transfer", s_tag_check_transfer);
@@ -447,8 +444,6 @@ int dap_ledger_init()
  */
 void dap_ledger_deinit()
 {
-    pthread_rwlock_destroy(&s_verificators_rwlock);
-    pthread_rwlock_destroy(&s_services_rwlock);
 }
 
 /**
@@ -506,6 +501,7 @@ static dap_ledger_t *dap_ledger_handle_new(void)
     pthread_rwlock_init(&l_ledger_pvt->events_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->locked_outs_rwlock, NULL);
     pthread_rwlock_init(&l_ledger_pvt->event_pkeys_rwlock, NULL);
+    pthread_rwlock_init(&l_ledger_pvt->srv_callbacks_rwlock, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
     return l_ledger;
@@ -533,6 +529,7 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     pthread_rwlock_destroy(&PVT(a_ledger)->events_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->locked_outs_rwlock);
     pthread_rwlock_destroy(&PVT(a_ledger)->event_pkeys_rwlock);
+    pthread_rwlock_destroy(&PVT(a_ledger)->srv_callbacks_rwlock);
     pthread_mutex_destroy(&PVT(a_ledger)->load_mutex);
     pthread_cond_destroy(&PVT(a_ledger)->load_cond);
     DAP_DELETE(PVT(a_ledger));
