@@ -87,6 +87,13 @@ typedef struct dap_chain_cs_blocks_pvt {
     bool is_celled;
 
     pthread_rwlock_t rwlock;
+    // Thread holding rwlock for writing in s_callback_atom_add() (0 if none). Ledger verification
+    // run from s_add_atom_datums()/s_delete_atom_datums() under that wrlock re-enters
+    // s_callback_calc_reward() for IN_REWARD items. Re-taking the rwlock on the thread that owns it
+    // for writing fails with EDEADLK and the paired unlock then releases the outer write lock early
+    // (glibc: reader counter underflow, the next wrlock blocks forever), so the lookup must skip
+    // locking on that thread.
+    _Atomic uintptr_t rwlock_writer;
     struct cs_blocks_hal_item *hal;
     // Number of blocks for one block confirmation
     uint64_t block_confirm_cnt;
@@ -1941,6 +1948,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
 
         pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
+        PVT(l_blocks)->rwlock_writer = (uintptr_t)pthread_self();
         if (PVT(l_blocks)->blocks){
             dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
             if (l_last_block && dap_hash_fast_compare(&l_last_block->block_hash, &l_block_prev_hash)){
@@ -1951,6 +1959,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 s_add_atom_datums(l_blocks, l_block_cache);
                 dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
                 dap_chain_atom_add_from_threshold(a_chain);
+                PVT(l_blocks)->rwlock_writer = 0;
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
 
                 dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
@@ -2008,6 +2017,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         }
 #endif
                     }
+                    PVT(l_blocks)->rwlock_writer = 0;
                     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                     if (l_fork_notify.pending) {
                         s_fork_resolved_notify(l_blocks->chain, l_fork_notify.block_before_fork_hash,
@@ -2028,11 +2038,13 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             s_add_atom_datums(l_blocks, l_block_cache);
             dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
             dap_chain_atom_add_from_threshold(a_chain);
+            PVT(l_blocks)->rwlock_writer = 0;
             pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             return ret;
         }
 
         DAP_DELETE(l_block_cache);
+        PVT(l_blocks)->rwlock_writer = 0;
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         return ATOM_REJECT;
@@ -2866,6 +2878,16 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 
 static const dap_time_t s_block_timediff_unit_size = 60;
 
+static void s_blocks_hash_find_locked(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash, dap_chain_block_cache_t **a_block_cache)
+{
+    bool l_need_lock = PVT(a_blocks)->rwlock_writer != (uintptr_t)pthread_self();
+    if (l_need_lock)
+        pthread_rwlock_rdlock(&PVT(a_blocks)->rwlock);
+    HASH_FIND(hh, PVT(a_blocks)->blocks, a_block_hash, sizeof(*a_block_hash), *a_block_cache);
+    if (l_need_lock)
+        pthread_rwlock_unlock(&PVT(a_blocks)->rwlock);
+}
+
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey)
 {
     uint256_t l_ret = uint256_0;
@@ -2875,9 +2897,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     // s_select_longest_branch, which restructure that same hash table's buckets under wrlock
     // (HASH_DEL/HASH_ADD on fork reorg), so the lookup itself is done under rwlock, same as
     // dap_chain_block_cache_get_by_hash()
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
-    HASH_FIND(hh, PVT(l_blocks)->blocks, a_block_hash, sizeof(*a_block_hash), l_block_cache);
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_hash_find_locked(l_blocks, a_block_hash, &l_block_cache);
     if (!l_block_cache)
         return l_ret;
     const dap_chain_block_t *l_block = l_block_cache->block;
@@ -2902,9 +2922,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     }
     dap_hash_fast_t l_prev_block_hash = l_block_cache->prev_hash;
     l_block_cache = NULL;
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
-    HASH_FIND(hh, PVT(l_blocks)->blocks, &l_prev_block_hash, sizeof(l_prev_block_hash), l_block_cache);
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_hash_find_locked(l_blocks, &l_prev_block_hash, &l_block_cache);
     if (!l_block_cache) {
         log_it(L_ERROR, "[%s] l_block_cache is NULL", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
