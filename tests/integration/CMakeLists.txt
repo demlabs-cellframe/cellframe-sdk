@@ -10,5 +10,7 @@ add_subdirectory(dex)
 # UTXO blocking integration tests
 add_subdirectory(utxo_blocking)
 
-# CLI backpressure / dead-client-check integration tests
-add_subdirectory(cli_backpressure)
+# CLI backpressure / dead-client-check integration tests (talk to the CLI server over a unix socket)
+if(NOT WIN32)
+    add_subdirectory(cli_backpressure)
+endif()
