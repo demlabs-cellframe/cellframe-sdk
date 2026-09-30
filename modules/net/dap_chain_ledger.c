@@ -3686,8 +3686,13 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
             // Balance keys are "<addr_str> <ticker>"; match by fixed-length
             // prefix instead of dap_strsplit per account (two heap alloc/free
             // rounds per account, over every account in the net, per call).
-            const char *l_addr_str = dap_chain_addr_to_str_static(a_addr);
-            size_t l_addr_len = strlen(l_addr_str);
+            // dap_chain_addr_to_str_static() returns the address string by
+            // value (a fixed-size union); copy it into a local buffer so
+            // nothing aliases the return slot.
+            dap_chain_addr_str_t l_addr_str_val = dap_chain_addr_to_str_static_(a_addr);
+            char l_addr_str[DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t))];
+            memcpy(l_addr_str, l_addr_str_val.s, sizeof(l_addr_str));
+            size_t l_addr_len = strnlen(l_addr_str, sizeof(l_addr_str));
             HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
                 if (!strncmp(wallet_balance->key, l_addr_str, l_addr_len) && wallet_balance->key[l_addr_len] == ' ') {
                     l_tickers[l_count] = dap_strdup(wallet_balance->token_ticker);
