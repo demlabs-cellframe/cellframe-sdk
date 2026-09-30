@@ -4508,11 +4508,10 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             }
             if(l_chain) {
                 l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-                // Was dap_global_db_get_all_sync() + dap_global_db_objs_delete(): reads and
-                // deserializes every datum in the mempool group from disk just to throw them
-                // away and keep the count. dap_global_db_driver_count() gets the same number
-                // straight from the driver without loading any values.
-                size_t l_objs_count = dap_global_db_driver_count(l_mempool_group, c_dap_global_db_driver_hash_blank, true);
+                // Count via the driver instead of loading every datum; without holes, i.e. only live
+                // records, as the former dap_global_db_get_all_sync() did - deleted mempool datums
+                // stay in the table as tombstones until GDB cleanup.
+                size_t l_objs_count = dap_global_db_driver_count(l_mempool_group, c_dap_global_db_driver_hash_blank, false);
                 DAP_DELETE(l_mempool_group);
                 json_object *l_jobj_chain = json_object_new_object();
                 json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
@@ -4532,7 +4531,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             } else {
                 DL_FOREACH(l_net->pub.chains, l_chain) {
                     l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-                    size_t l_objs_count = dap_global_db_driver_count(l_mempool_group, c_dap_global_db_driver_hash_blank, true);
+                    size_t l_objs_count = dap_global_db_driver_count(l_mempool_group, c_dap_global_db_driver_hash_blank, false);
                     DAP_DELETE(l_mempool_group);
                     json_object *l_jobj_chain = json_object_new_object();
                     json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
