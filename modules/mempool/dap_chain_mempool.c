@@ -2298,6 +2298,63 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     DAP_DELETE(l_gdb_group);
 }
 
+// Janitorial mempool filter moved off the RPC read path: 'mempool list' used
+// to run the full validation pass (full GDB group read, keccak per datum,
+// synchronous deletes) on every listing, per chain. It runs from a background
+// timer instead; the listing command reports the last pass's removal count.
+typedef struct dap_chain_mempool_filter_stat {
+    dap_chain_t *chain;
+    int removed;
+    UT_hash_handle hh;
+} dap_chain_mempool_filter_stat_t;
+static dap_chain_mempool_filter_stat_t *s_filter_stats = NULL;
+static pthread_mutex_t s_filter_stats_lock = PTHREAD_MUTEX_INITIALIZER;
+static dap_interval_timer_t s_filter_timer = NULL;
+
+static void s_filter_timer_cb(void UNUSED_ARG *a_arg) {
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        dap_chain_t *l_chain;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            int l_removed = 0;
+            dap_chain_mempool_filter(l_chain, &l_removed);
+            pthread_mutex_lock(&s_filter_stats_lock);
+            dap_chain_mempool_filter_stat_t *l_st = NULL;
+            HASH_FIND_PTR(s_filter_stats, &l_chain, l_st);
+            if (!l_st) {
+                l_st = DAP_NEW_Z(dap_chain_mempool_filter_stat_t);
+                if (!l_st) {
+                    pthread_mutex_unlock(&s_filter_stats_lock);
+                    continue;
+                }
+                l_st->chain = l_chain;
+                HASH_ADD_PTR(s_filter_stats, chain, l_st);
+            }
+            l_st->removed = l_removed;
+            pthread_mutex_unlock(&s_filter_stats_lock);
+        }
+    }
+}
+
+void dap_chain_mempool_filter_timer_start(void) {
+    if (s_filter_timer)
+        return;
+    s_filter_timer = dap_interval_timer_create(10 * 60 * 1000, s_filter_timer_cb, NULL);
+    log_it(L_NOTICE, "Mempool janitorial filter scheduled to run every 10 minutes");
+}
+
+int dap_chain_mempool_filter_last_removed(dap_chain_t *a_chain) {
+    if (!a_chain)
+        return 0;
+    int l_removed = 0;
+    pthread_mutex_lock(&s_filter_stats_lock);
+    dap_chain_mempool_filter_stat_t *l_st = NULL;
+    HASH_FIND_PTR(s_filter_stats, &a_chain, l_st);
+    if (l_st)
+        l_removed = l_st->removed;
+    pthread_mutex_unlock(&s_filter_stats_lock);
+    return l_removed;
+}
+
 // Historical implementation: full linear scan of the mempool GDB group,
 // re-parsing every TX datum's inputs. O(mempool size) per call, called once
 // per candidate UTXO by callers such as dap_ledger_get_list_tx_outs_unspent_by_addr

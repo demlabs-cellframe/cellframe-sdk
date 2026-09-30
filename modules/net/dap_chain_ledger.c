@@ -2797,7 +2797,13 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
         memcpy(&l_tx_item->cache_data, l_current_record->data, l_current_record->cache_size);
         memcpy(l_tx_item->tx, l_current_record->data + l_current_record->cache_size, l_current_record->datum_size);
         l_tx_item->ts_added = dap_nanotime_now();
-        HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item, s_sort_ledger_tx_item);
+        // Records come back in insertion order, so a guarded append keeps the
+        // INORDER O(N) walk off the ledger cache load.
+        dap_ledger_tx_item_t *l_tail_item = HASH_LAST(l_ledger_pvt->ledger_items);
+        if (!l_tail_item || l_tail_item->cache_data.ts_created <= l_tx_item->cache_data.ts_created)
+            HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
+        else
+            HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item, s_sort_ledger_tx_item);
     }
     return true;
 }
@@ -3677,13 +3683,16 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
                 return;
             }
             l_count = 0;
+            // Balance keys are "<addr_str> <ticker>"; match by fixed-length
+            // prefix instead of dap_strsplit per account (two heap alloc/free
+            // rounds per account, over every account in the net, per call).
+            const char *l_addr_str = dap_chain_addr_to_str_static(a_addr);
+            size_t l_addr_len = strlen(l_addr_str);
             HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
-                char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
-                if (!dap_strcmp(l_keys[0], dap_chain_addr_to_str_static(a_addr))) {
+                if (!strncmp(wallet_balance->key, l_addr_str, l_addr_len) && wallet_balance->key[l_addr_len] == ' ') {
                     l_tickers[l_count] = dap_strdup(wallet_balance->token_ticker);
                     ++l_count;
                 }
-                dap_strfreev(l_keys);
             }
             *a_tickers = l_tickers;
         }
@@ -5622,13 +5631,25 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     dap_stpcpy(l_tx_item->cache_data.token_ticker, l_main_token_ticker);
 
     l_tx_item->cache_data.multichannel = l_multichannel;
+    l_tx_item->cache_data.ts_created = a_tx->header.ts_created;   // was never set before: the INORDER comparator below compared all-zero keys
     l_tx_item->ts_added = dap_nanotime_now();
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
+    // In load/sync mode the chain is historical, plain append; HASH_SORT at
+    // load end fixes the order up. In live mode keep the items sorted by
+    // ts_created: a live tx is almost always newer than the tail, so the
+    // guarded append is O(1) - the previous HASH_ADD_INORDER walked the whole
+    // (hundreds of thousands of items) list under this wrlock on every
+    // accepted tx. INORDER runs only for a genuinely out-of-order ts.
     if (dap_chain_net_get_load_mode(a_ledger->net) || dap_chain_net_get_state(a_ledger->net) == NET_STATE_SYNC_CHAINS)
         HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
-    else
-        HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
-                         l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
+    else {
+        dap_ledger_tx_item_t *l_tail_item = HASH_LAST(l_ledger_pvt->ledger_items);
+        if (!l_tail_item || l_tail_item->cache_data.ts_created <= l_tx_item->cache_data.ts_created)
+            HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
+        else
+            HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
+                             l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
+    }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     // Callable callback
     dap_list_t *l_notifier;
@@ -6144,11 +6165,47 @@ unsigned dap_ledger_count(dap_ledger_t *a_ledger)
  * @param a_ts_to
  * @return
  */
+// Short-TTL cache for dap_ledger_count_from_to(): 'net get stats' polls the
+// same (from,to) windows over and over, and every miss was a full
+// (hundreds of thousands of items) ledger walk under ledger_rwlock rdlock.
+// Direct-mapped, 5 second TTL - a stats counter being up to 5s stale is fine,
+// holding the ledger read lock for a full scan per poll was not.
+#define DAP_LEDGER_STATS_CACHE_SLOTS 16
+#define DAP_LEDGER_STATS_CACHE_TTL_NS (5ull * 1000ull * 1000ull * 1000ull)
+typedef struct {
+    const void *ledger;
+    dap_nanotime_t ts_from, ts_to, ts_cached;
+    uint64_t count;
+} s_stats_cache_entry_t;
+static s_stats_cache_entry_t s_stats_cache[DAP_LEDGER_STATS_CACHE_SLOTS];
+static pthread_mutex_t s_stats_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static inline size_t s_stats_cache_slot(const void *a_ledger, dap_nanotime_t a_from, dap_nanotime_t a_to) {
+    uint64_t h = 1469598103934665603ull;
+    const uint64_t l_parts[3] = { (uint64_t)(uintptr_t)a_ledger, (uint64_t)a_from, (uint64_t)a_to };
+    for (size_t i = 0; i < 3; ++i) {
+        uint64_t v = l_parts[i];
+        for (int b = 0; b < 8; ++b) { h ^= (v >> (b * 8)) & 0xFF; h *= 1099511628211ull; }
+    }
+    return (size_t)(h % DAP_LEDGER_STATS_CACHE_SLOTS);
+}
+
 uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_nanotime_t a_ts_from, dap_nanotime_t a_ts_to)
 {
     uint64_t l_ret = 0;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_iter_current, *l_item_tmp;
+    size_t l_slot = s_stats_cache_slot(a_ledger, a_ts_from, a_ts_to);
+    dap_nanotime_t l_now = dap_nanotime_now();
+    pthread_mutex_lock(&s_stats_cache_lock);
+    if (s_stats_cache[l_slot].ledger == (const void *)a_ledger &&
+        s_stats_cache[l_slot].ts_from == a_ts_from && s_stats_cache[l_slot].ts_to == a_ts_to &&
+        l_now - s_stats_cache[l_slot].ts_cached < DAP_LEDGER_STATS_CACHE_TTL_NS) {
+        l_ret = s_stats_cache[l_slot].count;
+        pthread_mutex_unlock(&s_stats_cache_lock);
+        return l_ret;
+    }
+    pthread_mutex_unlock(&s_stats_cache_lock);
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     if ( a_ts_from && a_ts_to) {
         HASH_ITER(hh, l_ledger_pvt->ledger_items , l_iter_current, l_item_tmp){
@@ -6169,6 +6226,10 @@ uint64_t dap_ledger_count_from_to(dap_ledger_t * a_ledger, dap_nanotime_t a_ts_f
         l_ret = HASH_COUNT(l_ledger_pvt->ledger_items);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    pthread_mutex_lock(&s_stats_cache_lock);
+    s_stats_cache[l_slot] = (s_stats_cache_entry_t){ .ledger = a_ledger, .ts_from = a_ts_from,
+                                                     .ts_to = a_ts_to, .ts_cached = dap_nanotime_now(), .count = l_ret };
+    pthread_mutex_unlock(&s_stats_cache_lock);
     return l_ret;
 }
 
@@ -6442,6 +6503,8 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
     // request lets go of ledger_rwlock quickly instead of finishing a scan
     // for a reply nobody will read.
     uint64_t l_item_idx = 0;
+    const char *l_bl_token_cached = NULL;
+    dap_ledger_token_item_t *l_bl_token_item = NULL;
     HASH_ITER(hh, l_ledger_pvt->ledger_items, l_cur, l_tmp) {
         if (!(++l_item_idx & 0xFFF) && !dap_cli_server_client_is_alive())
             break;
@@ -6525,11 +6588,21 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
             // Check applies to ALL output types (regular OUT, OUT_EXT, OUT_STD, and OUT_COND)
             // Blocked UTXO cannot be used in any transaction type
             // Skip this check for arbitrage transactions (a_skip_blocklist = true)
+            // The token lookup is memoized: s_ledger_find_token per UTXO took
+            // a tokens_rwlock round trip per matching output.
             if (!a_skip_blocklist && l_token) {
-                dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_token);
-                if (l_token_item && 
-                    !(l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
-                    dap_ledger_utxo_is_blocked(l_token_item, &l_cur->tx_hash_fast, l_out_idx, a_ledger)) {
+                if (!l_bl_token_cached || strcmp(l_bl_token_cached, l_token)) {
+                    l_bl_token_cached = l_token;
+                    l_bl_token_item = s_ledger_find_token(a_ledger, l_token);
+                }
+                // Advisory early-out: an empty blocklist (the common case)
+                // can't block anything. utxo_blocklist_count is maintained
+                // under the blocklist lock; a stale read here can only make
+                // us take the normal path.
+                if (l_bl_token_item &&
+                    !(l_bl_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
+                    l_bl_token_item->utxo_blocklist_count &&
+                    dap_ledger_utxo_is_blocked(l_bl_token_item, &l_cur->tx_hash_fast, l_out_idx, a_ledger)) {
                     debug_if(s_debug_more, L_DEBUG, "UTXO %s:%d is blocked for token %s - skipping",
                             dap_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx, l_token);
                     continue;
@@ -6615,14 +6688,21 @@ dap_list_t *dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_
         return NULL;
     }
     dap_list_t *l_list = NULL;
-    size_t l_counter = 0;
+    size_t l_counter = 0, l_count_got = 0;
     dap_ledger_tx_item_t *l_item_current, *l_item_tmp;
     HASH_ITER(hh, l_ledger_pvt->ledger_items, l_item_current, l_item_tmp) {
         if (l_counter++ >= l_offset) {
-            if (!a_unspent_only || !l_item_current->cache_data.ts_spent)
+            if (!a_unspent_only || !l_item_current->cache_data.ts_spent) {
                 l_list = a_reverse
                         ? dap_list_prepend(l_list, l_item_current->tx)
                         : dap_list_append(l_list, l_item_current->tx);
+                // A page request used to keep walking the whole (hundreds of
+                // thousands of items) table and return everything from the
+                // offset to the end; stop once the page is full. a_count == 0
+                // keeps the old "everything from offset" behavior.
+                if (a_count && ++l_count_got >= a_count)
+                    break;
+            }
         }
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);

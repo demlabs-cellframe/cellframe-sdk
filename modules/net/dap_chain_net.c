@@ -773,7 +773,10 @@ json_object *s_net_sync_status(dap_chain_net_t *a_net, int a_version)
             l_jobj_percent = json_object_new_string(l_percent_str);
             DAP_DELETE(l_percent_str);
         }
-        json_object *l_jobj_current = json_object_new_uint64(l_chain->callback_count_atom(l_chain));
+        // callback_count_atom takes the chain's counters lock (the DAG variant
+        // takes events_mutex); one call per chain instead of two.
+        uint64_t l_atom_count = l_chain->callback_count_atom(l_chain);
+        json_object *l_jobj_current = json_object_new_uint64(l_atom_count);
         json_object *l_jobj_total = json_object_new_uint64(l_chain->atom_num_last);
         json_object_object_add(l_jobj_chain, "status", l_jobj_chain_status);
         json_object_object_add(l_jobj_chain, "current", l_jobj_current);

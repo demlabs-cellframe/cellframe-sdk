@@ -22,6 +22,7 @@
 */
 #include <stdlib.h>
 #include <time.h>
+#include <stdatomic.h>
 #include "dap_common.h"
 #include "dap_chain_block_cache.h"
 #include "dap_chain_datum_tx.h"
@@ -65,6 +66,7 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
     l_block_cache->block_number = a_block_number;
     l_block_cache->ts_created = a_block->hdr.ts_created;
     l_block_cache->sign_count = dap_chain_block_get_signs_count(a_block, a_block_size);
+    l_block_cache->sign_pkey_hashes = NULL; /* lazily filled, see dap_chain_block_cache_sign_pkey_hashes() */
     if (dap_chain_block_cache_update(l_block_cache, a_block_hash)) {
         log_it(L_WARNING, "Block cache can't be created, possible cause corrupted block inside");
         if (a_copy_block)
@@ -88,6 +90,10 @@ dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_
         return NULL;
     }
     l_ret->hh = (UT_hash_handle){ }; // Drop hash handle to prevent its usage
+    // The lazy sign-pkey-hash array belongs to the original cache; the dup
+    // recomputes its own on first use (sharing the pointer would mean a
+    // double free when either copy is deleted).
+    l_ret->sign_pkey_hashes = NULL;
     return l_ret;
 }
 
@@ -142,6 +148,7 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
     DAP_DEL_Z(a_block_cache->datum);
     DAP_DEL_Z(a_block_cache->datum_hash);
     DAP_DEL_Z(a_block_cache->links_hash);
+    DAP_DEL_Z(a_block_cache->sign_pkey_hashes);
     DAP_DELETE(a_block_cache);
 }
 
@@ -192,3 +199,35 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
         *a_value_out = l_value_transfer;
     return l_list_used_out;
 }
+/**
+ * @brief dap_chain_block_cache_sign_pkey_hashes
+ * Signers' pkey hashes of the block, computed on first use and cached in the
+ * block cache: 'block list -signed -pkey_hash' used to keccak every signature
+ * of every candidate block on every request under the blocks rwlock. The
+ * double-checked atomic publish makes concurrent first users compute at most
+ * a couple of redundant copies, one of which is freed.
+ * @return The cached array (sign_count entries); NULL on allocation failure.
+ */
+dap_hash_fast_t *dap_chain_block_cache_sign_pkey_hashes(dap_chain_block_cache_t *a_block_cache)
+{
+    dap_return_val_if_fail(a_block_cache && a_block_cache->sign_count, NULL);
+    dap_hash_fast_t *l_hashes = atomic_load_explicit(&a_block_cache->sign_pkey_hashes, memory_order_acquire);
+    if (l_hashes)
+        return l_hashes;
+    l_hashes = DAP_NEW_Z_COUNT(dap_hash_fast_t, a_block_cache->sign_count);
+    if (!l_hashes)
+        return NULL;
+    for (size_t i = 0; i < a_block_cache->sign_count; ++i) {
+        dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_cache->block, a_block_cache->block_size, i);
+        if (!l_sign || !dap_sign_get_pkey_hash(l_sign, l_hashes + i)) {
+            DAP_DELETE(l_hashes);
+            return NULL;
+        }
+    }
+    dap_hash_fast_t *l_expected = NULL;
+    if (!atomic_compare_exchange_strong_explicit(&a_block_cache->sign_pkey_hashes, &l_expected,
+                                                 l_hashes, memory_order_release, memory_order_relaxed))
+        DAP_DELETE(l_hashes);   /* another thread won the race, its copy is published */
+    return atomic_load_explicit(&a_block_cache->sign_pkey_hashes, memory_order_acquire);
+}
+

@@ -865,8 +865,13 @@ static int s_json_tx_history_pack(json_object* a_json_arr_reply, json_object** a
                                   size_t* a_rejected, bool a_look_for_unknown_service, const char *a_srv, int a_version)
 {
     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
-    dap_hash_fast_t l_ttx_hash = {0};
-    dap_hash_fast(l_tx, a_datum->header.data_size, &l_ttx_hash);
+    // The iterator already carries the hash of the current item - recomputing
+    // a keccak over the whole datum per row made '-all' listings noticeably
+    // more expensive than the data warranted.
+    dap_hash_fast_t l_ttx_hash;
+    memcpy(&l_ttx_hash, &a_datum_iter->cur_hash, sizeof(l_ttx_hash));
+    if (dap_hash_fast_is_blank(&l_ttx_hash))
+        dap_hash_fast(l_tx, a_datum->header.data_size, &l_ttx_hash);
 
     const char *service_name = NULL;
     dap_chain_tx_tag_action_type_t l_action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN;

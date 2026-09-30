@@ -236,6 +236,46 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
         : -1;
 }
 
+// Short-TTL cache (5 s) for the raw 'nodes' GDB group records served to
+// 'node list'/'node dump': the group changes rarely, the polling is frequent,
+// and every miss was a full-group mdbx read transaction. Returns a deep copy,
+// so callers keep owning (and freeing) what they get.
+#define DAP_NODE_LIST_CACHE_TTL_NS (5ull * 1000ull * 1000ull * 1000ull)
+static dap_global_db_obj_t *s_node_list_cache_objs = NULL;
+static size_t s_node_list_cache_count = 0;
+static dap_chain_net_t *s_node_list_cache_net = NULL;
+static dap_nanotime_t s_node_list_cache_ts = 0;
+static pthread_mutex_t s_node_list_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static dap_global_db_obj_t *s_node_list_cache_get(dap_chain_net_t *a_net, size_t *a_count) {
+    dap_nanotime_t l_now = dap_nanotime_now();
+    pthread_mutex_lock(&s_node_list_cache_lock);
+    if (s_node_list_cache_net != a_net || l_now - s_node_list_cache_ts >= DAP_NODE_LIST_CACHE_TTL_NS) {
+        dap_global_db_objs_delete(s_node_list_cache_objs, s_node_list_cache_count);
+        s_node_list_cache_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &s_node_list_cache_count);
+        s_node_list_cache_net = a_net;
+        s_node_list_cache_ts = l_now;
+    }
+    if (!s_node_list_cache_objs || !s_node_list_cache_count) {
+        size_t l_zero = 0;
+        if (a_count) *a_count = l_zero;
+        pthread_mutex_unlock(&s_node_list_cache_lock);
+        return NULL;
+    }
+    dap_global_db_obj_t *l_copy = DAP_NEW_Z_COUNT(dap_global_db_obj_t, s_node_list_cache_count);
+    for (size_t i = 0; i < s_node_list_cache_count; ++i) {
+        l_copy[i].key = dap_strdup(s_node_list_cache_objs[i].key);
+        l_copy[i].value_len = s_node_list_cache_objs[i].value_len;
+        l_copy[i].value = l_copy[i].value_len ? DAP_DUP_SIZE(s_node_list_cache_objs[i].value, l_copy[i].value_len) : NULL;
+        l_copy[i].timestamp = s_node_list_cache_objs[i].timestamp;
+        l_copy[i].is_pinned = s_node_list_cache_objs[i].is_pinned;
+    }
+    if (a_count)
+        *a_count = s_node_list_cache_count;
+    pthread_mutex_unlock(&s_node_list_cache_lock);
+    return l_copy;
+}
+
 /**
  * @brief s_node_info_list_with_reply Handler of command 'node dump'
  * @param a_net
@@ -335,7 +375,11 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
 
     } else { // Dump list with !a_addr && !a_alias
         size_t l_nodes_count = 0;
-        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+        // Node lists change rarely but dashboards poll 'node list' often;
+        // serve the raw records from a short-TTL cache instead of a full GDB
+        // group read per request. The records are deserialized by the callers
+        // below, so the cache stores the raw GDB objects.
+        dap_global_db_obj_t *l_objs = s_node_list_cache_get(a_net, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
             dap_string_append_printf(l_string_reply, "No records\n");
@@ -3091,9 +3135,10 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     }
     json_object_object_add(l_obj_chain, "name", l_obj_chain_name);
     
-    // Filter mempool and add information about removed records
-    int l_removed = 0;
-    dap_chain_mempool_filter(a_chain, &l_removed);
+    // The janitorial filter runs on a background timer now (it used to read
+    // and re-hash the whole mempool group on every listing); report the last
+    // pass's removal count.
+    int l_removed = dap_chain_mempool_filter_last_removed(a_chain);
     
     json_object *l_jobj_removed = json_object_new_int(l_removed);
     if (!l_jobj_removed) {

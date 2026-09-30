@@ -70,6 +70,14 @@ void dap_chain_mempool_add_proc(dap_http_server_t * a_http_server, const char * 
 
 void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed);
 
+// Run the janitorial filter from a background timer (every 10 min) instead of
+// on the 'mempool list' read path. Call once at node startup.
+void dap_chain_mempool_filter_timer_start(void);
+
+// Number of records the last background filter pass removed for this chain
+// (reported by 'mempool list' in place of the on-read filter result).
+int dap_chain_mempool_filter_last_removed(dap_chain_t *a_chain);
+
 char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
 
 char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,

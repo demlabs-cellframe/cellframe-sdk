@@ -1168,14 +1168,16 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                         continue;
                     if (!l_pub_key) {
                         bool l_found = false;
-                        // TODO optimize performance by precalculated sign hashes in block cache
-                        for (size_t i = 0; i < l_block_cache->sign_count ; i++) {
-                            dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
-                            dap_hash_fast_t l_sign_pkey_hash;
-                            dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
-                            if (dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
-                                l_found = true;
-                                break;
+                        // Signers' pkey hashes are computed once per block and
+                        // cached (was: a fresh keccak per signature per block
+                        // per request, under the blocks rwlock).
+                        dap_hash_fast_t *l_sign_hashes = dap_chain_block_cache_sign_pkey_hashes(l_block_cache);
+                        if (l_sign_hashes) {
+                            for (size_t i = 0; i < l_block_cache->sign_count; i++) {
+                                if (dap_hash_fast_compare(&l_pkey_hash, l_sign_hashes + i)) {
+                                    l_found = true;
+                                    break;
+                                }
                             }
                         }
                         if (!l_found)

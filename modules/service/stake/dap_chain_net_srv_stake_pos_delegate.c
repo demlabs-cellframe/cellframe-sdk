@@ -3105,6 +3105,15 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, uint256_t
 /**
  * @brief The get_tx_cond_pos_del_from_tx struct
  */
+// Filtered stake-delegation tx with its hash carried from the scan: the
+// ledger iterator provides the hash for free, recomputing a keccak over the
+// whole datum per displayed row was pure waste (and the list itself used to
+// leak - only the args struct was deleted).
+typedef struct stake_tx_entry {
+    dap_chain_datum_tx_t *tx;
+    dap_hash_fast_t hash;
+} stake_tx_entry_t;
+
 struct get_tx_cond_pos_del_from_tx
 {
     dap_list_t * ret;
@@ -3139,14 +3148,20 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
     HASH_FIND(ht, l_srv_stake->tx_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
     bool l_not_found = !l_stake;
     pthread_rwlock_unlock(&l_srv_stake->itemlist_rwlock);
-    if (l_not_found)
-        l_args->ret = dap_list_append(l_args->ret,a_tx);
+    if (l_not_found) {
+        stake_tx_entry_t *l_entry = DAP_NEW_Z(stake_tx_entry_t);
+        if (!l_entry)
+            return;
+        l_entry->tx = a_tx;
+        l_entry->hash = *a_tx_hash;
+        l_args->ret = dap_list_append(l_args->ret, l_entry);
+    }
 }
 
 static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2)
 {
-    dap_chain_datum_tx_t    *l_datum1 = a_datum1->data,
-                            *l_datum2 = a_datum2->data;
+    dap_chain_datum_tx_t    *l_datum1 = a_datum1->data ? ((stake_tx_entry_t *)a_datum1->data)->tx : NULL,
+                            *l_datum2 = a_datum2->data ? ((stake_tx_entry_t *)a_datum2->data)->tx : NULL;
     if (!l_datum1 || !l_datum2) {
         log_it(L_CRITICAL, "Invalid element");
         return 0;
@@ -3710,9 +3725,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
                 {
                     if (l_offset > 0) { --l_offset; continue; }
                     json_object* l_json_obj_tx = json_object_new_object();
-                    l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
+                    stake_tx_entry_t *l_entry = tx->data;
+                    l_datum_tx = l_entry->tx;
                     char buf[DAP_TIME_STR_SIZE];
-                    dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
+                    l_datum_hash = l_entry->hash;   /* carried from the scan, see stake_tx_entry_t */
                     l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_datum_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
                                                                                      &l_out_idx_tmp);
                     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -3750,6 +3766,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
                 }
 
                 json_object_array_add(*a_json_arr_reply, l_json_arr_tx);
+                // list nodes + entries; the tx pointers belong to the ledger
+                dap_list_free_full(l_args->ret, (dap_callback_destroyed_t)free);
                 DAP_DELETE(l_args);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_WRONG_SUB_COMMAND_ERR, "Subcommand '%s' not recognized", a_argv[l_arg_index]);
