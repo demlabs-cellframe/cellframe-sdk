@@ -233,6 +233,25 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
+
+/**
+ * @brief Flat record of one token datum of a chain, from the per-chain token
+ * datum registry maintained at datum add/remove (see dap_chain_net.c).
+ */
+typedef struct dap_chain_token_datum_info {
+    dap_hash_fast_t hash;
+    uint64_t ts_create;
+    int ret_code;
+    uint16_t token_type;
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+} dap_chain_token_datum_info_t;
+
+/**
+ * @brief List the token datums of a chain, ordered by creation time.
+ * @param a_out Receives a newly allocated array (DAP_DELETE it when done)
+ * @return Number of records in *a_out
+ */
+size_t dap_chain_token_datum_list(dap_chain_t *a_chain, dap_chain_token_datum_info_t **a_out);
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
