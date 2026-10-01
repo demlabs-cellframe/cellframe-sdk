@@ -106,6 +106,10 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
 {
     assert(a_block_cache);
     assert(a_block_cache->block);
+    // Any re-parse may change the block bytes: drop the lazily built signer
+    // hash cache so it is rebuilt from the current contents (today only
+    // called right after creation, where the field is already NULL).
+    DAP_DEL_Z(a_block_cache->sign_pkey_hashes);
     if (a_block_hash)
         a_block_cache->block_hash = *a_block_hash;
     else
