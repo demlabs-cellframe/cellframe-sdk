@@ -365,7 +365,7 @@ char *dap_chain_arbitrage_cli_create_tx(
                 a_net->pub.name,
                 a_token_ticker);
         
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, l_error_msg);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, "%s", l_error_msg);
         return NULL;
     }
     
@@ -388,7 +388,7 @@ char *dap_chain_arbitrage_cli_create_tx(
                     "For multiple certificates, use comma-separated list: -certs cert1,cert2,cert3",
                     a_certs_str);
             
-            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, l_error_msg);
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, "%s", l_error_msg);
             return NULL;
         }
         
@@ -458,7 +458,7 @@ char *dap_chain_arbitrage_cli_create_tx(
         
         log_it(L_ERROR, "Arbitrage transaction FAILED: %s", l_error_msg);
         DAP_DEL_Z(l_arbitrage_certs);
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, l_error_msg);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION, "%s", l_error_msg);
         return NULL;
     }
     

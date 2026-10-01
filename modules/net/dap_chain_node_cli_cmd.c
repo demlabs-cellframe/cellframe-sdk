@@ -244,16 +244,19 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
 static dap_global_db_obj_t *s_node_list_cache_objs = NULL;
 static size_t s_node_list_cache_count = 0;
 static dap_chain_net_t *s_node_list_cache_net = NULL;
+static dap_chain_net_id_t s_node_list_cache_net_id = { };
 static dap_nanotime_t s_node_list_cache_ts = 0;
 static pthread_mutex_t s_node_list_cache_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static dap_global_db_obj_t *s_node_list_cache_get(dap_chain_net_t *a_net, size_t *a_count) {
     dap_nanotime_t l_now = dap_nanotime_now();
     pthread_mutex_lock(&s_node_list_cache_lock);
-    if (s_node_list_cache_net != a_net || l_now - s_node_list_cache_ts >= DAP_NODE_LIST_CACHE_TTL_NS) {
+    if (s_node_list_cache_net != a_net || s_node_list_cache_net_id.uint64 != a_net->pub.id.uint64 ||
+            l_now - s_node_list_cache_ts >= DAP_NODE_LIST_CACHE_TTL_NS) {
         dap_global_db_objs_delete(s_node_list_cache_objs, s_node_list_cache_count);
         s_node_list_cache_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &s_node_list_cache_count);
         s_node_list_cache_net = a_net;
+        s_node_list_cache_net_id = a_net->pub.id;
         s_node_list_cache_ts = l_now;
     }
     if (!s_node_list_cache_objs || !s_node_list_cache_count) {
@@ -263,17 +266,35 @@ static dap_global_db_obj_t *s_node_list_cache_get(dap_chain_net_t *a_net, size_t
         return NULL;
     }
     dap_global_db_obj_t *l_copy = DAP_NEW_Z_COUNT(dap_global_db_obj_t, s_node_list_cache_count);
+    if (!l_copy) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        if (a_count) *a_count = 0;
+        pthread_mutex_unlock(&s_node_list_cache_lock);
+        return NULL;
+    }
+    size_t l_copied = 0;
     for (size_t i = 0; i < s_node_list_cache_count; ++i) {
         l_copy[i].key = dap_strdup(s_node_list_cache_objs[i].key);
         l_copy[i].value_len = s_node_list_cache_objs[i].value_len;
         l_copy[i].value = l_copy[i].value_len ? DAP_DUP_SIZE(s_node_list_cache_objs[i].value, l_copy[i].value_len) : NULL;
         l_copy[i].timestamp = s_node_list_cache_objs[i].timestamp;
         l_copy[i].is_pinned = s_node_list_cache_objs[i].is_pinned;
+        if (!l_copy[i].key || (l_copy[i].value_len && !l_copy[i].value)) {
+            // Partial copy: hand back only the fully built prefix.
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            break;
+        }
+        ++l_copied;
     }
+    // Free the key/value of the unfinished tail only; the array itself stays
+    // owned by the caller (it frees it via dap_global_db_objs_delete(l_objs,
+    // l_copied), which releases the whole allocation).
+    for (size_t i = l_copied; i < s_node_list_cache_count; ++i)
+        DAP_DEL_MULTY(l_copy[i].key, l_copy[i].value);
     if (a_count)
-        *a_count = s_node_list_cache_count;
+        *a_count = l_copied;
     pthread_mutex_unlock(&s_node_list_cache_lock);
-    return l_copy;
+    return l_copied ? l_copy : (DAP_DELETE(l_copy), NULL);
 }
 
 /**
@@ -5332,9 +5353,11 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         l_tsd_list = dap_list_append(l_tsd_list, l_utxo_remove_tsd);
         l_tsd_total_size += dap_tsd_size(l_utxo_remove_tsd);
         
-        DAP_DELETE(l_utxo_str_copy);
-        log_it(L_INFO, "Added UTXO unblocking: %s:%u%s", l_hash_str, l_out_idx, 
+        // Log before freeing l_utxo_str_copy (l_hash_str points into it), as
+        // in the -utxo_blocked_add branch above
+        log_it(L_INFO, "Added UTXO unblocking: %s:%u%s", l_hash_str, l_out_idx,
                l_timestamp ? " (delayed)" : "");
+        DAP_DELETE(l_utxo_str_copy);
     }
     
     // Process -utxo_blocked_clear
@@ -9284,7 +9307,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int 
     if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX){
         char *l_str_err = dap_strdup_printf("Based on the specified hash, the type %s was found and not a transaction.",
                                             dap_chain_datum_type_id_to_str(l_datum->header.type_id));
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH, l_str_err);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH, "%s", l_str_err);
         DAP_DELETE(l_str_err);
         DAP_DELETE(l_datum);
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH;
@@ -9537,7 +9560,6 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
-
         json_object* json_arr_history_all = dap_db_history_tx_all(*a_json_arr_reply, l_chain, l_net, l_hash_out_type, json_obj_summary,
                                                                 l_limit, l_offset, l_brief, l_tx_srv_str, l_action, l_head, a_version);
         if (!json_arr_history_all) {

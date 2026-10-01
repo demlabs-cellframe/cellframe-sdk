@@ -3767,7 +3767,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
 
                 json_object_array_add(*a_json_arr_reply, l_json_arr_tx);
                 // list nodes + entries; the tx pointers belong to the ledger
-                dap_list_free_full(l_args->ret, (dap_callback_destroyed_t)free);
+                dap_list_free_full(l_args->ret, NULL);
                 DAP_DELETE(l_args);
             } else {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_SRV_STAKE_WRONG_SUB_COMMAND_ERR, "Subcommand '%s' not recognized", a_argv[l_arg_index]);

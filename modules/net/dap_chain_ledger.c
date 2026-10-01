@@ -213,6 +213,22 @@ static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* 
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
 static bool s_debug_more = true;
+
+// Short-TTL cache for dap_ledger_count_from_to(): 'net get stats' polls the
+// same (from,to) windows over and over, and every miss was a full
+// (hundreds of thousands of items) ledger walk under ledger_rwlock rdlock.
+// Direct-mapped, 5 second TTL - a stats counter being up to 5s stale is fine,
+// holding the ledger read lock for a full scan per poll was not.
+#define DAP_LEDGER_STATS_CACHE_SLOTS 16
+#define DAP_LEDGER_STATS_CACHE_TTL_NS (5ull * 1000ull * 1000ull * 1000ull)
+typedef struct {
+    const void *ledger;
+    dap_nanotime_t ts_from, ts_to, ts_cached;
+    uint64_t count;
+} s_stats_cache_entry_t;
+static s_stats_cache_entry_t s_stats_cache[DAP_LEDGER_STATS_CACHE_SLOTS];
+static pthread_mutex_t s_stats_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+
 static size_t s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
@@ -2495,7 +2511,7 @@ json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_v
     // UTXO blocklist information
     // Read all data under single rwlock protection to avoid race conditions
     pthread_rwlock_rdlock(&a_token_item->utxo_blocklist_rwlock);
-    size_t l_utxo_count = a_token_item->utxo_blocklist_count;
+    size_t l_utxo_count = atomic_load_explicit(&a_token_item->utxo_blocklist_count, memory_order_relaxed);
     json_object_object_add(json_obj_datum, "utxo_blocklist_count", json_object_new_int64((int64_t)l_utxo_count));
     
     if (l_utxo_count > 0) {
@@ -2797,13 +2813,17 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
         memcpy(&l_tx_item->cache_data, l_current_record->data, l_current_record->cache_size);
         memcpy(l_tx_item->tx, l_current_record->data + l_current_record->cache_size, l_current_record->datum_size);
         l_tx_item->ts_added = dap_nanotime_now();
-        // Records come back in insertion order, so a guarded append keeps the
-        // INORDER O(N) walk off the ledger cache load.
+        // This callback runs on a GDB proc thread while the loader thread adds
+        // txs concurrently: same lock as dap_ledger_tx_add() around both the
+        // tail read and the insert (the read used to be unguarded, and the
+        // write never took the lock at all).
+        pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
         dap_ledger_tx_item_t *l_tail_item = HASH_LAST(l_ledger_pvt->ledger_items);
         if (!l_tail_item || l_tail_item->cache_data.ts_created <= l_tx_item->cache_data.ts_created)
             HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
         else
             HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item, s_sort_ledger_tx_item);
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     }
     return true;
 }
@@ -5644,16 +5664,25 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     // ts_created: a live tx is almost always newer than the tail, so the
     // guarded append is O(1) - the previous HASH_ADD_INORDER walked the whole
     // (hundreds of thousands of items) list under this wrlock on every
-    // accepted tx. INORDER runs only for a genuinely out-of-order ts.
+    // accepted tx.
     if (dap_chain_net_get_load_mode(a_ledger->net) || dap_chain_net_get_state(a_ledger->net) == NET_STATE_SYNC_CHAINS)
         HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
     else {
         dap_ledger_tx_item_t *l_tail_item = HASH_LAST(l_ledger_pvt->ledger_items);
+        // The header timestamp is not authenticated relative to acceptance:
+        // a tx claiming ts_created = 0 must not be able to force the O(N)
+        // INORDER walk on every insert (which would hold this wrlock for the
+        // whole scan). Only a timestamp inside a bounded reordering window
+        // takes the positional insert; anything older is appended (worst case
+        // it appears late in the time-ordered iteration, same as during load).
+        const dap_time_t DAP_LEDGER_TS_REORDER_WINDOW = 3600; // 1 hour
         if (!l_tail_item || l_tail_item->cache_data.ts_created <= l_tx_item->cache_data.ts_created)
             HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
-        else
+        else if (l_tx_item->cache_data.ts_created + DAP_LEDGER_TS_REORDER_WINDOW >= l_tail_item->cache_data.ts_created)
             HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
                              l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
+        else
+            HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     // Callable callback
@@ -6038,6 +6067,11 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
  */
 void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
 {
+    // The stats cache is keyed by ledger pointer: after a purge/reload a new
+    // ledger can reuse the same address, so drop the cached counts with it.
+    pthread_mutex_lock(&s_stats_cache_lock);
+    memset(s_stats_cache, 0, sizeof(s_stats_cache));
+    pthread_mutex_unlock(&s_stats_cache_lock);
     dap_return_if_fail(a_ledger);
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
@@ -6170,21 +6204,6 @@ unsigned dap_ledger_count(dap_ledger_t *a_ledger)
  * @param a_ts_to
  * @return
  */
-// Short-TTL cache for dap_ledger_count_from_to(): 'net get stats' polls the
-// same (from,to) windows over and over, and every miss was a full
-// (hundreds of thousands of items) ledger walk under ledger_rwlock rdlock.
-// Direct-mapped, 5 second TTL - a stats counter being up to 5s stale is fine,
-// holding the ledger read lock for a full scan per poll was not.
-#define DAP_LEDGER_STATS_CACHE_SLOTS 16
-#define DAP_LEDGER_STATS_CACHE_TTL_NS (5ull * 1000ull * 1000ull * 1000ull)
-typedef struct {
-    const void *ledger;
-    dap_nanotime_t ts_from, ts_to, ts_cached;
-    uint64_t count;
-} s_stats_cache_entry_t;
-static s_stats_cache_entry_t s_stats_cache[DAP_LEDGER_STATS_CACHE_SLOTS];
-static pthread_mutex_t s_stats_cache_lock = PTHREAD_MUTEX_INITIALIZER;
-
 static inline size_t s_stats_cache_slot(const void *a_ledger, dap_nanotime_t a_from, dap_nanotime_t a_to) {
     uint64_t h = 1469598103934665603ull;
     const uint64_t l_parts[3] = { (uint64_t)(uintptr_t)a_ledger, (uint64_t)a_from, (uint64_t)a_to };
@@ -6601,12 +6620,12 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
                     l_bl_token_item = s_ledger_find_token(a_ledger, l_token);
                 }
                 // Advisory early-out: an empty blocklist (the common case)
-                // can't block anything. utxo_blocklist_count is maintained
-                // under the blocklist lock; a stale read here can only make
-                // us take the normal path.
+                // can't block anything. The count is monotonic (entries are
+                // never unlinked) and published atomically, so a zero read
+                // here reliably means "no blocked UTXOs for this token yet".
                 if (l_bl_token_item &&
                     !(l_bl_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
-                    l_bl_token_item->utxo_blocklist_count &&
+                    atomic_load_explicit(&l_bl_token_item->utxo_blocklist_count, memory_order_acquire) &&
                     dap_ledger_utxo_is_blocked(l_bl_token_item, &l_cur->tx_hash_fast, l_out_idx, a_ledger)) {
                     debug_if(s_debug_more, L_DEBUG, "UTXO %s:%d is blocked for token %s - skipping",
                             dap_hash_fast_to_str_static(&l_cur->tx_hash_fast), l_out_idx, l_token);

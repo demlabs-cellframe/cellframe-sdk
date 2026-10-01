@@ -921,11 +921,41 @@ static void *s_wallet_load(void *a_arg)
     return NULL;
 }
 
+// Addresses already present in the cache before a bulk pass started. The
+// single pass reads every datum and checks every output against the known
+// address set, so for any address that was already known the pass is a
+// complete answer: no transactions found means the wallet is empty, not
+// "not loaded yet". Only wallets created while the pass was running (their
+// address may have appeared mid-pass, after the datum that touches it was
+// processed) still need their own re-check pass.
+static bool s_addr_list_has(const dap_list_t *a_list, const dap_chain_addr_t *a_addr)
+{
+    for (const dap_list_t *it = a_list; it; it = it->next)
+        if (dap_chain_addr_compare((const dap_chain_addr_t *)it->data, a_addr))
+            return true;
+    return false;
+}
+
 static void *s_wallet_load_all_for_net(void *a_arg)
 {
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     time_t l_ts_start = time(NULL);
     log_it(L_INFO, "Single-pass wallet cache build started for net %s", l_net->pub.name);
+
+    // Pre-pass snapshot of the addresses the single pass will fully cover.
+    dap_list_t *l_pre_addrs = NULL;
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
+    dap_wallet_cache_t *l_pre_item;
+    for (l_pre_item = s_wallets_cache; l_pre_item; l_pre_item = l_pre_item->hh.next) {
+        if (l_pre_item->wallet_addr.net_id.uint64 != l_net->pub.id.uint64)
+            continue;
+        dap_chain_addr_t *l_addr = DAP_NEW(dap_chain_addr_t);
+        if (l_addr) {
+            *l_addr = l_pre_item->wallet_addr;
+            l_pre_addrs = dap_list_append(l_pre_addrs, l_addr);
+        }
+    }
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
 
     s_save_cache_for_addr_in_net(l_net, NULL);
 
@@ -936,7 +966,7 @@ static void *s_wallet_load_all_for_net(void *a_arg)
     HASH_ITER(hh, s_wallets_cache, l_item, l_tmp) {
         if (l_item->wallet_addr.net_id.uint64 != l_net->pub.id.uint64)
             continue;
-        if (!l_item->wallet_txs) {
+        if (!l_item->wallet_txs && !s_addr_list_has(l_pre_addrs, &l_item->wallet_addr)) {
             dap_chain_addr_t *l_addr = DAP_NEW(dap_chain_addr_t);
             if (l_addr)
                 *l_addr = l_item->wallet_addr;
@@ -946,6 +976,7 @@ static void *s_wallet_load_all_for_net(void *a_arg)
         }
     }
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    dap_list_free_full(l_pre_addrs, NULL);
 
     for (dap_list_t *l_it = l_missed; l_it; l_it = l_it->next) {
         dap_chain_addr_t *l_addr = (dap_chain_addr_t *)l_it->data;

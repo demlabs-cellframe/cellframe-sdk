@@ -22,6 +22,7 @@
  */
 
 #include "dap_chain_ledger_utxo.h"
+#include <stdatomic.h>
 #include "dap_chain_ledger_item.h"
 #include "dap_common.h"
 #include "dap_hash.h"
@@ -271,7 +272,7 @@ int dap_ledger_utxo_block_add(dap_ledger_token_item_t *a_token_item,
 
     // Add to hash table
     HASH_ADD(hh, a_token_item->utxo_blocklist, key, sizeof(dap_ledger_utxo_block_key_t), l_item);
-    a_token_item->utxo_blocklist_count++;
+    atomic_fetch_add_explicit(&a_token_item->utxo_blocklist_count, 1, memory_order_release);
 
     pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
 

@@ -3999,7 +3999,7 @@ static int s_history_get_summary(UNUSED_ARG dap_chain_net_t *a_net, const dex_pa
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
     for (dap_list_t *it = l_snaps; it; it = it->next)
         json_object_array_add(a_arr, s_hist_order_summary_to_json((dex_hist_summary_snap_t *)it->data));
-    dap_list_free_full(l_snaps, (dap_callback_destroyed_t)free);
+    dap_list_free_full(l_snaps, NULL);
     if (l_have_snap)
         json_object_array_add(a_arr, s_hist_order_summary_to_json(&l_snap));
     return l_ret;
@@ -8656,10 +8656,9 @@ typedef struct dex_orders_row_snapshot {
     dap_time_t ts_created, ts_expires;
 } dex_orders_row_snapshot_t;
 
-// Resolve "min exec from origin" for rows deferred in the locked section:
-// the pct (captured there) applied to the origin order's out_cond value read
-// from the ledger - the same quantity s_dex_fetch_min_abs() computes via its
-// cache/history tiers, without touching cache structures outside the lock.
+// Ledger tier of the old s_dex_fetch_min_abs() (used when the history cache
+// can't answer): the origin tx's own out_cond value and min_fill, read without
+// touching any cache structure - hence done after the cache lock is released.
 static void s_dex_resolve_row_min_fill(dap_ledger_t *a_ledger, dex_orders_row_snapshot_t *a_row)
 {
     if (!a_row->min_fill_origin_pending)
@@ -8670,7 +8669,7 @@ static void s_dex_resolve_row_min_fill(dap_ledger_t *a_ledger, dex_orders_row_sn
         return;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
     if (l_out_cond)
-        a_row->min_fill_value = s_calc_pct(l_out_cond->header.value, a_row->min_fill_pct, 0);
+        a_row->min_fill_value = s_calc_pct(l_out_cond->header.value, l_out_cond->subtype.srv_dex.min_fill & 0x7F, 0);
 }
 
 static void s_orders_row_snapshot_to_json(const dex_orders_row_snapshot_t *r, json_object *a_arr)
@@ -9101,8 +9100,18 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                         l_row->min_fill_from_origin = (l_mf & 0x80) != 0;
                         if (l_pct) {
                             if (l_row->min_fill_from_origin && l_pct < 100) {
-                                // Ledger read deferred out of the locked section
-                                l_row->min_fill_origin_pending = true;
+                                // Same tiers as s_dex_fetch_min_abs(): (1) the
+                                // order is its own origin, (2) the history
+                                // cache, (3) ledger - and the ledger tier is
+                                // the only one deferred out of the lock.
+                                if (dap_hash_fast_compare(&l_entry->level.match.root, &l_entry->level.match.tail))
+                                    l_row->min_fill_value = s_calc_pct(l_entry->level.match.value, l_pct, 0);
+                                else if (s_dex_history_enabled && l_entry->pair_key_ptr) {
+                                    if (!s_dex_hist_get_min_abs(l_entry->pair_key_ptr, &l_entry->level.match.root,
+                                                                l_pct, &l_row->min_fill_value))
+                                        l_row->min_fill_value = uint256_0;
+                                } else
+                                    l_row->min_fill_origin_pending = true;
                             } else
                                 l_row->min_fill_value = s_calc_pct(l_entry->level.match.value, l_pct, 0);
                         }
