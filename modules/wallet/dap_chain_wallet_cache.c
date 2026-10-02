@@ -220,6 +220,30 @@ static void s_wallet_cache_clear_unspent(dap_wallet_cache_t *a_wallet_item)
     }
 }
 
+// Decides what an address unknown to the cache means in ALL mode: it's only
+// safe to report "genuinely empty wallet" (0) once the initial bulk load for
+// this net has finished. While bulk loading is still running, an unseen
+// address may simply not have been reached by the scan yet - reporting it as
+// empty makes every caller (dap_chain_net_tx_create_by_json among them, see
+// cellframe_node_rpc_overload_research_2026_09 sec. 10.1/9.3.2) skip the
+// ledger fallback entirely and fail compose with "not enough funds" for a
+// wallet that in fact has funds. -101 tells the caller "cache can't answer
+// yet, go check the ledger" instead - the same contract already used for the
+// is_loading and cache-not-populated cases right above each call site.
+static int s_wallet_cache_unknown_addr_ret_code(const dap_chain_addr_t *a_addr)
+{
+    if (s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)
+        return -101; // LOCAL/unexpected: address was never meant to be cached, ledger fallback path
+    if (s_bulk_loading_nets_has(a_addr->net_id.uint64)) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_addr->net_id);
+        debug_if(s_debug_more, L_DEBUG, "Wallet \"%s\" not yet seen, net %s is still bulk-loading",
+                 dap_chain_addr_to_str_static(a_addr), l_net ? l_net->pub.name : "?");
+        return -101;
+    }
+    log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
+    return 0;
+}
+
 static char * s_wallet_cache_type_to_str(dap_s_wallets_cache_type_t a_type)
 {
     switch (a_type){
@@ -452,13 +476,7 @@ int dap_chain_wallet_cache_tx_find(dap_chain_addr_t *a_addr, char *a_token, dap_
         }
     } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
-            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
-            return 0;
-        } else {
-            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
+        return s_wallet_cache_unknown_addr_ret_code(a_addr);
     }
 
     dap_wallet_tx_cache_t *l_current_wallet_tx = NULL;
@@ -583,13 +601,7 @@ int dap_chain_wallet_cache_tx_find_in_history(dap_chain_addr_t *a_addr, char **a
         }
     } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
-            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
-            return 0;
-        } else {
-            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
+        return s_wallet_cache_unknown_addr_ret_code(a_addr);
     }
     
     dap_wallet_tx_cache_t *l_current_wallet_tx = NULL;
@@ -681,13 +693,7 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
         }
     } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
-            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
-            return 0;
-        } else {
-            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
+        return s_wallet_cache_unknown_addr_ret_code(a_addr);
     }
 
     dap_wallet_cache_unspent_outs_t *l_item_cur = NULL, *l_tmp = NULL;
@@ -784,13 +790,7 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
         }
     } else {
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        if ( s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL ) {
-            log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
-            return 0;
-        } else {
-            log_it(L_ERROR, "Can't find wallet address \"%s\" in cache", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
+        return s_wallet_cache_unknown_addr_ret_code(a_addr);
     }
 
     dap_wallet_cache_unspent_outs_t *l_item_cur = NULL, *l_tmp = NULL;
@@ -921,11 +921,41 @@ static void *s_wallet_load(void *a_arg)
     return NULL;
 }
 
+// Addresses already present in the cache before a bulk pass started. The
+// single pass reads every datum and checks every output against the known
+// address set, so for any address that was already known the pass is a
+// complete answer: no transactions found means the wallet is empty, not
+// "not loaded yet". Only wallets created while the pass was running (their
+// address may have appeared mid-pass, after the datum that touches it was
+// processed) still need their own re-check pass.
+static bool s_addr_list_has(const dap_list_t *a_list, const dap_chain_addr_t *a_addr)
+{
+    for (const dap_list_t *it = a_list; it; it = it->next)
+        if (dap_chain_addr_compare((const dap_chain_addr_t *)it->data, a_addr))
+            return true;
+    return false;
+}
+
 static void *s_wallet_load_all_for_net(void *a_arg)
 {
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     time_t l_ts_start = time(NULL);
     log_it(L_INFO, "Single-pass wallet cache build started for net %s", l_net->pub.name);
+
+    // Pre-pass snapshot of the addresses the single pass will fully cover.
+    dap_list_t *l_pre_addrs = NULL;
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
+    dap_wallet_cache_t *l_pre_item;
+    for (l_pre_item = s_wallets_cache; l_pre_item; l_pre_item = l_pre_item->hh.next) {
+        if (l_pre_item->wallet_addr.net_id.uint64 != l_net->pub.id.uint64)
+            continue;
+        dap_chain_addr_t *l_addr = DAP_NEW(dap_chain_addr_t);
+        if (l_addr) {
+            *l_addr = l_pre_item->wallet_addr;
+            l_pre_addrs = dap_list_append(l_pre_addrs, l_addr);
+        }
+    }
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
 
     s_save_cache_for_addr_in_net(l_net, NULL);
 
@@ -936,7 +966,7 @@ static void *s_wallet_load_all_for_net(void *a_arg)
     HASH_ITER(hh, s_wallets_cache, l_item, l_tmp) {
         if (l_item->wallet_addr.net_id.uint64 != l_net->pub.id.uint64)
             continue;
-        if (!l_item->wallet_txs) {
+        if (!l_item->wallet_txs && !s_addr_list_has(l_pre_addrs, &l_item->wallet_addr)) {
             dap_chain_addr_t *l_addr = DAP_NEW(dap_chain_addr_t);
             if (l_addr)
                 *l_addr = l_item->wallet_addr;
@@ -946,6 +976,7 @@ static void *s_wallet_load_all_for_net(void *a_arg)
         }
     }
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    dap_list_free_full(l_pre_addrs, NULL);
 
     for (dap_list_t *l_it = l_missed; l_it; l_it = l_it->next) {
         dap_chain_addr_t *l_addr = (dap_chain_addr_t *)l_it->data;
@@ -1377,7 +1408,10 @@ dap_chain_wallet_cache_iter_t *dap_chain_wallet_cache_iter_create(dap_chain_addr
 {
     dap_chain_wallet_cache_iter_t *l_iter = NULL;
 
-    pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+    // Read-only lookup (HASH_FIND, no mutation of s_wallets_cache/wallet_txs) - a plain
+    // rdlock is enough here (P.14); the previous wrlock needlessly serialized every
+    // concurrent iterator creation/history read against every other reader.
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
     dap_wallet_cache_t *l_wallet_item = NULL, *l_tmp;
     HASH_FIND(hh, s_wallets_cache, &a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
     if (!l_wallet_item || !l_wallet_item->wallet_txs){
@@ -1407,15 +1441,19 @@ dap_chain_datum_tx_t *dap_chain_wallet_cache_iter_get(dap_chain_wallet_cache_ite
     if (!a_iter)
         return NULL;
         
+    // All four cases below only read cur_addr_cache/wallet_txs (HASH lookup or hh.next/prev
+    // traversal) into the iterator - no mutation of s_wallets_cache/wallet_txs happens here,
+    // so a rdlock is sufficient (P.14: was wrlock, serializing every concurrent history read
+    // against every other reader for no reason).
     switch (a_type){
         case DAP_CHAIN_WALLET_CACHE_GET_FIRST:{
-            pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+            pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
             dap_wallet_cache_t *l_wallet_cache = (dap_wallet_cache_t*)a_iter->cur_addr_cache;
             s_wallet_cache_iter_fill(a_iter, l_wallet_cache ? l_wallet_cache->wallet_txs : NULL);
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         } break;
         case DAP_CHAIN_WALLET_CACHE_GET_LAST:{
-            pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+            pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
             dap_wallet_cache_t *l_wallet_cache = (dap_wallet_cache_t*)a_iter->cur_addr_cache;
             dap_wallet_tx_cache_t *l_tx_cache = NULL;
             if (l_wallet_cache)
@@ -1424,14 +1462,14 @@ dap_chain_datum_tx_t *dap_chain_wallet_cache_iter_get(dap_chain_wallet_cache_ite
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         } break;
         case DAP_CHAIN_WALLET_CACHE_GET_NEXT:{
-            pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+            pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
             dap_wallet_tx_cache_t *l_tx_cache = a_iter->cur_item ? (dap_wallet_tx_cache_t*)a_iter->cur_item : NULL;
             l_tx_cache = l_tx_cache && l_tx_cache->hh.next ? l_tx_cache->hh.next : NULL;
             s_wallet_cache_iter_fill(a_iter, l_tx_cache);
             pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         } break;
         case DAP_CHAIN_WALLET_CACHE_GET_PREVIOUS:{
-            pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+            pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
             dap_wallet_tx_cache_t *l_tx_cache = a_iter->cur_item ? (dap_wallet_tx_cache_t*)a_iter->cur_item : NULL;
             l_tx_cache = l_tx_cache && l_tx_cache->hh.prev ? l_tx_cache->hh.prev : NULL;
             s_wallet_cache_iter_fill(a_iter, l_tx_cache);

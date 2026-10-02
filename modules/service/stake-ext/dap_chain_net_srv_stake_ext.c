@@ -1112,6 +1112,7 @@ static void s_stake_ext_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_
         dap_stake_ext_position_cache_item_t *l_position = NULL;
         HASH_FIND(hh, l_stake_ext->positions, &l_position_id, sizeof(uint64_t), l_position);
         if (!l_position) {
+            pthread_rwlock_unlock(&s_stake_ext_cache->cache_rwlock);
             log_it(L_ERROR, "Position %" DAP_UINT64_FORMAT_U " not found in stake_ext cache during lock unlock", l_position_id);
             return;
         }

@@ -126,6 +126,17 @@ int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
 #ifdef DAP_LEDGER_TEST
 int dap_chain_net_test_init();
+// Test-only counterpart to the mempool cluster registration
+// dap_chain_net_init() normally performs itself (see its DL_FOREACH over
+// a_net->pub.chains in dap_chain_net.c) - fixtures that build a
+// dap_chain_net_t by hand (test_net_fixture_create() et al.) create the
+// per-chain mempool GDB clusters but have no access to the private
+// dap_chain_net_pvt_t.mempool_clusters field to link them in, so
+// dap_chain_net_get_mempool_cluster()/dap_chain_add_mempool_notify_callback()
+// silently fail to find them for any hand-built test network. Call this
+// once per chain, in chain-list order, right after creating that chain's
+// mempool cluster.
+void dap_chain_net_test_set_mempool_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
 #endif
 
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
@@ -222,6 +233,25 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
+
+/**
+ * @brief Flat record of one token datum of a chain, from the per-chain token
+ * datum registry maintained at datum add/remove (see dap_chain_net.c).
+ */
+typedef struct dap_chain_token_datum_info {
+    dap_hash_fast_t hash;
+    uint64_t ts_create;
+    int ret_code;
+    uint16_t token_type;
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+} dap_chain_token_datum_info_t;
+
+/**
+ * @brief List the token datums of a chain, ordered by creation time.
+ * @param a_out Receives a newly allocated array (DAP_DELETE it when done)
+ * @return Number of records in *a_out
+ */
+size_t dap_chain_token_datum_list(dap_chain_t *a_chain, dap_chain_token_datum_info_t **a_out);
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
