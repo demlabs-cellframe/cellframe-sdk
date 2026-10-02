@@ -132,7 +132,8 @@ typedef struct dap_ledger_token_item {
      */
     pthread_rwlock_t utxo_blocklist_rwlock;           ///< RW lock for thread-safe blocklist access
     struct dap_ledger_utxo_block_item *utxo_blocklist; ///< Hash table (uthash) of blocked UTXOs
-    size_t utxo_blocklist_count;                       ///< Number of blocked UTXOs (for monitoring)
+    _Atomic size_t utxo_blocklist_count;               ///< Number of blocked UTXOs; monotonic (entries are never unlinked), read lock-free as an
+                                                       ///< advisory fast path in the UTXO scan - atomic so a reader can never observe a torn value
 
     UT_hash_handle hh;
 } dap_ledger_token_item_t;

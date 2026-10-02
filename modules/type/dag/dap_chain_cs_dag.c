@@ -2137,6 +2137,10 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
+    // datums is mutated (HASH_ADD_BYHASHVALUE) under events_mutex from
+    // dap_chain_datum_add() callers, so walking it here must take the same
+    // lock, same as every other reader (s_chain_callback_atom_find_by_datum_hash() etc.)
+    pthread_mutex_lock(&PVT(l_dag)->events_mutex);
     for (dap_chain_cs_dag_event_item_t *ptr = PVT(l_dag)->datums; ptr != NULL && l_counter < l_end; ptr = ptr->hh_datums.next){
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(ptr->event, ptr->event_size);
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX && l_counter++ >= l_offset) {
@@ -2144,6 +2148,7 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
             l_list = dap_list_append(l_list, l_tx);
         }
     }
+    pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     return l_list;
 }
 

@@ -236,6 +236,67 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
         : -1;
 }
 
+// Short-TTL cache (5 s) for the raw 'nodes' GDB group records served to
+// 'node list'/'node dump': the group changes rarely, the polling is frequent,
+// and every miss was a full-group mdbx read transaction. Returns a deep copy,
+// so callers keep owning (and freeing) what they get.
+#define DAP_NODE_LIST_CACHE_TTL_NS (5ull * 1000ull * 1000ull * 1000ull)
+static dap_global_db_obj_t *s_node_list_cache_objs = NULL;
+static size_t s_node_list_cache_count = 0;
+static dap_chain_net_t *s_node_list_cache_net = NULL;
+static dap_chain_net_id_t s_node_list_cache_net_id = { };
+static dap_nanotime_t s_node_list_cache_ts = 0;
+static pthread_mutex_t s_node_list_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static dap_global_db_obj_t *s_node_list_cache_get(dap_chain_net_t *a_net, size_t *a_count) {
+    dap_nanotime_t l_now = dap_nanotime_now();
+    pthread_mutex_lock(&s_node_list_cache_lock);
+    if (s_node_list_cache_net != a_net || s_node_list_cache_net_id.uint64 != a_net->pub.id.uint64 ||
+            l_now - s_node_list_cache_ts >= DAP_NODE_LIST_CACHE_TTL_NS) {
+        dap_global_db_objs_delete(s_node_list_cache_objs, s_node_list_cache_count);
+        s_node_list_cache_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &s_node_list_cache_count);
+        s_node_list_cache_net = a_net;
+        s_node_list_cache_net_id = a_net->pub.id;
+        s_node_list_cache_ts = l_now;
+    }
+    if (!s_node_list_cache_objs || !s_node_list_cache_count) {
+        size_t l_zero = 0;
+        if (a_count) *a_count = l_zero;
+        pthread_mutex_unlock(&s_node_list_cache_lock);
+        return NULL;
+    }
+    dap_global_db_obj_t *l_copy = DAP_NEW_Z_COUNT(dap_global_db_obj_t, s_node_list_cache_count);
+    if (!l_copy) {
+        log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+        if (a_count) *a_count = 0;
+        pthread_mutex_unlock(&s_node_list_cache_lock);
+        return NULL;
+    }
+    size_t l_copied = 0;
+    for (size_t i = 0; i < s_node_list_cache_count; ++i) {
+        l_copy[i].key = dap_strdup(s_node_list_cache_objs[i].key);
+        l_copy[i].value_len = s_node_list_cache_objs[i].value_len;
+        l_copy[i].value = l_copy[i].value_len ? DAP_DUP_SIZE(s_node_list_cache_objs[i].value, l_copy[i].value_len) : NULL;
+        l_copy[i].timestamp = s_node_list_cache_objs[i].timestamp;
+        l_copy[i].is_pinned = s_node_list_cache_objs[i].is_pinned;
+        if (!l_copy[i].key || (l_copy[i].value_len && !l_copy[i].value)) {
+            // Partial copy: hand back only the fully built prefix.
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            break;
+        }
+        ++l_copied;
+    }
+    // Free the key/value of the unfinished tail only; the array itself stays
+    // owned by the caller (it frees it via dap_global_db_objs_delete(l_objs,
+    // l_copied), which releases the whole allocation).
+    for (size_t i = l_copied; i < s_node_list_cache_count; ++i)
+        DAP_DEL_MULTY(l_copy[i].key, l_copy[i].value);
+    if (a_count)
+        *a_count = l_copied;
+    pthread_mutex_unlock(&s_node_list_cache_lock);
+    return l_copied ? l_copy : (DAP_DELETE(l_copy), NULL);
+}
+
 /**
  * @brief s_node_info_list_with_reply Handler of command 'node dump'
  * @param a_net
@@ -335,7 +396,11 @@ static int s_node_info_list_with_reply(dap_chain_net_t *a_net, dap_chain_node_ad
 
     } else { // Dump list with !a_addr && !a_alias
         size_t l_nodes_count = 0;
-        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+        // Node lists change rarely but dashboards poll 'node list' often;
+        // serve the raw records from a short-TTL cache instead of a full GDB
+        // group read per request. The records are deserialized by the callers
+        // below, so the cache stores the raw GDB objects.
+        dap_global_db_obj_t *l_objs = s_node_list_cache_get(a_net, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
             dap_string_append_printf(l_string_reply, "No records\n");
@@ -3091,9 +3156,10 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     }
     json_object_object_add(l_obj_chain, "name", l_obj_chain_name);
     
-    // Filter mempool and add information about removed records
-    int l_removed = 0;
-    dap_chain_mempool_filter(a_chain, &l_removed);
+    // The janitorial filter runs on a background timer now (it used to read
+    // and re-hash the whole mempool group on every listing); report the last
+    // pass's removal count.
+    int l_removed = dap_chain_mempool_filter_last_removed(a_chain);
     
     json_object *l_jobj_removed = json_object_new_int(l_removed);
     if (!l_jobj_removed) {
@@ -4508,9 +4574,10 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             }
             if(l_chain) {
                 l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-                size_t l_objs_count = 0;
-                dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
-                dap_global_db_objs_delete(l_objs, l_objs_count);
+                // Count via the driver instead of loading every datum; without holes, i.e. only live
+                // records, as the former dap_global_db_get_all_sync() did - deleted mempool datums
+                // stay in the table as tombstones until GDB cleanup.
+                size_t l_objs_count = dap_global_db_driver_count(l_mempool_group, c_dap_global_db_driver_hash_blank, false);
                 DAP_DELETE(l_mempool_group);
                 json_object *l_jobj_chain = json_object_new_object();
                 json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
@@ -4530,9 +4597,7 @@ int com_mempool(int a_argc, char **a_argv, void **a_str_reply, int a_version)
             } else {
                 DL_FOREACH(l_net->pub.chains, l_chain) {
                     l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-                    size_t l_objs_count = 0;
-                    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
-                    dap_global_db_objs_delete(l_objs, l_objs_count);
+                    size_t l_objs_count = dap_global_db_driver_count(l_mempool_group, c_dap_global_db_driver_hash_blank, false);
                     DAP_DELETE(l_mempool_group);
                     json_object *l_jobj_chain = json_object_new_object();
                     json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
@@ -4585,9 +4650,13 @@ void _cmd_find_type_decree_in_chain(json_object *a_out, dap_chain_t *a_chain, ui
                 char l_buff_ts[50] = {'\0'};
                 dap_time_to_str_rfc822(l_buff_ts, 50, l_atom_iter->cur_ts);
                 for (size_t i = 0; i < l_datum_count; i++) {
+                    // Bug fix: l_datums[i] already selects the i-th datum pointer into
+                    // l_datum; indexing it again as l_datum[i] treated it as an array of
+                    // dap_chain_datum_t starting at that pointer, reading i structs past the
+                    // actual datum for every i>0 - an out-of-bounds/garbage read.
                     dap_chain_datum_t *l_datum = l_datums[i];
-                    if (l_datum[i].header.type_id != DAP_CHAIN_DATUM_DECREE) continue;
-                    dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *) l_datum[i].data;
+                    if (l_datum->header.type_id != DAP_CHAIN_DATUM_DECREE) continue;
+                    dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *) l_datum->data;
                     if (l_decree->header.sub_type == a_decree_type) {
                         json_object *l_jobj_atom = json_object_new_object();
                         json_object *l_jobj_atom_create = json_object_new_string(l_buff_ts);
@@ -5284,9 +5353,11 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         l_tsd_list = dap_list_append(l_tsd_list, l_utxo_remove_tsd);
         l_tsd_total_size += dap_tsd_size(l_utxo_remove_tsd);
         
-        DAP_DELETE(l_utxo_str_copy);
-        log_it(L_INFO, "Added UTXO unblocking: %s:%u%s", l_hash_str, l_out_idx, 
+        // Log before freeing l_utxo_str_copy (l_hash_str points into it), as
+        // in the -utxo_blocked_add branch above
+        log_it(L_INFO, "Added UTXO unblocking: %s:%u%s", l_hash_str, l_out_idx,
                l_timestamp ? " (delayed)" : "");
+        DAP_DELETE(l_utxo_str_copy);
     }
     
     // Process -utxo_blocked_clear
@@ -8102,72 +8173,111 @@ static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_ar
         return DAP_CHAIN_NODE_CLI_COM_TX_COND_UNSPEND_FIND_CAN_NOT_FIND_LEDGER_FOR_NET;
     }
 
-//    dap_string_t *l_reply_str = dap_string_new("");
     json_object *l_jobj_tx_list_cond_outs = json_object_new_array();
-    dap_list_t *l_tx_list = NULL;
-
-    dap_chain_net_get_tx_all(l_net, TX_SEARCH_TYPE_NET, s_tx_is_srv_pay_check, &l_tx_list);
     size_t l_tx_count = 0;
     uint256_t l_total_value = {};
-    for (dap_list_t *it = l_tx_list; it; it = it->next) {
-        tx_check_args_t *l_data_tx = (tx_check_args_t*)it->data;
-        if (l_data_tx->tx_hash.raw[0] == 0x5A && l_data_tx->tx_hash.raw[1] == 0xc1){
-            log_it(L_INFO, "found!");
+
+    // Was an unconditional dap_chain_net_get_tx_all() full ledger scan (P.25), building a
+    // dap_list_t of every SRV_PAY-cond TX in the net before filtering by owner/srv_uid/ticker
+    // one at a time - identical in spirit to _cmd_tx_cond_list's original full-scan path, which
+    // is now backed by the same srv_pay owner-indexed cache. Try that cache first here too. The
+    // cache is keyed by the hash dap_sign_get_pkey_hash() computes from the tx's own signature
+    // at cache-populate time (s_srv_pay_ledger_tx_notify) - dap_chain_wallet_get_pkey_hash() is
+    // the matching wallet-side helper (used by the sibling tx_cond list command for the same
+    // lookup), NOT the generic dap_pkey_get_hash(): for ECDSA keys the two differ, since
+    // dap_enc_key_get_pkey_hash() (which wallet_get_pkey_hash calls) hashes ECDSA pubkeys with a
+    // different function than the plain SHA3 dap_pkey_get_hash() uses.
+    dap_hash_fast_t l_owner_pkey_hash = {};
+    bool l_have_owner_hash = !dap_chain_wallet_get_pkey_hash(l_wallet, &l_owner_pkey_hash);
+    srv_pay_cache_list_t *l_cache_list = l_have_owner_hash ? dap_chain_srv_pay_cache_get(l_net, &l_owner_pkey_hash) : NULL;
+
+    if (l_cache_list && l_cache_list->count > 0) {
+        for (size_t i = 0; i < l_cache_list->count; i++) {
+            srv_pay_cache_entry_t *l_entry = l_cache_list->entries[i];
+            if (!l_entry || l_entry->is_removed || l_entry->srv_uid != l_srv_uid.uint64 ||
+                    IS_ZERO_256(l_entry->value) || dap_strcmp(l_entry->ticker, l_native_ticker))
+                continue;
+            if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_entry->tail_hash, l_entry->prev_cond_idx, NULL))
+                continue;
+
+            char *l_remain_coins_str = dap_chain_balance_to_coins(l_entry->value);
+            char *l_remain_datoshi_str = dap_chain_balance_print(l_entry->value);
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_entry->tail_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            json_object *l_jobj_remain = json_object_new_object();
+            json_object_object_add(l_jobj_remain, "coins", json_object_new_string(l_remain_coins_str));
+            json_object_object_add(l_jobj_remain, "datoshi", json_object_new_string(l_remain_datoshi_str));
+            json_object *l_jobj_tx = json_object_new_object();
+            json_object_object_add(l_jobj_tx, "hash", json_object_new_string(l_hash_str));
+            json_object_object_add(l_jobj_tx, "remain", l_jobj_remain);
+            json_object_object_add(l_jobj_tx, "ticker", json_object_new_string(l_native_ticker));
+            json_object_array_add(l_jobj_tx_list_cond_outs, l_jobj_tx);
+            l_tx_count++;
+            SUM_256_256(l_total_value, l_entry->value, &l_total_value);
         }
-        dap_chain_datum_tx_t *l_tx = l_data_tx->tx;
-        int l_prev_cond_idx = 0;
-        dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , &l_prev_cond_idx);
-        if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64 || IS_ZERO_256(l_out_cond->header.value))
-            continue;
+        dap_chain_srv_pay_cache_list_free(l_cache_list);
+    } else {
+        dap_chain_srv_pay_cache_list_free(l_cache_list);
+        dap_list_t *l_tx_list = NULL;
+        dap_chain_net_get_tx_all(l_net, TX_SEARCH_TYPE_NET, s_tx_is_srv_pay_check, &l_tx_list);
+        for (dap_list_t *it = l_tx_list; it; it = it->next) {
+            tx_check_args_t *l_data_tx = (tx_check_args_t*)it->data;
+            dap_chain_datum_tx_t *l_tx = l_data_tx->tx;
+            int l_prev_cond_idx = 0;
+            dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY , &l_prev_cond_idx);
+            if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != l_srv_uid.uint64 || IS_ZERO_256(l_out_cond->header.value))
+                continue;
 
-        if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_data_tx->tx_hash, l_prev_cond_idx, NULL)) {
-            continue;
+            if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_data_tx->tx_hash, l_prev_cond_idx, NULL)) {
+                continue;
+            }
+
+            const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_data_tx->tx_hash);
+            if (!l_tx_ticker) {
+                continue;
+            }
+            if (strcmp(l_native_ticker, l_tx_ticker)) {
+                continue;
+            }
+
+            // Check sign
+            dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond->header.subtype);
+            dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
+                ? l_tx
+                : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
+
+            if (!l_owner_tx)
+                continue;
+            dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
+            dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
+
+
+            if (!dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign)) {
+                continue;
+            }
+
+            char *l_remain_datoshi_str = NULL;
+            char *l_remain_coins_str = NULL;
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_data_tx->tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            l_remain_coins_str = dap_chain_balance_to_coins(l_out_cond->header.value);
+            l_remain_datoshi_str = dap_chain_balance_print(l_out_cond->header.value);
+            json_object *l_jobj_hash = json_object_new_string(l_hash_str);
+            json_object *l_jobj_remain = json_object_new_object();
+            json_object *l_jobj_remain_coins = json_object_new_string(l_remain_coins_str);
+            json_object *l_jobj_remain_datoshi = json_object_new_string(l_remain_datoshi_str);
+            json_object_object_add(l_jobj_remain, "coins", l_jobj_remain_coins);
+            json_object_object_add(l_jobj_remain, "datoshi", l_jobj_remain_datoshi);
+            json_object *l_jobj_native_ticker = json_object_new_string(l_native_ticker);
+            json_object *l_jobj_tx = json_object_new_object();
+            json_object_object_add(l_jobj_tx, "hash", l_jobj_hash);
+            json_object_object_add(l_jobj_tx, "remain", l_jobj_remain);
+            json_object_object_add(l_jobj_tx, "ticker", l_jobj_native_ticker);
+            json_object_array_add(l_jobj_tx_list_cond_outs, l_jobj_tx);
+            l_tx_count++;
+            SUM_256_256(l_total_value, l_out_cond->header.value, &l_total_value);
         }
-
-        const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_data_tx->tx_hash);
-        if (!l_tx_ticker) {
-            continue;
-        }
-        if (strcmp(l_native_ticker, l_tx_ticker)) {
-            continue;
-        }
-
-        // Check sign
-        dap_hash_fast_t l_owner_tx_hash = dap_ledger_get_first_chain_tx_hash(l_ledger, l_data_tx->tx, l_out_cond->header.subtype);
-        dap_chain_datum_tx_t *l_owner_tx = dap_hash_fast_is_blank(&l_owner_tx_hash)
-            ? l_tx
-            : dap_ledger_tx_find_by_hash(l_ledger, &l_owner_tx_hash);
-            
-        if (!l_owner_tx)
-            continue;
-        dap_chain_tx_sig_t *l_owner_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_owner_tx, NULL, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_owner_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_owner_tx_sig);
-
-
-        if (!dap_pkey_compare_with_sign(l_wallet_pkey, l_owner_sign)) {
-            continue;
-        }
-
-        char *l_remain_datoshi_str = NULL;
-        char *l_remain_coins_str = NULL; 
-        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(&l_data_tx->tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        l_remain_coins_str = dap_chain_balance_to_coins(l_out_cond->header.value);
-        l_remain_datoshi_str = dap_chain_balance_print(l_out_cond->header.value);
-        json_object *l_jobj_hash = json_object_new_string(l_hash_str);
-        json_object *l_jobj_remain = json_object_new_object();
-        json_object *l_jobj_remain_coins = json_object_new_string(l_remain_coins_str);
-        json_object *l_jobj_remain_datoshi = json_object_new_string(l_remain_datoshi_str);
-        json_object_object_add(l_jobj_remain, "coins", l_jobj_remain_coins);
-        json_object_object_add(l_jobj_remain, "datoshi", l_jobj_remain_datoshi);
-        json_object *l_jobj_native_ticker = json_object_new_string(l_native_ticker);
-        json_object *l_jobj_tx = json_object_new_object();
-        json_object_object_add(l_jobj_tx, "hash", l_jobj_hash);
-        json_object_object_add(l_jobj_tx, "remain", l_jobj_remain);
-        json_object_object_add(l_jobj_tx, "ticker", l_jobj_native_ticker);
-        json_object_array_add(l_jobj_tx_list_cond_outs, l_jobj_tx);
-        l_tx_count++;
-        SUM_256_256(l_total_value, l_out_cond->header.value, &l_total_value);
+        dap_list_free_full(l_tx_list, NULL);
     }
     char *l_total_coins_str = dap_chain_balance_to_coins(l_total_value);
     char *l_total_datoshi_str = dap_chain_balance_print(l_total_value);
@@ -8182,7 +8292,6 @@ static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_ar
     json_object *l_jobj_ret = json_object_new_object();
     json_object_object_add(l_jobj_ret, "transactions_out_cond", l_jobj_tx_list_cond_outs);
     json_object_object_add(l_jobj_ret, "total", l_jobj_total);
-    dap_list_free_full(l_tx_list, NULL);
     json_object_array_add(*a_json_arr_reply, l_jobj_ret);
     DAP_DEL_Z(l_wallet_pkey);
     dap_chain_wallet_close(l_wallet);
@@ -9198,7 +9307,7 @@ int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply, UNUSED_ARG int 
     if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX){
         char *l_str_err = dap_strdup_printf("Based on the specified hash, the type %s was found and not a transaction.",
                                             dap_chain_datum_type_id_to_str(l_datum->header.type_id));
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH, l_str_err);
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH, "%s", l_str_err);
         DAP_DELETE(l_str_err);
         DAP_DELETE(l_datum);
         return DAP_CHAIN_NODE_CLI_COM_TX_VERIFY_HASH_IS_NOT_TX_HASH;
@@ -9451,7 +9560,6 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
         }
-
         json_object* json_arr_history_all = dap_db_history_tx_all(*a_json_arr_reply, l_chain, l_net, l_hash_out_type, json_obj_summary,
                                                                 l_limit, l_offset, l_brief, l_tx_srv_str, l_action, l_head, a_version);
         if (!json_arr_history_all) {

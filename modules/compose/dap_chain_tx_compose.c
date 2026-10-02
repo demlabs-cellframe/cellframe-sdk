@@ -5762,7 +5762,9 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_refill(dap_chain_
     size_t l_owner_hashes_count = rand() % 10 + 1;
     size_t l_signs_min = rand() % l_owner_hashes_count + 1;
     dap_hash_fast_t *l_owner_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_hash_fast_t, l_owner_hashes_count * sizeof(dap_hash_fast_t), NULL);
-    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count, NULL);
+    // +1: the helper APIs read a_tag_str with strlen(), and
+    // dap_random_string_fill() writes exactly l_owner_hashes_count chars
+    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count + 1, NULL);
     dap_random_string_fill(l_rand_tag, l_owner_hashes_count);
     randombytes(l_owner_hashes, l_owner_hashes_count * sizeof(dap_hash_fast_t));
     dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_item_out_cond_create_wallet_shared(l_srv_uid, l_value_out, l_signs_min, l_owner_hashes, l_owner_hashes_count, l_rand_tag);
@@ -6022,7 +6024,9 @@ dap_chain_datum_tx_t *dap_chain_tx_compose_datum_wallet_shared_take(dap_chain_ad
     size_t l_owner_hashes_count = rand() % 10 + 1;
     size_t l_signs_min = rand() % l_owner_hashes_count + 1;
     dap_hash_fast_t *l_owner_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(dap_hash_fast_t, l_owner_hashes_count * sizeof(dap_hash_fast_t), NULL);
-    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count, NULL);
+    // +1: the helper APIs read a_tag_str with strlen(), and
+    // dap_random_string_fill() writes exactly l_owner_hashes_count chars
+    char *l_rand_tag = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(char, l_owner_hashes_count + 1, NULL);
     dap_random_string_fill(l_rand_tag, l_owner_hashes_count);
     randombytes(l_owner_hashes, l_owner_hashes_count * sizeof(dap_hash_fast_t));
     dap_chain_tx_out_cond_t *l_cond_prev = dap_chain_datum_tx_item_out_cond_create_wallet_shared(l_srv_uid, l_value_out, l_signs_min, l_owner_hashes, l_owner_hashes_count, l_rand_tag);

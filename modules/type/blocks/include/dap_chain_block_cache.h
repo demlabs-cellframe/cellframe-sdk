@@ -22,6 +22,7 @@
 */
 #pragma once
 #include "dap_chain_block.h"
+#include <stdatomic.h>
 #include "dap_hash.h"
 #include "uthash.h"
 #include "dap_chain_ledger.h"
@@ -57,6 +58,10 @@ typedef struct dap_chain_block_cache {
     // Block's signatures
     size_t sign_count; // Number of signatures in block's tail
     //dap_sign_t **sign; // Pointer to signatures in block
+    // Signers' pkey hashes, computed lazily on first use (see
+    // dap_chain_block_cache_sign_pkey_hashes()); sign_count entries or NULL.
+    // Signing keys are immutable per block, so this is computed at most once.
+    _Atomic(dap_hash_fast_t *) sign_pkey_hashes;
 
     // Pointer to block itself
     dap_chain_block_t * block;
@@ -96,4 +101,7 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 // Get the list of 'out_cond' items from previous transactions with summary out value. Put this summary value to a_value_out
 dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, dap_chain_block_cache_t * a_block_cache, uint256_t *a_value_out);
 
-
+// Lazily computes and caches the signers' pkey hashes. The caller must hold
+// the blocks rwlock (read is enough): the cache entry must stay alive for the
+// whole call, which only the rwlock guarantees against block-cache deletion.
+dap_hash_fast_t *dap_chain_block_cache_sign_pkey_hashes(dap_chain_block_cache_t *a_block_cache);

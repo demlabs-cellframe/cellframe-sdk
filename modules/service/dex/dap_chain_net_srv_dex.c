@@ -594,6 +594,12 @@ static const char *const s_cancel_all_error_str[] = {
 /* History cache (OHLCV) switches */
 static bool s_dex_history_enabled = false;                  // enabled via config
 static uint64_t s_dex_history_bucket_sec = DAP_SEC_PER_DAY; // default bucket size (daily)
+// Hard cap on number of OHLCV candles a single `history -view ohlc|volume` request may
+// generate. Without it a crawler requesting e.g. a year of history with -bucket 60 forces
+// the node to materialize ~525k JSON objects (and re-scan the same daily storage bucket
+// once per candle), which is the dominant cause of transient heap blow-up -> swap -> RPC
+// stalls under crawler load (see cellframe_node_rpc_overload_research_2026_09, sec. 12).
+static uint32_t s_dex_history_max_candles = 5000;
 
 /** @brief Calculate percentage: result = a * b / (100 * 10^precision) */
 static inline uint256_t s_calc_pct(const uint256_t a, const uint64_t b, const uint8_t a_precision)
@@ -3746,21 +3752,60 @@ static inline bool s_history_check_trade_flags(uint8_t a_rec_flags, uint8_t a_fi
 /*
  * Order summary state by last event.
  */
-static inline const char *s_hist_summary_state(const dex_event_rec_t *a_tail)
+static inline const char *s_hist_summary_state(uint8_t a_tail_flags, uint16_t a_filled_pct)
 {
-    if (a_tail->flags & DEX_OP_CREATE)
+    if (a_tail_flags & DEX_OP_CREATE)
         return "open";
-    if (a_tail->flags & DEX_OP_CANCEL)
+    if (a_tail_flags & DEX_OP_CANCEL)
         return "cancelled";
-    if (a_tail->flags & DEX_OP_UPDATE)
+    if (a_tail_flags & DEX_OP_UPDATE)
         return "updated";
-    return (a_tail->filled_pct >= 10000) ? "fully filled" : "partially filled";
+    return (a_filled_pct >= 10000) ? "fully filled" : "partially filled";
 }
 
 /** @brief Build order summary JSON from history event list. */
-static json_object *s_hist_order_summary_to_json(const dex_pair_key_t *a_key, const dap_hash_fast_t *a_order_root,
-                                                 const dex_event_rec_t *a_head, const dex_event_rec_t *a_tail)
+// Everything s_hist_order_summary_to_json() needs from the (lock-protected)
+// event records, copied by value: the JSON used to be built under
+// s_dex_cache_rwlock, serializing cache writers against every summary poll.
+typedef struct dex_hist_summary_snap {
+    dex_pair_key_t key;
+    dap_hash_fast_t order_root;
+    dap_hash_fast_t tail_tx_hash;
+    uint16_t filled_pct;
+    bool is_ask;
+    bool has_seller;
+    dap_chain_addr_t seller_addr;
+    uint64_t ts_head, ts_tail;
+    uint8_t tail_flags;
+    uint256_t price, base_total;
+} dex_hist_summary_snap_t;
+
+static void s_hist_summary_snap_fill(const dex_pair_key_t *a_key, const dap_hash_fast_t *a_order_root,
+                                     const dex_event_rec_t *a_head, const dex_event_rec_t *a_tail,
+                                     dex_hist_summary_snap_t *a_out)
 {
+    *a_out = (dex_hist_summary_snap_t){
+        .key = *a_key,
+        .order_root = *a_order_root,
+        .tail_tx_hash = a_tail->key.tx_hash,
+        .filled_pct = a_tail->filled_pct,
+        .is_ask = a_head->order_idx && a_head->order_idx->side == DEX_SIDE_ASK,
+        .ts_head = a_head->ts,
+        .ts_tail = a_tail->ts,
+        .tail_flags = a_tail->flags,
+        .price = s_hist_event_price(a_tail),
+        .base_total = s_hist_event_base_total(a_tail),
+    };
+    if (a_head->seller_addr_ptr) {
+        a_out->seller_addr = *a_head->seller_addr_ptr;
+        a_out->has_seller = true;
+    }
+}
+
+static json_object *s_hist_order_summary_to_json(const dex_hist_summary_snap_t *a_snap)
+{
+    const dex_pair_key_t *a_key = &a_snap->key;
+    const dap_hash_fast_t *a_order_root = &a_snap->order_root;
     json_object *o = json_object_new_object();
     const char *l_base_token = NULL, *l_quote_token = NULL;
     if (a_key) {
@@ -3771,29 +3816,29 @@ static json_object *s_hist_order_summary_to_json(const dex_pair_key_t *a_key, co
         json_object_object_add(o, "pair", json_object_new_string(l_pair));
     }
     json_object_object_add(o, "order_root", json_object_new_string(dap_hash_fast_to_str_static(a_order_root)));
-    json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&a_tail->key.tx_hash)));
-    json_object_object_add(o, "state", json_object_new_string(s_hist_summary_state(a_tail)));
-    uint16_t l_fill_pct_x100 = a_tail->filled_pct;
+    json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&a_snap->tail_tx_hash)));
+    json_object_object_add(o, "state", json_object_new_string(s_hist_summary_state(a_snap->tail_flags, a_snap->filled_pct)));
+    uint16_t l_fill_pct_x100 = a_snap->filled_pct;
     char l_fill_pct_str[16];
     snprintf(l_fill_pct_str, sizeof(l_fill_pct_str), "%u.%02u", (unsigned)(l_fill_pct_x100 / 100),
              (unsigned)(l_fill_pct_x100 % 100));
     json_object_object_add(o, "filled_pct", json_object_new_string(l_fill_pct_str));
-    json_object_object_add(o, "side", json_object_new_string(a_head->order_idx->side == DEX_SIDE_ASK ? "ask" : "bid"));
-    json_object_object_add(o, "ts_created", json_object_new_uint64(a_head->ts));
+    json_object_object_add(o, "side", json_object_new_string(a_snap->is_ask ? "ask" : "bid"));
+    json_object_object_add(o, "ts_created", json_object_new_uint64(a_snap->ts_head));
     char l_ts_str[DAP_TIME_STR_SIZE];
-    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), a_head->ts);
+    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), a_snap->ts_head);
     json_object_object_add(o, "time_created", json_object_new_string(l_ts_str));
-    json_object_object_add(o, "ts_last", json_object_new_uint64(a_tail->ts));
-    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), a_tail->ts);
+    json_object_object_add(o, "ts_last", json_object_new_uint64(a_snap->ts_tail));
+    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), a_snap->ts_tail);
     json_object_object_add(o, "time_last", json_object_new_string(l_ts_str));
-    if (a_head->seller_addr_ptr)
-        json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(a_head->seller_addr_ptr)));
-    json_object_object_add(o, "last_event", json_object_new_string(s_dex_op_flags_to_str(a_tail->flags)));
+    if (a_snap->has_seller)
+        json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(&a_snap->seller_addr)));
+    json_object_object_add(o, "last_event", json_object_new_string(s_dex_op_flags_to_str(a_snap->tail_flags)));
 
     const bool l_is_trade =
-        (a_tail->flags & (DEX_OP_MARKET | DEX_OP_TARGET)) && !(a_tail->flags & (DEX_OP_CREATE | DEX_OP_UPDATE | DEX_OP_CANCEL));
-    uint256_t l_price = s_hist_event_price(a_tail), l_base_total = s_hist_event_base_total(a_tail),
-              l_exec_base = s_calc_pct(l_base_total, a_tail->filled_pct, 2), l_exec_quote = uint256_0;
+        (a_snap->tail_flags & (DEX_OP_MARKET | DEX_OP_TARGET)) && !(a_snap->tail_flags & (DEX_OP_CREATE | DEX_OP_UPDATE | DEX_OP_CANCEL));
+    uint256_t l_price = a_snap->price, l_base_total = a_snap->base_total,
+              l_exec_base = s_calc_pct(l_base_total, a_snap->filled_pct, 2), l_exec_quote = uint256_0;
     MULT_256_COIN(l_exec_base, l_price, &l_exec_quote);
     uint256_t l_quote_total = uint256_0, l_remaining_base = uint256_0, l_remaining_quote = uint256_0;
     if (!IS_ZERO_256(l_base_total))
@@ -3802,7 +3847,7 @@ static json_object *s_hist_order_summary_to_json(const dex_pair_key_t *a_key, co
         SUBTRACT_256_256(l_base_total, l_exec_base, &l_remaining_base);
         MULT_256_COIN(l_remaining_base, l_price, &l_remaining_quote);
     }
-    bool l_is_ask = a_head->order_idx->side == DEX_SIDE_ASK, l_is_cancel = (a_tail->flags & DEX_OP_CANCEL) != 0;
+    bool l_is_ask = a_snap->is_ask, l_is_cancel = (a_snap->tail_flags & DEX_OP_CANCEL) != 0;
     json_object_object_add(o, "locked_initial", json_object_new_string(dap_uint256_to_char_ex(l_is_ask ? l_base_total : l_quote_total).frac));
     json_object_object_add(o, "amount", json_object_new_string(dap_uint256_to_char_ex(l_is_cancel ? uint256_0 : (l_is_ask ? l_remaining_base : l_remaining_quote)).frac));
     json_object_object_add(o, "total_receive", json_object_new_string(dap_uint256_to_char_ex(l_is_ask ? l_exec_quote : l_exec_base).frac));
@@ -3826,23 +3871,23 @@ static json_object *s_hist_order_summary_to_json(const dex_pair_key_t *a_key, co
         json_object_object_add(o, "spent", json_object_new_string(l_amount_buf));
         snprintf(l_amount_buf, sizeof(l_amount_buf), "%s %s", dap_uint256_to_char_ex(*l_summary_snap.recv).frac, l_summary_snap.recv_tok);
         json_object_object_add(o, "received", json_object_new_string(l_amount_buf));
-        if (a_tail->filled_pct < 10000 && !IS_ZERO_256(*l_summary_snap.rem)) {
+        if (a_snap->filled_pct < 10000 && !IS_ZERO_256(*l_summary_snap.rem)) {
             snprintf(l_amount_buf, sizeof(l_amount_buf), "%s %s", dap_uint256_to_char_ex(*l_summary_snap.rem).frac, l_summary_snap.rem_tok);
             json_object_object_add(o, "remained", json_object_new_string(l_amount_buf));
         }
-    } else if (a_tail->flags & DEX_OP_CREATE) {
+    } else if (a_snap->tail_flags & DEX_OP_CREATE) {
         json_object_object_add(o, "rate", json_object_new_string(dap_uint256_to_char_ex(l_price).frac));
         l_summary_snap = l_is_ask ? (struct summary_snap){.spent = &l_base_total, .spent_tok = l_base_token}
                                   : (struct summary_snap){.spent = &l_quote_total, .spent_tok = l_quote_token};
         snprintf(l_amount_buf, sizeof(l_amount_buf), "%s %s", dap_uint256_to_char_ex(*l_summary_snap.spent).frac, l_summary_snap.spent_tok);
         json_object_object_add(o, "locked", json_object_new_string(l_amount_buf));
-    } else if (a_tail->flags & DEX_OP_UPDATE) {
+    } else if (a_snap->tail_flags & DEX_OP_UPDATE) {
         json_object_object_add(o, "rate", json_object_new_string(dap_uint256_to_char_ex(l_price).frac));
         l_summary_snap = l_is_ask ? (struct summary_snap){.spent = &l_base_total, .spent_tok = l_base_token}
                                   : (struct summary_snap){.spent = &l_quote_total, .spent_tok = l_quote_token};
         snprintf(l_amount_buf, sizeof(l_amount_buf), "%s %s", dap_uint256_to_char_ex(*l_summary_snap.spent).frac, l_summary_snap.spent_tok);
         json_object_object_add(o, "updated", json_object_new_string(l_amount_buf));
-    } else if (a_tail->flags & DEX_OP_CANCEL) {
+    } else if (a_snap->tail_flags & DEX_OP_CANCEL) {
         json_object_object_add(o, "rate", json_object_new_string(dap_uint256_to_char_ex(l_price).frac));
         l_summary_snap = l_is_ask
             ? (struct summary_snap){.spent = &l_exec_base, .recv = &l_exec_quote, .spent_tok = l_base_token, .recv_tok = l_quote_token}
@@ -3869,6 +3914,9 @@ static int s_history_get_summary(UNUSED_ARG dap_chain_net_t *a_net, const dex_pa
     uint64_t l_to_req = (!a_ts_to || a_ts_to == UINT64_MAX) ? (uint64_t)dap_time_now() : a_ts_to;
     dex_hist_pair_t *l_pair = NULL;
     dex_hist_order_idx_t *l_oi = NULL;
+    dex_hist_summary_snap_t l_snap;
+    bool l_have_snap = false;
+    dap_list_t *l_snaps = NULL;
     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
     HASH_FIND(hh, s_dex_history, a_key, DEX_PAIR_KEY_CMP_SIZE, l_pair);
     if (l_pair) {
@@ -3882,7 +3930,9 @@ static int s_history_get_summary(UNUSED_ARG dap_chain_net_t *a_net, const dex_pa
                     break;
                 if (l_tail->ts < a_ts_from || l_head->ts > l_to_req)
                     break;
-                json_object_array_add(a_arr, s_hist_order_summary_to_json(a_key, a_order_root, l_head, l_tail));
+                // Snapshot under the lock, build JSON after it (see dex_hist_summary_snap_t)
+                s_hist_summary_snap_fill(a_key, a_order_root, l_head, l_tail, &l_snap);
+                l_have_snap = true;
                 l_ret = 1;
             } while (0);
         } else if (!a_newest_first) {
@@ -3903,7 +3953,11 @@ static int s_history_get_summary(UNUSED_ARG dap_chain_net_t *a_net, const dex_pa
                 }
                 if (a_limit && !l_lim--)
                     break;
-                json_object_array_add(a_arr, s_hist_order_summary_to_json(a_key, &l_oi->events->key.tx_hash, l_head, l_tail));
+                dex_hist_summary_snap_t *l_snap = DAP_NEW_Z(dex_hist_summary_snap_t);
+                if (!l_snap)
+                    continue;
+                s_hist_summary_snap_fill(a_key, &l_oi->events->key.tx_hash, l_head, l_tail, l_snap);
+                l_snaps = dap_list_append(l_snaps, l_snap);
                 ++l_ret;
             }
         } else {
@@ -3932,13 +3986,22 @@ static int s_history_get_summary(UNUSED_ARG dap_chain_net_t *a_net, const dex_pa
                 }
                 if (a_limit && !l_lim--)
                     break;
-                json_object_array_add(a_arr, s_hist_order_summary_to_json(a_key, &l_oi->events->key.tx_hash, l_head, l_tail));
+                dex_hist_summary_snap_t *l_snap = DAP_NEW_Z(dex_hist_summary_snap_t);
+                if (!l_snap)
+                    continue;
+                s_hist_summary_snap_fill(a_key, &l_oi->events->key.tx_hash, l_head, l_tail, l_snap);
+                l_snaps = dap_list_append(l_snaps, l_snap);
                 ++l_ret;
             }
             dap_list_free(l_ordlist);
         }
     }
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    for (dap_list_t *it = l_snaps; it; it = it->next)
+        json_object_array_add(a_arr, s_hist_order_summary_to_json((dex_hist_summary_snap_t *)it->data));
+    dap_list_free_full(l_snaps, NULL);
+    if (l_have_snap)
+        json_object_array_add(a_arr, s_hist_order_summary_to_json(&l_snap));
     return l_ret;
 }
 
@@ -3983,9 +4046,20 @@ static int s_history_foreach_trade_cache(const dex_pair_key_t *a_key, uint64_t a
                 }
             }
         } else {
+            // Cooperative cancellation: same all-buckets/all-events scan
+            // pattern as s_history_get_raw_events, shared by -view
+            // stats/summary. Bail out once the requesting client is gone.
+            size_t l_bucket_idx = 0;
             dex_hist_bucket_t *l_buck = NULL, *l_buck_tmp = NULL;
             HASH_ITER(hh, l_pair->buckets, l_buck, l_buck_tmp)
             {
+                if (!(++l_bucket_idx & 0x3F) && !dap_cli_server_client_is_alive())
+                    goto table_cache_ret;
+                // Buckets are ts-aligned: a whole bucket outside the window is
+                // skipped without walking its events (stats/volume windows are
+                // usually days against months of daily buckets).
+                if (l_buck->ts + s_dex_history_bucket_sec <= a_ts_from || l_buck->ts > l_to_req)
+                    continue;
                 dex_event_rec_t *l_rec, *l_rec_tmp;
                 HASH_ITER(hh, l_buck->events_idx, l_rec, l_rec_tmp)
                 {
@@ -4081,6 +4155,14 @@ static int s_history_build_ohlcv_series(const dex_pair_key_t *a_key, uint64_t a_
     uint64_t l_to_req = (!a_ts_to || a_ts_to == UINT64_MAX) ? (uint64_t)dap_time_now() : a_ts_to;
     dap_ret_val_if_any(-1, l_to_req < a_ts_from);
     int l_ret = 0;
+    // C1: unlike s_history_get_raw_events, dex_ohlcv_t is already a flat
+    // value struct with no pointers into cache state, so the candle loop
+    // itself doesn't need restructuring - just collect emitted candles into
+    // this array (capacity bounded by the pre-existing s_dex_history_max_candles
+    // check below) instead of building JSON objects while still holding
+    // s_dex_cache_rwlock, and serialize after the unlock.
+    dex_ohlcv_t *l_snapshot = NULL;
+    size_t l_snapshot_count = 0, l_snapshot_cap = 0;
     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
     dex_hist_pair_t *l_pair = NULL;
     HASH_FIND(hh, s_dex_history, a_key, DEX_PAIR_KEY_CMP_SIZE, l_pair);
@@ -4099,20 +4181,65 @@ static int s_history_build_ohlcv_series(const dex_pair_key_t *a_key, uint64_t a_
 
         if (l_used) {
             qsort(l_buckets, l_used, sizeof(*l_buckets), s_cmp_bucket_ptr_ts);
-            // Build output candles at requested granularity
-            // If no start time specified, use first bucket's ts for proper calendar alignment
-            uint64_t l_candle_start =
-                         s_hist_bucket_ts((a_ts_from && a_ts_from > l_buckets[0]->ts) ? a_ts_from : l_buckets[0]->ts, a_bucket_sec),
+            // Clamp the requested window to the pair's actual history: a crawler walking
+            // backwards day-by-day past the first recorded trade must get an instant empty
+            // reply instead of materializing thousands of empty candles for a range where
+            // no data ever existed.
+            uint64_t l_ts_from_eff = a_ts_from < l_buckets[0]->ts ? l_buckets[0]->ts : a_ts_from;
+            if (l_ts_from_eff > l_to_req) {
+                DAP_DELETE(l_buckets);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                return 0;
+            }
+            // Build output candles at requested granularity, calendar-aligned on the
+            // effective (clamped) start of the range.
+            uint64_t l_candle_start = s_hist_bucket_ts(l_ts_from_eff, a_bucket_sec),
                      l_prev_candle = 0;
+            uint64_t l_candles_total = (l_to_req - l_candle_start) / a_bucket_sec + 1;
+            if (l_candles_total > s_dex_history_max_candles) {
+                DAP_DELETE(l_buckets);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                return -3;
+            }
+            // Gap-fill candles are interleaved with real ones but still land
+            // on the same a_bucket_sec grid within [l_candle_start, l_to_req],
+            // so l_candles_total already bounds the total emitted count.
+            l_snapshot_cap = l_candles_total;
+            l_snapshot = DAP_NEW_Z_COUNT(dex_ohlcv_t, l_snapshot_cap);
+            if (!l_snapshot) {
+                DAP_DELETE(l_buckets);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                return -2;
+            }
             uint256_t l_last_close = uint256_0;
-            for (uint64_t l_cs = l_candle_start; l_cs <= l_to_req; l_cs += a_bucket_sec) {
+            // Seek to the first storage bucket that can overlap the requested range, then
+            // advance it forward in lock-step with the candle loop instead of rescanning
+            // all storage buckets from the start for every single candle. Both the candle
+            // window start (l_cs) and l_from are monotonically non-decreasing across
+            // iterations, so l_bi only ever needs to move forward (was O(candles x
+            // buckets), now O(candles + buckets) for the common non-overlapping case).
+            size_t l_bi = 0;
+            while (l_bi < l_used && l_buckets[l_bi]->ts + s_dex_history_bucket_sec <= l_ts_from_eff)
+                ++l_bi;
+            uint64_t l_candle_idx = 0;
+            for (uint64_t l_cs = l_candle_start; l_cs <= l_to_req; l_cs += a_bucket_sec, ++l_candle_idx) {
+                // Cooperative cancellation: a crawler that has already
+                // disconnected shouldn't keep this thread grinding through
+                // thousands of candles under s_dex_cache_rwlock. Checked
+                // every 256 candles, not every one, to keep the mutex inside
+                // dap_cli_server_client_is_alive() off the hot path.
+                if (!(l_candle_idx & 0xFF) && !dap_cli_server_client_is_alive())
+                    break;
                 uint64_t l_from = l_cs < a_ts_from ? a_ts_from : l_cs, l_ce_full = l_cs + a_bucket_sec - 1,
                          l_to = l_ce_full < l_cs || l_ce_full > l_to_req ? l_to_req : l_ce_full;
                 if (l_to < l_from)
                     continue;
+                while (l_bi < l_used && l_buckets[l_bi]->ts + s_dex_history_bucket_sec <= l_from)
+                    ++l_bi;
                 dex_ohlcv_t l_ohlcv = {.ts = l_cs};
-                // Aggregate all overlapping storage buckets
-                for (size_t i = 0; i < l_used; i++) {
+                // Aggregate all overlapping storage buckets starting from the first one
+                // that has not fully elapsed before this candle's window.
+                for (size_t i = l_bi; i < l_used; i++) {
                     if (l_buckets[i]->ts > l_to)
                         break;
                     if (l_buckets[i]->ts + s_dex_history_bucket_sec <= l_from)
@@ -4140,11 +4267,9 @@ static int s_history_build_ohlcv_series(const dex_pair_key_t *a_key, uint64_t a_
                 }
                 // Fill missing candles with last close price
                 if (a_fill_missing && l_prev_candle && l_cs > l_prev_candle + a_bucket_sec && !IS_ZERO_256(l_last_close)) {
-                    for (uint64_t t = l_prev_candle + a_bucket_sec; t < l_cs; t += a_bucket_sec) {
-                        dex_ohlcv_t l_gap = {
+                    for (uint64_t t = l_prev_candle + a_bucket_sec; t < l_cs && l_snapshot_count < l_snapshot_cap; t += a_bucket_sec) {
+                        l_snapshot[l_snapshot_count++] = (dex_ohlcv_t){
                             .ts = t, .open = l_last_close, .high = l_last_close, .low = l_last_close, .close = l_last_close};
-                        s_ohlcv_to_json(a_arr, &l_gap, a_with_ohlc);
-                        ++l_ret;
                     }
                 }
                 // Emit candle only if has trades or fill_missing with known close
@@ -4154,8 +4279,8 @@ static int s_history_build_ohlcv_series(const dex_pair_key_t *a_key, uint64_t a_
                             l_last_close = l_ohlcv.close;
                     } else
                         l_ohlcv.open = l_ohlcv.high = l_ohlcv.low = l_ohlcv.close = l_last_close;
-                    s_ohlcv_to_json(a_arr, &l_ohlcv, a_with_ohlc);
-                    ++l_ret;
+                    if (l_snapshot_count < l_snapshot_cap)
+                        l_snapshot[l_snapshot_count++] = l_ohlcv;
                     l_prev_candle = l_cs;
                 }
             }
@@ -4163,6 +4288,11 @@ static int s_history_build_ohlcv_series(const dex_pair_key_t *a_key, uint64_t a_
         DAP_DELETE(l_buckets);
     }
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    for (size_t i = 0; i < l_snapshot_count; i++) {
+        s_ohlcv_to_json(a_arr, &l_snapshot[i], a_with_ohlc);
+        ++l_ret;
+    }
+    DAP_DEL_Z(l_snapshot);
     return l_ret;
 }
 
@@ -4236,6 +4366,102 @@ static int s_dex_calc_order_fill_pct_ledger(dap_chain_net_t *a_net, const dap_ha
     return 0;
 }
 
+// C1: flat, lock-free-to-read snapshot of everything s_history_get_raw_events's
+// JSON serialization step needs from a dex_event_rec_t/dex_hist_order_idx_t
+// pair. dex_event_rec_t itself carries live pointers into cache structures
+// (order_idx, seller_addr_ptr, buyer_addr_ptr) that s_dex_cache_upsert()
+// mutates under wrlock, so the record can't be dereferenced once
+// s_dex_cache_rwlock is released - values have to be copied out first. This
+// struct is that copy: cheap value fields only (no allocation), so filling
+// an array of these under rdlock costs little, and building JSON objects
+// from it can then happen entirely outside the lock, cutting the time
+// s_dex_cache_rwlock is held (and therefore writer starvation on ledger
+// notify, see cellframe_node_rpc_overload_research_2026_09 sec. 3) roughly
+// in half for -view events.
+typedef struct dex_hist_event_snapshot {
+    dap_hash_fast_t tx_hash, prev_tail, order_root;
+    uint256_t price, base, order_value, trade_base, quote, remaining_base, remaining_quote;
+    uint64_t ts;
+    uint16_t filled_pct;
+    uint8_t flags;
+    bool is_ask, has_order_root;
+    dap_chain_addr_t seller_addr, buyer_addr;
+    bool has_seller, has_buyer;
+} dex_hist_event_snapshot_t;
+
+static void s_hist_event_snapshot_fill(const dex_event_rec_t *r, dex_hist_event_snapshot_t *a_out)
+{
+    uint256_t l_base = (r->flags & (DEX_OP_CREATE | DEX_OP_UPDATE | DEX_OP_CANCEL)) ? r->val_b_remain : r->val_b_trade,
+              l_price = s_hist_event_price(r), l_quote;
+    MULT_256_COIN(l_base, l_price, &l_quote);
+    uint256_t l_base_total = s_hist_event_base_total(r), l_exec_base = s_calc_pct(l_base_total, r->filled_pct, 2);
+    uint256_t l_remaining_base = uint256_0, l_remaining_quote = uint256_0;
+    if (compare256(l_exec_base, l_base_total) < 0) {
+        SUBTRACT_256_256(l_base_total, l_exec_base, &l_remaining_base);
+        MULT_256_COIN(l_remaining_base, l_price, &l_remaining_quote);
+    }
+    bool l_is_ask = r->order_idx && r->order_idx->side == DEX_SIDE_ASK,
+         l_is_cancel = (r->flags & DEX_OP_CANCEL) != 0;
+    *a_out = (dex_hist_event_snapshot_t) {
+        .tx_hash = r->key.tx_hash, .prev_tail = r->key.prev_tail,
+        .price = l_price, .base = l_base,
+        .order_value = r->val_b_remain, .trade_base = r->val_b_trade,
+        .quote = l_quote,
+        .remaining_base = l_is_cancel ? uint256_0 : (l_is_ask ? l_remaining_base : l_remaining_quote),
+        .remaining_quote = l_is_cancel ? uint256_0 : (l_is_ask ? l_remaining_quote : l_remaining_base),
+        .ts = r->ts, .filled_pct = r->filled_pct, .flags = r->flags, .is_ask = l_is_ask,
+    };
+    if (r->seller_addr_ptr) {
+        a_out->seller_addr = *r->seller_addr_ptr;
+        a_out->has_seller = true;
+    }
+    if (r->buyer_addr_ptr) {
+        a_out->buyer_addr = *r->buyer_addr_ptr;
+        a_out->has_buyer = true;
+    }
+    if (r->order_idx && r->order_idx->events) {
+        a_out->order_root = r->order_idx->events->key.tx_hash;
+        a_out->has_order_root = true;
+    }
+}
+
+static void s_hist_event_snapshot_to_json(const dex_hist_event_snapshot_t *r, json_object *a_arr)
+{
+    json_object *o = json_object_new_object();
+    json_object_object_add(o, "ts", json_object_new_uint64(r->ts));
+    char l_ts_str[DAP_TIME_STR_SIZE];
+    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), r->ts);
+    json_object_object_add(o, "ts_str", json_object_new_string(l_ts_str));
+    json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(r->price).frac));
+    json_object_object_add(o, "base", json_object_new_string(dap_uint256_to_char_ex(r->base).frac));
+    if (r->flags & (DEX_OP_CREATE | DEX_OP_UPDATE | DEX_OP_CANCEL)) {
+        json_object_object_add(o, "base_kind", json_object_new_string("order"));
+        json_object_object_add(o, "order_value", json_object_new_string(dap_uint256_to_char_ex(r->order_value).frac));
+    } else {
+        json_object_object_add(o, "base_kind", json_object_new_string("trade"));
+        json_object_object_add(o, "trade_base", json_object_new_string(dap_uint256_to_char_ex(r->trade_base).frac));
+    }
+    json_object_object_add(o, "quote", json_object_new_string(dap_uint256_to_char_ex(r->quote).frac));
+    json_object_object_add(o, "amount", json_object_new_string(dap_uint256_to_char_ex(r->remaining_base).frac));
+    json_object_object_add(o, "remaining", json_object_new_string(dap_uint256_to_char_ex(r->remaining_quote).frac));
+    json_object_object_add(o, "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&r->tx_hash)));
+    json_object_object_add(o, "prev_tail", json_object_new_string(dap_hash_fast_to_str_static(&r->prev_tail)));
+    json_object_object_add(o, "side", json_object_new_string(r->is_ask ? "ask" : "bid"));
+    if (r->has_seller)
+        json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(&r->seller_addr)));
+    if (r->has_buyer)
+        json_object_object_add(o, "buyer", json_object_new_string(dap_chain_addr_to_str_static(&r->buyer_addr)));
+    if (r->has_order_root) {
+        json_object_object_add(o, "order_root", json_object_new_string(dap_hash_fast_to_str_static(&r->order_root)));
+        char l_fill_pct_str[16];
+        snprintf(l_fill_pct_str, sizeof(l_fill_pct_str), "%u.%02u", (unsigned)(r->filled_pct / 100),
+                 (unsigned)(r->filled_pct % 100));
+        json_object_object_add(o, "filled_pct", json_object_new_string(l_fill_pct_str));
+    }
+    json_object_object_add(o, "type", json_object_new_string(s_dex_op_flags_to_str(r->flags)));
+    json_object_array_add(a_arr, o);
+}
+
 /** @brief Build raw events array from history cache buckets. */
 static int s_history_get_raw_events(dap_chain_net_t *a_net, const dex_pair_key_t *a_key, uint64_t a_ts_from, uint64_t a_ts_to,
                                     uint8_t a_filter_flags, int a_limit, int a_offset, const dap_chain_addr_t *a_seller_addr,
@@ -4245,6 +4471,8 @@ static int s_history_get_raw_events(dap_chain_net_t *a_net, const dex_pair_key_t
     dap_ret_val_if_any(-1, !a_arr);
     uint64_t l_to_req = (!a_ts_to || a_ts_to == UINT64_MAX) ? (uint64_t)dap_time_now() : a_ts_to;
     int l_ret = 0;
+    dex_hist_event_snapshot_t *l_snapshot = NULL;
+    size_t l_snapshot_count = 0;
     pthread_rwlock_rdlock(&s_dex_cache_rwlock);
     dex_hist_pair_t *l_pair = NULL;
     HASH_FIND(hh, s_dex_history, a_key, DEX_PAIR_KEY_CMP_SIZE, l_pair);
@@ -4264,9 +4492,18 @@ static int s_history_get_raw_events(dap_chain_net_t *a_net, const dex_pair_key_t
                 }
             }
         } else {
+            // Cooperative cancellation: this branch (no -order filter) walks
+            // every storage bucket and every event in it under
+            // s_dex_cache_rwlock — exactly the "-view events" crawler
+            // pattern from the production incident. Bail out early once the
+            // requesting client is gone rather than finishing the full scan
+            // (and later sort) for a reply nobody will read.
+            size_t l_bucket_idx = 0;
             dex_hist_bucket_t *l_buck = NULL, *l_buck_tmp = NULL;
             HASH_ITER(hh, l_pair->buckets, l_buck, l_buck_tmp)
             {
+                if (!(++l_bucket_idx & 0x3F) && !dap_cli_server_client_is_alive())
+                    break;
                 dex_event_rec_t *l_rec, *l_rec_tmp;
                 HASH_ITER(hh, l_buck->events_idx, l_rec, l_rec_tmp)
                 {
@@ -4279,6 +4516,18 @@ static int s_history_get_raw_events(dap_chain_net_t *a_net, const dex_pair_key_t
         }
         if (l_evlist) {
             l_evlist = dap_list_sort(l_evlist, a_newest_first ? s_hist_events_list_cmp_desc : s_hist_events_list_cmp_asc);
+            // C1: copy the (bounded by a_limit) page of matching records into
+            // a flat snapshot array here, still under rdlock - this is the
+            // only part that must touch live dex_event_rec_t/order_idx
+            // pointers. JSON object construction (the actual allocation-heavy
+            // work) happens below, entirely after the lock is released.
+            size_t l_page = a_limit > 0 ? (size_t)a_limit : dap_list_length(l_evlist);
+            l_snapshot = DAP_NEW_Z_COUNT(dex_hist_event_snapshot_t, l_page);
+            if (!l_snapshot) {
+                dap_list_free(l_evlist);
+                pthread_rwlock_unlock(&s_dex_cache_rwlock);
+                return -2;
+            }
             int l_offset = a_offset, l_limit = a_limit;
             for (dap_list_t *it = l_evlist; it; it = it->next) {
                 if (l_offset > 0) {
@@ -4287,56 +4536,17 @@ static int s_history_get_raw_events(dap_chain_net_t *a_net, const dex_pair_key_t
                 }
                 if (a_limit && !l_limit--)
                     break;
-                dex_event_rec_t *r = (dex_event_rec_t *)it->data;
-                    uint256_t l_base = (r->flags & (DEX_OP_CREATE | DEX_OP_UPDATE | DEX_OP_CANCEL)) ? r->val_b_remain : r->val_b_trade,
-                              l_price = s_hist_event_price(r), l_quote;
-                    MULT_256_COIN(l_base, l_price, &l_quote);
-                    uint256_t l_base_total = s_hist_event_base_total(r), l_exec_base = s_calc_pct(l_base_total, r->filled_pct, 2);
-                    uint256_t l_remaining_base = uint256_0, l_remaining_quote = uint256_0;
-                    if (compare256(l_exec_base, l_base_total) < 0) {
-                        SUBTRACT_256_256(l_base_total, l_exec_base, &l_remaining_base);
-                        MULT_256_COIN(l_remaining_base, l_price, &l_remaining_quote);
-                    }
-                    bool l_is_ask = r->order_idx->side == DEX_SIDE_ASK, l_is_cancel = (r->flags & DEX_OP_CANCEL) != 0;
-                    json_object *o = json_object_new_object();
-                    json_object_object_add(o, "ts", json_object_new_uint64(r->ts));
-                    char l_ts_str[DAP_TIME_STR_SIZE];
-                    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), r->ts);
-                    json_object_object_add(o, "ts_str", json_object_new_string(l_ts_str));
-                    json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_price).frac));
-                    json_object_object_add(o, "base", json_object_new_string(dap_uint256_to_char_ex(l_base).frac));
-                    if (r->flags & (DEX_OP_CREATE | DEX_OP_UPDATE | DEX_OP_CANCEL)) {
-                        json_object_object_add(o, "base_kind", json_object_new_string("order"));
-                        json_object_object_add(o, "order_value", json_object_new_string(dap_uint256_to_char_ex(r->val_b_remain).frac));
-                    } else {
-                        json_object_object_add(o, "base_kind", json_object_new_string("trade"));
-                        json_object_object_add(o, "trade_base", json_object_new_string(dap_uint256_to_char_ex(r->val_b_trade).frac));
-                    }
-                    json_object_object_add(o, "quote", json_object_new_string(dap_uint256_to_char_ex(l_quote).frac));
-                    json_object_object_add(o, "amount", json_object_new_string(dap_uint256_to_char_ex(l_is_cancel ? uint256_0 : (l_is_ask ? l_remaining_base : l_remaining_quote)).frac));
-                    json_object_object_add(o, "remaining", json_object_new_string(dap_uint256_to_char_ex(l_is_cancel ? uint256_0 : (l_is_ask ? l_remaining_quote : l_remaining_base)).frac));
-                    json_object_object_add(o, "tx_hash", json_object_new_string(dap_hash_fast_to_str_static(&r->key.tx_hash)));
-                    json_object_object_add(o, "prev_tail", json_object_new_string(dap_hash_fast_to_str_static(&r->key.prev_tail)));
-                    json_object_object_add(o, "side", json_object_new_string(r->order_idx->side == DEX_SIDE_ASK ? "ask" : "bid"));
-                    if (r->seller_addr_ptr)
-                        json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(r->seller_addr_ptr)));
-                    if (r->buyer_addr_ptr)
-                        json_object_object_add(o, "buyer", json_object_new_string(dap_chain_addr_to_str_static(r->buyer_addr_ptr)));
-                    if (r->order_idx) {
-                        json_object_object_add(o, "order_root", json_object_new_string(dap_hash_fast_to_str_static(&r->order_idx->events->key.tx_hash)));
-                        char l_fill_pct_str[16];
-                        snprintf(l_fill_pct_str, sizeof(l_fill_pct_str), "%u.%02u", (unsigned)(r->filled_pct / 100),
-                                 (unsigned)(r->filled_pct % 100));
-                        json_object_object_add(o, "filled_pct", json_object_new_string(l_fill_pct_str));
-                    }
-                    json_object_object_add(o, "type", json_object_new_string(s_dex_op_flags_to_str(r->flags)));
-                    json_object_array_add(a_arr, o);
-                    ++l_ret;
+                s_hist_event_snapshot_fill((dex_event_rec_t *)it->data, &l_snapshot[l_snapshot_count++]);
             }
             dap_list_free(l_evlist);
         }
     }
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    for (size_t i = 0; i < l_snapshot_count; i++) {
+        s_hist_event_snapshot_to_json(&l_snapshot[i], a_arr);
+        ++l_ret;
+    }
+    DAP_DEL_Z(l_snapshot);
     return l_ret;
 }
 
@@ -6198,6 +6408,7 @@ int dap_chain_net_srv_dex_init()
     // Read history cache switch and bucket size (default: daily buckets for storage efficiency)
     s_dex_history_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "history_cache", true);
     s_dex_history_bucket_sec = (uint64_t)dap_config_get_item_uint32_default(g_config, "srv_dex", "history_bucket_sec", DAP_SEC_PER_DAY);
+    s_dex_history_max_candles = dap_config_get_item_uint32_default(g_config, "srv_dex", "history_max_candles", s_dex_history_max_candles);
     if (!s_dex_history_bucket_sec)
         s_dex_history_bucket_sec = DAP_SEC_PER_DAY;
     log_it(L_INFO, "History cache: %s, bucket %us", s_dex_history_enabled ? "on" : "off", (unsigned)s_dex_history_bucket_sec);
@@ -6273,6 +6484,12 @@ int dap_chain_net_srv_dex_init()
         "                       [-net_base <net>] [-net_quote <net>]\n"
         "    <fee_opt>: -fee_pct <pct> | -fee_native <amount> | -fee_config <byte>\n"
         "               -fee_pct 2.0 = 2%% of INPUT, -fee_native 0.05 = 0.05 native\n");
+    // `history`/`orderbook`/`orders` are the most expensive and most heavily
+    // crawled read queries this service exposes (full history scans, depth-N
+    // order book snapshots); classify the whole command as HEAVY so the CLI
+    // dispatcher caps its concurrency separately from the rest of the RPC
+    // surface instead of letting a crawler burst exhaust the shared pool.
+    dap_cli_server_cmd_flags_set("srv_dex", DAP_CLI_CMD_FLAG_HEAVY);
     return 0;
 }
 
@@ -8419,6 +8636,70 @@ static json_object *s_dex_datum_to_json(dap_chain_datum_tx_t *a_tx, json_object 
     return a_json_reply;
 }
 
+// C1: flat value-only snapshot of one CMD_ORDERS row. dex_order_cache_entry_t
+// carries seller_addr_ptr/pair_key_ptr pointing into other cache indices
+// mutated under s_dex_cache_rwlock wrlock, so - same reasoning as
+// dex_hist_event_snapshot_t above for DEX history - the entry can't be
+// touched once the lock is released. The json_object allocation for every
+// row happens after unlocking.
+typedef struct dex_orders_row_snapshot {
+    char pair_buf[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 2];
+    bool has_pair;
+    bool is_ask;
+    dap_hash_fast_t root, tail;
+    uint256_t price, value_sell, locked_initial, min_fill_value;
+    uint64_t filled_pct;
+    uint8_t min_fill_pct;
+    bool min_fill_from_origin;
+    bool min_fill_origin_pending;  /* origin value resolved after unlock, see s_dex_resolve_row_min_fill() */
+    dap_chain_addr_t seller_addr;
+    dap_time_t ts_created, ts_expires;
+} dex_orders_row_snapshot_t;
+
+// Ledger tier of the old s_dex_fetch_min_abs() (used when the history cache
+// can't answer): the origin tx's own out_cond value and min_fill, read without
+// touching any cache structure - hence done after the cache lock is released.
+static void s_dex_resolve_row_min_fill(dap_ledger_t *a_ledger, dex_orders_row_snapshot_t *a_row)
+{
+    if (!a_row->min_fill_origin_pending)
+        return;
+    a_row->min_fill_origin_pending = false;
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, &a_row->root);
+    if (!l_tx)
+        return;
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
+    if (l_out_cond)
+        a_row->min_fill_value = s_calc_pct(l_out_cond->header.value, l_out_cond->subtype.srv_dex.min_fill & 0x7F, 0);
+}
+
+static void s_orders_row_snapshot_to_json(const dex_orders_row_snapshot_t *r, json_object *a_arr)
+{
+    json_object *o = json_object_new_object();
+    if (r->has_pair)
+        json_object_object_add(o, "pair", json_object_new_string(r->pair_buf));
+    json_object_object_add(o, "side", json_object_new_string(r->is_ask ? "ASK" : "BID"));
+    json_object_object_add(o, "root", json_object_new_string(dap_hash_fast_to_str_static(&r->root)));
+    json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&r->tail)));
+    json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(r->price).frac));
+    json_object_object_add(o, "value_sell", json_object_new_string(dap_uint256_to_char_ex(r->value_sell).frac));
+    json_object_object_add(o, "locked_initial", json_object_new_string(dap_uint256_to_char_ex(r->locked_initial).frac));
+    json_object_object_add(o, "filled_pct", json_object_new_int((int)r->filled_pct));
+    json_object_object_add(o, "min_fill_pct", json_object_new_int(r->min_fill_pct));
+    json_object_object_add(o, "min_fill_value", json_object_new_string(dap_uint256_to_char_ex(r->min_fill_value).frac));
+    if (r->min_fill_from_origin)
+        json_object_object_add(o, "min_fill_from_origin", json_object_new_boolean(true));
+    json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(&r->seller_addr)));
+    json_object_object_add(o, "ts", json_object_new_uint64(r->ts_created));
+    char l_ts_str[DAP_TIME_STR_SIZE];
+    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), r->ts_created);
+    json_object_object_add(o, "created", json_object_new_string(l_ts_str));
+    if (r->ts_expires) {
+        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), r->ts_expires);
+        json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
+    }
+    json_object_array_add(a_arr, o);
+}
+
 static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **json_arr_reply = (json_object **)a_str_reply;
@@ -8774,6 +9055,11 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
 
         dap_time_t l_now_ts = dap_ledger_get_blockchain_time(l_net->pub.ledger);
         if (s_dex_cache_enabled) {
+            // C1: collect flat snapshots under the lock (min_fill_value still
+            // resolved here - s_dex_fetch_min_abs() itself assumes the caller
+            // already holds s_dex_cache_rwlock), then build every json_object
+            // after unlocking. See dex_orders_row_snapshot_t above.
+            dap_list_t *l_rows = NULL;
             pthread_rwlock_rdlock(&s_dex_cache_rwlock);
             dex_pair_index_t *l_pi = NULL, *l_pi_tmp = NULL;
             HASH_ITER(hh, s_dex_pair_index, l_pi, l_pi_tmp)
@@ -8782,110 +9068,70 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                     continue;
                 if (l_pair_str && (dap_strcmp(l_pi->key.token_quote, l_ticker_quote) || dap_strcmp(l_pi->key.token_base, l_ticker_base)))
                     continue;
-                char l_pair_buf[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 2];
+                char l_pair_buf[DAP_CHAIN_TICKER_SIZE_MAX * 2 + 2] = {};
                 if (!l_pair_str)
                     snprintf(l_pair_buf, sizeof(l_pair_buf), "%s/%s", l_pi->key.token_base, l_pi->key.token_quote);
                 dex_order_cache_entry_t *l_entry = NULL, *l_tmp;
-                HASH_ITER(hh_pair_bucket, l_pi->asks, l_entry, l_tmp)
-                {
-                    if (l_entry->ts_expires && l_now_ts > l_entry->ts_expires)
-                        continue;
-                    if (l_seller_str && !dap_chain_addr_compare(l_entry->seller_addr_ptr, &l_seller_addr))
-                        continue;
-                    if (l_offset > 0) {
-                        --l_offset;
-                        continue;
-                    }
-                    json_object *o = json_object_new_object();
-                    if (!l_pair_str)
-                        json_object_object_add(o, "pair", json_object_new_string(l_pair_buf));
-                    json_object_object_add(o, "side", json_object_new_string("ASK"));
-                    json_object_object_add(o, "root", json_object_new_string(dap_hash_fast_to_str_static(&l_entry->level.match.root)));
-                    json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&l_entry->level.match.tail)));
-                    json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.rate).frac));
-                    json_object_object_add(o, "value_sell",
-                                           json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.value).frac));
-                    json_object_object_add(o, "locked_initial", json_object_new_string(dap_uint256_to_char_ex(l_entry->value_base).frac));
-                    json_object_object_add(o, "filled_pct",
-                                           json_object_new_int((int)s_calc_fill_pct(l_entry->value_base, l_entry->level.match.value, 0)));
-                    uint8_t l_mf = l_entry->level.match.min_fill, l_pct = l_mf & 0x7F;
-                    uint256_t l_min_exec = uint256_0;
-                    if (l_pct) {
-                        if ((l_mf & 0x80) && l_pct < 100) {
-                            if (s_dex_fetch_min_abs(l_net->pub.ledger, &l_entry->level.match.root, &l_min_exec))
-                                l_min_exec = uint256_0;
-                        } else
-                            l_min_exec = s_calc_pct(l_entry->level.match.value, l_pct, 0);
-                    }
-                    json_object_object_add(o, "min_fill_pct", json_object_new_int(l_pct));
-                    json_object_object_add(o, "min_fill_value", json_object_new_string(dap_uint256_to_char_ex(l_min_exec).frac));
-                    if (l_mf & 0x80)
-                        json_object_object_add(o, "min_fill_from_origin", json_object_new_boolean(true));
-                    json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(l_entry->seller_addr_ptr)));
-                    json_object_object_add(o, "ts", json_object_new_uint64(l_entry->ts_created));
-                    char l_ts_str[DAP_TIME_STR_SIZE];
-                    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_created);
-                    json_object_object_add(o, "created", json_object_new_string(l_ts_str));
-                    if (l_entry->ts_expires) {
-                        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_expires);
-                        json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
-                    }
-                    json_object_array_add(l_arr, o);
-                    if (l_limit > 0 && !--l_limit)
-                        goto cache_limit_reached;
-                }
-                HASH_ITER(hh_pair_bucket, l_pi->bids, l_entry, l_tmp)
-                {
-                    if (l_entry->ts_expires && l_now_ts > l_entry->ts_expires)
-                        continue;
-                    if (l_seller_str && !dap_chain_addr_compare(l_entry->seller_addr_ptr, &l_seller_addr))
-                        continue;
-                    if (l_offset > 0) {
-                        --l_offset;
-                        continue;
-                    }
-                    json_object *o = json_object_new_object();
-                    if (!l_pair_str)
-                        json_object_object_add(o, "pair", json_object_new_string(l_pair_buf));
-                    json_object_object_add(o, "side", json_object_new_string("BID"));
-                    json_object_object_add(o, "root", json_object_new_string(dap_hash_fast_to_str_static(&l_entry->level.match.root)));
-                    json_object_object_add(o, "tail", json_object_new_string(dap_hash_fast_to_str_static(&l_entry->level.match.tail)));
-                    json_object_object_add(o, "price", json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.rate).frac));
-                    json_object_object_add(o, "value_sell",
-                                           json_object_new_string(dap_uint256_to_char_ex(l_entry->level.match.value).frac));
-                    json_object_object_add(o, "locked_initial", json_object_new_string(dap_uint256_to_char_ex(l_entry->value_base).frac));
-                    json_object_object_add(o, "filled_pct",
-                                           json_object_new_int((int)s_calc_fill_pct(l_entry->value_base, l_entry->level.match.value, 0)));
-                    uint8_t l_mf = l_entry->level.match.min_fill, l_pct = l_mf & 0x7F;
-                    uint256_t l_min_exec = uint256_0;
-                    if (l_pct) {
-                        if ((l_mf & 0x80) && l_pct < 100) {
-                            if (s_dex_fetch_min_abs(l_net->pub.ledger, &l_entry->level.match.root, &l_min_exec))
-                                l_min_exec = uint256_0;
-                        } else {
-                            l_min_exec = s_calc_pct(l_entry->level.match.value, l_pct, 0);
+                for (int l_side_i = 0; l_side_i < 2; l_side_i++) {
+                    dex_order_cache_entry_t *l_side_head = l_side_i == 0 ? l_pi->asks : l_pi->bids;
+                    HASH_ITER(hh_pair_bucket, l_side_head, l_entry, l_tmp)
+                    {
+                        if (l_entry->ts_expires && l_now_ts > l_entry->ts_expires)
+                            continue;
+                        if (l_seller_str && !dap_chain_addr_compare(l_entry->seller_addr_ptr, &l_seller_addr))
+                            continue;
+                        if (l_offset > 0) {
+                            --l_offset;
+                            continue;
                         }
+                        dex_orders_row_snapshot_t *l_row = DAP_NEW_Z(dex_orders_row_snapshot_t);
+                        l_row->has_pair = !l_pair_str;
+                        if (l_row->has_pair)
+                            memcpy(l_row->pair_buf, l_pair_buf, sizeof(l_pair_buf));
+                        l_row->is_ask = (l_side_i == 0);
+                        l_row->root = l_entry->level.match.root;
+                        l_row->tail = l_entry->level.match.tail;
+                        l_row->price = l_entry->level.match.rate;
+                        l_row->value_sell = l_entry->level.match.value;
+                        l_row->locked_initial = l_entry->value_base;
+                        l_row->filled_pct = s_calc_fill_pct(l_entry->value_base, l_entry->level.match.value, 0);
+                        uint8_t l_mf = l_entry->level.match.min_fill, l_pct = l_mf & 0x7F;
+                        l_row->min_fill_pct = l_pct;
+                        l_row->min_fill_from_origin = (l_mf & 0x80) != 0;
+                        if (l_pct) {
+                            if (l_row->min_fill_from_origin && l_pct < 100) {
+                                // Same tiers as s_dex_fetch_min_abs(): (1) the
+                                // order is its own origin, (2) the history
+                                // cache, (3) ledger - and the ledger tier is
+                                // the only one deferred out of the lock.
+                                if (dap_hash_fast_compare(&l_entry->level.match.root, &l_entry->level.match.tail))
+                                    l_row->min_fill_value = s_calc_pct(l_entry->level.match.value, l_pct, 0);
+                                else if (s_dex_history_enabled && l_entry->pair_key_ptr) {
+                                    if (!s_dex_hist_get_min_abs(l_entry->pair_key_ptr, &l_entry->level.match.root,
+                                                                l_pct, &l_row->min_fill_value))
+                                        l_row->min_fill_value = uint256_0;
+                                } else
+                                    l_row->min_fill_origin_pending = true;
+                            } else
+                                l_row->min_fill_value = s_calc_pct(l_entry->level.match.value, l_pct, 0);
+                        }
+                        if (l_entry->seller_addr_ptr)
+                            l_row->seller_addr = *l_entry->seller_addr_ptr;
+                        l_row->ts_created = l_entry->ts_created;
+                        l_row->ts_expires = l_entry->ts_expires;
+                        l_rows = dap_list_append(l_rows, l_row);
+                        if (l_limit > 0 && !--l_limit)
+                            goto cache_limit_reached;
                     }
-                    json_object_object_add(o, "min_fill_pct", json_object_new_int(l_pct));
-                    json_object_object_add(o, "min_fill_value", json_object_new_string(dap_uint256_to_char_ex(l_min_exec).frac));
-                    if (l_mf & 0x80)
-                        json_object_object_add(o, "min_fill_from_origin", json_object_new_boolean(true));
-                    json_object_object_add(o, "seller", json_object_new_string(dap_chain_addr_to_str_static(l_entry->seller_addr_ptr)));
-                    json_object_object_add(o, "ts", json_object_new_uint64(l_entry->ts_created));
-                    char l_ts_str[DAP_TIME_STR_SIZE];
-                    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_created);
-                    json_object_object_add(o, "created", json_object_new_string(l_ts_str));
-                    if (l_entry->ts_expires) {
-                        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_entry->ts_expires);
-                        json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
-                    }
-                    json_object_array_add(l_arr, o);
-                    if (l_limit > 0 && !--l_limit)
-                        goto cache_limit_reached;
                 }
             }
         cache_limit_reached:
             pthread_rwlock_unlock(&s_dex_cache_rwlock);
+            for (dap_list_t *it = l_rows; it; it = it->next) {
+                s_dex_resolve_row_min_fill(l_net->pub.ledger, (dex_orders_row_snapshot_t *)it->data);
+                s_orders_row_snapshot_to_json((dex_orders_row_snapshot_t *)it->data, l_arr);
+            }
+            dap_list_free_full(l_rows, NULL);
             array_list_sort(json_object_get_array(l_arr), s_cmp_json_orders_by_ts);
         } else {
             // Check pair whitelist before scanning ledger (only if pair specified)
@@ -10042,6 +10288,14 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                                                                   l_buyer_str ? &l_buyer_addr : NULL,
                                                                   l_order_hash_str ? &l_order_root : NULL, l_filter_flags, l_arr)
                                    : 0;
+            if (l_count == -3) {
+                json_object_put(l_arr);
+                json_object_put(l_json_reply);
+                return dap_json_rpc_error_add(*json_arr_reply, -3,
+                                              "requested range/-bucket would produce more than %u candles, narrow -from/-to or increase -bucket",
+                                              s_dex_history_max_candles),
+                       -3;
+            }
             json_object_object_add(l_json_reply, "market_only", json_object_new_boolean(true));
             json_object_object_add(l_json_reply, l_want_ohlc ? "ohlc" : "volume", l_arr);
             if (l_bucket)

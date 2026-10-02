@@ -223,6 +223,14 @@ test_net_fixture_t *test_net_fixture_create(const char *a_net_name)
                 log_it(L_WARNING, "Failed to create mempool cluster for chain %s - mempool operations may fail", l_chain->name);
             } else {
                 log_it(L_DEBUG, "Created mempool cluster for chain %s with group mask %s", l_chain->name, l_gdb_groups_mask);
+                // dap_chain_net_init() links these into
+                // dap_chain_net_pvt_t.mempool_clusters itself, but that
+                // field is private and this fixture builds the network by
+                // hand - without this, dap_chain_net_get_mempool_cluster()/
+                // dap_chain_add_mempool_notify_callback() can never find a
+                // fixture-created network's mempool clusters (logs "No
+                // mempool cluster found for network ...").
+                dap_chain_net_test_set_mempool_cluster(l_fixture->net, l_cluster);
             }
             DAP_DELETE(l_gdb_groups_mask);
         }
