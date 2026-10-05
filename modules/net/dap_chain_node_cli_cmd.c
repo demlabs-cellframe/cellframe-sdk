@@ -2079,10 +2079,37 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 }
                 dap_list_t *l_outs_list = NULL;
                 bool l_check_mempool = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-mempool_check", NULL);
+                int l_cache_rc = 0;
                 if (l_cond_outs)
                     l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, l_cond_type, l_token_tiker, l_addr);
-                else if (l_value_str) {
-                    if (dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, l_value_datoshi, &l_value_sum, l_check_mempool, false)) {
+                else if (l_value_str)
+                    l_cache_rc = dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list,
+                                                                                            l_value_datoshi, &l_value_sum, l_check_mempool, false);
+                else
+                    l_cache_rc = dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list,
+                                                                                    &l_value_sum, l_check_mempool, false);
+                // With wallets_cache=all the cache is the UTXO index of this
+                // node. A miss while it is still being built must not turn into
+                // a full ledger scan on a public RPC node: answer "index warming"
+                // with a 503 + Retry-After instead, the client retries later.
+                if (l_cache_rc == -101 && !l_cond_outs && dap_chain_wallet_cache_cold_reply_unavailable()) {
+                    char l_reason[128] = "";
+                    dap_chain_wallet_cache_is_warm(l_net->pub.id, l_reason, sizeof(l_reason));
+                    dap_cli_cmd_reply_set_unavailable(5);
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INDEX_WARMING,
+                                           "UTXO index is warming up for this address, retry later%s%s",
+                                           *l_reason ? ": " : "", l_reason);
+                    json_object_put(json_obj_wall);
+                    json_object_put(l_json_outs_arr);
+                    json_object_put(json_arr_out);
+                    DAP_DELETE(l_addr);
+                    if (l_wallet) dap_chain_wallet_close(l_wallet);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INDEX_WARMING;
+                }
+                if (l_cond_outs) {
+                    // cond outs come straight from the ledger above
+                } else if (l_value_str) {
+                    if (l_cache_rc) {
                         debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s (value needed)",
                                  dap_chain_addr_to_str_static(l_addr));
                         l_outs_list = dap_ledger_get_list_tx_outs_with_val_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum, l_check_mempool);
@@ -2092,7 +2119,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         }
                     }
                 } else {
-                    if (dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list, &l_value_sum, l_check_mempool, false)) {
+                    if (l_cache_rc) {
                         debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s",
                                  dap_chain_addr_to_str_static(l_addr));
                         l_outs_list = dap_ledger_get_list_tx_outs_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, &l_value_sum, l_check_mempool);
@@ -9407,6 +9434,20 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     } else if (l_addr) {
         // history addr and wallet
+        // In wallets_cache=all mode the per-address history is served from
+        // the cache; without it dap_db_history_addr() walks the whole chain.
+        // While the cache is still being built that walk would run for every
+        // such request, so refuse with "index warming" (503 + Retry-After).
+        if (dap_chain_wallet_cache_cold_reply_unavailable()) {
+            char l_reason[128] = "";
+            if (!dap_chain_wallet_cache_is_warm(l_net->pub.id, l_reason, sizeof(l_reason))) {
+                dap_cli_cmd_reply_set_unavailable(5);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_INDEX_WARMING,
+                                       "Address history index is warming up, retry later: %s", l_reason);
+                DAP_DELETE(l_addr);
+                return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_INDEX_WARMING;
+            }
+        }
         json_object * json_obj_summary = json_object_new_object();
         if (!json_obj_summary) {
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;

@@ -434,6 +434,12 @@ static bool s_tag_check_xchange(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_
     
 }
 
+// CLI dispatcher cost class: "orders" lists every open order of the net.
+static bool s_cli_srv_xchange_is_heavy(int a_argc, char **a_argv)
+{
+    return a_argc > 1 && a_argv[1] && !strcmp(a_argv[1], "orders");
+}
+
 /**
  * @brief dap_chain_net_srv_xchange_init Init actions for xchanger stream channel
  * @return 0 if everything is okay, lesser then zero if errors
@@ -447,6 +453,7 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange orders -net <net_name> [-addr <seller_addr> | -seller <seller_addr>]\n"
          "\tList open orders for seller address or all open orders in network\n"
         );
+    dap_cli_server_cmd_heavy_check_set("srv_xchange", s_cli_srv_xchange_is_heavy);
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
     l_srv_callbacks.requested = s_callback_requested;

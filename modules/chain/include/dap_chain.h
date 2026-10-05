@@ -309,6 +309,14 @@ void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_arg);
 void dap_chain_add_callback_datum_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg);
 void dap_chain_add_callback_datum_removed_from_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_removed_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg);
+// Same, with a counter of notifications queued for the callback but not yet
+// delivered (incremented on queueing, decremented after the callback ran):
+// lets a consumer that indexes datums asynchronously tell whether its index
+// has caught up with the chain.
+void dap_chain_add_callback_datum_index_notify_ex(dap_chain_t *a_chain, dap_chain_callback_datum_notify_t a_callback, dap_proc_thread_t *a_thread,
+                                                  void *a_callback_arg, _Atomic(uint64_t) *a_pending);
+void dap_chain_add_callback_datum_removed_from_index_notify_ex(dap_chain_t *a_chain, dap_chain_callback_datum_removed_notify_t a_callback,
+                                                               dap_proc_thread_t *a_thread, void *a_callback_arg, _Atomic(uint64_t) *a_pending);
 void dap_chain_atom_confirmed_notify_add(dap_chain_t *a_chain, dap_chain_callback_notify_t a_callback, void *a_arg, uint64_t a_conf_cnt);
 int dap_chain_add_callback_timer(dap_chain_t *a_chain, dap_chain_callback_blockchain_timer_t a_callback, void *a_callback_arg);
 void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size, dap_time_t a_atom_time);

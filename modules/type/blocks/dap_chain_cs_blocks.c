@@ -189,6 +189,16 @@ static bool s_seed_mode = false;
 
 static dap_list_t *s_fork_resolved_notificators = NULL;
 
+// CLI dispatcher cost class: "list" and "find" walk the whole chain,
+// everything else touches a single block or in-memory counters.
+static bool s_cli_blocks_is_heavy(int a_argc, char **a_argv)
+{
+    for (int i = 1; i < a_argc; i++)
+        if (a_argv[i] && (!strcmp(a_argv[i], "list") || !strcmp(a_argv[i], "find")))
+            return true;
+    return false;
+}
+
 /**
  * @brief dap_chain_cs_blocks_init
  * @return
@@ -264,6 +274,7 @@ int dap_chain_cs_blocks_init()
                     " Automatic collection of commission in case of triggering of the setting\n\n"
         
                                         );
+    dap_cli_server_cmd_heavy_check_set("block", s_cli_blocks_is_heavy);
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
         return -1;

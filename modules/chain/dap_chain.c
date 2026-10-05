@@ -48,7 +48,6 @@
 
 #define LOG_TAG "chain"
 
-static bool s_debug_more = false;
 typedef struct dap_chain_item_id {
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
@@ -64,12 +63,14 @@ typedef struct dap_chain_datum_notifier {
     dap_chain_callback_datum_notify_t callback;
     dap_proc_thread_t *proc_thread;
     void *arg;
+    _Atomic(uint64_t) *pending;   /* optional, see dap_chain_add_callback_datum_index_notify_ex() */
 } dap_chain_datum_notifier_t;
 
 typedef struct dap_chain_datum_removed_notifier {
     dap_chain_callback_datum_removed_notify_t callback;
     dap_proc_thread_t *proc_thread;
     void *arg;
+    _Atomic(uint64_t) *pending;
 } dap_chain_datum_removed_notifier_t;
 
 typedef struct dap_chain_blockchain_timer_notifier {
@@ -506,7 +507,7 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
 const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
 {
     if (!l_chain){
-        debug_if(s_debug_more, L_DEBUG, "dap_get_chain_type. Chain object is 0");
+        log_it(L_DEBUG, "dap_get_chain_type. Chain object is 0");
         return NULL;
     }
     return (const char *)DAP_CHAIN_PVT(l_chain)->cs_name;
@@ -519,8 +520,6 @@ const char *dap_chain_get_cs_type(dap_chain_t *l_chain)
  */
 int dap_chain_save_all(dap_chain_t *l_chain)
 {
-    if (l_chain && l_chain->skip_disk_persist)
-        return 0;
     int l_ret = 0;
     pthread_rwlock_rdlock(&l_chain->cell_rwlock);
     dap_chain_cell_t *l_item = NULL, *l_item_tmp = NULL;
@@ -540,7 +539,7 @@ bool download_notify_callback(dap_chain_t* a_chain) {
     json_object_object_add(l_chain_info, "chain_id", json_object_new_uint64(a_chain->id.uint64));
     json_object_object_add(l_chain_info, "load_progress", json_object_new_int(a_chain->load_progress));
     dap_notify_server_send_mt(json_object_get_string(l_chain_info));
-    debug_if(s_debug_more, L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
+    log_it(L_DEBUG, "Loading net \"%s\", chain \"%s\", ID 0x%016"DAP_UINT64_FORMAT_x " [%d%%]",
                     a_chain->net_name, a_chain->name, a_chain->id.uint64, a_chain->load_progress);
     json_object_put(l_chain_info);
     return true;
@@ -692,6 +691,12 @@ int dap_chain_add_callback_timer(dap_chain_t *a_chain, dap_chain_callback_blockc
  */
 void dap_chain_add_callback_datum_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg)
 {
+    dap_chain_add_callback_datum_index_notify_ex(a_chain, a_callback, a_thread, a_callback_arg, NULL);
+}
+
+void dap_chain_add_callback_datum_index_notify_ex(dap_chain_t *a_chain, dap_chain_callback_datum_notify_t a_callback, dap_proc_thread_t *a_thread,
+                                                  void *a_callback_arg, _Atomic(uint64_t) *a_pending)
+{
     if(!a_chain){
         log_it(L_ERROR, "NULL chain passed to dap_chain_add_callback_notify()");
         return;
@@ -709,6 +714,7 @@ void dap_chain_add_callback_datum_index_notify(dap_chain_t *a_chain, dap_chain_c
     l_notifier->callback = a_callback;
     l_notifier->proc_thread = a_thread;
     l_notifier->arg = a_callback_arg;
+    l_notifier->pending = a_pending;
     pthread_rwlock_wrlock(&a_chain->rwlock);
     a_chain->datum_notifiers = dap_list_append(a_chain->datum_notifiers, l_notifier);
     pthread_rwlock_unlock(&a_chain->rwlock);
@@ -721,6 +727,12 @@ void dap_chain_add_callback_datum_index_notify(dap_chain_t *a_chain, dap_chain_c
  * @param a_arg
  */
 void dap_chain_add_callback_datum_removed_from_index_notify(dap_chain_t *a_chain, dap_chain_callback_datum_removed_notify_t a_callback, dap_proc_thread_t *a_thread, void *a_callback_arg)
+{
+    dap_chain_add_callback_datum_removed_from_index_notify_ex(a_chain, a_callback, a_thread, a_callback_arg, NULL);
+}
+
+void dap_chain_add_callback_datum_removed_from_index_notify_ex(dap_chain_t *a_chain, dap_chain_callback_datum_removed_notify_t a_callback,
+                                                               dap_proc_thread_t *a_thread, void *a_callback_arg, _Atomic(uint64_t) *a_pending)
 {
     if(!a_chain){
         log_it(L_ERROR, "NULL chain passed to dap_chain_add_callback_notify()");
@@ -739,6 +751,7 @@ void dap_chain_add_callback_datum_removed_from_index_notify(dap_chain_t *a_chain
     l_notifier->callback = a_callback;
     l_notifier->proc_thread = a_thread;
     l_notifier->arg = a_callback_arg;
+    l_notifier->pending = a_pending;
     pthread_rwlock_wrlock(&a_chain->rwlock);
     a_chain->datum_removed_notifiers = dap_list_append(a_chain->datum_removed_notifiers, l_notifier);
     pthread_rwlock_unlock(&a_chain->rwlock);
@@ -812,11 +825,14 @@ struct chain_thread_datum_notifier {
     dap_chain_cell_id_t cell_id;
     dap_hash_fast_t hash;
     dap_hash_fast_t atom_hash;
+    void *atom;
+    size_t atom_size;
     void *datum;
     uint32_t action;
     dap_chain_net_srv_uid_t uid;
     size_t datum_size;
     int ret_code;
+    _Atomic(uint64_t) *pending;
 };
 
 struct chain_thread_datum_removed_notifier {
@@ -827,6 +843,7 @@ struct chain_thread_datum_removed_notifier {
     dap_hash_fast_t hash;
     dap_chain_datum_t *datum;
     int ret_code;
+    _Atomic(uint64_t) *pending;
 };
 
 static bool s_notify_atom_on_thread(void *a_arg)
@@ -844,9 +861,14 @@ static bool s_notify_datum_on_thread(void *a_arg)
 {
     struct chain_thread_datum_notifier *l_arg = a_arg;
     assert(l_arg->datum && l_arg->callback);
-    l_arg->callback(l_arg->callback_arg, &l_arg->hash, &l_arg->atom_hash, l_arg->datum, l_arg->datum_size, l_arg->ret_code, l_arg->action, l_arg->uid);
-    if ( !l_arg->chain->is_mapped )
+    l_arg->callback(l_arg->callback_arg, &l_arg->hash, &l_arg->atom_hash, l_arg->atom, l_arg->atom_size,
+                    l_arg->datum, l_arg->datum_size, l_arg->ret_code, l_arg->action, l_arg->uid);
+    if (l_arg->pending)
+        atomic_fetch_sub(l_arg->pending, 1);
+    if ( !l_arg->chain->is_mapped ) {
         DAP_DELETE(l_arg->datum);
+        DAP_DELETE(l_arg->atom);
+    }
     DAP_DELETE(l_arg);
     return false;
 }
@@ -857,6 +879,8 @@ static bool s_notify_datum_removed_on_thread(void *a_arg)
     struct chain_thread_datum_removed_notifier *l_arg = a_arg;
     assert(l_arg->callback);
     l_arg->callback(l_arg->callback_arg, &l_arg->hash, l_arg->datum);
+    if (l_arg->pending)
+        atomic_fetch_sub(l_arg->pending, 1);
     DAP_DELETE(l_arg);
     return false;
 }
@@ -928,19 +952,6 @@ void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_ha
     return;
 #endif
 
-    {
-        char l_hash_str[DAP_HASH_FAST_STR_SIZE];
-        dap_hash_fast_to_str(a_hash, l_hash_str, sizeof(l_hash_str));
-        dap_notify_server_send_f_mt(
-            "{\"class\":\"ChainEvent\",\"op\":\"add\","
-            "\"hash\":\"%s\",\"net\":\"%s\",\"chain\":\"%s\","
-            "\"size\":%zu,\"ts\":%llu}",
-            l_hash_str,
-            a_chain_cell->chain->net_name ? a_chain_cell->chain->net_name : "unknown",
-            a_chain_cell->chain->name ? a_chain_cell->chain->name : "unknown",
-            a_atom_size, (unsigned long long)a_atom_time);
-    }
-
     if (a_chain_cell->id.uint64 == 0)
         a_chain_cell->chain->blockchain_time = a_atom_time;
     dap_list_t *l_iter;
@@ -982,7 +993,9 @@ void dap_chain_atom_remove_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_ce
 }
 
 
-void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_hash_fast_t *a_atom_hash, const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid)
+void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, dap_chain_hash_fast_t *a_atom_hash,
+                            const uint8_t *a_atom, size_t a_atom_size, const uint8_t *a_datum, size_t a_datum_size,
+                            int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid)
 {
 #ifdef DAP_CHAIN_BLOCKS_TEST
     return;
@@ -1001,13 +1014,27 @@ void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
             .hash = *a_hash,
             .atom_hash = *a_atom_hash,
+            .atom = a_chain_cell->chain->is_mapped ? (byte_t *) a_atom
+                                                  : (a_atom && a_atom_size ? DAP_DUP_SIZE((byte_t *) a_atom, a_atom_size) : NULL),
+            .atom_size = a_atom_size,
             .datum = a_chain_cell->chain->is_mapped ? (byte_t*)a_datum
                                                     : DAP_DUP_SIZE((byte_t *)a_datum, a_datum_size),
             .datum_size = a_datum_size,
             .ret_code = a_ret_code,
             .action = a_action,
-            .uid =  a_uid};
-        dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
+            .uid =  a_uid,
+            .pending = l_notifier->pending };
+        if (l_arg->pending)
+            atomic_fetch_add(l_arg->pending, 1);
+        if (dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW)) {
+            if (l_arg->pending)
+                atomic_fetch_sub(l_arg->pending, 1);
+            if (!a_chain_cell->chain->is_mapped) {
+                DAP_DELETE(l_arg->datum);
+                DAP_DELETE(l_arg->atom);
+            }
+            DAP_DELETE(l_arg);
+        }
     }
 }
 
@@ -1029,8 +1056,14 @@ void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fa
         *l_arg = (struct chain_thread_datum_removed_notifier) {
             .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
             .chain = a_chain_cell->chain,     .cell_id = a_chain_cell->id,
-            .hash = *a_hash, .datum = a_datum};
-        dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_removed_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
+            .hash = *a_hash, .datum = a_datum, .pending = l_notifier->pending };
+        if (l_arg->pending)
+            atomic_fetch_add(l_arg->pending, 1);
+        if (dap_proc_thread_callback_add_pri(l_notifier->proc_thread, s_notify_datum_removed_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW)) {
+            if (l_arg->pending)
+                atomic_fetch_sub(l_arg->pending, 1);
+            DAP_DELETE(l_arg);
+        }
     }
 }
 

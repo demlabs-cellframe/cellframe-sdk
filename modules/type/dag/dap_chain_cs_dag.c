@@ -146,6 +146,15 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 
 static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = false;
 
+// CLI dispatcher cost class: event/round list and find walk whole event tables.
+static bool s_cli_dag_is_heavy(int a_argc, char **a_argv)
+{
+    for (int i = 1; i < a_argc; i++)
+        if (a_argv[i] && (!strcmp(a_argv[i], "list") || !strcmp(a_argv[i], "find")))
+            return true;
+    return false;
+}
+
 /**
  * @brief dap_chain_cs_dag_init
  * @return always 0
@@ -179,6 +188,7 @@ int dap_chain_cs_dag_init()
         "dag event find -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
             "\tSearches for events that contain the specified datum.\n\n"
                                         );
+    dap_cli_server_cmd_heavy_check_set("dag", s_cli_dag_is_heavy);
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
     return 0;
 }

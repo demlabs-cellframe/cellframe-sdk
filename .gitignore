@@ -69,6 +69,10 @@ CPackSourceConfig.cmake
 Makefile
 cmake_install.cmake
 
+# CTest output when run from the source tree
+/Testing/
+/ctest.log
+
 # Editor's temp files
 *~
 .idea/
