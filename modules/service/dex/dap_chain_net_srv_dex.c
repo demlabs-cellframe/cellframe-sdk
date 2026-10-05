@@ -4521,21 +4521,22 @@ static int s_history_get_raw_events(dap_chain_net_t *a_net, const dex_pair_key_t
             // only part that must touch live dex_event_rec_t/order_idx
             // pointers. JSON object construction (the actual allocation-heavy
             // work) happens below, entirely after the lock is released.
-            size_t l_page = a_limit > 0 ? (size_t)a_limit : dap_list_length(l_evlist);
+            // a_limit comes straight from the client: anything but a positive
+            // value means "no limit", and the page can't exceed the list.
+            size_t l_list_len = dap_list_length(l_evlist);
+            size_t l_page = a_limit > 0 && (size_t)a_limit < l_list_len ? (size_t)a_limit : l_list_len;
             l_snapshot = DAP_NEW_Z_COUNT(dex_hist_event_snapshot_t, l_page);
             if (!l_snapshot) {
                 dap_list_free(l_evlist);
                 pthread_rwlock_unlock(&s_dex_cache_rwlock);
                 return -2;
             }
-            int l_offset = a_offset, l_limit = a_limit;
-            for (dap_list_t *it = l_evlist; it; it = it->next) {
+            int l_offset = a_offset;
+            for (dap_list_t *it = l_evlist; it && l_snapshot_count < l_page; it = it->next) {
                 if (l_offset > 0) {
                     --l_offset;
                     continue;
                 }
-                if (a_limit && !l_limit--)
-                    break;
                 s_hist_event_snapshot_fill((dex_event_rec_t *)it->data, &l_snapshot[l_snapshot_count++]);
             }
             dap_list_free(l_evlist);
