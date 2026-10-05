@@ -664,8 +664,10 @@ void dap_chain_net_srv_stake_set_percent_max(dap_chain_net_id_t a_net_id, uint25
 {
     dap_chain_net_srv_stake_t *l_srv_stake = s_srv_stake_by_net_id(a_net_id);
     dap_return_if_fail(l_srv_stake);
+    pthread_rwlock_wrlock(&l_srv_stake->itemlist_rwlock);
     l_srv_stake->delegate_percent_max = a_value;
     s_stake_recalculate_weights(a_net_id);
+    pthread_rwlock_unlock(&l_srv_stake->itemlist_rwlock);
 }
 
 uint256_t dap_chain_net_srv_stake_get_allowed_min_value(dap_chain_net_id_t a_net_id)
