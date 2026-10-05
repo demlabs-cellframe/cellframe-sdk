@@ -110,15 +110,20 @@ typedef struct dap_mempool_spent_tx_key {
     dap_hash_fast_t tx_hash;
 } DAP_ALIGN_PACKED dap_mempool_spent_tx_key_t;
 
+// One entry per spent output, shared by every mempool TX that spends it: two
+// TXs spending the same output (a double-spend attempt, e.g. a resubmission
+// with another fee) both keep it "used", and it stays used until the last
+// of them leaves the mempool.
 typedef struct dap_mempool_spent_out {
     dap_mempool_spent_out_key_t key;         // hash key in s_mempool_spent_by_out
-    struct dap_mempool_spent_out *rev_next;  // next out spent by the same mempool tx
+    uint32_t spenders;                       // mempool TXs currently spending this output
     UT_hash_handle hh;
 } dap_mempool_spent_out_t;
 
 typedef struct dap_mempool_spent_tx {
     dap_mempool_spent_tx_key_t key;          // hash key in s_mempool_spent_by_tx
-    dap_mempool_spent_out_t *outs;           // singly-linked list via rev_next, owned here
+    size_t outs_count;
+    dap_mempool_spent_out_t **outs;          // entries this tx holds one spender reference on
     UT_hash_handle hh;
 } dap_mempool_spent_tx_t;
 
@@ -161,6 +166,15 @@ static void s_mempool_spent_index_add_tx(dap_chain_net_id_t a_net_id, dap_hash_f
     }
     l_tx_entry->key = l_tx_key;
     byte_t *l_item; size_t l_size; int l_idx;
+    size_t l_ins_count = 0;
+    TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_IN_ALL, l_size, l_idx, a_tx)
+        if (*l_item == TX_ITEM_TYPE_IN || *l_item == TX_ITEM_TYPE_IN_COND)
+            ++l_ins_count;
+    if (l_ins_count && !(l_tx_entry->outs = DAP_NEW_Z_COUNT(dap_mempool_spent_out_t*, l_ins_count))) {
+        pthread_rwlock_unlock(&s_mempool_spent_lock);
+        DAP_DELETE(l_tx_entry);
+        return;
+    }
     TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_IN_ALL, l_size, l_idx, a_tx) {
         dap_hash_fast_t *l_prev_hash; uint32_t l_prev_idx;
         switch (*l_item) {
@@ -177,22 +191,19 @@ static void s_mempool_spent_index_add_tx(dap_chain_net_id_t a_net_id, dap_hash_f
         default:
             continue;
         }
-        dap_mempool_spent_out_t *l_out_entry = DAP_NEW_Z(dap_mempool_spent_out_t);
-        if (!l_out_entry)
-            continue;
-        l_out_entry->key = (dap_mempool_spent_out_key_t){ .net_id = a_net_id, .prev_hash = *l_prev_hash, .out_idx = l_prev_idx };
-        dap_mempool_spent_out_t *l_dup = NULL;
-        HASH_FIND(hh, s_mempool_spent_by_out, &l_out_entry->key, sizeof(l_out_entry->key), l_dup);
-        if (l_dup) {
-            // Two different mempool TXs racing to spend the same prev
-            // output is a double-spend attempt, not an indexing bug - keep
-            // whichever one got here first and drop this entry.
-            DAP_DELETE(l_out_entry);
-            continue;
+        if (l_tx_entry->outs_count == l_ins_count)
+            break;
+        dap_mempool_spent_out_key_t l_out_key = { .net_id = a_net_id, .prev_hash = *l_prev_hash, .out_idx = l_prev_idx };
+        dap_mempool_spent_out_t *l_out_entry = NULL;
+        HASH_FIND(hh, s_mempool_spent_by_out, &l_out_key, sizeof(l_out_key), l_out_entry);
+        if (!l_out_entry) {
+            if (!(l_out_entry = DAP_NEW_Z(dap_mempool_spent_out_t)))
+                continue;
+            l_out_entry->key = l_out_key;
+            HASH_ADD(hh, s_mempool_spent_by_out, key, sizeof(l_out_entry->key), l_out_entry);
         }
-        HASH_ADD(hh, s_mempool_spent_by_out, key, sizeof(l_out_entry->key), l_out_entry);
-        l_out_entry->rev_next = l_tx_entry->outs;
-        l_tx_entry->outs = l_out_entry;
+        l_out_entry->spenders++;
+        l_tx_entry->outs[l_tx_entry->outs_count++] = l_out_entry;
     }
     HASH_ADD(hh, s_mempool_spent_by_tx, key, sizeof(l_tx_entry->key), l_tx_entry);
     pthread_rwlock_unlock(&s_mempool_spent_lock);
@@ -213,13 +224,24 @@ static void s_mempool_spent_index_remove_tx(dap_chain_net_id_t a_net_id, dap_has
         return;
     }
     HASH_DEL(s_mempool_spent_by_tx, l_tx_entry);
-    for (dap_mempool_spent_out_t *l_out = l_tx_entry->outs, *l_next; l_out; l_out = l_next) {
-        l_next = l_out->rev_next;
+    for (size_t i = 0; i < l_tx_entry->outs_count; i++) {
+        dap_mempool_spent_out_t *l_out = l_tx_entry->outs[i];
+        if (--l_out->spenders)
+            continue;
         HASH_DEL(s_mempool_spent_by_out, l_out);
         DAP_DELETE(l_out);
     }
     pthread_rwlock_unlock(&s_mempool_spent_lock);
-    DAP_DELETE(l_tx_entry);
+    DAP_DEL_MULTY(l_tx_entry->outs, l_tx_entry);
+}
+
+// A deleted record stays in the driver as a hole until it is purged, so a
+// plain existence check would still report it.
+static bool s_mempool_record_is_live(const char *a_group, const char *a_key)
+{
+    dap_store_obj_t *l_obj = dap_global_db_driver_read(a_group, a_key, NULL, false);
+    dap_store_obj_free_one(l_obj);
+    return l_obj != NULL;
 }
 
 // Cluster notify callback (see dap_chain_add_mempool_notify_callback):
@@ -245,7 +267,17 @@ static void s_mempool_spent_index_notify(dap_store_obj_t *a_obj, void *a_arg)
         return;
     if (a_obj->value_len < sizeof(dap_chain_datum_t) + l_datum->header.data_size)
         return;
+    // Notifications run on whichever proc thread is least loaded, so the DEL
+    // for this record can be processed before its ADD (e.g. a TX that is
+    // rejected or mined right after it arrives). Indexing a record that is
+    // already gone would mark its inputs as spent until restart.
+    if (a_obj->group && !s_mempool_record_is_live(a_obj->group, a_obj->key))
+        return;
     s_mempool_spent_index_add_tx(l_ctx->net_id, &l_tx_hash, (dap_chain_datum_tx_t *)l_datum->data);
+    // The record may have been deleted, and that DEL already processed, while
+    // the entry above was being added: re-check and undo.
+    if (a_obj->group && !s_mempool_record_is_live(a_obj->group, a_obj->key))
+        s_mempool_spent_index_remove_tx(l_ctx->net_id, &l_tx_hash);
 }
 
 // One-time seed at registration time: notifications don't replay records

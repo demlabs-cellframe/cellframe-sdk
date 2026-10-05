@@ -48,6 +48,9 @@
  *           - correctness parity between the indexed path and the full-scan
  *             fallback for the same data, since both must agree or the
  *             index is worse than not having one.
+ *           - a late ADD notification processed after the record's DEL must
+ *             not resurrect the entry, and two mempool TXs spending the same
+ *             output keep it used until the last of them is removed.
  * @date 2026-09-24
  */
 
@@ -72,6 +75,7 @@
 #include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_cs_none.h"
 #include "dap_global_db.h"
+#include "dap_global_db_cluster.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
 
@@ -330,6 +334,109 @@ static void s_test_removal_restores_unused_state(void)
     dap_pass_msg("Removal restores unused state test passed");
 }
 
+// Polls until out_is_used() reports a_expected (notifications are async).
+static bool s_wait_out_used(dap_hash_fast_t *a_prev_hash, uint32_t a_prev_idx, bool a_expected)
+{
+    for (int l_attempt = 0; l_attempt < 40; ++l_attempt) {
+        if (dap_chain_mempool_out_is_used(s_fixture->net, a_prev_hash, a_prev_idx) == a_expected)
+            return true;
+        usleep(50 * 1000);
+    }
+    return dap_chain_mempool_out_is_used(s_fixture->net, a_prev_hash, a_prev_idx) == a_expected;
+}
+
+/**
+ * @brief Unit Test 4: an ADD notification processed after the DEL is ignored
+ * @details Notifications are dispatched to the least loaded proc thread, so
+ *          the ADD of a record can run after its DEL. Replays the ADD of an
+ *          already deleted record through the cluster notifiers: the index
+ *          must not mark the output as spent again.
+ */
+static void s_test_late_add_after_del(void)
+{
+    dap_print_module_name("Unit Test 4: late ADD after DEL does not resurrect the entry");
+
+    dap_hash_fast_t l_prev_hash = {};
+    s_make_fake_hash("test4_prev_hash", &l_prev_hash);
+    uint32_t l_prev_idx = 5;
+
+    dap_hash_fast_t l_tx_hash;
+    dap_chain_datum_t *l_datum = s_make_spending_tx_datum(&l_prev_hash, l_prev_idx, &l_tx_hash);
+    char *l_added_hash = dap_chain_mempool_datum_add(l_datum, s_fixture->chain_main, "hex");
+    dap_assert_PIF(l_added_hash != NULL, "TX datum added to mempool");
+    DAP_DELETE(l_added_hash);
+
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(s_fixture->chain_main);
+    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&l_tx_hash, l_hash_str, sizeof(l_hash_str));
+    dap_assert_PIF(dap_global_db_del_sync(l_gdb_group, l_hash_str) == 0, "Mempool record deleted");
+    dap_assert_PIF(s_wait_out_used(&l_prev_hash, l_prev_idx, false), "DEL notification processed");
+
+    // The stale ADD notification for the same record arrives now
+    dap_store_obj_t l_obj = {
+        .group = l_gdb_group, .key = l_hash_str,
+        .value = (byte_t *)l_datum, .value_len = dap_chain_datum_size(l_datum),
+        .timestamp = dap_nanotime_now()
+    };
+    dap_global_db_cluster_notify(dap_chain_net_get_mempool_cluster(s_fixture->chain_main), &l_obj);
+    usleep(300 * 1000);
+    dap_assert(!dap_chain_mempool_out_is_used(s_fixture->net, &l_prev_hash, l_prev_idx),
+               "Output stays unused: the ADD of a deleted record is not indexed");
+
+    DAP_DELETE(l_datum);
+    DAP_DELETE(l_gdb_group);
+    dap_pass_msg("Late ADD after DEL test passed");
+}
+
+/**
+ * @brief Unit Test 5: two mempool TXs spending the same output
+ * @details The output must stay used while either of them is in the mempool,
+ *          not only while the one indexed first is.
+ */
+static void s_test_two_spenders_of_one_output(void)
+{
+    dap_print_module_name("Unit Test 5: output spent by two mempool TXs");
+
+    dap_hash_fast_t l_prev_hash = {};
+    s_make_fake_hash("test5_prev_hash", &l_prev_hash);
+    uint32_t l_prev_idx = 2;
+
+    // Two different TXs spending the same output: the second one also spends
+    // an extra output, so the datums (and their mempool keys) differ.
+    dap_hash_fast_t l_tx1_hash, l_tx2_hash, l_extra_hash = {};
+    dap_chain_datum_t *l_datum1 = s_make_spending_tx_datum(&l_prev_hash, l_prev_idx, &l_tx1_hash);
+    s_make_fake_hash("test5_extra_hash", &l_extra_hash);
+    dap_chain_datum_tx_t *l_tx2 = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_tx2 && dap_chain_datum_tx_add_in_item(&l_tx2, &l_prev_hash, l_prev_idx) == 1
+                   && dap_chain_datum_tx_add_in_item(&l_tx2, &l_extra_hash, 0) == 1, "Second spending TX built");
+    dap_chain_datum_t *l_datum2 = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx2, dap_chain_datum_tx_get_size(l_tx2));
+    dap_chain_datum_tx_delete(l_tx2);
+    dap_assert_PIF(l_datum2, "Second datum created");
+    dap_chain_datum_calc_hash(l_datum2, &l_tx2_hash);
+
+    char *l_h1 = dap_chain_mempool_datum_add(l_datum1, s_fixture->chain_main, "hex");
+    char *l_h2 = dap_chain_mempool_datum_add(l_datum2, s_fixture->chain_main, "hex");
+    dap_assert_PIF(l_h1 && l_h2, "Both TXs added to mempool");
+    DAP_DEL_MULTY(l_h1, l_h2, l_datum1, l_datum2);
+
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(s_fixture->chain_main);
+    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&l_tx1_hash, l_hash_str, sizeof(l_hash_str));
+    dap_assert_PIF(dap_global_db_del_sync(l_gdb_group, l_hash_str) == 0, "First spender deleted");
+    // Let the DEL of the first spender be processed
+    usleep(300 * 1000);
+    dap_assert(dap_chain_mempool_out_is_used(s_fixture->net, &l_prev_hash, l_prev_idx),
+               "Output stays used while the second spender is still in the mempool");
+
+    dap_chain_hash_fast_to_str(&l_tx2_hash, l_hash_str, sizeof(l_hash_str));
+    dap_assert_PIF(dap_global_db_del_sync(l_gdb_group, l_hash_str) == 0, "Second spender deleted");
+    dap_assert(s_wait_out_used(&l_prev_hash, l_prev_idx, false), "Output is unused once both spenders are gone");
+    dap_assert(s_wait_out_used(&l_extra_hash, 0, false), "The second spender's other output is released too");
+
+    DAP_DELETE(l_gdb_group);
+    dap_pass_msg("Two spenders test passed");
+}
+
 int main(void)
 {
     dap_log_level_set(L_DEBUG);
@@ -342,10 +449,12 @@ int main(void)
     s_test_fail_open_full_scan_correctness();
     s_test_index_activation_and_lookup();
     s_test_removal_restores_unused_state();
+    s_test_late_add_after_del();
+    s_test_two_spenders_of_one_output();
 
     s_teardown();
 
-    printf("All mempool spent-outs index unit tests passed (3 tests)!\n"); fflush(stdout);
+    printf("All mempool spent-outs index unit tests passed (5 tests)!\n"); fflush(stdout);
 
     return 0;
 }
