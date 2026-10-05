@@ -138,6 +138,25 @@ static void s_slow_release_all(void)
     pthread_mutex_unlock(&s_slow_mutex);
 }
 
+// Command that reports its dependency as not ready yet (503 + Retry-After)
+static int s_cmd_warming(int argc, char **argv, void **a_str_reply, int a_version)
+{
+    (void)argc; (void)argv; (void)a_version;
+    dap_cli_cmd_reply_set_unavailable(7);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "index warming");
+    return -1;
+}
+
+static _Atomic bool s_ready = false;
+
+static bool s_ready_cb(char *a_reason, size_t a_reason_size)
+{
+    if (atomic_load(&s_ready))
+        return true;
+    snprintf(a_reason, a_reason_size, "test \"net\" syncing");   // quote must be escaped by the server
+    return false;
+}
+
 // Bounded poll: returns true once *a_var >= a_target, false on timeout.
 static bool s_wait_at_least(_Atomic int *a_var, int a_target, int a_timeout_ms)
 {
@@ -264,6 +283,8 @@ static void s_setup(void)
     dap_cli_cmd_t *l_slow_cmd = dap_cli_server_cmd_add("cli_bp_it_slow_cmd", s_cmd_slow, NULL,
                                                         "test slow/blocking command", "test slow/blocking command (extended)");
     dap_assert_PIF(l_slow_cmd != NULL, "Slow test command registered");
+    dap_assert_PIF(dap_cli_server_cmd_add("cli_bp_it_warming_cmd", s_cmd_warming, NULL, "test 503 command", "test 503 command") != NULL,
+                   "Warming test command registered");
 
     log_it(L_NOTICE, "Test environment initialized (real CLI server on %s)", s_sock_path);
 }
@@ -396,6 +417,77 @@ static void s_test_backpressure_returns_real_429(void)
     dap_pass_msg("Backpressure real-429 test passed");
 }
 
+// --- Test 4: GET /health readiness probe -------------------------------
+static void s_test_health_probe(void)
+{
+    dap_print_module_name("Integration Test 4: GET /health readiness probe");
+    static const char c_probe[] = "GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n";
+    char l_resp[1024];
+
+    // No callback registered: always ready
+    int l_fd = s_client_connect();
+    dap_assert_PIF(l_fd >= 0, "Client connects");
+    dap_assert_PIF(send(l_fd, c_probe, sizeof(c_probe) - 1, 0) == (ssize_t)(sizeof(c_probe) - 1), "Probe sent");
+    s_client_read_response(l_fd, l_resp, sizeof(l_resp), 2000);
+    close(l_fd);
+    dap_assert_PIF(strstr(l_resp, "HTTP/1.1 200") && strstr(l_resp, "\"status\":\"ok\""),
+                   "Probe without readiness callback answers 200 ok");
+    dap_assert_PIF(strstr(l_resp, "\"max_inflight\":2"), "Probe reports the inflight limits");
+
+    // Not ready: 503 + Retry-After, reason with a quote is sanitized
+    dap_cli_server_ready_callback_set(s_ready_cb);
+    l_fd = s_client_connect();
+    dap_assert_PIF(l_fd >= 0, "Client connects");
+    dap_assert_PIF(send(l_fd, c_probe, sizeof(c_probe) - 1, 0) == (ssize_t)(sizeof(c_probe) - 1), "Probe sent");
+    s_client_read_response(l_fd, l_resp, sizeof(l_resp), 2000);
+    close(l_fd);
+    dap_assert_PIF(strstr(l_resp, "HTTP/1.1 503") && strstr(l_resp, "Retry-After:"),
+                   "Probe of a not-ready node answers 503 with Retry-After");
+    dap_assert_PIF(strstr(l_resp, "\"status\":\"unavailable\"") && strstr(l_resp, "test  net  syncing"),
+                   "503 body carries the sanitized reason");
+
+    // Ready again
+    atomic_store(&s_ready, true);
+    l_fd = s_client_connect();
+    dap_assert_PIF(l_fd >= 0, "Client connects");
+    dap_assert_PIF(send(l_fd, c_probe, sizeof(c_probe) - 1, 0) == (ssize_t)(sizeof(c_probe) - 1), "Probe sent");
+    s_client_read_response(l_fd, l_resp, sizeof(l_resp), 2000);
+    close(l_fd);
+    dap_assert_PIF(strstr(l_resp, "HTTP/1.1 200"), "Probe of a ready node answers 200");
+    dap_cli_server_ready_callback_set(NULL);
+
+    dap_pass_msg("Health probe test passed");
+}
+
+// --- Test 5: a command can turn its reply into 503 ----------------------
+static void s_test_command_unavailable_reply(void)
+{
+    dap_print_module_name("Integration Test 5: command reply as 503 + Retry-After");
+    char l_resp[2048];
+    int l_fd = s_client_connect();
+    dap_assert_PIF(l_fd >= 0, "Client connects");
+    dap_assert_PIF(s_client_send_request(l_fd, "cli_bp_it_warming_cmd"), "Request sent");
+    s_client_read_response(l_fd, l_resp, sizeof(l_resp), 2000);
+    close(l_fd);
+    dap_assert_PIF(strstr(l_resp, "HTTP/1.1 503 Service Unavailable") && strstr(l_resp, "Retry-After: 7"),
+                   "Command that reported unavailable gets 503 with its Retry-After");
+    dap_assert_PIF(strstr(l_resp, "index warming"), "JSON-RPC body is still delivered with the 503");
+
+    // The flag is per-command: the next request on the (reused) executor
+    // threads must be a plain 200 again.
+    s_slow_reset();
+    s_slow_release_all();
+    for (int i = 0; i < 4; i++) {
+        l_fd = s_client_connect();
+        dap_assert_PIF(l_fd >= 0, "Client connects");
+        dap_assert_PIF(s_client_send_request(l_fd, "cli_bp_it_slow_cmd"), "Request sent");
+        s_client_read_response(l_fd, l_resp, sizeof(l_resp), 2000);
+        close(l_fd);
+        dap_assert_PIF(strstr(l_resp, "HTTP/1.1 200"), "Following command on a reused executor thread is 200 again");
+    }
+    dap_pass_msg("Command 503 reply test passed");
+}
+
 int main(void)
 {
     dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
@@ -409,9 +501,11 @@ int main(void)
     s_test_control_request_succeeds();
     s_test_mid_flight_disconnect_does_not_abort();
     s_test_backpressure_returns_real_429();
+    s_test_health_probe();
+    s_test_command_unavailable_reply();
 
     s_teardown();
 
-    printf("All CLI backpressure/dead-client integration tests passed (3 tests)!\n"); fflush(stdout);
+    printf("All CLI backpressure/dead-client integration tests passed (5 tests)!\n"); fflush(stdout);
     return 0;
 }

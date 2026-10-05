@@ -61,6 +61,65 @@ static int s_print_for_global_db(dap_json_rpc_response_t* response, char ** cmd_
 static int s_print_for_ledger_list(dap_json_rpc_response_t* response, char ** cmd_param, int cmd_cnt);
 
 
+// Per-subcommand cost classes for the CLI dispatcher's two inflight caps
+// (see dap_cli_server_cmd_heavy_check_t). HEAVY = may walk a whole chain,
+// ledger or address history; everything else stays in the regular class so
+// cheap queries are never queued behind a crawler.
+static bool s_cli_argv_has(int a_argc, char **a_argv, const char *a_opt)
+{
+    return dap_cli_server_cmd_check_option(a_argv, 1, a_argc, a_opt) >= 0;
+}
+
+static bool s_cli_subcmd_is(int a_argc, char **a_argv, const char *a_subcmd)
+{
+    return a_argc > 1 && a_argv[1] && !strcmp(a_argv[1], a_subcmd);
+}
+
+// wallet outputs: UTXO lookup by address - the ledger fallback on a cold
+// wallet cache is a full ledger scan. wallet info: balances only.
+static bool s_heavy_wallet(int a_argc, char **a_argv)
+{
+    return s_cli_subcmd_is(a_argc, a_argv, "outputs");
+}
+
+// Every tx_history form except a single "-tx <hash>" lookup and "-count"
+// walks a chain or an address history.
+static bool s_heavy_tx_history(int a_argc, char **a_argv)
+{
+    return !s_cli_argv_has(a_argc, a_argv, "-tx") && !s_cli_argv_has(a_argc, a_argv, "-count");
+}
+
+// mempool list re-verifies every datum it prints; dump/count/check are point reads.
+static bool s_heavy_mempool(int a_argc, char **a_argv)
+{
+    return s_cli_subcmd_is(a_argc, a_argv, "list");
+}
+
+// ledger list/event list iterate the whole ledger structures.
+static bool s_heavy_ledger(int a_argc, char **a_argv)
+{
+    return s_cli_argv_has(a_argc, a_argv, "list");
+}
+
+// tx_cond list/unspent_find/history scan conditional outputs.
+static bool s_heavy_tx_cond(int a_argc, char **a_argv)
+{
+    return s_cli_subcmd_is(a_argc, a_argv, "list") || s_cli_subcmd_is(a_argc, a_argv, "unspent_find")
+            || s_cli_subcmd_is(a_argc, a_argv, "history");
+}
+
+// token list walks every token with its history.
+static bool s_heavy_token(int a_argc, char **a_argv)
+{
+    return s_cli_subcmd_is(a_argc, a_argv, "list");
+}
+
+static bool s_heavy_always(int a_argc, char **a_argv)
+{
+    (void)a_argc; (void)a_argv;
+    return true;
+}
+
 /**
  * @brief dap_chain_node_cli_init
  * Initialization of the server side of the interaction
@@ -527,6 +586,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
+
+    dap_cli_server_cmd_heavy_check_set("wallet", s_heavy_wallet);
+    dap_cli_server_cmd_heavy_check_set("tx_history", s_heavy_tx_history);
+    dap_cli_server_cmd_heavy_check_set("mempool", s_heavy_mempool);
+    dap_cli_server_cmd_heavy_check_set("ledger", s_heavy_ledger);
+    dap_cli_server_cmd_heavy_check_set("tx_cond", s_heavy_tx_cond);
+    dap_cli_server_cmd_heavy_check_set("token", s_heavy_token);
+    dap_cli_server_cmd_heavy_check_set("find", s_heavy_always);
+    dap_cli_server_cmd_heavy_check_set("gdb_export", s_heavy_always);
+
     dap_notify_srv_set_callback_new(dap_notify_new_client_send_info);
     return 0;
 }

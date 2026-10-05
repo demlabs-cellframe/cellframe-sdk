@@ -63,6 +63,20 @@ int dap_chain_wallet_cache_deinit();
 int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net);
 void dap_chain_wallet_cache_invalidate_net(dap_chain_net_id_t a_net_id);
 
+// Backlog of undelivered datum notifications above which the cache is
+// considered to be still catching up with the chain.
+#define DAP_WALLET_CACHE_PENDING_WARM_MAX 1024
+
+bool dap_chain_wallet_cache_mode_all(void);
+// True when the cache can answer address queries for the net from memory:
+// not loading, no bulk build running, notification backlog drained. Fills
+// a_reason (if given) when it returns false. Cheap: reads counters only.
+bool dap_chain_wallet_cache_is_warm(dap_chain_net_id_t a_net_id, char *a_reason, size_t a_reason_size);
+// [wallets] wallets_cache_cold_reply_unavailable (default true, ALL mode
+// only): RPC address queries the cache can't answer yet must be refused with
+// "index warming" instead of falling back to a full ledger scan.
+bool dap_chain_wallet_cache_cold_reply_unavailable(void);
+
 /**
  * @brief Find next transactions after l_tx_hash_curr for wallet addr and save pointer to datum into a_tx. If l_tx_hash_curr is NULL then function find first tx for addr.
  * @param a_addr wallet address

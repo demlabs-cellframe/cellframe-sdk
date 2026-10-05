@@ -185,6 +185,21 @@ static bool s_tag_check_key_delegation(dap_ledger_t *a_ledger, dap_chain_datum_t
     return false;
 }
 
+// CLI dispatcher cost class: "list tx" and "reward" walk the chain, "order
+// list" reads the whole orders group; the rest are point operations.
+static bool s_cli_srv_stake_is_heavy(int a_argc, char **a_argv)
+{
+    if (a_argc < 2 || !a_argv[1])
+        return false;
+    if (!strcmp(a_argv[1], "reward"))
+        return true;
+    if (!strcmp(a_argv[1], "list"))
+        return dap_cli_server_cmd_check_option(a_argv, 2, a_argc, "tx") >= 0;
+    if (!strcmp(a_argv[1], "order"))
+        return dap_cli_server_cmd_check_option(a_argv, 2, a_argc, "list") >= 0;
+    return false;
+}
+
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @return 0 if everything is okay, lesser then zero if errors
@@ -234,6 +249,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake reward -net <net_name> {-node_addr <node_address>} [-date_from <YYMMDD> -date_to <YYMMDD>] [-brief] [-limit] [-offset] [-head]\n"
         "\tShow the number of rewards for the validators\n"
     );
+    dap_cli_server_cmd_heavy_check_set("srv_stake", s_cli_srv_stake_is_heavy);
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     dap_ledger_service_add(l_uid, "pos_delegate", s_tag_check_key_delegation);

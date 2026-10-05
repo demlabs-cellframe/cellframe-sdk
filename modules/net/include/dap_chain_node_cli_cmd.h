@@ -51,6 +51,7 @@ typedef enum s_com_tx_history_err{
     DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR,
 
     /* add custom codes here */
+    DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_INDEX_WARMING,
 
     //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_com_tx_history_err_t;
@@ -131,6 +132,7 @@ typedef enum s_com_tx_wallet_err{
     DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INVALID_CHARACTERS_USED_FOR_PASSWORD,
 
     /* add custom codes here */
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INDEX_WARMING,
 
     DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_com_tx_wallet_err_t;

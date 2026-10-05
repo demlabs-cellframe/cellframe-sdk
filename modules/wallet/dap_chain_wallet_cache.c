@@ -118,6 +118,17 @@ static pthread_rwlock_t s_wallet_cache_rwlock;
 static bool s_debug_more = false;
 static _Atomic int s_loading_threads_count = 0;
 static dap_list_t *s_bulk_loading_nets = NULL;
+// Datum index notifications queued for this cache but not yet applied. While
+// it is non-zero (e.g. right after a chain load or a resync pushed tens of
+// thousands of datums through the low-priority proc queues) the cache lags
+// behind the ledger for an arbitrary set of addresses.
+static _Atomic(uint64_t) s_notify_pending = 0;
+// Default for [wallets] wallets_cache_cold_reply: in ALL mode a request the
+// cache can't answer yet gets a fast 503 + Retry-After instead of a ledger
+// fallback scan - a public RPC node must not turn every cold lookup into a
+// full ledger walk, which is what pushed nodes into swap while the cache was
+// (re)building.
+static bool s_cold_reply_unavailable = true;
 
 static bool s_bulk_loading_nets_has(uint64_t a_net_id)
 {
@@ -274,6 +285,8 @@ int dap_chain_wallet_cache_init()
     }
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"wallet","debug_more", s_debug_more);
+    s_cold_reply_unavailable = dap_config_get_item_bool_default(g_config, "wallets", "wallets_cache_cold_reply_unavailable",
+                                                                s_cold_reply_unavailable);
 
     if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED){
         debug_if(s_debug_more, L_DEBUG, "Wallet cache is disabled.");
@@ -319,8 +332,9 @@ int dap_chain_wallet_cache_init()
                     l_arg->chain = l_chain;
                     l_arg->net = l_net;
                     dap_proc_thread_t *l_pt = dap_proc_thread_get_auto();
-                    dap_chain_add_callback_datum_index_notify(l_chain, s_callback_datum_notify, l_pt, l_arg);
-                    dap_chain_add_callback_datum_removed_from_index_notify(l_chain, s_callback_datum_removed_notify, l_pt, l_arg);
+                    dap_chain_add_callback_datum_index_notify_ex(l_chain, s_callback_datum_notify, l_pt, l_arg, &s_notify_pending);
+                    dap_chain_add_callback_datum_removed_from_index_notify_ex(l_chain, s_callback_datum_removed_notify, l_pt, l_arg,
+                                                                              &s_notify_pending);
                 }
             }
             l_chain=l_chain->next;
@@ -434,6 +448,49 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
 
     log_it(L_INFO, "Started single-pass wallet cache load for %d wallet(s) in net %s", l_count, a_net->pub.name);
     return 0;
+}
+
+bool dap_chain_wallet_cache_mode_all(void)
+{
+    return s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL;
+}
+
+bool dap_chain_wallet_cache_cold_reply_unavailable(void)
+{
+    return s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL && s_cold_reply_unavailable;
+}
+
+bool dap_chain_wallet_cache_is_warm(dap_chain_net_id_t a_net_id, char *a_reason, size_t a_reason_size)
+{
+    if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED)
+        return true;
+    if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+        // ALL mode is built from datum notifications: in LOADING they are not
+        // delivered yet, so the cache can't answer for any address.
+        if (!l_net || dap_chain_net_get_load_mode(l_net)) {
+            if (a_reason && a_reason_size)
+                snprintf(a_reason, a_reason_size, "wallet cache: net %s loading", l_net ? l_net->pub.name : "?");
+            return false;
+        }
+    }
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
+    bool l_bulk = s_bulk_loading_nets_has(a_net_id.uint64);
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    if (l_bulk) {
+        if (a_reason && a_reason_size)
+            snprintf(a_reason, a_reason_size, "wallet cache: bulk build in progress");
+        return false;
+    }
+    uint64_t l_pending = atomic_load(&s_notify_pending);
+    // A handful of in-flight notifications is normal steady state (every new
+    // block queues some); a backlog means the cache is still catching up.
+    if (l_pending > DAP_WALLET_CACHE_PENDING_WARM_MAX) {
+        if (a_reason && a_reason_size)
+            snprintf(a_reason, a_reason_size, "wallet cache: %" DAP_UINT64_FORMAT_U " datum notifications pending", l_pending);
+        return false;
+    }
+    return true;
 }
 
 void dap_chain_wallet_cache_invalidate_net(dap_chain_net_id_t a_net_id)

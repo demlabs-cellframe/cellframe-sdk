@@ -6356,6 +6356,7 @@ int dap_chain_net_srv_dex_decree_callback(dap_ledger_t *a_ledger, bool a_apply, 
  * ============================================================================ */
 
 static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+static bool s_cli_srv_dex_is_heavy(int a_argc, char **a_argv);
 
 // Tag check callback for mempool list / tx history display
 static bool s_tag_check_dex(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_datum_tx_item_groups_t *a_items_grp,
@@ -6484,12 +6485,13 @@ int dap_chain_net_srv_dex_init()
         "                       [-net_base <net>] [-net_quote <net>]\n"
         "    <fee_opt>: -fee_pct <pct> | -fee_native <amount> | -fee_config <byte>\n"
         "               -fee_pct 2.0 = 2%% of INPUT, -fee_native 0.05 = 0.05 native\n");
-    // `history`/`orderbook`/`orders` are the most expensive and most heavily
-    // crawled read queries this service exposes (full history scans, depth-N
-    // order book snapshots); classify the whole command as HEAVY so the CLI
-    // dispatcher caps its concurrency separately from the rest of the RPC
-    // surface instead of letting a crawler burst exhaust the shared pool.
+    // `history`/`orderbook`/`orders` (and the other aggregate queries) are the
+    // expensive, heavily crawled reads; order create/purchase/status/pairs are
+    // cheap and must not queue behind a crawler, so only the scanning
+    // subcommands go to the dispatcher's heavy class. The static flag stays as
+    // the fallback for requests the classifier can't parse.
     dap_cli_server_cmd_flags_set("srv_dex", DAP_CLI_CMD_FLAG_HEAVY);
+    dap_cli_server_cmd_heavy_check_set("srv_dex", s_cli_srv_dex_is_heavy);
     return 0;
 }
 
@@ -8698,6 +8700,18 @@ static void s_orders_row_snapshot_to_json(const dex_orders_row_snapshot_t *r, js
         json_object_object_add(o, "expires", json_object_new_string(l_ts_str));
     }
     json_object_array_add(a_arr, o);
+}
+
+static bool s_cli_srv_dex_is_heavy(int a_argc, char **a_argv)
+{
+    static const char *l_heavy[] = { "history", "orderbook", "orders", "tvl", "find_matches",
+                                     "slippage", "spread", "cancel_all_by_seller", "purchase_auto" };
+    if (a_argc < 2 || !a_argv[1])
+        return true;
+    for (size_t i = 0; i < sizeof(l_heavy) / sizeof(*l_heavy); i++)
+        if (!strcmp(a_argv[1], l_heavy[i]))
+            return true;
+    return false;
 }
 
 static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_version)

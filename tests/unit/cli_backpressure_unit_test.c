@@ -240,6 +240,65 @@ static void s_test_malformed_request_is_safe(void)
     dap_pass_msg("Malformed request handling test passed");
 }
 
+// Per-subcommand classifier used by Unit Test 5: "outputs" is heavy, anything
+// else (e.g. "info") is regular.
+static bool s_test_mixed_cmd_is_heavy(int a_argc, char **a_argv)
+{
+    return a_argc > 1 && a_argv[1] && !strcmp(a_argv[1], "outputs");
+}
+
+/**
+ * @brief Unit Test 5: per-subcommand classification
+ * @details A command that mixes cheap and expensive subcommands registers a
+ *          classifier; the gate must route each request by its own command
+ *          line, in both request shapes the RPC accepts (params array and
+ *          subcommand/arguments), and the classifier must override the static
+ *          HEAVY flag.
+ */
+static void s_test_subcommand_classification(void)
+{
+    dap_print_module_name("Unit Test 5: per-subcommand HEAVY classification");
+
+    dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_add("cli_backpressure_test_mixed_cmd", s_stub_cmd_func, NULL,
+                                                   "test mixed command", "test mixed command (extended)");
+    dap_assert_PIF(l_cmd != NULL, "Mixed test command registers");
+    dap_cli_server_cmd_flags_set("cli_backpressure_test_mixed_cmd", DAP_CLI_CMD_FLAG_HEAVY);
+    dap_cli_server_cmd_heavy_check_set("cli_backpressure_test_mixed_cmd", s_test_mixed_cmd_is_heavy);
+
+    static const char c_heavy_params[] =
+        "{\"method\":\"cli_backpressure_test_mixed_cmd\",\"params\":[\"cli_backpressure_test_mixed_cmd;outputs;-addr;X\"],\"id\":\"1\"}";
+    static const char c_light_params[] =
+        "{\"method\":\"cli_backpressure_test_mixed_cmd\",\"params\":[\"cli_backpressure_test_mixed_cmd;info;-addr;X\"],\"id\":\"1\"}";
+    static const char c_heavy_subcmd[] =
+        "{\"method\":\"cli_backpressure_test_mixed_cmd\",\"subcommand\":[\"outputs\"],\"arguments\":{\"addr\":\"X\"},\"id\":\"1\"}";
+    static const char c_light_subcmd[] =
+        "{\"method\":\"cli_backpressure_test_mixed_cmd\",\"subcommand\":\"info\",\"arguments\":{\"addr\":\"X\"},\"id\":\"1\"}";
+
+    struct { const char *req; bool heavy; const char *name; } l_cases[] = {
+        { c_heavy_params, true,  "params form: 'outputs' is heavy" },
+        { c_light_params, false, "params form: 'info' is regular despite the static HEAVY flag" },
+        { c_heavy_subcmd, true,  "subcommand form: 'outputs' is heavy" },
+        { c_light_subcmd, false, "subcommand form: 'info' is regular" },
+    };
+    for (size_t i = 0; i < sizeof(l_cases) / sizeof(*l_cases); ++i) {
+        bool l_is_heavy = !l_cases[i].heavy;
+        bool l_ok = dap_cli_server_backpressure_acquire(l_cases[i].req, &l_is_heavy);
+        dap_assert_PIF(l_ok, "Classified request gets a slot");
+        dap_assert(l_is_heavy == l_cases[i].heavy, l_cases[i].name);
+        dap_cli_server_backpressure_release(l_is_heavy);
+    }
+
+    // A command line the classifier can't see (no params, no subcommand) keeps
+    // the static flag.
+    static const char c_no_cmdline[] = "{\"method\":\"cli_backpressure_test_mixed_cmd\",\"id\":\"1\"}";
+    bool l_is_heavy = false;
+    dap_assert_PIF(dap_cli_server_backpressure_acquire(c_no_cmdline, &l_is_heavy), "Request without command line gets a slot");
+    dap_cli_server_backpressure_release(l_is_heavy);
+
+    dap_cli_server_cmd_remove("cli_backpressure_test_mixed_cmd");
+    dap_pass_msg("Per-subcommand classification test passed");
+}
+
 int main(void)
 {
     dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
@@ -256,8 +315,9 @@ int main(void)
     s_test_regular_inflight_cap();
     s_test_heavy_command_classification();
     s_test_malformed_request_is_safe();
+    s_test_subcommand_classification();
 
-    printf("All CLI backpressure unit tests passed (4 tests)!\n"); fflush(stdout);
+    printf("All CLI backpressure unit tests passed (5 tests)!\n"); fflush(stdout);
 
     return 0;
 }

@@ -402,6 +402,34 @@ static void s_ch_in_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const vo
 static void s_ch_out_pkt_callback(dap_stream_ch_t *a_ch, uint8_t a_type, const void *a_data, size_t a_data_size, void *a_arg);
 static void s_set_reply_text_node_status_json(dap_chain_net_t *a_net, json_object *a_json_out, int a_version);
 
+// Readiness for the CLI port's "GET /health": every net must be ONLINE (not
+// loading, not resyncing) and, in wallets_cache=all mode, its address index
+// warm - otherwise address queries are answered with 503 and the node must
+// not receive public traffic. Reads only already-maintained state.
+static bool s_net_rpc_ready(char *a_reason, size_t a_reason_size)
+{
+    bool l_any = false;
+    for (dap_chain_net_t *l_net = s_nets_by_name; l_net; l_net = l_net->hh.next) {
+        l_any = true;
+        dap_chain_net_state_t l_state = PVT(l_net)->state;
+        if (l_state != NET_STATE_ONLINE) {
+            snprintf(a_reason, a_reason_size, "net %s %s", l_net->pub.name, dap_chain_net_state_to_str(l_state));
+            return false;
+        }
+        char l_cache_reason[96] = "";
+        if (dap_chain_wallet_cache_mode_all() &&
+                !dap_chain_wallet_cache_is_warm(l_net->pub.id, l_cache_reason, sizeof(l_cache_reason))) {
+            snprintf(a_reason, a_reason_size, "net %s %s", l_net->pub.name, l_cache_reason);
+            return false;
+        }
+    }
+    if (!l_any) {
+        snprintf(a_reason, a_reason_size, "no networks loaded");
+        return false;
+    }
+    return true;
+}
+
 /**
  * @brief
  * init network settings from cellrame-node.cfg file
@@ -444,6 +472,7 @@ int dap_chain_net_init()
             "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
         "net -net <net_name> poa_certs list\n"
             "\tPrint list of PoA cerificates for this network\n");
+    dap_cli_server_ready_callback_set(s_net_rpc_ready);
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more", s_debug_more);
     s_node_list_ttl = dap_config_get_item_int32_default(g_config, "global_db", "node_list_ttl", s_node_list_ttl);
