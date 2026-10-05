@@ -60,7 +60,6 @@
 #include "dap_list.h"
 #include "dap_chain.h"
 #include "dap_chain_net.h"
-#include "dap_notify_srv.h"
 #include "dap_chain_net_tx.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
@@ -74,8 +73,262 @@
 
 #define LOG_TAG "dap_chain_mempool"
 
-static bool s_debug_more = false;
 extern int g_dap_global_db_debug_more;
+
+/* ============================================================================
+ * Mempool spent-outs index (B1)
+ * ============================================================================
+ * Turns dap_chain_mempool_out_is_used() from an O(mempool size) linear scan
+ * (dap_global_db_get_all_sync + per-datum TX item walk, re-run for *every*
+ * candidate UTXO during a compose: tx_create_json, tx_create, DEX purchase,
+ * ...) into an O(1) hash lookup. See cellframe_node_rpc_overload_research_2026_09,
+ * sec. 2/9.3/10.1 for the full production analysis and the gotchas this
+ * design accounts for:
+ *  (a) DEL notifications normally carry no datum, only the mempool GDB key
+ *      -> removal must work from the key alone, hence the reverse index.
+ *  (b) Notification delivery is asynchronous (runs on a proc thread) ->
+ *      the forward path (dap_chain_mempool_datum_add) indexes synchronously
+ *      too, so two mempool TXs submitted back-to-back can never race past
+ *      each other; the async notify path is idempotent with it.
+ *  (c) Notifications don't replay pre-existing records -> a one-time seed
+ *      via dap_global_db_get_all_sync() is required at registration time.
+ *  (d) The index only ever touches its own two hash tables under its own
+ *      lock - it never calls into ledger/wallet-cache while holding it, so
+ *      no cross-lock ordering hazard with those subsystems' locks.
+ */
+
+// Forward key: identifies one specific previous output.
+typedef struct dap_mempool_spent_out_key {
+    dap_chain_net_id_t net_id;
+    dap_hash_fast_t prev_hash;
+    uint32_t out_idx;
+} DAP_ALIGN_PACKED dap_mempool_spent_out_key_t;
+
+// Reverse key: identifies the mempool tx that spends some set of outputs.
+typedef struct dap_mempool_spent_tx_key {
+    dap_chain_net_id_t net_id;
+    dap_hash_fast_t tx_hash;
+} DAP_ALIGN_PACKED dap_mempool_spent_tx_key_t;
+
+typedef struct dap_mempool_spent_out {
+    dap_mempool_spent_out_key_t key;         // hash key in s_mempool_spent_by_out
+    struct dap_mempool_spent_out *rev_next;  // next out spent by the same mempool tx
+    UT_hash_handle hh;
+} dap_mempool_spent_out_t;
+
+typedef struct dap_mempool_spent_tx {
+    dap_mempool_spent_tx_key_t key;          // hash key in s_mempool_spent_by_tx
+    dap_mempool_spent_out_t *outs;           // singly-linked list via rev_next, owned here
+    UT_hash_handle hh;
+} dap_mempool_spent_tx_t;
+
+typedef struct dap_mempool_spent_notify_ctx {
+    dap_chain_net_id_t net_id;
+} dap_mempool_spent_notify_ctx_t;
+
+static dap_mempool_spent_out_t *s_mempool_spent_by_out = NULL;
+static dap_mempool_spent_tx_t *s_mempool_spent_by_tx = NULL;
+static pthread_rwlock_t s_mempool_spent_lock = PTHREAD_RWLOCK_INITIALIZER;
+// Fail-open: dap_chain_mempool_out_is_used() falls back to the historical
+// full-scan implementation while this stays false, so any caller that never
+// runs dap_chain_mempool_spent_index_init() (unit/integration tests under
+// cellframe-sdk/tests, python-cellframe embedding today) keeps correct -
+// just unoptimized - behavior instead of silently treating every UTXO as
+// unspent.
+static bool s_mempool_spent_index_ready = false;
+static bool s_mempool_spent_index_failed = false;
+
+// Indexes every IN/IN_COND item of a_tx as "spent by a_tx_hash". Idempotent:
+// safe to call twice for the same tx (synchronous insert from
+// dap_chain_mempool_datum_add racing with the async ADD notification for the
+// same tx is the expected common case, not an error).
+static void s_mempool_spent_index_add_tx(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_tx_hash, dap_chain_datum_tx_t *a_tx)
+{
+    if (!a_tx || !a_tx_hash)
+        return;
+    dap_mempool_spent_tx_key_t l_tx_key = { .net_id = a_net_id, .tx_hash = *a_tx_hash };
+    pthread_rwlock_wrlock(&s_mempool_spent_lock);
+    dap_mempool_spent_tx_t *l_existing = NULL;
+    HASH_FIND(hh, s_mempool_spent_by_tx, &l_tx_key, sizeof(l_tx_key), l_existing);
+    if (l_existing) {
+        pthread_rwlock_unlock(&s_mempool_spent_lock);
+        return;
+    }
+    dap_mempool_spent_tx_t *l_tx_entry = DAP_NEW_Z(dap_mempool_spent_tx_t);
+    if (!l_tx_entry) {
+        pthread_rwlock_unlock(&s_mempool_spent_lock);
+        return;
+    }
+    l_tx_entry->key = l_tx_key;
+    byte_t *l_item; size_t l_size; int l_idx;
+    TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_IN_ALL, l_size, l_idx, a_tx) {
+        dap_hash_fast_t *l_prev_hash; uint32_t l_prev_idx;
+        switch (*l_item) {
+        case TX_ITEM_TYPE_IN: {
+            dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t *)l_item;
+            l_prev_hash = &l_in->header.tx_prev_hash;
+            l_prev_idx = l_in->header.tx_out_prev_idx;
+        } break;
+        case TX_ITEM_TYPE_IN_COND: {
+            dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
+            l_prev_hash = &l_in_cond->header.tx_prev_hash;
+            l_prev_idx = l_in_cond->header.tx_out_prev_idx;
+        } break;
+        default:
+            continue;
+        }
+        dap_mempool_spent_out_t *l_out_entry = DAP_NEW_Z(dap_mempool_spent_out_t);
+        if (!l_out_entry)
+            continue;
+        l_out_entry->key = (dap_mempool_spent_out_key_t){ .net_id = a_net_id, .prev_hash = *l_prev_hash, .out_idx = l_prev_idx };
+        dap_mempool_spent_out_t *l_dup = NULL;
+        HASH_FIND(hh, s_mempool_spent_by_out, &l_out_entry->key, sizeof(l_out_entry->key), l_dup);
+        if (l_dup) {
+            // Two different mempool TXs racing to spend the same prev
+            // output is a double-spend attempt, not an indexing bug - keep
+            // whichever one got here first and drop this entry.
+            DAP_DELETE(l_out_entry);
+            continue;
+        }
+        HASH_ADD(hh, s_mempool_spent_by_out, key, sizeof(l_out_entry->key), l_out_entry);
+        l_out_entry->rev_next = l_tx_entry->outs;
+        l_tx_entry->outs = l_out_entry;
+    }
+    HASH_ADD(hh, s_mempool_spent_by_tx, key, sizeof(l_tx_entry->key), l_tx_entry);
+    pthread_rwlock_unlock(&s_mempool_spent_lock);
+}
+
+// Removes every entry indexed for a_tx_hash. Safe no-op if it was never
+// indexed (e.g. non-TX datum, or index disabled).
+static void s_mempool_spent_index_remove_tx(dap_chain_net_id_t a_net_id, dap_hash_fast_t *a_tx_hash)
+{
+    if (!a_tx_hash)
+        return;
+    dap_mempool_spent_tx_key_t l_tx_key = { .net_id = a_net_id, .tx_hash = *a_tx_hash };
+    pthread_rwlock_wrlock(&s_mempool_spent_lock);
+    dap_mempool_spent_tx_t *l_tx_entry = NULL;
+    HASH_FIND(hh, s_mempool_spent_by_tx, &l_tx_key, sizeof(l_tx_key), l_tx_entry);
+    if (!l_tx_entry) {
+        pthread_rwlock_unlock(&s_mempool_spent_lock);
+        return;
+    }
+    HASH_DEL(s_mempool_spent_by_tx, l_tx_entry);
+    for (dap_mempool_spent_out_t *l_out = l_tx_entry->outs, *l_next; l_out; l_out = l_next) {
+        l_next = l_out->rev_next;
+        HASH_DEL(s_mempool_spent_by_out, l_out);
+        DAP_DELETE(l_out);
+    }
+    pthread_rwlock_unlock(&s_mempool_spent_lock);
+    DAP_DELETE(l_tx_entry);
+}
+
+// Cluster notify callback (see dap_chain_add_mempool_notify_callback):
+// keeps the index current for every route a TX can take into/out of mempool
+// besides the synchronous dap_chain_mempool_datum_add() path (network sync,
+// esbocs, wallet_shared writeoffs, TTL expiry, manual "mempool delete", ...).
+static void s_mempool_spent_index_notify(dap_store_obj_t *a_obj, void *a_arg)
+{
+    dap_mempool_spent_notify_ctx_t *l_ctx = a_arg;
+    if (!a_obj || !a_obj->key || !l_ctx)
+        return;
+    dap_hash_fast_t l_tx_hash;
+    if (dap_chain_hash_fast_from_str(a_obj->key, &l_tx_hash))
+        return; // defensive: mempool GDB keys are always hash strings
+    if (dap_store_obj_get_type(a_obj) == DAP_GLOBAL_DB_OPTYPE_DEL) {
+        s_mempool_spent_index_remove_tx(l_ctx->net_id, &l_tx_hash);
+        return;
+    }
+    if (!a_obj->value || a_obj->value_len < sizeof(dap_chain_datum_t))
+        return;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_obj->value;
+    if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+        return;
+    if (a_obj->value_len < sizeof(dap_chain_datum_t) + l_datum->header.data_size)
+        return;
+    s_mempool_spent_index_add_tx(l_ctx->net_id, &l_tx_hash, (dap_chain_datum_tx_t *)l_datum->data);
+}
+
+// One-time seed at registration time: notifications don't replay records
+// that were already in mempool before the callback was registered.
+static void s_mempool_spent_index_seed(dap_chain_t *a_chain)
+{
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    if (!l_gdb_group)
+        return;
+    size_t l_objs_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_count);
+    for (size_t i = 0; i < l_objs_count; i++) {
+        if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
+            continue;
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+            continue;
+        if (l_objs[i].value_len < sizeof(dap_chain_datum_t) + l_datum->header.data_size)
+            continue;
+        dap_hash_fast_t l_tx_hash;
+        if (dap_chain_hash_fast_from_str(l_objs[i].key, &l_tx_hash))
+            continue;
+        s_mempool_spent_index_add_tx(a_chain->net_id, &l_tx_hash, (dap_chain_datum_tx_t *)l_datum->data);
+    }
+    dap_global_db_objs_delete(l_objs, l_objs_count);
+    DAP_DELETE(l_gdb_group);
+}
+
+// Registers the notify callback and seeds the index for every TX-carrying
+// chain in every already-loaded network. Must run after dap_chain_net_init()
+// has populated networks/chains; this function is deliberately NOT called from
+// dap_datum_mempool_init() for that reason, see its own caller in
+// sources/cellframe-node.c.
+int dap_chain_mempool_spent_index_init(void)
+{
+    // TTL expiry must reach the index as a DEL notification, otherwise the
+    // outputs of an expired TX stay "used" until restart. The GDB cleaner only
+    // notifies through the per-cluster del_callback, and the call from
+    // dap_datum_mempool_init() runs before any mempool cluster exists.
+    dap_chain_mempool_delete_callback_init();
+    int l_registered = 0;
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        dap_chain_t *l_chain;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            bool l_has_tx = false;
+            for (int i = 0; i < l_chain->datum_types_count; i++)
+                if (l_chain->datum_types[i] == CHAIN_TYPE_TX) {
+                    l_has_tx = true;
+                    break;
+                }
+            if (!l_has_tx)
+                continue;
+            dap_mempool_spent_notify_ctx_t *l_ctx = DAP_NEW_Z(dap_mempool_spent_notify_ctx_t);
+            if (!l_ctx)
+                continue;
+            l_ctx->net_id = l_net->pub.id;
+            // Register first, so an ADD landing concurrently with the seed
+            // scan below is indexed (idempotently) rather than silently
+            // missed by it. A chain whose updates can't be followed must not
+            // switch the lookup to the index.
+            if (dap_global_db_cluster_add_notify_callback(dap_chain_net_get_mempool_cluster(l_chain),
+                                                         s_mempool_spent_index_notify, l_ctx)) {
+                log_it(L_ERROR, "Can't subscribe the spent-outs index to mempool of chain %s (network %s)",
+                       l_chain->name, l_net->pub.name);
+                DAP_DELETE(l_ctx);
+                s_mempool_spent_index_failed = true;
+                continue;
+            }
+            s_mempool_spent_index_seed(l_chain);
+            ++l_registered;
+            log_it(L_INFO, "Mempool spent-outs index initialized for chain %s (network %s)",
+                   l_chain->name, l_net->pub.name);
+        }
+    }
+    if (l_registered > 0 && !s_mempool_spent_index_failed) {
+        s_mempool_spent_index_ready = true;
+        log_it(L_NOTICE, "Mempool spent-outs index active for %d chain(s)", l_registered);
+        return 0;
+    }
+    log_it(L_WARNING, "No mempool spent-outs index chains registered; "
+                       "dap_chain_mempool_out_is_used() will fall back to full scans");
+    return -1;
+}
 
 static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_dbi,
                                                   int a_rc, const char *a_group,
@@ -256,20 +509,22 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     int l_res = dap_global_db_set_sync(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false);//, NULL, NULL);
-    char *ret = (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? dap_strdup(
-        dap_strcmp(a_hash_out_type, "hex") ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str
-    ) : NULL;
     if (l_res == DAP_GLOBAL_DB_RC_SUCCESS) {
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        dap_notify_server_send_f_mt(
-            "{\"class\":\"MempoolEvent\",\"op\":\"add\","
-            "\"hash\":\"%s\",\"type\":\"%s\","
-            "\"net\":\"%s\",\"chain\":\"%s\"}",
-            ret, l_type_str,
-            l_net ? l_net->pub.name : "unknown", a_chain->name);
-        log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, ret, l_gdb_group);
+        log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, dap_strcmp(a_hash_out_type, "hex")
+            ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str, l_gdb_group);
+        // Index synchronously here, don't wait for the async cluster
+        // notification (which will also fire and idempotently re-index the
+        // same tx) - two mempool TXs submitted back-to-back must never both
+        // see the same not-yet-notified prior spend as available.
+        if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX)
+            s_mempool_spent_index_add_tx(a_chain->net_id, &l_key_hash, (dap_chain_datum_tx_t *)a_datum->data);
     } else
-        log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, l_key_str, l_gdb_group);
+        log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, dap_strcmp(a_hash_out_type, "hex")
+        ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
+        : l_key_str, l_gdb_group);
+    char *ret = (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? dap_strdup(dap_strcmp(a_hash_out_type, "hex")
+        ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
+        : l_key_str) : NULL;
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_key_str);
     return ret;
@@ -892,7 +1147,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     MULT_256_256(dap_chain_uint256_from(a_tx_num), l_single_val, &l_value_need);
     uint256_t l_value_transfer = {}; // how many coins to transfer
     const char *l_balance; dap_uint256_to_char(l_value_need, &l_balance);
-    debug_if(s_debug_more, L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
+    log_it(L_DEBUG, "Create %zu transactions, summary %s", a_tx_num, l_balance);
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     dap_list_t *l_list_used_out = NULL;
     if (dap_chain_wallet_cache_tx_find_outs_with_val(l_ledger->net, a_token_ticker, a_addr_from, &l_list_used_out, l_value_need, &l_value_transfer) == -101)
@@ -906,7 +1161,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     
     dap_chain_hash_fast_t l_tx_new_hash = {0};
     for (size_t i=0; i < a_tx_num; ++i){
-        debug_if(s_debug_more, L_DEBUG, "Prepare tx %zu", i);
+        log_it(L_DEBUG, "Prepare tx %zu", i);
         // find the transactions from which to take away coins
 
         // create empty transaction
@@ -924,7 +1179,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             l_balance = dap_uint256_to_char(l_item->value, NULL);
             if (1 == dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, l_item->num_idx_out)) {
                 SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
-                debug_if(s_debug_more, L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, l_balance);
+                log_it(L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, l_balance);
             } else {
                 log_it(L_WARNING, "Can't add input from %s with %s datoshi", l_in_hash_str, l_balance);
             }
@@ -995,7 +1250,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         dap_hash_fast(l_tx_new, l_tx_size, &l_tx_new_hash);
         // If we have value back - update balance cache
         if (!IS_ZERO_256(l_value_back)) {
-            //debug_if(s_debug_more, L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
+            //log_it(L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
             int l_out_idx = 0;
             byte_t *l_item; size_t l_size;
             TX_ITEM_ITER_TX(l_item, l_size, l_tx_new) {
@@ -1021,7 +1276,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                         .value          = l_value_back
                     };
                     l_list_used_out = dap_list_prepend(l_list_used_out, l_item_back);
-                    debug_if(s_debug_more, L_DEBUG,"Found change back output, stored back in UTXO table");
+                    log_it(L_DEBUG,"Found change back output, stored back in UTXO table");
                     break;
                 default:
                     continue;
@@ -1038,7 +1293,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         l_objs[i].value = (uint8_t *)l_datum;
         l_objs[i].value_len = dap_chain_datum_size(l_datum);
         l_objs[i].timestamp = dap_nanotime_now();
-        debug_if(s_debug_more, L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
+        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %zu)",
                l_objs[i].key ? l_objs[i].key :"NULL" , l_objs[i].value_len );
         dap_chain_datum_tx_delete(l_tx_new);
 
@@ -2055,7 +2310,99 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     DAP_DELETE(l_gdb_group);
 }
 
-bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx)
+// Janitorial mempool filter moved off the RPC read path: 'mempool list' used
+// to run the full validation pass (full GDB group read, keccak per datum,
+// synchronous deletes) on every listing, per chain. It runs from a background
+// timer instead; the listing command reports the last pass's removal count.
+typedef struct dap_chain_mempool_filter_stat {
+    dap_chain_t *chain;
+    int removed;
+    UT_hash_handle hh;
+} dap_chain_mempool_filter_stat_t;
+static dap_chain_mempool_filter_stat_t *s_filter_stats = NULL;
+static pthread_mutex_t s_filter_stats_lock = PTHREAD_MUTEX_INITIALIZER;
+static dap_interval_timer_t s_filter_timer = NULL;
+// Each timer tick runs on a fresh thread, so a pass can overlap the next tick
+// or node shutdown: s_filter_pass_lock serializes passes and lets the stop
+// wait for the one in flight; s_filter_stopped makes later ticks no-ops.
+static pthread_mutex_t s_filter_pass_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool s_filter_stopped = false;
+
+static void s_filter_timer_cb(void UNUSED_ARG *a_arg) {
+    if (pthread_mutex_trylock(&s_filter_pass_lock))
+        return;     // previous pass still running, or the filter is being stopped
+    for (dap_chain_net_t *l_net = s_filter_stopped ? NULL : dap_chain_net_iter_start(); l_net;
+                l_net = s_filter_stopped ? NULL : dap_chain_net_iter_next(l_net)) {
+        dap_chain_t *l_chain;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            int l_removed = 0;
+            dap_chain_mempool_filter(l_chain, &l_removed);
+            pthread_mutex_lock(&s_filter_stats_lock);
+            dap_chain_mempool_filter_stat_t *l_st = NULL;
+            HASH_FIND_PTR(s_filter_stats, &l_chain, l_st);
+            if (!l_st) {
+                l_st = DAP_NEW_Z(dap_chain_mempool_filter_stat_t);
+                if (!l_st) {
+                    pthread_mutex_unlock(&s_filter_stats_lock);
+                    continue;
+                }
+                l_st->chain = l_chain;
+                HASH_ADD_PTR(s_filter_stats, chain, l_st);
+            }
+            l_st->removed = l_removed;
+            pthread_mutex_unlock(&s_filter_stats_lock);
+        }
+    }
+    pthread_mutex_unlock(&s_filter_pass_lock);
+}
+
+void dap_chain_mempool_filter_timer_start(void) {
+    if (s_filter_timer)
+        return;
+    s_filter_stopped = false;
+    s_filter_timer = dap_interval_timer_create(10 * 60 * 1000, s_filter_timer_cb, NULL);
+    log_it(L_NOTICE, "Mempool janitorial filter scheduled to run every 10 minutes");
+}
+
+void dap_chain_mempool_filter_timer_stop(void) {
+    if (!s_filter_timer)
+        return;
+    dap_interval_timer_delete(s_filter_timer);
+    s_filter_timer = NULL;
+    // Waits for a pass already in progress: nets and chains it walks are
+    // freed right after this during shutdown.
+    pthread_mutex_lock(&s_filter_pass_lock);
+    s_filter_stopped = true;
+    pthread_mutex_unlock(&s_filter_pass_lock);
+    pthread_mutex_lock(&s_filter_stats_lock);
+    dap_chain_mempool_filter_stat_t *l_st, *l_tmp;
+    HASH_ITER(hh, s_filter_stats, l_st, l_tmp) {
+        HASH_DEL(s_filter_stats, l_st);
+        DAP_DELETE(l_st);
+    }
+    pthread_mutex_unlock(&s_filter_stats_lock);
+}
+
+int dap_chain_mempool_filter_last_removed(dap_chain_t *a_chain) {
+    if (!a_chain)
+        return 0;
+    int l_removed = 0;
+    pthread_mutex_lock(&s_filter_stats_lock);
+    dap_chain_mempool_filter_stat_t *l_st = NULL;
+    HASH_FIND_PTR(s_filter_stats, &a_chain, l_st);
+    if (l_st)
+        l_removed = l_st->removed;
+    pthread_mutex_unlock(&s_filter_stats_lock);
+    return l_removed;
+}
+
+// Historical implementation: full linear scan of the mempool GDB group,
+// re-parsing every TX datum's inputs. O(mempool size) per call, called once
+// per candidate UTXO by callers such as dap_ledger_get_list_tx_outs_unspent_by_addr
+// - see cellframe_node_rpc_overload_research_2026_09 sec. 2. Kept as the
+// fallback for when the spent-outs index (see above) isn't active, e.g.
+// tests/tools that never call dap_chain_mempool_spent_index_init().
+static bool s_mempool_out_is_used_scan(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx)
 {
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_net, CHAIN_TYPE_TX);
     if(!l_gdb_group_mempool){
@@ -2086,6 +2433,20 @@ bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_ou
     dap_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group_mempool);
     return false;
+}
+
+bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx)
+{
+    if (!a_net || !a_out_hash)
+        return false;
+    if (!s_mempool_spent_index_ready)
+        return s_mempool_out_is_used_scan(a_net, a_out_hash, a_out_idx);
+    dap_mempool_spent_out_key_t l_key = { .net_id = a_net->pub.id, .prev_hash = *a_out_hash, .out_idx = a_out_idx };
+    pthread_rwlock_rdlock(&s_mempool_spent_lock);
+    dap_mempool_spent_out_t *l_found = NULL;
+    HASH_FIND(hh, s_mempool_spent_by_out, &l_key, sizeof(l_key), l_found);
+    pthread_rwlock_unlock(&s_mempool_spent_lock);
+    return l_found != NULL;
 }
 
 /**
