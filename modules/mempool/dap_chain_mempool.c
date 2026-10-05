@@ -136,6 +136,7 @@ static pthread_rwlock_t s_mempool_spent_lock = PTHREAD_RWLOCK_INITIALIZER;
 // just unoptimized - behavior instead of silently treating every UTXO as
 // unspent.
 static bool s_mempool_spent_index_ready = false;
+static bool s_mempool_spent_index_failed = false;
 
 // Indexes every IN/IN_COND item of a_tx as "spent by a_tx_hash". Idempotent:
 // safe to call twice for the same tx (synchronous insert from
@@ -275,13 +276,16 @@ static void s_mempool_spent_index_seed(dap_chain_t *a_chain)
 
 // Registers the notify callback and seeds the index for every TX-carrying
 // chain in every already-loaded network. Must run after dap_chain_net_init()
-// has populated networks/chains (unlike dap_chain_mempool_delete_callback_init()
-// above, which - as documented on it - is invoked too early in node startup
-// for dap_chain_net_iter_start() to see anything yet; this function is
-// deliberately NOT called from dap_datum_mempool_init() for that reason, see
-// its own caller in sources/cellframe-node.c).
+// has populated networks/chains; this function is deliberately NOT called from
+// dap_datum_mempool_init() for that reason, see its own caller in
+// sources/cellframe-node.c.
 int dap_chain_mempool_spent_index_init(void)
 {
+    // TTL expiry must reach the index as a DEL notification, otherwise the
+    // outputs of an expired TX stay "used" until restart. The GDB cleaner only
+    // notifies through the per-cluster del_callback, and the call from
+    // dap_datum_mempool_init() runs before any mempool cluster exists.
+    dap_chain_mempool_delete_callback_init();
     int l_registered = 0;
     for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
         dap_chain_t *l_chain;
@@ -300,15 +304,23 @@ int dap_chain_mempool_spent_index_init(void)
             l_ctx->net_id = l_net->pub.id;
             // Register first, so an ADD landing concurrently with the seed
             // scan below is indexed (idempotently) rather than silently
-            // missed by it.
-            dap_chain_add_mempool_notify_callback(l_chain, s_mempool_spent_index_notify, l_ctx);
+            // missed by it. A chain whose updates can't be followed must not
+            // switch the lookup to the index.
+            if (dap_global_db_cluster_add_notify_callback(dap_chain_net_get_mempool_cluster(l_chain),
+                                                         s_mempool_spent_index_notify, l_ctx)) {
+                log_it(L_ERROR, "Can't subscribe the spent-outs index to mempool of chain %s (network %s)",
+                       l_chain->name, l_net->pub.name);
+                DAP_DELETE(l_ctx);
+                s_mempool_spent_index_failed = true;
+                continue;
+            }
             s_mempool_spent_index_seed(l_chain);
             ++l_registered;
             log_it(L_INFO, "Mempool spent-outs index initialized for chain %s (network %s)",
                    l_chain->name, l_net->pub.name);
         }
     }
-    if (l_registered > 0) {
+    if (l_registered > 0 && !s_mempool_spent_index_failed) {
         s_mempool_spent_index_ready = true;
         log_it(L_NOTICE, "Mempool spent-outs index active for %d chain(s)", l_registered);
         return 0;
@@ -2310,9 +2322,17 @@ typedef struct dap_chain_mempool_filter_stat {
 static dap_chain_mempool_filter_stat_t *s_filter_stats = NULL;
 static pthread_mutex_t s_filter_stats_lock = PTHREAD_MUTEX_INITIALIZER;
 static dap_interval_timer_t s_filter_timer = NULL;
+// Each timer tick runs on a fresh thread, so a pass can overlap the next tick
+// or node shutdown: s_filter_pass_lock serializes passes and lets the stop
+// wait for the one in flight; s_filter_stopped makes later ticks no-ops.
+static pthread_mutex_t s_filter_pass_lock = PTHREAD_MUTEX_INITIALIZER;
+static bool s_filter_stopped = false;
 
 static void s_filter_timer_cb(void UNUSED_ARG *a_arg) {
-    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+    if (pthread_mutex_trylock(&s_filter_pass_lock))
+        return;     // previous pass still running, or the filter is being stopped
+    for (dap_chain_net_t *l_net = s_filter_stopped ? NULL : dap_chain_net_iter_start(); l_net;
+                l_net = s_filter_stopped ? NULL : dap_chain_net_iter_next(l_net)) {
         dap_chain_t *l_chain;
         DL_FOREACH(l_net->pub.chains, l_chain) {
             int l_removed = 0;
@@ -2333,13 +2353,34 @@ static void s_filter_timer_cb(void UNUSED_ARG *a_arg) {
             pthread_mutex_unlock(&s_filter_stats_lock);
         }
     }
+    pthread_mutex_unlock(&s_filter_pass_lock);
 }
 
 void dap_chain_mempool_filter_timer_start(void) {
     if (s_filter_timer)
         return;
+    s_filter_stopped = false;
     s_filter_timer = dap_interval_timer_create(10 * 60 * 1000, s_filter_timer_cb, NULL);
     log_it(L_NOTICE, "Mempool janitorial filter scheduled to run every 10 minutes");
+}
+
+void dap_chain_mempool_filter_timer_stop(void) {
+    if (!s_filter_timer)
+        return;
+    dap_interval_timer_delete(s_filter_timer);
+    s_filter_timer = NULL;
+    // Waits for a pass already in progress: nets and chains it walks are
+    // freed right after this during shutdown.
+    pthread_mutex_lock(&s_filter_pass_lock);
+    s_filter_stopped = true;
+    pthread_mutex_unlock(&s_filter_pass_lock);
+    pthread_mutex_lock(&s_filter_stats_lock);
+    dap_chain_mempool_filter_stat_t *l_st, *l_tmp;
+    HASH_ITER(hh, s_filter_stats, l_st, l_tmp) {
+        HASH_DEL(s_filter_stats, l_st);
+        DAP_DELETE(l_st);
+    }
+    pthread_mutex_unlock(&s_filter_stats_lock);
 }
 
 int dap_chain_mempool_filter_last_removed(dap_chain_t *a_chain) {

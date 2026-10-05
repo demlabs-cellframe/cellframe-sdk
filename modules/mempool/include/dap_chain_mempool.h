@@ -73,6 +73,9 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed);
 // Run the janitorial filter from a background timer (every 10 min) instead of
 // on the 'mempool list' read path. Call once at node startup.
 void dap_chain_mempool_filter_timer_start(void);
+// Stops the timer and waits for a pass in progress. Must run before the
+// networks are deinitialized.
+void dap_chain_mempool_filter_timer_stop(void);
 
 // Number of records the last background filter pass removed for this chain
 // (reported by 'mempool list' in place of the on-read filter result).

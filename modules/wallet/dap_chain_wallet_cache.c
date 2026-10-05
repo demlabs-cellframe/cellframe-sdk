@@ -241,11 +241,16 @@ static void s_wallet_cache_clear_unspent(dap_wallet_cache_t *a_wallet_item)
 // wallet that in fact has funds. -101 tells the caller "cache can't answer
 // yet, go check the ledger" instead - the same contract already used for the
 // is_loading and cache-not-populated cases right above each call site.
+// Called with s_wallet_cache_rwlock released: s_bulk_loading_nets is unlinked
+// and freed under the write lock when a net finishes its bulk load.
 static int s_wallet_cache_unknown_addr_ret_code(const dap_chain_addr_t *a_addr)
 {
     if (s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)
         return -101; // LOCAL/unexpected: address was never meant to be cached, ledger fallback path
-    if (s_bulk_loading_nets_has(a_addr->net_id.uint64)) {
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
+    bool l_bulk_loading = s_bulk_loading_nets_has(a_addr->net_id.uint64);
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    if (l_bulk_loading) {
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_addr->net_id);
         debug_if(s_debug_more, L_DEBUG, "Wallet \"%s\" not yet seen, net %s is still bulk-loading",
                  dap_chain_addr_to_str_static(a_addr), l_net ? l_net->pub.name : "?");

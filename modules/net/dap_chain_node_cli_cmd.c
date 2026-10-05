@@ -3238,9 +3238,13 @@ void s_com_mempool_list_print_for_chain(json_object* a_json_arr_reply, dap_chain
     // Process each object from mempool
     for (size_t i = l_arr_start; i < l_arr_end; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t *) l_objs[i].value;
-        if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
-            log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s data_size:%u, value_len:%zu",
-                    a_net->pub.name, a_chain->name, l_objs[i].key, l_datum->header.data_size, l_objs[i].value_len);
+        // The janitorial filter no longer runs right before the listing, so a
+        // record that it would have purged (empty or size-mismatched value) can
+        // be here: validate it before touching the header or hashing the body.
+        if (!l_datum || l_objs[i].value_len < sizeof(l_datum->header) || !l_datum->header.data_size
+                || dap_chain_datum_size(l_datum) != l_objs[i].value_len) {
+            log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s value_len:%zu",
+                    a_net->pub.name, a_chain->name, l_objs[i].key, l_objs[i].value_len);
             continue;
         }
         
@@ -8234,6 +8238,7 @@ static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_ar
             json_object *l_jobj_remain = json_object_new_object();
             json_object_object_add(l_jobj_remain, "coins", json_object_new_string(l_remain_coins_str));
             json_object_object_add(l_jobj_remain, "datoshi", json_object_new_string(l_remain_datoshi_str));
+            DAP_DEL_MULTY(l_remain_coins_str, l_remain_datoshi_str);
             json_object *l_jobj_tx = json_object_new_object();
             json_object_object_add(l_jobj_tx, "hash", json_object_new_string(l_hash_str));
             json_object_object_add(l_jobj_tx, "remain", l_jobj_remain);
@@ -8293,6 +8298,7 @@ static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_ar
             json_object *l_jobj_remain = json_object_new_object();
             json_object *l_jobj_remain_coins = json_object_new_string(l_remain_coins_str);
             json_object *l_jobj_remain_datoshi = json_object_new_string(l_remain_datoshi_str);
+            DAP_DEL_MULTY(l_remain_coins_str, l_remain_datoshi_str);
             json_object_object_add(l_jobj_remain, "coins", l_jobj_remain_coins);
             json_object_object_add(l_jobj_remain, "datoshi", l_jobj_remain_datoshi);
             json_object *l_jobj_native_ticker = json_object_new_string(l_native_ticker);
@@ -8311,6 +8317,7 @@ static int _cmd_tx_cond_unspent_find(int a_argc, char **a_argv, void **a_json_ar
     json_object *l_jobj_total = json_object_new_object();
     json_object *l_jobj_total_datoshi = json_object_new_string(l_total_datoshi_str);
     json_object *l_jobj_total_coins = json_object_new_string(l_total_coins_str);
+    DAP_DEL_MULTY(l_total_coins_str, l_total_datoshi_str);
     json_object *l_jobj_native_ticker = json_object_new_string(l_native_ticker);
     json_object_object_add(l_jobj_total, "datoshi", l_jobj_total_datoshi);
     json_object_object_add(l_jobj_total, "coins", l_jobj_total_coins);

@@ -65,6 +65,17 @@
  *          actual client-visible behavior, complementing
  *          cli_backpressure_unit_test.c's direct acquire/release checks.
  *
+ *          Tests 4-5: GET /health readiness probe and a command turning its
+ *          reply into 503 + Retry-After.
+ *
+ *          Test 6: a streamed listing plus an error object added after
+ *          streaming started arrives as one well-formed JSON-RPC body, over
+ *          several rounds on the reused executor threads.
+ *
+ *          Test 7: a reply larger than the esocket output cap makes the
+ *          server drop the connection right away, instead of leaving the
+ *          client waiting for the inactivity timeout.
+ *
  *          The per-/16 rate limiter (s_cli_rate_limit_check) is out of
  *          scope here too: it explicitly bypasses loopback and unix-socket
  *          callers (see its doc comment in dap_cli_server.c), so exercising
@@ -90,6 +101,8 @@
 #include "dap_file_utils.h"
 #include "dap_config.h"
 #include "dap_cli_server.h"
+#include "dap_events_socket.h"
+#include "dap_json_rpc_errors.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
 
@@ -145,6 +158,44 @@ static int s_cmd_warming(int argc, char **argv, void **a_str_reply, int a_versio
     dap_cli_cmd_reply_set_unavailable(7);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "index warming");
     return -1;
+}
+
+// Streamed listing (dap_cli_cmd_reply_stream_begin_nested) with an error
+// object added after the rows: the reply is assembled from detached
+// dap_string buffers on the executor thread.
+#define CLI_BP_IT_STREAM_ROWS 300
+static int s_cmd_stream(int argc, char **argv, void **a_reply, int a_version)
+{
+    (void)argc; (void)argv; (void)a_version;
+    json_object **l_arr = (json_object **)a_reply;
+    dap_cli_cmd_reply_stream_begin_nested();
+    for (int i = 0; i < CLI_BP_IT_STREAM_ROWS; i++) {
+        json_object *l_row = json_object_new_object();
+        json_object_object_add(l_row, "n", json_object_new_int(i));
+        dap_cli_cmd_reply_add(l_arr, l_row);
+    }
+    dap_cli_cmd_reply_stream_nested_end();
+    json_object *l_tail = json_object_new_object();
+    json_object_object_add(l_tail, "rows", json_object_new_int(CLI_BP_IT_STREAM_ROWS));
+    dap_cli_cmd_reply_add(l_arr, l_tail);
+    dap_json_rpc_error_add(*l_arr, 77, "stream-tail-error");
+    return 0;
+}
+
+// Reply far larger than the esocket output cap set in s_setup()
+#define CLI_BP_IT_BUF_OUT_MAX (256 * 1024)
+static int s_cmd_huge(int argc, char **argv, void **a_str_reply, int a_version)
+{
+    (void)argc; (void)argv; (void)a_version;
+    size_t l_size = CLI_BP_IT_BUF_OUT_MAX * 4;
+    char *l_text = DAP_NEW_SIZE(char, l_size + 1);
+    if (!l_text)
+        return -1;
+    memset(l_text, 'x', l_size);
+    l_text[l_size] = '\0';
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_text);
+    DAP_DELETE(l_text);
+    return 0;
 }
 
 static _Atomic bool s_ready = false;
@@ -285,6 +336,13 @@ static void s_setup(void)
     dap_assert_PIF(l_slow_cmd != NULL, "Slow test command registered");
     dap_assert_PIF(dap_cli_server_cmd_add("cli_bp_it_warming_cmd", s_cmd_warming, NULL, "test 503 command", "test 503 command") != NULL,
                    "Warming test command registered");
+    // Both names are in the JSON-reply command list, so the executor hands the
+    // handler a json_object** reply array, as for real streaming commands.
+    dap_assert_PIF(dap_cli_server_cmd_add("block", s_cmd_stream, NULL, "test streamed reply", "test streamed reply") != NULL,
+                   "Streaming test command registered");
+    dap_assert_PIF(dap_cli_server_cmd_add("cli_bp_it_huge_cmd", s_cmd_huge, NULL, "test huge reply", "test huge reply") != NULL,
+                   "Huge-reply test command registered");
+    dap_events_socket_set_buf_out_max(CLI_BP_IT_BUF_OUT_MAX);
 
     log_it(L_NOTICE, "Test environment initialized (real CLI server on %s)", s_sock_path);
 }
@@ -292,6 +350,7 @@ static void s_setup(void)
 static void s_teardown(void)
 {
     log_it(L_DEBUG, "Starting teardown...");
+    dap_events_socket_set_buf_out_max(DAP_EVENTS_SOCKET_BUF_LIMIT * 8);
     dap_cli_server_deinit();
     test_env_deinit();
     if (g_config) {
@@ -488,6 +547,81 @@ static void s_test_command_unavailable_reply(void)
     dap_pass_msg("Command 503 reply test passed");
 }
 
+// --- Test 6: streamed reply arrives whole and well-formed ---------------
+static void s_test_streamed_reply(void)
+{
+    dap_print_module_name("Integration Test 6: streamed reply with trailing error object");
+    size_t l_resp_size = 64 * 1024;
+    char *l_resp = DAP_NEW_Z_SIZE(char, l_resp_size);
+    dap_assert_PIF(l_resp, "Response buffer allocated");
+    // Several rounds on the reused executor threads: the thread-local stream
+    // state must be fully reset after every command.
+    for (int l_round = 0; l_round < 3; l_round++) {
+        int l_fd = s_client_connect();
+        dap_assert_PIF(l_fd >= 0, "Client connects");
+        dap_assert_PIF(s_client_send_request(l_fd, "block"), "Request sent");
+        s_client_read_response(l_fd, l_resp, l_resp_size, 2000);
+        close(l_fd);
+        dap_assert_PIF(strstr(l_resp, "HTTP/1.1 200"), "Streamed reply is a 200");
+        char *l_body = strstr(l_resp, "\r\n\r\n");
+        dap_assert_PIF(l_body, "Reply has a body");
+        json_object *l_jobj = json_tokener_parse(l_body + 4);
+        dap_assert_PIF(l_jobj, "Streamed body is valid JSON");
+        json_object *l_result = NULL;
+        dap_assert_PIF(json_object_object_get_ex(l_jobj, "result", &l_result) && json_object_is_type(l_result, json_type_array),
+                       "Body carries the result array");
+        // [ {errors}, [rows...], {rows} ]: the error added after the stream
+        // started is prepended, the listing stays one nested element
+        dap_assert_PIF(json_object_array_length(l_result) == 3, "Error entry, listing and tail are all present");
+        json_object *l_errors = NULL;
+        dap_assert_PIF(json_object_object_get_ex(json_object_array_get_idx(l_result, 0), "errors", &l_errors),
+                       "Error object added after streaming started survives");
+        json_object *l_rows = json_object_array_get_idx(l_result, 1);
+        dap_assert_PIF(json_object_is_type(l_rows, json_type_array)
+                       && json_object_array_length(l_rows) == CLI_BP_IT_STREAM_ROWS, "Every streamed row arrives");
+        json_object *l_last = json_object_array_get_idx(l_rows, CLI_BP_IT_STREAM_ROWS - 1), *l_n = NULL;
+        dap_assert_PIF(json_object_object_get_ex(l_last, "n", &l_n) && json_object_get_int(l_n) == CLI_BP_IT_STREAM_ROWS - 1,
+                       "Rows keep their order");
+        json_object_put(l_jobj);
+    }
+    DAP_DELETE(l_resp);
+    dap_pass_msg("Streamed reply test passed");
+}
+
+// --- Test 7: a reply over the output cap disconnects the client ---------
+static void s_test_reply_over_output_cap(void)
+{
+    dap_print_module_name("Integration Test 7: reply larger than the esocket output cap");
+    int l_fd = s_client_connect();
+    dap_assert_PIF(l_fd >= 0, "Client connects");
+    dap_assert_PIF(s_client_send_request(l_fd, "cli_bp_it_huge_cmd"), "Request sent");
+    // The client neither reads nor closes: only the server can end this
+    // exchange, and it must do so well before the 60 s inactivity timeout.
+    struct timeval l_tv = { .tv_sec = 5 };
+    setsockopt(l_fd, SOL_SOCKET, SO_RCVTIMEO, &l_tv, sizeof(l_tv));
+    char l_buf[4096];
+    ssize_t l_total = 0, l_n;
+    errno = 0;
+    while ((l_n = recv(l_fd, l_buf, sizeof(l_buf), 0)) > 0)
+        l_total += l_n;
+    bool l_timed_out = l_n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK);
+    close(l_fd);
+    dap_assert_PIF(!l_timed_out, "Server closes the connection instead of leaving the client hanging");
+    dap_assert_PIF(l_total == 0, "No truncated reply is passed off as a complete one");
+
+    // The refusal is per connection: an ordinary request right after it works.
+    s_slow_reset();
+    s_slow_release_all();
+    char l_resp[2048];
+    l_fd = s_client_connect();
+    dap_assert_PIF(l_fd >= 0, "Client connects");
+    dap_assert_PIF(s_client_send_request(l_fd, "cli_bp_it_slow_cmd"), "Request sent");
+    s_client_read_response(l_fd, l_resp, sizeof(l_resp), 2000);
+    close(l_fd);
+    dap_assert_PIF(strstr(l_resp, "HTTP/1.1 200"), "Next request is served normally");
+    dap_pass_msg("Output cap test passed");
+}
+
 int main(void)
 {
     dap_log_set_external_output(LOGGER_OUTPUT_STDERR, NULL);
@@ -503,9 +637,11 @@ int main(void)
     s_test_backpressure_returns_real_429();
     s_test_health_probe();
     s_test_command_unavailable_reply();
+    s_test_streamed_reply();
+    s_test_reply_over_output_cap();
 
     s_teardown();
 
-    printf("All CLI backpressure/dead-client integration tests passed (5 tests)!\n"); fflush(stdout);
+    printf("All CLI backpressure/dead-client integration tests passed (7 tests)!\n"); fflush(stdout);
     return 0;
 }
