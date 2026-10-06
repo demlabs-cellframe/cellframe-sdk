@@ -152,6 +152,39 @@ void dap_chain_net_srv_voting_deinit()
 {
 
 }
+// Drops all poll state of a net. dap_ledger_purge() fires no tx notifiers, so
+// after "remove -chains"/reorder the in-memory polls would survive the wipe
+// while the chain gets reloaded from scratch - and the verificator's blind
+// HASH_ADD would then duplicate them with split tallies.
+void dap_chain_net_srv_voting_purge_net(dap_chain_net_id_t a_net_id)
+{
+    dap_chain_net_votings_t *l_voting = NULL, *l_tmp = NULL;
+    pthread_rwlock_wrlock(&s_votings_rwlock);
+    HASH_ITER(hh, s_votings, l_voting, l_tmp) {
+        if (l_voting->net_id.uint64 != a_net_id.uint64)
+            continue;
+        HASH_DEL(s_votings, l_voting);
+        pthread_rwlock_wrlock(&l_voting->votes_rwlock);
+        pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
+        DAP_DEL_Z(l_voting->tally_votes);
+        DAP_DEL_Z(l_voting->tally_weights);
+        if (l_voting->voting_params.option_offsets_list)
+            dap_list_free_full(l_voting->voting_params.option_offsets_list, NULL);
+        if (l_voting->votes)
+            dap_list_free_full(l_voting->votes, NULL);
+        dap_chain_net_voting_cond_outs_t *l_el = NULL, *l_el_tmp = NULL;
+        HASH_ITER(hh, l_voting->voting_spent_cond_outs, l_el, l_el_tmp) {
+            HASH_DEL(l_voting->voting_spent_cond_outs, l_el);
+            DAP_DELETE(l_el);
+        }
+        pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
+        pthread_rwlock_unlock(&l_voting->votes_rwlock);
+        pthread_rwlock_destroy(&l_voting->votes_rwlock);
+        pthread_rwlock_destroy(&l_voting->s_tx_outs_rwlock);
+        DAP_DELETE(l_voting);
+    }
+    pthread_rwlock_unlock(&s_votings_rwlock);
+}
 
 uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash)
 {
@@ -637,6 +670,23 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
         HASH_DEL(s_votings, l_voting);
         pthread_rwlock_unlock(&s_votings_rwlock);
 
+<<<<<<< HEAD
+=======
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
+        dap_chain_hash_fast_to_str(&l_hash, l_hash_str, sizeof(l_hash_str));
+
+        // Free under votes_rwlock: a reader that already holds the pointer can
+        // still be walking tallies or the votes list (it found the poll before
+        // the HASH_DEL); the wrlock handshake guarantees it has finished.
+        // voting_spent_cond_outs is guarded by s_tx_outs_rwlock.
+        pthread_rwlock_wrlock(&l_voting->votes_rwlock);
+        pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
+        log_it(L_INFO, "Ledger delete voting poll tx %s: removed poll state with %u vote(s)",
+               l_hash_str, (uint32_t)dap_list_length(l_voting->votes));
+
+        DAP_DEL_Z(l_voting->tally_votes);
+        DAP_DEL_Z(l_voting->tally_weights);
+>>>>>>> bdd4cf591 (RPC hot-path correctness pass: wallet-cache ALL bootstrap, voting lifetime, purge hooks, single-pass OHLC, dex bounds)
         if (l_voting->voting_params.option_offsets_list)
             dap_list_free_full(l_voting->voting_params.option_offsets_list, NULL);
 
@@ -652,6 +702,10 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
                 }
             }
         }
+        pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
+        pthread_rwlock_unlock(&l_voting->votes_rwlock);
+        pthread_rwlock_destroy(&l_voting->votes_rwlock);
+        pthread_rwlock_destroy(&l_voting->s_tx_outs_rwlock);
 
         DAP_DELETE(l_voting);
 

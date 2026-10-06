@@ -173,6 +173,9 @@ static dex_net_fee_cache_t *s_dex_net_fee_tbl = NULL;
 // does not pass -limit. 0 still means "unlimited" inside the fetch helpers, so we
 // substitute a finite default here to avoid dumping the whole dataset.
 #define DEX_CLI_DEFAULT_LIMIT 1000
+// Upper bound for an explicitly requested -limit: a crawler can pass a huge
+// value and make the listing allocate/serialize the whole range.
+#define DEX_CLI_MAX_LIMIT 5000
 
 /** @brief FEE_SET / pct_divisor state for one network. Caller must hold s_dex_cache_rwlock. */
 static inline dex_net_fee_cache_t *s_dex_get_srv_fee(dap_chain_net_id_t a_net_id)
@@ -599,6 +602,11 @@ static uint64_t s_dex_history_bucket_sec = DAP_SEC_PER_DAY; // default bucket si
 // the node to materialize ~525k JSON objects (and re-scan the same daily storage bucket
 // once per candle), which is the dominant cause of transient heap blow-up -> swap -> RPC
 // stalls under crawler load (see cellframe_node_rpc_overload_research_2026_09, sec. 12).
+static DAP_INLINE int s_dex_clamp_user_limit(const char *a_limit_str, int a_limit) {
+    if (a_limit_str && a_limit > DEX_CLI_MAX_LIMIT)
+        return DEX_CLI_MAX_LIMIT;
+    return a_limit;
+}
 static uint32_t s_dex_history_max_candles = 5000;
 
 /** @brief Calculate percentage: result = a * b / (100 * 10^precision) */
@@ -3635,9 +3643,18 @@ static inline bool s_history_check_flags(uint8_t a_rec_flags, uint8_t a_filter);
 static inline bool s_history_check_trade_flags(uint8_t a_rec_flags, uint8_t a_filter);
 
 /** @brief Compute OHLCV aggregation from single bucket's events. */
+typedef struct s_hist_totals_ctx {
+    uint256_t sum_base,
+              sum_quote,
+              last_price;
+    uint64_t last_ts;
+    uint64_t trades;      // matching events count (the foreach()'s return value)
+} s_hist_totals_ctx_t;
+
 static void s_calc_ohlcv_from_bucket(dex_hist_bucket_t *a_bucket, uint64_t a_ts_from, uint64_t a_ts_to,
                                      const dap_chain_addr_t *a_seller_filter, const dap_chain_addr_t *a_buyer_filter,
-                                     const dap_hash_fast_t *a_order_root, uint8_t a_filter_flags, dex_ohlcv_t *a_out)
+                                     const dap_hash_fast_t *a_order_root, uint8_t a_filter_flags, dex_ohlcv_t *a_out,
+                                     s_hist_totals_ctx_t *a_totals)
 {
     if (!a_bucket || !a_out)
         return;
@@ -3663,6 +3680,18 @@ static void s_calc_ohlcv_from_bucket(dex_hist_bucket_t *a_bucket, uint64_t a_ts_
         SUM_256_256(a_out->volume_base, l_rec->val_b_trade, &a_out->volume_base);
         SUM_256_256(a_out->volume_quote, l_quote, &a_out->volume_quote);
         ++a_out->trades;
+        // Single-pass support: the series walk covers every event of the window
+        // exactly once with these same filters, so the command totals ride
+        // along here instead of a second full scan per request.
+        if (a_totals) {
+            SUM_256_256(a_totals->sum_base, l_rec->val_b_trade, &a_totals->sum_base);
+            SUM_256_256(a_totals->sum_quote, l_quote, &a_totals->sum_quote);
+            ++a_totals->trades;
+            if ((l_rec->flags & DEX_OP_MARKET) && l_rec->ts > a_totals->last_ts) {
+                a_totals->last_ts = l_rec->ts;
+                a_totals->last_price = l_price;
+            }
+        }
         // OHLC: market trades only
         if (!(l_rec->flags & DEX_OP_MARKET))
             continue;
@@ -4122,13 +4151,6 @@ static bool s_history_stats_accum_event(const dex_event_rec_t *a_rec, void *a_ar
     return true;
 }
 
-typedef struct s_hist_totals_ctx {
-    uint256_t sum_base,
-              sum_quote,
-              last_price;
-    uint64_t last_ts;
-} s_hist_totals_ctx_t;
-
 static bool s_history_totals_visit(const dex_event_rec_t *a_rec, void *a_arg)
 {
     if (!a_rec)
@@ -4149,7 +4171,7 @@ static bool s_history_totals_visit(const dex_event_rec_t *a_rec, void *a_arg)
 static int s_history_build_ohlcv_series(const dex_pair_key_t *a_key, uint64_t a_ts_from, uint64_t a_ts_to, uint64_t a_bucket_sec,
                                         bool a_with_ohlc, bool a_fill_missing, const dap_chain_addr_t *a_seller_filter,
                                         const dap_chain_addr_t *a_buyer_filter, const dap_hash_fast_t *a_order_root, uint8_t a_filter_flags,
-                                        json_object *a_arr)
+                                        json_object *a_arr, s_hist_totals_ctx_t *a_totals)
 {
     dap_ret_val_if_any(-1, !a_bucket_sec, !a_arr);
     uint64_t l_to_req = (!a_ts_to || a_ts_to == UINT64_MAX) ? (uint64_t)dap_time_now() : a_ts_to;
@@ -4246,7 +4268,7 @@ static int s_history_build_ohlcv_series(const dex_pair_key_t *a_key, uint64_t a_
                         continue;
                     dex_ohlcv_t l_part = {};
                     s_calc_ohlcv_from_bucket(l_buckets[i], l_from, l_to, a_seller_filter, a_buyer_filter, a_order_root, a_filter_flags,
-                                             &l_part);
+                                             &l_part, a_totals);
                     // Merge partial into candle
                     SUM_256_256(l_ohlcv.volume_base, l_part.volume_base, &l_ohlcv.volume_base);
                     SUM_256_256(l_ohlcv.volume_quote, l_part.volume_quote, &l_ohlcv.volume_quote);
@@ -6390,7 +6412,7 @@ static bool s_tag_check_dex(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 
 int dap_chain_net_srv_dex_init()
 {
-    s_debug_more = dap_config_get_item_bool_default(g_config, "srv_dex", "debug_more", true);
+    s_debug_more = dap_config_get_item_bool_default(g_config, "srv_dex", "debug_more", false);
     // Register verificator for SRV_DEX
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, s_dex_verificator_callback, NULL, NULL);
     // Register service for tagging (mempool list, tx history)
@@ -9067,6 +9089,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-limit", &l_limit_str);
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-offset", &l_offset_str);
         int l_limit = l_limit_str ? atoi(l_limit_str) : DEX_CLI_DEFAULT_LIMIT, l_offset = l_offset_str ? atoi(l_offset_str) : 0;
+        l_limit = s_dex_clamp_user_limit(l_limit_str, l_limit);
 
         dap_time_t l_now_ts = dap_ledger_get_blockchain_time(l_net->pub.ledger);
         if (s_dex_cache_enabled) {
@@ -9972,6 +9995,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         }
 
         int l_limit = l_limit_str ? atoi(l_limit_str) : DEX_CLI_DEFAULT_LIMIT, l_offset = l_offset_str ? atoi(l_offset_str) : 0;
+        l_limit = s_dex_clamp_user_limit(l_limit_str, l_limit);
         enum { VIEW_EVENTS, VIEW_SUMMARY, VIEW_OHLC, VIEW_VOLUME, VIEW_STATS } l_view = VIEW_EVENTS;
         uint8_t l_filter_flags = 0;
         if (l_view_str) {
@@ -10291,18 +10315,26 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
 
         if (s_dex_history_enabled) {
             s_hist_totals_ctx_t l_ctx = { };
-            q = s_history_foreach_trade_cache(&l_key, l_t_from, l_t_to ? l_t_to : UINT64_MAX, l_seller_str ? &l_seller_addr : NULL,
-                               l_buyer_str ? &l_buyer_addr : NULL, l_order_hash_str ? &l_order_root : NULL, l_filter_flags,
-                                             s_history_totals_visit, &l_ctx);
+            json_object *l_arr = json_object_new_array();
+            int l_count = 0;
+            if (l_bucket) {
+                // Single pass: the series walk covers every event of the window
+                // exactly once with the same filters, so the command totals ride
+                // along in l_ctx (accumulated by s_calc_ohlcv_from_bucket)
+                // instead of a second full scan per request.
+                l_count = s_history_build_ohlcv_series(&l_key, l_t_from, l_t_to ? l_t_to : UINT64_MAX, l_bucket, l_want_ohlc,
+                                                       l_fill_missing, l_seller_str ? &l_seller_addr : NULL,
+                                                       l_buyer_str ? &l_buyer_addr : NULL,
+                                                       l_order_hash_str ? &l_order_root : NULL, l_filter_flags, l_arr, &l_ctx);
+                q = (int)l_ctx.trades;
+            } else {
+                q = s_history_foreach_trade_cache(&l_key, l_t_from, l_t_to ? l_t_to : UINT64_MAX, l_seller_str ? &l_seller_addr : NULL,
+                                   l_buyer_str ? &l_buyer_addr : NULL, l_order_hash_str ? &l_order_root : NULL, l_filter_flags,
+                                                 s_history_totals_visit, &l_ctx);
+            }
             l_sum_base = l_ctx.sum_base;
             l_sum_quote = l_ctx.sum_quote;
             l_spot_price = l_ctx.last_price;
-            json_object *l_arr = json_object_new_array();
-            int l_count = l_bucket ? s_history_build_ohlcv_series(&l_key, l_t_from, l_t_to ? l_t_to : UINT64_MAX, l_bucket, l_want_ohlc,
-                                                                  l_fill_missing, l_seller_str ? &l_seller_addr : NULL,
-                                                                  l_buyer_str ? &l_buyer_addr : NULL,
-                                                                  l_order_hash_str ? &l_order_root : NULL, l_filter_flags, l_arr)
-                                   : 0;
             if (l_count == -3) {
                 json_object_put(l_arr);
                 json_object_put(l_json_reply);
@@ -10662,6 +10694,7 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         else
             return dap_json_rpc_error_add(*json_arr_reply, -2, "bad -side \"%s\" (use ask|bid)", l_side_str), -2;
         int l_limit = l_limit_str ? atoi(l_limit_str) : INT_MAX, l_cnt = 0;
+        l_limit = s_dex_clamp_user_limit(l_limit_str, l_limit);
         if (l_limit < 0)
             l_limit *= -1;
         if (!l_wallet_str && !l_addr_str)

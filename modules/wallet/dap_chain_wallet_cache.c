@@ -409,7 +409,7 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
 #endif
 
     dap_list_t *l_local_addr_list = dap_chain_wallet_get_local_addr();
-    if (!l_local_addr_list) {
+    if (!l_local_addr_list && s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL) {
         debug_if(s_debug_more, L_DEBUG, "No local wallets found for net %s", a_net->pub.name);
         return 0;
     }
@@ -433,12 +433,17 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
             l_count++;
         }
     }
-    if (l_count && !s_bulk_loading_nets_has(a_net->pub.id.uint64))
+    // ALL mode indexes every address on the net, with or without local wallets.
+    // Without this a node with zero local wallets never started the bulk pass,
+    // so the cache answered "genuinely empty" (ret 0) for funded addresses and
+    // neither the -101 cold path nor is_warm() could ever trigger.
+    if ((l_count || s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL)
+            && !s_bulk_loading_nets_has(a_net->pub.id.uint64))
         s_bulk_loading_nets_add(a_net->pub.id.uint64);
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
     dap_list_free_full(l_local_addr_list, NULL);
 
-    if (!l_count) {
+    if (!l_count && s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL) {
         debug_if(s_debug_more, L_DEBUG, "No wallets needed cache loading for net %s", a_net->pub.name);
         return 0;
     }
