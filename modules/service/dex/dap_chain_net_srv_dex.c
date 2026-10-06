@@ -607,6 +607,7 @@ static DAP_INLINE int s_dex_clamp_user_limit(const char *a_limit_str, int a_limi
         return DEX_CLI_MAX_LIMIT;
     return a_limit;
 }
+
 static uint32_t s_dex_history_max_candles = 5000;
 
 /** @brief Calculate percentage: result = a * b / (100 * 10^precision) */
@@ -3133,6 +3134,8 @@ typedef struct dex_hist_order_idx {
  */
 typedef struct dex_hist_pair {
     dex_pair_key_t key;                // canonical BASE/QUOTE
+    uint64_t events_ver;               // bumped on every history event add/remove (wrlock held);
+                                       // keyed validity for the serialized-reply cache
     dex_hist_bucket_t *buckets;        // uthash ts -> bucket
     dex_hist_trader_idx_t *seller_idx; // uthash by hh_seller -> seller trades
     dex_hist_trader_idx_t *buyer_idx;  // uthash by hh_buyer -> buyer trades
@@ -3412,6 +3415,7 @@ static dex_hist_order_idx_t *s_hist_indexes_append(dex_hist_bucket_t *a_bucket, 
 static void s_hist_indexes_remove(dex_hist_pair_t *a_pair, dex_hist_bucket_t *a_bucket, const dap_hash_fast_t *a_tx_hash,
                                   const dap_hash_fast_t *a_prev_tail)
 {
+    ++a_pair->events_ver;
     if (!a_pair || !a_bucket || !a_tx_hash)
         return;
     dex_event_key_t l_key = {.tx_hash = *a_tx_hash, .prev_tail = a_prev_tail ? *a_prev_tail : (dap_hash_fast_t){}};
@@ -4043,6 +4047,128 @@ static inline int s_hist_cmp_ts_key(uint64_t a_ts_a, const dex_event_key_t *a_ka
 }
 
 typedef bool (*s_hist_trade_visit_fn)(const dex_event_rec_t *a_rec, void *a_arg);
+
+/*
+ * Serialized-reply cache for the heaviest history views (ohlc/volume).
+ * Key: full request descriptor; validity: per-pair events_ver (bumped on every
+ * history event add/remove by the ledger notifier, so a new or rolled-back
+ * trade invalidates every cached window of that pair) + a TTL as a belt to the
+ * braces. Bounded by entries and bytes (LRU by last use). The crawler repeats
+ * identical windows/buckets around the clock, so a hit turns a full
+ * multi-bucket scan + 256-bit aggregation into a single json parse.
+ */
+typedef struct dex_reply_cache_entry {
+    char *key;
+    char *json;             // serialized full reply (owned)
+    uint64_t ver;           // pair events_ver at fill time
+    bool pair_exists;
+    uint64_t ts;            // last use (LRU) / insert time (TTL), nanotime sec
+    size_t json_len;
+    UT_hash_handle hh;
+} dex_reply_cache_entry_t;
+static dex_reply_cache_entry_t *s_dex_reply_cache;
+static pthread_mutex_t s_dex_reply_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+static size_t s_dex_reply_cache_bytes = 0;
+static uint32_t s_dex_reply_cache_max_entries = 256;
+static uint64_t s_dex_reply_cache_max_bytes = 64ull << 20;
+static uint32_t s_dex_reply_cache_ttl_sec = 10;
+
+static bool s_dex_history_pair_version(const dex_pair_key_t *a_key, uint64_t *a_ver)
+{
+    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+    dex_hist_pair_t *l_pair = NULL;
+    HASH_FIND(hh, s_dex_history, a_key, DEX_PAIR_KEY_CMP_SIZE, l_pair);
+    uint64_t l_ver = l_pair ? l_pair->events_ver : 0;
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    if (a_ver)
+        *a_ver = l_ver;
+    return l_pair != NULL;
+}
+
+static dex_reply_cache_entry_t *s_dex_reply_cache_get(const char *a_key)
+{
+    dex_reply_cache_entry_t *l_e = NULL;
+    pthread_mutex_lock(&s_dex_reply_cache_lock);
+    HASH_FIND(hh, s_dex_reply_cache, a_key, strlen(a_key), l_e);
+    if (l_e) {
+        if ((uint64_t)dap_nanotime_now()/1000000000ull - l_e->ts > s_dex_reply_cache_ttl_sec) {
+            // expired: drop it, report a miss
+            HASH_DEL(s_dex_reply_cache, l_e);
+            s_dex_reply_cache_bytes -= l_e->json_len + strlen(l_e->key) + sizeof(*l_e);
+            DAP_DEL_MULTY(l_e->key, l_e->json, l_e);
+            l_e = NULL;
+        } else {
+            l_e->ts = (uint64_t)dap_nanotime_now()/1000000000ull;   // LRU touch
+        }
+    }
+    pthread_mutex_unlock(&s_dex_reply_cache_lock);
+    return l_e; // borrowed pointer, data immutable while it lives
+}
+
+static void s_dex_reply_cache_evict_locked(void)
+{
+    while (HASH_CNT(hh, s_dex_reply_cache) > s_dex_reply_cache_max_entries
+           || s_dex_reply_cache_bytes > s_dex_reply_cache_max_bytes) {
+        dex_reply_cache_entry_t *l_oldest = NULL, *l_it, *l_tmp;
+        HASH_ITER(hh, s_dex_reply_cache, l_it, l_tmp) {
+            if (!l_oldest || l_it->ts < l_oldest->ts)
+                l_oldest = l_it;
+        }
+        if (!l_oldest)
+            break;
+        HASH_DEL(s_dex_reply_cache, l_oldest);
+        s_dex_reply_cache_bytes -= l_oldest->json_len + strlen(l_oldest->key) + sizeof(*l_oldest);
+        DAP_DEL_MULTY(l_oldest->key, l_oldest->json, l_oldest);
+    }
+}
+
+static void s_dex_reply_cache_put(const char *a_key, const char *a_json, uint64_t a_ver, bool a_pair_exists)
+{
+    if (!a_key || !a_json)
+        return;
+    size_t l_json_len = strlen(a_json);
+    if (l_json_len > s_dex_reply_cache_max_bytes / 2)   // a single entry that big is not worth caching
+        return;
+    uint64_t l_now = (uint64_t)dap_nanotime_now()/1000000000ull;
+    pthread_mutex_lock(&s_dex_reply_cache_lock);
+    dex_reply_cache_entry_t *l_e = NULL;
+    HASH_FIND(hh, s_dex_reply_cache, a_key, strlen(a_key), l_e);
+    if (l_e) {  // refresh in place
+        s_dex_reply_cache_bytes -= l_e->json_len;
+        char *l_new = dap_strdup(a_json);
+        if (l_new) {
+            DAP_DELETE(l_e->json);
+            l_e->json = l_new;
+            l_e->json_len = l_json_len;
+            l_e->ver = a_ver;
+            l_e->pair_exists = a_pair_exists;
+            l_e->ts = l_now;
+            s_dex_reply_cache_bytes += l_json_len;
+        }
+        pthread_mutex_unlock(&s_dex_reply_cache_lock);
+        return;
+    }
+    char *l_key_copy = dap_strdup(a_key), *l_json_copy = dap_strdup(a_json);
+    if (l_key_copy && l_json_copy) {
+        l_e = DAP_NEW_Z(dex_reply_cache_entry_t);
+        if (l_e) {
+            l_e->key = l_key_copy;
+            l_e->json = l_json_copy;
+            l_e->json_len = l_json_len;
+            l_e->ver = a_ver;
+            l_e->pair_exists = a_pair_exists;
+            l_e->ts = l_now;
+            HASH_ADD_KEYPTR(hh, s_dex_reply_cache, l_e->key, strlen(l_e->key), l_e);
+            s_dex_reply_cache_bytes += l_json_len + strlen(l_e->key) + sizeof(*l_e);
+            s_dex_reply_cache_evict_locked();
+        } else {
+            DAP_DEL_MULTY(l_key_copy, l_json_copy);
+        }
+    } else {
+        DAP_DEL_MULTY(l_key_copy, l_json_copy);
+    }
+    pthread_mutex_unlock(&s_dex_reply_cache_lock);
+}
 
 static int s_history_foreach_trade_cache(const dex_pair_key_t *a_key, uint64_t a_ts_from, uint64_t a_ts_to,
                                          const dap_chain_addr_t *a_seller_filter, const dap_chain_addr_t *a_buyer_filter,
@@ -6413,6 +6539,11 @@ static bool s_tag_check_dex(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 int dap_chain_net_srv_dex_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config, "srv_dex", "debug_more", false);
+    s_dex_reply_cache_max_entries = (uint32_t)dap_config_get_item_uint64_default(g_config, "srv_dex", "history_cache_max_entries", 256);
+    s_dex_reply_cache_max_bytes = dap_config_get_item_uint64_default(g_config, "srv_dex", "history_cache_max_mbytes", 64) << 20;
+    s_dex_reply_cache_ttl_sec = (uint32_t)dap_config_get_item_uint64_default(g_config, "srv_dex", "history_cache_ttl_sec", 10);
+    if (!s_dex_reply_cache_max_entries || !s_dex_reply_cache_max_bytes)
+        s_dex_reply_cache_max_entries = 0, s_dex_reply_cache_max_bytes = 0; // cache off
     // Register verificator for SRV_DEX
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, s_dex_verificator_callback, NULL, NULL);
     // Register service for tagging (mempool list, tx history)
@@ -6699,6 +6830,7 @@ static void s_dex_history_append(dap_ledger_t *a_ledger, const dex_pair_key_t *a
     dex_hist_pair_t *l_pair = s_hist_pair_get_or_create(a_pair);
     if (!l_pair)
         return log_it_f(L_ERROR, "Can't create historical pair %s / %s index!", a_pair->token_base, a_pair->token_quote);
+    ++l_pair->events_ver;
 
     uint64_t l_ts = s_hist_bucket_ts(a_ts, s_dex_history_bucket_sec);
     dex_hist_bucket_t *l_bucket = NULL;
@@ -10308,8 +10440,41 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             break;
         }
 
-        // Common variables for totals
+        // Serialized-reply cache: only the two heaviest views, only the
+        // history-cache data path (the ledger fallback has no version source).
         bool l_want_ohlc = (l_view == VIEW_OHLC);
+        bool l_reply_cacheable = s_dex_history_enabled && (l_view == VIEW_OHLC || l_view == VIEW_VOLUME) && l_bucket != 0;
+        char l_ckey[512];
+        if (l_reply_cacheable) {
+            snprintf(l_ckey, sizeof(l_ckey), "%s|%s|%u|%llu|%llu|%llu|%u|%u|%s|%s|%s",
+                     l_net->pub.name, l_want_ohlc ? "o" : "v", (unsigned)l_bucket,
+                     (unsigned long long)l_t_from, (unsigned long long)(l_t_to ? l_t_to : 0),
+                     (unsigned long long)(unsigned)l_limit, (unsigned)l_offset,
+                     (unsigned)l_filter_flags, l_fill_missing ? "f" : "-",
+                     l_seller_str ? l_seller_str : "-", l_buyer_str ? l_buyer_str : "-");
+            if (l_order_hash_str) {
+                char l_tail[80];
+                snprintf(l_tail, sizeof(l_tail), "|%s", l_order_hash_str);
+                size_t l_len = strlen(l_ckey);
+                snprintf(l_ckey + l_len, sizeof(l_ckey) - l_len, "%s", l_tail);
+            }
+            dex_reply_cache_entry_t *l_hit = s_dex_reply_cache_get(l_ckey);
+            if (l_hit) {
+                uint64_t l_ver_now = 0;
+                bool l_still_exists = s_dex_history_pair_version(&l_key, &l_ver_now);
+                if (l_still_exists == l_hit->pair_exists && l_ver_now == l_hit->ver) {
+                    json_object *l_cached = json_tokener_parse(l_hit->json);
+                    if (l_cached) {
+                        debug_if_f(s_debug_more, L_DEBUG, "history reply cache hit for %s", l_ckey);
+                        json_object_put(l_json_reply);
+                        *json_arr_reply = l_cached;
+                        return 0;
+                    }
+                }
+            }
+        }
+
+        // Common variables for totals
         uint256_t l_sum_base = uint256_0, l_sum_quote = uint256_0, l_spot_price = uint256_0;
         int q = 0;
 
@@ -10662,6 +10827,14 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         }
         json_object_object_add(l_json_reply, "totals", l_tot);
         s_add_units(l_json_reply, l_ticker_base, l_ticker_quote);
+        if (l_reply_cacheable) {
+            const char *l_serialized = json_object_to_json_string(l_json_reply);
+            if (l_serialized) {
+                uint64_t l_ver = 0;
+                bool l_exists = s_dex_history_pair_version(&l_key, &l_ver);
+                s_dex_reply_cache_put(l_ckey, l_serialized, l_ver, l_exists);
+            }
+        }
     } break; // HISTORY
 
     case CMD_CANCEL_ALL_BY_SELLER: {

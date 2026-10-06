@@ -138,6 +138,118 @@ static size_t s_callback_atom_get_static_hdr_size(void);
 static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_hash_fast_t *a_hash_from);
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
+
+/*
+ * Serialized-reply cache for `block dump`: a finalized block's dump JSON is
+ * immutable (the hash binds the content), yet the explorer proxy re-dumps the
+ * same blocks around the clock and each dump walks every datum and signature
+ * with 256-bit reward math. Keyed by net/chain/hash/-H/flags; entries are
+ * invalidated when the block cache entry is deleted (purge/fork rollback) and
+ * bounded by an entry/byte LRU. Small by design - block dumps are megabyte
+ * scale, so the default caps hold a couple dozen popular blocks.
+ */
+typedef struct s_block_dump_cache_entry {
+    char *key;
+    char *json;
+    size_t json_len;
+    uint64_t ts;
+    UT_hash_handle hh;
+} s_block_dump_cache_entry_t;
+static s_block_dump_cache_entry_t *s_block_dump_cache;
+static pthread_mutex_t s_block_dump_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+static size_t s_block_dump_cache_bytes = 0;
+static uint32_t s_block_dump_cache_max_entries = 32;
+static uint64_t s_block_dump_cache_max_bytes = 64ull << 20;
+static uint32_t s_block_dump_cache_ttl_sec = 300;
+
+static void s_block_dump_cache_drop_entry_locked(s_block_dump_cache_entry_t *a_e)
+{
+    HASH_DEL(s_block_dump_cache, a_e);
+    s_block_dump_cache_bytes -= a_e->json_len + strlen(a_e->key) + sizeof(*a_e);
+    DAP_DEL_MULTY(a_e->key, a_e->json, a_e);
+}
+
+// Called with the block-cache write lock held on purge/fork rollback: the
+// dumped content of a removed block must not be served anymore.
+static void s_block_dump_cache_invalidate_hash(const dap_chain_hash_fast_t *a_hash)
+{
+    char l_h[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(a_hash, l_h, sizeof(l_h));
+    pthread_mutex_lock(&s_block_dump_cache_lock);
+    s_block_dump_cache_entry_t *l_e = NULL, *l_it, *l_tmp;
+    HASH_ITER(hh, s_block_dump_cache, l_e, l_tmp) {
+        // key ends with the hash (see the lookup key builder)
+        if (strstr(l_e->key, l_h))
+            s_block_dump_cache_drop_entry_locked(l_e);
+    }
+    pthread_mutex_unlock(&s_block_dump_cache_lock);
+}
+
+static s_block_dump_cache_entry_t *s_block_dump_cache_get(const char *a_key)
+{
+    s_block_dump_cache_entry_t *l_e = NULL;
+    pthread_mutex_lock(&s_block_dump_cache_lock);
+    HASH_FIND(hh, s_block_dump_cache, a_key, strlen(a_key), l_e);
+    if (l_e) {
+        uint64_t l_now = (uint64_t)dap_nanotime_now()/1000000000ull;
+        if (l_now - l_e->ts > s_block_dump_cache_ttl_sec) {
+            s_block_dump_cache_drop_entry_locked(l_e);
+            l_e = NULL;
+        } else {
+            l_e->ts = l_now;
+        }
+    }
+    pthread_mutex_unlock(&s_block_dump_cache_lock);
+    return l_e;
+}
+
+static void s_block_dump_cache_put(const char *a_key, const char *a_json)
+{
+    if (!a_key || !a_json)
+        return;
+    size_t l_len = strlen(a_json);
+    if (l_len > s_block_dump_cache_max_bytes / 2)
+        return;
+    pthread_mutex_lock(&s_block_dump_cache_lock);
+    s_block_dump_cache_entry_t *l_e = NULL;
+    HASH_FIND(hh, s_block_dump_cache, a_key, strlen(a_key), l_e);
+    if (l_e) {
+        char *l_new = dap_strdup(a_json);
+        if (l_new) {
+            s_block_dump_cache_bytes -= l_e->json_len;
+            DAP_DELETE(l_e->json);
+            l_e->json = l_new;
+            l_e->json_len = l_len;
+            l_e->ts = (uint64_t)dap_nanotime_now()/1000000000ull;
+            s_block_dump_cache_bytes += l_len;
+        }
+        pthread_mutex_unlock(&s_block_dump_cache_lock);
+        return;
+    }
+    char *l_key_copy = dap_strdup(a_key), *l_json_copy = dap_strdup(a_json);
+    if (l_key_copy && l_json_copy && (l_e = DAP_NEW_Z(s_block_dump_cache_entry_t))) {
+        l_e->key = l_key_copy;
+        l_e->json = l_json_copy;
+        l_e->json_len = l_len;
+        l_e->ts = (uint64_t)dap_nanotime_now()/1000000000ull;
+        HASH_ADD_KEYPTR(hh, s_block_dump_cache, l_e->key, strlen(l_e->key), l_e);
+        s_block_dump_cache_bytes += l_len + strlen(l_e->key) + sizeof(*l_e);
+        while (HASH_CNT(hh, s_block_dump_cache) > s_block_dump_cache_max_entries
+               || s_block_dump_cache_bytes > s_block_dump_cache_max_bytes) {
+            s_block_dump_cache_entry_t *l_oldest = NULL, *l_it, *l_tmp;
+            HASH_ITER(hh, s_block_dump_cache, l_it, l_tmp)
+                if (!l_oldest || l_it->ts < l_oldest->ts)
+                    l_oldest = l_it;
+            if (!l_oldest)
+                break;
+            s_block_dump_cache_drop_entry_locked(l_oldest);
+        }
+    } else {
+        DAP_DEL_MULTY(l_key_copy, l_json_copy);
+    }
+    pthread_mutex_unlock(&s_block_dump_cache_lock);
+}
+
 static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version);
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
@@ -828,7 +940,24 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
-            }           
+            }
+            // Serialized-reply cache: keyed by the raw request; validity is the
+            // block-hash identity (a dump of block H never changes unless H is
+            // purged, which drops the entry in s_callback_purge).
+            char l_dump_ckey[256];
+            snprintf(l_dump_ckey, sizeof(l_dump_ckey), "%s|%s|%s|%s|%s|%d",
+                     l_chain->net_name, l_chain->name,
+                     l_hash_str ? l_hash_str : "-", l_num_str ? l_num_str : "-",
+                     l_hash_out_type, l_brief ? 1 : 0);
+            s_block_dump_cache_entry_t *l_dump_hit = s_block_dump_cache_get(l_dump_ckey);
+            if (l_dump_hit) {
+                json_object *l_cached = json_tokener_parse(l_dump_hit->json);
+                if (l_cached) {
+                    json_object_put(*a_json_arr_reply);
+                    *a_json_arr_reply = l_cached;
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_OK;
+                }
+            }
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-num", &l_num_str);
             if (!l_hash_str && !l_num_str) {
@@ -998,6 +1127,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 json_object_array_add(*a_json_arr_reply, json_arr_sign_out);
             else
                 json_object_object_add(json_obj_inf, "signs", json_arr_sign_out);
+            {
+                const char *l_serialized = json_object_to_json_string(*a_json_arr_reply);
+                if (l_serialized)
+                    s_block_dump_cache_put(l_dump_ckey, l_serialized);
+            }
         } break;
 
         case SUBCMD_LIST:{
@@ -1674,6 +1808,14 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         dap_chain_block_forked_branch_atoms_table_t *l_atom_tmp, *l_atom;
         HASH_ITER(hh, PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom, l_atom_tmp) {
             HASH_DEL(PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom);
+<<<<<<< HEAD
+=======
+            if (l_atom->block_cache)
+                s_block_dump_cache_invalidate_hash(&l_atom->block_cache->block_hash);
+            if (l_atom->block_cache)
+                dap_chain_block_cache_delete(l_atom->block_cache);
+            DAP_DELETE(l_atom);
+>>>>>>> 9d756df3b (RPC reply caches: DEX ohlc/volume result cache, block dump cache)
             l_atom = NULL;
         }
         DAP_DEL_Z(PVT(l_blocks)->forked_branches[i]);
@@ -1685,6 +1827,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
+        s_block_dump_cache_invalidate_hash(&l_block->block_hash);
         if (!a_chain->is_mapped)
             DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
