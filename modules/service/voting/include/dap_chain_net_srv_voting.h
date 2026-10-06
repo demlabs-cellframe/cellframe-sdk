@@ -66,6 +66,7 @@ typedef struct dap_chain_net_vote_info{
 
 int dap_chain_net_srv_voting_init();
 void dap_chain_net_srv_voting_deinit();
+void dap_chain_net_srv_voting_purge_net(dap_chain_net_id_t a_net_id);
 
 uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash);
 

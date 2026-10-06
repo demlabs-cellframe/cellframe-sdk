@@ -1136,12 +1136,22 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
  * @return true
  * @return false
  */
+static void s_token_datum_reg_purge_chain(dap_chain_t *a_chain);
+
 void dap_chain_net_purge(dap_chain_net_t *l_net)
 {
     dap_chain_net_srv_stake_purge(l_net);
     dap_chain_net_decree_deinit(l_net);
     dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_wallet_cache_invalidate_net(l_net->pub.id);
+    // dap_ledger_purge fires no tx notifiers: poll state and the token datum
+    // registry would survive the wipe and desync (duplicate polls, stale tokens)
+    dap_chain_net_srv_voting_purge_net(l_net->pub.id);
+    {   // per-chain registry purge (same hook dap_chain_net_delete already has)
+        dap_chain_t *l_c = NULL;
+        DL_FOREACH(l_net->pub.chains, l_c)
+            s_token_datum_reg_purge_chain(l_c);
+    }
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge) {
