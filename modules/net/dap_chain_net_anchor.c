@@ -86,8 +86,16 @@ static int s_anchor_verify(dap_chain_net_t *a_net, dap_chain_datum_anchor_t *a_a
         ? DAP_DUP_SIZE(a_anchor, a_data_size)
         : a_anchor;
     l_anchor->header.signs_size = 0;
+    dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(a_net);
+    if (!l_net_decree || !l_net_decree->pkeys) {
+        DAP_DELETE(l_unique_signs);
+        if (a_net->pub.chains->is_mapped)
+            DAP_DELETE(l_anchor);
+        else
+            l_anchor->header.signs_size = l_signs_size_original;
+        return log_it(L_WARNING, "Anchor can't be verified: network %s has no decree", a_net->pub.name), -106;
+    }
     for (size_t i = 0; i < l_num_of_unique_signs; i++) {
-        dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(a_net);
         for (dap_list_t *it = l_net_decree->pkeys; it; it = it->next) {
             if (dap_pkey_compare_with_sign(it->data, l_unique_signs[i])) {
                 // TODO make signs verification in s_concate_all_signs_in_array to correctly header.signs_size calculation
