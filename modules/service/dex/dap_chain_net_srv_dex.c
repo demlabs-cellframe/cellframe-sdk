@@ -4100,10 +4100,14 @@ static bool s_dex_history_pair_version(const dex_pair_key_t *a_key, uint64_t *a_
     return l_pair != NULL;
 }
 
-static dex_reply_cache_entry_t *s_dex_reply_cache_get(const char *a_key)
+// Returns an OWNED copy of the cached JSON plus the validity scalars (caller
+// frees the string with DAP_DELETE): the old borrowed pointer was a
+// use-after-free — a concurrent put/evict could free the entry mid-parse
+static char *s_dex_reply_cache_get(const char *a_key, uint64_t *a_ver, bool *a_pair_exists)
 {
-    dex_reply_cache_entry_t *l_e = NULL;
+    char *l_json = NULL;
     pthread_mutex_lock(&s_dex_reply_cache_lock);
+    dex_reply_cache_entry_t *l_e = NULL;
     HASH_FIND(hh, s_dex_reply_cache, a_key, strlen(a_key), l_e);
     if (l_e) {
         if ((uint64_t)dap_nanotime_now()/1000000000ull - l_e->ts > s_dex_reply_cache_ttl_sec) {
@@ -4111,13 +4115,17 @@ static dex_reply_cache_entry_t *s_dex_reply_cache_get(const char *a_key)
             HASH_DEL(s_dex_reply_cache, l_e);
             s_dex_reply_cache_bytes -= l_e->json_len + strlen(l_e->key) + sizeof(*l_e);
             DAP_DEL_MULTY(l_e->key, l_e->json, l_e);
-            l_e = NULL;
         } else {
             l_e->ts = (uint64_t)dap_nanotime_now()/1000000000ull;   // LRU touch
+            if (a_ver)
+                *a_ver = l_e->ver;
+            if (a_pair_exists)
+                *a_pair_exists = l_e->pair_exists;
+            l_json = dap_strdup(l_e->json);
         }
     }
     pthread_mutex_unlock(&s_dex_reply_cache_lock);
-    return l_e; // borrowed pointer, data immutable while it lives
+    return l_json;
 }
 
 static void s_dex_reply_cache_evict_locked(void)
@@ -10650,18 +10658,20 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 size_t l_len = strlen(l_ckey);
                 snprintf(l_ckey + l_len, sizeof(l_ckey) - l_len, "%s", l_tail);
             }
-            dex_reply_cache_entry_t *l_hit = s_dex_reply_cache_get(l_ckey);
+            uint64_t l_hit_ver = 0;
+            bool l_hit_pair_exists = false;
+            char *l_hit = s_dex_reply_cache_get(l_ckey, &l_hit_ver, &l_hit_pair_exists);
             if (l_hit) {
                 uint64_t l_ver_now = 0;
                 bool l_still_exists = s_dex_history_pair_version(&l_key, &l_ver_now);
-                if (l_still_exists == l_hit->pair_exists && l_ver_now == l_hit->ver) {
-                    json_object *l_cached = json_tokener_parse(l_hit->json);
-                    if (l_cached) {
-                        debug_if_f(s_debug_more, L_DEBUG, "history reply cache hit for %s", l_ckey);
-                        json_object_put(l_json_reply);
-                        *json_arr_reply = l_cached;
-                        return 0;
-                    }
+                bool l_valid = l_still_exists == l_hit_pair_exists && l_ver_now == l_hit_ver;
+                json_object *l_cached = l_valid ? json_tokener_parse(l_hit) : NULL;
+                DAP_DELETE(l_hit);
+                if (l_cached) {
+                    debug_if_f(s_debug_more, L_DEBUG, "history reply cache hit for %s", l_ckey);
+                    json_object_put(l_json_reply);
+                    *json_arr_reply = l_cached;
+                    return 0;
                 }
             }
         }
