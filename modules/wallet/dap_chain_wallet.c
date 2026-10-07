@@ -54,6 +54,8 @@
 
 #include "dap_common.h"
 #include "dap_cert_file.h"
+#include "KeccakHash.h"
+#include "rand/dap_rand.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_wallet_shared.h"
@@ -78,7 +80,9 @@ typedef struct dap_chain_wallet_notificator {
 } dap_chain_wallet_notificator_t;
 
 #ifndef DAP_OS_WINDOWS                                    /* An argument for open()/create() */
-static const mode_t s_fileprot =  ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6) ;
+// Wallet files carry private keys: owner-only (the old 0644 leaked keys to
+// every local user)
+static const mode_t s_fileprot = ( S_IREAD | S_IWRITE );
 #endif
 static char const s_wallet_ext [] = ".dwallet", *s_wallets_path = NULL;
 
@@ -623,6 +627,31 @@ dap_enc_key_t *dap_chain_wallet_get_key(dap_chain_wallet_t *a_wallet, uint32_t a
  *      <errno>
  */
 
+/* v3 KDF: a salted, iterated Keccak chain stretches the password. The v2 KDF
+ * was a single unsalted Keccak over the password (fast GPU brute force) and
+ * an empty password produced a public constant key. A memory-hard KDF
+ * (Argon2id) is planned together with the AEAD wallet rework. */
+#define DAP_WALLET_KDF_V3_SALT_SIZE 16
+#define DAP_WALLET_KDF_V3_ITERATIONS 200000
+static void s_wallet_kdf_v3(const char *a_pass, const byte_t *a_salt, size_t a_salt_size, byte_t *a_out, size_t a_out_size)
+{
+    Keccak_HashInstance l_ki;
+    byte_t l_state[64];
+    Keccak_HashInitialize(&l_ki, 1088, 512, 512, 0x06);
+    Keccak_HashUpdate(&l_ki, (const BitSequence *)a_pass, strlen(a_pass) * 8);
+    Keccak_HashUpdate(&l_ki, (const BitSequence *)a_salt, a_salt_size * 8);
+    Keccak_HashFinal(&l_ki, l_state);
+    for (uint32_t i = 0; i < DAP_WALLET_KDF_V3_ITERATIONS; i++) {
+        Keccak_HashInitialize(&l_ki, 1088, 512, 512, 0x06);
+        Keccak_HashUpdate(&l_ki, l_state, 512);
+        Keccak_HashUpdate(&l_ki, (const BitSequence *)&i, sizeof(i) * 8);
+        Keccak_HashFinal(&l_ki, l_state);
+    }
+    memcpy(a_out, l_state, a_out_size);
+}
+
+static uint8_t s_wallet_salt[DAP_WALLET_KDF_V3_SALT_SIZE];
+
 int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass)
 {
 DAP_CHAIN_WALLET_INTERNAL_LOCAL (a_wallet);                                 /* Declare l_wallet_internal */
@@ -643,9 +672,17 @@ enum {
 if ( !a_wallet )
     return  log_it(L_ERROR, "Wallet is null, can't save it to file!"), -EINVAL;
 
-if ( a_pass )
-    if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, a_pass, strlen(a_pass), 0)) )
+
+if ( a_pass ) {
+    if ( !strlen(a_pass) ) // empty password used to yield a public constant key
+        return log_it(L_ERROR, "Empty wallet password is not allowed"), -EINVAL;
+    byte_t l_seed[32];
+    if (randombytes(s_wallet_salt, sizeof(s_wallet_salt)) != 0)
+        return log_it(L_ERROR, "Can't generate wallet salt"), -EINVAL;
+    s_wallet_kdf_v3(a_pass, s_wallet_salt, sizeof(s_wallet_salt), l_seed, sizeof(l_seed));
+    if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, l_seed, sizeof(l_seed), 0)) )
         return  log_it(L_ERROR, "Error create key context"), -EINVAL;
+}
 
 #ifdef DAP_OS_WINDOWS
     l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, FILE_SHARE_READ /* | FILE_SHARE_WRITE */, NULL, CREATE_ALWAYS,
@@ -666,7 +703,7 @@ if ( a_pass )
 
     dap_chain_wallet_file_hdr_t l_file_hdr = {
         .signature  = DAP_CHAIN_WALLETS_FILE_SIGNATURE,
-        .version    = a_pass ? DAP_WALLET$K_VER_2 : DAP_WALLET$K_VER_1,
+        .version    = a_pass ? DAP_WALLET$K_VER_3 : DAP_WALLET$K_VER_1,
         .type       = a_pass ? DAP_WALLET$K_TYPE_GOST89 : DAP_WALLET$K_TYPE_PLAIN,
         .wallet_name_len = strnlen(l_cp, DAP_WALLET$SZ_NAME)
     };
@@ -686,6 +723,20 @@ if ( a_pass )
     l_csum = crc32c(l_csum, l_iov[WALLET$K_IOV_HEADER].iov_base, l_iov[WALLET$K_IOV_HEADER].iov_len);
                                                                         /* CRC for file body part */
     l_csum = crc32c(l_csum, l_iov[WALLET$K_IOV_BODY].iov_base, l_iov[WALLET$K_IOV_BODY].iov_len);
+
+    if ( a_pass ) { // v3: salt follows the name, before the first cert record
+#ifdef DAP_OS_WINDOWS
+        if (!WriteFile(l_fh, s_wallet_salt, sizeof(s_wallet_salt), (DWORD*)&l_rc, 0) || l_rc != sizeof(s_wallet_salt)) {
+            l_err = GetLastError();
+#else
+        if (sizeof(s_wallet_salt) != (size_t)(l_rc = write(l_fh, s_wallet_salt, sizeof(s_wallet_salt)))) {
+            l_err = errno;
+#endif
+            return log_it(L_ERROR, "Error writing wallet salt to '%s', err %"DAP_FORMAT_ERRNUM,
+                          l_wallet_internal->file_name, l_err), -l_err;
+        }
+        l_csum = crc32c(l_csum, s_wallet_salt, sizeof(s_wallet_salt));
+    }
 
     /* Write certs */
     for ( size_t i = 0; i < l_wallet_internal->certs_count ; i++)
@@ -731,7 +782,7 @@ if ( a_pass )
         }
     }
 
-    if ( l_file_hdr.version == DAP_WALLET$K_VER_2 )
+    if ( l_file_hdr.version >= DAP_WALLET$K_VER_2 )
     {
         dap_chain_wallet_cert_hdr_t l_wallet_cert_hdr = { .type = DAP_WALLET$K_MAGIC, .cert_raw_size = sizeof(l_csum) };
         l_len = 0;                                                          /* Total octets to be writtent to disk */
@@ -825,8 +876,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         return NULL;
     }
 
-    if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (!l_pass) ) {
-        debug_if(s_debug_more, L_DEBUG, "Wallet (%s) version 2 cannot be processed w/o password", a_file_name);
+    if ( (l_file_hdr.version >= DAP_WALLET$K_VER_2) && (!l_pass) ) {
+        debug_if(s_debug_more, L_DEBUG, "Wallet (%s) version %u cannot be processed w/o password", a_file_name, l_file_hdr.version);
         dap_fileclose(l_fh);
         if ( a_out_stat )
             *a_out_stat = 4;
@@ -857,6 +908,21 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_csum = crc32c(l_csum, &l_file_hdr, sizeof(l_file_hdr) );           /* Compute check sum of the Wallet file header */
     l_csum = crc32c(l_csum, l_wallet_name,  l_file_hdr.wallet_name_len);
 
+    uint8_t l_wallet_salt[DAP_WALLET_KDF_V3_SALT_SIZE] = {0};
+    if ( l_file_hdr.version >= DAP_WALLET$K_VER_3 ) {                     /* v3: salt follows the name */
+#ifdef DAP_OS_WINDOWS
+        if (!ReadFile(l_fh, l_wallet_salt, sizeof(l_wallet_salt), (DWORD*)&l_rc, 0) || l_rc != sizeof(l_wallet_salt)) {
+            l_err = GetLastError();
+#else
+        if (sizeof(l_wallet_salt) != (size_t)(l_rc = read(l_fh, l_wallet_salt, sizeof(l_wallet_salt)))) {
+            l_err = errno;
+#endif
+            return log_it(L_ERROR, "Error reading wallet salt, err %"DAP_FORMAT_ERRNUM, l_err),
+                   dap_fileclose(l_fh), NULL;
+        }
+        l_csum = crc32c(l_csum, l_wallet_salt, sizeof(l_wallet_salt));
+    }
+
     debug_if(s_debug_more, L_DEBUG, "Wallet file: %s, Wallet[Version: %d, type: %d, name: '%.*s']",
            a_file_name, l_file_hdr.version, l_file_hdr.type, l_file_hdr.wallet_name_len, l_wallet_name);
 
@@ -864,7 +930,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
 #ifdef DAP_OS_WINDOWS
     for ( l_certs_count = 0; ReadFile(l_fh, &l_cert_hdr, sizeof(l_cert_hdr), &l_rc, NULL) && l_rc; ++l_certs_count) {
-        if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (l_cert_hdr.type == DAP_WALLET$K_MAGIC) )
+        if ( (l_file_hdr.version >= DAP_WALLET$K_VER_2) && (l_cert_hdr.type == DAP_WALLET$K_MAGIC) )
             break;
         if (!ReadFile(l_fh, l_buf, l_cert_hdr.cert_raw_size, &l_rc, NULL) || l_rc != l_cert_hdr.cert_raw_size) {
             l_err = GetLastError();
@@ -873,7 +939,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     }
 #else
     for ( l_certs_count = 0; sizeof(l_cert_hdr) == (l_rc = read (l_fh, &l_cert_hdr, sizeof(l_cert_hdr))); l_certs_count++ ) {
-        if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (l_cert_hdr.type == DAP_WALLET$K_MAGIC) )
+        if ( (l_file_hdr.version >= DAP_WALLET$K_VER_2) && (l_cert_hdr.type == DAP_WALLET$K_MAGIC) )
             break;
         if ( (int)l_cert_hdr.cert_raw_size != (l_rc = read(l_fh, l_buf, l_cert_hdr.cert_raw_size)) ) {
             l_err = errno;
@@ -897,14 +963,22 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     }
 
 
-    if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && l_pass )             /* Generate encryptor context  */
-        if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, l_pass, strlen(l_pass), 0)) ) {
+    if ( (l_file_hdr.version >= DAP_WALLET$K_VER_2) && l_pass ) {           /* Generate encryptor context  */
+        bool l_key_ok;
+        if ( l_file_hdr.version >= DAP_WALLET$K_VER_3 ) {
+            byte_t l_seed[32];
+            s_wallet_kdf_v3(l_pass, l_wallet_salt, sizeof(l_wallet_salt), l_seed, sizeof(l_seed));
+            l_key_ok = (l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, l_seed, sizeof(l_seed), 0)) != NULL;
+        } else
+            l_key_ok = (l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, l_pass, strlen(l_pass), 0)) != NULL;
+        if ( !l_key_ok ) {
             log_it(L_ERROR, "Error create key context");
             dap_fileclose(l_fh);
             if ( a_out_stat )
                 *a_out_stat = 8;
             return NULL;
         }
+    }
 
 
     /* Create local instance of wallet,
@@ -981,7 +1055,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
             break;
         }
 
-        if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (l_cert_hdr.type == DAP_WALLET$K_MAGIC) ) {
+        if ( (l_file_hdr.version >= DAP_WALLET$K_VER_2) && (l_cert_hdr.type == DAP_WALLET$K_MAGIC) ) {
             l_csum2 = *((uint32_t *) &l_buf);                               /* CRC32 must be terminal element in the wallet file */
             break;
         }
