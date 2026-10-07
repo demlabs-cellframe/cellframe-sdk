@@ -2796,6 +2796,14 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
+    if (a_rc) {
+        log_it(L_WARNING, "Ledger cache: txs group read failed (rc %d), continuing without cached txs", a_rc);
+        // Skip straight to the balances stage so the loader gets completed.
+        char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_BALANCES_STR);
+        dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_balances_callback, l_ledger);
+        DAP_DELETE(l_gdb_group);
+        return false;
+    }
     for (size_t i = 0; i < a_values_count; i++) {
         dap_ledger_cache_gdb_record_t *l_current_record = (dap_ledger_cache_gdb_record_t*)a_values[i].value;
         if (a_values[i].value_len != l_current_record->cache_size + l_current_record->datum_size + sizeof(dap_ledger_cache_gdb_record_t)) {
@@ -2923,6 +2931,8 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_instance_t 
  * @param a_values
  * @param a_arg
  */
+static void s_load_cache_finish(dap_ledger_t *a_ledger);
+
 static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_dbi,
                                                     int a_rc, const char *a_group,
                                                     const size_t a_values_total, const size_t a_values_count,
@@ -2930,13 +2940,10 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
 {
     dap_ledger_t *l_ledger = (dap_ledger_t *) a_arg;
     dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
-    if(a_rc) {
-        log_it(L_NOTICE, "No ledger cache found");
-        pthread_mutex_lock(&l_ledger_pvt->load_mutex);
-        l_ledger_pvt->load_end = true;
-        pthread_cond_broadcast(& l_ledger_pvt->load_cond );
-        pthread_mutex_unlock(&l_ledger_pvt->load_mutex);
-
+    if (a_rc) {
+        log_it(L_NOTICE, "No ledger cache found (rc %d)", a_rc);
+        s_load_cache_finish(l_ledger);
+        return false;
     }
     for (size_t i = 0; i < a_values_count; i++) {
         if (a_values[i].value_len <= sizeof(uint256_t))
@@ -2963,6 +2970,18 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
  * @brief Load ledger from cache (stored in GDB)
  * @param a_ledger
  */
+// Completes the cached-ledger load: wakes dap_ledger_load_cache() no matter
+// whether the callback chain reached the last stage or broke earlier (a
+// failed get_all for any group used to leave the loader waiting forever).
+static void s_load_cache_finish(dap_ledger_t *a_ledger)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_mutex_lock(&l_ledger_pvt->load_mutex);
+    l_ledger_pvt->load_end = true;
+    pthread_cond_broadcast(&l_ledger_pvt->load_cond);
+    pthread_mutex_unlock(&l_ledger_pvt->load_mutex);
+}
+
 void dap_ledger_load_cache(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
