@@ -1154,6 +1154,11 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
         DL_FOREACH(l_net->pub.chains, l_c)
             s_token_datum_reg_purge_chain(l_c);
     }
+    // The chains loaded below carry anchor datums, and an anchor is verified against the signer
+    // keys of the network decree - so the decree has to exist again before the reload, not after
+    // it: creating it only at the end of this function made the first anchor datum dereference a
+    // NULL decree and kill the node (reproduced with `net -net <net> ledger reload`).
+    dap_chain_net_decree_init(l_net);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge) {
@@ -1172,7 +1177,6 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
                 debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
     }
-    dap_chain_net_decree_init(l_net);
 }
 
 /**
@@ -1230,6 +1234,45 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
  * @param str_reply
  * @return
  */
+// Owns the reload request until the timer fires: the network may be gone by then, so the
+// callback looks it up by id instead of keeping a pointer.
+static void s_chain_net_reload_timer(void *a_arg)
+{
+    dap_return_if_fail(a_arg);
+    dap_chain_net_id_t l_net_id = *(dap_chain_net_id_t *)a_arg;
+    DAP_DELETE(a_arg);
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_net_id);
+    if (!l_net) {
+        log_it(L_WARNING, "Network to reload is no longer there");
+        return;
+    }
+    int l_state = dap_chain_net_stop(l_net);
+    dap_usleep(1000 * 1000);        // let the network go offline before the ledger is purged
+    dap_chain_net_purge(l_net);
+    if (l_state)
+        dap_chain_net_start(l_net);
+}
+
+/**
+ * @brief Reloads a network (stop, purge the ledger, start) on a timer instead of in place.
+ *
+ * The reload tears the network - and the answer to the command that asked for it - down, so a
+ * CLI handler answers first and the reload follows a second later.
+ */
+bool dap_chain_net_reload_async(dap_chain_net_t *a_net)
+{
+    dap_return_val_if_fail(a_net, false);
+    dap_chain_net_id_t *l_net_id = DAP_NEW_Z(dap_chain_net_id_t);
+    dap_return_val_if_fail(l_net_id, false);
+    *l_net_id = a_net->pub.id;
+    if (dap_proc_thread_timer_add_pri(NULL, s_chain_net_reload_timer, l_net_id, 1000, true,
+                                      DAP_QUEUE_MSG_PRIORITY_NORMAL)) {
+        DAP_DELETE(l_net_id);
+        return false;
+    }
+    return true;
+}
+
 static int s_cli_net(int argc, char **argv, void **reply, int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) reply;
@@ -1901,11 +1944,13 @@ static int s_cli_net(int argc, char **argv, void **reply, int a_version)
                 return DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
-            int l_return_state = dap_chain_net_stop(l_net);
-            sleep(1);   // wait to net going offline
-            dap_chain_net_purge(l_net);
-            if (l_return_state)
-                dap_chain_net_start(l_net);
+            // Answered first, reloaded a second later: the restart would drop the answer.
+            if (!dap_chain_net_reload_async(l_net)) {
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS,
+                                       "Can't schedule the reload of network %s", l_net->pub.name);
+                return DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS;
+            }
         } else if (l_list_str && !strcmp(l_list_str, "list")) {
             if (!l_net->pub.keys) {
                 json_object_put(l_jobj_return);
