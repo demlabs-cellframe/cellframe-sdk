@@ -1156,15 +1156,13 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         // chains right away. The reload is the slow part - -no-reload skips it and leaves the
         // cache to be rebuilt by the next chain load.
         bool l_no_reload = dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-no-reload", NULL);
-        if (!l_no_reload) {
-            int l_state = dap_chain_net_stop(l_net);
-            dap_usleep(1000 * 1000);    // let the network go offline before the ledger is purged
-            dap_chain_net_purge(l_net);
-            if (l_state)
-                dap_chain_net_start(l_net);
-        }
+        bool l_reload_scheduled = false;
+        if (!l_no_reload)
+            l_reload_scheduled = dap_chain_net_reload_async(l_net);
         json_object *l_jobj_ret = json_object_new_string(l_no_reload
-                ? "Ledger cache cleared" : "Ledger cache cleared, network reload started");
+                ? "Ledger cache cleared"
+                : l_reload_scheduled ? "Ledger cache cleared, network reload started"
+                                     : "Ledger cache cleared, but the network reload could not be scheduled");
         if (!l_jobj_ret) {
             dap_json_rpc_allocation_error(*a_json_arr_reply);
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
