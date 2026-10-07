@@ -2999,7 +2999,13 @@ void dap_ledger_load_cache(dap_ledger_t *a_ledger)
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
 
     pthread_mutex_lock(& l_ledger_pvt->load_mutex);
-    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_tokens_callback, a_ledger);
+    // The loader waits for the callback chain to reach its last stage, so the very first
+    // request must either be queued or end the load here - never leave that wait dangling.
+    if (dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_tokens_callback, a_ledger) != 0) {
+        log_it(L_ERROR, "Ledger cache: can't start reading group %s, loading without cache",
+               l_gdb_group ? l_gdb_group : "(no group name)");
+        l_ledger_pvt->load_end = true;
+    }
     while (!l_ledger_pvt->load_end)
         pthread_cond_wait(& l_ledger_pvt->load_cond, &l_ledger_pvt->load_mutex);
     pthread_mutex_unlock(& l_ledger_pvt->load_mutex);
