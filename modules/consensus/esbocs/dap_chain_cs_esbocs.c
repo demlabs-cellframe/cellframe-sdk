@@ -722,6 +722,9 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->new_round_delay          = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "new_round_delay", 10);
     l_esbocs_pvt->round_attempts_max       = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout    = dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "round_attempt_timeout", 10);
+    atomic_store(&l_esbocs_pvt->empty_block_every_times,
+                 dap_config_get_item_uint16_default(a_chain_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "empty_block_every_times",
+                                                    DAP_CHAIN_ESBOCS_EMPTY_BLOCK_PERIOD_DEFAULT));
     l_esbocs_pvt->start_validators_min     = l_esbocs_pvt->min_validators_count = l_validators_count;
 
     dap_chain_net_srv_stake_net_add(a_chain->net_id);
@@ -1083,8 +1086,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_addr_t l_my_signing_addr;
     dap_chain_addr_fill_from_key(&l_my_signing_addr, l_esbocs_pvt->blocks_sign_key, a_chain->net_id);
     if (!l_esbocs_pvt->poa_mode) {
-        if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
-            log_it(L_WARNING, "Signing key is not delegated by stake service. Switch off validator mode");
+        if (dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr) != 1) {
+            log_it(L_WARNING, "Signing key is not delegated or its stake is not active. Switch off validator mode");
             dap_list_free_full(l_validators, NULL);
             return -6;
         }
@@ -1304,16 +1307,16 @@ typedef struct s_esbocs_setter_call {
     dap_chain_esbocs_session_t *session;
     dap_chain_t *chain;
     s_esbocs_setter_op_t op;
-    union {
-        uint16_t min_validators_count;
-        bool signs_check_enable;
-        struct {
-            bool add;
-            uint32_t sign_type;
-            dap_hash_fast_t validator_hash;
-        } emergency_validator;
-        uint16_t empty_block_period;
-    };
+    // Plain fields instead of a union: the apply handler reads them through a pointer,
+    // which trips a maybe-uninitialized false positive in newer GCC builds
+    uint16_t min_validators_count;
+    bool signs_check_enable;
+    struct {
+        bool add;
+        uint32_t sign_type;
+        dap_hash_fast_t validator_hash;
+    } emergency_validator;
+    uint16_t empty_block_period;
 } s_esbocs_setter_call_t;
 
 static int s_esbocs_set_min_validators_count_apply(dap_chain_t *a_chain, uint16_t a_new_value)
@@ -2676,7 +2679,16 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     dap_chain_node_mempool_process_all(l_chain, false);
     dap_chain_block_t *l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
     PVT(a_session->esbocs)->empty_round_count += l_candidate && l_candidate_size ? 0 : 1;
-    bool l_empty_block_generation = PVT(a_session->esbocs)->empty_block_every_times && PVT(a_session->esbocs)->empty_round_count >= PVT(a_session->esbocs)->empty_block_every_times;
+    // Liveness fallback: an idle chain must keep emitting empty blocks even when the current
+    // submitter's personal counter has not reached the configured period yet. Without it a run
+    // of dead-validator committee draws leaves the chain without blocks and accumulates a huge
+    // time gap concentrated in the next recovery block
+    dap_time_t l_idle_time = a_session->esbocs->last_accepted_block_timestamp
+            ? dap_time_now() - a_session->esbocs->last_accepted_block_timestamp : 0;
+    uint16_t l_empty_period = atomic_load_explicit(&PVT(a_session->esbocs)->empty_block_every_times, memory_order_relaxed);
+    bool l_empty_block_generation = l_empty_period
+            && (PVT(a_session->esbocs)->empty_round_count >= l_empty_period
+                || l_idle_time >= (dap_time_t)l_empty_period * (PVT(a_session->esbocs)->new_round_delay + PVT(a_session->esbocs)->round_attempt_timeout));
     if (!l_candidate && l_empty_block_generation) {
         if (PVT(a_session->esbocs)->debug)
             log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
@@ -2692,7 +2704,11 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     if (l_candidate && l_candidate_size) {
         if (PVT(a_session->esbocs)->emergency_mode)
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EMERGENCY, NULL, 0);
-        if (PVT(a_session->esbocs)->check_signs_structure && l_candidate_size) {
+        // Sync/round attempts and excluded keys are added unconditionally, so every node can
+        // recompute the committee from the block itself and verify its signers. In emergency
+        // mode the excluded list is not maintained and signers are checked against the
+        // emergency validators list instead
+        if (!PVT(a_session->esbocs)->emergency_mode && l_candidate_size && a_session->cur_round.excluded_list) {
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT,
                                                         &a_session->cur_round.sync_attempt, sizeof(uint64_t));
             if (l_candidate_size)
@@ -3433,8 +3449,8 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
         // Add local sync messages, cause a round clear
         if (!a_sender_node_addr)
             s_message_chain_add(l_session, l_message, a_data_size, &l_data_hash, &l_signing_addr);
-        // Accept all validators
-        l_not_in_list = !dap_chain_net_srv_stake_key_delegated(&l_signing_addr);
+        // Accept only validators with an active delegated stake
+        l_not_in_list = dap_chain_net_srv_stake_key_delegated(&l_signing_addr) != 1;
         break;
     case DAP_CHAIN_ESBOCS_MSG_TYPE_DIRECTIVE:
     case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR:
@@ -4095,13 +4111,19 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         ? DAP_DUP_SIZE(a_block, l_block_size)
         : a_block;
     l_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(l_block->hdr);
+    // A block carrying the sync metadata declares its committee, so its signers are checked
+    // against the committee recomputed from that metadata. Blocks without the metadata
+    // (produced by outdated submitters or stored before its introduction) can't be checked
+    // this way and are accepted as before
+    bool l_signs_check_required = dap_chain_block_meta_get(l_block, l_block_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT) != NULL;
     for (size_t i = 0; i < l_signs_count; i++) {
         dap_sign_t *l_sign = l_signs[i];
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
         s_get_precached_key_hash(&l_esbocs_pvt->precached_keys, l_sign, &l_signing_addr.data.hash_fast);
         if (!l_esbocs_pvt->poa_mode) {
-             // Compare signature with delegated keys
-            if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
+             // Signer must have an active delegated stake (key_delegated returns 1),
+             // inactive (-1) or absent (0) stakes give no signing rights
+            if (dap_chain_net_srv_stake_key_delegated(&l_signing_addr) != 1) {
                 if (l_esbocs_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
@@ -4129,7 +4151,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 }
                 l_ret = -5;
                 break;
-            } else if (l_esbocs_pvt->check_signs_structure &&
+            } else if (!l_block_is_emergency && l_signs_check_required &&
                        !s_check_signing_rights(l_esbocs, l_block, l_block_size, &l_signing_addr, true)) {
                 if (l_esbocs_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
@@ -4140,17 +4162,20 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 break;
             }
         } else {
-            if (l_block_is_emergency && !s_check_emergency_rights(l_esbocs, &l_signing_addr) &&
-                    l_esbocs_pvt->check_signs_structure &&
-                    !s_check_signing_rights(l_esbocs, l_block, l_block_size, &l_signing_addr, false)) {
-                if (l_esbocs_pvt->debug) {
-                    char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
-                    dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
-                    log_it(L_ATT, "Restricted emergency block signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+            if (l_block_is_emergency) {
+                // Emergency block signer must be an emergency validator or a member of the
+                // declared committee
+                if (!s_check_emergency_rights(l_esbocs, &l_signing_addr) && l_signs_check_required &&
+                        !s_check_signing_rights(l_esbocs, l_block, l_block_size, &l_signing_addr, false)) {
+                    if (l_esbocs_pvt->debug) {
+                        char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
+                        dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
+                        log_it(L_ATT, "Restricted emergency block signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                    }
+                    l_ret = -5;
+                    break;
                 }
-                l_ret = -5;
-                break;
-            } else if (l_esbocs_pvt->check_signs_structure &&
+            } else if (l_signs_check_required &&
                     !s_check_signing_rights(l_esbocs, l_block, l_block_size, &l_signing_addr, false)) {
                 if (l_esbocs_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
