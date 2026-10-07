@@ -40,6 +40,7 @@ enum    {
 enum    {
     DAP_WALLET$K_VER_1 = 1,                                                 /* Wallet's file structure version, entry level */
     DAP_WALLET$K_VER_2 = 2,                                                 /* BMF Level */
+    DAP_WALLET$K_VER_3 = 3,                                                 /* Salted iterated KDF for the password */
 };
 
 
