@@ -74,6 +74,10 @@ int dap_chain_net_srv_dex_init();
  * @brief Deinitialize DEX service (free caches, unregister callbacks)
  */
 void dap_chain_net_srv_dex_deinit();
+// Net purge hook: drops the persisted DEX history journal (GlobalDB group)
+// and clears the in-RAM order/history caches of this net.
+struct dap_chain_net;
+void dap_chain_net_srv_dex_purge_net(struct dap_chain_net *a_net);
 
 /**
  * @brief Check if pair is whitelisted via DEX decrees

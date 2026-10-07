@@ -609,6 +609,9 @@ static DAP_INLINE int s_dex_clamp_user_limit(const char *a_limit_str, int a_limi
 }
 
 static uint32_t s_dex_history_max_candles = 5000;
+static bool s_dex_history_persist = true;       // [srv_dex] history_persist: journal events to GlobalDB
+static bool s_dex_journal_suppress = false;     // replaying the journal at load must not re-write it
+
 
 /** @brief Calculate percentage: result = a * b / (100 * 10^precision) */
 static inline uint256_t s_calc_pct(const uint256_t a, const uint64_t b, const uint8_t a_precision)
@@ -3093,6 +3096,15 @@ typedef struct dex_event_rec {
     UT_hash_handle hh;                 // uthash in bucket
 } dex_event_rec_t;
 
+struct dap_chain_net;
+static void s_hist_journal_delete(struct dap_chain_net *a_net, const dex_pair_key_t *a_pair,
+                                  const dex_event_key_t *a_key, uint8_t a_flags);
+static void s_hist_journal_load(struct dap_chain_net *a_net);
+static void s_dex_history_append(dap_ledger_t *a_ledger, const dex_pair_key_t *a_pair, uint64_t a_ts, uint256_t a_rate,
+                                 uint256_t a_base, uint256_t a_quote, dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_prev_hash,
+                                 const dap_hash_fast_t *a_order_root, const dap_chain_addr_t *a_seller_addr,
+                                 const dap_chain_addr_t *a_buyer_addr, uint8_t a_flags, uint8_t a_side);
+
 /*
  * Lite bucket: stores only timestamp and trade index.
  * OHLCV is computed on-the-fly from trade records during queries.
@@ -3134,6 +3146,7 @@ typedef struct dex_hist_order_idx {
  */
 typedef struct dex_hist_pair {
     dex_pair_key_t key;                // canonical BASE/QUOTE
+    struct dap_chain_net *pvt_journal_net; // net of the journal group (set on first append)
     uint64_t events_ver;               // bumped on every history event add/remove (wrlock held);
                                        // keyed validity for the serialized-reply cache
     dex_hist_bucket_t *buckets;        // uthash ts -> bucket
@@ -3478,6 +3491,8 @@ static void s_hist_indexes_remove(dex_hist_pair_t *a_pair, dex_hist_bucket_t *a_
     }
     // Remove from bucket hash
     HASH_DELETE(hh, a_bucket->events_idx, l_rec);
+    if (s_dex_history_persist && !s_dex_journal_suppress && a_pair->pvt_journal_net)
+        s_hist_journal_delete(a_pair->pvt_journal_net, &a_pair->key, &l_key, l_rec->flags);
     DAP_DELETE(l_rec);
     // If bucket empty, remove it
     if (!HASH_COUNT(a_bucket->events_idx)) {
@@ -6562,6 +6577,7 @@ int dap_chain_net_srv_dex_init()
     log_it(L_INFO, "Memory cache: %s", s_dex_cache_enabled ? "on" : "off");
     // Read history cache switch and bucket size (default: daily buckets for storage efficiency)
     s_dex_history_enabled = dap_config_get_item_bool_default(g_config, "srv_dex", "history_cache", true);
+    s_dex_history_persist = dap_config_get_item_bool_default(g_config, "srv_dex", "history_persist", true);
     s_dex_history_bucket_sec = (uint64_t)dap_config_get_item_uint32_default(g_config, "srv_dex", "history_bucket_sec", DAP_SEC_PER_DAY);
     s_dex_history_max_candles = dap_config_get_item_uint32_default(g_config, "srv_dex", "history_max_candles", s_dex_history_max_candles);
     if (!s_dex_history_bucket_sec)
@@ -6575,6 +6591,9 @@ int dap_chain_net_srv_dex_init()
         if (s_dex_cache_enabled || s_dex_history_enabled) {
             dap_ledger_tx_add_notify(net->pub.ledger, s_ledger_tx_add_notify_dex, NULL);
         }
+        // Replay the persisted history journal (write-through from previous runs)
+        if (s_dex_history_enabled && s_dex_history_persist)
+            s_hist_journal_load(net);
     }
 
     // CLI: register handler
@@ -6806,6 +6825,173 @@ static inline uint256_t s_calc_executed_amount(uint256_t a_order_value, bool a_i
 }
 
 /** @brief Append trade/order event to history cache. */
+/*
+ * History persistence: an append-parameter journal in GlobalDB.
+ *
+ * Every s_dex_history_append() is written through to the group
+ *   local.dex-cache.<net>.hist
+ * as a flat record of its arguments (key = hash of pair + event key + flags,
+ * value = the parameters themselves). At module init the journal is replayed
+ * through s_dex_history_append() with the write suppressed, rebuilding
+ * buckets and all indexes exactly as the live path does, so a restart no
+ * longer starts with an empty DEX history. Rollbacks delete the journal
+ * records they remove from RAM; net purge erases the whole group. The chain
+ * remains the ultimate source of truth - the journal only spares the rewalk.
+ */
+#define DEX_HIST_JOURNAL_REC_VER 1
+#pragma pack(push,1)
+typedef struct dex_hist_journal_rec {
+    uint8_t version;
+    uint8_t flags, side;
+    uint64_t ts;                        // event timestamp (seconds, as passed to append)
+    dap_hash_fast_t tx_hash, prev_tail; // prev_tail may be zero
+    uint256_t rate, val_b, quote;       // val_b = val_b_trade or val_b_remain by flags
+    dap_hash_fast_t order_root;         // zero = none
+    dap_chain_addr_t seller, buyer;     // zeroed = none
+    dex_pair_key_t pair;
+} dex_hist_journal_rec_t;
+#pragma pack(pop)
+
+static void s_hist_journal_group(const char *a_net_name, char *a_out, size_t a_out_size)
+{
+    snprintf(a_out, a_out_size, "local.dex-cache.%s.hist", a_net_name);
+}
+
+static void s_hist_journal_key_str(const dex_pair_key_t *a_pair, const dex_event_key_t *a_key, uint8_t a_flags,
+                                   char *a_out, size_t a_out_size)
+{
+    uint8_t l_buf[sizeof(dex_pair_key_t) + sizeof(dex_event_key_t) + 1];
+    memcpy(l_buf, a_pair, sizeof(dex_pair_key_t));
+    memcpy(l_buf + sizeof(dex_pair_key_t), a_key, sizeof(dex_event_key_t));
+    l_buf[sizeof(dex_pair_key_t) + sizeof(dex_event_key_t)] = a_flags;
+    dap_hash_fast_t l_h;
+    dap_hash_fast(l_buf, sizeof(l_buf), &l_h);
+    dap_hash_fast_to_str(&l_h, a_out, a_out_size);
+}
+
+static void s_hist_journal_write(dap_ledger_t *a_ledger, const dex_pair_key_t *a_pair, uint64_t a_ts, uint256_t a_rate,
+                                 uint256_t a_base, uint256_t a_quote, const dex_event_key_t *a_key,
+                                 const dap_hash_fast_t *a_order_root, const dap_chain_addr_t *a_seller,
+                                 const dap_chain_addr_t *a_buyer, uint8_t a_flags, uint8_t a_side)
+{
+    dex_hist_journal_rec_t l_rec = { .version = DEX_HIST_JOURNAL_REC_VER,
+                                     .flags = a_flags, .side = a_side, .ts = a_ts,
+                                     .tx_hash = a_key->tx_hash, .prev_tail = a_key->prev_tail,
+                                     .rate = a_rate, .val_b = a_base, .quote = a_quote, .pair = *a_pair };
+    l_rec.order_root = a_order_root ? *a_order_root : (dap_hash_fast_t){};
+    l_rec.seller = a_seller ? *a_seller : (dap_chain_addr_t){};
+    l_rec.buyer = a_buyer ? *a_buyer : (dap_chain_addr_t){};
+    char l_group[128], l_key_str[DAP_HASH_FAST_STR_SIZE];
+    s_hist_journal_group(a_ledger->net->pub.name, l_group, sizeof(l_group));
+    s_hist_journal_key_str(a_pair, a_key, a_flags, l_key_str, sizeof(l_key_str));
+    // Asynchronous write: the event is queued to the GlobalDB I/O pool, which
+    // dap_global_db_deinit() drains before the driver closes, so a normal
+    // shutdown never loses the journal tail (mdbx applies it off-lock on the
+    // proc thread; a hard kill can still lose the last moments, like every
+    // other queued write in the node).
+    int l_rc = dap_global_db_set(l_group, l_key_str, &l_rec, sizeof(l_rec), true, NULL, NULL);
+    debug_if_f(s_debug_more, L_DEBUG, "DEX hist journal: queued %s (%zu bytes), rc %d", l_key_str, sizeof(l_rec), l_rc);
+}
+
+static void s_hist_journal_delete(struct dap_chain_net *a_net, const dex_pair_key_t *a_pair, const dex_event_key_t *a_key,
+                                  uint8_t a_flags)
+{
+    char l_group[128], l_key_str[DAP_HASH_FAST_STR_SIZE];
+    s_hist_journal_group(a_net->pub.name, l_group, sizeof(l_group));
+    s_hist_journal_key_str(a_pair, a_key, a_flags, l_key_str, sizeof(l_key_str));
+    dap_global_db_del(l_group, l_key_str, NULL, NULL);
+}
+
+static void s_hist_journal_load(dap_chain_net_t *a_net)
+{
+    char l_group[128];
+    s_hist_journal_group(a_net->pub.name, l_group, sizeof(l_group));
+    size_t l_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_count);
+    log_it_f(L_INFO, "DEX history journal load for net %s: group \"%s\", %zu record(s)", a_net->pub.name, l_group, l_count);
+    if (!l_objs || !l_count) {
+        debug_if_f(s_debug_more, L_DEBUG, "No DEX history journal for net %s", a_net->pub.name);
+        if (l_objs)
+            dap_global_db_objs_delete(l_objs, l_count);
+        return;
+    }
+    s_dex_journal_suppress = true;
+    size_t l_applied = 0, l_skipped = 0;
+    for (size_t i = 0; i < l_count; i++) {
+        if (l_objs[i].value_len < sizeof(dex_hist_journal_rec_t)) {
+            l_skipped++;
+            continue;
+        }
+        dex_hist_journal_rec_t l_rec;
+        memcpy(&l_rec, l_objs[i].value, sizeof(l_rec));
+        if (l_rec.version != DEX_HIST_JOURNAL_REC_VER) {
+            l_skipped++;
+            continue;
+        }
+        static const dap_chain_addr_t c_addr_blank;
+        s_dex_history_append(a_net->pub.ledger, &l_rec.pair, l_rec.ts, l_rec.rate, l_rec.val_b, l_rec.quote,
+                             &l_rec.tx_hash, dap_hash_fast_is_blank(&l_rec.prev_tail) ? NULL : &l_rec.prev_tail,
+                             dap_hash_fast_is_blank(&l_rec.order_root) ? NULL : &l_rec.order_root,
+                             memcmp(&l_rec.seller, &c_addr_blank, sizeof(c_addr_blank)) ? &l_rec.seller : NULL,
+                             memcmp(&l_rec.buyer, &c_addr_blank, sizeof(c_addr_blank)) ? &l_rec.buyer : NULL,
+                             l_rec.flags, l_rec.side);
+        l_applied++;
+    }
+    s_dex_journal_suppress = false;
+    dap_global_db_objs_delete(l_objs, l_count);
+    log_it(L_INFO, "DEX history journal replayed for net %s: %zu event(s) applied, %zu skipped",
+           a_net->pub.name, l_applied, l_skipped);
+}
+
+// Net purge hook: drop the journal group and the in-RAM history of this net.
+void dap_chain_net_srv_dex_purge_net(dap_chain_net_t *a_net)
+{
+    if (!a_net)
+        return;
+    char l_group[128];
+    s_hist_journal_group(a_net->pub.name, l_group, sizeof(l_group));
+    pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+    dex_hist_pair_t *hp_it, *hp_tmp;
+    HASH_ITER(hh, s_dex_history, hp_it, hp_tmp) {
+        if (hp_it->key.net_id_base.uint64 != a_net->pub.id.uint64
+                && hp_it->key.net_id_quote.uint64 != a_net->pub.id.uint64)
+            continue;
+        dex_hist_bucket_t *b_it, *b_tmp;
+        HASH_ITER(hh, hp_it->buckets, b_it, b_tmp) {
+            dex_event_rec_t *tr_it, *tr_tmp;
+            HASH_ITER(hh, b_it->events_idx, tr_it, tr_tmp) {
+                HASH_DELETE(hh, b_it->events_idx, tr_it);
+                DAP_DELETE(tr_it);
+            }
+            HASH_DELETE(hh, hp_it->buckets, b_it);
+            DAP_DELETE(b_it);
+        }
+        dex_hist_trader_idx_t *ti_it, *ti_tmp;
+        HASH_ITER(hh_seller, hp_it->seller_idx, ti_it, ti_tmp) {
+            HASH_DELETE(hh_seller, hp_it->seller_idx, ti_it);
+            dex_hist_trader_idx_t *l_buyer_it = NULL;
+            HASH_FIND(hh_buyer, hp_it->buyer_idx, &ti_it->addr, sizeof(dap_chain_addr_t), l_buyer_it);
+            if (l_buyer_it)
+                HASH_DELETE(hh_buyer, hp_it->buyer_idx, l_buyer_it);
+            DAP_DELETE(ti_it);
+        }
+        HASH_ITER(hh_buyer, hp_it->buyer_idx, ti_it, ti_tmp) {
+            HASH_DELETE(hh_buyer, hp_it->buyer_idx, ti_it);
+            DAP_DELETE(ti_it);
+        }
+        dex_hist_order_idx_t *oi_it, *oi_tmp;
+        HASH_ITER(hh, hp_it->order_idx, oi_it, oi_tmp) {
+            HASH_DELETE(hh, hp_it->order_idx, oi_it);
+            DAP_DELETE(oi_it);
+        }
+        HASH_DELETE(hh, s_dex_history, hp_it);
+        DAP_DELETE(hp_it);
+    }
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    dap_global_db_erase_table_sync(l_group);
+    log_it(L_INFO, "DEX history purged for net %s", a_net->pub.name);
+}
+
 static void s_dex_history_append(dap_ledger_t *a_ledger, const dex_pair_key_t *a_pair, uint64_t a_ts, uint256_t a_rate, uint256_t a_base,
                                  uint256_t a_quote, dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_prev_hash,
                                  const dap_hash_fast_t *a_order_root, const dap_chain_addr_t *a_seller_addr,
@@ -6830,6 +7016,8 @@ static void s_dex_history_append(dap_ledger_t *a_ledger, const dex_pair_key_t *a
     dex_hist_pair_t *l_pair = s_hist_pair_get_or_create(a_pair);
     if (!l_pair)
         return log_it_f(L_ERROR, "Can't create historical pair %s / %s index!", a_pair->token_base, a_pair->token_quote);
+    if (!l_pair->pvt_journal_net)
+        l_pair->pvt_journal_net = a_ledger->net;
     ++l_pair->events_ver;
 
     uint64_t l_ts = s_hist_bucket_ts(a_ts, s_dex_history_bucket_sec);
@@ -6863,6 +7051,10 @@ static void s_dex_history_append(dap_ledger_t *a_ledger, const dex_pair_key_t *a
                                                        a_order_root, a_rate, a_quote, a_side);
     if (l_oi)
         l_rec->filled_pct = s_hist_calc_fill_pct(l_oi, l_rec);
+    dex_event_key_t l_ev_key = l_rec->key;
+    if (s_dex_history_persist && !s_dex_journal_suppress)
+        s_hist_journal_write(a_ledger, a_pair, a_ts, a_rate, a_base, a_quote, &l_ev_key, a_order_root,
+                             a_seller_addr, a_buyer_addr, a_flags, a_side);
     debug_if_f(s_debug_more, L_DEBUG, "Added %s event %s, type: %s, pair: %s/%s @ %s, value: %s, seller: %s",
              a_side == DEX_SIDE_ASK ? "ASK" : "BID", dap_hash_fast_to_str_static(a_tx_hash), s_dex_op_flags_to_str(a_flags),
              a_pair->token_base, a_pair->token_quote, dap_uint256_to_char_ex(a_rate).frac, dap_uint256_to_char_ex(a_base).frac,
