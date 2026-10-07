@@ -81,3 +81,28 @@ set_tests_properties(mempool_spent_index_unit PROPERTIES
 )
 
 message(STATUS "Unit tests configured: utxo_blocking_unit_test, cli_backpressure_unit_test, mempool_spent_index_unit_test, dex_basic_unit_test")
+
+# Standalone plain-HTTP JSON-RPC service ([rpc-server]): the access-control
+# and command-index decisions, which are pure functions.
+add_executable(rpc_service_unit_test
+    rpc_service_unit_test.c
+)
+
+target_include_directories(rpc_service_unit_test PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+)
+
+target_link_libraries(rpc_service_unit_test
+    dap_test
+    dap_core
+    dap_crypto
+    dap_cli_server
+    dap_json_rpc
+)
+
+add_test(NAME rpc_service_unit COMMAND rpc_service_unit_test)
+
+set_tests_properties(rpc_service_unit PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;rpc;rpc-server"
+)
