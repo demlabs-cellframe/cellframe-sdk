@@ -150,9 +150,11 @@ static bool s_tag_check_bridge(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
     bool subtype_out = false;
     for (dap_list_t *it = a_items_grp->items_tsd; it; it = it->next) {
         dap_chain_tx_tsd_t *l_tx_tsd = it->data;
-        int l_type;
-        size_t l_size;
+        int l_type = -1;
+        size_t l_size = 0;
         byte_t *l_data = dap_chain_datum_tx_item_get_data(l_tx_tsd, &l_type, &l_size);
+        if (!l_data) // malformed/truncated TSD item: nothing to match
+            continue;
         
         
         if (l_type == DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_SOURCE && s_tsd_str_cmp(l_data, l_size, DAP_CHAIN_DATUM_TOKEN_EMISSION_SOURCE_BRIDGE) == 0)

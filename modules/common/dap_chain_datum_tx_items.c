@@ -703,9 +703,18 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
     if (!a_tx_tsd || !a_type || !a_size)
         return NULL;
 
-    *a_size = ((dap_tsd_t*)(a_tx_tsd->tsd))->size;
-    *a_type = ((dap_tsd_t*)(a_tx_tsd->tsd))->type;
-    return ((dap_tsd_t*)(a_tx_tsd->tsd))->data;
+    // The tsd payload is attacker-crafted input: the enclosing item can be
+    // header-only (header.size == 0), in which case reading the dap_tsd_t
+    // header over-reads the item buffer (mirrors the ledger event-path check)
+    if (a_tx_tsd->header.size < sizeof(dap_tsd_t))
+        return NULL;
+    dap_tsd_t *l_tsd = (dap_tsd_t *)(a_tx_tsd->tsd);
+    if ((size_t)l_tsd->size + sizeof(dap_tsd_t) != a_tx_tsd->header.size)
+        return NULL;
+
+    *a_size = l_tsd->size;
+    *a_type = l_tsd->type;
+    return l_tsd->data;
 }
 
 /**

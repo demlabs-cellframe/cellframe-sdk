@@ -185,22 +185,26 @@ static void s_block_dump_cache_invalidate_hash(const dap_chain_hash_fast_t *a_ha
     pthread_mutex_unlock(&s_block_dump_cache_lock);
 }
 
-static s_block_dump_cache_entry_t *s_block_dump_cache_get(const char *a_key)
+// Returns an OWNED copy of the cached JSON (caller frees with DAP_DELETE):
+// handing out the entry pointer past the lock was a use-after-free —
+// concurrent put/evict/invalidate could free it before the caller parsed it
+static char *s_block_dump_cache_get(const char *a_key)
 {
-    s_block_dump_cache_entry_t *l_e = NULL;
+    char *l_json = NULL;
     pthread_mutex_lock(&s_block_dump_cache_lock);
+    s_block_dump_cache_entry_t *l_e = NULL;
     HASH_FIND(hh, s_block_dump_cache, a_key, strlen(a_key), l_e);
     if (l_e) {
         uint64_t l_now = (uint64_t)dap_nanotime_now()/1000000000ull;
         if (l_now - l_e->ts > s_block_dump_cache_ttl_sec) {
             s_block_dump_cache_drop_entry_locked(l_e);
-            l_e = NULL;
         } else {
             l_e->ts = l_now;
+            l_json = dap_strdup(l_e->json);
         }
     }
     pthread_mutex_unlock(&s_block_dump_cache_lock);
-    return l_e;
+    return l_json;
 }
 
 static void s_block_dump_cache_put(const char *a_key, const char *a_json)
@@ -949,9 +953,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                      l_chain->net_name, l_chain->name,
                      l_hash_str ? l_hash_str : "-", l_num_str ? l_num_str : "-",
                      l_hash_out_type, l_brief ? 1 : 0);
-            s_block_dump_cache_entry_t *l_dump_hit = s_block_dump_cache_get(l_dump_ckey);
+            char *l_dump_hit = s_block_dump_cache_get(l_dump_ckey);
             if (l_dump_hit) {
-                json_object *l_cached = json_tokener_parse(l_dump_hit->json);
+                json_object *l_cached = json_tokener_parse(l_dump_hit);
+                DAP_DELETE(l_dump_hit);
                 if (l_cached) {
                     json_object_put(*a_json_arr_reply);
                     *a_json_arr_reply = l_cached;
