@@ -105,6 +105,7 @@
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_srv_voting.h"
+#include "dap_chain_net_srv_dex.h"
 #include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 #include "dap_stream_cluster.h"
@@ -1147,6 +1148,7 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
     // dap_ledger_purge fires no tx notifiers: poll state and the token datum
     // registry would survive the wipe and desync (duplicate polls, stale tokens)
     dap_chain_net_srv_voting_purge_net(l_net->pub.id);
+    dap_chain_net_srv_dex_purge_net(l_net);
     {   // per-chain registry purge (same hook dap_chain_net_delete already has)
         dap_chain_t *l_c = NULL;
         DL_FOREACH(l_net->pub.chains, l_c)
