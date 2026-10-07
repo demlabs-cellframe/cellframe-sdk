@@ -4037,6 +4037,13 @@ static bool s_ledger_tx_hash_is_used_out_item(dap_ledger_tx_item_t *a_item, int 
         //log_it(L_DEBUG, "list_cached_item is NULL");
         return true;
     }
+    // a_idx_out comes from the network tx header (tx_out_prev_idx) and is
+    // validated by the callers only AFTER this call: bound it here, the
+    // tx_hash_spent_fast[] flexible array holds exactly n_outs entries
+    if (a_idx_out < 0 || (uint32_t)a_idx_out >= a_item->cache_data.n_outs) {
+        debug_if(s_debug_more, L_WARNING, "Out index %d is out of range (%u outs), treat as used", a_idx_out, a_item->cache_data.n_outs);
+        return true;
+    }
     // if there are used 'out' items
     if ((a_item->cache_data.n_outs_used > 0) && !dap_hash_fast_is_blank(&(a_item->cache_data.tx_hash_spent_fast[a_idx_out]))) {
         if (a_out_spender_hash)

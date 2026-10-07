@@ -264,9 +264,17 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 dap_list_free_full(l_orders, NULL);
             }
             bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
+            // Probed once and cached: this handler runs per incoming packet and
+            // two fork+exec's of systemctl on every packet is a DoS vector
+            static bool s_auto_update_cached = false;
+            static bool s_auto_update_probed = false;
             bool auto_update = false;
 #if !defined(DAP_OS_IOS) && !defined(DAP_OS_ANDROID)
-            auto_update = (( system("systemctl status cellframe-updater.service") == 768 ) && ( system("systemctl status cellframe-updater.timer") == 0 ));
+            if (!s_auto_update_probed) {
+                s_auto_update_cached = (( system("systemctl status cellframe-updater.service") == 768 ) && ( system("systemctl status cellframe-updater.timer") == 0 ));
+                s_auto_update_probed = true;
+            }
+            auto_update = s_auto_update_cached;
 #endif
             flags = auto_online ? ( flags | A_ONLN ) : ( flags & ~A_ONLN );
             flags = auto_update ? ( flags | A_UPDT ) : ( flags & ~A_UPDT );

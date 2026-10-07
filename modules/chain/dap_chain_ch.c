@@ -893,6 +893,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             return false;
         }
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+        if (!l_chain) { // the id comes straight from the peer's packet header
+            log_it(L_WARNING, "CHAIN_SUMMARY for unknown net/chain id, drop");
+            break;
+        }
         dap_chain_ch_summary_t *l_sum = (dap_chain_ch_summary_t *)l_chain_pkt->data;
         if(l_chain->atom_num_last < l_sum->num_last)
             l_chain->atom_num_last = l_sum->num_last;
@@ -953,6 +957,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+        if (!l_chain) {
+            log_it(L_WARNING, "SYNCED_CHAIN for unknown net/chain id, drop");
+            break;
+        }
         uint64_t l_atom_count = l_chain->callback_count_atom(l_chain);
         if (l_chain->atom_num_last < l_atom_count)
             l_chain->atom_num_last = l_atom_count;
