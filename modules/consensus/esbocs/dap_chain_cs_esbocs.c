@@ -148,7 +148,11 @@ DAP_STATIC_INLINE size_t s_get_esbocs_message_size(dap_chain_esbocs_message_t *a
     uint64_t l_sign_size = 0, l_message_size = 0;
     memcpy(&l_sign_size, (const byte_t *)&a_message->hdr + offsetof(dap_chain_esbocs_message_hdr_t, sign_size), sizeof(l_sign_size));
     memcpy(&l_message_size, (const byte_t *)&a_message->hdr + offsetof(dap_chain_esbocs_message_hdr_t, message_size), sizeof(l_message_size));
-    return sizeof(*a_message) + l_sign_size + l_message_size;
+    uint64_t l_size = 0;
+    if (__builtin_add_overflow((uint64_t)sizeof(*a_message), l_sign_size, &l_size) ||
+            __builtin_add_overflow(l_size, l_message_size, &l_size))
+        return 0; // wrapped: treat as invalid
+    return (size_t)l_size;
 }
 
 typedef struct s_esbocs_message_hdr_view {
@@ -491,6 +495,9 @@ typedef struct dap_chain_esbocs_pvt {
     // Decree controoled params
     uint16_t min_validators_count;
     bool check_signs_structure;
+    // Blocks created at/after this unix time must carry committee metadata
+    // (SYNC_ATTEMPT); 0 = enforcement off (rollout is operator-gated)
+    uint64_t require_signs_meta_since;
     // Internal cache
     dap_list_t *precached_keys;
 } dap_chain_esbocs_pvt_t;
@@ -1157,6 +1164,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         return -4;
     }
     l_esbocs_pvt->emergency_mode = dap_config_get_item_bool_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR, "emergency_mode", false);
+    l_esbocs_pvt->require_signs_meta_since = dap_config_get_item_uint64_default(a_chain_net_cfg, DAP_CHAIN_ESBOCS_CS_TYPE_STR,
+                                                                                "require_signs_meta_since", 0);
     if (l_esbocs_pvt->emergency_mode && !s_check_emergency_rights(l_esbocs, &l_my_signing_addr)) {
         log_it(L_ERROR, "This validator is not allowed to work in emergency mode. Use special decree to supply it");
         return -5;
@@ -2707,11 +2716,15 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     if (l_candidate && l_candidate_size) {
         if (PVT(a_session->esbocs)->emergency_mode)
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EMERGENCY, NULL, 0);
-        // Sync/round attempts and excluded keys are added unconditionally, so every node can
-        // recompute the committee from the block itself and verify its signers. In emergency
-        // mode the excluded list is not maintained and signers are checked against the
-        // emergency validators list instead
-        if (!PVT(a_session->esbocs)->emergency_mode && l_candidate_size && a_session->cur_round.excluded_list) {
+        // Sync/round attempts and excluded keys are stamped ALWAYS (empty excluded
+        // list when it is not maintained), so every node can recompute the committee
+        // from the block itself and verify its signers; a block without this metadata
+        // can no longer dodge the committee check. Emergency mode signers are checked
+        // against the emergency validators list instead
+        if (!PVT(a_session->esbocs)->emergency_mode && l_candidate_size) {
+            static const uint16_t l_no_excluded[1] = {0}; // count = 0
+            const uint16_t *l_excluded = a_session->cur_round.excluded_list
+                                            ? a_session->cur_round.excluded_list : l_no_excluded;
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT,
                                                         &a_session->cur_round.sync_attempt, sizeof(uint64_t));
             if (l_candidate_size)
@@ -2719,7 +2732,7 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
                                                             &a_session->cur_round.attempt_num, sizeof(uint8_t));
             if (l_candidate_size)
                  l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_EXCLUDED_KEYS,
-                                                            a_session->cur_round.excluded_list, (*a_session->cur_round.excluded_list + 1) * sizeof(uint16_t));
+                                                            l_excluded, (*l_excluded + 1) * sizeof(uint16_t));
         }
         if (l_empty_block_generation && l_candidate_size)
             l_candidate_size = dap_chain_block_meta_add(&l_candidate, l_candidate_size, DAP_CHAIN_BLOCK_META_BLOCKGEN, NULL, 0);
@@ -3187,6 +3200,12 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
         return false;
     }
     uint64_t l_sync_attempt; memcpy(&l_sync_attempt, l_sync_attempt_ptr, sizeof(l_sync_attempt));
+    if (!l_sync_attempt) {
+        // Block metadata is attacker-controlled: sync_attempt == 0 would wrap
+        // the skip count below to UINT64_MAX and hang the proc thread forever
+        log_it(L_ERROR, "Zero SYNC_ATTEMPT in block metadata, reject");
+        return false;
+    }
     uint8_t l_round_attempt = 0;
     if (a_first_sign) {
         uint8_t *l_round_attempt_ptr = dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_ROUND_ATTEMPT);
@@ -3195,6 +3214,11 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
             return false;
         }
         l_round_attempt = *l_round_attempt_ptr;
+        if (!l_round_attempt) {
+            // round_attempt == 0 wraps the list index to (uint64)-1 and NULL-derefs
+            log_it(L_ERROR, "Zero ROUND_ATTEMPT in block metadata, reject");
+            return false;
+        }
     }
     dap_hash_fast_t l_prev_hash = {};
     dap_hash_fast_t *l_prev_hash_ptr = (dap_hash_fast_t *)dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_PREV);
@@ -3217,12 +3241,17 @@ static bool s_check_signing_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_block
     }
     if (a_first_sign) {
         size_t l_list_len = dap_list_length(l_allowed_validators_list);
-        if (l_list_len < l_round_attempt) {
+        if (!l_list_len || l_list_len < l_round_attempt) {
             log_it(L_ERROR, "Round attempt %hhu is greater than length of allowed validators list %zu",
                                                 l_round_attempt, l_list_len);
             return false;
         }
-        dap_chain_esbocs_validator_t *l_chosen_validator = dap_list_nth(l_allowed_validators_list, l_round_attempt - 1)->data;
+        dap_list_t *l_chosen = dap_list_nth(l_allowed_validators_list, l_round_attempt - 1);
+        if (!l_chosen || !l_chosen->data) {
+            log_it(L_ERROR, "No chosen validator for round attempt %hhu", l_round_attempt);
+            return false;
+        }
+        dap_chain_esbocs_validator_t *l_chosen_validator = l_chosen->data;
         if (dap_hash_fast_compare(&l_chosen_validator->signing_addr.data.hash_fast, &a_signing_addr->data.hash_fast))
             return true;
         return false;
@@ -3257,11 +3286,21 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     if (!l_ch_pkt)
         return false;
     dap_chain_esbocs_message_t *l_message = (dap_chain_esbocs_message_t *)l_ch_pkt->data;
-    s_esbocs_message_hdr_view_t l_message_hdr = s_esbocs_message_hdr_view_get(l_message);
     size_t l_message_size = l_ch_pkt->hdr.data_size;
+    // Validate the payload size BEFORE reading the header fields: the old code
+    // memcpy'd the ~100-byte header first and over-read short packets
     if (l_message_size < sizeof(dap_chain_esbocs_message_t) ||
-            l_message_size > DAP_CHAIN_ATOM_MAX_SIZE + PKT_SIGN_N_HDR_OVERHEAD ||
-            l_message_size != sizeof(*l_message) + l_message_hdr.sign_size + l_message_hdr.message_size) {
+            l_message_size > DAP_CHAIN_ATOM_MAX_SIZE + PKT_SIGN_N_HDR_OVERHEAD) {
+        log_it(L_WARNING, "Invalid message size %zu, drop this packet", l_message_size);
+        return false;
+    }
+    s_esbocs_message_hdr_view_t l_message_hdr = s_esbocs_message_hdr_view_get(l_message);
+    // The uint64 header sizes are attacker-controlled: a plain sum can wrap and
+    // pass the exact-equality test, sending the sign pointer far out of bounds
+    uint64_t l_expected_size = 0;
+    if (__builtin_add_overflow((uint64_t)sizeof(*l_message), l_message_hdr.sign_size, &l_expected_size) ||
+            __builtin_add_overflow(l_expected_size, l_message_hdr.message_size, &l_expected_size) ||
+            l_expected_size != (uint64_t)l_message_size) {
         log_it(L_WARNING, "Invalid message size %zu, drop this packet", l_message_size);
         return false;
     }
@@ -3400,13 +3439,24 @@ static void s_session_packet_in(dap_chain_esbocs_session_t *a_session, dap_chain
                 return;
             }
         } else if (l_message_round_id != l_session->cur_round.id) {
-            // round check
+            // Round mismatch is now a hard drop: the per-round duplicate tables
+            // are cleared on every round transition, so processing stale-round
+            // APPROVE/COMMIT_SIGN messages allowed replaying an old quorum into
+            // the current round. Legitimate peers resync via START_SYNC.
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                            " Message passed, but round number %"DAP_UINT64_FORMAT_U
+                                            " Message dropped: round number %"DAP_UINT64_FORMAT_U
                                                 " doesn't match message's one %"DAP_UINT64_FORMAT_U,
                                                     l_session->chain->net_name, l_session->chain->name,
                                                         l_session->cur_round.id, l_session->cur_round.attempt_num,
                                                             l_session->cur_round.id, l_message_round_id);
+            return;
+        }
+        if (l_message_type != DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC
+                && l_message_attempt_num < l_session->cur_round.attempt_num) {
+            // Stale-attempt messages are replayed votes from earlier attempts
+            debug_if(l_cs_debug, L_MSG, "Drop message with stale attempt %hhu < %hhu",
+                     l_message_attempt_num, l_session->cur_round.attempt_num);
+            return;
         }
 
         dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
@@ -4108,6 +4158,17 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return -1;
     }
 
+    // Committee-metadata enforcement window: after the operator-set cutoff a
+    // block without SYNC_ATTEMPT metadata is rejected (old history still loads)
+    if (l_esbocs_pvt->require_signs_meta_since
+            && (uint64_t)a_block->hdr.ts_created >= l_esbocs_pvt->require_signs_meta_since
+            && !dap_chain_block_meta_get(a_block, l_block_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT)) {
+        log_it(L_ERROR, "Block %s created at %"DAP_UINT64_FORMAT_U" carries no sync metadata (enforced since %"DAP_UINT64_FORMAT_U")",
+                dap_hash_fast_to_str_static(a_block_hash), (uint64_t)a_block->hdr.ts_created, l_esbocs_pvt->require_signs_meta_since);
+        DAP_DELETE(l_signs);
+        return -5;
+    }
+
     // Parse the rest signs
     int l_ret = 0;
     uint16_t l_signs_verified_count = 0;
@@ -4137,6 +4198,12 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
                     log_it(L_ATT, "Unknown PoS signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
                 }
+                if (!i) {
+                    // The first sign must belong to the delegated submitter: skipping
+                    // it with `continue` bypassed the designated-submitter check
+                    l_ret = -5;
+                    break;
+                }
                 continue;
             }
         } else {
@@ -4146,6 +4213,10 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
                     log_it(L_ATT, "Unknown PoA signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
+                }
+                if (!i) {
+                    l_ret = -5;
+                    break;
                 }
                 continue;
             }
