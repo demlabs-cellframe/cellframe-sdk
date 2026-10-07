@@ -52,7 +52,7 @@
 static test_net_fixture_t *s_fixture = NULL;
 static dap_enc_key_t *s_key = NULL;
 static dap_cert_t *s_cert = NULL;
-static dap_chain_addr_t s_addr = {};
+static dap_chain_addr_t s_test_addr = {};
 static dap_chain_hash_fast_t s_emission_hash = {};
 static test_token_fixture_t *s_token = NULL;
 /* Tx datums we created (kept alive until teardown). */
@@ -94,7 +94,7 @@ static dap_chain_datum_tx_t *s_make_spend_tx(const dap_chain_hash_fast_t *a_prev
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     dap_return_val_if_fail(l_tx, NULL);
     dap_chain_datum_tx_add_in_item(&l_tx, (dap_chain_hash_fast_t *)a_prev_hash, 0);
-    dap_chain_datum_tx_add_out_ext_item(&l_tx, &s_addr, a_value, TEST_TOKEN_TICKER);
+    dap_chain_datum_tx_add_out_ext_item(&l_tx, &s_test_addr, a_value, TEST_TOKEN_TICKER);
     dap_chain_datum_tx_add_sign_item(&l_tx, s_key);
     return l_tx;
 }
@@ -118,8 +118,8 @@ static void s_setup(void)
     char l_config_content[2048];
     snprintf(l_config_content, sizeof(l_config_content),
         "[general]\ndebug_mode=true\n"
-        "[global_db]\ndriver=mdbx\npath=%s\n"
-        "[resources]\nca_folders=%s\n", s_gdb_dir, s_certs_dir);
+        "[global_db]\ndriver=%s\npath=%s\n"
+        "[resources]\nca_folders=%s\n", getenv("LCR_GDB_DRIVER") ? getenv("LCR_GDB_DRIVER") : "mdbx", s_gdb_dir, s_certs_dir);
     char l_config_path[1024];
     snprintf(l_config_path, sizeof(l_config_path), "%s/test.cfg", s_cfg_dir);
     FILE *l_config_file = fopen(l_config_path, "w");
@@ -144,10 +144,16 @@ static void s_setup(void)
     s_fixture = test_net_fixture_create(TEST_NET_NAME);
     dap_assert_PIF(s_fixture != NULL, "Network fixture created");
 
-    // Swap the plain fixture ledger for a cached one on the same network.
-    dap_ledger_handle_free(s_fixture->ledger);
+    // Swap the plain fixture ledger for a cached one on the same network. Publish the new
+    // ledger before freeing the old one: chain timers registered for the network write into
+    // net->pub.ledger (s_blockchain_timer_callback), so freeing it first leaves them writing
+    // into freed memory for as long as the swap takes.
+    dap_ledger_t *l_old_ledger = s_fixture->ledger;
     s_fixture->ledger = dap_ledger_create(s_fixture->net, s_ledger_cache_flags());
     dap_assert_PIF(s_fixture->ledger != NULL, "Cached ledger created");
+    s_fixture->net->pub.ledger = s_fixture->ledger;
+    if (l_old_ledger)
+        dap_ledger_handle_free(l_old_ledger);
     s_fixture->net->pub.ledger = s_fixture->ledger;
 
     s_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
@@ -157,7 +163,7 @@ static void s_setup(void)
     s_cert->enc_key = s_key;
     snprintf(s_cert->name, sizeof(s_cert->name), "ledger_cache_resume_test_cert");
     dap_assert_PIF(dap_cert_add(s_cert) == 0, "Certificate added to storage");
-    dap_chain_addr_fill_from_key(&s_addr, s_key, s_fixture->net->pub.id);
+    dap_chain_addr_fill_from_key(&s_test_addr, s_key, s_fixture->net->pub.id);
     s_fixture->net->pub.fee_value = uint256_0;
     s_fixture->net->pub.fee_addr = c_dap_chain_addr_blank;
 
@@ -180,7 +186,7 @@ static void s_setup(void)
     }
 
     s_token = test_token_fixture_create_with_emission(s_fixture->ledger, TEST_TOKEN_TICKER,
-                                                      "100000.0", "50000.0", &s_addr, s_cert, &s_emission_hash);
+                                                      "100000.0", "50000.0", &s_test_addr, s_cert, &s_emission_hash);
     dap_assert_PIF(s_token != NULL, "Token with emission created");
 }
 
@@ -191,7 +197,7 @@ static void s_add_spend_chain(size_t a_count)
             // The very first tx must spend the emission (an emission is not a
             // tx, so the fixture's dedicated helper builds it).
             test_tx_fixture_t *l_first = test_tx_fixture_create_from_emission(
-                s_fixture->ledger, &s_emission_hash, TEST_TOKEN_TICKER, "500.0", &s_addr, s_cert);
+                s_fixture->ledger, &s_emission_hash, TEST_TOKEN_TICKER, "500.0", &s_test_addr, s_cert);
             dap_assert_PIF(l_first != NULL, "Emission spend tx created");
             dap_assert_PIF(test_tx_fixture_add_to_ledger(s_fixture->ledger, l_first) == 0,
                            "Emission spend tx added to the ledger");
@@ -231,10 +237,13 @@ static void s_test_incremental_fill(void)
  * exactly the cached state - no wipe, no duplicates. */
 static void s_test_resume_after_stop(void)
 {
-    dap_ledger_handle_free(s_fixture->ledger);
+    // Restart: new ledger published first, old one freed after (see the setup swap).
+    dap_ledger_t *l_old_ledger = s_fixture->ledger;
     s_fixture->ledger = dap_ledger_create(s_fixture->net, s_ledger_cache_flags());
     dap_assert_PIF(s_fixture->ledger != NULL, "Cached ledger re-created (restart)");
     s_fixture->net->pub.ledger = s_fixture->ledger;
+    if (l_old_ledger)
+        dap_ledger_handle_free(l_old_ledger);
 
     dap_assert(dap_ledger_count(s_fixture->ledger) == PHASE1_TXS,
                "Restart restored phase-1 txs from the cache");
