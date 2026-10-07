@@ -1955,7 +1955,10 @@ void s_ledger_token_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_item_t
         return;
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
     size_t l_cache_size = l_token_item->datum_token_size + sizeof(uint256_t);
-    uint8_t *l_cache = DAP_NEW_STACK_SIZE(uint8_t, l_cache_size);
+    // Heap, not alloca: datum_token_size is unbounded (a large token datum
+    // would blow the stack of the loading thread), and the (copying) async set
+    // below is the only consumer.
+    uint8_t *l_cache = DAP_NEW_Z_SIZE(uint8_t, l_cache_size);
     if ( !l_cache ) {
         log_it(L_CRITICAL, "%s", c_error_memory_alloc);
         return;
@@ -1967,6 +1970,7 @@ void s_ledger_token_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_item_t
         log_it(L_WARNING, "Ledger cache mismatch, can't add token [%s] with supply %s", l_token_item->ticker, l_supply);
         DAP_DELETE(l_supply);
     }
+    DAP_DELETE(l_cache);
     DAP_DELETE(l_gdb_group);
 }
 
@@ -3398,7 +3402,9 @@ static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_to
         return;
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_EMISSIONS_STR);
     size_t l_cache_size = a_emission_item->datum_token_emission_size + sizeof(dap_hash_fast_t);
-    uint8_t *l_cache = DAP_NEW_STACK_SIZE(uint8_t, l_cache_size);
+    // Heap, not alloca: datum_token_emission_size is unbounded (see the token
+    // cache above); the async set copies the value before returning.
+    uint8_t *l_cache = DAP_NEW_Z_SIZE(uint8_t, l_cache_size);
     memcpy(l_cache, &a_emission_item->tx_used_out, sizeof(dap_hash_fast_t));
     memcpy(l_cache + sizeof(dap_hash_fast_t), a_emission_item->datum_token_emission, a_emission_item->datum_token_emission_size);
     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -3406,6 +3412,7 @@ static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_to
     if (dap_global_db_set(l_gdb_group, l_hash_str, l_cache, l_cache_size, false, NULL, NULL)) {
         log_it(L_WARNING, "Ledger cache mismatch");
     }
+    DAP_DELETE(l_cache);
     DAP_DELETE(l_gdb_group);
 }
 
@@ -5511,7 +5518,9 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             size_t l_cache_size = sizeof(l_prev_item_out->cache_data) + l_prev_item_out->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_prev_item_out->tx);
             size_t l_tx_cache_sz = l_tx_size + l_cache_size + sizeof(dap_ledger_cache_gdb_record_t);
-            dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_STACK_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
+            // Heap, not alloca: a datum can be hundreds of KB (SIGSEGV in the
+            // loading thread reproduced with a 210 KB datum at chain load).
+            dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_Z_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
             l_tx_cache->cache_size = l_cache_size;
             l_tx_cache->datum_size = l_tx_size;
             memcpy(l_tx_cache->data, &l_prev_item_out->cache_data, l_cache_size);
@@ -5703,7 +5712,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         // Add it to cache
         size_t l_cache_size = sizeof(l_tx_item->cache_data) + l_tx_item->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
         size_t l_tx_cache_sz = l_tx_size + l_cache_size + sizeof(dap_ledger_cache_gdb_record_t);
-        dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_STACK_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
+        // Heap, not alloca (see the spent-slot buffer above).
+        dap_ledger_cache_gdb_record_t *l_tx_cache = DAP_NEW_Z_SIZE(dap_ledger_cache_gdb_record_t, l_tx_cache_sz);
         l_tx_cache->cache_size = l_cache_size;
         l_tx_cache->datum_size = l_tx_size;
         memcpy(l_tx_cache->data, &l_tx_item->cache_data, l_cache_size);
@@ -5728,10 +5738,15 @@ FIN:
         dap_list_free(l_list_tx_out);
     if (PVT(a_ledger)->cached) {
         if (l_cache_used_outs) {
+            // Both key and value of the spent slots are heap allocations
+            // (dap_chain_hash_fast_to_str_new / DAP_NEW_Z_SIZE). Slot 0 holds
+            // the tx's own record: its value is heap too, but its key points at
+            // the stack array l_tx_hash_str and must not be freed.
             for (size_t i = 1; i <= l_outs_used; i++) {
                 DAP_DEL_Z(l_cache_used_outs[i].key);
                 DAP_DEL_Z(l_cache_used_outs[i].value);
             }
+            DAP_DEL_Z(l_cache_used_outs[0].value);
         }
         DAP_DEL_Z(l_cache_used_outs);
         DAP_DEL_Z(l_ledger_cache_group);
@@ -6032,7 +6047,10 @@ FIN:
         dap_list_free(l_list_tx_out);
     if (PVT(a_ledger)->cached) {
         if (l_cache_used_outs) {
-            for (size_t i = 1; i < l_outs_used; i++) {
+            // .value here is a DAP_NEW_Z_SIZE (heap) buffer, so freeing it is
+            // correct; the bound was off by one ('<' vs '<='), leaking the
+            // last slot's key and value.
+            for (size_t i = 1; i <= l_outs_used; i++) {
                 DAP_DEL_Z(l_cache_used_outs[i].key);
                 DAP_DEL_Z(l_cache_used_outs[i].value);
             }
