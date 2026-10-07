@@ -2599,6 +2599,22 @@ static void s_threshold_txs_free(dap_ledger_t *a_ledger)
     pthread_rwlock_unlock(&l_pvt->threshold_txs_rwlock);
 }
 
+static void s_load_cache_finish(dap_ledger_t *a_ledger);
+
+/* Hands the load over to the next cache group. The loader thread waits for the chain to reach
+ * its last stage, so a request that cannot even be queued must end the load here instead of
+ * leaving that thread waiting forever. */
+static void s_load_cache_next_stage(dap_ledger_t *a_ledger, const char *a_suffix,
+                                    dap_global_db_callback_results_t a_callback)
+{
+    char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, a_suffix);
+    if (dap_global_db_get_all(l_gdb_group, 0, a_callback, a_ledger) != 0) {
+        log_it(L_WARNING, "Ledger cache: can't start reading group %s, finishing the load early", l_gdb_group);
+        s_load_cache_finish(a_ledger);
+    }
+    DAP_DELETE(l_gdb_group);
+}
+
 /**
  * @brief s_load_cache_gdb_loaded_balances_callback
  * @param a_global_db_context
@@ -2671,34 +2687,35 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
     if (a_rc) {
         log_it(L_WARNING, "Ledger cache: txs group read failed (rc %d), continuing without cached txs", a_rc);
         // Skip straight to the balances stage so the loader gets completed.
-        char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_BALANCES_STR);
-        dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_balances_callback, l_ledger);
-        DAP_DELETE(l_gdb_group);
+        s_load_cache_next_stage(l_ledger, DAP_LEDGER_BALANCES_STR, s_load_cache_gdb_loaded_balances_callback);
         return false;
     }
+    // A malformed record must not abort the whole load: the loader thread waits for the chain
+    // to reach its last stage, so whatever is skipped here is skipped, nothing hangs.
     for (size_t i = 0; i < a_values_count; i++) {
         dap_ledger_cache_gdb_record_t *l_current_record = (dap_ledger_cache_gdb_record_t*)a_values[i].value;
         if (a_values[i].value_len != l_current_record->cache_size + l_current_record->datum_size + sizeof(dap_ledger_cache_gdb_record_t)) {
             log_it(L_ERROR, "Worng ledger_cache_gdb_record size");
-            return false;
+            break;
         }
         dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t, sizeof(dap_ledger_tx_item_t) - sizeof(l_tx_item->cache_data) + l_current_record->cache_size);
         if ( !l_tx_item ) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            return false;
+            break;
         }
         dap_chain_hash_fast_from_str(a_values[i].key, &l_tx_item->tx_hash_fast);
         l_tx_item->tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_current_record->datum_size);
         if ( !l_tx_item->tx ) {
             DAP_DELETE(l_tx_item);
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-            return false;
+            break;
         }
         memcpy(&l_tx_item->cache_data, l_current_record->data, l_current_record->cache_size);
         memcpy(l_tx_item->tx, l_current_record->data + l_current_record->cache_size, l_current_record->datum_size);
         l_tx_item->ts_added = dap_nanotime_now();
         HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item, s_sort_ledger_tx_item);
     }
+<<<<<<< HEAD
     /* Chain to the terminal balances group. s_load_cache_gdb_loaded_balances_callback
      * is the terminal callback and sets load_end + broadcasts load_cond regardless of
      * whether the balances group is empty (GDB still fires the callback once with
@@ -2708,6 +2725,11 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
     char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_BALANCES_STR);
     dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_balances_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
+=======
+    // The balances stage is the one that ends the load (sets load_end); without this the
+    // loader thread waits on load_cond forever (the chain used to stop right here).
+    s_load_cache_next_stage(l_ledger, DAP_LEDGER_BALANCES_STR, s_load_cache_gdb_loaded_balances_callback);
+>>>>>>> 045f9e46e (ledger cache: make it persist and finish the load chain (unit-tested))
     return true;
 }
 
@@ -2732,9 +2754,7 @@ static bool s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_instance_t
         HASH_ADD(hh, l_ledger_pvt->emissions_for_stake_lock, tx_for_stake_lock_hash, sizeof(dap_chain_hash_fast_t), l_new_stake_lock_emission);
     }
 
-    char* l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_TXS_STR);
-    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_txs_callback, l_ledger);
-    DAP_DELETE(l_gdb_group);
+    s_load_cache_next_stage(l_ledger, DAP_LEDGER_TXS_STR, s_load_cache_gdb_loaded_txs_callback);
     return true;
 }
 /**
@@ -2783,9 +2803,7 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_instance_t 
                  sizeof(dap_chain_hash_fast_t), l_emission_item);
     }
 
-    char* l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_STAKE_LOCK_STR);
-    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_stake_lock_callback, l_ledger);
-    DAP_DELETE(l_gdb_group);
+    s_load_cache_next_stage(l_ledger, DAP_LEDGER_STAKE_LOCK_STR, s_load_cache_gdb_loaded_stake_lock_callback);
     return true;
 }
 
@@ -2802,8 +2820,6 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_instance_t 
  * @param a_values
  * @param a_arg
  */
-static void s_load_cache_finish(dap_ledger_t *a_ledger);
-
 static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_dbi,
                                                     int a_rc, const char *a_group,
                                                     const size_t a_values_total, const size_t a_values_count,
@@ -2831,9 +2847,7 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
             l_token_item->current_supply = *(uint256_t*)a_values[i].value;
     }
 
-    char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_EMISSIONS_STR);
-    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_emissions_callback, l_ledger);
-    DAP_DELETE(l_gdb_group);
+    s_load_cache_next_stage(l_ledger, DAP_LEDGER_EMISSIONS_STR, s_load_cache_gdb_loaded_emissions_callback);
     return true;
 }
 
@@ -2976,6 +2990,13 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
 
+    // Load the cached ledger state (txs, tokens, emissions, stake locks, balances) before
+    // anything else touches the ledger. Gated by the runtime flag only: the build-time
+    // DAP_LEDGER_TEST define used to hide this from every test build, which made the cache
+    // resume path untestable; test ledgers simply do not set DAP_LEDGER_CACHE_ENABLED.
+    if ( l_ledger_pvt->cached )
+        dap_ledger_load_cache(l_ledger);
+
 #ifndef DAP_LEDGER_TEST
     for ( dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next ) {
         uint16_t l_whitelist_size, l_blacklist_size, i;
@@ -2994,9 +3015,6 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         debug_if(s_debug_more, L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_chain->name, l_whitelist_size, l_blacklist_size);
 
     }
-    if ( l_ledger_pvt->cached )
-        // load ledger cache from GDB
-        dap_ledger_load_cache(l_ledger);
 #else
     l_ledger_pvt->blockchain_time = dap_time_now();
 #endif
@@ -5556,8 +5574,12 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                 .timestamp  = dap_nanotime_now()
         };
         // Apply it with single DB transaction
-        if (dap_global_db_set_raw(l_cache_used_outs, l_outs_used + 1, NULL, NULL))
-            debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch");
+        // Records are kept unsigned here (signing every cache record on the tx_add hot path
+        // would cost more than the cache saves); the GDB worker signs them with the node key
+        // before applying, which is what the cluster role check requires.
+        int l_sr_rc = dap_global_db_set_raw_signed(l_cache_used_outs, l_outs_used + 1, NULL, NULL);
+        if (l_sr_rc)
+            debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch (txs set_raw rc %d)", l_sr_rc);
     }
     if (!a_from_threshold && l_ledger_pvt->threshold_enabled)
         s_threshold_txs_proc(a_ledger);
@@ -5865,7 +5887,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         // Add it to cache
         dap_global_db_del_sync(l_ledger_cache_group, l_tx_hash_str);
         // Apply it with single DB transaction
-        if (dap_global_db_set_raw(l_cache_used_outs, l_outs_used, NULL, NULL))
+        if (dap_global_db_set_raw_signed(l_cache_used_outs, l_outs_used, NULL, NULL))
             debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch");
     }
 FIN:
@@ -5891,7 +5913,9 @@ FIN:
 
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
-#ifndef DAP_LEDGER_TEST
+    // Runtime-gated (load mode), not compile-time: during a chain load a tx that the cache
+    // already restored must not be re-processed - that is what makes a restart continue from
+    // the point the cache was last written instead of rebuilding the whole ledger.
     if (dap_chain_net_get_load_mode(a_ledger->net)) {
         if (PVT(a_ledger)->cache_tx_check_callback)
             PVT(a_ledger)->cache_tx_check_callback(a_ledger, a_tx_hash);
@@ -5904,7 +5928,6 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
         if (l_tx_item)
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
-#endif
     return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
 
