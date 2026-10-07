@@ -2101,6 +2101,13 @@ void dap_chain_net_test_set_mempool_cluster(dap_chain_net_t *a_net, dap_global_d
     if (!PVT(a_net)->mempool_clusters)
         PVT(a_net)->mempool_clusters = a_cluster;
 }
+
+void dap_chain_net_test_set_load_mode(dap_chain_net_t *a_net, bool a_load_mode)
+{
+    if (!a_net)
+        return;
+    PVT(a_net)->state = a_load_mode ? NET_STATE_LOADING : NET_STATE_OFFLINE;
+}
 #endif
 
 

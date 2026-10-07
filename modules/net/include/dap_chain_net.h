@@ -137,6 +137,10 @@ int dap_chain_net_test_init();
 // once per chain, in chain-list order, right after creating that chain's
 // mempool cluster.
 void dap_chain_net_test_set_mempool_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
+// Test-only counterpart to the state transition dap_chain_net_load() performs: puts the network
+// into (or out of) the loading state, so ledger cache tests can exercise the "a chain load
+// continues on top of the restored cache" path of dap_ledger_tx_load().
+void dap_chain_net_test_set_load_mode(dap_chain_net_t *a_net, bool a_load_mode);
 #endif
 
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
