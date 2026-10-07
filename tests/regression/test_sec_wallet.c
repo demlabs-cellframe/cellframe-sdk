@@ -64,7 +64,9 @@ static void test_wallet_v3(void)
 
     struct stat l_st = {0};
     SEC_ASSERT(stat(l_file, &l_st) == 0, "wallet file exists");
+#ifndef _WIN32 // Windows has no POSIX file modes to assert
     SEC_ASSERT((l_st.st_mode & 0777) == 0600, "wallet file mode is 0600");
+#endif
     SEC_ASSERT(read_wallet_version(l_file) == 3, "on-disk version is 3 (salted KDF)");
 
     // 2. Reload with the right password
