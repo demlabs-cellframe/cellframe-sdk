@@ -101,10 +101,16 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
 
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
 {
+    dap_return_val_if_fail(a_net, -1);
     dap_chain_policy_net_purge(a_net->pub.id);
     dap_chain_net_decree_t *l_decree = dap_chain_net_get_net_decree(a_net);
-    dap_list_free_full(l_decree->pkeys, NULL);
-    DAP_DELETE(l_decree);
+    // No decree is a valid state: nets without PoA certificates never get one (decree_init
+    // returns early), and a repeated purge must not dereference the freed one.
+    if (l_decree) {
+        dap_list_free_full(l_decree->pkeys, NULL);
+        DAP_DELETE(l_decree);
+        dap_chain_net_set_net_decree(a_net, NULL);
+    }
     decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_cur_decree, *l_tmp;
     HASH_ITER(hh, *l_decrees, l_cur_decree, l_tmp) {
         HASH_DEL(*l_decrees, l_cur_decree);
