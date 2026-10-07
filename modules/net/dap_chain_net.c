@@ -304,6 +304,10 @@ typedef struct dap_chain_net_pvt{
     dap_chain_net_decree_t *decree;
     decree_table_t *decrees;
     anchor_table_t *anchors;
+    // A reload is stop + purge + start; two of them overlapping means the second purge wipes the
+    // ledger while the first one's chain load is still reading it (SIGSEGV reproduced with two
+    // `ledger reload` commands in a row), so only one may be in flight per network.
+    bool reload_scheduled;
 } dap_chain_net_pvt_t;
 
 #define PVT(a) ((dap_chain_net_pvt_t *)a->pvt)
@@ -1246,11 +1250,14 @@ static void s_chain_net_reload_timer(void *a_arg)
         log_it(L_WARNING, "Network to reload is no longer there");
         return;
     }
+    if (!PVT(l_net)->reload_scheduled)   // a second request would overlap with this one
+        return;
     int l_state = dap_chain_net_stop(l_net);
     dap_usleep(1000 * 1000);        // let the network go offline before the ledger is purged
     dap_chain_net_purge(l_net);
     if (l_state)
         dap_chain_net_start(l_net);
+    PVT(l_net)->reload_scheduled = false;
 }
 
 /**
@@ -1262,11 +1269,17 @@ static void s_chain_net_reload_timer(void *a_arg)
 bool dap_chain_net_reload_async(dap_chain_net_t *a_net)
 {
     dap_return_val_if_fail(a_net, false);
+    if (PVT(a_net)->reload_scheduled) {
+        log_it(L_WARNING, "Network %s is already being reloaded, request ignored", a_net->pub.name);
+        return false;
+    }
     dap_chain_net_id_t *l_net_id = DAP_NEW_Z(dap_chain_net_id_t);
     dap_return_val_if_fail(l_net_id, false);
     *l_net_id = a_net->pub.id;
+    PVT(a_net)->reload_scheduled = true;
     if (dap_proc_thread_timer_add_pri(NULL, s_chain_net_reload_timer, l_net_id, 1000, true,
                                       DAP_QUEUE_MSG_PRIORITY_NORMAL)) {
+        PVT(a_net)->reload_scheduled = false;
         DAP_DELETE(l_net_id);
         return false;
     }
