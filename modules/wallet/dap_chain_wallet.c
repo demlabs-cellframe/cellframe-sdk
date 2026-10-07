@@ -1029,26 +1029,18 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         return NULL;
     }
 
-#ifdef DAP_OS_WINDOWS
-    LARGE_INTEGER l_offset;
-    l_offset.QuadPart = sizeof(l_file_hdr) + l_file_hdr.wallet_name_len;
-    if (SetFilePointerEx(l_fh, l_offset, &l_offset, FILE_BEGIN))
-#else
-    {   /* Set file pointer to first record after the header (v3: skip the salt).
-           l_fh is a HANDLE on Windows - plain lseek() silently fails there and
-           the second pass reads garbage (a pre-existing bug the wallet test
-           exposed on the Wine CI job) */
+    {   /* Rewind to the first cert record after the header and name;
+           v3 wallets carry the 16-byte KDF salt in between */
         size_t l_rewind = sizeof(l_file_hdr) + l_file_hdr.wallet_name_len
                         + (l_file_hdr.version >= DAP_WALLET$K_VER_3 ? DAP_WALLET_KDF_V3_SALT_SIZE : 0);
-#ifdef _WIN32
-        LARGE_INTEGER l_pos = {0};
-        l_pos.QuadPart = (LONGLONG)l_rewind;
-        SetFilePointerEx(l_fh, l_pos, NULL, FILE_BEGIN);
+#ifdef DAP_OS_WINDOWS
+        LARGE_INTEGER l_offset;
+        l_offset.QuadPart = (LONGLONG)l_rewind;
+        SetFilePointerEx(l_fh, l_offset, &l_offset, FILE_BEGIN);
 #else
         lseek(l_fh, l_rewind, SEEK_SET);
 #endif
     }
-#endif
 
 #ifdef DAP_OS_WINDOWS
     for (size_t i = 0; (ReadFile(l_fh, &l_cert_hdr, sizeof(l_cert_hdr), &l_rc, NULL) == TRUE) && l_rc; ++i)
