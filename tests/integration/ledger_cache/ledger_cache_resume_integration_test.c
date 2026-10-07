@@ -309,6 +309,25 @@ static void s_test_resume_mid_load(void)
                "Mid-load resume: the continuation tx is cached too");
 }
 
+/* Cache reset must drop every cached group, leave the ledger itself alone and let the cache
+ * start filling again from that point. */
+static void s_test_cache_reset(void)
+{
+    size_t l_size_before = dap_ledger_count(s_fixture->ledger);
+    dap_assert(s_gdb_txs_count(s_fixture->ledger) > 0, "Cache holds records before the reset");
+
+    dap_assert(dap_ledger_cache_reset(s_fixture->ledger) == 0, "Ledger cache reset reports success");
+    dap_assert(s_gdb_txs_count(s_fixture->ledger) == 0, "Cache reset dropped the cached txs");
+    dap_assert(dap_ledger_count(s_fixture->ledger) == l_size_before,
+               "Cache reset left the ledger itself untouched");
+
+    s_add_spend_chain(1);
+    s_wait_gdb_txs_at_least(s_fixture->ledger, 1);
+    dap_assert(s_gdb_txs_count(s_fixture->ledger) >= 1, "Cache fills again after the reset");
+    dap_assert(dap_ledger_count(s_fixture->ledger) == l_size_before + 1,
+               "Ledger grew by the transaction added after the reset");
+}
+
 static void s_teardown(void)
 {
     if (s_first_spend) { test_tx_fixture_destroy(s_first_spend); s_first_spend = NULL; }
@@ -338,6 +357,7 @@ int main(int argc, char *argv[])
     s_test_resume_after_stop();
     s_test_readd_idempotent();
     s_test_resume_mid_load();
+    s_test_cache_reset();
 
     s_teardown();
     dap_test_msg("Ledger cache resume tests completed");

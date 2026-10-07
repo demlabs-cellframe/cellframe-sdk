@@ -2887,6 +2887,41 @@ void dap_ledger_load_cache(dap_ledger_t *a_ledger)
     DAP_DELETE(l_gdb_group);
 }
 
+/**
+ * @brief Drops every cached ledger group of a network.
+ *
+ * The GDB ledger cache is a rebuildable index of the chain data, so clearing it is always safe:
+ * whatever is dropped is read back from the chains and written again while the ledger is fed -
+ * either right away, if a network reload follows (what the CLI command does by default), or on
+ * the next chain load. Nothing in the in-memory ledger is touched.
+ */
+int dap_ledger_cache_reset(dap_ledger_t *a_ledger)
+{
+    dap_return_val_if_fail(a_ledger && a_ledger->net, -1);
+    // Everything the ledger caches itself, plus the delegated stake service's key cache: the
+    // stake service writes it under the same local.ledger-cache.<net>.* family.
+    static const char *l_suffixes[] = {
+        DAP_LEDGER_TOKENS_STR, DAP_LEDGER_EMISSIONS_STR, DAP_LEDGER_STAKE_LOCK_STR,
+        DAP_LEDGER_TXS_STR, DAP_LEDGER_BALANCES_STR, "delegate_keys"
+    };
+    int l_dropped = 0;
+    for (size_t i = 0; i < sizeof(l_suffixes) / sizeof(l_suffixes[0]); ++i) {
+        char *l_group = dap_ledger_get_gdb_group(a_ledger, l_suffixes[i]);
+        if (!l_group)
+            continue;
+        if (dap_global_db_erase_table_sync(l_group) == 0) {
+            ++l_dropped;
+            log_it(L_NOTICE, "Ledger cache: group %s cleared", l_group);
+        } else {
+            debug_if(s_debug_more, L_INFO, "Ledger cache: group %s was not present", l_group);
+        }
+        DAP_DELETE(l_group);
+    }
+    log_it(L_NOTICE, "Ledger cache for network %s has been reset: %d group(s) cleared",
+           a_ledger->net->pub.name, l_dropped);
+    return 0;
+}
+
 static void s_blockchain_timer_callback(dap_chain_t *a_chain, dap_time_t a_blockchain_time, void UNUSED_ARG *a_arg, bool a_reverse)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
