@@ -579,7 +579,12 @@ inline static dap_ledger_hal_item_t *s_check_hal(dap_ledger_t *a_ledger, dap_has
 {
     dap_ledger_hal_item_t *ret = NULL;
     HASH_FIND(hh, PVT(a_ledger)->hal_items, a_hal_hash, sizeof(dap_hash_fast_t), ret);
-    debug_if(s_debug_more && ret, L_MSG, "Datum %s is whitelisted", dap_hash_fast_to_str_static(a_hal_hash));
+    if (ret)
+        // A HAL hit bypasses signature/value checks for this exact hash: operators
+        // must see every use of that loaded gun in the log, not only in debug mode
+        log_it(L_WARNING, "Datum %s accepted via hard_accept_list bypass", dap_hash_fast_to_str_static(a_hal_hash));
+    else
+        debug_if(s_debug_more, L_MSG, "Datum %s is not in the whitelist", dap_hash_fast_to_str_static(a_hal_hash));
     return ret;
 }
 

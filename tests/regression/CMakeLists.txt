@@ -175,3 +175,34 @@ set_tests_properties(regression_sec_out_idx_bounds PROPERTIES
     TIMEOUT 300
     LABELS "regression;security;ledger"
 )
+
+# Security regression 2026-10-07: wallet v3 format and file hygiene
+add_executable(test_sec_wallet
+    test_sec_wallet.c
+)
+
+target_include_directories(test_sec_wallet PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+)
+
+target_link_libraries(test_sec_wallet
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_net
+    dap_chain_common
+    dap_chain_wallet
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_esbocs
+)
+
+add_test(NAME regression_sec_wallet COMMAND test_sec_wallet)
+
+set_tests_properties(regression_sec_wallet PROPERTIES
+    TIMEOUT 120
+    LABELS "regression;security;wallet"
+)

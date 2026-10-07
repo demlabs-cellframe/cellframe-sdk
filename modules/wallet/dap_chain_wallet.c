@@ -1049,7 +1049,9 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_offset.QuadPart = sizeof(l_file_hdr) + l_file_hdr.wallet_name_len;
     if (SetFilePointerEx(l_fh, l_offset, &l_offset, FILE_BEGIN))
 #else
-    lseek(l_fh,  sizeof(l_file_hdr) + l_file_hdr.wallet_name_len, SEEK_SET);     /* Set file pointer to first record after cert file header */
+    lseek(l_fh,  sizeof(l_file_hdr) + l_file_hdr.wallet_name_len
+                + (l_file_hdr.version >= DAP_WALLET$K_VER_3 ? DAP_WALLET_KDF_V3_SALT_SIZE : 0),
+                SEEK_SET);     /* Set file pointer to first record after cert file header (v3: skip the salt) */
 #endif
 
 #ifdef DAP_OS_WINDOWS
