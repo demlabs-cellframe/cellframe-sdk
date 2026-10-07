@@ -1139,6 +1139,10 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             return false;
         }
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+        if (!l_chain) { // the id comes straight from the peer's packet header
+            log_it(L_WARNING, "CHAIN_SUMMARY for unknown net/chain id, drop");
+            break;
+        }
         dap_chain_ch_summary_t *l_sum = (dap_chain_ch_summary_t *)l_chain_pkt->data;
         if(l_chain->atom_num_last < l_sum->num_last)
             l_chain->atom_num_last = l_sum->num_last;
@@ -1199,6 +1203,7 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     case DAP_CHAIN_CH_PKT_TYPE_SYNCED_CHAIN: {
         dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
+<<<<<<< HEAD
         /* Preserve the peer-advertised atom_num_last (set by CHAIN_SUMMARY):
          * the local callback_count_atom may be lower because conflicted/fork
          * events are excluded from the main events table. Overwriting it here
@@ -1215,6 +1220,15 @@ static bool s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         uint64_t l_local_count = l_chain->callback_count_atom(l_chain);
         if (l_chain->atom_num_last < l_local_count)
             l_chain->atom_num_last = l_local_count;
+=======
+        if (!l_chain) {
+            log_it(L_WARNING, "SYNCED_CHAIN for unknown net/chain id, drop");
+            break;
+        }
+        uint64_t l_atom_count = l_chain->callback_count_atom(l_chain);
+        if (l_chain->atom_num_last < l_atom_count)
+            l_chain->atom_num_last = l_atom_count;
+>>>>>>> 87e76b87a (chain/ledger: NULL-check peer-supplied chain ids, bound out indices, cache systemctl probe)
         log_it(L_INFO, "In: SYNCED_CHAIN %s for net %s from source " NODE_ADDR_FP_STR,
                     l_chain ? l_chain->name : "(null)",
                                 l_chain ? l_chain->net_name : "(null)",
