@@ -1119,7 +1119,7 @@ static size_t dap_db_net_history_token_list(json_object* a_json_arr_reply, dap_c
 int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
 {
     json_object ** a_json_arr_reply = (json_object **) reply;
-    enum { CMD_NONE, CMD_LIST, CMD_TX_INFO, CMD_EVENT };
+    enum { CMD_NONE, CMD_LIST, CMD_TX_INFO, CMD_EVENT, CMD_CACHE };
     int arg_index = 1;
     const char *l_net_str = NULL;
     const char *l_target_chain_str = NULL;
@@ -1142,10 +1142,56 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
         l_cmd = CMD_TX_INFO;
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "event", NULL))
         l_cmd = CMD_EVENT;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "cache", NULL))
+        l_cmd = CMD_CACHE;
 
     bool l_is_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
 
     arg_index++;
+
+    if (l_cmd == CMD_CACHE) {
+        if (!dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "reset", NULL)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR,
+                                   "Subcommand 'cache' requires subcommand 'reset'");
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+        }
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
+        if (l_net_str == NULL) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR,
+                                   "Command requires key -net");
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_PARAM_ERR;
+        }
+        dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+        if (!l_net || !l_net->pub.ledger) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_FIND_ERR,
+                                   "Can't find net %s", l_net_str);
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_NET_FIND_ERR;
+        }
+        if (dap_ledger_cache_reset(l_net->pub.ledger)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR,
+                                   "Can't reset the ledger cache of net %s", l_net_str);
+            return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
+        }
+        // By default the network is reloaded as well, so the dropped cache is rebuilt from the
+        // chains right away. The reload is the slow part - -no-reload skips it and leaves the
+        // cache to be rebuilt by the next chain load.
+        bool l_no_reload = dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-no-reload", NULL);
+        if (!l_no_reload) {
+            int l_state = dap_chain_net_stop(l_net);
+            dap_usleep(1000 * 1000);    // let the network go offline before the ledger is purged
+            dap_chain_net_purge(l_net);
+            if (l_state)
+                dap_chain_net_start(l_net);
+        }
+        json_object *l_jobj_ret = json_object_new_string(l_no_reload
+                ? "Ledger cache cleared" : "Ledger cache cleared, network reload started");
+        if (!l_jobj_ret) {
+            dap_json_rpc_allocation_error(*a_json_arr_reply);
+            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+        }
+        json_object_array_add(*reply, l_jobj_ret);
+        return DAP_CHAIN_NODE_CLI_COM_LEDGER_OK;
+    }
 
     if (l_cmd == CMD_EVENT) {
         enum { SUBCMD_NONE, SUBCMD_LIST, SUBCMD_DUMP, SUBCMD_KEY, SUBCMD_CREATE };

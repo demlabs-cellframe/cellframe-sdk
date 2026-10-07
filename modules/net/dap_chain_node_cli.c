@@ -481,7 +481,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "-group <group_name> -event_type <event_type> [-event_data <event_data>] [-fee <fee_value>] [-H <hex|base58>]\n"
             "ledger event key add -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
             "ledger event key remove -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
-            "ledger event key list -net <net_name> [-H <hex|base58>]\n");
+            "ledger event key list -net <net_name> [-H <hex|base58>]\n"
+            "ledger cache reset -net <net_name> [-no-reload]\n"
+            "\tClears the ledger cache of the network (it is rebuilt from the chains: the network\n"
+            "\tis reloaded unless -no-reload is given, which makes the command slow).\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, NULL, "Token info",

@@ -279,6 +279,8 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger);
 
 void dap_ledger_set_local_cell_id(dap_ledger_t *a_ledger, dap_chain_cell_id_t a_local_cell_id);
 
+int dap_ledger_cache_reset(dap_ledger_t *a_ledger);
+
 DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const char *a_suffix)
 {
     return a_ledger && *a_ledger->net->pub.name && a_suffix

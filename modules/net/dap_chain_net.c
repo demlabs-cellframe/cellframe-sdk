@@ -2264,7 +2264,9 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
         PVT( l_net )->node_role.enums = NODE_ROLE_FULL; // TODO: implement light mode
     case NODE_ROLE_FULL:
         l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
-        if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
+        // On by default: the cache turns a restart from "re-process every transaction of every
+        // chain" into "read the cached state, continue from the last written point".
+        if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true))
             l_ledger_flags |= DAP_LEDGER_CACHE_ENABLED;
     default:
         l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
