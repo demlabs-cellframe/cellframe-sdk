@@ -1317,6 +1317,41 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 l_after_flag = l_seek_after;
                 l_block_cache = l_seek_after ? (l_head ? l_seek_cache->hh.next : l_seek_cache->hh.prev)
                                              : l_seek_cache;
+            } else if (!l_signed_flag && !l_first_signed_flag && !l_has_dates && !l_has_hashes) {
+                // Plain offset/limit listing (the common crawler case): block numbers are
+                // contiguous along the accepted chain (each block is prev+1, forks replace the
+                // whole range), so the window start is a direct O(1) number lookup instead of
+                // walking -offset entries. A number without a block (fork gap) yields an empty
+                // listing, same as an offset beyond the chain end.
+                dap_chain_block_cache_t *l_first = PVT(l_blocks)->blocks, *l_last = NULL;
+                if (l_first)
+                    l_last = HASH_LAST(l_first);
+                if (l_first && l_last) {
+                    uint64_t l_min_num = l_first->block_number, l_max_num = l_last->block_number;
+                    uint64_t l_span = l_max_num - l_min_num + 1;
+                    uint64_t l_seek_num = 0;
+                    if (!l_head && l_offset < l_span)
+                        l_seek_num = l_max_num - l_offset;
+                    else if (l_head && l_offset < l_span)
+                        l_seek_num = l_min_num + l_offset;
+                    else
+                        l_block_cache = NULL;   // offset beyond the chain: empty page
+                    if (l_seek_num || (!l_seek_num && !l_offset)) {
+                        dap_chain_block_cache_t *l_sc = NULL;
+                        HASH_FIND_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, &l_seek_num,
+                                              sizeof(l_seek_num), l_seek_num, l_sc);
+                        if (l_sc)
+                            l_block_cache = l_sc;
+                        else if (l_seek_num >= l_min_num && l_seek_num <= l_max_num) {
+                            // A gap inside the range (should not happen with contiguous
+                            // numbering): fall back to the plain walk.
+                            l_block_cache = l_head ? PVT(l_blocks)->blocks : HASH_LAST(PVT(l_blocks)->blocks);
+                        } else
+                            l_block_cache = NULL;
+                    }
+                    if (l_block_cache)
+                        i_tmp = l_offset;
+                }
             }
             for ( uint64_t l_scan_idx = 0; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
                 // Cooperative cancellation: "block list" without -limit walks

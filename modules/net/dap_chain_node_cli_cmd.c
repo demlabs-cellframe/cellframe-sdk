@@ -1772,6 +1772,52 @@ void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_c
  * @param str_reply
  * @return int
  */
+/* Fast path for repeated `wallet outputs -w` polls (crawlers): the wallet file (v3 salted KDF)
+ * is opened only to derive the PUBLIC address, which is deterministic per (wallet, net) - the
+ * private key material never enters this cache, so it stays out of the security posture. */
+typedef struct s_wallet_addr_cache_entry {
+    char *key;                /* "wallet_name|net_id" */
+    dap_chain_addr_t addr;
+    UT_hash_handle hh;
+} s_wallet_addr_cache_entry_t;
+static s_wallet_addr_cache_entry_t *s_wallet_addr_cache;
+static pthread_mutex_t s_wallet_addr_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+#define S_WALLET_ADDR_CACHE_MAX 256
+
+static const dap_chain_addr_t *s_wallet_addr_cache_get(const char *a_wallet_name, dap_chain_net_t *a_net) {
+    char l_key[256];
+    snprintf(l_key, sizeof(l_key), "%s|%llu", a_wallet_name, (unsigned long long)a_net->pub.id.uint64);
+    pthread_mutex_lock(&s_wallet_addr_cache_lock);
+    s_wallet_addr_cache_entry_t *l_e = NULL;
+    HASH_FIND_STR(s_wallet_addr_cache, l_key, l_e);
+    pthread_mutex_unlock(&s_wallet_addr_cache_lock);
+    return l_e ? &l_e->addr : NULL;
+}
+
+static void s_wallet_addr_cache_put(const char *a_wallet_name, dap_chain_net_t *a_net, const dap_chain_addr_t *a_addr) {
+    if (HASH_COUNT(s_wallet_addr_cache) >= S_WALLET_ADDR_CACHE_MAX) {
+        pthread_mutex_lock(&s_wallet_addr_cache_lock);
+        s_wallet_addr_cache_entry_t *l_it, *l_tmp;
+        HASH_ITER(hh, s_wallet_addr_cache, l_it, l_tmp) {   /* bounded: drop all, repopulate lazily */
+            HASH_DEL(s_wallet_addr_cache, l_it);
+            DAP_DEL_Z(l_it->key);
+            DAP_DEL_Z(l_it);
+        }
+        pthread_mutex_unlock(&s_wallet_addr_cache_lock);
+    }
+    s_wallet_addr_cache_entry_t *l_e = DAP_NEW_Z(s_wallet_addr_cache_entry_t);
+    if (!l_e)
+        return;
+    l_e->key = dap_strdup_printf("%s|%llu", a_wallet_name, (unsigned long long)a_net->pub.id.uint64);
+    if (!l_e->key) {
+        DAP_DEL_Z(l_e);
+        return;
+    }
+    l_e->addr = *a_addr;
+    pthread_mutex_lock(&s_wallet_addr_cache_lock);
+    HASH_ADD_KEYPTR(hh, s_wallet_addr_cache, l_e->key, strlen(l_e->key), l_e);
+    pthread_mutex_unlock(&s_wallet_addr_cache_lock);
+}
 int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
 json_object ** a_json_arr_reply = (json_object **) a_str_reply;
@@ -2019,6 +2065,17 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     json_object_put(json_arr_out);
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
+                // The wallet file (v3 salted KDF) is needed only to derive the public address:
+                // serve repeats from the name->addr cache and skip the KDF + file read entirely.
+                const dap_chain_addr_t *l_cached_addr = s_wallet_addr_cache_get(l_wallet_name, l_net);
+                if (l_cached_addr) {
+                    l_addr = DAP_NEW(dap_chain_addr_t);
+                    if (!l_addr) {
+                        json_object_put(json_arr_out);
+                        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
+                    }
+                    *l_addr = *l_cached_addr;
+                } else {
                 l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path, NULL);
                 if (!l_wallet){
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
@@ -2027,6 +2084,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
                 l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
+                s_wallet_addr_cache_put(l_wallet_name, l_net, l_addr);
+                dap_chain_wallet_close(l_wallet);
+                l_wallet = NULL;
+                }
                 if (!l_addr){
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
                                            "Can't get addr from wallet (%s)", l_wallet_name);
