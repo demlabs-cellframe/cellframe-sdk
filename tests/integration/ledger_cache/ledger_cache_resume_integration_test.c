@@ -237,6 +237,7 @@ static void s_test_incremental_fill(void)
  * exactly the cached state - no wipe, no duplicates. */
 static void s_test_resume_after_stop(void)
 {
+    log_it(L_NOTICE, "ledger_cache_resume: stage restart begin (free old, create new, load cache)");
     // Restart: new ledger published first, old one freed after (see the setup swap).
     dap_ledger_t *l_old_ledger = s_fixture->ledger;
     s_fixture->ledger = dap_ledger_create(s_fixture->net, s_ledger_cache_flags());
@@ -350,6 +351,7 @@ static void s_teardown(void)
 int main(int argc, char *argv[])
 {
     (void)argc; (void)argv;
+    setvbuf(stdout, NULL, _IONBF, 0);   // crash-safe progress on emulated CI runners
     dap_test_msg("Ledger cache: incremental fill and resume");
     s_setup();
 
