@@ -191,6 +191,41 @@ static void s_test_command_index(void)
     dap_pass_msg("HTTP RPC command index test passed");
 }
 
+/* End-to-end through the real executor: a command that hands over a pre-serialized reply gets it
+ * embedded into the response verbatim - no parse/serialize round-trip of the payload. */
+static int s_raw_cmd_func(int a_argc, char **a_argv, void **a_reply, int a_version)
+{
+    (void)a_argc; (void)a_argv; (void)a_reply; (void)a_version;
+    // The reply array stays empty: the raw result replaces it in the executor's tail.
+    dap_cli_cmd_reply_set_raw_json(dap_strdup("{\"pair\":\"CELL/mCELL\",\"events\":[1,2,3]}"));
+    return 0;
+}
+
+static void s_test_raw_reply_channel(void)
+{
+    dap_assert_PIF(dap_cli_server_cmd_add("rpc_service_test_raw_cmd", s_raw_cmd_func, NULL,
+                                          "raw reply test command", NULL) != NULL,
+                   "Raw reply test command registers");
+    char *l_req = dap_strdup("{\"method\":\"rpc_service_test_raw_cmd\",\"params\":[],\"id\":42}");
+    char *l_resp = dap_cli_cmd_exec(l_req);
+    DAP_DELETE(l_req);
+    dap_assert_PIF(l_resp != NULL, "Raw reply command produces a response");
+    json_object *l_obj = json_tokener_parse(l_resp);
+    dap_assert_PIF(l_obj != NULL, "Raw reply response is valid JSON");
+    json_object *l_result = NULL, *l_id = NULL;
+    dap_assert(json_object_object_get_ex(l_obj, "result", &l_result) && l_result != NULL,
+               "Raw reply is embedded as the response result");
+    dap_assert(json_object_object_get_ex(l_obj, "id", &l_id) && l_id &&
+               json_object_get_int64(l_id) == 42, "Raw reply response carries the request id");
+    json_object *l_ev = NULL;
+    dap_assert(json_object_object_get_ex(l_result, "events", &l_ev) && l_ev &&
+               json_object_array_length(l_ev) == 3,
+               "The raw payload survived verbatim (no re-serialization artifacts)");
+    json_object_put(l_obj);
+    DAP_DELETE(l_resp);
+    dap_pass_msg("HTTP RPC raw reply channel test passed");
+}
+
 static void s_test_ready_default(void)
 {
     char l_reason[128];
@@ -211,6 +246,7 @@ int main(void)
     s_test_method_visibility();
     s_test_loopback_detection();
     s_test_command_index();
+    s_test_raw_reply_channel();
     s_test_ready_default();
 
     printf("All HTTP RPC service unit tests passed (4 tests)!\n"); fflush(stdout);

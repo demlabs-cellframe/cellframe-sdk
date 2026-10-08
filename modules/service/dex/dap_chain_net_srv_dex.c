@@ -10665,12 +10665,14 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
                 uint64_t l_ver_now = 0;
                 bool l_still_exists = s_dex_history_pair_version(&l_key, &l_ver_now);
                 bool l_valid = l_still_exists == l_hit_pair_exists && l_ver_now == l_hit_ver;
-                json_object *l_cached = l_valid ? json_tokener_parse(l_hit) : NULL;
-                DAP_DELETE(l_hit);
-                if (l_cached) {
+                if (!l_valid) {
+                    DAP_DELETE(l_hit);
+                } else {
+                    // The cached reply is byte-for-byte what a fresh pass would serialize: hand
+                    // it over raw instead of parsing it into a tree for the executor to
+                    // serialize right back (the executor embeds it into the envelope as-is).
                     debug_if_f(s_debug_more, L_DEBUG, "history reply cache hit for %s", l_ckey);
-                    json_object_put(l_json_reply);
-                    *json_arr_reply = l_cached;
+                    dap_cli_cmd_reply_set_raw_json(l_hit);
                     return 0;
                 }
             }
