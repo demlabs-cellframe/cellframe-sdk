@@ -1143,10 +1143,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
 
         case SUBCMD_LIST:{
             const char *l_cert_name = NULL, *l_from_hash_str = NULL, *l_to_hash_str = NULL, *l_head_str = NULL,
-                        *l_from_date_str = NULL, *l_to_date_str = NULL, *l_pkey_hash_str = NULL, *l_limit_str = NULL, *l_offset_str = NULL;
+                        *l_from_date_str = NULL, *l_to_date_str = NULL, *l_pkey_hash_str = NULL, *l_limit_str = NULL, *l_offset_str = NULL,
+                        *l_after_hash_str = NULL;
             bool l_unspent_flag = false, l_first_signed_flag = false, l_signed_flag = false, l_hash_flag = false;
             dap_pkey_t * l_pub_key = NULL;
-            dap_hash_fast_t l_from_hash = {}, l_to_hash = {}, l_pkey_hash = {};
+            dap_hash_fast_t l_from_hash = {}, l_to_hash = {}, l_pkey_hash = {}, l_after_hash = {};
             dap_time_t l_from_time = 0, l_to_time = 0;
             l_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "signed") > 0;
             l_first_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "first_signed") > 0;
@@ -1155,6 +1156,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-pkey_hash", &l_pkey_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_hash", &l_from_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_hash", &l_to_hash_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-after_hash", &l_after_hash_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_date", &l_from_date_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_date", &l_to_date_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-limit", &l_limit_str);
@@ -1164,7 +1166,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             size_t l_limit = l_limit_str ? strtoul(l_limit_str, NULL, 10) : 0;
 
             bool l_has_dates = (l_from_date_str != NULL) || (l_to_date_str != NULL);
-            bool l_has_hashes = (l_from_hash_str != NULL) || (l_to_hash_str != NULL);
+            bool l_has_hashes = (l_from_hash_str != NULL) || (l_to_hash_str != NULL) || (l_after_hash_str != NULL);
+            if (l_after_hash_str && (l_from_hash_str || l_has_dates)) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
+                    "Invalid flags combination: -after_hash cannot be mixed with -from_hash/-to_hash/-from_date/-to_date");
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
+            }
             if (l_has_dates && l_has_hashes) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR,
                     "Invalid flags combination: cannot mix {-from_date/-to_date} with {-from_hash/-to_hash}");
@@ -1205,6 +1212,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             if (l_from_hash_str) {
                 if (dap_chain_hash_fast_from_str(l_from_hash_str, &l_from_hash)) {
                     dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR, "Can't convert \"%s\" to hash", l_from_hash_str);
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR;
+                }
+            }
+            if (l_after_hash_str) {
+                if (dap_chain_hash_fast_from_str(l_after_hash_str, &l_after_hash)) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR, "Can't convert \"%s\" to hash", l_after_hash_str);
                     return DAP_CHAIN_NODE_CLI_COM_BLOCK_CONVERT_ERR;
                 }
             }
@@ -1258,6 +1271,27 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 }
             }
 
+<<<<<<< HEAD
+=======
+            // Row by row serialization from here on (see dap_cli_cmd_reply_add):
+            // the listing is one element of the reply array, so the rows go into
+            // a nested array that keeps the reply shape [ [rows...], <count> ].
+            // Cursor seek: a hash-bounded listing starts at the boundary block itself (an O(1)
+            // hash lookup) instead of walking the chain past every entry before the window -
+            // deep -offset pages and cursor pagination become O(limit). -after_hash starts one
+            // entry beyond the boundary (strictly-after cursor). Not combinable with date
+            // filters, whose early-break semantics depend on scanning from an end.
+            dap_chain_block_cache_t *l_seek_cache = NULL;
+            bool l_seek_after = false;
+            if (l_after_hash_str) {
+                l_seek_after = true;
+                l_seek_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_after_hash);
+            } else if (l_from_hash_str) {
+                l_seek_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_from_hash);
+            }
+
+            dap_cli_cmd_reply_stream_begin_nested();
+>>>>>>> 0546d99c6 (blocks/dex: cursor seek for block list; reply caches for orders/orderbook; min_fill LRU)
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
             json_object* json_arr_bl_cache_out = json_object_new_array();
             size_t l_start_arr = 0;
@@ -1265,10 +1299,30 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             dap_chain_set_offset_limit_json(json_arr_bl_cache_out, &l_start_arr, &l_arr_end, l_limit, l_offset, PVT(l_blocks)->blocks_count, false);
             
             size_t i_tmp = 0;
+            bool l_after_flag = false;
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
             if (!l_head)
+<<<<<<< HEAD
                 l_block_cache = HASH_LAST(l_block_cache);             
             for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
+=======
+                l_block_cache = HASH_LAST(l_block_cache);
+            if (l_seek_cache) {
+                // Start at the boundary; the from_hash filter below matches it immediately.
+                l_hash_flag = true;
+                l_after_flag = l_seek_after;
+                l_block_cache = l_seek_after ? (l_head ? l_seek_cache->hh.next : l_seek_cache->hh.prev)
+                                             : l_seek_cache;
+            }
+            for ( uint64_t l_scan_idx = 0; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
+                // Cooperative cancellation: "block list" without -limit walks
+                // the whole chain under PVT(l_blocks)->rwlock. A disconnected
+                // crawler shouldn't keep this thread (and the lock) busy for
+                // the full traversal — checked every 4096 blocks, not every
+                // one, to keep the liveness-check mutex off the hot path.
+                if (!(++l_scan_idx & 0xFFF) && !dap_cli_server_client_is_alive())
+                    break;
+>>>>>>> 0546d99c6 (blocks/dex: cursor seek for block list; reply caches for orders/orderbook; min_fill LRU)
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_head) {
                     if (l_to_time && l_ts < l_to_time)

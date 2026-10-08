@@ -154,9 +154,40 @@ typedef struct dex_pair_index {
                             *bids; // hh_pair_bucket: asks sorted rate ASC (best ask = head), bids rate DESC (best bid = head)
     uint256_t best_ask_snap,
               best_bid_snap; // snapshots of best prices before current block
+    uint64_t orders_ver;     // bumped on every order place/cancel/fill in this pair
     UT_hash_handle hh;
 } dex_pair_index_t;
 static dex_pair_index_t *s_dex_pair_index = NULL;
+
+// Tier-3 accelerator: the origin tx of an order is immutable once in the ledger, so its
+// (value, min_fill) pair is cached positive-only and bounded - a miss (unknown origin) is
+// retried on every request exactly as before, a hit saves the ledger rdlock + hash find.
+typedef struct dex_minfill_cache_entry {
+    dap_hash_fast_t root;
+    uint256_t value;
+    uint8_t pct;
+    UT_hash_handle hh;
+} dex_minfill_cache_entry_t;
+static dex_minfill_cache_entry_t *s_dex_minfill_cache;
+static pthread_mutex_t s_dex_minfill_cache_lock = PTHREAD_MUTEX_INITIALIZER;
+#define DEX_MINFILL_CACHE_MAX 4096
+
+// Net-wide book mutation counter: bumped on every order place/cancel/fill of any pair. Serves
+// the validity check of the unfiltered `srv_dex orders` reply cache.
+static _Atomic(uint64_t) s_dex_orders_ver_global;
+
+// Current orders-book version of a pair (bumped on every order place/cancel/fill), for the
+// orders/orderbook reply caches. False when the pair is not whitelisted.
+static bool s_dex_orders_pair_version(const dex_pair_key_t *a_key, uint64_t *a_ver_out) {
+    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+    dex_pair_index_t *l_pb = NULL;
+    HASH_FIND(hh, s_dex_pair_index, a_key, DEX_PAIR_KEY_CMP_SIZE, l_pb);
+    if (a_ver_out)
+        *a_ver_out = l_pb ? l_pb->orders_ver : 0;
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    return l_pb != NULL;
+}
+
 
 typedef struct dex_net_fee_cache {
     dap_chain_net_id_t net_id;
@@ -966,12 +997,14 @@ static inline int s_dex_pair_index_add(const dex_pair_key_t *a_key)
 /** @brief Remove order from all secondary indices (pair, seller, tail). */
 static void s_dex_indexes_remove(dex_order_cache_entry_t *a_entry)
 {
+    atomic_fetch_add_explicit(&s_dex_orders_ver_global, 1, memory_order_relaxed);
     // tail index
     if (a_entry->level.hh_tail.tbl)
         HASH_DELETE(level.hh_tail, s_dex_index_by_tail, a_entry);
     // pair index
     if (a_entry->pair_key_ptr) {
         dex_pair_index_t *pb = (dex_pair_index_t *)a_entry->pair_key_ptr;
+        ++pb->orders_ver;
         if ((a_entry->side_version & 0x1) == DEX_SIDE_ASK)
             HASH_DELETE(hh_pair_bucket, pb->asks, a_entry);
         else
@@ -1041,6 +1074,8 @@ static void s_dex_indexes_upsert(dex_pair_index_t *a_pair_idx, unsigned a_entry_
         s_dex_indexes_remove(l_replaced);
         DAP_DELETE(l_replaced);
     }
+    atomic_fetch_add_explicit(&s_dex_orders_ver_global, 1, memory_order_relaxed);
+    ++a_pair_idx->orders_ver;
     a_entry->seller_addr_ptr = &l_sb->seller_addr;
     if ((a_entry->side_version & 0x1) == DEX_SIDE_ASK)
         HASH_ADD_BYHASHVALUE_INORDER(hh_pair_bucket, a_pair_idx->asks, level.match.root, sizeof(a_entry->level.match.root),
@@ -3147,6 +3182,7 @@ typedef struct dex_hist_order_idx {
 typedef struct dex_hist_pair {
     dex_pair_key_t key;                // canonical BASE/QUOTE
     struct dap_chain_net *pvt_journal_net; // net of the journal group (set on first append)
+    uint64_t orders_ver;               // bumped on every book mutation (order place/cancel/fill)
     uint64_t events_ver;               // bumped on every history event add/remove (wrlock held);
                                        // keyed validity for the serialized-reply cache
     dex_hist_bucket_t *buckets;        // uthash ts -> bucket
@@ -6691,6 +6727,14 @@ void dap_chain_net_srv_dex_deinit()
     // Free orders cache (also cleans up pair/seller indices via back-pointers)
     s_dex_pair_index_remove(NULL);
 
+    // Free the min_fill accelerator (a pure cache - no persistent state behind it)
+    dex_minfill_cache_entry_t *l_mf, *l_mf_tmp;
+    HASH_ITER(hh, s_dex_minfill_cache, l_mf, l_mf_tmp)
+    {
+        HASH_DELETE(hh, s_dex_minfill_cache, l_mf);
+        DAP_DEL_Z(l_mf);
+    }
+
     // Free history cache (buckets, trades, seller index, pairs)
     dex_hist_pair_t *hp_it, *hp_tmp;
     HASH_ITER(hh, s_dex_history, hp_it, hp_tmp)
@@ -9016,17 +9060,48 @@ typedef struct dex_orders_row_snapshot {
 // Ledger tier of the old s_dex_fetch_min_abs() (used when the history cache
 // can't answer): the origin tx's own out_cond value and min_fill, read without
 // touching any cache structure - hence done after the cache lock is released.
+
 static void s_dex_resolve_row_min_fill(dap_ledger_t *a_ledger, dex_orders_row_snapshot_t *a_row)
 {
     if (!a_row->min_fill_origin_pending)
         return;
     a_row->min_fill_origin_pending = false;
+    dex_minfill_cache_entry_t *l_c = NULL;
+    pthread_mutex_lock(&s_dex_minfill_cache_lock);
+    HASH_FIND(hh, s_dex_minfill_cache, &a_row->root, sizeof(a_row->root), l_c);
+    if (l_c) {
+        a_row->min_fill_value = s_calc_pct(l_c->value, l_c->pct, 0);
+        pthread_mutex_unlock(&s_dex_minfill_cache_lock);
+        return;
+    }
+    pthread_mutex_unlock(&s_dex_minfill_cache_lock);
+
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, &a_row->root);
     if (!l_tx)
         return;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, NULL);
-    if (l_out_cond)
-        a_row->min_fill_value = s_calc_pct(l_out_cond->header.value, l_out_cond->subtype.srv_dex.min_fill & 0x7F, 0);
+    if (!l_out_cond)
+        return;
+    uint8_t l_pct = l_out_cond->subtype.srv_dex.min_fill & 0x7F;
+    a_row->min_fill_value = s_calc_pct(l_out_cond->header.value, l_pct, 0);
+
+    pthread_mutex_lock(&s_dex_minfill_cache_lock);
+    if (HASH_COUNT(s_dex_minfill_cache) >= DEX_MINFILL_CACHE_MAX) {
+        // Drop an arbitrary entry: the cache is a pure accelerator of immutable lookups.
+        dex_minfill_cache_entry_t *l_victim = s_dex_minfill_cache;
+        if (l_victim) {
+            HASH_DEL(s_dex_minfill_cache, l_victim);
+            DAP_DEL_Z(l_victim);
+        }
+    }
+    dex_minfill_cache_entry_t *l_new = DAP_NEW_Z(dex_minfill_cache_entry_t);
+    if (l_new) {
+        l_new->root = a_row->root;
+        l_new->value = l_out_cond->header.value;
+        l_new->pct = l_pct;
+        HASH_ADD(hh, s_dex_minfill_cache, root, sizeof(l_new->root), l_new);
+    }
+    pthread_mutex_unlock(&s_dex_minfill_cache_lock);
 }
 
 static void s_orders_row_snapshot_to_json(const dex_orders_row_snapshot_t *r, json_object *a_arr)
@@ -9423,6 +9498,43 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         int l_limit = l_limit_str ? atoi(l_limit_str) : DEX_CLI_DEFAULT_LIMIT, l_offset = l_offset_str ? atoi(l_offset_str) : 0;
         l_limit = s_dex_clamp_user_limit(l_limit_str, l_limit);
 
+        // Serialized-reply cache over the RAM order index: keyed by the full request; validity is
+        // the orders version of the pair (or the net-wide version for an unfiltered listing) plus
+        // a TTL - the same staleness bound the history reply cache has.
+        char l_orders_ckey[256];
+        snprintf(l_orders_ckey, sizeof(l_orders_ckey), "orders|%llu|%s|%s|%s|%d|%d",
+                 (unsigned long long)l_net->pub.id.uint64,
+                 l_pair_str ? l_pair_str : "-",
+                 l_seller_str ? l_seller_str : "-",
+                 l_limit_str ? l_limit_str : "-",
+                 l_offset, 0);
+        {
+            uint64_t l_ver = 0, l_hit_ver = 0;
+            bool l_exists = true, l_hit_pair_exists = true;
+            if (l_pair_str) {
+                dex_pair_key_t l_vkey = {.net_id_quote = l_net->pub.id, .net_id_base = l_net->pub.id};
+                dap_strncpy(l_vkey.token_quote, l_ticker_quote, sizeof(l_vkey.token_quote) - 1);
+                dap_strncpy(l_vkey.token_base, l_ticker_base, sizeof(l_vkey.token_base) - 1);
+                l_exists = s_dex_orders_pair_version(&l_vkey, &l_ver);
+            } else
+                l_ver = atomic_load_explicit(&s_dex_orders_ver_global, memory_order_relaxed);
+            char *l_hit = s_dex_reply_cache_get(l_orders_ckey, &l_hit_ver, &l_hit_pair_exists);
+            if (l_hit) {
+                bool l_valid = l_exists && l_hit_pair_exists && l_hit_ver == l_ver;
+                if (!l_valid)
+                    DAP_DELETE(l_hit);
+                else {
+                    json_object *l_cached = json_tokener_parse(l_hit);
+                    DAP_DELETE(l_hit);
+                    if (l_cached) {
+                        json_object_put(l_json_reply);
+                        *json_arr_reply = l_cached;
+                        return 0;
+                    }
+                }
+            }
+        }
+
         dap_time_t l_now_ts = dap_ledger_get_blockchain_time(l_net->pub.ledger);
         if (s_dex_cache_enabled) {
             // C1: collect flat snapshots under the lock (min_fill_value still
@@ -9603,6 +9715,21 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
             dap_ledger_datum_iter_delete(it);
         }
         json_object_object_add(l_json_reply, "orders", l_arr);
+        {
+            const char *l_serialized = json_object_to_json_string(l_json_reply);
+            if (l_serialized) {
+                uint64_t l_ver = 0;
+                bool l_exists = true;
+                if (l_pair_str) {
+                    dex_pair_key_t l_vkey = {.net_id_quote = l_net->pub.id, .net_id_base = l_net->pub.id};
+                    dap_strncpy(l_vkey.token_quote, l_ticker_quote, sizeof(l_vkey.token_quote) - 1);
+                    dap_strncpy(l_vkey.token_base, l_ticker_base, sizeof(l_vkey.token_base) - 1);
+                    l_exists = s_dex_orders_pair_version(&l_vkey, &l_ver);
+                } else
+                    l_ver = atomic_load_explicit(&s_dex_orders_ver_global, memory_order_relaxed);
+                s_dex_reply_cache_put(l_orders_ckey, l_serialized, l_ver, l_exists);
+            }
+        }
     } break; // ORDERS
 
     case CMD_ORDERBOOK: {
@@ -9614,6 +9741,38 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tick_price", &l_tick_price_str);
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tick", &l_tick_dec_str);
         bool l_cumul = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cumulative") >= l_arg_index;
+
+        // Serialized-reply cache: the book lives in the RAM order index, so the reply is a pure
+        // function of (pair, depth, tick, cumulative) and the pair's orders version - TTL bounds
+        // the staleness of expiring-order filtering and the timestamps.
+        char l_obook_ckey[256];
+        snprintf(l_obook_ckey, sizeof(l_obook_ckey), "obook|%llu|%s|%d|%s|%s|%d",
+                 (unsigned long long)l_net->pub.id.uint64, l_pair_canon_str,
+                 l_depth, l_tick_price_str ? l_tick_price_str : "-",
+                 l_tick_dec_str ? l_tick_dec_str : "-", (int)l_cumul);
+        {
+            uint64_t l_ver = 0, l_hit_ver = 0;
+            bool l_hit_pair_exists = true;
+            dex_pair_key_t l_vkey = {.net_id_quote = l_net->pub.id, .net_id_base = l_net->pub.id};
+            dap_strncpy(l_vkey.token_quote, l_ticker_quote, sizeof(l_vkey.token_quote) - 1);
+            dap_strncpy(l_vkey.token_base, l_ticker_base, sizeof(l_vkey.token_base) - 1);
+            bool l_exists = s_dex_orders_pair_version(&l_vkey, &l_ver);
+            char *l_hit = s_dex_reply_cache_get(l_obook_ckey, &l_hit_ver, &l_hit_pair_exists);
+            if (l_hit) {
+                bool l_valid = l_exists && l_hit_pair_exists && l_hit_ver == l_ver;
+                if (!l_valid)
+                    DAP_DELETE(l_hit);
+                else {
+                    json_object *l_cached = json_tokener_parse(l_hit);
+                    DAP_DELETE(l_hit);
+                    if (l_cached) {
+                        json_object_put(l_json_reply);
+                        *json_arr_reply = l_cached;
+                        return 0;
+                    }
+                }
+            }
+        }
 
         if (l_depth_str) {
             l_depth = atoi(l_depth_str);
@@ -9890,6 +10049,18 @@ static int s_cli_srv_dex(int a_argc, char **a_argv, void **a_str_reply, int a_ve
         json_object_object_add(l_json_reply, "asks", l_arr_asks);
         json_object_object_add(l_json_reply, "bids", l_arr_bids);
         s_add_units(l_json_reply, l_ticker_base, l_ticker_quote);
+        {
+            const char *l_serialized = json_object_to_json_string(l_json_reply);
+            if (l_serialized) {
+                uint64_t l_ver = 0;
+                bool l_exists = true;
+                dex_pair_key_t l_vkey = {.net_id_quote = l_net->pub.id, .net_id_base = l_net->pub.id};
+                dap_strncpy(l_vkey.token_quote, l_ticker_quote, sizeof(l_vkey.token_quote) - 1);
+                dap_strncpy(l_vkey.token_base, l_ticker_base, sizeof(l_vkey.token_base) - 1);
+                l_exists = s_dex_orders_pair_version(&l_vkey, &l_ver);
+                s_dex_reply_cache_put(l_obook_ckey, l_serialized, l_ver, l_exists);
+            }
+        }
     } break; // ORDERBOOK
 
     case CMD_STATUS: {
