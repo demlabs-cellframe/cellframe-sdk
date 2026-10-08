@@ -2741,6 +2741,7 @@ static void s_load_cache_next_stage(dap_ledger_t *a_ledger, const char *a_suffix
                                     dap_global_db_callback_results_t a_callback)
 {
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, a_suffix);
+    log_it(L_NOTICE, "Ledger cache: reading group %s", l_gdb_group);
     if (dap_global_db_get_all(l_gdb_group, 0, a_callback, a_ledger) != 0) {
         log_it(L_WARNING, "Ledger cache: can't start reading group %s, finishing the load early", l_gdb_group);
         s_load_cache_finish(a_ledger);
