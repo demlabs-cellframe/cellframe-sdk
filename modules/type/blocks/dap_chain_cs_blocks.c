@@ -937,6 +937,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR, "invalid parameter -H, valid values: -H <hex | base58>");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
+            // The identity of the request must be known before the cache key is built:
+            // -hash/-num used to be read only after the lookup, so the key was constant per
+            // (net, chain, flags) and the second dump of a different block got the first one's
+            // reply (reproduced: `block dump -num 11` returned block 10).
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-num", &l_num_str);
             // Serialized-reply cache: keyed by the raw request; validity is the
             // block-hash identity (a dump of block H never changes unless H is
             // purged, which drops the entry in s_callback_purge).
@@ -947,16 +953,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                      l_hash_out_type, l_brief ? 1 : 0);
             char *l_dump_hit = s_block_dump_cache_get(l_dump_ckey);
             if (l_dump_hit) {
-                json_object *l_cached = json_tokener_parse(l_dump_hit);
-                DAP_DELETE(l_dump_hit);
-                if (l_cached) {
-                    json_object_put(*a_json_arr_reply);
-                    *a_json_arr_reply = l_cached;
-                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_OK;
-                }
+                // The cached string is byte-for-byte what a fresh pass would serialize: hand it
+                // to the executor raw instead of parsing it into a tree for the executor to
+                // serialize right back.
+                dap_cli_cmd_reply_set_raw_json(l_dump_hit);
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_OK;
             }
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-num", &l_num_str);
             if (!l_hash_str && !l_num_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR, "Enter block hash or block number");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_HASH_ERR;
