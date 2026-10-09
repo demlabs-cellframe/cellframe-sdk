@@ -702,9 +702,6 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     s_stake_recalculate_weights(a_signing_addr->net_id);
     pthread_rwlock_unlock(&l_srv_stake->itemlist_rwlock);
     dap_chain_esbocs_remove_validator_from_clusters(a_signing_addr->net_id, &l_node_addr);
-    const char *l_value_str; dap_uint256_to_char(l_locked_value, &l_value_str);
-    log_it(L_NOTICE, "Removed key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
-                            dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS_S(l_node_addr));
 }
 
 void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint256_t a_new_value, dap_hash_fast_t *a_new_tx_hash)
