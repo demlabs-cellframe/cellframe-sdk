@@ -2247,11 +2247,16 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     uint64_t l_main_branch_length = PVT(l_blocks)->blocks_count - l_cur_branch->connected_block->block_number;
                     if (s_select_longest_branch(l_blocks, l_cur_branch->connected_block, l_main_branch_length, l_cell)){
                         dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
-                        // Send it to notificator listeners
-#ifndef DAP_CHAIN_BLOCKS_TEST
+                        // Send it to notificator listeners. Same as the accept
+                        // path: only the load-mode gate is production-only.
                         {
+#ifndef DAP_CHAIN_BLOCKS_TEST
                             dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-                            if (l_net && !dap_chain_net_get_load_mode(l_net) && dap_chain_net_get_state(l_net) != NET_STATE_SYNC_CHAINS) {
+                            bool l_notify_allowed = l_net && !dap_chain_net_get_load_mode(l_net) && dap_chain_net_get_state(l_net) != NET_STATE_SYNC_CHAINS;
+#else
+                            bool l_notify_allowed = true;
+#endif
+                            if (l_notify_allowed) {
                                 dap_list_t *l_iter;
                                 DL_FOREACH(a_chain->atom_confirmed_notifiers, l_iter) {
                                     dap_chain_atom_confirmed_notifier_t *l_notifier = (dap_chain_atom_confirmed_notifier_t*)l_iter->data;
@@ -2263,7 +2268,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                                 }
                             }
                         }
-#endif
                     }
                     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                     debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED to a forked branch.", a_atom);
