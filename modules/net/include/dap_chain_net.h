@@ -198,7 +198,7 @@ int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_add
 
 void dap_chain_net_purge(dap_chain_net_t *l_net);
 void dap_chain_net_sync_touch_progress(dap_chain_net_id_t a_net_id);
-bool dap_chain_net_reload_async(dap_chain_net_t *a_net); 068ec14f7 (net: reload networks on a timer so the CLI answer survives the restart)
+bool dap_chain_net_reload_async(dap_chain_net_t *a_net);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
