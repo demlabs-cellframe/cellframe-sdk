@@ -59,15 +59,7 @@ target_include_directories(mempool_spent_index_unit_test PRIVATE
 target_link_libraries(mempool_spent_index_unit_test
     dap_test
     cellframe_test_fixtures
-    dap_core
-    dap_crypto
-    dap_chain
-    dap_chain_net
-    dap_chain_common
-    dap_chain_mempool
-    dap_chain_cs_dag
-    dap_chain_cs_dag_poa
-    dap_chain_cs_none
+    cellframe-sdk
 )
 
 add_test(NAME mempool_spent_index_unit COMMAND mempool_spent_index_unit_test)
