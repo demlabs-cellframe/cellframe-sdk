@@ -15,15 +15,7 @@ target_include_directories(test_bug_arbitrage PRIVATE
 target_link_libraries(test_bug_arbitrage
     dap_test
     cellframe_test_fixtures
-    dap_core
-    dap_crypto
-    dap_chain
-    dap_chain_net
-    dap_chain_common
-    dap_chain_wallet
-    dap_chain_cs_dag
-    dap_chain_cs_dag_poa
-    dap_chain_cs_esbocs
+    cellframe-sdk
 )
 
 # Register with CTest
@@ -50,15 +42,7 @@ target_include_directories(test_bug_20138 PRIVATE
 target_link_libraries(test_bug_20138
     dap_test
     cellframe_test_fixtures
-    dap_core
-    dap_crypto
-    dap_chain
-    dap_chain_net
-    dap_chain_common
-    dap_chain_wallet
-    dap_chain_cs_dag
-    dap_chain_cs_dag_poa
-    dap_chain_cs_esbocs
+    cellframe-sdk
 )
 
 add_test(NAME regression_bug_20138 COMMAND test_bug_20138)
@@ -83,15 +67,7 @@ target_include_directories(test_bug_20273 PRIVATE
 target_link_libraries(test_bug_20273
     dap_test
     cellframe_test_fixtures
-    dap_core
-    dap_crypto
-    dap_chain
-    dap_chain_net
-    dap_chain_common
-    dap_chain_wallet
-    dap_chain_cs_dag
-    dap_chain_cs_dag_poa
-    dap_chain_cs_esbocs
+    cellframe-sdk
 )
 
 add_test(NAME regression_bug_20273 COMMAND test_bug_20273)
@@ -158,15 +134,7 @@ target_include_directories(test_sec_out_idx_bounds PRIVATE
 target_link_libraries(test_sec_out_idx_bounds
     dap_test
     cellframe_test_fixtures
-    dap_core
-    dap_crypto
-    dap_chain
-    dap_chain_net
-    dap_chain_common
-    dap_chain_wallet
-    dap_chain_cs_dag
-    dap_chain_cs_dag_poa
-    dap_chain_cs_esbocs
+    cellframe-sdk
 )
 
 add_test(NAME regression_sec_out_idx_bounds COMMAND test_sec_out_idx_bounds)
@@ -189,15 +157,7 @@ target_include_directories(test_sec_wallet PRIVATE
 target_link_libraries(test_sec_wallet
     dap_test
     cellframe_test_fixtures
-    dap_core
-    dap_crypto
-    dap_chain
-    dap_chain_net
-    dap_chain_common
-    dap_chain_wallet
-    dap_chain_cs_dag
-    dap_chain_cs_dag_poa
-    dap_chain_cs_esbocs
+    cellframe-sdk
 )
 
 add_test(NAME regression_sec_wallet COMMAND test_sec_wallet)
