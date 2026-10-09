@@ -323,7 +323,8 @@ int dap_chain_add_callback_timer(dap_chain_t *a_chain, dap_chain_callback_blockc
 void dap_chain_atom_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, const uint8_t *a_atom, size_t a_atom_size, dap_time_t a_atom_time);
 void dap_chain_atom_remove_notify(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, dap_time_t a_prev_atom_time);
 void dap_chain_datum_notify(dap_chain_cell_t *a_chain_cell, dap_hash_fast_t *a_hash, dap_chain_hash_fast_t *a_atom_hash,
-                            const uint8_t *a_datum, size_t a_datum_size, int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid);
+                            const uint8_t *a_atom, size_t a_atom_size, const uint8_t *a_datum, size_t a_datum_size,
+                            int a_ret_code, uint32_t a_action, dap_chain_net_srv_uid_t a_uid);
 void dap_chain_datum_removed_notify(dap_chain_cell_t *a_chain_cell,  dap_hash_fast_t *a_hash, dap_chain_datum_t *a_datum);
 void dap_chain_atom_add_from_threshold(dap_chain_t *a_chain);
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);

@@ -3327,8 +3327,11 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             }
             return dap_chain_net_anchor_load(l_anchor, a_chain, a_datum_hash);
         }
-        case DAP_CHAIN_DATUM_TOKEN:
-            return dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum->header.ts_create);
+        case DAP_CHAIN_DATUM_TOKEN: {
+            int l_ret = dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum->header.ts_create);
+            s_token_datum_reg_add(a_chain, a_datum, a_datum_hash, l_ret);
+            return l_ret;
+        }
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
             return dap_ledger_token_emission_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
@@ -5416,3 +5419,79 @@ bool dap_chain_net_stop(dap_chain_net_t *a_net)
 }
 
 /*------------------------------------State machine block end---------------------------------*/
+
+typedef struct dap_chain_token_datum_reg {
+    dap_chain_t *chain;
+    dap_hash_fast_t hash;
+    uint64_t ts_create;
+    int ret_code;
+    uint16_t token_type;
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    UT_hash_handle hh;
+} dap_chain_token_datum_reg_t;
+
+static dap_chain_token_datum_reg_t *s_token_datum_reg = NULL;
+static pthread_mutex_t s_token_datum_reg_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void s_token_datum_reg_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_hash, int a_ret_code)
+{
+    if (!a_chain || !a_datum || !a_hash)
+        return;
+    size_t l_token_size = a_datum->header.data_size;
+    dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(a_datum->data, &l_token_size);
+    if (!l_token) {
+        log_it(L_WARNING, "[%s] Corrupted token datum, not indexed for token listings", dap_chain_hash_fast_to_str_static(a_hash));
+        return;
+    }
+    pthread_mutex_lock(&s_token_datum_reg_lock);
+    dap_chain_token_datum_reg_t *l_entry = NULL;
+    HASH_FIND(hh, s_token_datum_reg, a_hash, sizeof(*a_hash), l_entry);
+    if (!l_entry) {
+        l_entry = DAP_NEW_Z(dap_chain_token_datum_reg_t);
+        if (!l_entry) {
+            pthread_mutex_unlock(&s_token_datum_reg_lock);
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            return;
+        }
+        l_entry->hash = *a_hash;
+        HASH_ADD(hh, s_token_datum_reg, hash, sizeof(*a_hash), l_entry);
+    }
+    l_entry->chain = a_chain;
+    l_entry->ts_create = a_datum->header.ts_create;
+    l_entry->ret_code = a_ret_code;
+    l_entry->token_type = l_token->type;
+    dap_strncpy(l_entry->ticker, l_token->ticker, sizeof(l_entry->ticker) - 1);
+    pthread_mutex_unlock(&s_token_datum_reg_lock);
+    DAP_DELETE(l_token);
+}
+
+static void s_token_datum_reg_remove(dap_hash_fast_t *a_hash)
+{
+    if (!a_hash)
+        return;
+    pthread_mutex_lock(&s_token_datum_reg_lock);
+    dap_chain_token_datum_reg_t *l_entry = NULL;
+    HASH_FIND(hh, s_token_datum_reg, a_hash, sizeof(*a_hash), l_entry);
+    if (l_entry) {
+        HASH_DEL(s_token_datum_reg, l_entry);
+        DAP_DELETE(l_entry);
+    }
+    pthread_mutex_unlock(&s_token_datum_reg_lock);
+}
+
+// A chain pointer must not outlive its chain: the registry is also consulted
+// through bare pointer comparison, so a stale entry could otherwise be served
+// for a chain object that reused the address.
+static void s_token_datum_reg_purge_chain(dap_chain_t *a_chain)
+{
+    pthread_mutex_lock(&s_token_datum_reg_lock);
+    dap_chain_token_datum_reg_t *l_entry, *l_tmp;
+    HASH_ITER(hh, s_token_datum_reg, l_entry, l_tmp) {
+        if (l_entry->chain == a_chain) {
+            HASH_DEL(s_token_datum_reg, l_entry);
+            DAP_DELETE(l_entry);
+        }
+    }
+    pthread_mutex_unlock(&s_token_datum_reg_lock);
+}
+
