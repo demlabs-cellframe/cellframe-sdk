@@ -1778,6 +1778,10 @@ void s_wallet_list(const char *a_wallet_path, json_object *a_json_arr_out, dap_c
 typedef struct s_wallet_addr_cache_entry {
     char *key;                /* "wallet_name|net_id" */
     dap_chain_addr_t addr;
+    time_t file_mtime;        /* wallet file stamp at derivation time: the entry is valid only
+                                 while the file is untouched (a `wallet new -force` or convert
+                                 rewrites it, and a rewritten cert means a different address) */
+    off_t file_size;
     UT_hash_handle hh;
 } s_wallet_addr_cache_entry_t;
 static s_wallet_addr_cache_entry_t *s_wallet_addr_cache;
@@ -1787,14 +1791,35 @@ static pthread_mutex_t s_wallet_addr_cache_lock = PTHREAD_MUTEX_INITIALIZER;
 static const dap_chain_addr_t *s_wallet_addr_cache_get(const char *a_wallet_name, dap_chain_net_t *a_net) {
     char l_key[256];
     snprintf(l_key, sizeof(l_key), "%s|%llu", a_wallet_name, (unsigned long long)a_net->pub.id.uint64);
+    // Revalidate against the file itself (one stat, ~a microsecond): a rewritten wallet
+    // (`wallet new -force`, convert with a new cert) has a different address, so the entry
+    // must die with the old file stamp.
+    char l_path[1024];
+    snprintf(l_path, sizeof(l_path), "%s/%s.dwallet", dap_chain_wallet_get_path(g_config), a_wallet_name);
+    struct stat l_st = {0};
+    if (stat(l_path, &l_st))
+        return NULL;
     pthread_mutex_lock(&s_wallet_addr_cache_lock);
     s_wallet_addr_cache_entry_t *l_e = NULL;
     HASH_FIND_STR(s_wallet_addr_cache, l_key, l_e);
+    const dap_chain_addr_t *l_ret = NULL;
+    if (l_e && l_e->file_mtime == l_st.st_mtime && l_e->file_size == l_st.st_size)
+        l_ret = &l_e->addr;
+    else if (l_e) {   /* stale: file changed since derivation */
+        HASH_DEL(s_wallet_addr_cache, l_e);
+        DAP_DEL_Z(l_e->key);
+        DAP_DEL_Z(l_e);
+    }
     pthread_mutex_unlock(&s_wallet_addr_cache_lock);
-    return l_e ? &l_e->addr : NULL;
+    return l_ret;
 }
 
 static void s_wallet_addr_cache_put(const char *a_wallet_name, dap_chain_net_t *a_net, const dap_chain_addr_t *a_addr) {
+    char l_path[1024];
+    snprintf(l_path, sizeof(l_path), "%s/%s.dwallet", dap_chain_wallet_get_path(g_config), a_wallet_name);
+    struct stat l_st = {0};
+    if (stat(l_path, &l_st))
+        return;
     if (HASH_COUNT(s_wallet_addr_cache) >= S_WALLET_ADDR_CACHE_MAX) {
         pthread_mutex_lock(&s_wallet_addr_cache_lock);
         s_wallet_addr_cache_entry_t *l_it, *l_tmp;
@@ -1814,6 +1839,8 @@ static void s_wallet_addr_cache_put(const char *a_wallet_name, dap_chain_net_t *
         return;
     }
     l_e->addr = *a_addr;
+    l_e->file_mtime = l_st.st_mtime;
+    l_e->file_size = l_st.st_size;
     pthread_mutex_lock(&s_wallet_addr_cache_lock);
     HASH_ADD_KEYPTR(hh, s_wallet_addr_cache, l_e->key, strlen(l_e->key), l_e);
     pthread_mutex_unlock(&s_wallet_addr_cache_lock);
