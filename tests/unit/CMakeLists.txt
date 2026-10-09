@@ -35,10 +35,7 @@ target_include_directories(cli_backpressure_unit_test PRIVATE
 
 target_link_libraries(cli_backpressure_unit_test
     dap_test
-    dap_core
-    dap_io
-    dap_json_rpc_core
-    dap_cli_server
+    cellframe-sdk
 )
 
 add_test(NAME cli_backpressure_unit COMMAND cli_backpressure_unit_test)
@@ -94,12 +91,7 @@ target_include_directories(rpc_service_unit_test PRIVATE
 
 target_link_libraries(rpc_service_unit_test
     dap_test
-    dap_core
-    dap_io
-    dap_crypto
-    dap_json_rpc_core
-    dap_cli_server
-    dap_json_rpc
+    cellframe-sdk
 )
 
 add_test(NAME rpc_service_unit COMMAND rpc_service_unit_test)
@@ -121,10 +113,7 @@ target_include_directories(rpc_executor_bench PRIVATE
 
 target_link_libraries(rpc_executor_bench
     dap_test
-    dap_core
-    dap_io
-    dap_json_rpc_core
-    dap_cli_server
+    cellframe-sdk
 )
 
 add_test(NAME rpc_executor_bench COMMAND rpc_executor_bench)
