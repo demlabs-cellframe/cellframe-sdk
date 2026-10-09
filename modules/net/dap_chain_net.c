@@ -1191,6 +1191,8 @@ void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
  * @return true
  * @return false
  */
+static void s_token_datum_reg_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_hash, int a_ret_code);
+static void s_token_datum_reg_del(dap_chain_t *a_chain, dap_hash_fast_t *a_hash);
 static void s_token_datum_reg_purge_chain(dap_chain_t *a_chain);
 
 void dap_chain_net_purge(dap_chain_net_t *l_net)

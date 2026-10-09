@@ -65,6 +65,10 @@ typedef struct dap_chain_net_srv_stake {
     dap_chain_net_srv_stake_item_t *itemlist;
     dap_chain_net_srv_stake_item_t *tx_itemlist;
     dap_chain_net_srv_stake_cache_item_t *cache;
+    // Guards itemlist/tx_itemlist (hh/ht UT_hash tables): consensus threads (esbocs, decree,
+    // ledger verificator/updater/deleted callbacks) mutate them concurrently with CLI reads
+    // (srv_stake list, pkey_show, update/invalidate lookups) with no prior synchronization.
+    pthread_rwlock_t itemlist_rwlock;
 } dap_chain_net_srv_stake_t;
 
 
