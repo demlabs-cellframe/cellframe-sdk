@@ -126,8 +126,6 @@ int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
 #ifdef DAP_LEDGER_TEST
 int dap_chain_net_test_init();
-<<<<<<< HEAD
-=======
 // Test-only counterpart to the mempool cluster registration
 // dap_chain_net_init() normally performs itself (see its DL_FOREACH over
 // a_net->pub.chains in dap_chain_net.c) - fixtures that build a
@@ -143,7 +141,6 @@ void dap_chain_net_test_set_mempool_cluster(dap_chain_net_t *a_net, dap_global_d
 // into (or out of) the loading state, so ledger cache tests can exercise the "a chain load
 // continues on top of the restored cache" path of dap_ledger_tx_load().
 void dap_chain_net_test_set_load_mode(dap_chain_net_t *a_net, bool a_load_mode);
->>>>>>> 045f9e46e (ledger cache: make it persist and finish the load chain (unit-tested))
 #endif
 
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { UNUSED(a_net); return g_node_addr.uint64; }
@@ -200,11 +197,8 @@ uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
 int dap_chain_net_link_add(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr, const char *a_host, uint16_t a_port);
 
 void dap_chain_net_purge(dap_chain_net_t *l_net);
-<<<<<<< HEAD
 void dap_chain_net_sync_touch_progress(dap_chain_net_id_t a_net_id);
-=======
-bool dap_chain_net_reload_async(dap_chain_net_t *a_net);
->>>>>>> 068ec14f7 (net: reload networks on a timer so the CLI answer survives the restart)
+bool dap_chain_net_reload_async(dap_chain_net_t *a_net); 068ec14f7 (net: reload networks on a timer so the CLI answer survives the restart)
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool

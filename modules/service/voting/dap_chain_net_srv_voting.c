@@ -670,8 +670,6 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
         HASH_DEL(s_votings, l_voting);
         pthread_rwlock_unlock(&s_votings_rwlock);
 
-<<<<<<< HEAD
-=======
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {};
         dap_chain_hash_fast_to_str(&l_hash, l_hash_str, sizeof(l_hash_str));
 
@@ -686,7 +684,6 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
 
         DAP_DEL_Z(l_voting->tally_votes);
         DAP_DEL_Z(l_voting->tally_weights);
->>>>>>> bdd4cf591 (RPC hot-path correctness pass: wallet-cache ALL bootstrap, voting lifetime, purge hooks, single-pass OHLC, dex bounds)
         if (l_voting->voting_params.option_offsets_list)
             dap_list_free_full(l_voting->voting_params.option_offsets_list, NULL);
 

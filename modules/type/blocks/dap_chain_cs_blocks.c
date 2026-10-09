@@ -1271,8 +1271,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 }
             }
 
-<<<<<<< HEAD
-=======
             // Row by row serialization from here on (see dap_cli_cmd_reply_add):
             // the listing is one element of the reply array, so the rows go into
             // a nested array that keeps the reply shape [ [rows...], <count> ].
@@ -1291,7 +1289,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             }
 
             dap_cli_cmd_reply_stream_begin_nested();
->>>>>>> 0546d99c6 (blocks/dex: cursor seek for block list; reply caches for orders/orderbook; min_fill LRU)
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
             json_object* json_arr_bl_cache_out = json_object_new_array();
             size_t l_start_arr = 0;
@@ -1302,10 +1299,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             bool l_after_flag = false;
             dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks;
             if (!l_head)
-<<<<<<< HEAD
-                l_block_cache = HASH_LAST(l_block_cache);             
-            for ( ; l_block_cache; l_block_cache = l_head ? l_block_cache->hh.next : l_block_cache->hh.prev) {
-=======
                 l_block_cache = HASH_LAST(l_block_cache);
             if (l_seek_cache) {
                 // Start at the boundary; the from_hash filter below matches it immediately.
@@ -1363,7 +1356,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 // one, to keep the liveness-check mutex off the hot path.
                 if (!(++l_scan_idx & 0xFFF) && !dap_cli_server_client_is_alive())
                     break;
->>>>>>> 0546d99c6 (blocks/dex: cursor seek for block list; reply caches for orders/orderbook; min_fill LRU)
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_head) {
                     if (l_to_time && l_ts < l_to_time)
@@ -1910,14 +1902,11 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         dap_chain_block_forked_branch_atoms_table_t *l_atom_tmp, *l_atom;
         HASH_ITER(hh, PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom, l_atom_tmp) {
             HASH_DEL(PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom);
-<<<<<<< HEAD
-=======
             if (l_atom->block_cache)
                 s_block_dump_cache_invalidate_hash(&l_atom->block_cache->block_hash);
             if (l_atom->block_cache)
                 dap_chain_block_cache_delete(l_atom->block_cache);
             DAP_DELETE(l_atom);
->>>>>>> 9d756df3b (RPC reply caches: DEX ohlc/volume result cache, block dump cache)
             l_atom = NULL;
         }
         DAP_DEL_Z(PVT(l_blocks)->forked_branches[i]);

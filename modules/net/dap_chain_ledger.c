@@ -2721,21 +2721,9 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
         l_tx_item->ts_added = dap_nanotime_now();
         HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item, s_sort_ledger_tx_item);
     }
-<<<<<<< HEAD
-    /* Chain to the terminal balances group. s_load_cache_gdb_loaded_balances_callback
-     * is the terminal callback and sets load_end + broadcasts load_cond regardless of
-     * whether the balances group is empty (GDB still fires the callback once with
-     * DAP_GLOBAL_DB_RC_NO_RESULTS). Without this chain dap_ledger_load_cache() would
-     * block forever on pthread_cond_wait when [ledger] cache_enabled=true and the
-     * tokens cache is non-empty. */
-    char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_LEDGER_BALANCES_STR);
-    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_balances_callback, l_ledger);
-    DAP_DELETE(l_gdb_group);
-=======
     // The balances stage is the one that ends the load (sets load_end); without this the
     // loader thread waits on load_cond forever (the chain used to stop right here).
     s_load_cache_next_stage(l_ledger, DAP_LEDGER_BALANCES_STR, s_load_cache_gdb_loaded_balances_callback);
->>>>>>> 045f9e46e (ledger cache: make it persist and finish the load chain (unit-tested))
     return true;
 }
 

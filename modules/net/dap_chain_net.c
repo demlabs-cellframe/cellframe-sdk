@@ -1204,8 +1204,6 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
     dap_chain_net_srv_stake_purge(l_net);
     dap_chain_net_decree_deinit(l_net);
     dap_ledger_purge(l_net->pub.ledger, false);
-<<<<<<< HEAD
-=======
     dap_chain_wallet_cache_invalidate_net(l_net->pub.id);
     // dap_ledger_purge fires no tx notifiers: poll state and the token datum
     // registry would survive the wipe and desync (duplicate polls, stale tokens)
@@ -1216,15 +1214,11 @@ void dap_chain_net_purge(dap_chain_net_t *l_net)
         DL_FOREACH(l_net->pub.chains, l_c)
             s_token_datum_reg_purge_chain(l_c);
     }
-<<<<<<< HEAD
->>>>>>> bdd4cf591 (RPC hot-path correctness pass: wallet-cache ALL bootstrap, voting lifetime, purge hooks, single-pass OHLC, dex bounds)
-=======
     // The chains loaded below carry anchor datums, and an anchor is verified against the signer
     // keys of the network decree - so the decree has to exist again before the reload, not after
     // it: creating it only at the end of this function made the first anchor datum dereference a
     // NULL decree and kill the node (reproduced with `net -net <net> ledger reload`).
     dap_chain_net_decree_init(l_net);
->>>>>>> 068ec14f7 (net: reload networks on a timer so the CLI answer survives the restart)
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge) {
@@ -2236,8 +2230,6 @@ int dap_chain_net_test_init()
     HASH_ADD_STR(s_nets_by_name, pub.name, l_net);
     return 0;
 }
-<<<<<<< HEAD
-=======
 
 // See the doc comment on the declaration (dap_chain_net.h) for why this
 // exists: mirrors the DL_APPEND-by-position logic dap_chain_net_init() uses
@@ -2259,7 +2251,6 @@ void dap_chain_net_test_set_load_mode(dap_chain_net_t *a_net, bool a_load_mode)
         return;
     PVT(a_net)->state = a_load_mode ? NET_STATE_LOADING : NET_STATE_OFFLINE;
 }
->>>>>>> 045f9e46e (ledger cache: make it persist and finish the load chain (unit-tested))
 #endif
 
 
