@@ -307,6 +307,10 @@ static bool s_node_client_connect_impl(dap_chain_node_client_t *a_node_client,
     if (!a_node_client)
         return false;
     a_node_client->client = dap_client_new(s_stage_status_error_callback, a_node_client);
+    if(!a_node_client->client)
+        return false;
+    a_node_client->client->no_transport_fallback = a_node_client->no_transport_fallback;
+    a_node_client->client->tls_fp_profile_index = a_node_client->tls_fp_profile_index;
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     /* P2P HTTP handshake mode is chosen per peer version (≤5.7 legacy, ≥5.8 modern). */
