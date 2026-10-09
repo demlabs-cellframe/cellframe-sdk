@@ -23,9 +23,6 @@ set_tests_properties(utxo_blocking_unit PROPERTIES
     LABELS "unit;utxo;blocking"
 )
 
-<<<<<<< HEAD
-message(STATUS "Unit tests configured: utxo_blocking_unit_test, dex_basic_unit_test")
-=======
 # CLI Backpressure Unit Tests (RPC overload hardening, see
 # cellframe_node_rpc_overload_research_2026_09 / hotfix-performance-Sept-2026-0)
 add_executable(cli_backpressure_unit_test
@@ -107,8 +104,6 @@ set_tests_properties(rpc_service_unit PROPERTIES
     TIMEOUT 60
     LABELS "unit;rpc;rpc-server"
 )
-<<<<<<< HEAD
->>>>>>> e7f143cd0 (tests: unit tests for the plain-HTTP RPC service decisions)
 =======
 
 # Microbenchmark of the shared command executor (CLI-server stage): prints us/request,
