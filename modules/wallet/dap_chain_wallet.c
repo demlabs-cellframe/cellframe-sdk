@@ -99,17 +99,30 @@ struct wallet_addr_cache {
     UT_hash_handle hh;
 };
 
-struct wallet_addr_cache *s_wallet_addr_cache = NULL;
-void s_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name){
+// Written from wallet-open notificators on arbitrary threads, read from the
+// wallet-cache build and 'local addresses' paths - was an unsynchronized
+// global uthash (torn bucket walks under concurrent add).
+static struct wallet_addr_cache *s_wallet_addr_cache = NULL;
+static pthread_rwlock_t s_wallet_addr_cache_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
+void dap_chain_wallet_addr_cache_add(dap_chain_addr_t *a_addr, const char *a_wallet_name){
+    if (!a_addr || !a_wallet_name)
+        return;
     struct wallet_addr_cache *l_cache = DAP_NEW_Z_RET_IF_FAIL(struct wallet_addr_cache);
     dap_strncpy(l_cache->name, a_wallet_name, sizeof(l_cache->name));
     l_cache->addr = *a_addr;
+    pthread_rwlock_wrlock(&s_wallet_addr_cache_rwlock);
     HASH_ADD(hh, s_wallet_addr_cache, addr, sizeof(dap_chain_addr_t), l_cache);
+    pthread_rwlock_unlock(&s_wallet_addr_cache_rwlock);
 }
 
 const char *dap_chain_wallet_addr_cache_get_name(dap_chain_addr_t *a_addr){
     struct wallet_addr_cache *l_tmp = NULL;
+    pthread_rwlock_rdlock(&s_wallet_addr_cache_rwlock);
     HASH_FIND(hh, s_wallet_addr_cache, a_addr, sizeof(dap_chain_addr_t), l_tmp);
+    pthread_rwlock_unlock(&s_wallet_addr_cache_rwlock);
+    // The name is never freed nor rewritten once added, so the pointer stays
+    // valid after the lock is released.
     return l_tmp ? l_tmp->name : NULL;
 }
 
@@ -117,11 +130,13 @@ dap_list_t* dap_chain_wallet_get_local_addr(){
 
     dap_list_t *l_list = NULL;
     struct wallet_addr_cache *l_item, *l_tmp;
+    pthread_rwlock_rdlock(&s_wallet_addr_cache_rwlock);
     HASH_ITER(hh, s_wallet_addr_cache, l_item, l_tmp){
         dap_chain_addr_t *l_addr = DAP_NEW_Z(dap_chain_addr_t);
         memcpy (l_addr, &l_item->addr, sizeof(dap_chain_addr_t));
         l_list = dap_list_append(l_list, l_addr);
     }
+    pthread_rwlock_unlock(&s_wallet_addr_cache_rwlock);
     return l_list;
 }
 
