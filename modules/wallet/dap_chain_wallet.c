@@ -1118,7 +1118,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
             dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (!dap_chain_wallet_addr_cache_get_name(l_addr))
-                s_wallet_addr_cache_add(l_addr, l_wallet->name);
+                dap_chain_wallet_addr_cache_add(l_addr, l_wallet->name);
             DAP_DELETE(l_addr);
         }
 
