@@ -15,11 +15,7 @@ target_link_libraries(${PROJECT_NAME}
     dap_chain_net 
     dap_chain_net_srv 
     dap_chain_net_srv_stake_ext
-    dap_chain_wallet
-    dap_chain_common
-    dap_global_db
-    dap_chain_mempool
-    dap_chain_wallet_cache
+    cellframe-sdk
 )
 
 if (DARWIN)

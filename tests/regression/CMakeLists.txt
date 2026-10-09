@@ -92,18 +92,10 @@ macro(add_utxo_blocklist_test NAME SRC)
         ${CMAKE_CURRENT_SOURCE_DIR}/../integration/utxo_blocking
     )
     target_link_libraries(${NAME}
-        dap_test
-        cellframe_test_fixtures
-        dap_core
-        dap_crypto
-        dap_chain
-        dap_chain_net
-        dap_chain_common
-        dap_chain_wallet
-        dap_chain_cs_dag
-        dap_chain_cs_dag_poa
-        dap_chain_cs_esbocs
-    )
+    dap_test
+    cellframe_test_fixtures
+    cellframe-sdk
+)
     add_test(NAME ${NAME} COMMAND ${NAME})
     set_tests_properties(${NAME} PROPERTIES
         TIMEOUT 300
