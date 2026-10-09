@@ -104,7 +104,6 @@ set_tests_properties(rpc_service_unit PROPERTIES
     TIMEOUT 60
     LABELS "unit;rpc;rpc-server"
 )
-=======
 
 # Microbenchmark of the shared command executor (CLI-server stage): prints us/request,
 # keeps a regression signal on the executor overhead. Not an assertion test.
