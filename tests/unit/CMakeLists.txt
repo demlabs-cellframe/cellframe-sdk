@@ -127,4 +127,3 @@ set_tests_properties(rpc_executor_bench PROPERTIES
     TIMEOUT 60
     LABELS "bench;rpc;executor"
 )
->>>>>>> 6113bfb05 (tests/blocks: executor microbench as a ctest target; fork-shape guard in number seek)
