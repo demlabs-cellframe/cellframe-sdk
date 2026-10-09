@@ -62,6 +62,9 @@ int dap_chain_wallet_cache_deinit();
  */
 int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net);
 
+// Drop every cached entry for the network (net purge/reload path).
+void dap_chain_wallet_cache_invalidate_net(dap_chain_net_id_t a_net_id);
+
 // Backlog of undelivered datum notifications above which the cache is
 // considered to be still catching up with the chain.
 #define DAP_WALLET_CACHE_PENDING_WARM_MAX 1024

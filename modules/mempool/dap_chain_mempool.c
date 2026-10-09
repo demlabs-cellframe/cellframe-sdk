@@ -72,6 +72,7 @@
 #include "dap_config.h"
 
 #define LOG_TAG "dap_chain_mempool"
+static bool s_debug_more = false; // [mempool] debug-more; init reads the config
 
 extern int g_dap_global_db_debug_more;
 
