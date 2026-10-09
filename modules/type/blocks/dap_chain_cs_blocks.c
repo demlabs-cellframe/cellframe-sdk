@@ -1324,6 +1324,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                     l_last = HASH_LAST(l_first);
                 if (l_first && l_last) {
                     uint64_t l_min_num = l_first->block_number, l_max_num = l_last->block_number;
+                    // The blocks hash is insertion-ordered, and a fork re-inserts its whole
+                    // range (HASH_DEL + HASH_ADD at the tail): normally insertion order equals
+                    // number order. If it ever does not (defensive: exotic fork shapes), the
+                    // min/max math below would be wrong - fall back to the plain walk then.
+                    if (l_min_num > l_max_num)
+                        l_min_num = l_max_num = 0;   /* disables the seek: l_span stays 0 */
                     uint64_t l_span = l_max_num - l_min_num + 1;
                     uint64_t l_seek_num = 0;
                     if (!l_head && l_offset < l_span)

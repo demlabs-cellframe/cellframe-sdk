@@ -107,4 +107,30 @@ set_tests_properties(rpc_service_unit PROPERTIES
     TIMEOUT 60
     LABELS "unit;rpc;rpc-server"
 )
+<<<<<<< HEAD
 >>>>>>> e7f143cd0 (tests: unit tests for the plain-HTTP RPC service decisions)
+=======
+
+# Microbenchmark of the shared command executor (CLI-server stage): prints us/request,
+# keeps a regression signal on the executor overhead. Not an assertion test.
+add_executable(rpc_executor_bench
+    rpc_executor_bench.c
+)
+
+target_include_directories(rpc_executor_bench PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+)
+
+target_link_libraries(rpc_executor_bench
+    dap_test
+    dap_core
+    dap_cli_server
+)
+
+add_test(NAME rpc_executor_bench COMMAND rpc_executor_bench)
+
+set_tests_properties(rpc_executor_bench PROPERTIES
+    TIMEOUT 60
+    LABELS "bench;rpc;executor"
+)
+>>>>>>> 6113bfb05 (tests/blocks: executor microbench as a ctest target; fork-shape guard in number seek)
