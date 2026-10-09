@@ -2028,7 +2028,8 @@ static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
         }
         if (l_item->miss_count < DAP_CHAIN_ESBOCS_PENALTY_KICK) {
             if (PVT(a_session->esbocs)->debug) {
-                const char *l_addr_str = dap_chain_hash_fast_to_str_static(&l_signing_addr->data.hash_fast);
+                dap_hash_str_t l_addr_str_l_signing_addr_data_hash_fast = dap_chain_hash_fast_to_hash_str(&l_signing_addr->data.hash_fast);
+        const char *l_addr_str = l_addr_str_l_signing_addr_data_hash_fast.s;
                 debug_if(s_debug_more, L_DEBUG, "Increment miss count %d for addr %s. Miss count for kick is %d",
                                         l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
             }
@@ -3007,7 +3008,8 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
         if (!l_was_synced) 
             a_session->cur_round.total_validators_synced++;
         if (PVT(a_session->esbocs)->debug) {
-            const char *l_addr_str = dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast);
+            dap_hash_str_t l_addr_str_a_signing_addr_data_hash_fast = dap_chain_hash_fast_to_hash_str(&a_signing_addr->data.hash_fast);
+        const char *l_addr_str = l_addr_str_a_signing_addr_data_hash_fast.s;
             debug_if(s_debug_more, L_DEBUG, "Mark validator %s as online", l_addr_str);
         }
     } else {
@@ -3018,7 +3020,8 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
     HASH_FIND(hh, a_session->penalty, a_signing_addr, sizeof(*a_signing_addr), l_item);
     bool l_inactive = dap_chain_net_srv_stake_key_delegated(a_signing_addr) == -1;
     if (l_inactive && !l_item) {
-        const char *l_addr_str = dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast);
+        dap_hash_str_t l_addr_str_a_signing_addr_data_hash_fast = dap_chain_hash_fast_to_hash_str(&a_signing_addr->data.hash_fast);
+        const char *l_addr_str = l_addr_str_a_signing_addr_data_hash_fast.s;
         debug_if(s_debug_more, L_DEBUG, "Validator %s not in penalty list, but currently disabled", l_addr_str);
         l_item = DAP_NEW_Z_RET_IF_FAIL(dap_chain_esbocs_penalty_item_t);
         l_item->signing_addr = *a_signing_addr;
@@ -3029,7 +3032,8 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
         if (l_item->miss_count > DAP_CHAIN_ESBOCS_PENALTY_KICK)
             l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
         if (PVT(a_session->esbocs)->debug) {
-            const char *l_addr_str = dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast);
+            dap_hash_str_t l_addr_str_a_signing_addr_data_hash_fast = dap_chain_hash_fast_to_hash_str(&a_signing_addr->data.hash_fast);
+        const char *l_addr_str = l_addr_str_a_signing_addr_data_hash_fast.s;
             debug_if(s_debug_more, L_DEBUG, "Decrement miss count %d for addr %s. Miss count for kick is %d",
                             l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
         }
