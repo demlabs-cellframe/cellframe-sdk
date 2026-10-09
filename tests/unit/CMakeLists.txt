@@ -36,6 +36,8 @@ target_include_directories(cli_backpressure_unit_test PRIVATE
 target_link_libraries(cli_backpressure_unit_test
     dap_test
     dap_core
+    dap_io
+    dap_json_rpc_core
     dap_cli_server
 )
 
@@ -93,7 +95,9 @@ target_include_directories(rpc_service_unit_test PRIVATE
 target_link_libraries(rpc_service_unit_test
     dap_test
     dap_core
+    dap_io
     dap_crypto
+    dap_json_rpc_core
     dap_cli_server
     dap_json_rpc
 )
@@ -118,6 +122,8 @@ target_include_directories(rpc_executor_bench PRIVATE
 target_link_libraries(rpc_executor_bench
     dap_test
     dap_core
+    dap_io
+    dap_json_rpc_core
     dap_cli_server
 )
 
