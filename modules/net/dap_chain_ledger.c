@@ -32,6 +32,9 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include <time.h>
+#else
+#include <unistd.h>
+#include <sys/stat.h>
 #endif
 
 #include "uthash.h"
@@ -65,6 +68,9 @@ static inline bool s_ledger_cache_storage_full(void)
 }
 
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_snapshot.h"
+#include "dap_crc64.h"
+#include "dap_chain.h"
 #include "json.h"
 #include "json_object.h"
 #include "dap_notify_srv.h"
@@ -209,6 +215,11 @@ typedef struct dap_ledger_private {
     pthread_rwlock_t srv_callbacks_rwlock;
     struct srv_callback_decree_item_t *srv_callbacks_decree;
     struct srv_callback_event_verify_item_t *srv_callbacks_event_verify;
+    // Snapshot cache ([ledger] snapshot_cache): periodic flat-file dumps of the
+    // ledger state replace the GlobalDB txs/balances cache groups entirely
+    bool snapshot_mode;
+    void *snapshot_save_timer;
+    uint32_t snapshot_interval_sec;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -2752,6 +2763,17 @@ static void s_load_cache_finish(dap_ledger_t *a_ledger);
 static void s_load_cache_next_stage(dap_ledger_t *a_ledger, const char *a_suffix,
                                     dap_global_db_callback_results_t a_callback)
 {
+    // Snapshot mode: the tx and balances groups are served by the snapshot
+    // file, not by GlobalDB - skip straight past them
+    if (PVT(a_ledger)->snapshot_mode
+            && (!strcmp(a_suffix, DAP_LEDGER_TXS_STR) || !strcmp(a_suffix, DAP_LEDGER_BALANCES_STR))) {
+        debug_if(s_debug_more, L_INFO, "Ledger cache: %s group is served by the snapshot, skipping", a_suffix);
+        if (!strcmp(a_suffix, DAP_LEDGER_BALANCES_STR))
+            s_load_cache_finish(a_ledger); // nothing left to read from GlobalDB
+        else
+            s_load_cache_next_stage(a_ledger, DAP_LEDGER_BALANCES_STR, a_callback);
+        return;
+    }
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, a_suffix);
     log_it(L_NOTICE, "Ledger cache: reading group %s", l_gdb_group);
     if (dap_global_db_get_all(l_gdb_group, 0, a_callback, a_ledger) != 0) {
@@ -2999,6 +3021,327 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
  * @brief Load ledger from cache (stored in GDB)
  * @param a_ledger
  */
+/* *** Ledger snapshot cache ([ledger] snapshot_cache) ***
+ *
+ * A flat binary file next to the chain cell files that captures the in-memory
+ * ledger state - every transaction cache record (spent-outs bookkeeping) and
+ * every account balance - together with the save timestamp and item counts.
+ * The snapshot deliberately stores no transaction datums: the chain scan that
+ * always follows a restart completes every restored item with the datum it
+ * reads from the chain (dap_ledger_tx_load), so the file stays compact.
+ *
+ * Unlike the GlobalDB ledger cache this does not go through the GlobalDB
+ * layer at all - no groups, no replication, no per-record signing - so a full
+ * chain replay cannot push the node's GlobalDB over its size limit through
+ * ledger cache writes anymore. In snapshot mode the GlobalDB txs/balances
+ * groups are neither written nor read; the small groups (tokens, emissions,
+ * stake locks, delegated keys) keep using GlobalDB as before.
+ */
+
+#define DAP_LEDGER_SNAPSHOT_MAGIC "CFLEDGSN"
+#define DAP_LEDGER_SNAPSHOT_VERSION 1
+#define DAP_LEDGER_SNAPSHOT_FILENAME "ledger-snapshot.bin"
+
+typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_header {
+    uint8_t  magic[8];        // "CFLEDGSN"
+    uint32_t version;
+    uint32_t header_size;     // for forward extensions: payload starts here
+    uint64_t net_id;
+    uint64_t ts_saved;        // unix time of the save
+    uint64_t n_tx_items;
+    uint64_t n_balances;
+    uint64_t payload_size;    // bytes after the header
+    uint64_t crc64;           // over the payload
+} dap_ledger_snapshot_header_t;
+
+typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_tx_record {
+    uint8_t  tx_hash[sizeof(dap_chain_hash_fast_t)];
+    uint32_t cache_size;      // followed by exactly cache_size bytes of cache_data
+} dap_ledger_snapshot_tx_record_t;
+
+typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_balance_record {
+    uint16_t key_len;         // followed by key, ticker and the 32-byte uint256 balance
+    uint16_t ticker_len;
+    // key[key_len], ticker[ticker_len], balance[sizeof(uint256_t)]
+} dap_ledger_snapshot_balance_record_t;
+
+typedef struct { uint8_t *data; size_t size; size_t cap; } s_snapshot_buf_t;
+
+static int s_snapshot_buf_put(s_snapshot_buf_t *a_buf, const void *a_data, size_t a_size)
+{
+    if (a_buf->size + a_size > a_buf->cap) {
+        size_t l_new_cap = a_buf->cap ? a_buf->cap : (64u * 1024u);
+        while (l_new_cap < a_buf->size + a_size)
+            l_new_cap *= 2;
+        uint8_t *l_data = DAP_REALLOC(a_buf->data, l_new_cap);
+        if (!l_data)
+            return -1;
+        a_buf->data = l_data;
+        a_buf->cap = l_new_cap;
+    }
+    memcpy(a_buf->data + a_buf->size, a_data, a_size);
+    a_buf->size += a_size;
+    return 0;
+}
+
+static char *s_snapshot_file_path(dap_ledger_t *a_ledger)
+{
+    // The snapshot lives next to the chain cell files: take the first block
+    // chain's storage directory and use its parent (the network data dir)
+    for (dap_chain_t *l_chain = a_ledger->net->pub.chains; l_chain; l_chain = l_chain->next) {
+        const char *l_cs_type = dap_chain_get_cs_type(l_chain);
+        if (!l_cs_type || dap_strcmp(l_cs_type, "esbocs"))
+            continue;
+        char *l_chain_dir = DAP_CHAIN_PVT(l_chain)->file_storage_dir;
+        if (!l_chain_dir || !*l_chain_dir)
+            continue;
+        const char *l_slash = strrchr(l_chain_dir, '/');
+        size_t l_dir_len = l_slash ? (size_t)(l_slash - l_chain_dir) : 0;
+        if (!l_dir_len)
+            l_dir_len = strlen(l_chain_dir);
+        return dap_strdup_printf("%.*s/%s", (int)l_dir_len, l_chain_dir, DAP_LEDGER_SNAPSHOT_FILENAME);
+    }
+    return NULL;
+}
+
+bool dap_ledger_snapshot_mode(dap_ledger_t *a_ledger)
+{
+    return a_ledger && PVT(a_ledger)->snapshot_mode;
+}
+
+int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
+{
+    dap_return_val_if_fail(a_ledger && PVT(a_ledger)->snapshot_mode, -1);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+
+    char *l_path = s_snapshot_file_path(a_ledger);
+    if (!l_path) {
+        log_it(L_WARNING, "Ledger snapshot: can't find a block chain storage dir, save skipped");
+        return -1;
+    }
+    size_t l_path_len = strlen(l_path);
+    char *l_tmp_path = dap_strdup_printf("%s.tmp", l_path);
+
+    s_snapshot_buf_t l_buf = {};
+    uint64_t l_n_tx = 0, l_n_balances = 0;
+    int l_ret = 0;
+
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    dap_ledger_tx_item_t *l_item = NULL, *l_item_tmp = NULL;
+    HASH_ITER (hh, l_ledger_pvt->ledger_items, l_item, l_item_tmp) {
+        uint32_t l_cache_size = (uint32_t)(sizeof(l_item->cache_data)
+                                           + l_item->cache_data.n_outs * sizeof(dap_chain_hash_fast_t));
+        dap_ledger_snapshot_tx_record_t l_rec = { .cache_size = l_cache_size };
+        memcpy(l_rec.tx_hash, &l_item->tx_hash_fast, sizeof(l_rec.tx_hash));
+        if (s_snapshot_buf_put(&l_buf, &l_rec, sizeof(l_rec)) || s_snapshot_buf_put(&l_buf, &l_item->cache_data, l_cache_size)) {
+            l_ret = -2;
+            break;
+        }
+        l_n_tx++;
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+
+    if (!l_ret) {
+        pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
+        dap_ledger_wallet_balance_t *l_balance = NULL, *l_balance_tmp = NULL;
+        HASH_ITER (hh, l_ledger_pvt->balance_accounts, l_balance, l_balance_tmp) {
+            size_t l_key_len = strlen(l_balance->key);
+            size_t l_ticker_len = strnlen(l_balance->token_ticker, sizeof(l_balance->token_ticker));
+            if (l_key_len > UINT16_MAX - 1 || l_ticker_len > UINT16_MAX - 1) {
+                // Impossible for the current key/ticker formats, skip the outlier
+                log_it(L_WARNING, "Ledger snapshot: balance key/ticker too long, skipped");
+                continue;
+            }
+            dap_ledger_snapshot_balance_record_t l_rec = {
+                .key_len = (uint16_t)l_key_len, .ticker_len = (uint16_t)l_ticker_len
+            };
+            bool l_fail = s_snapshot_buf_put(&l_buf, &l_rec, sizeof(l_rec))
+                    || s_snapshot_buf_put(&l_buf, l_balance->key, l_key_len)
+                    || s_snapshot_buf_put(&l_buf, l_balance->token_ticker, l_ticker_len)
+                    || s_snapshot_buf_put(&l_buf, &l_balance->balance, sizeof(l_balance->balance));
+            if (l_fail) {
+                l_ret = -2;
+                break;
+            }
+            ++l_n_balances;
+        }
+        pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
+    }
+
+    if (l_ret) {
+        log_it(L_ERROR, "Ledger snapshot: allocation error, save aborted");
+        DAP_DEL_Z(l_buf.data);
+        DAP_DELETE(l_path);
+        DAP_DELETE(l_tmp_path);
+        return l_ret;
+    }
+
+    dap_ledger_snapshot_header_t l_header = {};
+    memcpy(l_header.magic, DAP_LEDGER_SNAPSHOT_MAGIC, sizeof(l_header.magic));
+    l_header.version = DAP_LEDGER_SNAPSHOT_VERSION;
+    l_header.header_size = (uint32_t)sizeof(l_header);
+    l_header.net_id = a_ledger->net->pub.id.uint64;
+    l_header.ts_saved = (uint64_t)time(NULL);
+    l_header.n_tx_items = l_n_tx;
+    l_header.n_balances = l_n_balances;
+    l_header.payload_size = l_buf.size;
+    l_header.crc64 = crc64(l_buf.data, l_buf.size);
+
+    FILE *l_file = fopen(l_tmp_path, "wb");
+    if (!l_file) {
+        log_it(L_ERROR, "Ledger snapshot: can't open %s for writing", l_tmp_path);
+        DAP_DEL_Z(l_buf.data);
+        DAP_DELETE(l_path);
+        DAP_DELETE(l_tmp_path);
+        return -3;
+    }
+    bool l_ok = fwrite(&l_header, sizeof(l_header), 1, l_file) == 1
+            && (!l_buf.size || fwrite(l_buf.data, l_buf.size, 1, l_file) == 1);
+    if (l_ok) {
+        fflush(l_file);
+        l_ok = fsync(fileno(l_file)) == 0;
+    }
+    fclose(l_file);
+    if (!l_ok || rename(l_tmp_path, l_path)) {
+        log_it(L_ERROR, "Ledger snapshot: save to %s failed%s", l_path, a_shutdown ? " (shutdown)" : "");
+        remove(l_tmp_path);
+        l_ret = -4;
+    } else {
+        log_it(l_n_tx ? L_INFO : L_NOTICE, "Ledger snapshot%s saved: %s (%"DAP_UINT64_FORMAT_U" tx items, %"
+               DAP_UINT64_FORMAT_U" balances, %"DAP_UINT64_FORMAT_U" bytes)",
+               a_shutdown ? " (shutdown)" : "", l_path, l_n_tx, l_n_balances,
+               (uint64_t)(l_buf.size + sizeof(l_header)));
+    }
+    DAP_DEL_Z(l_buf.data);
+    DAP_DELETE(l_path);
+    DAP_DELETE(l_tmp_path);
+    return l_ret;
+}
+
+int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    char *l_path = s_snapshot_file_path(a_ledger);
+    if (!l_path)
+        return 0;
+    FILE *l_file = fopen(l_path, "rb");
+    if (!l_file) {
+        log_it(L_NOTICE, "Ledger snapshot: no snapshot file %s, loading the ledger from the chains", l_path);
+        DAP_DELETE(l_path);
+        return 0;
+    }
+    dap_ledger_snapshot_header_t l_header = {};
+    int l_ret = 0;
+    uint64_t l_loaded_tx = 0, l_loaded_balances = 0;
+    uint8_t *l_payload = NULL;
+    do {
+        if (fread(&l_header, sizeof(l_header), 1, l_file) != 1
+                || memcmp(l_header.magic, DAP_LEDGER_SNAPSHOT_MAGIC, sizeof(l_header.magic))
+                || l_header.version != DAP_LEDGER_SNAPSHOT_VERSION
+                || l_header.net_id != a_ledger->net->pub.id.uint64
+                || l_header.header_size < sizeof(l_header)
+                || l_header.payload_size > ((uint64_t)4) << 30) {
+            log_it(L_WARNING, "Ledger snapshot: %s is not a usable snapshot for this network, ignoring", l_path);
+            l_ret = 0;
+            break;
+        }
+        if (l_header.header_size > sizeof(l_header))
+            fseek(l_file, (long)(l_header.header_size - sizeof(l_header)), SEEK_CUR);
+        if (l_header.payload_size) {
+            l_payload = DAP_NEW_Z_SIZE(uint8_t, l_header.payload_size);
+            if (!l_payload || fread(l_payload, l_header.payload_size, 1, l_file) != 1
+                    || crc64(l_payload, l_header.payload_size) != l_header.crc64) {
+                log_it(L_WARNING, "Ledger snapshot: %s is corrupt, ignoring", l_path);
+                l_ret = 0;
+                break;
+            }
+        }
+        // Restore the transaction cache items (datum-less: completed by the chain scan)
+        uint8_t *l_ptr = l_payload, *l_end = l_payload + l_header.payload_size;
+        pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
+        for (uint64_t i = 0; i < l_header.n_tx_items; ++i) {
+            if (l_ptr + sizeof(dap_ledger_snapshot_tx_record_t) > l_end) {
+                log_it(L_WARNING, "Ledger snapshot: truncated tx section at item %"DAP_UINT64_FORMAT_U, i);
+                break;
+            }
+            dap_ledger_snapshot_tx_record_t *l_rec = (dap_ledger_snapshot_tx_record_t *)l_ptr;
+            l_ptr += sizeof(*l_rec);
+            if (l_ptr + l_rec->cache_size > l_end) {
+                log_it(L_WARNING, "Ledger snapshot: truncated tx record payload at item %"DAP_UINT64_FORMAT_U, i);
+                break;
+            }
+            dap_ledger_tx_item_t *l_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t,
+                                                sizeof(dap_ledger_tx_item_t) - sizeof(l_item->cache_data) + l_rec->cache_size);
+            if (!l_item) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                break;
+            }
+            memcpy(&l_item->tx_hash_fast, l_rec->tx_hash, sizeof(l_item->tx_hash_fast));
+            memcpy(&l_item->cache_data, l_ptr, l_rec->cache_size);
+            l_ptr += l_rec->cache_size;
+            HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(l_item->tx_hash_fast), l_item);
+            ++l_loaded_tx;
+        }
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+        // Restore the balances exactly like the GlobalDB balances stage does
+        for (uint64_t i = 0; i < l_header.n_balances; ++i) {
+            if (l_ptr + sizeof(dap_ledger_snapshot_balance_record_t) > l_end) {
+                log_it(L_WARNING, "Ledger snapshot: truncated balances section at record %"DAP_UINT64_FORMAT_U, i);
+                break;
+            }
+            dap_ledger_snapshot_balance_record_t *l_rec = (dap_ledger_snapshot_balance_record_t *)l_ptr;
+            l_ptr += sizeof(*l_rec);
+            if (l_ptr + (size_t)l_rec->key_len + l_rec->ticker_len + sizeof(uint256_t) > l_end) {
+                log_it(L_WARNING, "Ledger snapshot: truncated balance record payload at record %"DAP_UINT64_FORMAT_U, i);
+                break;
+            }
+            dap_ledger_wallet_balance_t *l_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
+            if (!l_balance) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                break;
+            }
+            l_balance->key = DAP_NEW_Z_SIZE(char, l_rec->key_len + 1);
+            if (!l_balance->key) {
+                DAP_DEL_Z(l_balance);
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                break;
+            }
+            memcpy(l_balance->key, l_ptr, l_rec->key_len);
+            l_ptr += l_rec->key_len;
+            memcpy(l_balance->token_ticker, l_ptr, l_rec->ticker_len);
+            l_ptr += l_rec->ticker_len;
+            memcpy(&l_balance->balance, l_ptr, sizeof(l_balance->balance));
+            l_ptr += sizeof(l_balance->balance);
+            HASH_ADD_KEYPTR(hh, l_ledger_pvt->balance_accounts, l_balance->key, strlen(l_balance->key), l_balance);
+            ++l_loaded_balances;
+        }
+        log_it(L_NOTICE, "Ledger snapshot: restored %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
+               " balances from %s (saved %"DAP_UINT64_FORMAT_U" s ago); the chain scan will re-fill the transaction datums",
+               l_loaded_tx, l_loaded_balances, l_path, (uint64_t)time(NULL) - l_header.ts_saved);
+        if (l_loaded_tx != l_header.n_tx_items || l_loaded_balances != l_header.n_balances)
+            log_it(L_WARNING, "Ledger snapshot: %s carries %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
+                   " balances, restored less - the chain scan will rebuild the difference", l_path,
+                   l_header.n_tx_items, l_header.n_balances);
+        l_ret = (l_loaded_tx || l_loaded_balances) ? 1 : 0;
+    } while (0);
+    DAP_DEL_Z(l_payload);
+    fclose(l_file);
+    DAP_DELETE(l_path);
+    return l_ret;
+}
+
+static void s_snapshot_save_timer_tick(void *a_arg)
+{
+    dap_ledger_t *l_ledger = (dap_ledger_t *)a_arg;
+    // Nothing to protect before the load finishes: the restore itself has just
+    // read this very file, and a full replay would not be shortened by it.
+    if (dap_chain_net_get_load_mode(l_ledger->net))
+        return;
+    dap_ledger_snapshot_save(l_ledger, false);
+}
+
+/* *** End of the ledger snapshot cache *** */
+
 // Completes the cached-ledger load: wakes dap_ledger_load_cache() no matter
 // whether the callback chain reached the last stage or broke earlier (a
 // failed get_all for any group used to leave the loader waiting forever).
@@ -3014,6 +3357,11 @@ static void s_load_cache_finish(dap_ledger_t *a_ledger)
 void dap_ledger_load_cache(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    // Snapshot mode: the transaction cache items and the balances come from the
+    // snapshot file (see s_load_cache_next_stage for the skipped GlobalDB
+    // stages); only the small groups keep being served by GlobalDB.
+    if (l_ledger_pvt->snapshot_mode)
+        dap_ledger_snapshot_load(a_ledger);
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
 
     pthread_mutex_lock(& l_ledger_pvt->load_mutex);
@@ -3169,6 +3517,20 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
     l_ledger_pvt->cached = a_flags & DAP_LEDGER_CACHE_ENABLED;
     l_ledger_pvt->mapped = a_flags & DAP_LEDGER_MAPPED;
     l_ledger_pvt->threshold_enabled = a_flags & DAP_LEDGER_THRESHOLD_ENABLED;
+    // Snapshot cache: on by default for cached ledgers, replaces the GlobalDB
+    // txs/balances cache groups with periodic flat-file snapshots
+    if (l_ledger_pvt->cached
+            && dap_config_get_item_bool_default(g_config, "ledger", "snapshot_cache", true)) {
+        l_ledger_pvt->snapshot_mode = true;
+        l_ledger_pvt->snapshot_interval_sec =
+                (uint32_t)dap_config_get_item_int32_default(g_config, "ledger", "snapshot_interval_sec", 600);
+        if (!l_ledger_pvt->snapshot_interval_sec)
+            l_ledger_pvt->snapshot_interval_sec = 600;
+        l_ledger_pvt->snapshot_save_timer = dap_interval_timer_create(
+                l_ledger_pvt->snapshot_interval_sec * 1000u,
+                (dap_timer_callback_t)s_snapshot_save_timer_tick, l_ledger);
+        log_it(L_NOTICE, "Ledger snapshot cache enabled (save interval %u s)", l_ledger_pvt->snapshot_interval_sec);
+    }
     if (l_ledger_pvt->threshold_enabled)
         l_ledger_pvt->threshold_txs_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
@@ -5329,7 +5691,7 @@ int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
  */
 static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_balance)
 {
-    if (PVT(a_ledger)->cached) {
+    if (PVT(a_ledger)->cached && !PVT(a_ledger)->snapshot_mode) {
         char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_BALANCES_STR);
         if (dap_global_db_set(l_gdb_group, a_balance->key, &a_balance->balance, sizeof(uint256_t), false, NULL, NULL)) {
             debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch");
@@ -5503,7 +5865,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
 
     dap_store_obj_t *l_cache_used_outs = NULL;
     char *l_ledger_cache_group = NULL;
-    if (PVT(a_ledger)->cached) {
+    if (PVT(a_ledger)->cached && !PVT(a_ledger)->snapshot_mode) {
         l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * (l_outs_used + 1));
         if ( !l_cache_used_outs ) {
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -5615,7 +5977,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
         l_prev_item_out->cache_data.tx_hash_spent_fast[l_bound_item->prev_out_idx] = *a_tx_hash;
         l_prev_item_out->cache_data.n_outs_used++;
-        if (PVT(a_ledger)->cached) {
+        if (PVT(a_ledger)->cached && !PVT(a_ledger)->snapshot_mode) {
             // mirror it in the cache
             size_t l_cache_size = sizeof(l_prev_item_out->cache_data) + l_prev_item_out->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
             size_t l_tx_size = dap_chain_datum_tx_get_size(l_prev_item_out->tx);
@@ -5810,8 +6172,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_notify->callback(a_ledger, a_tx, a_tx_hash, l_notify->arg, DAP_LEDGER_NOTIFY_OPCODE_ADDED);
         }
     }
-    if (PVT(a_ledger)->cached && !s_ledger_cache_storage_full()) {
-        // Add it to cache (skipped while GlobalDB storage is over its limit)
+    if (PVT(a_ledger)->cached && !PVT(a_ledger)->snapshot_mode && !s_ledger_cache_storage_full()) {
+        // Add it to cache (skipped in snapshot mode and while GlobalDB storage is over its limit)
         size_t l_cache_size = sizeof(l_tx_item->cache_data) + l_tx_item->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
         size_t l_tx_cache_sz = l_tx_size + l_cache_size + sizeof(dap_ledger_cache_gdb_record_t);
         // Heap, not alloca (see the spent-slot buffer above).
@@ -6139,8 +6501,8 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         }
     }
 
-    if (PVT(a_ledger)->cached && !s_ledger_cache_storage_full()) {
-        // Add it to cache (skipped while GlobalDB storage is over its limit)
+    if (PVT(a_ledger)->cached && !PVT(a_ledger)->snapshot_mode && !s_ledger_cache_storage_full()) {
+        // Add it to cache (skipped in snapshot mode and while GlobalDB storage is over its limit)
         dap_global_db_del_sync(l_ledger_cache_group, l_tx_hash_str);
         // Apply it with single DB transaction
         if (dap_global_db_set_raw_signed(l_cache_used_outs, l_outs_used, NULL, NULL))
@@ -6178,8 +6540,15 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
         dap_ledger_tx_item_t *l_tx_item = NULL;
         unsigned l_hash_value;
         HASH_VALUE(a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value);
-        pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
+        pthread_rwlock_wrlock(&PVT(a_ledger)->ledger_rwlock);
         HASH_FIND_BYHASHVALUE(hh, PVT(a_ledger)->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value, l_tx_item);
+        if (l_tx_item && !l_tx_item->tx) {
+            // Snapshot-restored item: the snapshot deliberately stores no
+            // transaction datums, the chain scan re-fills them as it walks the
+            // blocks, so a later spend of this transaction's outputs sees the
+            // full item
+            l_tx_item->tx = DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+        }
         pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
         if (l_tx_item)
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
