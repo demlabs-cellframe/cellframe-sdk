@@ -621,7 +621,7 @@ int dap_chain_cs_esbocs_init()
         "esbocs check_signs_structure {enable|disable} -net <net_name> [-chain <chain_name>] -cert <poa_cert_name>\n"
     "esbocs consensus_version -value <version> -net <net_name> [-chain <chain_name>] -cert <poa_cert_name>\n"
             "\tIssue the consensus-version decree: version >= 2 forbids blocks without committee metadata\n"
-            "\tand enforces active-stake signers network-wide\n"
+            "\tand enforces active-stake signers network-wide from the decree timestamp onwards\n"
         "esbocs consensus_version show -net <net_name> [-chain <chain_name>]\n"
             "\tShow current consensus version and the strict-era state\n"
         "esbocs check_signs_structure show -net <net_name> [-chain <chain_name>]\n"
@@ -1377,11 +1377,17 @@ static int s_esbocs_set_consensus_version_apply(dap_chain_t *a_chain, uint64_t a
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    // Set the boundary before the version: a verifier thread reading version >= 2
-    // with since still 0 would treat the whole chain (including history) as strict
-    if (a_version >= 2)
+    // The strict era is a one-way door: a later decree (e.g. a version bump
+    // 2 -> 3) must not relax history that is already strict. The boundary only
+    // moves earlier (the earliest decree that switched the era on wins) and the
+    // version only grows. The boundary is written before the version: a verifier
+    // thread reading version >= 2 with since still 0 would treat the whole
+    // chain (history included) as strict for that race window.
+    if (a_version >= 2 && a_since
+            && (!l_esbocs_pvt->consensus_version_since || a_since < l_esbocs_pvt->consensus_version_since))
         l_esbocs_pvt->consensus_version_since = a_since;
-    l_esbocs_pvt->consensus_version = a_version;
+    if (a_version > l_esbocs_pvt->consensus_version)
+        l_esbocs_pvt->consensus_version = a_version;
     log_it(L_NOTICE, "Consensus version decree applied on chain %s: version %"DAP_UINT64_FORMAT_U
            " (strict era since ts %"DAP_UINT64_FORMAT_U")%s",
            a_chain->name, a_version, l_esbocs_pvt->consensus_version_since,
@@ -4302,7 +4308,10 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
                     log_it(L_ATT, "Unknown PoA signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
                 }
-                if (!i) {
+                if (!i && l_signs_check_required) {
+                    // Strict era only, same as the PoS path: before the consensus
+                    // boundary a first signer outside the current auth_certs list
+                    // (e.g. an old certificate rotation) is skipped as before
                     l_ret = -5;
                     break;
                 }
@@ -4661,12 +4670,14 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             if (!l_version_str) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
                                        "Command '%s' requires parameter -value <consensus_version>", l_subcmd_strs[l_subcmd]);
+                json_object_put(json_obj_out);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
             uint64_t l_version = strtoull(l_version_str, NULL, 10);
             if (l_version < 2) {
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
                                        "Consensus version must be >= 2 (version 1 is the pre-decree era)");
+                json_object_put(json_obj_out);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
             dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_consensus_version(l_chain_net, l_chain, l_version, l_poa_cert);
