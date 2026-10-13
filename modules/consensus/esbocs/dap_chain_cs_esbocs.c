@@ -498,6 +498,11 @@ typedef struct dap_chain_esbocs_pvt {
     // Blocks created at/after this unix time must carry committee metadata
     // (SYNC_ATTEMPT); 0 = enforcement off (rollout is operator-gated)
     uint64_t require_signs_meta_since;
+    // Consensus version set by decree (CONSENSUS_VERSION decree). Version 2+
+    // enforces the strict era network-wide: blocks without committee metadata
+    // are rejected outright and every signer must hold an active delegated
+    // stake. Survives restarts because the decree is re-applied on chain load.
+    uint64_t consensus_version;
     // Internal cache
     dap_list_t *precached_keys;
 } dap_chain_esbocs_pvt_t;
@@ -610,6 +615,7 @@ int dap_chain_cs_esbocs_init()
         "esbocs min_validators_count show -net <net_name> [-chain <chain_name>]\n"
             "\tShow minimum validators count for ESBOCS consensus\n"
         "esbocs check_signs_structure {enable|disable} -net <net_name> [-chain <chain_name>] -cert <poa_cert_name>\n"
+    "esbocs consensus_version {-value <version>} -net <net_name> [-chain <chain_name>] -cert <poa_cert_name> | show\n"
             "\tEnables or disables checks for blocks signs structure validity\n"
         "esbocs check_signs_structure show -net <net_name> [-chain <chain_name>]\n"
             "\tShow status of checks for blocks signs structure validity\n"
@@ -1357,6 +1363,24 @@ static int s_esbocs_set_signs_struct_check_apply(dap_chain_t *a_chain, bool a_en
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->check_signs_structure = a_enable;
     return 0;
+}
+
+static int s_esbocs_set_consensus_version_apply(dap_chain_t *a_chain, uint64_t a_version)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    l_esbocs_pvt->consensus_version = a_version;
+    log_it(L_NOTICE, "Consensus version decree applied on chain %s: version %"DAP_UINT64_FORMAT_U"%s",
+           a_chain->name, a_version,
+           a_version >= 2 ? " (committee metadata required, active-stake signers enforced)" : "");
+    return 0;
+}
+
+int dap_chain_esbocs_set_consensus_version(dap_chain_t *a_chain, uint64_t a_version)
+{
+    dap_return_val_if_fail(a_chain, -1);
+    return s_esbocs_set_consensus_version_apply(a_chain, a_version);
 }
 
 static int s_esbocs_set_emergency_validator_apply(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash)
@@ -4199,6 +4223,21 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     // (produced by outdated submitters or stored before its introduction) can't be checked
     // this way and are accepted as before
     bool l_signs_check_required = dap_chain_block_meta_get(l_block, l_block_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT) != NULL;
+    // Decree-driven era: once the consensus-version decree (>= 2) is applied,
+    // the strict requirements are network-wide law — a block without the
+    // committee metadata is rejected outright regardless of its timestamp,
+    // and signer stakes must be active. Before the decree the era is inferred
+    // from the metadata presence itself (historical blocks replay leniently).
+    if (l_esbocs_pvt->consensus_version >= 2 && !l_signs_check_required) {
+        log_it(L_ERROR, "Block %s created at %"DAP_UINT64_FORMAT_U" carries no committee metadata: "
+                        "forbidden by consensus version %"DAP_UINT64_FORMAT_U" decree",
+                dap_hash_fast_to_str_static(a_block_hash), (uint64_t)a_block->hdr.ts_created,
+                l_esbocs_pvt->consensus_version);
+        DAP_DELETE(l_signs);
+        return -5;
+    }
+    if (l_esbocs_pvt->consensus_version >= 2)
+        l_signs_check_required = true;
     for (size_t i = 0; i < l_signs_count; i++) {
         dap_sign_t *l_sign = l_signs[i];
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
@@ -4359,6 +4398,19 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_signs_check(dap_chain_net_t
     return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
+static dap_chain_datum_decree_t *s_esbocs_decree_set_consensus_version(dap_chain_net_t *a_net, dap_chain_t *a_chain,
+                                                                       uint64_t a_version, dap_cert_t *a_cert)
+{
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint64_t);
+    dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
+                                                                    *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
+    if (!l_decree)
+        return NULL;
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CONSENSUS_VERSION;
+    dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION, &a_version, sizeof(uint64_t));
+    return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
+}
+
 static dap_chain_datum_decree_t *s_esbocs_decree_set_emergency_validator(dap_chain_net_t *a_net, dap_chain_t *a_chain,
                                                                          dap_hash_fast_t *a_pkey_hash, dap_sign_type_t a_sign_type,
                                                                          bool a_add, dap_cert_t *a_cert)
@@ -4424,6 +4476,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         SUBCMD_UNDEFINED = 0,
         SUBCMD_MIN_VALIDATORS_COUNT,
         SUBCMD_CHECK_SIGNS_STRUCTURE,
+        SUBCMD_CONSENSUS_VERSION,
         SUBCMD_EMERGENCY_VALIDATOR,
         SUBCMD_STATUS,
         SUBCMD_EMPTY_BLOCKGEN_PERIOD
@@ -4432,6 +4485,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         [SUBCMD_UNDEFINED] = NULL,
         [SUBCMD_MIN_VALIDATORS_COUNT] = "min_validators_count",
         [SUBCMD_CHECK_SIGNS_STRUCTURE] = "check_signs_structure",
+        [SUBCMD_CONSENSUS_VERSION] = "consensus_version",
         [SUBCMD_EMERGENCY_VALIDATOR] = "emergency_validators",
         [SUBCMD_STATUS] = "status",
         [SUBCMD_EMPTY_BLOCKGEN_PERIOD] = "empty_block_every_times"
@@ -4453,6 +4507,7 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
         if ((dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "set") > 0 && l_subcmd == SUBCMD_MIN_VALIDATORS_COUNT) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "enable") > 0 && l_subcmd == SUBCMD_CHECK_SIGNS_STRUCTURE) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "disable") > 0 && l_subcmd == SUBCMD_CHECK_SIGNS_STRUCTURE) ||
+                (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "-value") > 0 && l_subcmd == SUBCMD_CONSENSUS_VERSION) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "add") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "remove") > 0 && l_subcmd == SUBCMD_EMERGENCY_VALIDATOR) ||
                 (dap_cli_server_cmd_check_option(a_argv, l_arg_index, l_arg_index + 1, "set") > 0 && l_subcmd == SUBCMD_EMPTY_BLOCKGEN_PERIOD))
@@ -4569,6 +4624,45 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             json_object_object_add(json_obj_out, a_version == 1 ? "Checking signs structure is" : "sig_check_status", l_esbocs_pvt->check_signs_structure ? json_object_new_string("enabled") : json_object_new_string("disabled"));
             json_object_array_add(*a_json_arr_reply, json_obj_out);
         }            
+    } break;
+
+    case SUBCMD_CONSENSUS_VERSION: {
+        json_object * json_obj_out = json_object_new_object();
+        if (!l_subcommand_show) {
+            const char *l_version_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_version_str);
+            if (!l_version_str) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
+                                       "Command '%s' requires parameter -value <consensus_version>", l_subcmd_strs[l_subcmd]);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
+            }
+            uint64_t l_version = strtoull(l_version_str, NULL, 10);
+            if (l_version < 2) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
+                                       "Consensus version must be >= 2 (version 1 is the pre-decree era)");
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
+            }
+            dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_consensus_version(l_chain_net, l_chain, l_version, l_poa_cert);
+            char *l_decree_hash_str = NULL;
+            if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
+                json_object_object_add(json_obj_out, "Consensus version decree has been", json_object_new_string(l_version_str));
+                json_object_object_add(json_obj_out, "Decree hash", json_object_new_string(l_decree_hash_str));
+                json_object_array_add(*a_json_arr_reply, json_obj_out);
+                DAP_DEL_MULTY(l_decree, l_decree_hash_str);
+            } else {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
+                                       "Consensus version decree failed");
+                DAP_DEL_Z(l_decree);
+                json_object_put(json_obj_out);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
+            }
+        } else {
+            json_object_object_add(json_obj_out, "Consensus version is",
+                                   json_object_new_uint64(l_esbocs_pvt->consensus_version));
+            json_object_object_add(json_obj_out, "Strict era",
+                                   json_object_new_string(l_esbocs_pvt->consensus_version >= 2 ? "enabled" : "not enabled"));
+            json_object_array_add(*a_json_arr_reply, json_obj_out);
+        }
     } break;
 
     case SUBCMD_EMERGENCY_VALIDATOR: {

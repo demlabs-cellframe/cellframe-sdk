@@ -86,6 +86,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD                0x0013
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE             0x0014
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN                0x0020
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CONSENSUS_VERSION             0x0021
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
@@ -108,6 +109,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E 
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD             0x0118
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_ALLOWED_ROLES               0x0119  // uint8_t bitmask of dap_chain_node_role_mask_t
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION             0x0120
 
 #ifdef __cplusplus
 extern "C" {
@@ -152,6 +154,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
         return "DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN:
         return "DECREE_COMMON_SUBTYPE_BLOCKGEN";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CONSENSUS_VERSION:
+        return "DECREE_COMMON_SUBTYPE_CONSENSUS_VERSION";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
     }
