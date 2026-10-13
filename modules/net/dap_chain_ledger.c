@@ -220,13 +220,6 @@ typedef struct dap_ledger_private {
     bool snapshot_mode;
     void *snapshot_save_timer;
     uint32_t snapshot_interval_sec;
-    // Chain-scan skip: after restoring a snapshot anchored at block N, every
-    // block up to N carries only transactions the snapshot already accounts
-    // for - the scan stops feeding them to the ledger until it reaches N+1
-    // and validates continuity against the snapshot's block hash
-    bool snapshot_skip_active;
-    uint64_t snapshot_skip_num;
-    dap_chain_hash_fast_t snapshot_skip_hash;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -3106,24 +3099,6 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     return l_ret;
 }
 
-bool dap_ledger_snapshot_skip_get(dap_ledger_t *a_ledger, uint64_t *a_block_num, dap_chain_hash_fast_t *a_block_hash)
-{
-    if (!a_ledger || !PVT(a_ledger)->snapshot_skip_active)
-        return false;
-    *a_block_num = PVT(a_ledger)->snapshot_skip_num;
-    *a_block_hash = PVT(a_ledger)->snapshot_skip_hash;
-    return true;
-}
-
-void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger)
-{
-    if (!a_ledger)
-        return;
-    PVT(a_ledger)->snapshot_skip_active = false;
-    PVT(a_ledger)->snapshot_skip_num = 0;
-    memset(&PVT(a_ledger)->snapshot_skip_hash, 0, sizeof(PVT(a_ledger)->snapshot_skip_hash));
-}
-
 int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -3142,8 +3117,15 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
     uint8_t *l_payload = NULL;
     do {
         if (fread(&l_header, sizeof(l_header), 1, l_file) != 1
-                || memcmp(l_header.magic, DAP_LEDGER_SNAPSHOT_MAGIC, sizeof(l_header.magic))
-                || l_header.version != DAP_LEDGER_SNAPSHOT_VERSION
+                || memcmp(l_header.magic, DAP_LEDGER_SNAPSHOT_MAGIC, sizeof(l_header.magic))) {
+            log_it(L_WARNING, "Ledger snapshot: %s is not a ledger snapshot file (magic/version), ignoring", l_path);
+            l_ret = 0;
+            break;
+        }
+        log_it(L_NOTICE, "Ledger snapshot: header v%u, header_size %u, net_id 0x%016"DAP_UINT64_FORMAT_x
+               ", block_num %"DAP_UINT64_FORMAT_U", payload %"DAP_UINT64_FORMAT_U" bytes",
+               l_header.version, l_header.header_size, l_header.net_id, l_header.block_num, l_header.payload_size);
+        if (l_header.version != DAP_LEDGER_SNAPSHOT_VERSION
                 || l_header.net_id != a_ledger->net->pub.id.uint64
                 || l_header.header_size < sizeof(l_header)
                 || l_header.payload_size > ((uint64_t)4) << 30) {
@@ -3220,11 +3202,6 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             l_ptr += sizeof(l_balance->balance);
             HASH_ADD_KEYPTR(hh, l_ledger_pvt->balance_accounts, l_balance->key, strlen(l_balance->key), l_balance);
             ++l_loaded_balances;
-        }
-        if (l_header.block_num && !dap_hash_fast_is_blank((dap_chain_hash_fast_t *)l_header.block_hash)) {
-            l_ledger_pvt->snapshot_skip_active = true;
-            l_ledger_pvt->snapshot_skip_num = l_header.block_num;
-            memcpy(&l_ledger_pvt->snapshot_skip_hash, l_header.block_hash, sizeof(l_ledger_pvt->snapshot_skip_hash));
         }
         log_it(L_NOTICE, "Ledger snapshot: restored %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
                " balances from %s (saved %"DAP_UINT64_FORMAT_U" s ago); the chain scan will re-fill the transaction datums",

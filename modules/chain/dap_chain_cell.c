@@ -459,12 +459,18 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             l_vol_rest = (off_t)(a_cell->map_end - a_cell->map_pos) - sizeof(uint64_t);
             if ( l_vol_rest <= 0 || (uint64_t)l_vol_rest < *(uint64_t*)a_cell->map_pos )
                 if ( s_cell_map_new_volume(a_cell, l_pos, true) ) {
+                    log_it(L_ERROR, "CELL LOAD DIAG: map volume switch failed at atom %llu, pos %lld", (unsigned long long)q, (long long)l_pos);
                     l_ret = -2;
                     break;
                 }
             l_el_size = *(uint64_t*)a_cell->map_pos;
-            if ( !l_el_size || l_el_size > (size_t)(l_full_size - l_pos) )
+            if ( !l_el_size || l_el_size > (size_t)(l_full_size - l_pos) ) {
+                log_it(L_ERROR, "CELL LOAD DIAG: bad element size %llu at atom %llu, pos %lld of %lld",
+                       (unsigned long long)l_el_size, (unsigned long long)q, (long long)l_pos, (long long)l_full_size);
                 break;
+            }
+            if ( q && (q % 50000) == 0 )
+                log_it(L_NOTICE, "CELL LOAD DIAG: %llu atoms loaded, pos %lld of %lld", (unsigned long long)q, (long long)l_pos, (long long)l_full_size);
             a_cell->map_pos += sizeof(uint64_t);
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos);
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
