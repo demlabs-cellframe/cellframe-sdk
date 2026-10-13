@@ -1168,7 +1168,11 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             dap_chain_datum_t *l_prev_datum = a_chain->callback_datum_find_by_hash(a_chain, &l_prev_tx_hash, NULL, NULL);
             dap_chain_datum_tx_t *l_tx_prev = l_prev_datum ? (dap_chain_datum_tx_t *)(l_prev_datum->data) : NULL;
             if (!l_tx_prev) {
-                log_it(L_ERROR, "Can't find previous transaction by hash \"%s\"", dap_hash_fast_to_str_static(&l_prev_tx_hash));
+                // The initial bulk pass walks the whole historical chain, where
+                // old inputs routinely reference datums that are not resolvable
+                // by this callback; this is not actionable at ERROR level.
+                debug_if(s_debug_more, L_DEBUG, "Can't find previous transaction by hash \"%s\"",
+                         dap_hash_fast_to_str_static(&l_prev_tx_hash));
                 if (!a_ret_code) {
                     pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
                     s_wallet_cache_drop_unspent_global_by_key(&l_prev_tx_hash, l_prev_idx);
@@ -1178,7 +1182,7 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             }
             l_prev_item = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_prev_idx);
             if (!l_prev_item) {
-                log_it(L_ERROR, "Can't find output %d in tx \"%s\"", l_prev_idx, dap_hash_fast_to_str_static(&l_prev_tx_hash));
+                debug_if(s_debug_more, L_DEBUG, "Can't find output %d in tx \"%s\"", l_prev_idx, dap_hash_fast_to_str_static(&l_prev_tx_hash));
                 if (!a_ret_code) {
                     pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
                     s_wallet_cache_drop_unspent_global_by_key(&l_prev_tx_hash, l_prev_idx);
