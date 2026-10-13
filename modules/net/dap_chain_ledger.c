@@ -54,6 +54,16 @@
 #include "dap_chain_datum_tx_tsd.h"
 #include "dap_chain_datum_token.h"
 #include "dap_global_db.h"
+#include "dap_global_db_driver.h"
+
+// Storage-capacity latch passthrough: while GlobalDB is over its hard limit
+// (MDBX_MAP_FULL) the cache writes can't succeed - skip the serialization work
+// entirely instead of feeding a doomed write path on every chain event.
+static inline bool s_ledger_cache_storage_full(void)
+{
+    return dap_global_db_driver_storage_full();
+}
+
 #include "dap_chain_ledger.h"
 #include "json.h"
 #include "json_object.h"
@@ -1916,6 +1926,8 @@ bool dap_ledger_utxo_is_blocked_by_ticker(dap_ledger_t *a_ledger, const char *a_
  */
 void s_ledger_token_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_item_t *l_token_item)
 {
+    if (s_ledger_cache_storage_full())
+        return; // storage full - cache writes are dropped until restart
     if (!PVT(a_ledger)->cached)
         return;
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_TOKENS_STR);
@@ -3341,6 +3353,8 @@ int dap_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_
 }
 static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item)
 {
+    if (s_ledger_cache_storage_full())
+        return; // storage full - cache writes dropped
     if (!PVT(a_ledger)->cached)
         return;
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_LEDGER_EMISSIONS_STR);
@@ -5598,8 +5612,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_notify->callback(a_ledger, a_tx, a_tx_hash, l_notify->arg, DAP_LEDGER_NOTIFY_OPCODE_ADDED);
         }
     }
-    if (PVT(a_ledger)->cached) {
-        // Add it to cache
+    if (PVT(a_ledger)->cached && !s_ledger_cache_storage_full()) {
+        // Add it to cache (skipped while GlobalDB storage is over its limit)
         size_t l_cache_size = sizeof(l_tx_item->cache_data) + l_tx_item->cache_data.n_outs * sizeof(dap_chain_hash_fast_t);
         size_t l_tx_cache_sz = l_tx_size + l_cache_size + sizeof(dap_ledger_cache_gdb_record_t);
         // Heap, not alloca (see the spent-slot buffer above).
@@ -5925,8 +5939,8 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         }
     }
 
-    if (PVT(a_ledger)->cached) {
-        // Add it to cache
+    if (PVT(a_ledger)->cached && !s_ledger_cache_storage_full()) {
+        // Add it to cache (skipped while GlobalDB storage is over its limit)
         dap_global_db_del_sync(l_ledger_cache_group, l_tx_hash_str);
         // Apply it with single DB transaction
         if (dap_global_db_set_raw_signed(l_cache_used_outs, l_outs_used, NULL, NULL))
