@@ -405,6 +405,33 @@ int64_t threshold_mmap_iter(threshold_mmap_ctx_t *ctx,
     return iterated;
 }
 
+int64_t threshold_mmap_iter_batch(threshold_mmap_ctx_t *ctx, uint64_t *cursor,
+                                  uint64_t max_slots, threshold_mmap_iter_cb cb, void *arg)
+{
+    if (!ctx || !cursor || !cb || !max_slots) return -1;
+    pthread_mutex_lock(&ctx->lock);
+    int64_t visited = 0;
+    uint64_t limit = max_slots < ctx->capacity ? max_slots : ctx->capacity;
+    for (uint64_t scanned = 0; scanned < limit; ++scanned) {
+        if (*cursor >= ctx->capacity) *cursor = 0;
+        threshold_index_slot_t *slot = s_slot_at(ctx->index, (*cursor)++);
+        if (slot->state != SLOT_OCCUPIED) continue;
+        uint64_t offset = s_data_offset(slot);
+        uint64_t size = dap_mmap_file_size(ctx->data);
+        if (offset > size || slot->data_size > size - offset) {
+            log_it(L_ERROR, "Threshold batch: invalid data extent");
+            continue;
+        }
+        dap_chain_hash_fast_t hash = slot->hash;
+        size_t block_size = slot->data_size;
+        const void *data = (const char *)dap_mmap_file_ptr(ctx->data) + offset;
+        ++visited;
+        if (cb(&hash, data, block_size, arg)) break;
+    }
+    pthread_mutex_unlock(&ctx->lock);
+    return visited;
+}
+
 /* ---- Internal: Grow index ---- */
 
 static int s_grow_index(threshold_mmap_ctx_t *ctx)

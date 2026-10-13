@@ -92,3 +92,5 @@ typedef int (*threshold_mmap_iter_cb)(const dap_chain_hash_fast_t *hash,
  */
 int64_t threshold_mmap_iter(threshold_mmap_ctx_t *ctx,
                             threshold_mmap_iter_cb cb, void *arg);
+int64_t threshold_mmap_iter_batch(threshold_mmap_ctx_t *ctx, uint64_t *cursor,
+                                  uint64_t max_slots, threshold_mmap_iter_cb cb, void *arg);
