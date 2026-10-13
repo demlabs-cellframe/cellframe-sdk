@@ -1984,54 +1984,6 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     dap_chain_cell_delete_all(a_chain);
 }
 
-/* Snapshot chain-scan skip: while a restored ledger snapshot anchors at block
- * N, every block up to N carries only transactions the snapshot already
- * accounts for - feeding them to the ledger (and its consumers) again is
- * wasted work. At block N+1 the continuity is validated against the anchor
- * hash; on a mismatch (the chain files were swapped between sessions) the
- * mismatched snapshot state is purged and the ledger is rebuilt from the
- * in-memory block cache. */
-static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache);
-
-static int s_add_atom_datums_maybe_skip(dap_chain_cs_blocks_t *a_blocks,
-                                        dap_chain_block_cache_t *a_block_cache,
-                                        const dap_chain_hash_fast_t *a_prev_hash)
-{
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_blocks->chain->net_id);
-    dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
-    uint64_t l_skip_num = 0;
-    dap_chain_hash_fast_t l_skip_hash = {};
-    if (!l_ledger || !dap_ledger_snapshot_skip_get(l_ledger, &l_skip_num, &l_skip_hash))
-        return s_add_atom_datums(a_blocks, a_block_cache);
-    if (a_block_cache->block_number <= l_skip_num) {
-        debug_if(s_debug_more, L_DEBUG, "Block %"DAP_UINT64_FORMAT_U" is covered by the ledger snapshot, skipping its datums",
-                 a_block_cache->block_number);
-        return 0;
-    }
-    bool l_continuous = a_prev_hash && !dap_hash_fast_compare(a_prev_hash, &l_skip_hash);
-    dap_ledger_snapshot_skip_consume(l_ledger);
-    if (!l_continuous) {
-        // The chain files do not continue the chain the snapshot was taken on.
-        // Everything skipped so far is still in the in-memory block cache:
-        // drop the mismatched snapshot state and replay every block from it.
-        log_it(L_CRITICAL, "Ledger snapshot: continuity check failed at block %"DAP_UINT64_FORMAT_U
-               " - the snapshot belongs to a different chain branch, rebuilding the ledger from the loaded blocks",
-               a_block_cache->block_number);
-        dap_ledger_purge(l_ledger, false);
-        // The caller holds the block rwlock as the writer, so the in-memory
-        // block cache is stable here; s_add_atom_datums only takes its own
-        // datums/ledger locks, so the rebuild below is safe inside it
-        dap_chain_block_cache_t *l_bitem = NULL, *l_btmp = NULL;
-        HASH_ITER(hh, PVT(a_blocks)->blocks, l_bitem, l_btmp) {
-            s_add_atom_datums(a_blocks, l_bitem);
-        }
-        return 0;
-    }
-    log_it(L_NOTICE, "Ledger snapshot: chain scan reached the snapshot position (block %"DAP_UINT64_FORMAT_U
-           "), switching to full transaction processing", l_skip_num + 1);
-    return s_add_atom_datums(a_blocks, a_block_cache);
-}
-
 /**
  * @brief s_add_atom_to_ledger
  * @param a_blocks
@@ -2236,7 +2188,7 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_curr_atom->block_hash), l_curr_atom);
             HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_curr_atom->block_number), l_curr_atom->block_number, l_curr_atom);
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", l_curr_atom);
-            s_add_atom_datums_maybe_skip(l_blocks, l_curr_atom, NULL);
+            s_add_atom_datums(l_blocks, l_curr_atom);
             dap_chain_atom_notify(a_cell, &l_curr_atom->block_hash, (byte_t*)l_curr_atom->block, l_curr_atom->block_size, l_curr_atom->block->hdr.ts_created);
             HASH_DEL(new_main_branch, l_item);
             DAP_DELETE(l_item);
@@ -2307,7 +2259,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
                 HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
                 debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
-                s_add_atom_datums_maybe_skip(l_blocks, l_block_cache, &l_block_prev_hash);
+                s_add_atom_datums(l_blocks, l_block_cache);
                 dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
                 dap_chain_atom_add_from_threshold(a_chain);
                 PVT(l_blocks)->rwlock_writer = 0;
@@ -2386,7 +2338,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
             ++PVT(l_blocks)->blocks_count;
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
-            s_add_atom_datums_maybe_skip(l_blocks, l_block_cache, NULL);
+            s_add_atom_datums(l_blocks, l_block_cache);
             dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
             dap_chain_atom_add_from_threshold(a_chain);
             PVT(l_blocks)->rwlock_writer = 0;
