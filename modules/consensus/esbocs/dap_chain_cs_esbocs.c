@@ -1376,9 +1376,11 @@ static int s_esbocs_set_consensus_version_apply(dap_chain_t *a_chain, uint64_t a
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    l_esbocs_pvt->consensus_version = a_version;
+    // Set the boundary before the version: a verifier thread reading version >= 2
+    // with since still 0 would treat the whole chain (including history) as strict
     if (a_version >= 2)
         l_esbocs_pvt->consensus_version_since = a_since;
+    l_esbocs_pvt->consensus_version = a_version;
     log_it(L_NOTICE, "Consensus version decree applied on chain %s: version %"DAP_UINT64_FORMAT_U
            " (strict era since ts %"DAP_UINT64_FORMAT_U")%s",
            a_chain->name, a_version, l_esbocs_pvt->consensus_version_since,
@@ -4211,16 +4213,17 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     bool l_meta_present = dap_chain_block_meta_get(l_block, l_block_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT) != NULL;
     // Strict-era boundary comes from an unambiguous consensus milestone, never from a
     // per-block sign: historical blocks carry the committee metadata too (Backbone block
-    // 108272), so metadata presence cannot decide the era. Two boundaries exist:
+    // 108272), so metadata presence cannot decide the era. Two boundaries exist and either
+    // of them turns the strict era on for blocks at/after it:
     //   * the applied consensus-version decree: strict for blocks created at/after the
     //     ts_created of the decree datum (deterministic on every replay);
     //   * the operator cutoff [esbocs] require_signs_meta_since (checked separately above).
     // Blocks older than the boundary replay with the lenient historical semantics: any
     // delegated stake (even deactivated) authorized a signer of that era.
     uint64_t l_block_ts = (uint64_t)a_block->hdr.ts_created;
-    bool l_strict_era = l_esbocs_pvt->consensus_version >= 2
-            ? (!l_esbocs_pvt->consensus_version_since || l_block_ts >= l_esbocs_pvt->consensus_version_since)
-            : (l_esbocs_pvt->require_signs_meta_since && l_block_ts >= l_esbocs_pvt->require_signs_meta_since);
+    bool l_strict_era = (l_esbocs_pvt->consensus_version >= 2
+                && (!l_esbocs_pvt->consensus_version_since || l_block_ts >= l_esbocs_pvt->consensus_version_since))
+            || (l_esbocs_pvt->require_signs_meta_since && l_block_ts >= l_esbocs_pvt->require_signs_meta_since);
     // In the strict era a block without the committee metadata is forbidden outright
     if (l_esbocs_pvt->consensus_version >= 2 && l_strict_era && !l_meta_present) {
         log_it(L_ERROR, "Block %s created at %"DAP_UINT64_FORMAT_U" carries no committee metadata: "
