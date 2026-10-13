@@ -105,3 +105,11 @@ DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_reward_group(const char *a_net_n
 dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_pkey_hash);
 
 dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash);
+
+/**
+ * @brief dap_chain_cs_blocks_get_tip
+ *        Current tip of the block chain: number and hash of the last loaded
+ *        block. Used by the ledger snapshot cache to anchor its position.
+ * @return false if the chain carries no loaded blocks.
+ */
+bool dap_chain_cs_blocks_get_tip(dap_chain_t *a_chain, uint64_t *a_block_num, dap_chain_hash_fast_t *a_block_hash);

@@ -71,6 +71,7 @@ static inline bool s_ledger_cache_storage_full(void)
 #include "dap_chain_ledger_snapshot.h"
 #include "dap_crc64.h"
 #include "dap_chain.h"
+#include "dap_chain_cs_blocks.h"
 #include "json.h"
 #include "json_object.h"
 #include "dap_notify_srv.h"
@@ -220,6 +221,13 @@ typedef struct dap_ledger_private {
     bool snapshot_mode;
     void *snapshot_save_timer;
     uint32_t snapshot_interval_sec;
+    // Chain-scan skip: after restoring a snapshot anchored at block N, every
+    // block up to N carries only transactions the snapshot already accounts
+    // for - the scan stops feeding them to the ledger until it reaches N+1
+    // and validates continuity against the snapshot's block hash
+    bool snapshot_skip_active;
+    uint64_t snapshot_skip_num;
+    dap_chain_hash_fast_t snapshot_skip_hash;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -3052,6 +3060,9 @@ typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_header {
     uint64_t n_balances;
     uint64_t payload_size;    // bytes after the header
     uint64_t crc64;           // over the payload
+    uint64_t block_num;       // last block of the block chain at save time (0 = unknown);
+                              // the scan skips transaction processing up to this position
+    uint8_t  block_hash[sizeof(dap_chain_hash_fast_t)]; // that block's hash: continuity check
 } dap_ledger_snapshot_header_t;
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_tx_record {
@@ -3186,6 +3197,21 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     l_header.n_balances = l_n_balances;
     l_header.payload_size = l_buf.size;
     l_header.crc64 = crc64(l_buf.data, l_buf.size);
+    // Anchor the snapshot to the block chain position it was taken at: on the
+    // next start the scan skips transaction processing up to this block and
+    // validates continuity against the hash before switching to live processing
+    for (dap_chain_t *l_chain = a_ledger->net->pub.chains; l_chain; l_chain = l_chain->next) {
+        const char *l_cs_type = dap_chain_get_cs_type(l_chain);
+        if (!l_cs_type || dap_strcmp(l_cs_type, "esbocs"))
+            continue;
+        dap_chain_hash_fast_t l_tip_hash = {};
+        uint64_t l_tip_num = 0;
+        if (dap_chain_cs_blocks_get_tip(l_chain, &l_tip_num, &l_tip_hash)) {
+            l_header.block_num = l_tip_num;
+            memcpy(l_header.block_hash, &l_tip_hash, sizeof(l_header.block_hash));
+        }
+        break;
+    }
 
     FILE *l_file = fopen(l_tmp_path, "wb");
     if (!l_file) {
@@ -3216,6 +3242,24 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     DAP_DELETE(l_path);
     DAP_DELETE(l_tmp_path);
     return l_ret;
+}
+
+bool dap_ledger_snapshot_skip_get(dap_ledger_t *a_ledger, uint64_t *a_block_num, dap_chain_hash_fast_t *a_block_hash)
+{
+    if (!a_ledger || !PVT(a_ledger)->snapshot_skip_active)
+        return false;
+    *a_block_num = PVT(a_ledger)->snapshot_skip_num;
+    *a_block_hash = PVT(a_ledger)->snapshot_skip_hash;
+    return true;
+}
+
+void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger)
+{
+    if (!a_ledger)
+        return;
+    PVT(a_ledger)->snapshot_skip_active = false;
+    PVT(a_ledger)->snapshot_skip_num = 0;
+    memset(&PVT(a_ledger)->snapshot_skip_hash, 0, sizeof(PVT(a_ledger)->snapshot_skip_hash));
 }
 
 int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
@@ -3314,6 +3358,11 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             l_ptr += sizeof(l_balance->balance);
             HASH_ADD_KEYPTR(hh, l_ledger_pvt->balance_accounts, l_balance->key, strlen(l_balance->key), l_balance);
             ++l_loaded_balances;
+        }
+        if (l_header.block_num && !dap_hash_fast_is_blank((dap_chain_hash_fast_t *)l_header.block_hash)) {
+            l_ledger_pvt->snapshot_skip_active = true;
+            l_ledger_pvt->snapshot_skip_num = l_header.block_num;
+            memcpy(&l_ledger_pvt->snapshot_skip_hash, l_header.block_hash, sizeof(l_ledger_pvt->snapshot_skip_hash));
         }
         log_it(L_NOTICE, "Ledger snapshot: restored %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
                " balances from %s (saved %"DAP_UINT64_FORMAT_U" s ago); the chain scan will re-fill the transaction datums",
