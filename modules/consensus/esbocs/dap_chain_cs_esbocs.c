@@ -4182,9 +4182,17 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
         s_get_precached_key_hash(&l_esbocs_pvt->precached_keys, l_sign, &l_signing_addr.data.hash_fast);
         if (!l_esbocs_pvt->poa_mode) {
-             // Signer must have an active delegated stake (key_delegated returns 1),
-             // inactive (-1) or absent (0) stakes give no signing rights
-            if (dap_chain_net_srv_stake_key_delegated(&l_signing_addr) != 1) {
+             // Signer stake check, era-aware. Blocks carrying the committee
+             // metadata (current era) must be signed by validators with an
+             // ACTIVE delegated stake. Historical blocks (no metadata, the
+             // pre-metadata era) keep the original semantics: only a fully
+             // absent stake rejected the signer - validators of that era did
+             // sign while their stakes were already deactivated, and the chain
+             // must replay (seen on Backbone block 108272, prod 2026-10).
+             bool l_stake_invalid = l_signs_check_required
+                 ? dap_chain_net_srv_stake_key_delegated(&l_signing_addr) != 1
+                 : !dap_chain_net_srv_stake_key_delegated(&l_signing_addr);
+             if (l_stake_invalid) {
                 if (l_esbocs_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
