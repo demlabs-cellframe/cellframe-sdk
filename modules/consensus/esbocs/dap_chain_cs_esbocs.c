@@ -4208,11 +4208,15 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return -1;
     }
 
+    bool l_block_is_emergency = s_block_is_emergency(a_block, l_block_size);
     // Committee-metadata enforcement window: after the operator-set cutoff a
-    // block without SYNC_ATTEMPT metadata is rejected (old history still loads)
+    // block without SYNC_ATTEMPT metadata is rejected (old history still loads).
+    // Emergency blocks are exempt: in emergency mode the committee metadata is
+    // not maintained, such blocks carry the EMERGENCY metadata instead
     if (l_esbocs_pvt->require_signs_meta_since
             && (uint64_t)a_block->hdr.ts_created >= l_esbocs_pvt->require_signs_meta_since
-            && !dap_chain_block_meta_get(a_block, l_block_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT)) {
+            && !dap_chain_block_meta_get(a_block, l_block_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT)
+            && !l_block_is_emergency) {
         log_it(L_ERROR, "Block %s created at %"DAP_UINT64_FORMAT_U" carries no sync metadata (enforced since %"DAP_UINT64_FORMAT_U")",
                 dap_hash_fast_to_str_static(a_block_hash), (uint64_t)a_block->hdr.ts_created, l_esbocs_pvt->require_signs_meta_since);
         DAP_DELETE(l_signs);
@@ -4223,7 +4227,6 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     int l_ret = 0;
     uint16_t l_signs_verified_count = 0;
     size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, l_block_size) + sizeof(a_block->hdr);
-    bool l_block_is_emergency = s_block_is_emergency(a_block, l_block_size);
     // Get the header on signing operation time
     size_t l_block_original = a_block->hdr.meta_n_datum_n_signs_size;
     dap_chain_block_t *l_block = a_blocks->chain->is_mapped
@@ -4247,7 +4250,8 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 && (!l_esbocs_pvt->consensus_version_since || l_block_ts >= l_esbocs_pvt->consensus_version_since))
             || (l_esbocs_pvt->require_signs_meta_since && l_block_ts >= l_esbocs_pvt->require_signs_meta_since);
     // In the strict era a block without the committee metadata is forbidden outright
-    if (l_esbocs_pvt->consensus_version >= 2 && l_strict_era && !l_meta_present) {
+    // (emergency blocks are exempt: they carry the EMERGENCY metadata by design)
+    if (l_esbocs_pvt->consensus_version >= 2 && l_strict_era && !l_meta_present && !l_block_is_emergency) {
         log_it(L_ERROR, "Block %s created at %"DAP_UINT64_FORMAT_U" carries no committee metadata: "
                         "forbidden by consensus version %"DAP_UINT64_FORMAT_U" decree",
                 dap_hash_fast_to_str_static(a_block_hash), l_block_ts,
