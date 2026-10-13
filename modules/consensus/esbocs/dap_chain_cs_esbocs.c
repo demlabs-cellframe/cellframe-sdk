@@ -4234,6 +4234,8 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 dap_hash_fast_to_str_static(a_block_hash), (uint64_t)a_block->hdr.ts_created,
                 l_esbocs_pvt->consensus_version);
         DAP_DELETE(l_signs);
+        if (a_blocks->chain->is_mapped)
+            DAP_DELETE(l_block);
         return -5;
     }
     if (l_esbocs_pvt->consensus_version >= 2)
