@@ -46,6 +46,19 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger);
  */
 int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown);
 
+/**
+ * @brief Chain-scan skip anchor of the restored snapshot, if any: blocks up to
+ *        a_block_num carry only transactions the snapshot already accounts for.
+ * @return true while the skip is active (consumed by the chain loader at
+ *         block a_block_num + 1 after validating continuity).
+ */
+bool dap_ledger_snapshot_skip_get(dap_ledger_t *a_ledger, uint64_t *a_block_num, dap_chain_hash_fast_t *a_block_hash);
+
+/**
+ * @brief Consume (deactivate) the chain-scan skip anchor.
+ */
+void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger);
+
 #ifdef __cplusplus
 }
 #endif
