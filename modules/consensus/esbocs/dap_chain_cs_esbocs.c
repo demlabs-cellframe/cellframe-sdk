@@ -4275,9 +4275,13 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
                     log_it(L_ATT, "Unknown PoS signer %s for block %s", dap_hash_fast_to_str_static(&l_signing_addr.data.hash_fast), l_block_hash_str);
                 }
-                if (!i) {
-                    // The first sign must belong to the delegated submitter: skipping
-                    // it with `continue` bypassed the designated-submitter check
+                if (!i && l_signs_check_required) {
+                    // In the strict era the first sign must belong to the delegated
+                    // submitter: skipping it with `continue` bypassed the designated-
+                    // submitter check. Before the consensus boundary the lenient
+                    // historical path is kept (the first signer of an old block may
+                    // be absent from the stake registry entirely, the remaining
+                    // verified signs decide - Backbone block 108272)
                     l_ret = -5;
                     break;
                 }
