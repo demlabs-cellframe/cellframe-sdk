@@ -623,6 +623,11 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 return -103;
             }
             _dap_tsd_get_scalar(l_tsd, &l_version);
+            if (l_version < 2) {
+                // Version 1 is the pre-decree era itself; a decree cannot downgrade below 2
+                log_it(L_WARNING, "Consensus version decree must be >= 2, got %"DAP_UINT64_FORMAT_U, l_version);
+                return -103;
+            }
             dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
             if (!l_chain) {
                 log_it(L_WARNING, "Specified chain not found");
