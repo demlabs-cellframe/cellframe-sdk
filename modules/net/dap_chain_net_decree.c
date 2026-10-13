@@ -639,7 +639,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_chain_esbocs_set_consensus_version(l_chain, l_version);
+            dap_chain_esbocs_set_consensus_version(l_chain, l_version, (uint64_t)a_decree->header.ts_created);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS: {
             if (dap_chain_datum_decree_get_action(a_decree, &l_action)) {

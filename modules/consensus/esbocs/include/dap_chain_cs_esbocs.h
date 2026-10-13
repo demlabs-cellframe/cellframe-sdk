@@ -323,13 +323,15 @@ int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
 /**
  * @brief dap_chain_esbocs_set_consensus_version
  *        Apply a consensus-version decree: version 2+ enforces the strict
- *        verification era — blocks without committee metadata are rejected
- *        outright and every signer must hold an active delegated stake.
+ *        verification era from the decree timestamp onwards — blocks without
+ *        committee metadata are rejected outright and every signer must hold
+ *        an active delegated stake. Older blocks keep the lenient semantics.
  * @param a_chain Chain the decree applies to
  * @param a_version Consensus version from the decree (>= 2 enables the era)
+ * @param a_decree_ts ts_created of the decree datum: the strict-era boundary
  * @return 0 on success
  */
-int dap_chain_esbocs_set_consensus_version(dap_chain_t *a_chain, uint64_t a_version);
+int dap_chain_esbocs_set_consensus_version(dap_chain_t *a_chain, uint64_t a_version, uint64_t a_decree_ts);
 
 void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable);
 

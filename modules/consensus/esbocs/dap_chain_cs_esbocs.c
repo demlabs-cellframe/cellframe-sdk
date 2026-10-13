@@ -502,6 +502,10 @@ typedef struct dap_chain_esbocs_pvt {
     // are rejected outright and every signer must hold an active delegated
     // stake. Survives restarts because the decree is re-applied on chain load.
     uint64_t consensus_version;
+    // Strict-era boundary for consensus_version >= 2: the ts_created of the
+    // decree datum itself. Blocks older than the boundary keep the lenient
+    // historical semantics on replay; blocks at/after it are strict.
+    uint64_t consensus_version_since;
     // Internal cache
     dap_list_t *precached_keys;
 } dap_chain_esbocs_pvt_t;
@@ -1367,22 +1371,25 @@ static int s_esbocs_set_signs_struct_check_apply(dap_chain_t *a_chain, bool a_en
     return 0;
 }
 
-static int s_esbocs_set_consensus_version_apply(dap_chain_t *a_chain, uint64_t a_version)
+static int s_esbocs_set_consensus_version_apply(dap_chain_t *a_chain, uint64_t a_version, uint64_t a_since)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->consensus_version = a_version;
-    log_it(L_NOTICE, "Consensus version decree applied on chain %s: version %"DAP_UINT64_FORMAT_U"%s",
-           a_chain->name, a_version,
-           a_version >= 2 ? " (committee metadata required, active-stake signers enforced)" : "");
+    if (a_version >= 2)
+        l_esbocs_pvt->consensus_version_since = a_since;
+    log_it(L_NOTICE, "Consensus version decree applied on chain %s: version %"DAP_UINT64_FORMAT_U
+           " (strict era since ts %"DAP_UINT64_FORMAT_U")%s",
+           a_chain->name, a_version, l_esbocs_pvt->consensus_version_since,
+           a_version >= 2 ? ", committee metadata required, active-stake signers enforced" : "");
     return 0;
 }
 
-int dap_chain_esbocs_set_consensus_version(dap_chain_t *a_chain, uint64_t a_version)
+int dap_chain_esbocs_set_consensus_version(dap_chain_t *a_chain, uint64_t a_version, uint64_t a_decree_ts)
 {
     dap_return_val_if_fail(a_chain, -1);
-    return s_esbocs_set_consensus_version_apply(a_chain, a_version);
+    return s_esbocs_set_consensus_version_apply(a_chain, a_version, a_decree_ts);
 }
 
 static int s_esbocs_set_emergency_validator_apply(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash)
@@ -4200,39 +4207,43 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         : a_block;
     l_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(l_block->hdr);
     // A block carrying the sync metadata declares its committee, so its signers are checked
-    // against the committee recomputed from that metadata. Blocks without the metadata
-    // (produced by outdated submitters or stored before its introduction) can't be checked
-    // this way and are accepted as before
-    bool l_signs_check_required = dap_chain_block_meta_get(l_block, l_block_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT) != NULL;
-    // Decree-driven era: once the consensus-version decree (>= 2) is applied,
-    // the strict requirements are network-wide law — a block without the
-    // committee metadata is rejected outright regardless of its timestamp,
-    // and signer stakes must be active. Before the decree the era is inferred
-    // from the metadata presence itself (historical blocks replay leniently).
-    if (l_esbocs_pvt->consensus_version >= 2 && !l_signs_check_required) {
+    // against the committee recomputed from that metadata
+    bool l_meta_present = dap_chain_block_meta_get(l_block, l_block_size, DAP_CHAIN_BLOCK_META_SYNC_ATTEMPT) != NULL;
+    // Strict-era boundary comes from an unambiguous consensus milestone, never from a
+    // per-block sign: historical blocks carry the committee metadata too (Backbone block
+    // 108272), so metadata presence cannot decide the era. Two boundaries exist:
+    //   * the applied consensus-version decree: strict for blocks created at/after the
+    //     ts_created of the decree datum (deterministic on every replay);
+    //   * the operator cutoff [esbocs] require_signs_meta_since (checked separately above).
+    // Blocks older than the boundary replay with the lenient historical semantics: any
+    // delegated stake (even deactivated) authorized a signer of that era.
+    uint64_t l_block_ts = (uint64_t)a_block->hdr.ts_created;
+    bool l_strict_era = l_esbocs_pvt->consensus_version >= 2
+            ? (!l_esbocs_pvt->consensus_version_since || l_block_ts >= l_esbocs_pvt->consensus_version_since)
+            : (l_esbocs_pvt->require_signs_meta_since && l_block_ts >= l_esbocs_pvt->require_signs_meta_since);
+    // In the strict era a block without the committee metadata is forbidden outright
+    if (l_esbocs_pvt->consensus_version >= 2 && l_strict_era && !l_meta_present) {
         log_it(L_ERROR, "Block %s created at %"DAP_UINT64_FORMAT_U" carries no committee metadata: "
                         "forbidden by consensus version %"DAP_UINT64_FORMAT_U" decree",
-                dap_hash_fast_to_str_static(a_block_hash), (uint64_t)a_block->hdr.ts_created,
+                dap_hash_fast_to_str_static(a_block_hash), l_block_ts,
                 l_esbocs_pvt->consensus_version);
         DAP_DELETE(l_signs);
         if (a_blocks->chain->is_mapped)
             DAP_DELETE(l_block);
         return -5;
     }
-    if (l_esbocs_pvt->consensus_version >= 2)
-        l_signs_check_required = true;
+    bool l_signs_check_required = l_strict_era;
     for (size_t i = 0; i < l_signs_count; i++) {
         dap_sign_t *l_sign = l_signs[i];
         dap_chain_addr_t l_signing_addr = { .net_id = a_blocks->chain->net_id };
         s_get_precached_key_hash(&l_esbocs_pvt->precached_keys, l_sign, &l_signing_addr.data.hash_fast);
         if (!l_esbocs_pvt->poa_mode) {
-             // Signer stake check, era-aware. Blocks carrying the committee
-             // metadata (current era) must be signed by validators with an
-             // ACTIVE delegated stake. Historical blocks (no metadata, the
-             // pre-metadata era) keep the original semantics: only a fully
-             // absent stake rejected the signer - validators of that era did
-             // sign while their stakes were already deactivated, and the chain
-             // must replay (seen on Backbone block 108272, prod 2026-10).
+             // Signer stake check, era-aware. In the strict era (at/after the
+             // consensus boundary) a signer must hold an ACTIVE delegated stake.
+             // Historical blocks before the boundary keep the original semantics:
+             // only a fully absent stake rejected the signer - validators of that
+             // era did sign while their stakes were already deactivated, and the
+             // chain must replay (Backbone block 108272, prod 2026-10).
              bool l_stake_invalid = l_signs_check_required
                  ? dap_chain_net_srv_stake_key_delegated(&l_signing_addr) != 1
                  : !dap_chain_net_srv_stake_key_delegated(&l_signing_addr);
@@ -4644,6 +4655,8 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                                    json_object_new_uint64(l_esbocs_pvt->consensus_version));
             json_object_object_add(json_obj_out, "Strict era",
                                    json_object_new_string(l_esbocs_pvt->consensus_version >= 2 ? "enabled" : "not enabled"));
+            json_object_object_add(json_obj_out, "Strict era since",
+                                   json_object_new_uint64(l_esbocs_pvt->consensus_version_since));
             json_object_array_add(*a_json_arr_reply, json_obj_out);
         }
     } break;
