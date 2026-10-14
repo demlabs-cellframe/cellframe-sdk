@@ -3320,6 +3320,7 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
         }
         pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
         // Restore the balances exactly like the GlobalDB balances stage does
+        pthread_rwlock_wrlock(&l_ledger_pvt->balance_accounts_rwlock);
         for (uint64_t i = 0; i < l_header.n_balances; ++i) {
             if (l_ptr + sizeof(dap_ledger_snapshot_balance_record_t) > l_end) {
                 log_it(L_WARNING, "Ledger snapshot: truncated balances section at record %"DAP_UINT64_FORMAT_U, i);
@@ -3351,6 +3352,7 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             HASH_ADD_KEYPTR(hh, l_ledger_pvt->balance_accounts, l_balance->key, strlen(l_balance->key), l_balance);
             ++l_loaded_balances;
         }
+        pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
         log_it(L_NOTICE, "Ledger snapshot: restored %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
                " balances from %s (saved %"DAP_UINT64_FORMAT_U" s ago); the chain scan will re-fill the transaction datums",
                l_loaded_tx, l_loaded_balances, l_path, (uint64_t)time(NULL) - l_header.ts_saved);
@@ -6260,9 +6262,31 @@ FIN:
 
 void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
-    pthread_rwlock_wrlock(&PVT(a_ledger)->ledger_rwlock);
-    HASH_SORT(PVT(a_ledger)->ledger_items, s_sort_ledger_tx_item);
-    pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
+    HASH_SORT(l_ledger_pvt->ledger_items, s_sort_ledger_tx_item);
+    // Security: an item whose datum was never attached did not appear in ANY
+    // chain of this network - it can only come from a restored cache/snapshot
+    // taken on a different (forked or longer) branch. Such a phantom carries
+    // spendable-looking outputs the network would reject; drop it here, after
+    // the full scan, while real transactions all carry their datum. Balances
+    // are aggregate and stay as restored - the log tells the operator if a
+    // 'ledger reload' is due.
+    dap_ledger_tx_item_t *l_item = NULL, *l_tmp = NULL;
+    size_t l_phantoms = 0;
+    HASH_ITER (hh, l_ledger_pvt->ledger_items, l_item, l_tmp) {
+        if (!l_item->tx) {
+            HASH_DEL(l_ledger_pvt->ledger_items, l_item);
+            DAP_DELETE(l_item);
+            ++l_phantoms;
+        }
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    if (l_phantoms)
+        log_it(L_CRITICAL, "Ledger: dropped %zu cache-restored transaction(s) not found in any "
+               "chain of this network (snapshot from a different branch?); consider "
+               "'net -net %s ledger reload' to recompute the balances",
+               l_phantoms, a_ledger->net->pub.name);
 }
 
 /**
