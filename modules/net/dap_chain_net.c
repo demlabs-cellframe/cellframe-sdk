@@ -2460,6 +2460,9 @@ static void *s_net_load(void *a_arg)
            l_net_pvt->state == NET_STATE_LOADING ? "NET_STATE_LOADING" : 
            l_net_pvt->state == NET_STATE_OFFLINE ? "NET_STATE_OFFLINE" : "OTHER");
     l_net_pvt->state = NET_STATE_LOADING;
+    // Chains are (re)loaded from scratch: the wallet cache bulk pass must run
+    // again after they finish
+    dap_chain_wallet_cache_bulk_reset(l_net->pub.id);
 
     // Load stake cache if ledger cache is enabled
     // This sets up cache_tx_check_callback which is used in dap_ledger_tx_load
