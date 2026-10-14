@@ -219,7 +219,7 @@ typedef struct dap_ledger_private {
     // Snapshot cache ([ledger] snapshot_cache): periodic flat-file dumps of the
     // ledger state replace the GlobalDB txs/balances cache groups entirely
     bool snapshot_mode;
-    void *snapshot_save_timer;
+    dap_interval_timer_t snapshot_save_timer;
     uint32_t snapshot_interval_sec;
 } dap_ledger_private_t;
 
@@ -555,7 +555,18 @@ void dap_ledger_handle_free(dap_ledger_t *a_ledger)
     if(!a_ledger)
         return;
     log_it(L_INFO,"Ledger for network %s destroyed", a_ledger->net->pub.name);
-    
+
+    // Stop the interval timers BEFORE the memory they tick over is freed:
+    // a timer firing after net delete / ledger free would touch the freed
+    // pvt (use-after-free in the timer callback)
+    if (PVT(a_ledger)->snapshot_save_timer) {
+        dap_interval_timer_delete(PVT(a_ledger)->snapshot_save_timer);
+        PVT(a_ledger)->snapshot_save_timer = NULL;
+    }
+    if (PVT(a_ledger)->threshold_txs_free_timer) {
+        dap_interval_timer_delete(PVT(a_ledger)->threshold_txs_free_timer);
+        PVT(a_ledger)->threshold_txs_free_timer = NULL;
+    }
     // Cleanup arbitrage rate limiting
     // Destroy Read/Write Lock
     pthread_rwlock_destroy(&PVT(a_ledger)->ledger_rwlock);

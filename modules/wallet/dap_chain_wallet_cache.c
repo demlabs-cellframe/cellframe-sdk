@@ -1383,7 +1383,13 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
                     *l_out = (dap_wallet_tx_cache_output_t){ .tx_out_idx = l_out_idx };
                     l_wallet_tx_item->tx_wallet_outputs = dap_list_append(l_wallet_tx_item->tx_wallet_outputs, l_out);
                 }
-                if (!a_ret_code && !dap_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_hash, l_out_idx, NULL)) {
+                // ALREADY_CACHED is a restored-from-the-ledger-cache transaction: it IS in
+                // the ledger, so for a wallet that was not cached before (new address, or the
+                // persistent cache was lost) its unspent output must be collected here -
+                // otherwise the bulk pass silently skips every transaction the chain scan
+                // restored from the cache and the address balance comes up short.
+                if ((!a_ret_code || a_ret_code == DAP_LEDGER_CHECK_ALREADY_CACHED)
+                        && !dap_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_hash, l_out_idx, NULL)) {
                     dap_wallet_cache_unspent_outs_t *l_item = NULL;
                     unspent_cache_hh_key l_key = { .tx_hash = *a_tx_hash, .out_idx = l_out_idx };
                     HASH_FIND(hh, l_wallet_item->unspent_outputs, &l_key, sizeof(unspent_cache_hh_key), l_item);
