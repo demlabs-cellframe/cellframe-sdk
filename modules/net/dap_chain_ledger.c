@@ -6385,8 +6385,13 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
             // Snapshot-restored item: the snapshot deliberately stores no
             // transaction datums, the chain scan re-fills them as it walks the
             // blocks, so a later spend of this transaction's outputs sees the
-            // full item
-            l_tx_item->tx = DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+            // full item. For a mapped ledger the datum pointer goes straight
+            // into the block file's mmap (same as the regular add path; every
+            // delete site frees it only when !mapped) - no per-transaction
+            // heap copies for the whole restored history.
+            l_tx_item->tx = PVT(a_ledger)->mapped
+                    ? a_tx
+                    : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
         }
         pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
         if (l_tx_item)
