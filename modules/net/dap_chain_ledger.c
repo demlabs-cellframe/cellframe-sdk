@@ -3134,7 +3134,6 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         log_it(L_WARNING, "Ledger snapshot: can't find a block chain storage dir, save skipped");
         return -1;
     }
-    size_t l_path_len = strlen(l_path);
     char *l_tmp_path = dap_strdup_printf("%s.tmp", l_path);
 
     s_snapshot_buf_t l_buf = {};
