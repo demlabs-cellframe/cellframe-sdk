@@ -62,6 +62,13 @@ int dap_chain_wallet_cache_deinit();
  */
 int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net);
 
+/**
+ * @brief Forget that the single-pass bulk build for the network has completed:
+ *        the next wallet cache load runs the full pass again (used when the
+ *        network's chains are (re)loaded from scratch).
+ */
+void dap_chain_wallet_cache_bulk_reset(dap_chain_net_id_t a_net_id);
+
 // Drop every cached entry for the network (net purge/reload path).
 void dap_chain_wallet_cache_invalidate_net(dap_chain_net_id_t a_net_id);
 
