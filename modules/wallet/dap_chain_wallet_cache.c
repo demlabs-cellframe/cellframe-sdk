@@ -147,6 +147,45 @@ static void s_bulk_loading_nets_add(uint64_t a_net_id)
     s_bulk_loading_nets = dap_list_append(s_bulk_loading_nets, l_id);
 }
 
+// Nets whose single-pass bulk build has COMPLETED in this process. The
+// datum-notify subscription keeps the cache incremental afterwards, so a new
+// full pass on every ONLINE transition (a node cycling RESYNC<->ONLINE used
+// to start a competing bulk each time - threads, CPU, RSS/swap) is pure
+// waste: one completed pass per network load is enough. Reset on a new
+// chain load (dap_chain_wallet_cache_bulk_reset).
+static dap_list_t *s_bulk_done_nets = NULL;
+
+static bool s_bulk_done_nets_has(uint64_t a_net_id)
+{
+    for (dap_list_t *l_it = s_bulk_done_nets; l_it; l_it = l_it->next) {
+        if (a_net_id == *(uint64_t*)l_it->data)
+            return true;
+    }
+    return false;
+}
+
+static void s_bulk_done_nets_add(uint64_t a_net_id)
+{
+    if (s_bulk_done_nets_has(a_net_id))
+        return;
+    uint64_t *l_id = DAP_NEW(uint64_t);
+    if (l_id)
+        *l_id = a_net_id;
+    s_bulk_done_nets = dap_list_append(s_bulk_done_nets, l_id);
+}
+
+void dap_chain_wallet_cache_bulk_reset(dap_chain_net_id_t a_net_id)
+{
+    for (dap_list_t *l_it = s_bulk_done_nets; l_it;) {
+        dap_list_t *l_next = l_it->next;
+        if (a_net_id.uint64 == *(uint64_t*)l_it->data) {
+            DAP_DELETE(l_it->data);
+            s_bulk_done_nets = dap_list_remove_link(s_bulk_done_nets, l_it);
+        }
+        l_it = l_next;
+    }
+}
+
 static void s_bulk_loading_nets_remove(uint64_t a_net_id)
 {
     for (dap_list_t *l_it = s_bulk_loading_nets; l_it; l_it = l_it->next) {
@@ -445,6 +484,15 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
 
     if (!l_count && s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL) {
         debug_if(s_debug_more, L_DEBUG, "No wallets needed cache loading for net %s", a_net->pub.name);
+        return 0;
+    }
+
+    // One full pass per network load: the datum-notify subscription keeps the
+    // cache incremental, so ONLINE-transition re-runs of the whole-history
+    // bulk are skipped (they only burned CPU/threads/swap on resync cycles)
+    if (s_bulk_done_nets_has(a_net->pub.id.uint64)) {
+        debug_if(s_debug_more, L_DEBUG, "Wallet cache bulk pass already completed for net %s in this session, "
+                 "skipping the repeat run (incremental notify keeps it fresh)", a_net->pub.name);
         return 0;
     }
 
@@ -1057,20 +1105,23 @@ static void *s_wallet_load_all_for_net(void *a_arg)
             DAP_DELETE(l_addr);
             continue;
         }
+        // Process missed addresses right here in the bulk thread: spawning a
+        // detached thread per address made a 1900-address network spawn ~1900
+        // competing full-history walkers (thread explosion, RSS/swap blowup)
         wallet_cache_load_args_t *l_args = DAP_NEW_Z(wallet_cache_load_args_t);
+        if (!l_args) {
+            DAP_DELETE(l_addr);
+            continue;
+        }
         l_args->net = l_net;
         l_args->addr = *l_addr;
         l_args->wallet_item = l_wallet_item;
-        pthread_t l_tid;
-        pthread_attr_t l_attr;
-        pthread_attr_init(&l_attr);
-        pthread_attr_setdetachstate(&l_attr, PTHREAD_CREATE_DETACHED);
-        atomic_fetch_add(&s_loading_threads_count, 1);
-        pthread_create(&l_tid, &l_attr, s_wallet_load, l_args);
+        s_wallet_load(l_args);
         DAP_DELETE(l_addr);
     }
     dap_list_free(l_missed);
 
+    s_bulk_done_nets_add(l_net->pub.id.uint64);
     log_it(L_INFO, "Single-pass wallet cache build for net %s completed in %llu sec",
            l_net->pub.name, (unsigned long long)(time(NULL) - l_ts_start));
     atomic_fetch_sub(&s_loading_threads_count, 1);
