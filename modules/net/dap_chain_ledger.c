@@ -6541,10 +6541,13 @@ FIN:
         dap_list_free(l_list_tx_out);
     if (PVT(a_ledger)->cached) {
         if (l_cache_used_outs) {
-            // .value here is a DAP_NEW_Z_SIZE (heap) buffer, so freeing it is
-            // correct; the bound was off by one ('<' vs '<='), leaking the
-            // last slot's key and value.
-            for (size_t i = 1; i <= l_outs_used; i++) {
+            // The buffer holds exactly l_outs_used slots and every one of them
+            // was heap-filled here (keys via dap_chain_hash_fast_to_str_new,
+            // values via DAP_NEW_Z_SIZE) - clean the range [0, l_outs_used).
+            // The old loop ran 1..l_outs_used inclusive: it leaked slot 0 and
+            // freed garbage past the end of the buffer - the SIGSEGV inside
+            // __libc_free() in dap_ledger_tx_remove() seen on rollback cores.
+            for (size_t i = 0; i < l_outs_used; i++) {
                 DAP_DEL_Z(l_cache_used_outs[i].key);
                 DAP_DEL_Z(l_cache_used_outs[i].value);
             }
