@@ -3238,15 +3238,17 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             ++l_loaded_balances;
         }
         pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
-        // NOTE: block_num/hash are informational. Arming a chain-scan skip on
-        // them is NOT possible with the current cell loader: s_callback_atom_verify
-        // runs the full block verification for every loaded atom, and a ledger
-        // restored from the snapshot answers "transaction already cached" for
-        // every input - the loader rejects (and drops from the block cache) every
-        // block whose transactions are all covered by the snapshot, so the node
-        // re-syncs that range from the network instead of using the snapshot.
-        // Re-enable only together with a load-path change that bypasses block
-        // verification up to the snapshot position.
+        // Arm the chain-scan skip: blocks up to block_num are covered by the
+        // snapshot (their transactions are restored in the ledger already).
+        // DIAGNOSTIC MODE: the cell loader under an armed skip was observed to
+        // stop feeding blocks into the block cache past the anchor position -
+        // instrumented run in progress, see SNAPSHOT SKIP / LOAD DIAG logs.
+        if (l_header.block_num && !dap_hash_fast_is_blank((dap_chain_hash_fast_t *)l_header.block_hash)) {
+            l_ledger_pvt->snapshot_skip_active = true;
+            l_ledger_pvt->snapshot_skip_num = l_header.block_num;
+            memcpy(&l_ledger_pvt->snapshot_skip_hash, l_header.block_hash, sizeof(l_ledger_pvt->snapshot_skip_hash));
+            log_it(L_NOTICE, "Ledger snapshot: chain-scan skip armed up to block %"DAP_UINT64_FORMAT_U, l_header.block_num);
+        }
         log_it(L_NOTICE, "Ledger snapshot: restored %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
                " balances from %s (saved %"DAP_UINT64_FORMAT_U" s ago); the chain scan will re-fill the transaction datums",
                l_loaded_tx, l_loaded_balances, l_path, (uint64_t)time(NULL) - l_header.ts_saved);
