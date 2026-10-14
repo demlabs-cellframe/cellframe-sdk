@@ -61,6 +61,13 @@ int dap_chain_wallet_cache_deinit();
  * @return 0 on success, -1 on error
  */
 int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net);
+
+/**
+ * @brief Forget that the single-pass bulk build for the network has completed:
+ *        the next wallet cache load runs the full pass again (used when the
+ *        network's chains are (re)loaded from scratch).
+ */
+void dap_chain_wallet_cache_bulk_reset(dap_chain_net_id_t a_net_id);
 void dap_chain_wallet_cache_invalidate_net(dap_chain_net_id_t a_net_id);
 
 // Backlog of undelivered datum notifications above which the cache is
