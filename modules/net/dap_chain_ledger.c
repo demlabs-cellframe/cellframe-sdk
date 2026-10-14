@@ -221,6 +221,11 @@ typedef struct dap_ledger_private {
     bool snapshot_mode;
     dap_interval_timer_t snapshot_save_timer;
     uint32_t snapshot_interval_sec;
+    // Chain-scan skip: a restored snapshot anchored at block N makes blocks
+    // 1..N free for the ledger (their transactions are in the snapshot)
+    bool snapshot_skip_active;
+    uint64_t snapshot_skip_num;
+    dap_chain_hash_fast_t snapshot_skip_hash;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -3247,6 +3252,24 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     return l_ret;
 }
 
+bool dap_ledger_snapshot_skip_get(dap_ledger_t *a_ledger, uint64_t *a_block_num, dap_chain_hash_fast_t *a_block_hash)
+{
+    if (!a_ledger || !PVT(a_ledger)->snapshot_skip_active)
+        return false;
+    *a_block_num = PVT(a_ledger)->snapshot_skip_num;
+    *a_block_hash = PVT(a_ledger)->snapshot_skip_hash;
+    return true;
+}
+
+void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger)
+{
+    if (!a_ledger)
+        return;
+    PVT(a_ledger)->snapshot_skip_active = false;
+    PVT(a_ledger)->snapshot_skip_num = 0;
+    memset(&PVT(a_ledger)->snapshot_skip_hash, 0, sizeof(PVT(a_ledger)->snapshot_skip_hash));
+}
+
 int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -3353,6 +3376,15 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             ++l_loaded_balances;
         }
         pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
+        // NOTE: block_num/hash are informational. Arming a chain-scan skip on
+        // them is NOT possible with the current cell loader: s_callback_atom_verify
+        // runs the full block verification for every loaded atom, and a ledger
+        // restored from the snapshot answers "transaction already cached" for
+        // every input - the loader rejects (and drops from the block cache) every
+        // block whose transactions are all covered by the snapshot, so the node
+        // re-syncs that range from the network instead of using the snapshot.
+        // Re-enable only together with a load-path change that bypasses block
+        // verification up to the snapshot position.
         log_it(L_NOTICE, "Ledger snapshot: restored %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
                " balances from %s (saved %"DAP_UINT64_FORMAT_U" s ago); the chain scan will re-fill the transaction datums",
                l_loaded_tx, l_loaded_balances, l_path, (uint64_t)time(NULL) - l_header.ts_saved);
