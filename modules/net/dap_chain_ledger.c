@@ -3093,11 +3093,11 @@ typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_wallet_record {
 
 // Wallet section is persisted only when the node indexes every address
 // ([wallets] wallets_cache=all): in that mode the restored unspent index
-// matches what the wallet bulk pass would rebuild anyway
+// matches what the wallet bulk pass would rebuild anyway. Ask the cache for
+// its effective mode - the config string alone misses the built-in default.
 static bool s_snapshot_wallet_section_enabled(void)
 {
-    const char *l_mode = dap_config_get_item_str(g_config, "wallets", "wallets_cache");
-    return l_mode && !dap_strcmp(l_mode, "all");
+    return dap_chain_wallet_cache_mode_all();
 }
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_balance_record {
@@ -3154,6 +3154,15 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
 {
     dap_return_val_if_fail(a_ledger && PVT(a_ledger)->snapshot_mode, -1);
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    // Never save while the chains are loading: the scan attaches datums as it
+    // walks, and a snapshot written before it finishes carries a partial wallet
+    // section (unspent outs only for the transactions seen so far) that the
+    // next start would trust as complete and skip the rebuilding pass for.
+    if (a_ledger->net && dap_chain_net_get_load_mode(a_ledger->net)) {
+        debug_if(s_debug_more, L_DEBUG, "Ledger snapshot: save skipped while net %s is loading",
+                 a_ledger->net->pub.name);
+        return 0;
+    }
 
     char *l_path = s_snapshot_file_path(a_ledger);
     if (!l_path) {
