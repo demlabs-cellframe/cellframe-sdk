@@ -1939,6 +1939,62 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     dap_chain_cell_delete_all(a_chain);
 }
 
+/* Snapshot chain-scan skip (EXPERIMENTAL, disabled): skipped for release
+ * builds — under an active skip the cell loader stops feeding blocks into the
+ * block cache past the snapshot position (reproducible: 13577 of 587744 blocks
+ * on a full Backbone replica, no errors logged; a 5.7-63 build with the skip
+ * enabled left a production node stuck at block 13577 in SYNC_CHAINS). Root
+ * cause is in the load path, not here; requires a dedicated debugging session
+ * with per-atom tracing in s_callback_atom_add / the cell-load loop. The
+ * ledger side (snapshot_skip_get/consume, arm under the same #ifdef) is kept
+ * for when this is revived. */
+#ifdef DAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL
+static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache);
+
+static int s_add_atom_datums_maybe_skip(dap_chain_cs_blocks_t *a_blocks,
+                                        dap_chain_block_cache_t *a_block_cache,
+                                        const dap_chain_hash_fast_t *a_prev_hash)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_blocks->chain->net_id);
+    dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+    uint64_t l_skip_num = 0;
+    dap_chain_hash_fast_t l_skip_hash = {};
+    if (!l_ledger || !dap_ledger_snapshot_skip_get(l_ledger, &l_skip_num, &l_skip_hash))
+        return s_add_atom_datums(a_blocks, a_block_cache);
+    if (a_block_cache->block_number <= l_skip_num) {
+        static _Atomic(uint64_t) s_skipped = 0;
+        static _Atomic(uint64_t) s_last_log = 0;
+        uint64_t l_cnt = atomic_fetch_add(&s_skipped, 1) + 1;
+        uint64_t l_now = (uint64_t)time(NULL);
+        uint64_t l_prev = atomic_load(&s_last_log);
+        if (l_prev == 0 || l_now - l_prev >= 10) {
+            uint64_t l_exp = l_prev;
+            if (atomic_compare_exchange_strong(&s_last_log, &l_exp, l_now))
+                log_it(L_NOTICE, "SNAPSHOT SKIP: block %"DAP_UINT64_FORMAT_U" (%"DAP_UINT64_FORMAT_U
+                       " blocks skipped so far, target %"DAP_UINT64_FORMAT_U")",
+                       a_block_cache->block_number, l_cnt, l_skip_num);
+        }
+        return 0;
+    }
+    bool l_continuous = a_prev_hash && !dap_hash_fast_compare(a_prev_hash, &l_skip_hash);
+    dap_ledger_snapshot_skip_consume(l_ledger);
+    if (!l_continuous) {
+        log_it(L_CRITICAL, "SNAPSHOT SKIP: continuity check FAILED at block %"DAP_UINT64_FORMAT_U
+               " - snapshot is from another branch, rebuilding the ledger from the in-memory block cache",
+               a_block_cache->block_number);
+        dap_ledger_purge(l_ledger, false);
+        dap_chain_block_cache_t *l_bitem = NULL, *l_btmp = NULL;
+        HASH_ITER(hh, PVT(a_blocks)->blocks, l_bitem, l_btmp) {
+            s_add_atom_datums(a_blocks, l_bitem);
+        }
+        return 0;
+    }
+    log_it(L_NOTICE, "SNAPSHOT SKIP: continuity OK at block %"DAP_UINT64_FORMAT_U
+           ", switching to full transaction processing", a_block_cache->block_number);
+    return s_add_atom_datums(a_blocks, a_block_cache);
+}
+#endif
+
 /**
  * @brief s_add_atom_to_ledger
  * @param a_blocks
