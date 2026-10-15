@@ -186,6 +186,40 @@ void dap_chain_wallet_cache_bulk_reset(dap_chain_net_id_t a_net_id)
     }
 }
 
+void dap_chain_wallet_cache_restore_unspent(dap_chain_net_id_t a_net_id, const dap_chain_addr_t *a_addr,
+                                            dap_chain_hash_fast_t *a_tx_hash, uint16_t a_out_idx, uint8_t a_out_type,
+                                            dap_time_t a_ts_unlock, const char *a_ticker, uint256_t a_value)
+{
+    if (s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)
+        return; // LOCAL mode does not keep a per-address unspent index
+    pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+    dap_wallet_cache_t *l_wallet_item = NULL;
+    HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(*a_addr), l_wallet_item);
+    if (!l_wallet_item) {
+        l_wallet_item = DAP_NEW_Z(dap_wallet_cache_t);
+        l_wallet_item->wallet_addr = *a_addr;
+        HASH_ADD(hh, s_wallets_cache, wallet_addr, sizeof(l_wallet_item->wallet_addr), l_wallet_item);
+    }
+    unspent_cache_hh_key l_key = { .tx_hash = *a_tx_hash, .out_idx = a_out_idx };
+    dap_wallet_cache_unspent_outs_t *l_item = NULL;
+    HASH_FIND(hh, l_wallet_item->unspent_outputs, &l_key, sizeof(l_key), l_item);
+    if (!l_item) {
+        l_item = DAP_NEW_Z(dap_wallet_cache_unspent_outs_t);
+        l_item->key = l_key;
+        l_item->value = a_value;
+        l_item->out_type = (dap_chain_tx_item_type_t)a_out_type;
+        l_item->ts_unlock = a_ts_unlock;
+        dap_strncpy(l_item->token_ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+        HASH_ADD(hh, l_wallet_item->unspent_outputs, key, sizeof(l_item->key), l_item);
+    }
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+}
+
+void dap_chain_wallet_cache_bulk_done_mark(dap_chain_net_id_t a_net_id)
+{
+    s_bulk_done_nets_add(a_net_id.uint64);
+}
+
 static void s_bulk_loading_nets_remove(uint64_t a_net_id)
 {
     for (dap_list_t *l_it = s_bulk_loading_nets; l_it; l_it = l_it->next) {
