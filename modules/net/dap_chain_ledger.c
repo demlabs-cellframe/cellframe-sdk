@@ -3514,17 +3514,23 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
                 log_it(L_WARNING, "Ledger snapshot: wallet section restored %"DAP_UINT64_FORMAT_U
                        " of %"DAP_UINT64_FORMAT_U" records - the wallet bulk pass will re-run", l_restored_wallet, l_header.n_wallet_outs);
         }
-        // Arm the chain-scan skip: blocks up to block_num are covered by the
-        // snapshot (their transactions are restored in the ledger already).
-        // DIAGNOSTIC MODE: the cell loader under an armed skip was observed to
-        // stop feeding blocks into the block cache past the anchor position -
-        // instrumented run in progress, see SNAPSHOT SKIP / LOAD DIAG logs.
+        // Chain-scan skip (EXPERIMENTAL, disabled in release builds): with the
+        // skip active the cell loader stops feeding blocks into the block cache
+        // past the anchor position (reproduced on a full Backbone replica:
+        // 13577 of 587744 blocks cached, the loader then finishes "successfully"
+        // and the node re-syncs the range from the network; an intermediate
+        // 5.7-63 build left a production node stuck exactly like this). Root
+        // cause is in the load path - revive under a dedicated debugging
+        // session. Enable together with the cs-blocks helper by defining
+        // DAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL in that module as well.
+#ifdef DAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL
         if (l_header.block_num && !dap_hash_fast_is_blank((dap_chain_hash_fast_t *)l_header.block_hash)) {
             l_ledger_pvt->snapshot_skip_active = true;
             l_ledger_pvt->snapshot_skip_num = l_header.block_num;
             memcpy(&l_ledger_pvt->snapshot_skip_hash, l_header.block_hash, sizeof(l_ledger_pvt->snapshot_skip_hash));
             log_it(L_NOTICE, "Ledger snapshot: chain-scan skip armed up to block %"DAP_UINT64_FORMAT_U, l_header.block_num);
         }
+#endif
         log_it(L_NOTICE, "Ledger snapshot: restored %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
                " balances from %s (saved %"DAP_UINT64_FORMAT_U" s ago); the chain scan will re-fill the transaction datums",
                l_loaded_tx, l_loaded_balances, l_path, (uint64_t)time(NULL) - l_header.ts_saved);

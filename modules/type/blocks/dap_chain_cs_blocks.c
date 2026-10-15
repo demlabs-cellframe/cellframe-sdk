@@ -1987,10 +1987,12 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
 /* Snapshot chain-scan skip (EXPERIMENTAL, disabled): skipped for release
  * builds — under an active skip the cell loader stops feeding blocks into the
  * block cache past the snapshot position (reproducible: 13577 of 587744 blocks
- * on a full Backbone replica, no errors logged). Root cause is in the load
- * path, not here; requires a dedicated debugging session with per-atom
- * tracing in s_callback_atom_add / the cell-load loop. The ledger side
- * (snapshot_skip_get/consume) is kept for when this is revived. */
+ * on a full Backbone replica, no errors logged; a 5.7-63 build with the skip
+ * enabled left a production node stuck at block 13577 in SYNC_CHAINS). Root
+ * cause is in the load path, not here; requires a dedicated debugging session
+ * with per-atom tracing in s_callback_atom_add / the cell-load loop. The
+ * ledger side (snapshot_skip_get/consume, arm under the same #ifdef) is kept
+ * for when this is revived. */
 #ifdef DAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL
 static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache);
 
