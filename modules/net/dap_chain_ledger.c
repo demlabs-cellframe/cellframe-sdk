@@ -78,6 +78,7 @@ static inline bool s_ledger_cache_storage_full(void)
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_dex.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_cache.h"
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_datum_tx_voting.h"
@@ -2918,7 +2919,7 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
  */
 
 #define DAP_LEDGER_SNAPSHOT_MAGIC "CFLEDGSN"
-#define DAP_LEDGER_SNAPSHOT_VERSION 1
+#define DAP_LEDGER_SNAPSHOT_VERSION 2
 #define DAP_LEDGER_SNAPSHOT_FILENAME "ledger-snapshot.bin"
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_header {
@@ -2934,12 +2935,32 @@ typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_header {
     uint64_t block_num;       // last block of the block chain at save time (0 = unknown);
                               // the scan skips transaction processing up to this position
     uint8_t  block_hash[sizeof(dap_chain_hash_fast_t)]; // that block's hash: continuity check
+    uint32_t flags;           // bit0: wallet section (unspent outs per address) present
+    uint32_t reserved;
+    uint64_t n_wallet_outs;   // unspent-output records in the wallet section
 } dap_ledger_snapshot_header_t;
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_tx_record {
     uint8_t  tx_hash[sizeof(dap_chain_hash_fast_t)];
     uint32_t cache_size;      // followed by exactly cache_size bytes of cache_data
 } dap_ledger_snapshot_tx_record_t;
+
+typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_wallet_record {
+    uint16_t addr_size;       // followed by: addr[addr_size], out_idx, out_type,
+    uint16_t out_idx;         // ticker[ticker_len], value[32], tx_hash[32]
+    uint8_t  out_type;
+    uint16_t ticker_len;
+    uint64_t ts_unlock;
+} dap_ledger_snapshot_wallet_record_t;
+
+// Wallet section is persisted only when the node indexes every address
+// ([wallets] wallets_cache=all): in that mode the restored unspent index
+// matches what the wallet bulk pass would rebuild anyway
+static bool s_snapshot_wallet_section_enabled(void)
+{
+    const char *l_mode = dap_config_get_item_str(g_config, "wallets", "wallets_cache");
+    return l_mode && !dap_strcmp(l_mode, "all");
+}
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_balance_record {
     uint16_t key_len;         // followed by key, ticker and the 32-byte uint256 balance
@@ -3006,6 +3027,7 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     s_snapshot_buf_t l_buf = {};
     uint64_t l_n_tx = 0, l_n_balances = 0;
     int l_ret = 0;
+    uint64_t l_n_wallet_outs = 0;
 
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     dap_ledger_tx_item_t *l_item = NULL, *l_item_tmp = NULL;
@@ -3049,6 +3071,81 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
     }
 
+    // Wallet section: every unspent output with its owner address, so the
+    // wallet cache is warm right after a snapshot restore without re-walking
+    // the whole chain. Saved only in wallets_cache=all mode (the only mode
+    // that keeps a per-address unspent index).
+    if (!l_ret && l_ledger_pvt->snapshot_mode && s_snapshot_wallet_section_enabled()) {
+        pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+        dap_ledger_tx_item_t *l_witem = NULL, *l_wtmp = NULL;
+        HASH_ITER (hh, l_ledger_pvt->ledger_items, l_witem, l_wtmp) {
+            if (!l_witem->tx) // datum-less restored item: datums are absent until the scan
+                continue;
+            uint8_t *l_it = NULL; size_t l_it_size = 0;
+            uint16_t l_out_idx = 0;
+            TX_ITEM_ITER_TX(l_it, l_it_size, l_witem->tx) {
+                dap_chain_addr_t *l_out_addr = NULL;
+                uint256_t l_out_value = uint256_0;
+                const char *l_out_ticker = NULL;
+                dap_time_t l_out_ts_unlock = 0;
+                uint8_t l_out_type = *l_it;
+                switch (l_out_type) {
+                case TX_ITEM_TYPE_OUT: {
+                    dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_it;
+                    l_out_addr = &l_out->addr; l_out_value = l_out->header.value;
+                    l_out_ticker = l_witem->cache_data.token_ticker;
+                    break;
+                }
+                case TX_ITEM_TYPE_OUT_OLD: {
+                    dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t *)l_it;
+                    l_out_addr = &l_out->addr; l_out_value = GET_256_FROM_64(l_out->header.value);
+                    l_out_ticker = l_witem->cache_data.token_ticker;
+                    break;
+                }
+                case TX_ITEM_TYPE_OUT_EXT: {
+                    dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_it;
+                    l_out_addr = &l_out->addr; l_out_value = l_out->header.value;
+                    l_out_ticker = l_out->token;
+                    break;
+                }
+                case TX_ITEM_TYPE_OUT_STD: {
+                    dap_chain_tx_out_std_t *l_out = (dap_chain_tx_out_std_t *)l_it;
+                    l_out_addr = &l_out->addr; l_out_value = l_out->value;
+                    l_out_ts_unlock = l_out->ts_unlock; l_out_ticker = l_out->token;
+                    break;
+                }
+                default:
+                    continue; // not an output
+                }
+                ++l_out_idx;
+                if (l_out_idx > l_witem->cache_data.n_outs)
+                    break;
+                if (!dap_hash_fast_is_blank(&l_witem->cache_data.tx_hash_spent_fast[l_out_idx - 1]))
+                    continue; // spent output - not part of the wallet cache
+                size_t l_ticker_len = strnlen(l_out_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+                dap_ledger_snapshot_wallet_record_t l_rec = {
+                    .addr_size = (uint16_t)sizeof(dap_chain_addr_t),
+                    .out_idx = (uint16_t)(l_out_idx - 1),
+                    .out_type = l_out_type,
+                    .ticker_len = (uint16_t)l_ticker_len,
+                };
+                bool l_fail = s_snapshot_buf_put(&l_buf, &l_rec, sizeof(l_rec))
+                        || s_snapshot_buf_put(&l_buf, l_out_addr, sizeof(*l_out_addr))
+                        || s_snapshot_buf_put(&l_buf, l_out_ticker, l_ticker_len)
+                        || s_snapshot_buf_put(&l_buf, &l_out_value, sizeof(l_out_value))
+                        || s_snapshot_buf_put(&l_buf, &l_witem->tx_hash_fast, sizeof(l_witem->tx_hash_fast));
+                if (l_fail) {
+                    l_ret = -2;
+                    break;
+                }
+                ++l_n_wallet_outs;
+            }
+            if (l_ret)
+                break;
+        }
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    }
+
     if (l_ret) {
         log_it(L_ERROR, "Ledger snapshot: allocation error, save aborted");
         DAP_DEL_Z(l_buf.data);
@@ -3067,6 +3164,8 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     l_header.n_balances = l_n_balances;
     l_header.payload_size = l_buf.size;
     l_header.crc64 = crc64(l_buf.data, l_buf.size);
+    l_header.flags = l_n_wallet_outs ? 0x1u : 0u;
+    l_header.n_wallet_outs = l_n_wallet_outs;
     // Anchor the snapshot to the block chain position it was taken at: on the
     // next start the scan skips transaction processing up to this block and
     // validates continuity against the hash before switching to live processing
@@ -3238,6 +3337,45 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             ++l_loaded_balances;
         }
         pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
+        // Restore the wallet cache unspent index (v2 header, flag bit0)
+        if ((l_header.flags & 0x1u) && l_header.n_wallet_outs) {
+            uint64_t l_restored_wallet = 0;
+            for (uint64_t i = 0; i < l_header.n_wallet_outs; ++i) {
+                if (l_ptr + sizeof(dap_ledger_snapshot_wallet_record_t) > l_end) {
+                    log_it(L_WARNING, "Ledger snapshot: truncated wallet section at record %"DAP_UINT64_FORMAT_U, i);
+                    break;
+                }
+                dap_ledger_snapshot_wallet_record_t *l_rec = (dap_ledger_snapshot_wallet_record_t *)l_ptr;
+                l_ptr += sizeof(*l_rec);
+                if (l_ptr + l_rec->addr_size + l_rec->ticker_len + sizeof(uint256_t) + sizeof(dap_chain_hash_fast_t) > l_end) {
+                    log_it(L_WARNING, "Ledger snapshot: truncated wallet record payload at record %"DAP_UINT64_FORMAT_U, i);
+                    break;
+                }
+                dap_chain_addr_t l_addr = {};
+                memcpy(&l_addr, l_ptr, l_rec->addr_size);
+                l_ptr += l_rec->addr_size;
+                char l_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
+                memcpy(l_ticker, l_ptr, l_rec->ticker_len);
+                l_ptr += l_rec->ticker_len;
+                uint256_t l_value = {};
+                memcpy(&l_value, l_ptr, sizeof(l_value));
+                l_ptr += sizeof(l_value);
+                dap_chain_hash_fast_t l_tx_hash = {};
+                memcpy(&l_tx_hash, l_ptr, sizeof(l_tx_hash));
+                l_ptr += sizeof(l_tx_hash);
+                dap_chain_wallet_cache_restore_unspent(a_ledger->net->pub.id, &l_addr, &l_tx_hash,
+                                                       l_rec->out_idx, l_rec->out_type,
+                                                       (dap_time_t)l_rec->ts_unlock, l_ticker, l_value);
+                ++l_restored_wallet;
+            }
+            if (l_restored_wallet == l_header.n_wallet_outs) {
+                dap_chain_wallet_cache_bulk_done_mark(a_ledger->net->pub.id);
+                log_it(L_NOTICE, "Ledger snapshot: wallet cache restored (%"DAP_UINT64_FORMAT_U
+                       " unspent outputs), bulk pass is not needed", l_restored_wallet);
+            } else
+                log_it(L_WARNING, "Ledger snapshot: wallet section restored %"DAP_UINT64_FORMAT_U
+                       " of %"DAP_UINT64_FORMAT_U" records - the wallet bulk pass will re-run", l_restored_wallet, l_header.n_wallet_outs);
+        }
         // Arm the chain-scan skip: blocks up to block_num are covered by the
         // snapshot (their transactions are restored in the ledger already).
         // DIAGNOSTIC MODE: the cell loader under an armed skip was observed to
