@@ -46,6 +46,24 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger);
  */
 int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown);
 
+/**
+ * @brief Chain-scan skip anchor (armed when a snapshot with a chain tip is
+ *        restored): the cs-blocks loader consumes it to skip RE-VERIFICATION of
+ *        the blocks the snapshot already covers - their datums still flow into
+ *        the ledger - up to the continuity check at the snapshot position. Only
+ *        used in builds with DAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL; compiling
+ *        the API unconditionally keeps the loader's call sites
+ *        declaration-complete.
+ * @return true when a skip is armed; false otherwise (caller does the full work).
+ */
+bool dap_ledger_snapshot_skip_get(dap_ledger_t *a_ledger, uint64_t *a_block_num, dap_chain_hash_fast_t *a_block_hash);
+
+/**
+ * @brief Disarm the chain-scan skip (the loader reached the snapshot position
+ *        and switched to full processing, or the snapshot is from another branch).
+ */
+void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger);
+
 
 #ifdef __cplusplus
 }
