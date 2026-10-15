@@ -83,24 +83,26 @@ typedef enum dap_chain_tx_tag_action_type {
 /**
  * @brief Ledger cache item - one of unspent outputs
  */
+typedef struct DAP_ALIGN_PACKED dap_ledger_tx_cache_t {
+    dap_time_t ts_created;      // Transaction datum timestamp mirrored & cached
+    uint32_t n_outs;
+    uint32_t n_outs_used;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    byte_t padding[6];
+    byte_t multichannel;
+    dap_time_t ts_spent;
+    byte_t pad[7];
+    dap_chain_net_srv_uid_t tag; //tag (or service this tx is belong to)
+    dap_chain_tx_tag_action_type_t action;
+    dap_chain_hash_fast_t tx_hash_spent_fast[]; // spent outs list
+} dap_ledger_tx_cache_t;
+
 typedef struct dap_ledger_tx_item {
     dap_chain_hash_fast_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
     dap_nanotime_t ts_added;
     UT_hash_handle hh;
-    struct {
-        dap_time_t ts_created;      // Transaction datum timestamp mirrored & cached
-        uint32_t n_outs;
-        uint32_t n_outs_used;
-        char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        byte_t padding[6];
-        byte_t multichannel;
-        dap_time_t ts_spent;
-        byte_t pad[7];
-        dap_chain_net_srv_uid_t tag; //tag (or service this tx is belong to)
-        dap_chain_tx_tag_action_type_t action;
-        dap_chain_hash_fast_t tx_hash_spent_fast[]; // spent outs list
-    } DAP_ALIGN_PACKED cache_data;
+    dap_ledger_tx_cache_t cache_data;
 } dap_ledger_tx_item_t;
 
 // ============================================================================

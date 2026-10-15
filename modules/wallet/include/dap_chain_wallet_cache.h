@@ -50,6 +50,14 @@ typedef struct dap_chain_wallet_cache_iter {
 extern "C" {
 #endif
 
+/**
+ * @brief Early cache init: reads [wallets] wallets_cache and initializes the
+ *        cache lock. Must run BEFORE the network init - the ledger snapshot
+ *        restore (inside the net init) populates the unspent index and needs
+ *        the mode and the lock to be live. Idempotent.
+ */
+void dap_chain_wallet_cache_preinit(void);
+
 int dap_chain_wallet_cache_init();
 int dap_chain_wallet_cache_deinit();
 

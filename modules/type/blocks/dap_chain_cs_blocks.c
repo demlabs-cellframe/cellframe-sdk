@@ -2080,7 +2080,14 @@ static bool s_snapshot_zone_at(dap_chain_cs_blocks_t *a_blocks)
     dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
     uint64_t l_skip_num = 0;
     dap_chain_hash_fast_t l_skip_hash = {};
-    return l_ledger && dap_ledger_snapshot_skip_get(l_ledger, &l_skip_num, &l_skip_hash)
+    // Load mode only: the zone exists for the local cell-file walk, and blocks
+    // arriving over the network must never fall into it - a node whose local
+    // files end below the snapshot anchor would otherwise accept unverified
+    // blocks from peers until blocks_count reaches the anchor. The anchor is
+    // consumed at the end of the load (dap_ledger_load_end), so the zone
+    // closes with the cell scan in every case.
+    return l_ledger && l_net && dap_chain_net_get_load_mode(l_net)
+            && dap_ledger_snapshot_skip_get(l_ledger, &l_skip_num, &l_skip_hash)
             && !PVT(a_blocks)->forked_br_cnt && PVT(a_blocks)->blocks_count < l_skip_num;
 }
 #endif

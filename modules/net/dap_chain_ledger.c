@@ -3252,6 +3252,14 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
                     l_out_ts_unlock = l_out->ts_unlock; l_out_ticker = l_out->token;
                     break;
                 }
+                case TX_ITEM_TYPE_OUT_COND:
+                    // OUT_COND belongs to the ledger's OUT_ALL index domain (the
+                    // n_outs count and the spent marks are indexed over it, and
+                    // the wallet-cache pass advances its out_idx over it too), so
+                    // it must advance l_out_idx here - but the wallet cache does
+                    // not index the conditional outputs themselves.
+                    ++l_out_idx;
+                    continue;
                 default:
                     continue; // not an output
                 }
@@ -3369,9 +3377,64 @@ void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger)
     memset(&PVT(a_ledger)->snapshot_skip_hash, 0, sizeof(PVT(a_ledger)->snapshot_skip_hash));
 }
 
-int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
+// Structural validation of a snapshot payload BEFORE anything is applied. The
+// header (counts, sizes, flags) is not covered by the CRC, so a corrupted or
+// crafted header could point the section readers anywhere; and a partially
+// applied snapshot (items without their balances, truncated sections) would
+// leave the scan believing the restored parts are already accounted for, which
+// double-counts balances. Returns 0 only when the payload walks exactly to its
+// end with all declared records structurally valid.
+static int s_snapshot_validate_payload(const dap_ledger_snapshot_header_t *a_hdr, const uint8_t *a_payload, size_t a_size)
 {
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    const uint8_t *l_ptr = a_payload, *l_end = a_payload + a_size;
+    for (uint64_t i = 0; i < a_hdr->n_tx_items; ++i) {
+        if (l_ptr + sizeof(dap_ledger_snapshot_tx_record_t) > l_end)
+            return -1;
+        const dap_ledger_snapshot_tx_record_t *l_rec = (const dap_ledger_snapshot_tx_record_t *)l_ptr;
+        if (l_rec->cache_size < sizeof(dap_ledger_tx_cache_t))
+            return -1;
+        const dap_ledger_tx_cache_t *l_cache = (const dap_ledger_tx_cache_t *)(l_ptr + sizeof(*l_rec));
+        // The cache record is exactly the fixed part plus one spent-mark hash
+        // per output; n_outs_used cannot exceed n_outs.
+        if ((uint64_t)l_rec->cache_size != sizeof(dap_ledger_tx_cache_t)
+                + (uint64_t)l_cache->n_outs * sizeof(dap_chain_hash_fast_t))
+            return -1;
+        if (l_cache->n_outs_used > l_cache->n_outs)
+            return -1;
+        l_ptr += sizeof(*l_rec) + l_rec->cache_size;
+        if (l_ptr > l_end)
+            return -1;
+    }
+    for (uint64_t i = 0; i < a_hdr->n_balances; ++i) {
+        if (l_ptr + sizeof(dap_ledger_snapshot_balance_record_t) > l_end)
+            return -1;
+        const dap_ledger_snapshot_balance_record_t *l_rec = (const dap_ledger_snapshot_balance_record_t *)l_ptr;
+        l_ptr += sizeof(*l_rec);
+        if (l_rec->ticker_len >= DAP_CHAIN_TICKER_SIZE_MAX)
+            return -1;
+        if (l_ptr + (size_t)l_rec->key_len + l_rec->ticker_len + sizeof(uint256_t) > l_end)
+            return -1;
+        l_ptr += (size_t)l_rec->key_len + l_rec->ticker_len + sizeof(uint256_t);
+    }
+    if ((a_hdr->flags & 0x1u) && a_hdr->n_wallet_outs) {
+        for (uint64_t i = 0; i < a_hdr->n_wallet_outs; ++i) {
+            if (l_ptr + sizeof(dap_ledger_snapshot_wallet_record_t) > l_end)
+                return -1;
+            const dap_ledger_snapshot_wallet_record_t *l_rec = (const dap_ledger_snapshot_wallet_record_t *)l_ptr;
+            l_ptr += sizeof(*l_rec);
+            if (l_rec->addr_size != sizeof(dap_chain_addr_t) || l_rec->ticker_len >= DAP_CHAIN_TICKER_SIZE_MAX)
+                return -1;
+            if (l_ptr + l_rec->addr_size + l_rec->ticker_len + sizeof(uint256_t) + sizeof(dap_chain_hash_fast_t) > l_end)
+                return -1;
+            l_ptr += l_rec->addr_size + l_rec->ticker_len + sizeof(uint256_t) + sizeof(dap_chain_hash_fast_t);
+        }
+    }
+    // No trailing bytes: a tail means the counts and the payload disagree.
+    return l_ptr == l_end ? 0 : -1;
+}
+
+int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
+{    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     char *l_path = s_snapshot_file_path(a_ledger);
     if (!l_path)
         return 0;
@@ -3386,23 +3449,40 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
     uint64_t l_loaded_tx = 0, l_loaded_balances = 0;
     uint8_t *l_payload = NULL;
     do {
-        if (fread(&l_header, sizeof(l_header), 1, l_file) != 1
+        // The first 16 bytes (magic/version/header_size) are common to every
+        // version: read them first so a v1 file (64- or 104-byte header) does
+        // not over-read into the payload, then take whatever follows up to the
+        // declared header size.
+        if (fread(&l_header, 1, 16, l_file) != 16
                 || memcmp(l_header.magic, DAP_LEDGER_SNAPSHOT_MAGIC, sizeof(l_header.magic))) {
             log_it(L_WARNING, "Ledger snapshot: %s is not a ledger snapshot file (magic/version), ignoring", l_path);
+            l_ret = 0;
+            break;
+        }
+        if (l_header.header_size < 16 || l_header.header_size > 0x10000) {
+            log_it(L_WARNING, "Ledger snapshot: %s declares no usable header (%u), ignoring", l_path, l_header.header_size);
+            l_ret = 0;
+            break;
+        }
+        size_t l_header_read = l_header.header_size < sizeof(l_header) ? l_header.header_size : sizeof(l_header);
+        if (l_header_read > 16
+                && fread((uint8_t *)&l_header + 16, 1, l_header_read - 16, l_file) != l_header_read - 16) {
+            log_it(L_WARNING, "Ledger snapshot: %s has a truncated header, ignoring", l_path);
+            l_ret = 0;
+            break;
+        }
+        if (l_header.version < 1 || l_header.version > DAP_LEDGER_SNAPSHOT_VERSION
+                || l_header.header_size < sizeof(dap_ledger_snapshot_header_t) - 16 // the fixed fields v1 always had
+                || l_header.net_id != a_ledger->net->pub.id.uint64
+                || l_header.payload_size > ((uint64_t)4) << 30) {
+            log_it(L_WARNING, "Ledger snapshot: %s is not a usable snapshot for this network (version %u), ignoring",
+                   l_path, l_header.version);
             l_ret = 0;
             break;
         }
         log_it(L_NOTICE, "Ledger snapshot: header v%u, header_size %u, net_id 0x%016"DAP_UINT64_FORMAT_x
                ", block_num %"DAP_UINT64_FORMAT_U", payload %"DAP_UINT64_FORMAT_U" bytes",
                l_header.version, l_header.header_size, l_header.net_id, l_header.block_num, l_header.payload_size);
-        if (l_header.version != DAP_LEDGER_SNAPSHOT_VERSION
-                || l_header.net_id != a_ledger->net->pub.id.uint64
-                || l_header.header_size < sizeof(l_header)
-                || l_header.payload_size > ((uint64_t)4) << 30) {
-            log_it(L_WARNING, "Ledger snapshot: %s is not a usable snapshot for this network, ignoring", l_path);
-            l_ret = 0;
-            break;
-        }
         if (l_header.header_size > sizeof(l_header))
             fseek(l_file, (long)(l_header.header_size - sizeof(l_header)), SEEK_CUR);
         if (l_header.payload_size) {
@@ -3413,6 +3493,24 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
                 l_ret = 0;
                 break;
             }
+        }
+        // Structure first, apply second: the header is not covered by the CRC,
+        // and a half-applied snapshot would leave the scan double-counting the
+        // restored aggregates.
+        if (s_snapshot_validate_payload(&l_header, l_payload, l_header.payload_size)) {
+            log_it(L_WARNING, "Ledger snapshot: %s has an invalid payload structure, ignoring", l_path);
+            l_ret = 0;
+            break;
+        }
+        // An empty tx section with non-empty balances is not a coherent state:
+        // the balances are aggregates over the history those items describe,
+        // and the scan would re-apply every delta on top of them. (This is the
+        // "0 tx items" file a broken skip-era build left behind.)
+        if (!l_header.n_tx_items) {
+            log_it(L_WARNING, "Ledger snapshot: %s carries no tx items, ignoring "
+                   "(restored balances alone would double-count on the replay)", l_path);
+            l_ret = 0;
+            break;
         }
         // Restore the transaction cache items (datum-less: completed by the chain scan)
         uint8_t *l_ptr = l_payload, *l_end = l_payload + l_header.payload_size;
@@ -3624,6 +3722,16 @@ int dap_ledger_cache_reset(dap_ledger_t *a_ledger)
             debug_if(s_debug_more, L_INFO, "Ledger cache: group %s was not present", l_group);
         }
         DAP_DELETE(l_group);
+    }
+    // The snapshot file holds the same state the GDB groups did: drop it too,
+    // or the next restart resurrects everything this reset just removed.
+    {
+        char *l_snapshot_path = s_snapshot_file_path(a_ledger);
+        if (l_snapshot_path) {
+            if (remove(l_snapshot_path) == 0)
+                log_it(L_NOTICE, "Ledger snapshot file %s removed", l_snapshot_path);
+            DAP_DELETE(l_snapshot_path);
+        }
     }
     log_it(L_NOTICE, "Ledger cache for network %s has been reset: %d group(s) cleared",
            a_ledger->net->pub.name, l_dropped);
@@ -6441,6 +6549,12 @@ FIN:
 void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    // The cell-scan window is over: disarm the snapshot chain-scan skip. It
+    // must not survive into the network phase - the zone accepts blocks
+    // without verification, and if the scan ended below the snapshot anchor
+    // (local files shorter than the snapshot) that would cover blocks arriving
+    // from peers.
+    dap_ledger_snapshot_skip_consume(a_ledger);
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
     HASH_SORT(l_ledger_pvt->ledger_items, s_sort_ledger_tx_item);
     // Security: an item whose datum was never attached did not appear in ANY
@@ -6813,6 +6927,17 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     memset(s_stats_cache, 0, sizeof(s_stats_cache));
     pthread_mutex_unlock(&s_stats_cache_lock);
     dap_return_if_fail(a_ledger);
+    // A purge invalidates the ledger state the snapshot stands for: disarm the
+    // chain-scan anchor and drop the file, or a reload/restart within the save
+    // interval would resurrect the state the operator just threw away.
+    dap_ledger_snapshot_skip_consume(a_ledger);
+    {
+        char *l_snapshot_path = s_snapshot_file_path(a_ledger);
+        if (l_snapshot_path) {
+            remove(l_snapshot_path);
+            DAP_DELETE(l_snapshot_path);
+        }
+    }
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
