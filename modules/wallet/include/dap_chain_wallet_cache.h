@@ -69,6 +69,19 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net);
  */
 void dap_chain_wallet_cache_bulk_reset(dap_chain_net_id_t a_net_id);
 
+/**
+ * @brief Add one unspent output to the wallet cache directly (snapshot restore).
+ */
+void dap_chain_wallet_cache_restore_unspent(dap_chain_net_id_t a_net_id, const dap_chain_addr_t *a_addr,
+                                            dap_chain_hash_fast_t *a_tx_hash, uint16_t a_out_idx, uint8_t a_out_type,
+                                            dap_time_t a_ts_unlock, const char *a_ticker, uint256_t a_value);
+
+/**
+ * @brief Mark the wallet cache bulk pass as completed for the network (e.g.
+ *        the index was restored from the ledger snapshot and needs no pass).
+ */
+void dap_chain_wallet_cache_bulk_done_mark(dap_chain_net_id_t a_net_id);
+
 // Drop every cached entry for the network (net purge/reload path).
 void dap_chain_wallet_cache_invalidate_net(dap_chain_net_id_t a_net_id);
 
