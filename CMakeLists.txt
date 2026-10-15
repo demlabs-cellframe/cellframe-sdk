@@ -58,6 +58,19 @@ else()
     #    add_definitions(-DDAP_DISABLE_INT128=FALSE)
 endif(NOT DAP_INT128_SUPPORT)
 
+# Ledger snapshot chain-scan skip: after a snapshot restore the cell scan accepts
+# the blocks the snapshot tip already covers without re-running their PoA/PoS
+# verification (they were verified when originally accepted; structural chain
+# continuity and the continuity test at the snapshot tip still apply), while
+# their datums still flow into the ledger. Cuts the startup walk from a full
+# re-verify to a fast pass. Enabled by default; pass
+# -DDAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL=OFF to ship without it.
+option(DAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL "Skip re-verification of snapshot-covered blocks during the startup chain scan" ON)
+if (DAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL)
+    message("[+] Ledger snapshot chain-scan skip ENABLED")
+    add_definitions(-DDAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL)
+endif()
+
 if (BUILD_CELLFRAME_SDK_TESTS)
     enable_testing()
     add_definitions("-DDAP_LEDGER_TEST")
