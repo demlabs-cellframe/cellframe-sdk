@@ -6563,6 +6563,17 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
     // without verification, and if the scan ended below the snapshot anchor
     // (local files shorter than the snapshot) that would cover blocks arriving
     // from peers.
+    //
+    // A still-armed anchor means exactly that case: the scan ended BELOW the
+    // snapshot position, i.e. the local cell files are shorter than the
+    // snapshot - blocks accepted from the network but not yet written to the
+    // file (the node accepted them, the write happens outside load mode).
+    // Restored items covered by those blocks legitimately carry no datum yet,
+    // and the phantom clean must not run: it used to drop the whole range
+    // (each following block then failed with "No previous transaction found"
+    // and the tip froze - seen live on cf-mm-0). The datums arrive with the
+    // network catch-up.
+    bool l_scan_below_anchor = l_ledger_pvt->snapshot_skip_active;
     dap_ledger_snapshot_skip_consume(a_ledger);
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
     HASH_SORT(l_ledger_pvt->ledger_items, s_sort_ledger_tx_item);
@@ -6575,11 +6586,17 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
     // 'ledger reload' is due.
     dap_ledger_tx_item_t *l_item = NULL, *l_tmp = NULL;
     size_t l_phantoms = 0;
-    HASH_ITER (hh, l_ledger_pvt->ledger_items, l_item, l_tmp) {
-        if (!l_item->tx) {
-            HASH_DEL(l_ledger_pvt->ledger_items, l_item);
-            DAP_DELETE(l_item);
-            ++l_phantoms;
+    if (l_scan_below_anchor) {
+        log_it(L_WARNING, "Ledger: the chain scan ended below the ledger snapshot position - "
+               "keeping cache-restored items without datums (their blocks are not in the local "
+               "cell files yet); the network catch-up attaches them");
+    } else {
+        HASH_ITER (hh, l_ledger_pvt->ledger_items, l_item, l_tmp) {
+            if (!l_item->tx) {
+                HASH_DEL(l_ledger_pvt->ledger_items, l_item);
+                DAP_DELETE(l_item);
+                ++l_phantoms;
+            }
         }
     }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
