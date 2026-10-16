@@ -502,6 +502,12 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
     }
 
     int l_count = 0;
+    // With a restored index (completion marker set, e.g. by a v2 snapshot) the
+    // local addresses are already covered by the per-address unspent records:
+    // do NOT mark them loading, or the catch-up below starts a full history
+    // pass on every start - that walk is I/O-bound and takes hours on a full
+    // Backbone chain (seen live on cf-mm-0).
+    bool l_index_restored = s_bulk_done_nets_has(a_net->pub.id.uint64);
     pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
     for (dap_list_t *it = l_local_addr_list; it; it = it->next) {
         dap_chain_addr_t *l_addr = (dap_chain_addr_t *)it->data;
@@ -512,10 +518,11 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
         if (!l_wallet_item) {
             l_wallet_item = DAP_NEW_Z(dap_wallet_cache_t);
             l_wallet_item->wallet_addr = *l_addr;
-            l_wallet_item->is_loading = true;
+            l_wallet_item->is_loading = !l_index_restored;
             HASH_ADD(hh, s_wallets_cache, wallet_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-            l_count++;
-        } else if (!l_wallet_item->is_loading && !l_wallet_item->wallet_txs) {
+            if (!l_index_restored)
+                l_count++;
+        } else if (!l_index_restored && !l_wallet_item->is_loading && !l_wallet_item->wallet_txs) {
             l_wallet_item->is_loading = true;
             l_count++;
         }
