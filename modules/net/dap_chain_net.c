@@ -2460,9 +2460,10 @@ static void *s_net_load(void *a_arg)
            l_net_pvt->state == NET_STATE_LOADING ? "NET_STATE_LOADING" : 
            l_net_pvt->state == NET_STATE_OFFLINE ? "NET_STATE_OFFLINE" : "OTHER");
     l_net_pvt->state = NET_STATE_LOADING;
-    // Chains are (re)loaded from scratch: the wallet cache bulk pass must run
-    // again after they finish
-    dap_chain_wallet_cache_bulk_reset(l_net->pub.id);
+    // NOTE: no wallet-cache bulk_reset here - the wallet cache is invalidated by the purge/reload
+    // paths themselves (dap_chain_wallet_cache_invalidate_net), and a v2 ledger
+    // snapshot restores the unspent index across restarts: resetting the completion
+    // marker at every start forced a full history walk even though the index was ready.
 
     // Load stake cache if ledger cache is enabled
     // This sets up cache_tx_check_callback which is used in dap_ledger_tx_load
@@ -3312,7 +3313,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     if ( dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) )
-        return log_it(L_ERROR, "[%s] Datum is blackilsted", dap_chain_hash_fast_to_str_static(a_datum_hash)), -100;
+        return log_it(L_INFO, "[%s] Datum is blackilsted", dap_chain_hash_fast_to_str_static(a_datum_hash)), -100;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
