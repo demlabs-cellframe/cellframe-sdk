@@ -3164,6 +3164,30 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         return 0;
     }
 
+    // Never persist a position above the local cell files: an item without its datum is an
+    // effect of a block that lives only in this process (accepted from the network while the
+    // chain scan was still running, or restored from an earlier snapshot that did the same).
+    // Saving such a position bakes phantom items into the next restart - their datums can
+    // never be completed because the blocks are not in the cell files, and services that
+    // need the transactions (voting reads the poll transaction from the ledger) then see a
+    // ledger ahead of the chain. Keep the previous snapshot; once the catch-up writes those
+    // blocks into the cell files, the next scan completes the datums and this check passes.
+    bool l_phantom = false;
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    dap_ledger_tx_item_t *l_phantom_item = NULL, *l_phantom_tmp = NULL;
+    HASH_ITER(hh, l_ledger_pvt->ledger_items, l_phantom_item, l_phantom_tmp) {
+        if (!l_phantom_item->tx) {
+            l_phantom = true;
+            break;
+        }
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    if (l_phantom) {
+        log_it(L_WARNING, "Ledger snapshot: ledger has items without datums (their blocks are "
+                          "not in the local cell files yet) - keeping the previous snapshot");
+        return 0;
+    }
+
     char *l_path = s_snapshot_file_path(a_ledger);
     if (!l_path) {
         log_it(L_WARNING, "Ledger snapshot: can't find a block chain storage dir, save skipped");
@@ -6910,15 +6934,132 @@ FIN:
     return l_ret;
 }
 
+// Voting state is chain-wide: polls are created by VOTING items and votes are counted by
+// VOTE items. A transaction whose UTXO inputs are already spent in the restored snapshot
+// cannot be re-applied through dap_ledger_tx_add(), so its voting items would never be
+// replayed and the votes of later blocks would reference polls that do not exist. Replay
+// the voting part for such transactions as well.
+static void s_ledger_tx_voting_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
+{
+    byte_t *l_tx_item = NULL;
+    size_t l_tx_item_size = 0;
+    TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+        if (*l_tx_item == TX_ITEM_TYPE_VOTING || *l_tx_item == TX_ITEM_TYPE_VOTE) {
+            if (s_voting_callbacks.voting_callback)
+                s_voting_callbacks.voting_callback(a_ledger, (dap_chain_tx_item_type_t)*l_tx_item,
+                                                   a_tx, a_tx_hash, true);
+        }
+    }
+}
+
+// A snapshot-restored item completed by the chain scan goes through neither
+// dap_ledger_tx_add() nor its service notifications: the early return in dap_ledger_tx_load()
+// is what makes a restart cheap, but the OUT_COND/bound callbacks of the add path are exactly
+// how the service registries (the stake delegate registry above all - esbocs checks it for
+// every block's signs) learn about the transaction. Replay those notifications once the item
+// gets its datum back, otherwise every restart through the snapshot silently drops the
+// affected delegations and the node rejects the next block signed by those validators.
+static void s_ledger_tx_service_notify_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
+{
+    int l_items_count = 0;
+    // Same notification as the bound-items loop of dap_ledger_tx_add(): for every IN_COND
+    // item the verifying service gets callback_added() with the conditional output of the
+    // previous transaction that the item consumes.
+    dap_list_t *l_list_in_cond = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_IN_COND, &l_items_count);
+    for (dap_list_t *l_it = l_list_in_cond; l_it; l_it = l_it->next) {
+        dap_chain_tx_out_cond_t *l_cond = dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(
+                a_ledger, (dap_chain_tx_in_cond_t *)l_it->data);
+        if (!l_cond)
+            continue;
+        int l_subtype = l_cond->header.subtype;
+        dap_ledger_verificator_t *l_verificator = NULL;
+        pthread_rwlock_rdlock(&s_verificators_rwlock);
+        HASH_FIND_INT(s_verificators, &l_subtype, l_verificator);
+        pthread_rwlock_unlock(&s_verificators_rwlock);
+        if (l_verificator && l_verificator->callback_added)
+            l_verificator->callback_added(a_ledger, a_tx, a_tx_hash, l_cond);
+    }
+    if (l_list_in_cond)
+        dap_list_free(l_list_in_cond);
+    // And the transaction's own OUT_COND items, same as the outs loop of dap_ledger_tx_add().
+    l_items_count = 0;
+    dap_list_t *l_list_out_cond = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_COND, &l_items_count);
+    for (dap_list_t *l_it = l_list_out_cond; l_it; l_it = l_it->next) {
+        dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)l_it->data;
+        int l_subtype = l_cond->header.subtype;
+        dap_ledger_verificator_t *l_verificator = NULL;
+        pthread_rwlock_rdlock(&s_verificators_rwlock);
+        HASH_FIND_INT(s_verificators, &l_subtype, l_verificator);
+        pthread_rwlock_unlock(&s_verificators_rwlock);
+        if (l_verificator && l_verificator->callback_added)
+            l_verificator->callback_added(a_ledger, a_tx, a_tx_hash, NULL);
+    }
+    if (l_list_out_cond)
+        dap_list_free(l_list_out_cond);
+    // And the "special tx items" pass of dap_ledger_tx_add(), which a restored tx never
+    // reaches either: voting/event services apply their item state there, and the rewards
+    // map (checked by dap_ledger_is_used_reward()) is filled from the IN_REWARD items -
+    // without it a reward already spent in the restored history would pass the "already
+    // used" check and could be spent a second time.
+    s_ledger_tx_voting_notify(a_ledger, a_tx, a_tx_hash);
+    byte_t *l_tx_item = NULL;
+    size_t l_tx_item_size = 0;
+    TX_ITEM_ITER_TX(l_tx_item, l_tx_item_size, a_tx) {
+        switch (*l_tx_item) {
+        case TX_ITEM_TYPE_EVENT:
+            s_ledger_event_verify_add(a_ledger, a_tx_hash, a_tx, true, false);
+            break;
+        case TX_ITEM_TYPE_IN_REWARD: {
+            dap_chain_tx_in_reward_t *l_tx_in_reward = (dap_chain_tx_in_reward_t *)l_tx_item;
+            dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, NULL,
+                                                                                              TX_ITEM_TYPE_SIG, NULL);
+            dap_sign_t *l_tx_first_sign = l_tx_sig ? dap_chain_datum_tx_item_sign_get_sig(l_tx_sig) : NULL;
+            if (!l_tx_first_sign)
+                break;
+            dap_ledger_reward_item_t *l_reward_item = DAP_NEW_Z(dap_ledger_reward_item_t);
+            if (!l_reward_item) {
+                log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+                break;
+            }
+            dap_sign_get_pkey_hash(l_tx_first_sign, &l_reward_item->key.sign_pkey_hash);
+            l_reward_item->key.block_hash = l_tx_in_reward->block_hash;
+            l_reward_item->spender_tx = *a_tx_hash;
+            pthread_rwlock_wrlock(&PVT(a_ledger)->rewards_rwlock);
+            // The same reward may be recorded by another transaction of the restored
+            // history already; uthash must not get a second entry for one key.
+            dap_ledger_reward_item_t *l_dup = NULL;
+            HASH_FIND(hh, PVT(a_ledger)->rewards, &l_reward_item->key, sizeof(l_reward_item->key), l_dup);
+            if (l_dup) {
+                DAP_DELETE(l_reward_item);
+            } else {
+                HASH_ADD(hh, PVT(a_ledger)->rewards, key, sizeof(l_reward_item->key), l_reward_item);
+            }
+            pthread_rwlock_unlock(&PVT(a_ledger)->rewards_rwlock);
+        } break;
+        default:
+            break;
+        }
+    }
+}
+
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
     // Runtime-gated (load mode), not compile-time: during a chain load a tx that the cache
     // already restored must not be re-processed - that is what makes a restart continue from
     // the point the cache was last written instead of rebuilding the whole ledger.
     if (dap_chain_net_get_load_mode(a_ledger->net)) {
-        if (PVT(a_ledger)->cache_tx_check_callback)
+        // The cache-invalidation replay belongs to the GlobalDB ledger-cache flow: there a
+        // restored tx is never re-applied, and the stake service compensates the missing
+        // events by invalidating the keys of the recorded updates on load. In snapshot mode
+        // the service events themselves are replayed instead (see
+        // s_ledger_tx_service_notify_added() below), so the invalidation replay would strip
+        // exactly the entries the snapshot is supposed to restore: a delegation update would
+        // invalidate the key and then find no entry to update, leaving the validator out of
+        // the registry after every restart.
+        if (PVT(a_ledger)->cache_tx_check_callback && !PVT(a_ledger)->snapshot_mode)
             PVT(a_ledger)->cache_tx_check_callback(a_ledger, a_tx_hash);
         dap_ledger_tx_item_t *l_tx_item = NULL;
+        bool l_restored_completed = false;
         unsigned l_hash_value;
         HASH_VALUE(a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value);
         pthread_rwlock_wrlock(&PVT(a_ledger)->ledger_rwlock);
@@ -6934,10 +7075,18 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
             l_tx_item->tx = PVT(a_ledger)->mapped
                     ? a_tx
                     : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+            l_restored_completed = true;
         }
         pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
-        if (l_tx_item)
+        if (l_tx_item) {
+            // The restored item holds its datum again: replay the service notifications the
+            // regular add path would have made (see s_ledger_tx_service_notify_added above).
+            // Outside ledger_rwlock on purpose: the callbacks take the service locks and may
+            // re-enter the ledger through its read paths.
+            if (l_restored_completed)
+                s_ledger_tx_service_notify_added(a_ledger, a_tx, a_tx_hash);
             return DAP_LEDGER_CHECK_ALREADY_CACHED;
+        }
     }
     return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
