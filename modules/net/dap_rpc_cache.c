@@ -38,7 +38,7 @@ struct dap_rpc_cache_class {
     struct dap_rpc_cache_class *next;
 };
 
-// Per-class presets: a class without [rpc_cache] overrides starts from these values.
+// Per-class presets: a class without [rpc-server] cache_class_* overrides starts here.
 static const struct {
     const char *name;
     uint64_t ttl_ms;
@@ -57,6 +57,8 @@ static const struct {
 static dap_rpc_cache_class_t *s_classes = NULL;
 static pthread_rwlock_t s_classes_lock = PTHREAD_RWLOCK_INITIALIZER;
 static bool s_inited = false;
+static bool s_enabled = false;
+static const char *s_disabled_reason = "not initialized";
 
 static uint64_t s_now_ms(void)
 {
@@ -105,7 +107,18 @@ static void s_class_evict_lru_locked(dap_rpc_cache_class_t *a_class, size_t a_ne
 
 int dap_rpc_cache_init(void)
 {
-    s_inited = true;
+    // The reply cache exists to absorb public RPC load: without an RPC server it
+    // has no user and must not allocate or look anything up. A host that wants it
+    // for the local CLI only can set require_rpc_server=false explicitly.
+    bool l_master = dap_config_get_item_bool_default(g_config, "rpc-server", "cache_enabled", true);
+    bool l_require_rpc = dap_config_get_item_bool_default(g_config, "rpc-server", "cache_require_rpc_server", true);
+    bool l_rpc_server = dap_config_get_item_bool_default(g_config, "rpc-server", "enable", false);
+    s_enabled = l_master && (!l_require_rpc || l_rpc_server);
+    s_disabled_reason = !l_master ? "[rpc-server] cache_enabled=false"
+                                 : "RPC server is disabled ([rpc-server] enable=false)";
+    s_inited = s_enabled;
+    if (!s_enabled)
+        log_it(L_NOTICE, "RPC reply cache disabled: %s", s_disabled_reason);
     return 0;
 }
 
@@ -125,11 +138,13 @@ void dap_rpc_cache_deinit(void)
     s_classes = NULL;
     pthread_rwlock_unlock(&s_classes_lock);
     s_inited = false;
+    s_enabled = false;
+    s_disabled_reason = "deinitialized";
 }
 
 dap_rpc_cache_class_t *dap_rpc_cache_class_get(const char *a_name)
 {
-    if (!a_name || !*a_name)
+    if (!a_name || !*a_name || !s_enabled)
         return NULL;
 
     pthread_rwlock_rdlock(&s_classes_lock);
@@ -158,14 +173,14 @@ dap_rpc_cache_class_t *dap_rpc_cache_class_get(const char *a_name)
             break;
         }
     }
-    char *l_key = dap_strdup_printf("class_%s_ttl_ms", a_name);
-    l_class->ttl_ms = dap_config_get_item_uint64_default(g_config, "rpc_cache", l_key, l_def_ttl);
+    char *l_key = dap_strdup_printf("cache_class_%s_ttl_ms", a_name);
+    l_class->ttl_ms = dap_config_get_item_uint64_default(g_config, "rpc-server", l_key, l_def_ttl);
     DAP_DELETE(l_key);
-    l_key = dap_strdup_printf("class_%s_max_bytes", a_name);
-    l_class->max_bytes = dap_config_get_item_uint64_default(g_config, "rpc_cache", l_key, l_def_bytes);
+    l_key = dap_strdup_printf("cache_class_%s_max_bytes", a_name);
+    l_class->max_bytes = dap_config_get_item_uint64_default(g_config, "rpc-server", l_key, l_def_bytes);
     DAP_DELETE(l_key);
-    l_key = dap_strdup_printf("class_%s_max_items", a_name);
-    l_class->max_items = dap_config_get_item_uint64_default(g_config, "rpc_cache", l_key, l_def_items);
+    l_key = dap_strdup_printf("cache_class_%s_max_items", a_name);
+    l_class->max_items = dap_config_get_item_uint64_default(g_config, "rpc-server", l_key, l_def_items);
     DAP_DELETE(l_key);
     pthread_rwlock_init(&l_class->lock, NULL);
 
@@ -440,7 +455,8 @@ size_t dap_rpc_cache_stats(char *a_buf, size_t a_buf_size)
         return 0;
     size_t l_off = 0;
     l_off += snprintf(a_buf + l_off, a_buf_size - l_off,
-                      "rpc_cache: %s\n", s_inited ? "enabled" : "disabled");
+                      "rpc_cache: %s%s%s\n", s_enabled ? "enabled" : "disabled",
+                      s_enabled ? "" : " - ", s_enabled ? "" : s_disabled_reason);
     pthread_rwlock_rdlock(&s_classes_lock);
     for (dap_rpc_cache_class_t *l_it = s_classes; l_it && l_off < a_buf_size; l_it = l_it->next) {
         pthread_rwlock_rdlock(&l_it->lock);

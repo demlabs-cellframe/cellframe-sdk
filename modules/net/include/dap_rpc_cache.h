@@ -3,7 +3,8 @@
  *
  * A cache class groups replies of one kind (block dump, tx history, wallet
  * outputs, DEX orderbook, ...) and carries its own policy from the node
- * config ([rpc_cache] class_<name>_{ttl_ms,max_bytes,max_items}). Invalidation
+ * config ([rpc-server] cache_enabled/cache_require_rpc_server and
+ * cache_class_<name>_{ttl_ms,max_bytes,max_items}). Invalidation
  * is epoch-based: a chain/ledger event bumps the class epoch and every entry
  * of the class becomes stale at once.
  *
