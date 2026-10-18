@@ -9917,7 +9917,8 @@ int com_chain_cache(int a_argc, char **a_argv, void **a_str_reply, int a_version
         }
         l_drop_what = a_argv[3];
         arg_index = 3;
-    } else if (dap_strcmp(l_sub, "show") && dap_strcmp(l_sub, "verify") && dap_strcmp(l_sub, "save")) {
+    } else if (dap_strcmp(l_sub, "show") && dap_strcmp(l_sub, "verify")
+            && dap_strcmp(l_sub, "save") && dap_strcmp(l_sub, "rebuild")) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
                 "unknown chain cache subcommand '%s'", l_sub);
         return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
@@ -9927,6 +9928,21 @@ int com_chain_cache(int a_argc, char **a_argv, void **a_str_reply, int a_version
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-class", &l_class);
 
+    // Destructive subcommands are administrative: they change live state and are
+    // not published to non-loopback callers (they are not in allowed_cmd).
+    bool l_manage = !dap_strcmp(l_sub, "rebuild")
+            || (l_drop_what && (!dap_strcmp(l_drop_what, "state") || !dap_strcmp(l_drop_what, "datums")));
+    if (l_manage && !dap_config_get_item_bool_default(g_config, "chain_cache", "allow_management", false)) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                "chain cache %s is disabled: set [chain_cache] allow_management=true", l_sub);
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+    }
+    if (!dap_strcmp(l_sub, "rebuild")
+            && dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-yes") == -1) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                "chain cache rebuild re-applies every block; confirm with '-yes'");
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+    }
     // RPC-class drop does not need a network/chain.
     if (l_drop_what && !dap_strcmp(l_drop_what, "rpc")) {
         if (l_class && dap_strcmp(l_class, "all"))
@@ -9971,6 +9987,10 @@ int com_chain_cache(int a_argc, char **a_argv, void **a_str_reply, int a_version
         l_rc = dap_chain_cs_blocks_state_flush(l_chain);
     else if (!dap_strcmp(l_drop_what, "state"))
         l_rc = dap_chain_cs_blocks_state_drop(l_chain);
+    else if (!dap_strcmp(l_drop_what, "datums"))
+        l_rc = dap_chain_cs_blocks_state_drop_datums(l_chain);
+    else if (!dap_strcmp(l_sub, "rebuild"))
+        l_rc = dap_chain_cs_blocks_state_rebuild(l_chain);
     else {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
                 "chain cache drop supports 'state' or 'rpc'");

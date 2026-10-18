@@ -43,6 +43,11 @@
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
+// Set while an administrative rebuild re-applies datums: the wallet cache is
+// already in sync, so replaying one notification per datum would only rebuild
+// the pending queue the restart path avoids.
+static _Thread_local bool s_no_datum_notify;
+
 
 
 #ifndef DAP_CHAIN_BLOCKS_TEST
@@ -2149,7 +2154,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             dap_chain_net_t *l_notify_net = dap_chain_net_by_id(a_blocks->chain->net_id);
             bool l_notify = !(l_notify_net && dap_chain_net_get_load_mode(l_notify_net)
                     && dap_chain_wallet_cache_index_restored(a_blocks->chain->net_id));
-            if (l_notify)
+            if (l_notify && !s_no_datum_notify)
                 dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash,
                                    (byte_t *) l_datum_index->block_cache->block, l_datum_index->block_cache->block_size,
                                    (byte_t *) l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
@@ -2411,6 +2416,15 @@ static void s_chain_state_note_block(dap_chain_cs_blocks_t *a_blocks, dap_chain_
             &a_block_cache->block_hash, &a_block_cache->prev_hash, a_index_record);
 }
 
+// The state management API is entered from the generic CLI: a dag/none chain has
+// a different private object, so the atom callback must be ours before any
+// DAP_CHAIN_CS_BLOCKS()/PVT() access. The consensus name is not a discriminator:
+// e.g. Backbone is configured as 'esbocs' but still uses this blocks layer.
+static bool s_is_blocks_chain(dap_chain_t *a_chain)
+{
+    return a_chain && a_chain->callback_atom_add == s_callback_atom_add;
+}
+
 static char *s_chain_cell_path(dap_chain_t *a_chain)
 {
     const char *l_dir = dap_chain_get_path(a_chain);
@@ -2422,6 +2436,8 @@ static char *s_chain_cell_path(dap_chain_t *a_chain)
 
 int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size)
 {
+    if (!a_chain || !s_is_blocks_chain(a_chain))
+        return -1;
     if (!a_chain || !a_buf || !a_buf_size)
         return -1;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
@@ -2453,6 +2469,8 @@ int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_b
 
 int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size)
 {
+    if (!a_chain || !s_is_blocks_chain(a_chain))
+        return -1;
     if (!a_chain || !a_buf || !a_buf_size)
         return -1;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
@@ -2499,6 +2517,8 @@ int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a
 
 int dap_chain_cs_blocks_state_flush(dap_chain_t *a_chain)
 {
+    if (!a_chain || !s_is_blocks_chain(a_chain))
+        return -1;
     dap_chain_cs_blocks_t *l_blocks = a_chain ? DAP_CHAIN_CS_BLOCKS(a_chain) : NULL;
     dap_chain_state_t *l_state = l_blocks ? s_chain_state_get(l_blocks) : NULL;
     return l_state ? dap_chain_state_flush(l_state, true) : -1;
@@ -2506,10 +2526,72 @@ int dap_chain_cs_blocks_state_flush(dap_chain_t *a_chain)
 
 int dap_chain_cs_blocks_state_drop(dap_chain_t *a_chain)
 {
+    if (!a_chain || !s_is_blocks_chain(a_chain))
+        return -1;
     dap_chain_cs_blocks_t *l_blocks = a_chain ? DAP_CHAIN_CS_BLOCKS(a_chain) : NULL;
     if (!l_blocks)
         return -1;
     s_chain_state_reset(l_blocks);
+    return 0;
+}
+
+int dap_chain_cs_blocks_state_drop_datums(dap_chain_t *a_chain)
+{
+    if (!a_chain || !s_is_blocks_chain(a_chain))
+        return -1;
+    dap_chain_cs_blocks_t *l_blocks = a_chain ? DAP_CHAIN_CS_BLOCKS(a_chain) : NULL;
+    if (!l_blocks)
+        return -1;
+    dap_chain_block_datum_index_t *l_it = NULL, *l_tmp = NULL;
+    pthread_rwlock_wrlock(&PVT(l_blocks)->datums_rwlock);
+    HASH_ITER(hh, PVT(l_blocks)->datum_index, l_it, l_tmp) {
+        HASH_DEL(PVT(l_blocks)->datum_index, l_it);
+        DAP_DELETE(l_it);
+    }
+    pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+    return 0;
+}
+
+int dap_chain_cs_blocks_state_rebuild(dap_chain_t *a_chain)
+{
+    if (!a_chain || !s_is_blocks_chain(a_chain))
+        return -1;
+    dap_chain_cs_blocks_t *l_blocks = a_chain ? DAP_CHAIN_CS_BLOCKS(a_chain) : NULL;
+    if (!l_blocks)
+        return -1;
+    if (dap_chain_cs_blocks_state_drop_datums(a_chain))
+        return -1;
+    // Snapshot the block list under the lock, then re-apply datums without
+    // holding it (each datum takes ledger locks and may notify the wallet cache).
+    size_t l_count = 0, l_cap = atomic_load(&PVT(l_blocks)->blocks_count);
+    if (!l_cap)
+        return 0;
+    dap_chain_block_cache_t **l_blocks_arr = DAP_NEW_Z_COUNT(dap_chain_block_cache_t *, l_cap);
+    if (!l_blocks_arr)
+        return -2;
+    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    dap_chain_block_cache_t *l_bc = NULL, *l_bc_tmp = NULL;
+    HASH_ITER(hh, PVT(l_blocks)->blocks, l_bc, l_bc_tmp) {
+        if (l_count == l_cap)
+            break;
+        l_blocks_arr[l_count++] = l_bc;
+    }
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    uint64_t l_tx_count = 0;
+    s_no_datum_notify = true;
+    for (size_t i = 0; i < l_count; i++) {
+        s_add_atom_datums(l_blocks, l_blocks_arr[i]);
+        for (size_t d = 0; d < l_blocks_arr[i]->datum_count; d++) {
+            if (l_blocks_arr[i]->datum[d]
+                    && l_blocks_arr[i]->datum[d]->header.type_id == DAP_CHAIN_DATUM_TX)
+                ++l_tx_count;
+        }
+    }
+    s_no_datum_notify = false;
+    DAP_DELETE(l_blocks_arr);
+    atomic_store(&PVT(l_blocks)->tx_count, l_tx_count);
+    log_it(L_NOTICE, "Chain state: datum index rebuilt from %zu blocks (%" DAP_UINT64_FORMAT_U " tx)",
+           l_count, l_tx_count);
     return 0;
 }
 

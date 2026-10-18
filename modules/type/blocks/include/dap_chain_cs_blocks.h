@@ -120,3 +120,8 @@ int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_b
 int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size);
 int dap_chain_cs_blocks_state_flush(dap_chain_t *a_chain);
 int dap_chain_cs_blocks_state_drop(dap_chain_t *a_chain);
+// Clears the datum hash -> block index; 'rebuild' repopulates it (and the tx
+// counter) from the in-memory block cache, re-applying each datum to the ledger
+// (already-cached transactions are cheap no-ops). Both are management actions.
+int dap_chain_cs_blocks_state_drop_datums(dap_chain_t *a_chain);
+int dap_chain_cs_blocks_state_rebuild(dap_chain_t *a_chain);

@@ -516,7 +516,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Statisticss
     dap_cli_server_cmd_add("chain", com_chain_cache, NULL, "Chain state cache management",
-            "chain cache { show | verify | save | drop state|rpc } -net <net> [-chain <chain>] [-class <name|all>]");
+            "chain cache { show | verify | save | drop state|datums|rpc | rebuild -yes } -net <net> [-chain <chain>] [-class <name|all>] (drop state/datums and rebuild require [chain_cache] allow_management=true)");
     dap_cli_server_cmd_add("stats", com_stats, NULL, "Print statistics",
                 "stats cpu");
 
