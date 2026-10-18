@@ -1903,6 +1903,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
     dap_chain_wallet_t *l_wallet = NULL;
     dap_chain_addr_t *l_addr = NULL;
+    // Serialized-reply cache key for 'wallet outputs': filled once the address is
+    // resolved, so '-w' and '-addr' requests share entries.
+    char l_wo_cache_key[512] = {0};
+    bool l_wo_cache_store = false;
 
     if(l_net_name && !l_net) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
@@ -2167,6 +2171,30 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR;
             }
 
+            // Serialized-reply cache: keyed by the resolved address, so '-w' and '-addr'
+            // requests share entries. Requests that depend on the mempool (-mempool_check)
+            // are never cached: atom-level invalidation cannot see mempool changes.
+            if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-mempool_check", NULL)) {
+                const char *l_wo_value = NULL, *l_wo_type = NULL;
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_wo_value);
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-type", &l_wo_type);
+                bool l_wo_cond = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cond") != -1;
+                snprintf(l_wo_cache_key, sizeof(l_wo_cache_key), "%s|%s|%s|%d|%s|%s|%d",
+                         l_net->pub.name, dap_chain_addr_to_str_static(l_addr), l_token_tiker,
+                         l_wo_cond ? 1 : 0, l_wo_value ? l_wo_value : "-",
+                         l_wo_type ? l_wo_type : "-", a_version);
+                char *l_wo_hit = dap_rpc_cache_get(dap_rpc_cache_class_get("wallet_outputs"), l_wo_cache_key, NULL);
+                if (l_wo_hit) {
+                    // Hand the ready reply to the executor verbatim; its envelope is built
+                    // around this fragment and no tree re-serialization is needed.
+                    json_object_put(json_arr_out);
+                    DAP_DELETE(l_addr);
+                    if (l_wallet) dap_chain_wallet_close(l_wallet);
+                    dap_cli_cmd_reply_set_raw_json(l_wo_hit);
+                    return 0;
+                }
+            }
+
             json_object *json_obj_wall = json_object_new_object();
             json_object_object_add(json_obj_wall, "wallet_addr", json_object_new_string(dap_chain_addr_to_str_static(l_addr)));
             struct json_object *l_json_outs_arr = json_object_new_array();
@@ -2335,6 +2363,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
             json_object_object_add(json_obj_wall, "outs", l_json_outs_arr);
             json_object_array_add(json_arr_out, json_obj_wall);
+            if (l_wo_cache_key[0])
+                l_wo_cache_store = true;
             DAP_DELETE(l_addr);
             if (l_wallet) dap_chain_wallet_close(l_wallet);
         } break;
@@ -2655,6 +2685,13 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
     if (json_arr_out) {
             json_object_array_add(*a_json_arr_reply, json_arr_out);
+            // Cache the reply exactly as the executor will serialize it (the enclosing
+            // array with the collected rows), so a later hit can be embedded verbatim.
+            if (l_wo_cache_store) {
+                const char *l_wo_ser = json_object_to_json_string_ext(*a_json_arr_reply, JSON_C_TO_STRING_PLAIN);
+                if (l_wo_ser)
+                    dap_rpc_cache_put(dap_rpc_cache_class_get("wallet_outputs"), l_wo_cache_key, l_wo_ser, 0);
+            }
         } else {
             json_object_array_add(*a_json_arr_reply, json_object_new_string("empty"));
         }
@@ -9640,6 +9677,30 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
                                 " You can set default datum type in chain configuration file", l_net_str);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_CHAIN_PARAM_ERR;
     }
+    // Serialized-reply cache: address and '-all' histories are served from it between
+    // blocks; the atom callback invalidates the class on every accepted block.
+    char l_th_cache_key[768] = {0};
+    if (l_addr && l_addr->addr_type != DAP_CHAIN_ADDR_TYPE_SHARED) {
+        snprintf(l_th_cache_key, sizeof(l_th_cache_key), "%s|%s|addr|%s|%zu|%zu|%d|%d|%s|%s|%s|%d",
+                 l_net->pub.name, l_chain->name, dap_chain_addr_to_str_static(l_addr),
+                 l_limit, l_offset, l_head ? 1 : 0, l_brief ? 1 : 0,
+                 l_tx_srv_str ? l_tx_srv_str : "-", l_tx_act_str ? l_tx_act_str : "-",
+                 l_hash_out_type, a_version);
+    } else if (!l_addr && l_is_tx_all) {
+        snprintf(l_th_cache_key, sizeof(l_th_cache_key), "%s|%s|all|%zu|%zu|%d|%d|%s|%s|%s|%d",
+                 l_net->pub.name, l_chain->name, l_limit, l_offset, l_head ? 1 : 0, l_brief ? 1 : 0,
+                 l_tx_srv_str ? l_tx_srv_str : "-", l_tx_act_str ? l_tx_act_str : "-",
+                 l_hash_out_type, a_version);
+    }
+    if (l_th_cache_key[0]) {
+        char *l_th_hit = dap_rpc_cache_get(dap_rpc_cache_class_get("tx_history"), l_th_cache_key, NULL);
+        if (l_th_hit) {
+            if (l_addr)
+                DAP_DELETE(l_addr);
+            dap_cli_cmd_reply_set_raw_json(l_th_hit);
+            return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
+        }
+    }
     // response
     json_object * json_obj_out = NULL;
     if (l_tx_hash_str) {
@@ -9703,6 +9764,11 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         }        
         json_object_array_add(*a_json_arr_reply, json_obj_out);        
         json_object_array_add(*a_json_arr_reply, json_obj_summary);
+        if (l_th_cache_key[0]) {
+            const char *l_th_ser = json_object_to_json_string_ext(*a_json_arr_reply, JSON_C_TO_STRING_PLAIN);
+            if (l_th_ser)
+                dap_rpc_cache_put(dap_rpc_cache_class_get("tx_history"), l_th_cache_key, l_th_ser, 0);
+        }
         DAP_DELETE(l_addr);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;        
     } else if (l_is_tx_all) {
@@ -9721,6 +9787,11 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
 
         json_object_array_add(*a_json_arr_reply, json_arr_history_all);
         json_object_array_add(*a_json_arr_reply, json_obj_summary);
+        if (l_th_cache_key[0]) {
+            const char *l_th_ser = json_object_to_json_string_ext(*a_json_arr_reply, JSON_C_TO_STRING_PLAIN);
+            if (l_th_ser)
+                dap_rpc_cache_put(dap_rpc_cache_class_get("tx_history"), l_th_cache_key, l_th_ser, 0);
+        }
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     } else if (l_is_tx_count) {
         json_object * json_count_obj= json_object_new_object();
@@ -9765,7 +9836,13 @@ int com_stats(int argc, char **a_argv, void **a_str_reply, int a_version)
     case CMD_STATS_CACHE: {
         char l_buf[4096] = {0};
         dap_rpc_cache_stats(l_buf, sizeof(l_buf));
-        dap_cli_server_cmd_set_reply_text(a_str_reply, l_buf);
+        // JSON replies are collected through a_json_arr_reply (the executor serializes
+        // that tree); dap_cli_server_cmd_set_reply_text() would replace it with a plain
+        // string and the serializer would dereference it as an object.
+        json_object *l_obj_cache = json_object_new_object();
+        json_object_object_add(l_obj_cache, a_version == 1 ? "RPC cache" : "rpc_cache",
+                               json_object_new_string(l_buf));
+        json_object_array_add(*a_json_arr_reply, l_obj_cache);
         break;
     }
     case CMD_STATS_CPU:
