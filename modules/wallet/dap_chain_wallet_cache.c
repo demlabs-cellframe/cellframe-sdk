@@ -602,6 +602,16 @@ bool dap_chain_wallet_cache_cold_reply_unavailable(void)
     return s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL && s_cold_reply_unavailable;
 }
 
+bool dap_chain_wallet_cache_index_restored(dap_chain_net_id_t a_net_id)
+{
+    if (s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)
+        return false;
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
+    bool l_restored = s_bulk_done_nets_has(a_net_id.uint64);
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    return l_restored;
+}
+
 bool dap_chain_wallet_cache_is_warm(dap_chain_net_id_t a_net_id, char *a_reason, size_t a_reason_size)
 {
     if (s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_DISABLED)

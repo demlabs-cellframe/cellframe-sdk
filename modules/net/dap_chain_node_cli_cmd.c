@@ -2299,7 +2299,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 // node. A miss while it is still being built must not turn into
                 // a full ledger scan on a public RPC node: answer "index warming"
                 // with a 503 + Retry-After instead, the client retries later.
-                if (l_cache_rc == -101 && !l_cond_outs && dap_chain_wallet_cache_cold_reply_unavailable()) {
+                // -101 also means "address unknown to the cache": that is a real
+                // answer (empty) once the index is warm, not a reason for a 503.
+                if (l_cache_rc == -101 && !l_cond_outs && dap_chain_wallet_cache_cold_reply_unavailable()
+                        && !dap_chain_wallet_cache_is_warm(l_net->pub.id, NULL, 0)) {
                     char l_reason[128] = "";
                     dap_chain_wallet_cache_is_warm(l_net->pub.id, l_reason, sizeof(l_reason));
                     dap_cli_cmd_reply_set_unavailable(5);

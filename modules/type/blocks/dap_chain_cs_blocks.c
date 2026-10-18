@@ -38,6 +38,7 @@
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
 #include "dap_crc64.h"
+#include "dap_chain_wallet_cache.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
@@ -2171,7 +2172,14 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
             pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-            dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash,
+            // A load pass over a snapshot-restored wallet index already holds every
+            // output: replaying one notification per datum only builds the pending
+            // queue that keeps the node "warming up" for a long time after a restart.
+            dap_chain_net_t *l_notify_net = dap_chain_net_by_id(a_blocks->chain->net_id);
+            bool l_notify = !(l_notify_net && dap_chain_net_get_load_mode(l_notify_net)
+                    && dap_chain_wallet_cache_index_restored(a_blocks->chain->net_id));
+            if (l_notify)
+                dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash,
                                    (byte_t *) l_datum_index->block_cache->block, l_datum_index->block_cache->block_size,
                                    (byte_t *) l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
         }

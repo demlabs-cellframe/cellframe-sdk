@@ -100,6 +100,12 @@ bool dap_chain_wallet_cache_mode_all(void);
 // not loading, no bulk build running, notification backlog drained. Fills
 // a_reason (if given) when it returns false. Cheap: reads counters only.
 bool dap_chain_wallet_cache_is_warm(dap_chain_net_id_t a_net_id, char *a_reason, size_t a_reason_size);
+
+// True when the per-address index was restored from the ledger snapshot (its
+// completion marker is set). During a load pass such an index already holds every
+// output, so replaying one datum notification per transaction only fills the
+// pending queue that used to keep the node in "warming up" for a long time.
+bool dap_chain_wallet_cache_index_restored(dap_chain_net_id_t a_net_id);
 // [wallets] wallets_cache_cold_reply_unavailable (default true, ALL mode
 // only): RPC address queries the cache can't answer yet must be refused with
 // "index warming" instead of falling back to a full ledger scan.
