@@ -37,6 +37,7 @@
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_datum.h"
 #include "dap_enc_base58.h"
+#include "dap_crc64.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
@@ -99,6 +100,17 @@ typedef struct dap_chain_cs_blocks_pvt {
     struct cs_blocks_hal_item *hal;
     // Number of blocks for one block confirmation
     uint64_t block_confirm_cnt;
+
+    // Chain-state sidecar ("<cell file>.state"): the highest block this node has
+    // durably walked. It arms the load-time verification skip even when the
+    // ledger snapshot is absent, so the ledger cache and the chain cache stay
+    // independent of each other.
+    pthread_mutex_t state_rwlock;
+    time_t state_last_save;
+    uint64_t state_last_num;
+    uint64_t state_last_count;
+    dap_chain_hash_fast_t state_last_hash;
+    bool state_loaded;
 } dap_chain_cs_blocks_pvt_t;
 
 typedef struct dap_chain_block_fork_resolved_notificator{
@@ -411,6 +423,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     pthread_rwlock_init(&l_cs_blocks_pvt->rwlock,NULL);
     pthread_rwlock_init(&l_cs_blocks_pvt->datums_rwlock, NULL);
     pthread_rwlock_init(&l_cs_blocks_pvt->forked_branches_rwlock, NULL);
+    pthread_mutex_init(&l_cs_blocks_pvt->state_rwlock, NULL);
 
     
     l_cs_blocks_pvt->block_confirm_cnt = dap_config_get_item_uint64_default(a_chain_config,"blocks","blocks_for_confirmation",DAP_FORK_MAX_DEPTH_DEFAULT);
@@ -1861,6 +1874,7 @@ static void s_callback_delete(dap_chain_t * a_chain)
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->datums_rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->forked_branches_rwlock);
+    pthread_mutex_destroy(&PVT(l_blocks)->state_rwlock);
     DAP_DEL_Z(l_blocks->_inheritor);
     DAP_DEL_Z(l_blocks->_pvt);
     log_it(L_INFO, "Block destructed");
@@ -2241,6 +2255,160 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
     return false;
 }
 
+// ---- Chain-state sidecar ---------------------------------------------------
+// "<cell file>.state" records the highest block this node has durably walked.
+// On a load it arms the verification skip (the same zone the ledger snapshot
+// arms) even when the ledger snapshot is missing: the two persistence layers
+// remain independent. The anchor is only ever a LOWER bound of what the cell
+// file holds - writes are throttled - so blocks above it still take the full
+// verified path, and the skip's continuity check catches an anchor from
+// another branch.
+#define DAP_CHAIN_STATE_VERSION 1
+#define DAP_CHAIN_STATE_SAVE_PERIOD 5
+
+typedef struct DAP_PACKED dap_chain_state_hdr {
+    char magic[8];
+    uint32_t version;
+    uint32_t header_size;
+    uint64_t net_id;
+    uint64_t cell_id;
+    uint64_t last_block_num;
+    uint64_t blocks_count;
+    uint64_t ts_saved;
+    uint64_t crc64;             // over the whole header with crc64 zeroed
+    dap_chain_hash_fast_t last_block_hash;
+} dap_chain_state_hdr_t;
+
+static const char s_chain_state_magic[8] = { 'C', 'F', 'C', 'H', 'N', 'S', 'T', '1' };
+
+static char *s_chain_state_path(dap_chain_cs_blocks_t *a_blocks)
+{
+    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
+    if (!l_cell)
+        return NULL;
+    return dap_strdup_printf("%s.state", l_cell->file_storage_path);
+}
+
+static bool s_chain_state_read(const char *a_path, uint64_t a_net_id, uint64_t a_cell_id,
+                               dap_chain_state_hdr_t *a_hdr)
+{
+    FILE *l_file = fopen(a_path, "rb");
+    if (!l_file)
+        return false;
+    bool l_ok = fread(a_hdr, sizeof(*a_hdr), 1, l_file) == 1;
+    fclose(l_file);
+    if (!l_ok || memcmp(a_hdr->magic, s_chain_state_magic, sizeof(a_hdr->magic))
+            || a_hdr->version != DAP_CHAIN_STATE_VERSION
+            || a_hdr->header_size != sizeof(*a_hdr)
+            || a_hdr->net_id != a_net_id || a_hdr->cell_id != a_cell_id
+            || !a_hdr->last_block_num)
+        return false;
+    uint64_t l_crc = a_hdr->crc64;
+    a_hdr->crc64 = 0;
+    l_ok = crc64((const uint8_t *)a_hdr, sizeof(*a_hdr)) == l_crc;
+    a_hdr->crc64 = l_crc;
+    return l_ok;
+}
+
+static void s_chain_state_save(dap_chain_cs_blocks_t *a_blocks)
+{
+    dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
+    // v1 keeps one linear tip: side-branch blocks are not represented.
+    if (l_pvt->forked_br_cnt)
+        return;
+    uint64_t l_num = 0, l_count = 0;
+    dap_chain_hash_fast_t l_hash = {};
+    pthread_mutex_lock(&l_pvt->state_rwlock);
+    l_num = l_pvt->state_last_num;
+    l_count = l_pvt->state_last_count;
+    l_hash = l_pvt->state_last_hash;
+    pthread_mutex_unlock(&l_pvt->state_rwlock);
+    if (!l_num)
+        return;
+    char *l_path = s_chain_state_path(a_blocks);
+    if (!l_path)
+        return;
+    dap_chain_state_hdr_t l_hdr = {
+        .version = DAP_CHAIN_STATE_VERSION,
+        .header_size = sizeof(l_hdr),
+        .net_id = a_blocks->chain->net_id.uint64,
+        .cell_id = a_blocks->chain->active_cell_id.uint64,
+        .last_block_num = l_num,
+        .blocks_count = l_count,
+        .ts_saved = (uint64_t)time(NULL),
+        .last_block_hash = l_hash
+    };
+    memcpy(l_hdr.magic, s_chain_state_magic, sizeof(l_hdr.magic));
+    l_hdr.crc64 = crc64((const uint8_t *)&l_hdr, sizeof(l_hdr));
+    char *l_tmp_path = dap_strdup_printf("%s.tmp", l_path);
+    FILE *l_file = l_tmp_path ? fopen(l_tmp_path, "wb") : NULL;
+    bool l_ok = l_file && fwrite(&l_hdr, sizeof(l_hdr), 1, l_file) == 1;
+    if (l_file) {
+        if (l_ok) {
+            fflush(l_file);
+            l_ok = fsync(fileno(l_file)) == 0;
+        }
+        fclose(l_file);
+    }
+    if (!l_ok || rename(l_tmp_path, l_path)) {
+        log_it(L_WARNING, "Chain state: can't save %s", l_tmp_path ? l_tmp_path : l_path);
+        if (l_tmp_path)
+            remove(l_tmp_path);
+    }
+    DAP_DELETE(l_tmp_path);
+    DAP_DELETE(l_path);
+}
+
+// Called once per chain on the first atom: arm the load-time skip from the
+// sidecar when the ledger snapshot did not arm one itself.
+static void s_chain_state_maybe_arm(dap_chain_cs_blocks_t *a_blocks)
+{
+    dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
+    if (l_pvt->state_loaded)
+        return;
+    l_pvt->state_loaded = true;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_blocks->chain->net_id);
+    dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+    if (!l_ledger || !dap_chain_net_get_load_mode(l_net))
+        return;
+    uint64_t l_skip_num = 0;
+    dap_chain_hash_fast_t l_skip_hash = {};
+    if (dap_ledger_snapshot_skip_get(l_ledger, &l_skip_num, &l_skip_hash))
+        return; // the ledger snapshot knows its own tip and is authoritative
+    char *l_path = s_chain_state_path(a_blocks);
+    if (!l_path)
+        return;
+    dap_chain_state_hdr_t l_hdr = {};
+    if (s_chain_state_read(l_path, a_blocks->chain->net_id.uint64,
+                           a_blocks->chain->active_cell_id.uint64, &l_hdr)) {
+        dap_ledger_snapshot_skip_set(l_ledger, l_hdr.last_block_num, &l_hdr.last_block_hash);
+        log_it(L_NOTICE, "Chain state: verification skip armed up to block %" DAP_UINT64_FORMAT_U
+               " (no ledger snapshot anchor)", l_hdr.last_block_num);
+    }
+    DAP_DELETE(l_path);
+}
+
+// Called for every accepted (main-branch) block; the file write is throttled.
+static void s_chain_state_note_block(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
+{
+    dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
+    bool l_save = false;
+    pthread_mutex_lock(&l_pvt->state_rwlock);
+    if (a_block_cache->block_number >= l_pvt->state_last_num) {
+        l_pvt->state_last_num = a_block_cache->block_number;
+        l_pvt->state_last_hash = a_block_cache->block_hash;
+        l_pvt->state_last_count = atomic_load(&l_pvt->blocks_count);
+    }
+    time_t l_now = time(NULL);
+    if (l_now - l_pvt->state_last_save >= DAP_CHAIN_STATE_SAVE_PERIOD) {
+        l_pvt->state_last_save = l_now;
+        l_save = true;
+    }
+    pthread_mutex_unlock(&l_pvt->state_rwlock);
+    if (l_save)
+        s_chain_state_save(a_blocks);
+}
+
 /**
  * @brief s_callback_atom_add
  * @details Accept new atom in blockchain
@@ -2253,6 +2421,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 {
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_block_t * l_block = (dap_chain_block_t *) a_atom;
+
+    s_chain_state_maybe_arm(l_blocks);
 
     dap_chain_hash_fast_t l_block_hash = *a_atom_hash;
 
@@ -2301,6 +2471,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 ++PVT(l_blocks)->blocks_count;
                 HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
                 HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
+                s_chain_state_note_block(l_blocks, l_block_cache);
                 // A new block changes chain-derived RPC replies. The ledger hook
                 // invalidates the per-address wallet/tx entries when the block's
                 // transactions are applied, so only the chain-wide listings are
@@ -2378,6 +2549,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         dap_list_free_full(l_fork_notify.reverted_blocks_list, NULL);
                     }
                     debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED to a forked branch.", a_atom);
+                    s_chain_state_note_block(l_blocks, l_block_cache);
                     return ATOM_FORK;
                 }
             }
@@ -2386,6 +2558,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
             ++PVT(l_blocks)->blocks_count;
+            s_chain_state_note_block(l_blocks, l_block_cache);
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
             s_add_atom_datums_load(l_blocks, l_block_cache, NULL);
             dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);

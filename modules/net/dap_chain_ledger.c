@@ -3402,6 +3402,16 @@ bool dap_ledger_snapshot_skip_get(dap_ledger_t *a_ledger, uint64_t *a_block_num,
     return true;
 }
 
+void dap_ledger_snapshot_skip_set(dap_ledger_t *a_ledger, uint64_t a_block_num,
+                                  const dap_chain_hash_fast_t *a_block_hash)
+{
+    if (!a_ledger || !a_block_hash || !a_block_num || PVT(a_ledger)->snapshot_skip_active)
+        return;
+    PVT(a_ledger)->snapshot_skip_active = true;
+    PVT(a_ledger)->snapshot_skip_num = a_block_num;
+    PVT(a_ledger)->snapshot_skip_hash = *a_block_hash;
+}
+
 void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger)
 {
     if (!a_ledger)

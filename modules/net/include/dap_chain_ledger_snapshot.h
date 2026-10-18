@@ -59,6 +59,14 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown);
 bool dap_ledger_snapshot_skip_get(dap_ledger_t *a_ledger, uint64_t *a_block_num, dap_chain_hash_fast_t *a_block_hash);
 
 /**
+ * @brief Arm the chain-scan skip from another trusted local source (the chain
+ *        state sidecar). No-op when an anchor is already armed: the ledger
+ *        snapshot is authoritative and knows its own tip.
+ */
+void dap_ledger_snapshot_skip_set(dap_ledger_t *a_ledger, uint64_t a_block_num,
+                                  const dap_chain_hash_fast_t *a_block_hash);
+
+/**
  * @brief Disarm the chain-scan skip (the loader reached the snapshot position
  *        and switched to full processing, or the snapshot is from another branch).
  */
