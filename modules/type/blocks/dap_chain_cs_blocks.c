@@ -41,6 +41,13 @@
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
+// crc64() = crc64_update(init, ...) ^ xorout with init = xorout = ~0; keeping the
+// running value lets the records CRC stay incremental.
+#define DAP_CHAIN_STATE_CRC_INIT UINT64_C(~0)
+#define DAP_CHAIN_STATE_CRC_XOROUT UINT64_C(~0)
+
+
+
 #ifndef DAP_CHAIN_BLOCKS_TEST
 #define DAP_FORK_MAX_DEPTH_DEFAULT 10
 #else
@@ -111,6 +118,10 @@ typedef struct dap_chain_cs_blocks_pvt {
     uint64_t state_last_count;
     dap_chain_hash_fast_t state_last_hash;
     bool state_loaded;
+    FILE *state_file;
+    uint64_t state_records;
+    uint64_t state_crc_state;
+    bool state_file_failed;
 } dap_chain_cs_blocks_pvt_t;
 
 typedef struct dap_chain_block_fork_resolved_notificator{
@@ -153,6 +164,7 @@ static bool s_chain_find_atom(dap_chain_block_cache_t* a_blocks, dap_chain_hash_
 static void s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
 static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
+static char *s_chain_state_path(dap_chain_cs_blocks_t *a_blocks);
 //    Verify new block
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
 
@@ -1914,6 +1926,10 @@ static void s_callback_delete(dap_chain_t * a_chain)
     if(l_blocks->callback_delete )
         l_blocks->callback_delete(l_blocks);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    if (PVT(l_blocks)->state_file) {
+        fclose(PVT(l_blocks)->state_file);
+        PVT(l_blocks)->state_file = NULL;
+    }
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->datums_rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->forked_branches_rwlock);
@@ -1950,6 +1966,22 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
             DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
     }
+    // The linear index no longer describes this chain: drop it (the next start
+    // falls back to a scan and rebuilds it).
+    pthread_mutex_lock(&PVT(l_blocks)->state_rwlock);
+    if (PVT(l_blocks)->state_file) {
+        fclose(PVT(l_blocks)->state_file);
+        PVT(l_blocks)->state_file = NULL;
+    }
+    char *l_state_path = s_chain_state_path(l_blocks);
+    if (l_state_path)
+        remove(l_state_path);
+    DAP_DELETE(l_state_path);
+    PVT(l_blocks)->state_records = 0;
+    PVT(l_blocks)->state_crc_state = DAP_CHAIN_STATE_CRC_INIT;
+    PVT(l_blocks)->state_last_num = 0;
+    PVT(l_blocks)->state_loaded = false;
+    pthread_mutex_unlock(&PVT(l_blocks)->state_rwlock);
     // Every block-derived reply is stale now; drop the classes once instead of
     // re-clearing them per removed block.
     dap_rpc_cache_invalidate_name("block_dump");
@@ -2308,8 +2340,8 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
 // file holds - writes are throttled - so blocks above it still take the full
 // verified path, and the skip's continuity check catches an anchor from
 // another branch.
-#define DAP_CHAIN_STATE_VERSION 1
-#define DAP_CHAIN_STATE_SAVE_PERIOD 5
+#define DAP_CHAIN_STATE_VERSION 2
+#define DAP_CHAIN_STATE_SAVE_PERIOD 10
 
 typedef struct DAP_PACKED dap_chain_state_hdr {
     char magic[8];
@@ -2320,138 +2352,229 @@ typedef struct DAP_PACKED dap_chain_state_hdr {
     uint64_t last_block_num;
     uint64_t blocks_count;
     uint64_t ts_saved;
+    uint64_t records_count;     // block index records that follow the header
+    uint64_t records_crc64;     // crc64 over all records (0 when none)
     uint64_t crc64;             // over the whole header with crc64 zeroed
     dap_chain_hash_fast_t last_block_hash;
 } dap_chain_state_hdr_t;
 
-static const char s_chain_state_magic[8] = { 'C', 'F', 'C', 'H', 'N', 'S', 'T', '1' };
+// One block of the linear main-branch index. offset is the position of the atom
+// data inside the mapped cell file (8-byte length prefix excluded); it stays 0 for
+// non-mapped chains, which only get the tip anchor.
+typedef struct DAP_PACKED dap_chain_state_rec {
+    uint64_t num;
+    uint64_t ts;
+    uint64_t size;
+    uint64_t offset;
+    dap_chain_hash_fast_t hash;
+    dap_chain_hash_fast_t prev_hash;
+} dap_chain_state_rec_t;
 
+static const char s_chain_state_magic[8] = { 'C', 'F', 'C', 'H', 'N', 'S', 'T', '2' };
+// Built from the chain storage dir instead of looking the cell up: the cell is
+// not registered in the chain hash yet while its own file is being loaded.
 static char *s_chain_state_path(dap_chain_cs_blocks_t *a_blocks)
 {
-    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-    if (!l_cell)
+    const char *l_dir = dap_chain_get_path(a_blocks->chain);
+    if (!l_dir || !*l_dir)
         return NULL;
-    return dap_strdup_printf("%s.state", l_cell->file_storage_path);
+    return dap_strdup_printf("%s/%0" DAP_UINT64_FORMAT_x ".dchaincell.state",
+                             l_dir, a_blocks->chain->active_cell_id.uint64);
 }
 
-static bool s_chain_state_read(const char *a_path, uint64_t a_net_id, uint64_t a_cell_id,
-                               dap_chain_state_hdr_t *a_hdr)
-{
-    FILE *l_file = fopen(a_path, "rb");
-    if (!l_file)
-        return false;
-    bool l_ok = fread(a_hdr, sizeof(*a_hdr), 1, l_file) == 1;
-    fclose(l_file);
-    if (!l_ok || memcmp(a_hdr->magic, s_chain_state_magic, sizeof(a_hdr->magic))
-            || a_hdr->version != DAP_CHAIN_STATE_VERSION
-            || a_hdr->header_size != sizeof(*a_hdr)
-            || a_hdr->net_id != a_net_id || a_hdr->cell_id != a_cell_id
-            || !a_hdr->last_block_num)
-        return false;
-    uint64_t l_crc = a_hdr->crc64;
-    a_hdr->crc64 = 0;
-    l_ok = crc64((const uint8_t *)a_hdr, sizeof(*a_hdr)) == l_crc;
-    a_hdr->crc64 = l_crc;
-    return l_ok;
-}
-
-static void s_chain_state_save(dap_chain_cs_blocks_t *a_blocks)
+// Rewrites the header in place with the current tip/records counters. Called with
+// state_rwlock held after every index append (so the header always matches the
+// records) and with a_sync once per SAVE_PERIOD to fsync and trim a torn tail.
+static void s_chain_state_write_header_locked(dap_chain_cs_blocks_t *a_blocks, bool a_sync)
 {
     dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
-    // v1 keeps one linear tip: side-branch blocks are not represented.
-    if (l_pvt->forked_br_cnt)
-        return;
-    uint64_t l_num = 0, l_count = 0;
-    dap_chain_hash_fast_t l_hash = {};
-    pthread_mutex_lock(&l_pvt->state_rwlock);
-    l_num = l_pvt->state_last_num;
-    l_count = l_pvt->state_last_count;
-    l_hash = l_pvt->state_last_hash;
-    pthread_mutex_unlock(&l_pvt->state_rwlock);
-    if (!l_num)
-        return;
-    char *l_path = s_chain_state_path(a_blocks);
-    if (!l_path)
+    FILE *l_file = l_pvt->state_file;
+    if (!l_file)
         return;
     dap_chain_state_hdr_t l_hdr = {
         .version = DAP_CHAIN_STATE_VERSION,
         .header_size = sizeof(l_hdr),
         .net_id = a_blocks->chain->net_id.uint64,
         .cell_id = a_blocks->chain->active_cell_id.uint64,
-        .last_block_num = l_num,
-        .blocks_count = l_count,
+        .last_block_num = l_pvt->state_last_num,
+        .blocks_count = l_pvt->state_last_count,
         .ts_saved = (uint64_t)time(NULL),
-        .last_block_hash = l_hash
+        .records_count = l_pvt->state_records,
+        .records_crc64 = l_pvt->state_records
+                ? (l_pvt->state_crc_state ^ DAP_CHAIN_STATE_CRC_XOROUT) : 0,
+        .last_block_hash = l_pvt->state_last_hash
     };
     memcpy(l_hdr.magic, s_chain_state_magic, sizeof(l_hdr.magic));
     l_hdr.crc64 = crc64((const uint8_t *)&l_hdr, sizeof(l_hdr));
-    char *l_tmp_path = dap_strdup_printf("%s.tmp", l_path);
-    FILE *l_file = l_tmp_path ? fopen(l_tmp_path, "wb") : NULL;
-    bool l_ok = l_file && fwrite(&l_hdr, sizeof(l_hdr), 1, l_file) == 1;
-    if (l_file) {
-        if (l_ok) {
-            fflush(l_file);
-            l_ok = fsync(fileno(l_file)) == 0;
-        }
-        fclose(l_file);
+    bool l_ok = fflush(l_file) == 0
+            && fseek(l_file, 0, SEEK_SET) == 0
+            && fwrite(&l_hdr, sizeof(l_hdr), 1, l_file) == 1
+            && fflush(l_file) == 0;
+    if (l_ok && a_sync) {
+        fsync(fileno(l_file));
+        ftruncate(fileno(l_file), (off_t)(sizeof(l_hdr)
+                + l_pvt->state_records * sizeof(dap_chain_state_rec_t)));
     }
-    if (!l_ok || rename(l_tmp_path, l_path)) {
-        log_it(L_WARNING, "Chain state: can't save %s", l_tmp_path ? l_tmp_path : l_path);
-        if (l_tmp_path)
-            remove(l_tmp_path);
-    }
-    DAP_DELETE(l_tmp_path);
-    DAP_DELETE(l_path);
+    fseek(l_file, 0, SEEK_END);
 }
 
-// Called once per chain on the first atom: arm the load-time skip from the
-// sidecar when the ledger snapshot did not arm one itself.
+// Returns 0 when a usable index was read; otherwise a reason code for the log.
+static int s_chain_state_read(const char *a_path, uint64_t a_net_id, uint64_t a_cell_id,
+                              dap_chain_state_hdr_t *a_hdr)
+{
+    FILE *l_file = fopen(a_path, "rb");
+    if (!l_file)
+        return -1;
+    if (fread(a_hdr, sizeof(*a_hdr), 1, l_file) != 1) {
+        fclose(l_file);
+        return -2;
+    }
+    if (memcmp(a_hdr->magic, s_chain_state_magic, sizeof(a_hdr->magic))
+            || a_hdr->version != DAP_CHAIN_STATE_VERSION
+            || a_hdr->header_size != sizeof(*a_hdr))
+        { fclose(l_file); return -3; }
+    if (a_hdr->net_id != a_net_id || a_hdr->cell_id != a_cell_id || !a_hdr->last_block_num)
+        { fclose(l_file); return -4; }
+    uint64_t l_crc = a_hdr->crc64;
+    a_hdr->crc64 = 0;
+    bool l_ok = crc64((const uint8_t *)a_hdr, sizeof(*a_hdr)) == l_crc;
+    a_hdr->crc64 = l_crc;
+    if (!l_ok)
+        { fclose(l_file); return -5; }
+    // Structure: header + records_count records, nothing else.
+    if (fseek(l_file, 0, SEEK_END) != 0) {
+        fclose(l_file);
+        return -6;
+    }
+    off_t l_size = ftello(l_file);
+    if (l_size < 0 || (uint64_t)l_size != sizeof(*a_hdr)
+            + a_hdr->records_count * sizeof(dap_chain_state_rec_t)) {
+        fclose(l_file);
+        return -7;
+    }
+    if (a_hdr->records_count) {
+        // The header tip must be the last record; validates the linear chain.
+        dap_chain_state_rec_t l_last = {};
+        off_t l_off = (off_t)(sizeof(*a_hdr) + (a_hdr->records_count - 1) * sizeof(dap_chain_state_rec_t));
+        l_ok = fseek(l_file, l_off, SEEK_SET) == 0
+                && fread(&l_last, sizeof(l_last), 1, l_file) == 1
+                && l_last.num == a_hdr->last_block_num
+                && dap_hash_fast_compare(&l_last.hash, &a_hdr->last_block_hash);
+        if (!l_ok) {
+            fclose(l_file);
+            return -8;
+        }
+    }
+    fclose(l_file);
+    return 0;
+}
+
+// Called once per chain on the first atom: validate the sidecar and arm the
+// load-time skip from it when the ledger snapshot did not arm one itself.
 static void s_chain_state_maybe_arm(dap_chain_cs_blocks_t *a_blocks)
 {
     dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
     if (l_pvt->state_loaded)
         return;
-    l_pvt->state_loaded = true;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_blocks->chain->net_id);
     dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
-    if (!l_ledger || !dap_chain_net_get_load_mode(l_net))
+    // Not a loading pass (or the ledger does not exist yet): retry on the next
+    // atom instead of burning the one-shot flag.
+    if (!l_ledger)
         return;
-    uint64_t l_skip_num = 0;
-    dap_chain_hash_fast_t l_skip_hash = {};
-    if (dap_ledger_snapshot_skip_get(l_ledger, &l_skip_num, &l_skip_hash))
-        return; // the ledger snapshot knows its own tip and is authoritative
+    if (!dap_chain_net_get_load_mode(l_net)) {
+        static bool s_not_loading_logged;
+        if (!s_not_loading_logged) {
+            s_not_loading_logged = true;
+            log_it(L_NOTICE, "Chain state: sidecar is read on the next loading pass (%s is not loading)",
+                   l_net ? l_net->pub.name : "?");
+        }
+        return;
+    }
+    // The cell may not be registered yet on the very first atom - only a real
+    // attempt (a path exists) consumes the one-shot flag.
     char *l_path = s_chain_state_path(a_blocks);
     if (!l_path)
         return;
+    l_pvt->state_loaded = true;
     dap_chain_state_hdr_t l_hdr = {};
-    if (s_chain_state_read(l_path, a_blocks->chain->net_id.uint64,
-                           a_blocks->chain->active_cell_id.uint64, &l_hdr)) {
-        dap_ledger_snapshot_skip_set(l_ledger, l_hdr.last_block_num, &l_hdr.last_block_hash);
-        log_it(L_NOTICE, "Chain state: verification skip armed up to block %" DAP_UINT64_FORMAT_U
-               " (no ledger snapshot anchor)", l_hdr.last_block_num);
+    int l_rc = s_chain_state_read(l_path, a_blocks->chain->net_id.uint64,
+                                  a_blocks->chain->active_cell_id.uint64, &l_hdr);
+    if (l_rc)
+        log_it(L_NOTICE, "Chain state: sidecar %s rejected (code %d)", l_path, l_rc);
+    if (!l_rc) {
+        uint64_t l_skip_num = 0;
+        dap_chain_hash_fast_t l_skip_hash = {};
+        if (!dap_ledger_snapshot_skip_get(l_ledger, &l_skip_num, &l_skip_hash)) {
+            dap_ledger_snapshot_skip_set(l_ledger, l_hdr.last_block_num, &l_hdr.last_block_hash);
+            log_it(L_NOTICE, "Chain state: verification skip armed up to block %" DAP_UINT64_FORMAT_U
+                   " (no ledger snapshot anchor)", l_hdr.last_block_num);
+        }
+        log_it(L_NOTICE, "Chain state: index of %" DAP_UINT64_FORMAT_U " blocks verified (%s)",
+               l_hdr.records_count, l_path);
     }
     DAP_DELETE(l_path);
 }
 
-// Called for every accepted (main-branch) block; the file write is throttled.
-static void s_chain_state_note_block(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
+// Called for every accepted block. Main-branch blocks are appended to the linear
+// index; a fork block only updates the tip (v1 keeps one linear chain). The write
+// is buffered; the header is rewritten (with fsync) every SAVE_PERIOD seconds.
+static void s_chain_state_note_block(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache,
+                                     bool a_index_record)
 {
     dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
-    bool l_save = false;
+    bool l_flush = false;
     pthread_mutex_lock(&l_pvt->state_rwlock);
     if (a_block_cache->block_number >= l_pvt->state_last_num) {
         l_pvt->state_last_num = a_block_cache->block_number;
         l_pvt->state_last_hash = a_block_cache->block_hash;
         l_pvt->state_last_count = atomic_load(&l_pvt->blocks_count);
     }
+    if (a_index_record && a_blocks->chain->is_mapped && !l_pvt->state_file_failed) {
+        if (!l_pvt->state_file) {
+            char *l_path = s_chain_state_path(a_blocks);
+            l_pvt->state_file = l_path ? fopen(l_path, "wb") : NULL;
+            DAP_DELETE(l_path);
+            if (!l_pvt->state_file) {
+                l_pvt->state_file_failed = true;
+                log_it(L_WARNING, "Chain state: can't open the sidecar for writing");
+            } else {
+                l_pvt->state_records = 0;
+                l_pvt->state_crc_state = DAP_CHAIN_STATE_CRC_INIT;
+            }
+        }
+        if (l_pvt->state_file) {
+            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
+            dap_chain_state_rec_t l_rec = {
+                .num = a_block_cache->block_number,
+                .ts = (uint64_t)a_block_cache->ts_created,
+                .size = a_block_cache->block_size,
+                .offset = 0,
+                .hash = a_block_cache->block_hash,
+                .prev_hash = a_block_cache->prev_hash
+            };
+            byte_t *l_map = l_cell ? (byte_t *)l_cell->map : NULL;
+            byte_t *l_map_end = l_cell ? (byte_t *)l_cell->map_end : NULL;
+            byte_t *l_block_ptr = (byte_t *)a_block_cache->block;
+            if (l_map && l_block_ptr >= l_map && l_block_ptr < l_map_end)
+                l_rec.offset = (uint64_t)(l_block_ptr - l_map);
+            // fseek(0) from the flush left the position at the end; append here.
+            if (fwrite(&l_rec, sizeof(l_rec), 1, l_pvt->state_file) == 1) {
+                l_pvt->state_crc_state = crc64_update(l_pvt->state_crc_state,
+                        (const uint8_t *)&l_rec, sizeof(l_rec));
+                l_pvt->state_records++;
+            }
+        }
+    }
     time_t l_now = time(NULL);
     if (l_now - l_pvt->state_last_save >= DAP_CHAIN_STATE_SAVE_PERIOD) {
         l_pvt->state_last_save = l_now;
-        l_save = true;
+        l_flush = true;
     }
+    // Keep the header in step with the records on every block; the expensive
+    // part (fsync + trimming a torn tail) runs once per SAVE_PERIOD.
+    s_chain_state_write_header_locked(a_blocks, l_flush);
     pthread_mutex_unlock(&l_pvt->state_rwlock);
-    if (l_save)
-        s_chain_state_save(a_blocks);
 }
 
 /**
@@ -2516,7 +2639,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 ++PVT(l_blocks)->blocks_count;
                 HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
                 HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
-                s_chain_state_note_block(l_blocks, l_block_cache);
+                s_chain_state_note_block(l_blocks, l_block_cache, true);
                 // A new block changes chain-derived RPC replies. The ledger hook
                 // invalidates the per-address wallet/tx entries when the block's
                 // transactions are applied, so only the chain-wide listings are
@@ -2594,7 +2717,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         dap_list_free_full(l_fork_notify.reverted_blocks_list, NULL);
                     }
                     debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED to a forked branch.", a_atom);
-                    s_chain_state_note_block(l_blocks, l_block_cache);
+                    s_chain_state_note_block(l_blocks, l_block_cache, false);
                     return ATOM_FORK;
                 }
             }
@@ -2603,7 +2726,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
             ++PVT(l_blocks)->blocks_count;
-            s_chain_state_note_block(l_blocks, l_block_cache);
+            s_chain_state_note_block(l_blocks, l_block_cache, true);
             debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
             s_add_atom_datums_load(l_blocks, l_block_cache, NULL);
             dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
