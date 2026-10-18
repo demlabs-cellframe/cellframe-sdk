@@ -7044,10 +7044,33 @@ static void s_ledger_tx_service_notify_added(dap_ledger_t *a_ledger, dap_chain_d
 
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
-    // Runtime-gated (load mode), not compile-time: during a chain load a tx that the cache
-    // already restored must not be re-processed - that is what makes a restart continue from
-    // the point the cache was last written instead of rebuilding the whole ledger.
-    if (dap_chain_net_get_load_mode(a_ledger->net)) {
+    // A restored item may be waiting for its datum in any mode: not only the chain scan of a
+    // restart completes it, the network catch-up does too when the block was not in the local
+    // cell files at snapshot time. Complete it exactly once (fill the datum + replay the
+    // add-path service notifications) and never re-apply the balances - they are already in
+    // the restored ledger. Otherwise the item stays a phantom forever, blocks snapshot saves
+    // and services that need the transaction (voting polls) break.
+    dap_ledger_tx_item_t *l_tx_item = NULL;
+    bool l_restored_completed = false;
+    unsigned l_hash_value;
+    HASH_VALUE(a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value);
+    pthread_rwlock_wrlock(&PVT(a_ledger)->ledger_rwlock);
+    HASH_FIND_BYHASHVALUE(hh, PVT(a_ledger)->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value, l_tx_item);
+    if (l_tx_item && !l_tx_item->tx) {
+        // Snapshot-restored item: the snapshot deliberately stores no
+        // transaction datums, the chain scan re-fills them as it walks the
+        // blocks, so a later spend of this transaction's outputs sees the
+        // full item. For a mapped ledger the datum pointer goes straight
+        // into the block file's mmap (same as the regular add path; every
+        // delete site frees it only when !mapped) - no per-transaction
+        // heap copies for the whole restored history.
+        l_tx_item->tx = PVT(a_ledger)->mapped
+                ? a_tx
+                : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+        l_restored_completed = true;
+    }
+    pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
+    if (l_tx_item) {
         // The cache-invalidation replay belongs to the GlobalDB ledger-cache flow: there a
         // restored tx is never re-applied, and the stake service compensates the missing
         // events by invalidating the keys of the recorded updates on load. In snapshot mode
@@ -7056,37 +7079,16 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
         // exactly the entries the snapshot is supposed to restore: a delegation update would
         // invalidate the key and then find no entry to update, leaving the validator out of
         // the registry after every restart.
-        if (PVT(a_ledger)->cache_tx_check_callback && !PVT(a_ledger)->snapshot_mode)
+        if (dap_chain_net_get_load_mode(a_ledger->net)
+                && PVT(a_ledger)->cache_tx_check_callback && !PVT(a_ledger)->snapshot_mode)
             PVT(a_ledger)->cache_tx_check_callback(a_ledger, a_tx_hash);
-        dap_ledger_tx_item_t *l_tx_item = NULL;
-        bool l_restored_completed = false;
-        unsigned l_hash_value;
-        HASH_VALUE(a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value);
-        pthread_rwlock_wrlock(&PVT(a_ledger)->ledger_rwlock);
-        HASH_FIND_BYHASHVALUE(hh, PVT(a_ledger)->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value, l_tx_item);
-        if (l_tx_item && !l_tx_item->tx) {
-            // Snapshot-restored item: the snapshot deliberately stores no
-            // transaction datums, the chain scan re-fills them as it walks the
-            // blocks, so a later spend of this transaction's outputs sees the
-            // full item. For a mapped ledger the datum pointer goes straight
-            // into the block file's mmap (same as the regular add path; every
-            // delete site frees it only when !mapped) - no per-transaction
-            // heap copies for the whole restored history.
-            l_tx_item->tx = PVT(a_ledger)->mapped
-                    ? a_tx
-                    : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
-            l_restored_completed = true;
-        }
-        pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
-        if (l_tx_item) {
-            // The restored item holds its datum again: replay the service notifications the
-            // regular add path would have made (see s_ledger_tx_service_notify_added above).
-            // Outside ledger_rwlock on purpose: the callbacks take the service locks and may
-            // re-enter the ledger through its read paths.
-            if (l_restored_completed)
-                s_ledger_tx_service_notify_added(a_ledger, a_tx, a_tx_hash);
-            return DAP_LEDGER_CHECK_ALREADY_CACHED;
-        }
+        // The restored item holds its datum again: replay the service notifications the
+        // regular add path would have made (see s_ledger_tx_service_notify_added above).
+        // Outside ledger_rwlock on purpose: the callbacks take the service locks and may
+        // re-enter the ledger through its read paths.
+        if (l_restored_completed)
+            s_ledger_tx_service_notify_added(a_ledger, a_tx, a_tx_hash);
+        return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
     return dap_ledger_tx_add(a_ledger, a_tx, a_tx_hash, false, a_datum_index_data);
 }
