@@ -2172,17 +2172,20 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             }
 
             // Serialized-reply cache: keyed by the resolved address, so '-w' and '-addr'
-            // requests share entries. Requests that depend on the mempool (-mempool_check)
-            // are never cached: atom-level invalidation cannot see mempool changes.
-            if (!dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-mempool_check", NULL)) {
+            // requests share entries. Mempool-dependent requests are cached too, keyed by
+            // the mempool spent-outs index version: a hit lives only while the mempool is
+            // unchanged. While that index is inactive its version is 0 - bypass the cache.
+            bool l_wo_mempool = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-mempool_check", NULL);
+            uint64_t l_wo_mempool_ver = l_wo_mempool ? dap_chain_mempool_out_version() : 0;
+            if (!l_wo_mempool || l_wo_mempool_ver) {
                 const char *l_wo_value = NULL, *l_wo_type = NULL;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_wo_value);
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-type", &l_wo_type);
                 bool l_wo_cond = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cond") != -1;
-                snprintf(l_wo_cache_key, sizeof(l_wo_cache_key), "%s|%s|%s|%d|%s|%s|%d",
+                snprintf(l_wo_cache_key, sizeof(l_wo_cache_key), "%s|%s|%s|%d|%s|%s|d%d|m%" DAP_UINT64_FORMAT_U,
                          dap_chain_addr_to_str_static(l_addr), l_net->pub.name, l_token_tiker,
                          l_wo_cond ? 1 : 0, l_wo_value ? l_wo_value : "-",
-                         l_wo_type ? l_wo_type : "-", a_version);
+                         l_wo_type ? l_wo_type : "-", a_version, l_wo_mempool_ver);
                 char *l_wo_hit = dap_rpc_cache_get(dap_rpc_cache_class_get("wallet_outputs"), l_wo_cache_key, NULL);
                 if (l_wo_hit) {
                     // Hand the ready reply to the executor verbatim; its envelope is built
@@ -9687,7 +9690,13 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
                  l_tx_srv_str ? l_tx_srv_str : "-", l_tx_act_str ? l_tx_act_str : "-",
                  l_hash_out_type, a_version);
     } else if (!l_addr && l_is_tx_all) {
-        snprintf(l_th_cache_key, sizeof(l_th_cache_key), "all|%s|%s|%zu|%zu|%d|%d|%s|%s|%s|%d",
+        // Pages wholly inside the already-indexed history are stable: new blocks
+        // append after them and their tx_num does not move. Only the tail page
+        // (or an unlimited listing) depends on the tip and is invalidated per block.
+        size_t l_total = l_chain->callback_count_tx(l_chain);
+        bool l_covers_tip = (l_limit == 0 || l_offset + l_limit >= l_total);
+        snprintf(l_th_cache_key, sizeof(l_th_cache_key), "%s|%s|%s|%zu|%zu|%d|%d|%s|%s|%s|%d",
+                 l_covers_tip ? "all-tip" : "all-hist",
                  l_net->pub.name, l_chain->name, l_limit, l_offset, l_head ? 1 : 0, l_brief ? 1 : 0,
                  l_tx_srv_str ? l_tx_srv_str : "-", l_tx_act_str ? l_tx_act_str : "-",
                  l_hash_out_type, a_version);

@@ -196,14 +196,6 @@ static void s_block_dump_cache_put(const char *a_key, const char *a_json)
     dap_rpc_cache_put(s_block_dump_cache_class_get(), a_key, a_json, 0);
 }
 
-// Called with the block-cache write lock held on purge/fork rollback: the
-// dumped content of a removed block must not be served anymore.
-static void s_block_dump_cache_invalidate_hash(const dap_chain_hash_fast_t *a_hash)
-{
-    (void)a_hash;
-    dap_rpc_cache_invalidate(s_block_dump_cache_class_get());
-}
-
 static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version);
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
@@ -1120,6 +1112,30 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                                                                 l_first_signed_flag ? "first_signed" : "signed");
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_PARAM_ERR;
             }
+            // Serialized-reply cache. Listings without hash/date bounds are anchored to
+            // the chain tip ('tip|' - invalidated on every accepted block); bounded
+            // pages are immutable history ('hist|' - kept until TTL/purge).
+            char l_bl_cache_key[768] = {0};
+            {
+                bool l_tip = !l_has_hashes && !l_has_dates;
+                snprintf(l_bl_cache_key, sizeof(l_bl_cache_key),
+                         "%s|%s|%s|%s|%s|%s|%s|%s|%d|%zu|%zu|%d|%d|%d|%s|%s|%d",
+                         l_tip ? "tip" : "hist", l_net->pub.name, l_chain->name,
+                         l_from_hash_str ? l_from_hash_str : "-", l_to_hash_str ? l_to_hash_str : "-",
+                         l_after_hash_str ? l_after_hash_str : "-",
+                         l_from_date_str ? l_from_date_str : "-", l_to_date_str ? l_to_date_str : "-",
+                         l_head ? 1 : 0, l_limit, l_offset,
+                         l_unspent_flag ? 1 : 0, l_first_signed_flag ? 1 : 0, l_signed_flag ? 1 : 0,
+                         l_cert_name ? l_cert_name : "-", l_pkey_hash_str ? l_pkey_hash_str : "-",
+                         a_version);
+            }
+            {
+                char *l_bl_hit = dap_rpc_cache_get(dap_rpc_cache_class_get("block_list"), l_bl_cache_key, NULL);
+                if (l_bl_hit) {
+                    dap_cli_cmd_reply_set_raw_json(l_bl_hit);
+                    return DAP_CHAIN_NODE_CLI_COM_BLOCK_OK;
+                }
+            }
             if (l_cert_name) {
                 dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
                 if (!l_cert) {
@@ -1431,8 +1447,17 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             //sort by time
             if (l_row_count > 1)
                 qsort(l_rows, l_row_count, sizeof(*l_rows), l_head ? s_block_list_row_cmp_asc : s_block_list_row_cmp_desc);
+            // Build the reply as a tree first so the exact bytes can be cached; the
+            // streaming channel then receives the same elements one by one.
+            json_object *l_out_arr = json_object_new_array();
+            if (!l_out_arr) {
+                DAP_DELETE(l_rows);
+                json_object_put(l_lim_obj);
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_MEMORY_ERR, "%s", c_error_memory_alloc);
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_MEMORY_ERR;
+            }
             if (l_head)
-                dap_cli_cmd_reply_add(a_json_arr_reply, l_lim_obj);
+                json_object_array_add(l_out_arr, json_object_get(l_lim_obj));
             for (size_t i = 0; i < l_row_count; i++) {
                 char l_buf[DAP_TIME_STR_SIZE];
                 json_object* json_obj_bl_cache = json_object_new_object();
@@ -1442,15 +1467,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 json_object_object_add(json_obj_bl_cache, a_version == 1 ? "block number" : "block_num", json_object_new_uint64(l_rows[i].block_number));
                 json_object_object_add(json_obj_bl_cache, a_version == 1 ? "hash" : "block_hash", json_object_new_string(l_rows[i].block_hash));
                 json_object_object_add(json_obj_bl_cache, "ts_create", json_object_new_string(l_buf));
-                // Takes ownership of json_obj_bl_cache
-                dap_cli_cmd_reply_add(a_json_arr_reply, json_obj_bl_cache);
+                json_object_array_add(l_out_arr, json_obj_bl_cache);
             }
             if (!l_head)
-                dap_cli_cmd_reply_add(a_json_arr_reply, l_lim_obj);
+                json_object_array_add(l_out_arr, json_object_get(l_lim_obj));
+            json_object_put(l_lim_obj);
             DAP_DELETE(l_rows);
-            // The listing element is complete; the count object that follows is
-            // a top-level entry of the reply array.
-            dap_cli_cmd_reply_stream_nested_end();
 
             char *l_filtered_criteria = "none";
             json_object* json_obj_out = json_object_new_object();
@@ -1459,7 +1481,28 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             char *l_key = dap_strdup_printf("%s.%s with filter - %s, have blocks",l_net->pub.name,l_chain->name,l_filtered_criteria);
             json_object_object_add(json_obj_out, l_key, json_object_new_uint64(i_tmp));
             DAP_DELETE(l_key);
-            dap_cli_cmd_reply_add(a_json_arr_reply,json_obj_out);
+
+            // Full reply shape: [ [rows...], count ] - serialized once for the cache.
+            json_object *l_full_arr = json_object_new_array();
+            if (l_full_arr) {
+                json_object_array_add(l_full_arr, l_out_arr);      // takes the listing array
+                json_object_array_add(l_full_arr, json_obj_out);   // takes the count object
+                const char *l_bl_ser = json_object_to_json_string_ext(l_full_arr, JSON_C_TO_STRING_PLAIN);
+                if (l_bl_cache_key[0] && l_bl_ser)
+                    dap_rpc_cache_put(dap_rpc_cache_class_get("block_list"), l_bl_cache_key, l_bl_ser, 0);
+                // Stream: the same rows into the nested element, then the count.
+                json_object *l_rows_arr = json_object_array_get_idx(l_full_arr, 0);
+                size_t l_out_count = json_object_array_length(l_rows_arr);
+                for (size_t k = 0; k < l_out_count; k++)
+                    dap_cli_cmd_reply_add(a_json_arr_reply,
+                            json_object_get(json_object_array_get_idx(l_rows_arr, k)));
+                dap_cli_cmd_reply_stream_nested_end();
+                dap_cli_cmd_reply_add(a_json_arr_reply, json_object_get(json_obj_out));
+                json_object_put(l_full_arr);
+            } else {
+                json_object_put(l_out_arr);
+                json_object_put(json_obj_out);
+            }
         } break;
         case SUBCMD_LAST: {
             json_object* json_obj_out = json_object_new_object();
@@ -1890,8 +1933,6 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
         HASH_ITER(hh, PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom, l_atom_tmp) {
             HASH_DEL(PVT(l_blocks)->forked_branches[i]->forked_branch_atoms, l_atom);
             if (l_atom->block_cache)
-                s_block_dump_cache_invalidate_hash(&l_atom->block_cache->block_hash);
-            if (l_atom->block_cache)
                 dap_chain_block_cache_delete(l_atom->block_cache);
             DAP_DELETE(l_atom);
             l_atom = NULL;
@@ -1905,11 +1946,15 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
-        s_block_dump_cache_invalidate_hash(&l_block->block_hash);
         if (!a_chain->is_mapped)
             DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
     }
+    // Every block-derived reply is stale now; drop the classes once instead of
+    // re-clearing them per removed block.
+    dap_rpc_cache_invalidate_name("block_dump");
+    dap_rpc_cache_invalidate_name("block_list");
+    dap_rpc_cache_invalidate_name("tx_history");
     PVT(l_blocks)->blocks_count = 0;
     HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
@@ -2476,8 +2521,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 // invalidates the per-address wallet/tx entries when the block's
                 // transactions are applied, so only the chain-wide listings are
                 // dropped here.
-                dap_rpc_cache_invalidate_prefix_name("tx_history", "all|");
-                dap_rpc_cache_invalidate_name("block_list");
+                dap_rpc_cache_invalidate_prefix_name("tx_history", "all-tip|");
+                dap_rpc_cache_invalidate_prefix_name("block_list", "tip|");
                 debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
                 s_add_atom_datums_load(l_blocks, l_block_cache, &l_block_prev_hash);
                 dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);

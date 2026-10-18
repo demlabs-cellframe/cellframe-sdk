@@ -3364,7 +3364,13 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             }
             int l_result = dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
             
-            if (l_result == 0 && a_chain && a_chain->callback_count_tx_increase) {
+            // ALREADY_CACHED means the transaction is already in the ledger
+            // (snapshot-restored or re-applied) - it is still a transaction of the
+            // chain and must be counted. Without this the chain-wide counter starts
+            // from zero after a snapshot load (17 instead of ~650k on Backbone) and
+            // every '-all' history page is misclassified as a tail page.
+            if ((l_result == 0 || l_result == DAP_LEDGER_CHECK_ALREADY_CACHED) &&
+                    a_chain && a_chain->callback_count_tx_increase) {
                 a_chain->callback_count_tx_increase(a_chain);
             }
             return l_result;

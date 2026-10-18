@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <memory.h>
+#include <stdatomic.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -142,6 +143,14 @@ static pthread_rwlock_t s_mempool_spent_lock = PTHREAD_RWLOCK_INITIALIZER;
 // unspent.
 static bool s_mempool_spent_index_ready = false;
 static bool s_mempool_spent_index_failed = false;
+// Bumped on every index mutation; RPC reply caches put it in the key of
+// mempool-dependent replies so a hit is only valid while the mempool is.
+static _Atomic uint64_t s_mempool_spent_version = 0;
+
+uint64_t dap_chain_mempool_out_version(void)
+{
+    return s_mempool_spent_index_ready ? atomic_load(&s_mempool_spent_version) : 0;
+}
 
 // Indexes every IN/IN_COND item of a_tx as "spent by a_tx_hash". Idempotent:
 // safe to call twice for the same tx (synchronous insert from
@@ -206,6 +215,7 @@ static void s_mempool_spent_index_add_tx(dap_chain_net_id_t a_net_id, dap_hash_f
         l_tx_entry->outs[l_tx_entry->outs_count++] = l_out_entry;
     }
     HASH_ADD(hh, s_mempool_spent_by_tx, key, sizeof(l_tx_entry->key), l_tx_entry);
+    atomic_fetch_add(&s_mempool_spent_version, 1);
     pthread_rwlock_unlock(&s_mempool_spent_lock);
 }
 
@@ -224,6 +234,7 @@ static void s_mempool_spent_index_remove_tx(dap_chain_net_id_t a_net_id, dap_has
         return;
     }
     HASH_DEL(s_mempool_spent_by_tx, l_tx_entry);
+    atomic_fetch_add(&s_mempool_spent_version, 1);
     for (size_t i = 0; i < l_tx_entry->outs_count; i++) {
         dap_mempool_spent_out_t *l_out = l_tx_entry->outs[i];
         if (--l_out->spenders)

@@ -143,6 +143,12 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
 char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_enc_key_t *a_sign_key, dap_chain_addr_t *a_addr_to, dap_list_t *a_block_list,
                                          uint256_t a_value_fee, const char *a_hash_out_type);
 bool dap_chain_mempool_out_is_used(dap_chain_net_t *a_net, dap_hash_fast_t *a_out_hash, uint32_t a_out_idx);
+
+// Monotonic version of the spent-outs index: bumps whenever a mempool tx is
+// indexed or removed. Reply caches that depend on the mempool put it in their
+// key, so a hit is only served while the mempool state is unchanged.
+// Returns 0 while the index is inactive (callers must then bypass the cache).
+uint64_t dap_chain_mempool_out_version(void);
 /**
  * @brief Compose event transaction following cellframe mempool style
  * @param[in] a_chain Chain to create transaction for

@@ -46,8 +46,8 @@ static const struct {
     uint64_t max_items;
 } s_class_presets[] = {
     { "block_dump",     300000, 64ull << 20, 32  },
-    { "block_list",       5000, 32ull << 20, 64  },
-    { "tx_history",       5000, 32ull << 20, 128 },
+    { "block_list",      60000, 32ull << 20, 256 },
+    { "tx_history",      60000, 32ull << 20, 256 },
     { "wallet_outputs",   2000, 16ull << 20, 256 },
     { "dex_history",     10000, 32ull << 20, 128 },
     { "dex_orderbook",    2000, 16ull << 20, 128 },

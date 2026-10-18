@@ -6153,13 +6153,23 @@ static void s_ledger_rpc_cache_invalidate_addr(const char *a_addr_str,
         dap_rpc_cache_invalidate_prefix(a_tx_history, l_prefix);
 }
 
-static void s_ledger_rpc_cache_notify_tx(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+static void s_ledger_rpc_cache_notify_tx(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                         dap_list_t *a_bound_items)
 {
     dap_rpc_cache_class_t *l_wallet_outputs = dap_rpc_cache_class_find("wallet_outputs");
     dap_rpc_cache_class_t *l_tx_history = dap_rpc_cache_class_find("tx_history");
     if ((!l_wallet_outputs || !dap_rpc_cache_class_has_entries(l_wallet_outputs))
             && (!l_tx_history || !dap_rpc_cache_class_has_entries(l_tx_history)))
         return;
+    // Inputs: the spent address is already known from the bound items built by
+    // s_tx_cache_check() - re-resolving every previous transaction by hash here
+    // doubled the ledger hot path for nothing.
+    for (dap_list_t *it = a_bound_items; it; it = it->next) {
+        dap_ledger_tx_bound_t *l_bound = it->data;
+        if (l_bound->type == TX_ITEM_TYPE_IN)
+            s_ledger_rpc_cache_invalidate_addr(dap_chain_addr_to_str_static(&l_bound->in.addr_from),
+                                               l_wallet_outputs, l_tx_history);
+    }
     byte_t *l_item = NULL;
     size_t l_item_size = 0;
     TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
@@ -6174,12 +6184,14 @@ static void s_ledger_rpc_cache_notify_tx(dap_ledger_t *a_ledger, dap_chain_datum
         case TX_ITEM_TYPE_OUT_STD:
             l_addr = &((dap_chain_tx_out_std_t *)l_item)->addr;
             break;
-        case TX_ITEM_TYPE_IN: {
-            dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t *)l_item;
-            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_in->header.tx_prev_hash);
+        case TX_ITEM_TYPE_IN_COND: {
+            // Conditional outs have no common address field; resolve the spent
+            // output only for these (rare) items.
+            dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)l_item;
+            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_in_cond->header.tx_prev_hash);
             if (!l_prev_tx)
                 break;
-            byte_t *l_prev_item = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_in->header.tx_out_prev_idx);
+            byte_t *l_prev_item = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_in_cond->header.tx_out_prev_idx);
             if (!l_prev_item)
                 break;
             switch ((dap_chain_tx_item_type_t)*l_prev_item) {
@@ -6638,6 +6650,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     if (!a_from_threshold && l_ledger_pvt->threshold_enabled)
         s_threshold_txs_proc(a_ledger);
 FIN:
+    if (!l_ret)
+        s_ledger_rpc_cache_notify_tx(a_ledger, a_tx, l_list_bound_items);
     if (l_list_bound_items)
         dap_list_free_full(l_list_bound_items, NULL);
     if (l_list_tx_out)
@@ -6657,8 +6671,6 @@ FIN:
         DAP_DEL_Z(l_cache_used_outs);
         DAP_DEL_Z(l_ledger_cache_group);
     }
-    if (!l_ret)
-        s_ledger_rpc_cache_notify_tx(a_ledger, a_tx);
     return l_ret;
 }
 
@@ -7658,6 +7670,12 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
         if (!(++l_item_idx & 0xFFF) && !dap_cli_server_client_is_alive())
             break;
         if ( l_cur->cache_data.ts_spent )
+            continue;
+        // Phantom item: its transaction datum is not in the local cell files yet
+        // (restored from the ledger snapshot, block still to be caught up). There
+        // is nothing to iterate over - dereferencing tx here crashed the UTXO
+        // scan behind wallet outputs / tx_create_json.
+        if ( !l_cur->tx )
             continue;
         if ( a_token && dap_strcmp(l_cur->cache_data.token_ticker, a_token) && !l_cur->cache_data.multichannel )
             continue;
