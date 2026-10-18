@@ -38,6 +38,22 @@ struct dap_rpc_cache_class {
     struct dap_rpc_cache_class *next;
 };
 
+// Per-class presets: a class without [rpc_cache] overrides starts from these values.
+static const struct {
+    const char *name;
+    uint64_t ttl_ms;
+    uint64_t max_bytes;
+    uint64_t max_items;
+} s_class_presets[] = {
+    { "block_dump",     300000, 64ull << 20, 32  },
+    { "block_list",       5000, 32ull << 20, 64  },
+    { "tx_history",       5000, 32ull << 20, 128 },
+    { "wallet_outputs",   2000, 16ull << 20, 256 },
+    { "dex_history",     10000, 32ull << 20, 128 },
+    { "dex_orderbook",    2000, 16ull << 20, 128 },
+    { "net_version",      2000,  1ull << 20, 16  },
+};
+
 static dap_rpc_cache_class_t *s_classes = NULL;
 static pthread_rwlock_t s_classes_lock = PTHREAD_RWLOCK_INITIALIZER;
 static bool s_inited = false;
@@ -131,17 +147,25 @@ dap_rpc_cache_class_t *dap_rpc_cache_class_get(const char *a_name)
         return NULL;
     }
     dap_strncpy(l_class->name, a_name, sizeof(l_class->name) - 1);
+    uint64_t l_def_ttl = DAP_RPC_CACHE_DEFAULT_TTL_MS,
+             l_def_bytes = DAP_RPC_CACHE_DEFAULT_MAX_BYTES,
+             l_def_items = DAP_RPC_CACHE_DEFAULT_MAX_ITEMS;
+    for (size_t i = 0; i < sizeof(s_class_presets) / sizeof(s_class_presets[0]); i++) {
+        if (!strcmp(s_class_presets[i].name, a_name)) {
+            l_def_ttl = s_class_presets[i].ttl_ms;
+            l_def_bytes = s_class_presets[i].max_bytes;
+            l_def_items = s_class_presets[i].max_items;
+            break;
+        }
+    }
     char *l_key = dap_strdup_printf("class_%s_ttl_ms", a_name);
-    l_class->ttl_ms = dap_config_get_item_uint64_default(g_config, "rpc_cache", l_key,
-                                                         DAP_RPC_CACHE_DEFAULT_TTL_MS);
+    l_class->ttl_ms = dap_config_get_item_uint64_default(g_config, "rpc_cache", l_key, l_def_ttl);
     DAP_DELETE(l_key);
     l_key = dap_strdup_printf("class_%s_max_bytes", a_name);
-    l_class->max_bytes = dap_config_get_item_uint64_default(g_config, "rpc_cache", l_key,
-                                                            DAP_RPC_CACHE_DEFAULT_MAX_BYTES);
+    l_class->max_bytes = dap_config_get_item_uint64_default(g_config, "rpc_cache", l_key, l_def_bytes);
     DAP_DELETE(l_key);
     l_key = dap_strdup_printf("class_%s_max_items", a_name);
-    l_class->max_items = dap_config_get_item_uint64_default(g_config, "rpc_cache", l_key,
-                                                            DAP_RPC_CACHE_DEFAULT_MAX_ITEMS);
+    l_class->max_items = dap_config_get_item_uint64_default(g_config, "rpc_cache", l_key, l_def_items);
     DAP_DELETE(l_key);
     pthread_rwlock_init(&l_class->lock, NULL);
 
@@ -163,6 +187,78 @@ dap_rpc_cache_class_t *dap_rpc_cache_class_get(const char *a_name)
                    "%zu bytes max, %zu items max)",
            l_class->name, l_class->ttl_ms, l_class->max_bytes, l_class->max_items);
     return l_class;
+}
+
+char *dap_rpc_cache_get(dap_rpc_cache_class_t *a_class, const char *a_key, size_t *a_out_len)
+{
+    if (!a_class || !a_key)
+        return NULL;
+    if (a_out_len)
+        *a_out_len = 0;
+    uint64_t l_now = s_now_ms();
+    char *l_reply = NULL;
+    dap_rpc_cache_entry_t *l_entry = NULL;
+    pthread_rwlock_rdlock(&a_class->lock);
+    HASH_FIND_STR(a_class->entries, a_key, l_entry);
+    if (l_entry && l_entry->epoch == a_class->epoch
+            && (l_now - l_entry->ts_ms) <= a_class->ttl_ms) {
+        l_reply = dap_strdup(l_entry->json);
+        if (l_reply && a_out_len)
+            *a_out_len = l_entry->len;
+        __atomic_add_fetch(&a_class->hits, 1, __ATOMIC_RELAXED);
+    } else {
+        __atomic_add_fetch(&a_class->misses, 1, __ATOMIC_RELAXED);
+    }
+    pthread_rwlock_unlock(&a_class->lock);
+    return l_reply;
+}
+
+void dap_rpc_cache_put(dap_rpc_cache_class_t *a_class, const char *a_key,
+                       const char *a_json, size_t a_len)
+{
+    if (!a_class || !a_key || !a_json)
+        return;
+    if (!a_len)
+        a_len = strlen(a_json);
+    if (a_len > a_class->max_bytes)
+        return;
+    char *l_copy = dap_strdup(a_json);
+    char *l_key = dap_strdup(a_key);
+    if (!l_copy || !l_key) {
+        DAP_DEL_MULTY(l_copy, l_key);
+        return;
+    }
+    uint64_t l_now = s_now_ms();
+    dap_rpc_cache_entry_t *l_entry = NULL;
+    pthread_rwlock_wrlock(&a_class->lock);
+    HASH_FIND_STR(a_class->entries, a_key, l_entry);
+    if (l_entry) {
+        a_class->cur_bytes -= l_entry->len;
+        DAP_DELETE(l_entry->json);
+        l_entry->json = l_copy;
+        l_entry->len = a_len;
+        l_entry->ts_ms = l_now;
+        l_entry->epoch = a_class->epoch;
+        a_class->cur_bytes += a_len;
+        DAP_DELETE(l_key);
+    } else {
+        s_class_evict_lru_locked(a_class, a_len + 1);
+        dap_rpc_cache_entry_t *l_new = DAP_NEW_Z(dap_rpc_cache_entry_t);
+        if (!l_new) {
+            DAP_DEL_MULTY(l_copy, l_key);
+            pthread_rwlock_unlock(&a_class->lock);
+            return;
+        }
+        l_new->key = l_key;
+        l_new->json = l_copy;
+        l_new->len = a_len;
+        l_new->ts_ms = l_now;
+        l_new->epoch = a_class->epoch;
+        HASH_ADD_STR(a_class->entries, key, l_new);
+        a_class->cur_bytes += a_len + 1;
+        a_class->cur_items++;
+    }
+    pthread_rwlock_unlock(&a_class->lock);
 }
 
 char *dap_rpc_cache_get_or_build(dap_rpc_cache_class_t *a_class, const char *a_key,

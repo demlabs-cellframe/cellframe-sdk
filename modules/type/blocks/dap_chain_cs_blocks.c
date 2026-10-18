@@ -27,6 +27,7 @@
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
+#include "dap_rpc_cache.h"
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 #include "dap_cli_server.h"
@@ -159,110 +160,36 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
  * bounded by an entry/byte LRU. Small by design - block dumps are megabyte
  * scale, so the default caps hold a couple dozen popular blocks.
  */
-typedef struct s_block_dump_cache_entry {
-    char *key;
-    char *json;
-    size_t json_len;
-    uint64_t ts;
-    UT_hash_handle hh;
-} s_block_dump_cache_entry_t;
-static s_block_dump_cache_entry_t *s_block_dump_cache;
-static pthread_mutex_t s_block_dump_cache_lock = PTHREAD_MUTEX_INITIALIZER;
-static size_t s_block_dump_cache_bytes = 0;
-static uint32_t s_block_dump_cache_max_entries = 32;
-static uint64_t s_block_dump_cache_max_bytes = 64ull << 20;
-static uint32_t s_block_dump_cache_ttl_sec = 300;
+// Serialized-reply cache for `block dump` (immutable, hash-bound content) now lives in
+// the universal RPC response cache engine (dap_rpc_cache) as the "block_dump" class:
+// TTL/LRU policy comes from [rpc_cache] class_block_dump_* (preset: 300 s / 64 MB / 32).
+// Purge and fork rollback drop the whole class: block removals are rare and the class is
+// small, so a class epoch bump is cheaper than a per-hash scan.
+static dap_rpc_cache_class_t *s_block_dump_cache_class;
 
-static void s_block_dump_cache_drop_entry_locked(s_block_dump_cache_entry_t *a_e)
+static dap_rpc_cache_class_t *s_block_dump_cache_class_get(void)
 {
-    HASH_DEL(s_block_dump_cache, a_e);
-    s_block_dump_cache_bytes -= a_e->json_len + strlen(a_e->key) + sizeof(*a_e);
-    DAP_DEL_MULTY(a_e->key, a_e->json, a_e);
+    if (!s_block_dump_cache_class)
+        s_block_dump_cache_class = dap_rpc_cache_class_get("block_dump");
+    return s_block_dump_cache_class;
+}
+
+static char *s_block_dump_cache_get(const char *a_key)
+{
+    return dap_rpc_cache_get(s_block_dump_cache_class_get(), a_key, NULL);
+}
+
+static void s_block_dump_cache_put(const char *a_key, const char *a_json)
+{
+    dap_rpc_cache_put(s_block_dump_cache_class_get(), a_key, a_json, 0);
 }
 
 // Called with the block-cache write lock held on purge/fork rollback: the
 // dumped content of a removed block must not be served anymore.
 static void s_block_dump_cache_invalidate_hash(const dap_chain_hash_fast_t *a_hash)
 {
-    char l_h[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(a_hash, l_h, sizeof(l_h));
-    pthread_mutex_lock(&s_block_dump_cache_lock);
-    s_block_dump_cache_entry_t *l_e = NULL, *l_it, *l_tmp;
-    HASH_ITER(hh, s_block_dump_cache, l_e, l_tmp) {
-        // key ends with the hash (see the lookup key builder)
-        if (strstr(l_e->key, l_h))
-            s_block_dump_cache_drop_entry_locked(l_e);
-    }
-    pthread_mutex_unlock(&s_block_dump_cache_lock);
-}
-
-// Returns an OWNED copy of the cached JSON (caller frees with DAP_DELETE):
-// handing out the entry pointer past the lock was a use-after-free —
-// concurrent put/evict/invalidate could free it before the caller parsed it
-static char *s_block_dump_cache_get(const char *a_key)
-{
-    char *l_json = NULL;
-    pthread_mutex_lock(&s_block_dump_cache_lock);
-    s_block_dump_cache_entry_t *l_e = NULL;
-    HASH_FIND(hh, s_block_dump_cache, a_key, strlen(a_key), l_e);
-    if (l_e) {
-        uint64_t l_now = (uint64_t)dap_nanotime_now()/1000000000ull;
-        if (l_now - l_e->ts > s_block_dump_cache_ttl_sec) {
-            s_block_dump_cache_drop_entry_locked(l_e);
-        } else {
-            l_e->ts = l_now;
-            l_json = dap_strdup(l_e->json);
-        }
-    }
-    pthread_mutex_unlock(&s_block_dump_cache_lock);
-    return l_json;
-}
-
-static void s_block_dump_cache_put(const char *a_key, const char *a_json)
-{
-    if (!a_key || !a_json)
-        return;
-    size_t l_len = strlen(a_json);
-    if (l_len > s_block_dump_cache_max_bytes / 2)
-        return;
-    pthread_mutex_lock(&s_block_dump_cache_lock);
-    s_block_dump_cache_entry_t *l_e = NULL;
-    HASH_FIND(hh, s_block_dump_cache, a_key, strlen(a_key), l_e);
-    if (l_e) {
-        char *l_new = dap_strdup(a_json);
-        if (l_new) {
-            s_block_dump_cache_bytes -= l_e->json_len;
-            DAP_DELETE(l_e->json);
-            l_e->json = l_new;
-            l_e->json_len = l_len;
-            l_e->ts = (uint64_t)dap_nanotime_now()/1000000000ull;
-            s_block_dump_cache_bytes += l_len;
-        }
-        pthread_mutex_unlock(&s_block_dump_cache_lock);
-        return;
-    }
-    char *l_key_copy = dap_strdup(a_key), *l_json_copy = dap_strdup(a_json);
-    if (l_key_copy && l_json_copy && (l_e = DAP_NEW_Z(s_block_dump_cache_entry_t))) {
-        l_e->key = l_key_copy;
-        l_e->json = l_json_copy;
-        l_e->json_len = l_len;
-        l_e->ts = (uint64_t)dap_nanotime_now()/1000000000ull;
-        HASH_ADD_KEYPTR(hh, s_block_dump_cache, l_e->key, strlen(l_e->key), l_e);
-        s_block_dump_cache_bytes += l_len + strlen(l_e->key) + sizeof(*l_e);
-        while (HASH_CNT(hh, s_block_dump_cache) > s_block_dump_cache_max_entries
-               || s_block_dump_cache_bytes > s_block_dump_cache_max_bytes) {
-            s_block_dump_cache_entry_t *l_oldest = NULL, *l_it, *l_tmp;
-            HASH_ITER(hh, s_block_dump_cache, l_it, l_tmp)
-                if (!l_oldest || l_it->ts < l_oldest->ts)
-                    l_oldest = l_it;
-            if (!l_oldest)
-                break;
-            s_block_dump_cache_drop_entry_locked(l_oldest);
-        }
-    } else {
-        DAP_DEL_MULTY(l_key_copy, l_json_copy);
-    }
-    pthread_mutex_unlock(&s_block_dump_cache_lock);
+    (void)a_hash;
+    dap_rpc_cache_invalidate(s_block_dump_cache_class_get());
 }
 
 static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version);

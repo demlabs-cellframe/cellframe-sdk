@@ -34,6 +34,12 @@ void dap_rpc_cache_deinit(void);
 /* Find or lazily create the class with the configured policy. */
 dap_rpc_cache_class_t *dap_rpc_cache_class_get(const char *a_name);
 
+/* Cached payload copy (DAP_DELETE by the caller), or NULL on miss/stale. */
+char *dap_rpc_cache_get(dap_rpc_cache_class_t *a_class, const char *a_key, size_t *a_out_len);
+/* Store (or refresh) one payload. The engine keeps its own copy. */
+void dap_rpc_cache_put(dap_rpc_cache_class_t *a_class, const char *a_key,
+                       const char *a_json, size_t a_len);
+
 /* Cached payload copy (DAP_DELETE by the caller) or the freshly built one. */
 char *dap_rpc_cache_get_or_build(dap_rpc_cache_class_t *a_class, const char *a_key,
                                  dap_rpc_cache_build_cb_t a_build, void *a_ctx,
