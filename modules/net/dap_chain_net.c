@@ -81,6 +81,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_net.h"
+#include "dap_rpc_cache.h"
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_anchor.h"
@@ -444,6 +445,7 @@ static bool s_net_rpc_ready(char *a_reason, size_t a_reason_size)
 int dap_chain_net_init()
 {
     dap_ledger_init();
+    dap_rpc_cache_init();
     dap_chain_ch_init();
     dap_chain_net_anchor_init();
     dap_stream_ch_chain_net_init();
@@ -2030,6 +2032,7 @@ static int s_cmp_cfg_pri(dap_config_t *cfg1, dap_config_t *cfg2) {
  */
 void dap_chain_net_deinit()
 {
+    dap_rpc_cache_deinit();
     dap_link_manager_deinit();
     dap_chain_net_balancer_deinit();
     dap_chain_net_t *l_net, *l_tmp;

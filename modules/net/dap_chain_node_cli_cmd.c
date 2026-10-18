@@ -74,6 +74,7 @@
 #include "dap_global_db_driver.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_rpc_cache.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_node_cli_cmd_arbitrage.h"
 #include "dap_net.h"
@@ -9745,20 +9746,28 @@ int com_stats(int argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
     enum {
-        CMD_NONE, CMD_STATS_CPU
+        CMD_NONE, CMD_STATS_CPU, CMD_STATS_CACHE
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     // find  add parameter ('cpu')
     if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(argc, arg_index + 1), "cpu", NULL)) {
         cmd_num = CMD_STATS_CPU;
+    } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(argc, arg_index + 1), "cache", NULL)) {
+        cmd_num = CMD_STATS_CACHE;
     }
     switch (cmd_num) {
     case CMD_NONE:
     default:
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
-                        "format of command: stats cpu");
+                        "format of command: stats cpu | stats cache");
         return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+    case CMD_STATS_CACHE: {
+        char l_buf[4096] = {0};
+        dap_rpc_cache_stats(l_buf, sizeof(l_buf));
+        dap_cli_server_cmd_set_reply_text(a_str_reply, l_buf);
+        break;
+    }
     case CMD_STATS_CPU:
 #if (defined DAP_OS_UNIX) || (defined __WIN32)
     {
