@@ -27,6 +27,7 @@
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
+#include "dap_chain_state.h"
 #include "dap_rpc_cache.h"
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
@@ -41,11 +42,6 @@
 #include "dap_chain_wallet_cache.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
-
-// crc64() = crc64_update(init, ...) ^ xorout with init = xorout = ~0; keeping the
-// running value lets the records CRC stay incremental.
-#define DAP_CHAIN_STATE_CRC_INIT UINT64_C(~0)
-#define DAP_CHAIN_STATE_CRC_XOROUT UINT64_C(~0)
 
 
 
@@ -109,20 +105,11 @@ typedef struct dap_chain_cs_blocks_pvt {
     // Number of blocks for one block confirmation
     uint64_t block_confirm_cnt;
 
-    // Chain-state sidecar ("<cell file>.state"): the highest block this node has
-    // durably walked. It arms the load-time verification skip even when the
-    // ledger snapshot is absent, so the ledger cache and the chain cache stay
-    // independent of each other.
-    pthread_mutex_t state_rwlock;
-    time_t state_last_save;
-    uint64_t state_last_num;
-    uint64_t state_last_count;
-    dap_chain_hash_fast_t state_last_hash;
+    // Chain-state layer object (dap_chain_state): the linear block index sidecar
+    // and its tip. It arms the load-time verification skip even when the ledger
+    // snapshot is absent, so the ledger cache and the chain cache stay independent.
+    dap_chain_state_t *state;
     bool state_loaded;
-    FILE *state_file;
-    uint64_t state_records;
-    uint64_t state_crc_state;
-    bool state_file_failed;
 } dap_chain_cs_blocks_pvt_t;
 
 typedef struct dap_chain_block_fork_resolved_notificator{
@@ -165,7 +152,6 @@ static bool s_chain_find_atom(dap_chain_block_cache_t* a_blocks, dap_chain_hash_
 static void s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
 static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
-static char *s_chain_state_path(dap_chain_cs_blocks_t *a_blocks);
 //    Verify new block
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
 
@@ -428,7 +414,6 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     pthread_rwlock_init(&l_cs_blocks_pvt->rwlock,NULL);
     pthread_rwlock_init(&l_cs_blocks_pvt->datums_rwlock, NULL);
     pthread_rwlock_init(&l_cs_blocks_pvt->forked_branches_rwlock, NULL);
-    pthread_mutex_init(&l_cs_blocks_pvt->state_rwlock, NULL);
 
     
     l_cs_blocks_pvt->block_confirm_cnt = dap_config_get_item_uint64_default(a_chain_config,"blocks","blocks_for_confirmation",DAP_FORK_MAX_DEPTH_DEFAULT);
@@ -1927,14 +1912,11 @@ static void s_callback_delete(dap_chain_t * a_chain)
     if(l_blocks->callback_delete )
         l_blocks->callback_delete(l_blocks);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-    if (PVT(l_blocks)->state_file) {
-        fclose(PVT(l_blocks)->state_file);
-        PVT(l_blocks)->state_file = NULL;
-    }
+    dap_chain_state_destroy(PVT(l_blocks)->state);
+    PVT(l_blocks)->state = NULL;
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->datums_rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->forked_branches_rwlock);
-    pthread_mutex_destroy(&PVT(l_blocks)->state_rwlock);
     DAP_DEL_Z(l_blocks->_inheritor);
     DAP_DEL_Z(l_blocks->_pvt);
     log_it(L_INFO, "Block destructed");
@@ -1969,20 +1951,9 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     }
     // The linear index no longer describes this chain: drop it (the next start
     // falls back to a scan and rebuilds it).
-    pthread_mutex_lock(&PVT(l_blocks)->state_rwlock);
-    if (PVT(l_blocks)->state_file) {
-        fclose(PVT(l_blocks)->state_file);
-        PVT(l_blocks)->state_file = NULL;
-    }
-    char *l_state_path = s_chain_state_path(l_blocks);
-    if (l_state_path)
-        remove(l_state_path);
-    DAP_DELETE(l_state_path);
-    PVT(l_blocks)->state_records = 0;
-    PVT(l_blocks)->state_crc_state = DAP_CHAIN_STATE_CRC_INIT;
-    PVT(l_blocks)->state_last_num = 0;
+    if (PVT(l_blocks)->state)
+        dap_chain_state_drop(PVT(l_blocks)->state);
     PVT(l_blocks)->state_loaded = false;
-    pthread_mutex_unlock(&PVT(l_blocks)->state_rwlock);
     // Every block-derived reply is stale now; drop the classes once instead of
     // re-clearing them per removed block.
     dap_rpc_cache_invalidate_name("block_dump");
@@ -2348,133 +2319,12 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
 // file holds - writes are throttled - so blocks above it still take the full
 // verified path, and the skip's continuity check catches an anchor from
 // another branch.
-#define DAP_CHAIN_STATE_VERSION 2
-#define DAP_CHAIN_STATE_SAVE_PERIOD 10
-
-typedef struct DAP_PACKED dap_chain_state_hdr {
-    char magic[8];
-    uint32_t version;
-    uint32_t header_size;
-    uint64_t net_id;
-    uint64_t cell_id;
-    uint64_t last_block_num;
-    uint64_t blocks_count;
-    uint64_t ts_saved;
-    uint64_t records_count;     // block index records that follow the header
-    uint64_t records_crc64;     // crc64 over all records (0 when none)
-    uint64_t crc64;             // over the whole header with crc64 zeroed
-    dap_chain_hash_fast_t last_block_hash;
-} dap_chain_state_hdr_t;
-
-// One block of the linear main-branch index. offset is the position of the atom
-// data inside the mapped cell file (8-byte length prefix excluded); it stays 0 for
-// non-mapped chains, which only get the tip anchor.
-typedef struct DAP_PACKED dap_chain_state_rec {
-    uint64_t num;
-    uint64_t ts;
-    uint64_t size;
-    uint64_t offset;
-    dap_chain_hash_fast_t hash;
-    dap_chain_hash_fast_t prev_hash;
-} dap_chain_state_rec_t;
-
-static const char s_chain_state_magic[8] = { 'C', 'F', 'C', 'H', 'N', 'S', 'T', '2' };
-// Built from the chain storage dir instead of looking the cell up: the cell is
-// not registered in the chain hash yet while its own file is being loaded.
-static char *s_chain_state_path(dap_chain_cs_blocks_t *a_blocks)
-{
-    const char *l_dir = dap_chain_get_path(a_blocks->chain);
-    if (!l_dir || !*l_dir)
-        return NULL;
-    return dap_strdup_printf("%s/%0" DAP_UINT64_FORMAT_x ".dchaincell.state",
-                             l_dir, a_blocks->chain->active_cell_id.uint64);
-}
-
-// Rewrites the header in place with the current tip/records counters. Called with
-// state_rwlock held after every index append (so the header always matches the
-// records) and with a_sync once per SAVE_PERIOD to fsync and trim a torn tail.
-static void s_chain_state_write_header_locked(dap_chain_cs_blocks_t *a_blocks, bool a_sync)
+static dap_chain_state_t *s_chain_state_get(dap_chain_cs_blocks_t *a_blocks)
 {
     dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
-    FILE *l_file = l_pvt->state_file;
-    if (!l_file)
-        return;
-    dap_chain_state_hdr_t l_hdr = {
-        .version = DAP_CHAIN_STATE_VERSION,
-        .header_size = sizeof(l_hdr),
-        .net_id = a_blocks->chain->net_id.uint64,
-        .cell_id = a_blocks->chain->active_cell_id.uint64,
-        .last_block_num = l_pvt->state_last_num,
-        .blocks_count = l_pvt->state_last_count,
-        .ts_saved = (uint64_t)time(NULL),
-        .records_count = l_pvt->state_records,
-        .records_crc64 = l_pvt->state_records
-                ? (l_pvt->state_crc_state ^ DAP_CHAIN_STATE_CRC_XOROUT) : 0,
-        .last_block_hash = l_pvt->state_last_hash
-    };
-    memcpy(l_hdr.magic, s_chain_state_magic, sizeof(l_hdr.magic));
-    l_hdr.crc64 = crc64((const uint8_t *)&l_hdr, sizeof(l_hdr));
-    bool l_ok = fflush(l_file) == 0
-            && fseek(l_file, 0, SEEK_SET) == 0
-            && fwrite(&l_hdr, sizeof(l_hdr), 1, l_file) == 1
-            && fflush(l_file) == 0;
-    if (l_ok && a_sync) {
-        fsync(fileno(l_file));
-        ftruncate(fileno(l_file), (off_t)(sizeof(l_hdr)
-                + l_pvt->state_records * sizeof(dap_chain_state_rec_t)));
-    }
-    fseek(l_file, 0, SEEK_END);
-}
-
-// Returns 0 when a usable index was read; otherwise a reason code for the log.
-static int s_chain_state_read(const char *a_path, uint64_t a_net_id, uint64_t a_cell_id,
-                              dap_chain_state_hdr_t *a_hdr)
-{
-    FILE *l_file = fopen(a_path, "rb");
-    if (!l_file)
-        return -1;
-    if (fread(a_hdr, sizeof(*a_hdr), 1, l_file) != 1) {
-        fclose(l_file);
-        return -2;
-    }
-    if (memcmp(a_hdr->magic, s_chain_state_magic, sizeof(a_hdr->magic))
-            || a_hdr->version != DAP_CHAIN_STATE_VERSION
-            || a_hdr->header_size != sizeof(*a_hdr))
-        { fclose(l_file); return -3; }
-    if (a_hdr->net_id != a_net_id || a_hdr->cell_id != a_cell_id || !a_hdr->last_block_num)
-        { fclose(l_file); return -4; }
-    uint64_t l_crc = a_hdr->crc64;
-    a_hdr->crc64 = 0;
-    bool l_ok = crc64((const uint8_t *)a_hdr, sizeof(*a_hdr)) == l_crc;
-    a_hdr->crc64 = l_crc;
-    if (!l_ok)
-        { fclose(l_file); return -5; }
-    // Structure: header + records_count records, nothing else.
-    if (fseek(l_file, 0, SEEK_END) != 0) {
-        fclose(l_file);
-        return -6;
-    }
-    off_t l_size = ftello(l_file);
-    if (l_size < 0 || (uint64_t)l_size != sizeof(*a_hdr)
-            + a_hdr->records_count * sizeof(dap_chain_state_rec_t)) {
-        fclose(l_file);
-        return -7;
-    }
-    if (a_hdr->records_count) {
-        // The header tip must be the last record; validates the linear chain.
-        dap_chain_state_rec_t l_last = {};
-        off_t l_off = (off_t)(sizeof(*a_hdr) + (a_hdr->records_count - 1) * sizeof(dap_chain_state_rec_t));
-        l_ok = fseek(l_file, l_off, SEEK_SET) == 0
-                && fread(&l_last, sizeof(l_last), 1, l_file) == 1
-                && l_last.num == a_hdr->last_block_num
-                && dap_hash_fast_compare(&l_last.hash, &a_hdr->last_block_hash);
-        if (!l_ok) {
-            fclose(l_file);
-            return -8;
-        }
-    }
-    fclose(l_file);
-    return 0;
+    if (!l_pvt->state)
+        l_pvt->state = dap_chain_state_create(a_blocks->chain, a_blocks->chain->active_cell_id);
+    return l_pvt->state;
 }
 
 // Called once per chain on the first atom: validate the sidecar and arm the
@@ -2499,17 +2349,15 @@ static void s_chain_state_maybe_arm(dap_chain_cs_blocks_t *a_blocks)
         }
         return;
     }
-    // The cell may not be registered yet on the very first atom - only a real
-    // attempt (a path exists) consumes the one-shot flag.
-    char *l_path = s_chain_state_path(a_blocks);
-    if (!l_path)
+    dap_chain_state_t *l_state = s_chain_state_get(a_blocks);
+    if (!l_state)
         return;
     l_pvt->state_loaded = true;
     dap_chain_state_hdr_t l_hdr = {};
-    int l_rc = s_chain_state_read(l_path, a_blocks->chain->net_id.uint64,
-                                  a_blocks->chain->active_cell_id.uint64, &l_hdr);
+    int l_rc = dap_chain_state_read(l_state, &l_hdr);
+    char *l_path = dap_chain_state_path(l_state);
     if (l_rc)
-        log_it(L_NOTICE, "Chain state: sidecar %s rejected (code %d)", l_path, l_rc);
+        log_it(L_NOTICE, "Chain state: sidecar %s rejected (code %d)", l_path ? l_path : "-", l_rc);
     if (!l_rc) {
         uint64_t l_skip_num = 0;
         dap_chain_hash_fast_t l_skip_hash = {};
@@ -2519,33 +2367,48 @@ static void s_chain_state_maybe_arm(dap_chain_cs_blocks_t *a_blocks)
                    " (no ledger snapshot anchor)", l_hdr.last_block_num);
         }
         log_it(L_NOTICE, "Chain state: index of %" DAP_UINT64_FORMAT_U " blocks verified (%s)",
-               l_hdr.records_count, l_path);
+               l_hdr.records_count, l_path ? l_path : "-");
     }
     DAP_DELETE(l_path);
 }
 
-// A fork switch makes the linear index meaningless (the main branch changed under
-// it): drop the sidecar and stop writing it for the rest of this process, so the
-// next start rebuilds a complete index from a scan.
+// A fork switch makes the linear index meaningless: drop the sidecar and stop
+// writing it for the rest of this process; the next start rebuilds it by scan.
 static void s_chain_state_reset(dap_chain_cs_blocks_t *a_blocks)
 {
     dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
-    pthread_mutex_lock(&l_pvt->state_rwlock);
-    if (l_pvt->state_file) {
-        fclose(l_pvt->state_file);
-        l_pvt->state_file = NULL;
-    }
-    char *l_path = s_chain_state_path(a_blocks);
-    if (l_path)
-        remove(l_path);
-    DAP_DELETE(l_path);
-    l_pvt->state_records = 0;
-    l_pvt->state_crc_state = DAP_CHAIN_STATE_CRC_INIT;
-    l_pvt->state_last_num = 0;
-    l_pvt->state_last_count = 0;
-    memset(&l_pvt->state_last_hash, 0, sizeof(l_pvt->state_last_hash));
-    l_pvt->state_file_failed = true;
-    pthread_mutex_unlock(&l_pvt->state_rwlock);
+    if (l_pvt->state)
+        dap_chain_state_drop(l_pvt->state);
+    l_pvt->state_loaded = true;
+}
+
+static uint64_t s_chain_state_block_offset(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
+{
+    if (!a_blocks->chain->is_mapped || !a_block_cache->block)
+        return 0;
+    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
+    if (!l_cell || !l_cell->map)
+        return 0;
+    byte_t *l_map = (byte_t *)l_cell->map;
+    byte_t *l_map_end = (byte_t *)l_cell->map_end;
+    byte_t *l_block_ptr = (byte_t *)a_block_cache->block;
+    return (l_block_ptr >= l_map && l_block_ptr < l_map_end)
+            ? (uint64_t)(l_block_ptr - l_map) : 0;
+}
+
+// Called for every accepted block. Main-branch blocks are appended to the linear
+// index; a fork block only updates the tip (one linear chain).
+static void s_chain_state_note_block(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache,
+                                     bool a_index_record)
+{
+    dap_chain_state_t *l_state = s_chain_state_get(a_blocks);
+    if (!l_state)
+        return;
+    dap_chain_state_note_block(l_state, a_block_cache->block_number,
+            atomic_load(&PVT(a_blocks)->blocks_count), (time_t)a_block_cache->ts_created,
+            a_block_cache->block_size,
+            a_index_record ? s_chain_state_block_offset(a_blocks, a_block_cache) : 0,
+            &a_block_cache->block_hash, &a_block_cache->prev_hash, a_index_record);
 }
 
 static char *s_chain_cell_path(dap_chain_t *a_chain)
@@ -2573,10 +2436,6 @@ int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_b
     pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
     size_t l_datum_index = HASH_COUNT(PVT(l_blocks)->datum_index);
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
-    char *l_path = s_chain_state_path(l_blocks);
-    dap_chain_state_hdr_t l_hdr = {};
-    int l_rc = l_path ? s_chain_state_read(l_path, a_chain->net_id.uint64,
-                                           a_chain->active_cell_id.uint64, &l_hdr) : -1;
     int l_off = snprintf(a_buf, a_buf_size,
             "chain %s/%s: blocks %" DAP_UINT64_FORMAT_U ", tx %" DAP_UINT64_FORMAT_U
             ", datum_index %zu, forks %zu\n",
@@ -2584,17 +2443,11 @@ int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_b
             atomic_load(&PVT(l_blocks)->tx_count), l_datum_index, l_forks);
     if (l_off < 0)
         l_off = 0;
-    if (!l_rc && (size_t)l_off < a_buf_size) {
-        l_off += snprintf(a_buf + l_off, a_buf_size - l_off,
-                "sidecar %s: valid, records %" DAP_UINT64_FORMAT_U ", tip %" DAP_UINT64_FORMAT_U
-                ", age %" DAP_UINT64_FORMAT_U " s\n", l_path, l_hdr.records_count,
-                l_hdr.last_block_num,
-                (uint64_t)time(NULL) > l_hdr.ts_saved ? (uint64_t)time(NULL) - l_hdr.ts_saved : 0);
-    } else if (l_off >= 0 && (size_t)l_off < a_buf_size) {
-        l_off += snprintf(a_buf + l_off, a_buf_size - l_off,
-                "sidecar %s: absent or invalid (code %d)\n", l_path ? l_path : "-", l_rc);
+    if ((size_t)l_off < a_buf_size) {
+        dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+        if (l_state)
+            dap_chain_state_info(l_state, a_buf + l_off, a_buf_size - l_off);
     }
-    DAP_DELETE(l_path);
     return 0;
 }
 
@@ -2603,11 +2456,11 @@ int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a
     if (!a_chain || !a_buf || !a_buf_size)
         return -1;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    char *l_path = l_blocks ? s_chain_state_path(l_blocks) : NULL;
+    dap_chain_state_t *l_state = l_blocks ? s_chain_state_get(l_blocks) : NULL;
     dap_chain_state_hdr_t l_hdr = {};
-    int l_rc = l_path ? s_chain_state_read(l_path, a_chain->net_id.uint64,
-                                           a_chain->active_cell_id.uint64, &l_hdr) : -1;
+    int l_rc = l_state ? dap_chain_state_read(l_state, &l_hdr) : -1;
     if (l_rc) {
+        char *l_path = l_state ? dap_chain_state_path(l_state) : NULL;
         snprintf(a_buf, a_buf_size, "sidecar %s: invalid (code %d)", l_path ? l_path : "-", l_rc);
         DAP_DELETE(l_path);
         return l_rc;
@@ -2620,10 +2473,8 @@ int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a
         snprintf(a_buf, a_buf_size,
                  "mismatch: sidecar tip %" DAP_UINT64_FORMAT_U " != in-memory tip %" DAP_UINT64_FORMAT_U,
                  l_hdr.last_block_num, l_tip);
-        DAP_DELETE(l_path);
         return -3;
     }
-    // The last record must point inside the cell file.
     char *l_cell_path = s_chain_cell_path(a_chain);
     FILE *l_cell = l_cell_path ? fopen(l_cell_path, "rb") : NULL;
     off_t l_cell_size = -1;
@@ -2635,13 +2486,13 @@ int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a
     DAP_DELETE(l_cell_path);
     if (l_cell_size < 0) {
         snprintf(a_buf, a_buf_size, "sidecar valid, but the cell file is missing");
-        DAP_DELETE(l_path);
         return -4;
     }
+    char *l_path = dap_chain_state_path(l_state);
     snprintf(a_buf, a_buf_size,
              "ok: sidecar %s, records %" DAP_UINT64_FORMAT_U ", tip %" DAP_UINT64_FORMAT_U
              ", cell file %" DAP_UINT64_FORMAT_U " bytes",
-             l_path, l_hdr.records_count, l_hdr.last_block_num, (uint64_t)l_cell_size);
+             l_path ? l_path : "-", l_hdr.records_count, l_hdr.last_block_num, (uint64_t)l_cell_size);
     DAP_DELETE(l_path);
     return 0;
 }
@@ -2649,14 +2500,8 @@ int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a
 int dap_chain_cs_blocks_state_flush(dap_chain_t *a_chain)
 {
     dap_chain_cs_blocks_t *l_blocks = a_chain ? DAP_CHAIN_CS_BLOCKS(a_chain) : NULL;
-    if (!l_blocks)
-        return -1;
-    dap_chain_cs_blocks_pvt_t *l_pvt = PVT(l_blocks);
-    pthread_mutex_lock(&l_pvt->state_rwlock);
-    if (l_pvt->state_file)
-        s_chain_state_write_header_locked(l_blocks, true);
-    pthread_mutex_unlock(&l_pvt->state_rwlock);
-    return l_pvt->state_file ? 0 : -2;
+    dap_chain_state_t *l_state = l_blocks ? s_chain_state_get(l_blocks) : NULL;
+    return l_state ? dap_chain_state_flush(l_state, true) : -1;
 }
 
 int dap_chain_cs_blocks_state_drop(dap_chain_t *a_chain)
@@ -2666,67 +2511,6 @@ int dap_chain_cs_blocks_state_drop(dap_chain_t *a_chain)
         return -1;
     s_chain_state_reset(l_blocks);
     return 0;
-}
-
-// Called for every accepted block. Main-branch blocks are appended to the linear
-// index; a fork block only updates the tip (v1 keeps one linear chain). The write
-// is buffered; the header is rewritten (with fsync) every SAVE_PERIOD seconds.
-static void s_chain_state_note_block(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache,
-                                     bool a_index_record)
-{
-    dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
-    bool l_flush = false;
-    pthread_mutex_lock(&l_pvt->state_rwlock);
-    if (a_block_cache->block_number >= l_pvt->state_last_num) {
-        l_pvt->state_last_num = a_block_cache->block_number;
-        l_pvt->state_last_hash = a_block_cache->block_hash;
-        l_pvt->state_last_count = atomic_load(&l_pvt->blocks_count);
-    }
-    if (a_index_record && a_blocks->chain->is_mapped && !l_pvt->state_file_failed) {
-        if (!l_pvt->state_file) {
-            char *l_path = s_chain_state_path(a_blocks);
-            l_pvt->state_file = l_path ? fopen(l_path, "wb") : NULL;
-            DAP_DELETE(l_path);
-            if (!l_pvt->state_file) {
-                l_pvt->state_file_failed = true;
-                log_it(L_WARNING, "Chain state: can't open the sidecar for writing");
-            } else {
-                l_pvt->state_records = 0;
-                l_pvt->state_crc_state = DAP_CHAIN_STATE_CRC_INIT;
-            }
-        }
-        if (l_pvt->state_file) {
-            dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
-            dap_chain_state_rec_t l_rec = {
-                .num = a_block_cache->block_number,
-                .ts = (uint64_t)a_block_cache->ts_created,
-                .size = a_block_cache->block_size,
-                .offset = 0,
-                .hash = a_block_cache->block_hash,
-                .prev_hash = a_block_cache->prev_hash
-            };
-            byte_t *l_map = l_cell ? (byte_t *)l_cell->map : NULL;
-            byte_t *l_map_end = l_cell ? (byte_t *)l_cell->map_end : NULL;
-            byte_t *l_block_ptr = (byte_t *)a_block_cache->block;
-            if (l_map && l_block_ptr >= l_map && l_block_ptr < l_map_end)
-                l_rec.offset = (uint64_t)(l_block_ptr - l_map);
-            // fseek(0) from the flush left the position at the end; append here.
-            if (fwrite(&l_rec, sizeof(l_rec), 1, l_pvt->state_file) == 1) {
-                l_pvt->state_crc_state = crc64_update(l_pvt->state_crc_state,
-                        (const uint8_t *)&l_rec, sizeof(l_rec));
-                l_pvt->state_records++;
-            }
-        }
-    }
-    time_t l_now = time(NULL);
-    if (l_now - l_pvt->state_last_save >= DAP_CHAIN_STATE_SAVE_PERIOD) {
-        l_pvt->state_last_save = l_now;
-        l_flush = true;
-    }
-    // Keep the header in step with the records on every block; the expensive
-    // part (fsync + trimming a torn tail) runs once per SAVE_PERIOD.
-    s_chain_state_write_header_locked(a_blocks, l_flush);
-    pthread_mutex_unlock(&l_pvt->state_rwlock);
 }
 
 /**
