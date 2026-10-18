@@ -49,6 +49,8 @@ char *dap_rpc_cache_get_or_build(dap_rpc_cache_class_t *a_class, const char *a_k
 void dap_rpc_cache_invalidate(dap_rpc_cache_class_t *a_class);
 /* Drop every entry of every class. */
 void dap_rpc_cache_invalidate_all(void);
+/* Drop every entry of the named class (no-op when it was never used). */
+void dap_rpc_cache_invalidate_name(const char *a_name);
 
 /* Human-readable counters into a_buf; returns the number of bytes written. */
 size_t dap_rpc_cache_stats(char *a_buf, size_t a_buf_size);

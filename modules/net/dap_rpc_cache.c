@@ -361,6 +361,20 @@ void dap_rpc_cache_invalidate(dap_rpc_cache_class_t *a_class)
     pthread_rwlock_unlock(&a_class->lock);
 }
 
+void dap_rpc_cache_invalidate_name(const char *a_name)
+{
+    if (!a_name)
+        return;
+    pthread_rwlock_rdlock(&s_classes_lock);
+    for (dap_rpc_cache_class_t *l_it = s_classes; l_it; l_it = l_it->next) {
+        if (!strcmp(l_it->name, a_name)) {
+            dap_rpc_cache_invalidate(l_it);
+            break;
+        }
+    }
+    pthread_rwlock_unlock(&s_classes_lock);
+}
+
 void dap_rpc_cache_invalidate_all(void)
 {
     pthread_rwlock_rdlock(&s_classes_lock);
