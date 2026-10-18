@@ -68,6 +68,7 @@ static inline bool s_ledger_cache_storage_full(void)
 }
 
 #include "dap_chain_ledger.h"
+#include "dap_rpc_cache.h"
 #include "dap_chain_ledger_snapshot.h"
 #include "dap_crc64.h"
 #include "dap_chain.h"
@@ -6124,6 +6125,76 @@ int dap_ledger_pvt_balance_update_for_addr(dap_ledger_t *a_ledger, dap_chain_add
     return 0;
 }
 
+// RPC reply cache maintenance: a transaction changes the UTXO set of every address
+// it pays to and of every address it spends from. Invalidate exactly those entries
+// (both cached classes keep the base58 address first in their keys) instead of
+// dropping whole classes on every accepted block - a class-wide drop makes the cache
+// useless on a chain that keeps producing blocks.
+static void s_ledger_rpc_cache_invalidate_addr(const char *a_addr_str,
+                                               dap_rpc_cache_class_t *a_wallet_outputs,
+                                               dap_rpc_cache_class_t *a_tx_history)
+{
+    char l_prefix[DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t)) + 2];
+    if (snprintf(l_prefix, sizeof(l_prefix), "%s|", a_addr_str) <= 0)
+        return;
+    if (a_wallet_outputs)
+        dap_rpc_cache_invalidate_prefix(a_wallet_outputs, l_prefix);
+    if (a_tx_history)
+        dap_rpc_cache_invalidate_prefix(a_tx_history, l_prefix);
+}
+
+static void s_ledger_rpc_cache_notify_tx(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+{
+    dap_rpc_cache_class_t *l_wallet_outputs = dap_rpc_cache_class_find("wallet_outputs");
+    dap_rpc_cache_class_t *l_tx_history = dap_rpc_cache_class_find("tx_history");
+    if ((!l_wallet_outputs || !dap_rpc_cache_class_has_entries(l_wallet_outputs))
+            && (!l_tx_history || !dap_rpc_cache_class_has_entries(l_tx_history)))
+        return;
+    byte_t *l_item = NULL;
+    size_t l_item_size = 0;
+    TX_ITEM_ITER_TX(l_item, l_item_size, a_tx) {
+        dap_chain_addr_t *l_addr = NULL;
+        switch ((dap_chain_tx_item_type_t)*l_item) {
+        case TX_ITEM_TYPE_OUT:
+            l_addr = &((dap_chain_tx_out_t *)l_item)->addr;
+            break;
+        case TX_ITEM_TYPE_OUT_EXT:
+            l_addr = &((dap_chain_tx_out_ext_t *)l_item)->addr;
+            break;
+        case TX_ITEM_TYPE_OUT_STD:
+            l_addr = &((dap_chain_tx_out_std_t *)l_item)->addr;
+            break;
+        case TX_ITEM_TYPE_IN: {
+            dap_chain_tx_in_t *l_in = (dap_chain_tx_in_t *)l_item;
+            dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_in->header.tx_prev_hash);
+            if (!l_prev_tx)
+                break;
+            byte_t *l_prev_item = dap_chain_datum_tx_out_get_by_out_idx(l_prev_tx, l_in->header.tx_out_prev_idx);
+            if (!l_prev_item)
+                break;
+            switch ((dap_chain_tx_item_type_t)*l_prev_item) {
+            case TX_ITEM_TYPE_OUT:
+                l_addr = &((dap_chain_tx_out_t *)l_prev_item)->addr;
+                break;
+            case TX_ITEM_TYPE_OUT_EXT:
+                l_addr = &((dap_chain_tx_out_ext_t *)l_prev_item)->addr;
+                break;
+            case TX_ITEM_TYPE_OUT_STD:
+                l_addr = &((dap_chain_tx_out_std_t *)l_prev_item)->addr;
+                break;
+            default:
+                break;
+            }
+        } break;
+        default:
+            break;
+        }
+        if (l_addr)
+            s_ledger_rpc_cache_invalidate_addr(dap_chain_addr_to_str_static(l_addr),
+                                               l_wallet_outputs, l_tx_history);
+    }
+}
+
 /**
  * @brief Add new transaction to the cache list
  * @param a_ledger
@@ -6576,6 +6647,8 @@ FIN:
         DAP_DEL_Z(l_cache_used_outs);
         DAP_DEL_Z(l_ledger_cache_group);
     }
+    if (!l_ret)
+        s_ledger_rpc_cache_notify_tx(a_ledger, a_tx);
     return l_ret;
 }
 

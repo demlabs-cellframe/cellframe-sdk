@@ -189,6 +189,32 @@ dap_rpc_cache_class_t *dap_rpc_cache_class_get(const char *a_name)
     return l_class;
 }
 
+dap_rpc_cache_class_t *dap_rpc_cache_class_find(const char *a_name)
+{
+    if (!a_name || !*a_name)
+        return NULL;
+    dap_rpc_cache_class_t *l_found = NULL;
+    pthread_rwlock_rdlock(&s_classes_lock);
+    for (dap_rpc_cache_class_t *l_it = s_classes; l_it; l_it = l_it->next) {
+        if (!strcmp(l_it->name, a_name)) {
+            l_found = l_it;
+            break;
+        }
+    }
+    pthread_rwlock_unlock(&s_classes_lock);
+    return l_found;
+}
+
+bool dap_rpc_cache_class_has_entries(dap_rpc_cache_class_t *a_class)
+{
+    if (!a_class)
+        return false;
+    pthread_rwlock_rdlock(&a_class->lock);
+    bool l_has = a_class->entries != NULL;
+    pthread_rwlock_unlock(&a_class->lock);
+    return l_has;
+}
+
 char *dap_rpc_cache_get(dap_rpc_cache_class_t *a_class, const char *a_key, size_t *a_out_len)
 {
     if (!a_class || !a_key)
@@ -373,6 +399,31 @@ void dap_rpc_cache_invalidate_name(const char *a_name)
         }
     }
     pthread_rwlock_unlock(&s_classes_lock);
+}
+
+void dap_rpc_cache_invalidate_prefix(dap_rpc_cache_class_t *a_class, const char *a_prefix)
+{
+    if (!a_class || !a_prefix || !*a_prefix)
+        return;
+    size_t l_prefix_len = strlen(a_prefix);
+    pthread_rwlock_wrlock(&a_class->lock);
+    dap_rpc_cache_entry_t *l_entry = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, a_class->entries, l_entry, l_tmp) {
+        if (!strncmp(l_entry->key, a_prefix, l_prefix_len)) {
+            a_class->cur_bytes -= l_entry->len + 1;
+            a_class->cur_items--;
+            HASH_DEL(a_class->entries, l_entry);
+            s_entry_free(l_entry);
+        }
+    }
+    pthread_rwlock_unlock(&a_class->lock);
+}
+
+void dap_rpc_cache_invalidate_prefix_name(const char *a_name, const char *a_prefix)
+{
+    dap_rpc_cache_class_t *l_class = dap_rpc_cache_class_find(a_name);
+    if (l_class)
+        dap_rpc_cache_invalidate_prefix(l_class, a_prefix);
 }
 
 void dap_rpc_cache_invalidate_all(void)

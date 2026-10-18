@@ -2301,10 +2301,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 ++PVT(l_blocks)->blocks_count;
                 HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
                 HASH_ADD_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, block_number, sizeof(l_block_cache->block_number), l_block_cache->block_number, l_block_cache);
-                // A new block changes every chain-derived RPC reply: drop the cached
-                // serialized responses whose classes depend on the chain state.
-                dap_rpc_cache_invalidate_name("wallet_outputs");
-                dap_rpc_cache_invalidate_name("tx_history");
+                // A new block changes chain-derived RPC replies. The ledger hook
+                // invalidates the per-address wallet/tx entries when the block's
+                // transactions are applied, so only the chain-wide listings are
+                // dropped here.
+                dap_rpc_cache_invalidate_prefix_name("tx_history", "all|");
                 dap_rpc_cache_invalidate_name("block_list");
                 debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
                 s_add_atom_datums_load(l_blocks, l_block_cache, &l_block_prev_hash);

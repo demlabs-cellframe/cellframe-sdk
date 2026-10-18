@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +34,10 @@ void dap_rpc_cache_deinit(void);
 
 /* Find or lazily create the class with the configured policy. */
 dap_rpc_cache_class_t *dap_rpc_cache_class_get(const char *a_name);
+/* Find an already created class without creating one (NULL when unused). */
+dap_rpc_cache_class_t *dap_rpc_cache_class_find(const char *a_name);
+/* True when the class holds at least one live entry. */
+bool dap_rpc_cache_class_has_entries(dap_rpc_cache_class_t *a_class);
 
 /* Cached payload copy (DAP_DELETE by the caller), or NULL on miss/stale. */
 char *dap_rpc_cache_get(dap_rpc_cache_class_t *a_class, const char *a_key, size_t *a_out_len);
@@ -51,6 +56,9 @@ void dap_rpc_cache_invalidate(dap_rpc_cache_class_t *a_class);
 void dap_rpc_cache_invalidate_all(void);
 /* Drop every entry of the named class (no-op when it was never used). */
 void dap_rpc_cache_invalidate_name(const char *a_name);
+/* Drop entries whose key starts with a_prefix (address-scoped invalidation). */
+void dap_rpc_cache_invalidate_prefix(dap_rpc_cache_class_t *a_class, const char *a_prefix);
+void dap_rpc_cache_invalidate_prefix_name(const char *a_name, const char *a_prefix);
 
 /* Human-readable counters into a_buf; returns the number of bytes written. */
 size_t dap_rpc_cache_stats(char *a_buf, size_t a_buf_size);
