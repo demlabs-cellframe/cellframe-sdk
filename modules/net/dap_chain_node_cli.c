@@ -515,6 +515,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "print_log [ts_after <timestamp>] [limit <line_numbers>]\n" );
 
     // Statisticss
+    dap_cli_server_cmd_add("chain", com_chain_cache, NULL, "Chain state cache management",
+            "chain cache { show | verify | save | drop state|rpc } -net <net> [-chain <chain>] [-class <name|all>]");
     dap_cli_server_cmd_add("stats", com_stats, NULL, "Print statistics",
                 "stats cpu");
 

@@ -9889,6 +9889,102 @@ int com_stats(int argc, char **a_argv, void **a_str_reply, int a_version)
 }
 
 /**
+ * @brief com_chain_cache
+ * chain cache show | verify | save | drop state|rpc [-net N] [-chain C] [-class name|all]
+ * Manages the chain-state layer (block cache/sidecar/datum index) as opposed to
+ * 'stats cache', which reports the serialized RPC reply cache.
+ */
+int com_chain_cache(int a_argc, char **a_argv, void **a_str_reply, int a_version)
+{
+    json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    int arg_index = 1;
+    if (a_argc < 3 || dap_strcmp(a_argv[1], "cache")) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                "format of command: chain cache { show | verify | save | drop state|rpc } "
+                "-net <net> [-chain <chain>] [-class <name|all>]");
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+    }
+    const char *l_sub = a_argv[2];
+    const char *l_drop_what = NULL;
+    if (!dap_strcmp(l_sub, "drop")) {
+        if (a_argc < 4) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                    "chain cache drop requires 'state' or 'rpc'");
+            return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+        }
+        l_drop_what = a_argv[3];
+        arg_index = 3;
+    } else if (dap_strcmp(l_sub, "show") && dap_strcmp(l_sub, "verify") && dap_strcmp(l_sub, "save")) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                "unknown chain cache subcommand '%s'", l_sub);
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+    }
+    const char *l_net_name = NULL, *l_chain_name = NULL, *l_class = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-class", &l_class);
+
+    // RPC-class drop does not need a network/chain.
+    if (l_drop_what && !dap_strcmp(l_drop_what, "rpc")) {
+        if (l_class && dap_strcmp(l_class, "all"))
+            dap_rpc_cache_invalidate_name(l_class);
+        else
+            dap_rpc_cache_invalidate_all();
+        char l_buf[128];
+        snprintf(l_buf, sizeof(l_buf), "rpc reply cache dropped: %s",
+                 l_class ? l_class : "all");
+        json_object *l_obj = json_object_new_object();
+        json_object_object_add(l_obj, a_version == 1 ? "RPC cache" : "rpc_cache",
+                               json_object_new_string(l_buf));
+        json_object_array_add(*a_json_arr_reply, l_obj);
+        return 0;
+    }
+    if (!l_net_name) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                "chain cache %s requires '-net <net>'", l_sub);
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if (!l_net) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                "network '%s' not found", l_net_name);
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+    }
+    dap_chain_t *l_chain = l_chain_name
+            ? dap_chain_net_get_chain_by_name(l_net, l_chain_name)
+            : dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+    if (!l_chain) {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                "chain not found (net %s, chain %s)", l_net_name, l_chain_name ? l_chain_name : "default");
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+    }
+    char l_buf[4096] = {0};
+    int l_rc;
+    if (!dap_strcmp(l_sub, "show"))
+        l_rc = dap_chain_cs_blocks_state_info(l_chain, l_buf, sizeof(l_buf));
+    else if (!dap_strcmp(l_sub, "verify"))
+        l_rc = dap_chain_cs_blocks_state_verify(l_chain, l_buf, sizeof(l_buf));
+    else if (!dap_strcmp(l_sub, "save"))
+        l_rc = dap_chain_cs_blocks_state_flush(l_chain);
+    else if (!dap_strcmp(l_drop_what, "state"))
+        l_rc = dap_chain_cs_blocks_state_drop(l_chain);
+    else {
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
+                "chain cache drop supports 'state' or 'rpc'");
+        return -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR;
+    }
+    if (!l_buf[0])
+        snprintf(l_buf, sizeof(l_buf), "%s %s/%s: %s", l_sub, l_net->pub.name, l_chain->name,
+                 l_rc == -2 && !dap_strcmp(l_sub, "save")
+                    ? "no index open yet (chain scan has not started)" : l_rc ? "failed" : "ok");
+    json_object *l_obj = json_object_new_object();
+    json_object_object_add(l_obj, a_version == 1 ? "Chain cache" : "chain_cache",
+                           json_object_new_string(l_buf));
+    json_object_array_add(*a_json_arr_reply, l_obj);
+    return l_rc ? -DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR : 0;
+}
+
+/**
  * @brief com_exit
  *
  * @param argc

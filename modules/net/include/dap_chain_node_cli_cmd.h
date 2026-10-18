@@ -506,6 +506,7 @@ int com_print_log(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 // Print statistics
 int com_stats(int a_argc, char **a_argv, void **a_str_reply, int a_version);
+int com_chain_cache(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 
 int com_exit(int a_argc, char **a_argv, void **a_str_reply, int a_version);
 

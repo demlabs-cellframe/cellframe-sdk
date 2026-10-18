@@ -3369,10 +3369,15 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             // chain and must be counted. Without this the chain-wide counter starts
             // from zero after a snapshot load (17 instead of ~650k on Backbone) and
             // every '-all' history page is misclassified as a tail page.
-            if ((l_result == 0 || l_result == DAP_LEDGER_CHECK_ALREADY_CACHED) &&
-                    a_chain && a_chain->callback_count_tx_increase) {
+            // Count a transaction that is new to the ledger, and - only during a
+            // load pass - one restored from the snapshot (ALREADY_CACHED). A live
+            // merge re-applying blocks must not count the same tx twice.
+            dap_chain_net_t *l_count_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
+            bool l_count_tx = (l_result == 0)
+                    || (l_result == DAP_LEDGER_CHECK_ALREADY_CACHED
+                        && l_count_net && dap_chain_net_get_load_mode(l_count_net));
+            if (l_count_tx && a_chain && a_chain->callback_count_tx_increase)
                 a_chain->callback_count_tx_increase(a_chain);
-            }
             return l_result;
         }
         case DAP_CHAIN_DATUM_CA:

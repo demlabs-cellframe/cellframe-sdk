@@ -113,3 +113,10 @@ dap_list_t *dap_chain_cs_blocks_get_block_signers_rewards(dap_chain_t *a_chain, 
  * @return false if the chain carries no loaded blocks.
  */
 bool dap_chain_cs_blocks_get_tip(dap_chain_t *a_chain, uint64_t *a_block_num, dap_chain_hash_fast_t *a_block_hash);
+
+// Chain cache management (the 'chain cache' CLI command). All of them answer
+// with a human-readable report and return 0 on success.
+int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size);
+int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size);
+int dap_chain_cs_blocks_state_flush(dap_chain_t *a_chain);
+int dap_chain_cs_blocks_state_drop(dap_chain_t *a_chain);

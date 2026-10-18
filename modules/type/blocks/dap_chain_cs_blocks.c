@@ -2516,6 +2516,150 @@ static void s_chain_state_maybe_arm(dap_chain_cs_blocks_t *a_blocks)
     DAP_DELETE(l_path);
 }
 
+// A fork switch makes the linear index meaningless (the main branch changed under
+// it): drop the sidecar and stop writing it for the rest of this process, so the
+// next start rebuilds a complete index from a scan.
+static void s_chain_state_reset(dap_chain_cs_blocks_t *a_blocks)
+{
+    dap_chain_cs_blocks_pvt_t *l_pvt = PVT(a_blocks);
+    pthread_mutex_lock(&l_pvt->state_rwlock);
+    if (l_pvt->state_file) {
+        fclose(l_pvt->state_file);
+        l_pvt->state_file = NULL;
+    }
+    char *l_path = s_chain_state_path(a_blocks);
+    if (l_path)
+        remove(l_path);
+    DAP_DELETE(l_path);
+    l_pvt->state_records = 0;
+    l_pvt->state_crc_state = DAP_CHAIN_STATE_CRC_INIT;
+    l_pvt->state_last_num = 0;
+    l_pvt->state_last_count = 0;
+    memset(&l_pvt->state_last_hash, 0, sizeof(l_pvt->state_last_hash));
+    l_pvt->state_file_failed = true;
+    pthread_mutex_unlock(&l_pvt->state_rwlock);
+}
+
+static char *s_chain_cell_path(dap_chain_t *a_chain)
+{
+    const char *l_dir = dap_chain_get_path(a_chain);
+    if (!l_dir || !*l_dir)
+        return NULL;
+    return dap_strdup_printf("%s/%0" DAP_UINT64_FORMAT_x ".dchaincell",
+                             l_dir, a_chain->active_cell_id.uint64);
+}
+
+int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size)
+{
+    if (!a_chain || !a_buf || !a_buf_size)
+        return -1;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    if (!l_blocks) {
+        snprintf(a_buf, a_buf_size, "chain %s is not a blocks chain", a_chain->name);
+        return -1;
+    }
+    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    uint64_t l_count = PVT(l_blocks)->blocks_count;
+    size_t l_forks = PVT(l_blocks)->forked_br_cnt;
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
+    size_t l_datum_index = HASH_COUNT(PVT(l_blocks)->datum_index);
+    pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+    char *l_path = s_chain_state_path(l_blocks);
+    dap_chain_state_hdr_t l_hdr = {};
+    int l_rc = l_path ? s_chain_state_read(l_path, a_chain->net_id.uint64,
+                                           a_chain->active_cell_id.uint64, &l_hdr) : -1;
+    int l_off = snprintf(a_buf, a_buf_size,
+            "chain %s/%s: blocks %" DAP_UINT64_FORMAT_U ", tx %" DAP_UINT64_FORMAT_U
+            ", datum_index %zu, forks %zu\n",
+            a_chain->net_name, a_chain->name, l_count,
+            atomic_load(&PVT(l_blocks)->tx_count), l_datum_index, l_forks);
+    if (l_off < 0)
+        l_off = 0;
+    if (!l_rc && (size_t)l_off < a_buf_size) {
+        l_off += snprintf(a_buf + l_off, a_buf_size - l_off,
+                "sidecar %s: valid, records %" DAP_UINT64_FORMAT_U ", tip %" DAP_UINT64_FORMAT_U
+                ", age %" DAP_UINT64_FORMAT_U " s\n", l_path, l_hdr.records_count,
+                l_hdr.last_block_num,
+                (uint64_t)time(NULL) > l_hdr.ts_saved ? (uint64_t)time(NULL) - l_hdr.ts_saved : 0);
+    } else if (l_off >= 0 && (size_t)l_off < a_buf_size) {
+        l_off += snprintf(a_buf + l_off, a_buf_size - l_off,
+                "sidecar %s: absent or invalid (code %d)\n", l_path ? l_path : "-", l_rc);
+    }
+    DAP_DELETE(l_path);
+    return 0;
+}
+
+int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size)
+{
+    if (!a_chain || !a_buf || !a_buf_size)
+        return -1;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    char *l_path = l_blocks ? s_chain_state_path(l_blocks) : NULL;
+    dap_chain_state_hdr_t l_hdr = {};
+    int l_rc = l_path ? s_chain_state_read(l_path, a_chain->net_id.uint64,
+                                           a_chain->active_cell_id.uint64, &l_hdr) : -1;
+    if (l_rc) {
+        snprintf(a_buf, a_buf_size, "sidecar %s: invalid (code %d)", l_path ? l_path : "-", l_rc);
+        DAP_DELETE(l_path);
+        return l_rc;
+    }
+    uint64_t l_tip = 0;
+    dap_hash_fast_t l_tip_hash = {};
+    if (dap_chain_cs_blocks_get_tip(a_chain, &l_tip, &l_tip_hash)
+            && (l_tip != l_hdr.last_block_num
+                || !dap_hash_fast_compare(&l_tip_hash, &l_hdr.last_block_hash))) {
+        snprintf(a_buf, a_buf_size,
+                 "mismatch: sidecar tip %" DAP_UINT64_FORMAT_U " != in-memory tip %" DAP_UINT64_FORMAT_U,
+                 l_hdr.last_block_num, l_tip);
+        DAP_DELETE(l_path);
+        return -3;
+    }
+    // The last record must point inside the cell file.
+    char *l_cell_path = s_chain_cell_path(a_chain);
+    FILE *l_cell = l_cell_path ? fopen(l_cell_path, "rb") : NULL;
+    off_t l_cell_size = -1;
+    if (l_cell) {
+        if (fseek(l_cell, 0, SEEK_END) == 0)
+            l_cell_size = ftello(l_cell);
+        fclose(l_cell);
+    }
+    DAP_DELETE(l_cell_path);
+    if (l_cell_size < 0) {
+        snprintf(a_buf, a_buf_size, "sidecar valid, but the cell file is missing");
+        DAP_DELETE(l_path);
+        return -4;
+    }
+    snprintf(a_buf, a_buf_size,
+             "ok: sidecar %s, records %" DAP_UINT64_FORMAT_U ", tip %" DAP_UINT64_FORMAT_U
+             ", cell file %" DAP_UINT64_FORMAT_U " bytes",
+             l_path, l_hdr.records_count, l_hdr.last_block_num, (uint64_t)l_cell_size);
+    DAP_DELETE(l_path);
+    return 0;
+}
+
+int dap_chain_cs_blocks_state_flush(dap_chain_t *a_chain)
+{
+    dap_chain_cs_blocks_t *l_blocks = a_chain ? DAP_CHAIN_CS_BLOCKS(a_chain) : NULL;
+    if (!l_blocks)
+        return -1;
+    dap_chain_cs_blocks_pvt_t *l_pvt = PVT(l_blocks);
+    pthread_mutex_lock(&l_pvt->state_rwlock);
+    if (l_pvt->state_file)
+        s_chain_state_write_header_locked(l_blocks, true);
+    pthread_mutex_unlock(&l_pvt->state_rwlock);
+    return l_pvt->state_file ? 0 : -2;
+}
+
+int dap_chain_cs_blocks_state_drop(dap_chain_t *a_chain)
+{
+    dap_chain_cs_blocks_t *l_blocks = a_chain ? DAP_CHAIN_CS_BLOCKS(a_chain) : NULL;
+    if (!l_blocks)
+        return -1;
+    s_chain_state_reset(l_blocks);
+    return 0;
+}
+
 // Called for every accepted block. Main-branch blocks are appended to the linear
 // index; a fork block only updates the tip (v1 keeps one linear chain). The write
 // is buffered; the header is rewritten (with fsync) every SAVE_PERIOD seconds.
@@ -2711,6 +2855,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                     PVT(l_blocks)->rwlock_writer = 0;
                     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                     if (l_fork_notify.pending) {
+                        s_chain_state_reset(l_blocks);
                         s_fork_resolved_notify(l_blocks->chain, l_fork_notify.block_before_fork_hash,
                                                l_fork_notify.reverted_blocks_list, l_fork_notify.reverted_blocks_cnt,
                                                l_fork_notify.main_blocks_cnt);
