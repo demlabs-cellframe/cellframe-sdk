@@ -2096,7 +2096,14 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
     // Evaluated once per block: this used to take the wallet-cache lock for
     // every datum of every block during a full chain scan.
     dap_chain_net_t *l_notify_net = dap_chain_net_by_id(a_blocks->chain->net_id);
-    bool l_notify = !(l_notify_net && dap_chain_net_get_load_mode(l_notify_net)
+    dap_ledger_t *l_notify_ledger = l_notify_net ? l_notify_net->pub.ledger : NULL;
+    // The restored wallet index covers the blocks up to the snapshot anchor;
+    // blocks above it (the resumed tail) are new to it and must be notified.
+    uint64_t l_skip_num = 0;
+    dap_chain_hash_fast_t l_skip_hash = {};
+    bool l_beyond_anchor = l_notify_ledger && dap_ledger_snapshot_skip_get(l_notify_ledger, &l_skip_num, &l_skip_hash)
+            && a_block_cache->block_number > l_skip_num;
+    bool l_notify = l_beyond_anchor || !(l_notify_net && dap_chain_net_get_load_mode(l_notify_net)
             && dap_chain_wallet_cache_index_restored(a_blocks->chain->net_id));
     for(size_t i=0; i<a_block_cache->datum_count && l_block_offset +sizeof(a_block_cache->block->hdr) < a_block_cache->block_size ;
         i++, l_block_offset += l_datum_size ){
