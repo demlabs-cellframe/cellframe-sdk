@@ -357,6 +357,7 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     // Atom element callbacks
     a_chain->callback_atom_add = s_callback_atom_add ;  // Accept new element in chain
     a_chain->callback_atom_verify = s_callback_atom_verify ;  // Verify new element in chain
+    a_chain->callback_restore_index = dap_chain_cs_blocks_restore_index; // No-scan startup
     a_chain->callback_atom_get_hdr_static_size = s_callback_atom_get_static_hdr_size; // Get block hdr size
 
     a_chain->callback_atom_iter_create = s_callback_atom_iter_create;
@@ -2464,8 +2465,30 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain)
     dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
     if (!l_state)
         return -2;
-    s_blocks_restore_ctx_t l_ctx = { .blocks = l_blocks,
-            .cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id) };
+    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
+    if (!l_cell || !l_cell->map || !l_cell->file_storage)
+        return -3;
+    // The index must describe the file exactly, and its tip must not be ahead of
+    // the ledger snapshot anchor (a ledger behind the index is fine: blocks above
+    // the anchor are applied by the normal live/catch-up path).
+    dap_chain_state_hdr_t l_hdr = {};
+    if (dap_chain_state_read(l_state, &l_hdr) || !l_hdr.records_count)
+        return -4;
+    dap_chain_state_rec_t l_last = {};
+    if (!dap_chain_state_last_record(l_state, &l_last))
+        return -5;
+    if (fseeko(l_cell->file_storage, 0, SEEK_END) || ftello(l_cell->file_storage) != (off_t)(l_last.offset + l_last.size))
+        return -6;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+    uint64_t l_anchor_num = 0;
+    dap_chain_hash_fast_t l_anchor_hash = {};
+    if (l_ledger && dap_ledger_snapshot_skip_get(l_ledger, &l_anchor_num, &l_anchor_hash)
+            && (l_anchor_num > l_last.num
+                || (l_anchor_num == l_last.num
+                    && !dap_hash_fast_compare(&l_anchor_hash, &l_last.hash))))
+        return -7;
+    s_blocks_restore_ctx_t l_ctx = { .blocks = l_blocks, .cell = l_cell };
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     int l_rc = dap_chain_state_for_each_record(l_state, s_blocks_restore_rec_cb, &l_ctx);
     if (!l_rc) {
@@ -2473,7 +2496,7 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain)
         a_chain->atom_num_last = l_ctx.last_num;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-    return l_rc ? -3 : (int64_t)l_ctx.count;
+    return l_rc ? -8 : (int64_t)l_ctx.count;
 }
 
 int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_atom_hash,

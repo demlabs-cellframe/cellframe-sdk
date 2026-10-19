@@ -451,6 +451,22 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         return fseeko(a_cell->file_storage, l_pos, SEEK_SET);
     }
 
+    // No-scan startup: the consensus layer rebuilds its cache from the persisted
+    // state index. It validates the index against the file size and the ledger
+    // anchor itself and refuses (<0) when anything disagrees - then the regular
+    // cell walk below runs. No cell-body reads happen on the accepted path.
+    if (a_chain->is_mapped && a_chain->callback_restore_index) {
+        int64_t l_restored = a_chain->callback_restore_index(a_chain);
+        if (l_restored >= 0) {
+            log_it(L_NOTICE, "Chain %s: restored %lld atoms from the state index (no cell scan)",
+                   a_chain->name, (long long)l_restored);
+            a_cell->map_pos = a_cell->map + l_full_size;
+            return 0;
+        }
+        log_it(L_WARNING, "Chain %s: state index refused (code %lld), scanning the cell",
+               a_chain->name, (long long)l_restored);
+    }
+
     int l_ret = 0;    
     uint64_t l_el_size = 0, q = 0;
     if (a_chain->is_mapped) {
