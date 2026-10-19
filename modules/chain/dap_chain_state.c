@@ -156,24 +156,35 @@ int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hd
         return -6;
     }
     off_t l_size = ftello(l_file);
-    if (l_size < 0 || (uint64_t)l_size != sizeof(*a_hdr)
-            + a_hdr->records_count * sizeof(dap_chain_state_rec_t)) {
+    if (l_size < 0 || (uint64_t)l_size < sizeof(*a_hdr)) {
         fclose(l_file);
         return -7;
     }
-    if (a_hdr->records_count) {
-        dap_chain_state_rec_t l_last = {};
-        off_t l_off = (off_t)(sizeof(*a_hdr)
-                + (a_hdr->records_count - 1) * sizeof(dap_chain_state_rec_t));
-        l_ok = fseek(l_file, l_off, SEEK_SET) == 0
-                && fread(&l_last, sizeof(l_last), 1, l_file) == 1
-                && l_last.num == a_hdr->last_block_num
-                && dap_hash_fast_compare(&l_last.hash, &a_hdr->last_block_hash);
-        if (!l_ok) {
-            fclose(l_file);
-            return -8;
-        }
+    // The header is flushed periodically, so the file may hold a few records it
+    // does not describe yet (a crash can also leave a torn record). Trust the
+    // records: the usable count is the file size in whole records, and the tip
+    // is the LAST record, not the header.
+    uint64_t l_records_in_file = (uint64_t)(l_size - sizeof(*a_hdr)) / sizeof(dap_chain_state_rec_t);
+    if (!l_records_in_file || a_hdr->records_count > l_records_in_file) {
+        fclose(l_file);
+        return -8;
     }
+    dap_chain_state_rec_t l_last = {};
+    off_t l_last_off = (off_t)(sizeof(*a_hdr)
+            + (l_records_in_file - 1) * sizeof(dap_chain_state_rec_t));
+    l_ok = fseek(l_file, l_last_off, SEEK_SET) == 0
+            && fread(&l_last, sizeof(l_last), 1, l_file) == 1;
+    if (!l_ok) {
+        fclose(l_file);
+        return -9;
+    }
+    if (dap_hash_fast_is_blank(&l_last.hash)) {
+        fclose(l_file);
+        return -10;
+    }
+    a_hdr->records_count = l_records_in_file;
+    a_hdr->last_block_num = l_last.num;
+    a_hdr->last_block_hash = l_last.hash;
     fclose(l_file);
     return 0;
 }
@@ -216,7 +227,12 @@ void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint
         a_state->last_save = l_now;
         l_sync = true;
     }
-    s_write_header_locked(a_state, l_sync);
+    // The header is not rewritten per block: one fflush syscall per accepted
+    // block made a full scan noticeably slower. Readers take the tip from the
+    // last record and treat the header as a lower bound, so an interval of
+    // unflushed header state is harmless.
+    if (l_sync)
+        s_write_header_locked(a_state, true);
     pthread_mutex_unlock(&a_state->lock);
 }
 

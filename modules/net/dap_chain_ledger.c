@@ -35,6 +35,7 @@
 #else
 #include <unistd.h>
 #include <sys/stat.h>
+#include <glob.h>
 #endif
 
 #include "uthash.h"
@@ -3333,7 +3334,30 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         log_it(L_WARNING, "Ledger snapshot: can't find a block chain storage dir, save skipped");
         return -1;
     }
-    char *l_tmp_path = dap_strdup_printf("%s.tmp", l_path);
+    // Remove tmp files of saves interrupted by a shutdown/kill. Only stale ones:
+    // a concurrent save may be writing its own unique tmp right now.
+#ifndef DAP_OS_WINDOWS
+    {
+        char *l_glob = dap_strdup_printf("%s.tmp.*", l_path);
+        glob_t l_matches = {0};
+        if (l_glob && glob(l_glob, 0, NULL, &l_matches) == 0) {
+            time_t l_now = time(NULL);
+            for (size_t i = 0; i < l_matches.gl_pathc; ++i) {
+                struct stat l_st = {0};
+                if (stat(l_matches.gl_pathv[i], &l_st) == 0
+                        && l_now > l_st.st_mtime && l_now - l_st.st_mtime > 600)
+                    unlink(l_matches.gl_pathv[i]);
+            }
+            globfree(&l_matches);
+        }
+        DAP_DELETE(l_glob);
+    }
+#endif
+    // Unique per save: the periodic timer and a shutdown save can overlap, and a
+    // shared "<path>.tmp" let one of them rename/remove the other's file
+    // (live: "io ok, rename -1" at shutdown).
+    char *l_tmp_path = dap_strdup_printf("%s.tmp.%d.%" DAP_UINT64_FORMAT_U, l_path,
+            (int)getpid(), (uint64_t)dap_nanotime_now());
 
     s_snapshot_buf_t l_buf = {};
     uint64_t l_n_tx = 0, l_n_balances = 0;
@@ -3551,12 +3575,30 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     bool l_ok = fwrite(&l_header, sizeof(l_header), 1, l_file) == 1
             && (!l_buf.size || fwrite(l_buf.data, l_buf.size, 1, l_file) == 1);
     if (l_ok) {
-        fflush(l_file);
-        l_ok = fsync(fileno(l_file)) == 0;
+        // A shutdown save runs inside the SIGTERM handler: fflush/fsync can be
+        // interrupted (EINTR) and must be retried instead of reporting a failure
+        // for a snapshot that was actually written.
+        l_ok = false;
+        for (int l_try = 0; l_try < 3; l_try++) {
+            errno = 0;
+            if (fflush(l_file) == 0 && fsync(fileno(l_file)) == 0) {
+                l_ok = true;
+                break;
+            }
+            if (errno != EINTR)
+                break;
+        }
     }
     fclose(l_file);
-    if (!l_ok || rename(l_tmp_path, l_path)) {
-        log_it(L_ERROR, "Ledger snapshot: save to %s failed%s", l_path, a_shutdown ? " (shutdown)" : "");
+    int l_rename_rc;
+    do {
+        errno = 0;
+        l_rename_rc = rename(l_tmp_path, l_path);
+    } while (l_rename_rc && errno == EINTR);
+    if (!l_ok || l_rename_rc) {
+        log_it(L_ERROR, "Ledger snapshot: save to %s failed%s (io %s, rename %d: %s)",
+               l_path, a_shutdown ? " (shutdown)" : "", l_ok ? "ok" : "error", l_rename_rc,
+               l_rename_rc ? dap_strerror(errno) : "-");
         remove(l_tmp_path);
         l_ret = -4;
     } else {

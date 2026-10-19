@@ -2031,6 +2031,15 @@ static int s_cmp_cfg_pri(dap_config_t *cfg1, dap_config_t *cfg2) {
 /**
  * @brief dap_chain_net_deinit
  */
+void dap_chain_net_snapshot_save_all(void)
+{
+    dap_chain_net_t *l_net = NULL, *l_tmp = NULL;
+    HASH_ITER(hh2, s_nets_by_id, l_net, l_tmp) {
+        if (l_net->pub.ledger)
+            dap_ledger_snapshot_save(l_net->pub.ledger, true);
+    }
+}
+
 void dap_chain_net_deinit()
 {
     dap_rpc_cache_deinit();

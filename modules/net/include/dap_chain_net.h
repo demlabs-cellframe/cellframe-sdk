@@ -260,6 +260,9 @@ size_t dap_chain_token_datum_list(dap_chain_t *a_chain, dap_chain_token_datum_in
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
+
+// Saves the ledger snapshot of every net (graceful shutdown). Idempotent.
+void dap_chain_net_snapshot_save_all(void);
 void dap_chain_net_announce_addr(dap_chain_net_t *a_net);
 void dap_chain_net_announce_addr_all();
 char *dap_chain_net_links_dump(dap_chain_net_t*);
