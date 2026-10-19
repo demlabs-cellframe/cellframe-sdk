@@ -2422,10 +2422,14 @@ static char *s_chain_cell_path(dap_chain_t *a_chain)
 
 int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size)
 {
-    if (!a_chain || !s_is_blocks_chain(a_chain))
+    if (!a_chain)
         return -1;
-    if (!a_chain || !a_buf || !a_buf_size)
+    if (!a_buf || !a_buf_size)
         return -1;
+    if (!s_is_blocks_chain(a_chain)) {
+        snprintf(a_buf, a_buf_size, "chain %s does not use the blocks layer", a_chain->name);
+        return -1;
+    }
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     if (!l_blocks) {
         snprintf(a_buf, a_buf_size, "chain %s is not a blocks chain", a_chain->name);
