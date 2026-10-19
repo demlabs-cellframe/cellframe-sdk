@@ -57,17 +57,7 @@ static _Thread_local bool s_no_datum_notify;
 #endif
 
 
-typedef struct dap_chain_block_datum_index {
-    dap_chain_hash_fast_t datum_hash;
-    int ret_code;
-    time_t ts_added;
-    dap_chain_block_cache_t *block_cache;
-    size_t datum_index;
-    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    dap_chain_net_srv_uid_t service_uid;
-    dap_chain_tx_tag_action_type_t action;
-    UT_hash_handle hh;
-} dap_chain_block_datum_index_t;
+
 
 struct cs_blocks_hal_item {
     dap_chain_hash_fast_t hash;
@@ -88,10 +78,8 @@ typedef struct dap_chain_cs_blocks_pvt {
     dap_chain_block_forked_branch_t **forked_branches; // list of lists with atoms in side branches
     pthread_rwlock_t forked_branches_rwlock;
 
-    // Datum search in blocks
-    dap_chain_block_datum_index_t *datum_index;
+    // Datum search in blocks (the index itself lives in dap_chain_state)
     pthread_rwlock_t datums_rwlock;
-     _Atomic uint64_t tx_count;
 
     dap_chain_hash_fast_t genesis_block_hash;
     dap_chain_hash_fast_t static_genesis_block_hash;
@@ -157,6 +145,7 @@ static bool s_chain_find_atom(dap_chain_block_cache_t* a_blocks, dap_chain_hash_
 static void s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
 static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
+static dap_chain_state_t *s_chain_state_get(dap_chain_cs_blocks_t *a_blocks);
 //    Verify new block
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
 
@@ -1968,14 +1957,8 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     
-    dap_chain_block_datum_index_t *l_datum_index = NULL, *l_datum_index_tmp = NULL;
-    pthread_rwlock_wrlock(&PVT(l_blocks)->datums_rwlock);
-    HASH_ITER(hh, PVT(l_blocks)->datum_index, l_datum_index, l_datum_index_tmp) {
-        HASH_DEL(PVT(l_blocks)->datum_index, l_datum_index);
-        DAP_DELETE(l_datum_index);
-        l_datum_index = NULL;
-    }
-    pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+    if (PVT(l_blocks)->state)
+        dap_chain_state_datums_clear(PVT(l_blocks)->state);
     dap_chain_cell_delete_all(a_chain);
 }
 
@@ -2130,23 +2113,21 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         // chain's own history became unsearchable (747k "Can't find previous
         // transaction by hash" lines on a single full Backbone replay).
         {
-            // Save datum hash -> block_hash link in hash table
-            dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
-            if (!l_datum_index) {
-            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
-                return 1;
-            }
-            l_datum_index->ts_added = time(NULL);
-            l_datum_index->block_cache = a_block_cache;
-            l_datum_index->datum_hash = *l_datum_hash;
-            l_datum_index->ret_code = l_res;
-            l_datum_index->datum_index = i;
-            l_datum_index->action = l_datum_index_data.action;
-            l_datum_index->service_uid = l_datum_index_data.uid;
-            dap_strncpy(l_datum_index->token_ticker, l_datum_index_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
-            pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
-            HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
-            pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
+            // Save datum hash -> block link in the chain-state index
+            dap_chain_state_t *l_state = s_chain_state_get(a_blocks);
+            dap_chain_state_datum_t l_datum_rec = {
+                .datum_hash = *l_datum_hash,
+                .block_hash = a_block_cache->block_hash,
+                .block_ref = a_block_cache,
+                .ts_added = time(NULL),
+                .ret_code = l_res,
+                .datum_index = i,
+                .action = l_datum_index_data.action,
+                .service_uid = l_datum_index_data.uid
+            };
+            dap_strncpy(l_datum_rec.token_ticker, l_datum_index_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+            if (l_state)
+                dap_chain_state_datum_add(l_state, &l_datum_rec);
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
             // A load pass over a snapshot-restored wallet index already holds every
             // output: replaying one notification per datum only builds the pending
@@ -2155,8 +2136,8 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             bool l_notify = !(l_notify_net && dap_chain_net_get_load_mode(l_notify_net)
                     && dap_chain_wallet_cache_index_restored(a_blocks->chain->net_id));
             if (l_notify && !s_no_datum_notify)
-                dap_chain_datum_notify(l_cell, l_datum_hash, &l_datum_index->block_cache->block_hash,
-                                   (byte_t *) l_datum_index->block_cache->block, l_datum_index->block_cache->block_size,
+                dap_chain_datum_notify(l_cell, l_datum_hash, &a_block_cache->block_hash,
+                                   (byte_t *) a_block_cache->block, a_block_cache->block_size,
                                    (byte_t *) l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
         }
     }
@@ -2180,15 +2161,16 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
             i++, l_block_offset += l_datum_size){
         dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
-        dap_chain_block_datum_index_t *l_datum_index = NULL;
         size_t l_datum_data_size = l_datum->header.data_size;
         l_datum_size = l_datum_data_size + sizeof(l_datum->header);
-        HASH_FIND(hh, PVT(a_blocks)->datum_index, l_datum_hash, sizeof(dap_hash_fast_t), l_datum_index);
-        if (l_datum_index){
-            if (l_datum_index->ret_code >= 0)
+        dap_chain_state_t *l_state = s_chain_state_get(a_blocks);
+        dap_chain_state_datum_t l_datum_rec = {};
+        bool l_found = l_state && dap_chain_state_datum_find(l_state, l_datum_hash, &l_datum_rec);
+        if (l_found){
+            if (l_datum_rec.ret_code >= 0)
                 dap_chain_datum_remove(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
             l_ret++;
-            HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
+            dap_chain_state_datum_remove(l_state, l_datum_hash);
             // notify datum removed
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
             dap_chain_datum_removed_notify(l_cell, l_datum_hash, l_datum);
@@ -2449,21 +2431,17 @@ int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_b
     uint64_t l_count = PVT(l_blocks)->blocks_count;
     size_t l_forks = PVT(l_blocks)->forked_br_cnt;
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-    pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
-    size_t l_datum_index = HASH_COUNT(PVT(l_blocks)->datum_index);
-    pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    size_t l_datum_count = l_state ? dap_chain_state_datum_count(l_state) : 0;
     int l_off = snprintf(a_buf, a_buf_size,
             "chain %s/%s: blocks %" DAP_UINT64_FORMAT_U ", tx %" DAP_UINT64_FORMAT_U
             ", datum_index %zu, forks %zu\n",
             a_chain->net_name, a_chain->name, l_count,
-            atomic_load(&PVT(l_blocks)->tx_count), l_datum_index, l_forks);
+            l_state ? dap_chain_state_tx_count_get(l_state) : 0, l_datum_count, l_forks);
     if (l_off < 0)
         l_off = 0;
-    if ((size_t)l_off < a_buf_size) {
-        dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
-        if (l_state)
-            dap_chain_state_info(l_state, a_buf + l_off, a_buf_size - l_off);
-    }
+    if ((size_t)l_off < a_buf_size && l_state)
+        dap_chain_state_info(l_state, a_buf + l_off, a_buf_size - l_off);
     return 0;
 }
 
@@ -2542,13 +2520,9 @@ int dap_chain_cs_blocks_state_drop_datums(dap_chain_t *a_chain)
     dap_chain_cs_blocks_t *l_blocks = a_chain ? DAP_CHAIN_CS_BLOCKS(a_chain) : NULL;
     if (!l_blocks)
         return -1;
-    dap_chain_block_datum_index_t *l_it = NULL, *l_tmp = NULL;
-    pthread_rwlock_wrlock(&PVT(l_blocks)->datums_rwlock);
-    HASH_ITER(hh, PVT(l_blocks)->datum_index, l_it, l_tmp) {
-        HASH_DEL(PVT(l_blocks)->datum_index, l_it);
-        DAP_DELETE(l_it);
-    }
-    pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    if (l_state)
+        dap_chain_state_datums_clear(l_state);
     return 0;
 }
 
@@ -2589,7 +2563,9 @@ int dap_chain_cs_blocks_state_rebuild(dap_chain_t *a_chain)
     }
     s_no_datum_notify = false;
     DAP_DELETE(l_blocks_arr);
-    atomic_store(&PVT(l_blocks)->tx_count, l_tx_count);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    if (l_state)
+        dap_chain_state_tx_count_set(l_state, l_tx_count);
     log_it(L_NOTICE, "Chain state: datum index rebuilt from %zu blocks (%" DAP_UINT64_FORMAT_U " tx)",
            l_count, l_tx_count);
     return 0;
@@ -3071,17 +3047,16 @@ static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, da
                                                         dap_chain_hash_fast_t *a_block_hash, int *a_ret_code)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_block_datum_index_t *l_datum_index = NULL;
-    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
-    HASH_FIND(hh, PVT(l_cs_blocks)->datum_index, a_datum_hash, sizeof (*a_datum_hash), l_datum_index);
-    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
-    if (!l_datum_index || !l_datum_index->block_cache)
+    dap_chain_state_t *l_state = s_chain_state_get(l_cs_blocks);
+    dap_chain_state_datum_t l_rec = {};
+    if (!l_state || !dap_chain_state_datum_find(l_state, a_datum_hash, &l_rec) || !l_rec.block_ref)
         return NULL;
+    dap_chain_block_cache_t *l_block = (dap_chain_block_cache_t *)l_rec.block_ref;
     if (a_block_hash)
-        *a_block_hash = l_datum_index->block_cache->block_hash;
+        *a_block_hash = l_block->block_hash;
     if (a_ret_code)
-        *a_ret_code = l_datum_index->ret_code;
-    return l_datum_index->block_cache->datum[l_datum_index->datum_index];
+        *a_ret_code = l_rec.ret_code;
+    return l_block->datum[l_rec.datum_index];
 }
 
 /**
@@ -3093,15 +3068,14 @@ static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, da
 static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash, size_t *a_block_size)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_block_datum_index_t *l_datum_index = NULL;
-    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
-    HASH_FIND(hh, PVT(l_cs_blocks)->datum_index, a_tx_hash, sizeof (*a_tx_hash), l_datum_index);
-    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
-    if (!l_datum_index)
+    dap_chain_state_t *l_state = s_chain_state_get(l_cs_blocks);
+    dap_chain_state_datum_t l_rec = {};
+    if (!l_state || !dap_chain_state_datum_find(l_state, a_tx_hash, &l_rec) || !l_rec.block_ref)
         return NULL;
+    dap_chain_block_cache_t *l_block = (dap_chain_block_cache_t *)l_rec.block_ref;
     if (a_block_size)
-        *a_block_size = l_datum_index->block_cache->block_size;
-    return l_datum_index->block_cache->block;
+        *a_block_size = l_block->block_size;
+    return l_block->block;
 }
 
 static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom_ptr, size_t a_atom_size, const char *a_hash_out_type, int a_version) {
@@ -3349,18 +3323,25 @@ static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_i
     DAP_DELETE(a_datum_iter);
 }
 
-static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_block_datum_index_t *a_datum_index)
+// Thread-local ticker storage: dap_chain_datum_iter_t keeps a bare char* to the
+// token ticker, and the record it came from is a stack copy now.
+static _Thread_local char s_datum_iter_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+
+static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, const dap_chain_state_datum_t *a_rec)
 {
-    a_datum_iter->cur_item = a_datum_index;
-    if (a_datum_index && a_datum_index->block_cache->datum) {
-        a_datum_iter->cur = a_datum_index->block_cache->datum[a_datum_index->datum_index];
+    dap_chain_block_cache_t *l_block = a_rec ? (dap_chain_block_cache_t *)a_rec->block_ref : NULL;
+    if (l_block && l_block->datum) {
+        a_datum_iter->cur = l_block->datum[a_rec->datum_index];
         a_datum_iter->cur_size = dap_chain_datum_size(a_datum_iter->cur);
-        a_datum_iter->cur_hash = &a_datum_index->datum_hash;
-        a_datum_iter->cur_atom_hash = &a_datum_index->block_cache->block_hash;
-        a_datum_iter->ret_code = a_datum_index->ret_code;
-        a_datum_iter->action = a_datum_index->action;
-        a_datum_iter->uid = a_datum_index->service_uid;    
-        a_datum_iter->token_ticker = dap_strcmp(a_datum_index->token_ticker, "0") ? a_datum_index->token_ticker : NULL;
+        // The block's datum hash array is stable for the block's lifetime.
+        a_datum_iter->cur_hash = &l_block->datum_hash[a_rec->datum_index];
+        a_datum_iter->cur_atom_hash = &l_block->block_hash;
+        a_datum_iter->ret_code = a_rec->ret_code;
+        a_datum_iter->action = a_rec->action;
+        a_datum_iter->uid = a_rec->service_uid;
+        dap_strncpy(s_datum_iter_ticker, a_rec->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+        a_datum_iter->token_ticker = dap_strcmp(s_datum_iter_ticker, "0") ? s_datum_iter_ticker : NULL;
+        a_datum_iter->cur_item = l_block;
     } else {
         a_datum_iter->cur = NULL;
         a_datum_iter->cur_hash = NULL;
@@ -3370,52 +3351,47 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->token_ticker = NULL;
         a_datum_iter->action = 0;
         a_datum_iter->uid.uint64 = 0;
+        a_datum_iter->cur_item = NULL;
     }
-    debug_if(a_datum_index && !a_datum_index->block_cache->datum, L_ERROR, "Chains was deleted with errors");
 }
 
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter)
 {
-    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
-    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
-    dap_chain_block_datum_index_t *l_datum_index = PVT(l_cs_blocks)->datum_index;
-    s_datum_iter_fill(a_datum_iter, l_datum_index);
-    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    dap_chain_state_datum_t l_rec = {};
+    s_datum_iter_fill(a_datum_iter, (l_state && dap_chain_state_datum_first(l_state, &l_rec)) ? &l_rec : NULL);
     return a_datum_iter->cur;
 }
 
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_last(dap_chain_datum_iter_t *a_datum_iter)
 {
-    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
-    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
-    //dap_chain_block_datum_index_t *l_datum_index = PVT(l_cs_blocks)->datum_index;
-    dap_chain_block_datum_index_t *l_datum_index = HASH_LAST(PVT(l_cs_blocks)->datum_index);    
-    s_datum_iter_fill(a_datum_iter, l_datum_index);
-    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    dap_chain_state_datum_t l_rec = {};
+    s_datum_iter_fill(a_datum_iter, (l_state && dap_chain_state_datum_last(l_state, &l_rec)) ? &l_rec : NULL);
     return a_datum_iter->cur;
 }
 
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter)
 {
-    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
-    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
-    dap_chain_block_datum_index_t *l_datum_index = a_datum_iter->cur_item;
-    if (l_datum_index)
-        l_datum_index = l_datum_index->hh.next;
-    s_datum_iter_fill(a_datum_iter, l_datum_index);
-    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    dap_chain_state_datum_t l_rec = {};
+    bool l_ok = l_state && a_datum_iter->cur_hash
+            && dap_chain_state_datum_next(l_state, a_datum_iter->cur_hash, &l_rec);
+    s_datum_iter_fill(a_datum_iter, l_ok ? &l_rec : NULL);
     return a_datum_iter->cur;
 }
 
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_prev(dap_chain_datum_iter_t *a_datum_iter)
 {
-    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
-    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
-    dap_chain_block_datum_index_t *l_datum_index = a_datum_iter->cur_item;
-    if (l_datum_index)
-        l_datum_index = l_datum_index->hh.prev;
-    s_datum_iter_fill(a_datum_iter, l_datum_index);
-    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    dap_chain_state_datum_t l_rec = {};
+    bool l_ok = l_state && a_datum_iter->cur_hash
+            && dap_chain_state_datum_prev(l_state, a_datum_iter->cur_hash, &l_rec);
+    s_datum_iter_fill(a_datum_iter, l_ok ? &l_rec : NULL);
     return a_datum_iter->cur;
 }
 
@@ -3664,17 +3640,20 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
 
 static uint64_t s_callback_count_txs(dap_chain_t *a_chain)
 {
-    return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count;
+    dap_chain_state_t *l_state = s_chain_state_get(DAP_CHAIN_CS_BLOCKS(a_chain));
+    return l_state ? dap_chain_state_tx_count_get(l_state) : 0;
 }
 
 static uint64_t s_callback_count_tx_increase(dap_chain_t *a_chain)
 {
-    return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count++;
+    dap_chain_state_t *l_state = s_chain_state_get(DAP_CHAIN_CS_BLOCKS(a_chain));
+    return l_state ? dap_chain_state_tx_count_add(l_state, 1) : 0;
 }
 
 static uint64_t s_callback_count_tx_decrease(dap_chain_t *a_chain)
 {
-    return PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->tx_count--;
+    dap_chain_state_t *l_state = s_chain_state_get(DAP_CHAIN_CS_BLOCKS(a_chain));
+    return l_state ? dap_chain_state_tx_count_add(l_state, -1) : 0;
 }
 
 static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
@@ -3689,21 +3668,21 @@ static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(DAP_CHAIN_CS_BLOCKS(a_chain));
-    // datum_index is mutated (HASH_ADD/HASH_DEL) under datums_rwlock from
-    // s_add_atom_datums()/s_delete_atom_datums(), so walking it must take
-    // the same lock, same as every other reader (s_callback_datum_find_by_hash() etc.)
-    pthread_rwlock_rdlock(&l_blocks_pvt->datums_rwlock);
-    for (dap_chain_block_datum_index_t *it = l_blocks_pvt->datum_index;
-                it && l_counter < l_end;
-                it = it->hh.next) {
-        dap_chain_datum_t *l_datum = it->block_cache->datum[it->datum_index];
-        if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX && l_counter++ >= l_offset) {
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-            l_list = dap_list_append(l_list, l_tx);
+    dap_chain_state_t *l_state = s_chain_state_get(DAP_CHAIN_CS_BLOCKS(a_chain));
+    if (!l_state)
+        return NULL;
+    dap_chain_state_datum_t l_rec = {};
+    bool l_ok = dap_chain_state_datum_first(l_state, &l_rec);
+    for (; l_ok && l_counter < l_end; ) {
+        dap_chain_block_cache_t *l_block = (dap_chain_block_cache_t *)l_rec.block_ref;
+        if (l_block && l_block->datum && l_rec.datum_index < l_block->datum_count) {
+            dap_chain_datum_t *l_datum = l_block->datum[l_rec.datum_index];
+            if (l_datum && l_datum->header.type_id == DAP_CHAIN_DATUM_TX && l_counter++ >= l_offset)
+                l_list = dap_list_append(l_list, (dap_chain_datum_tx_t *)l_datum->data);
         }
+        dap_chain_hash_fast_t l_hash = l_rec.datum_hash;
+        l_ok = dap_chain_state_datum_next(l_state, &l_hash, &l_rec);
     }
-    pthread_rwlock_unlock(&l_blocks_pvt->datums_rwlock);
     return l_list;
 }
 

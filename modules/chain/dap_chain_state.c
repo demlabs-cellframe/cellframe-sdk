@@ -17,6 +17,9 @@ struct dap_chain_state {
     dap_chain_t *chain;
     dap_chain_cell_id_t cell_id;
     pthread_mutex_t lock;
+    pthread_rwlock_t datums_lock;
+    dap_chain_state_datum_t *datums;
+    _Atomic uint64_t tx_count;
     FILE *file;
     uint64_t records;
     uint64_t crc_state;
@@ -42,6 +45,7 @@ dap_chain_state_t *dap_chain_state_create(dap_chain_t *a_chain, dap_chain_cell_i
     l_state->cell_id = a_cell_id;
     l_state->crc_state = DAP_CHAIN_STATE_CRC_INIT;
     pthread_mutex_init(&l_state->lock, NULL);
+    pthread_rwlock_init(&l_state->datums_lock, NULL);
     return l_state;
 }
 
@@ -54,6 +58,8 @@ void dap_chain_state_destroy(dap_chain_state_t *a_state)
         fclose(a_state->file);
     a_state->file = NULL;
     pthread_mutex_unlock(&a_state->lock);
+    dap_chain_state_datums_clear(a_state);
+    pthread_rwlock_destroy(&a_state->datums_lock);
     pthread_mutex_destroy(&a_state->lock);
     DAP_DELETE(a_state);
 }
@@ -246,6 +252,136 @@ void dap_chain_state_drop(dap_chain_state_t *a_state)
     memset(&a_state->last_hash, 0, sizeof(a_state->last_hash));
     a_state->file_failed = true;
     pthread_mutex_unlock(&a_state->lock);
+}
+
+
+void dap_chain_state_datum_add(dap_chain_state_t *a_state, const dap_chain_state_datum_t *a_rec)
+{
+    if (!a_state || !a_rec)
+        return;
+    dap_chain_state_datum_t *l_new = DAP_NEW_Z(dap_chain_state_datum_t);
+    if (!l_new)
+        return;
+    *l_new = *a_rec;
+    dap_chain_state_datum_t *l_dup = NULL;
+    pthread_rwlock_wrlock(&a_state->datums_lock);
+    HASH_FIND(hh, a_state->datums, &l_new->datum_hash, sizeof(l_new->datum_hash), l_dup);
+    if (l_dup) {
+        pthread_rwlock_unlock(&a_state->datums_lock);
+        DAP_DELETE(l_new);
+        return;
+    }
+    HASH_ADD(hh, a_state->datums, datum_hash, sizeof(l_new->datum_hash), l_new);
+    pthread_rwlock_unlock(&a_state->datums_lock);
+}
+
+bool dap_chain_state_datum_find(dap_chain_state_t *a_state, const dap_chain_hash_fast_t *a_hash,
+                                dap_chain_state_datum_t *a_out)
+{
+    if (!a_state || !a_hash || !a_out)
+        return false;
+    dap_chain_state_datum_t *l_found = NULL;
+    pthread_rwlock_rdlock(&a_state->datums_lock);
+    HASH_FIND(hh, a_state->datums, a_hash, sizeof(*a_hash), l_found);
+    if (l_found)
+        *a_out = *l_found;
+    pthread_rwlock_unlock(&a_state->datums_lock);
+    return l_found != NULL;
+}
+
+void dap_chain_state_datum_remove(dap_chain_state_t *a_state, const dap_chain_hash_fast_t *a_hash)
+{
+    if (!a_state || !a_hash)
+        return;
+    dap_chain_state_datum_t *l_found = NULL;
+    pthread_rwlock_wrlock(&a_state->datums_lock);
+    HASH_FIND(hh, a_state->datums, a_hash, sizeof(*a_hash), l_found);
+    if (l_found) {
+        HASH_DEL(a_state->datums, l_found);
+        DAP_DELETE(l_found);
+    }
+    pthread_rwlock_unlock(&a_state->datums_lock);
+}
+
+void dap_chain_state_datums_clear(dap_chain_state_t *a_state)
+{
+    if (!a_state)
+        return;
+    dap_chain_state_datum_t *l_it = NULL, *l_tmp = NULL;
+    pthread_rwlock_wrlock(&a_state->datums_lock);
+    HASH_ITER(hh, a_state->datums, l_it, l_tmp) {
+        HASH_DEL(a_state->datums, l_it);
+        DAP_DELETE(l_it);
+    }
+    pthread_rwlock_unlock(&a_state->datums_lock);
+}
+
+size_t dap_chain_state_datum_count(dap_chain_state_t *a_state)
+{
+    if (!a_state)
+        return 0;
+    pthread_rwlock_rdlock(&a_state->datums_lock);
+    size_t l_count = HASH_COUNT(a_state->datums);
+    pthread_rwlock_unlock(&a_state->datums_lock);
+    return l_count;
+}
+
+static bool s_datum_step(dap_chain_state_t *a_state, const dap_chain_hash_fast_t *a_cur,
+                         bool a_next, bool a_from_edge, dap_chain_state_datum_t *a_out)
+{
+    if (!a_state || !a_out)
+        return false;
+    dap_chain_state_datum_t *l_found = NULL, *l_step = NULL;
+    pthread_rwlock_rdlock(&a_state->datums_lock);
+    if (a_from_edge) {
+        l_step = a_next ? a_state->datums : HASH_LAST(a_state->datums);
+    } else if (a_cur) {
+        HASH_FIND(hh, a_state->datums, a_cur, sizeof(*a_cur), l_found);
+        if (l_found)
+            l_step = a_next ? l_found->hh.next : l_found->hh.prev;
+    }
+    if (l_step)
+        *a_out = *l_step;
+    pthread_rwlock_unlock(&a_state->datums_lock);
+    return l_step != NULL;
+}
+
+bool dap_chain_state_datum_first(dap_chain_state_t *a_state, dap_chain_state_datum_t *a_out)
+{
+    return s_datum_step(a_state, NULL, true, true, a_out);
+}
+
+bool dap_chain_state_datum_last(dap_chain_state_t *a_state, dap_chain_state_datum_t *a_out)
+{
+    return s_datum_step(a_state, NULL, false, true, a_out);
+}
+
+bool dap_chain_state_datum_next(dap_chain_state_t *a_state, const dap_chain_hash_fast_t *a_cur,
+                                dap_chain_state_datum_t *a_out)
+{
+    return s_datum_step(a_state, a_cur, true, false, a_out);
+}
+
+bool dap_chain_state_datum_prev(dap_chain_state_t *a_state, const dap_chain_hash_fast_t *a_cur,
+                                dap_chain_state_datum_t *a_out)
+{
+    return s_datum_step(a_state, a_cur, false, false, a_out);
+}
+
+void dap_chain_state_tx_count_set(dap_chain_state_t *a_state, uint64_t a_value)
+{
+    if (a_state)
+        atomic_store(&a_state->tx_count, a_value);
+}
+
+uint64_t dap_chain_state_tx_count_get(dap_chain_state_t *a_state)
+{
+    return a_state ? atomic_load(&a_state->tx_count) : 0;
+}
+
+uint64_t dap_chain_state_tx_count_add(dap_chain_state_t *a_state, int64_t a_delta)
+{
+    return a_state ? atomic_fetch_add(&a_state->tx_count, (uint64_t)a_delta) : 0;
 }
 
 int dap_chain_state_info(dap_chain_state_t *a_state, char *a_buf, size_t a_buf_size)

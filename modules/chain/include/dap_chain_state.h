@@ -15,7 +15,9 @@
 #include <time.h>
 
 #include "dap_chain.h"
+#include "dap_chain_common.h"
 #include "dap_hash.h"
+#include "uthash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +30,21 @@ extern "C" {
 #define DAP_CHAIN_STATE_CRC_XOROUT UINT64_C(~0)
 
 typedef struct dap_chain_state dap_chain_state_t;
+
+// Datum hash -> block link (the chain-wide datum index). block_ref is the
+// consensus layer's block object, opaque here.
+typedef struct dap_chain_state_datum {
+    dap_chain_hash_fast_t datum_hash;
+    dap_chain_hash_fast_t block_hash;
+    void *block_ref;
+    time_t ts_added;
+    int ret_code;
+    size_t datum_index;
+    char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    dap_chain_net_srv_uid_t service_uid;
+    int action;                 // dap_chain_tx_tag_action_type_t value (kept as int to avoid a net dependency)
+    UT_hash_handle hh;
+} dap_chain_state_datum_t;
 
 typedef struct DAP_PACKED dap_chain_state_hdr {
     char magic[8];
@@ -84,6 +101,27 @@ int dap_chain_state_flush(dap_chain_state_t *a_state, bool a_sync);
 // Closes and removes the sidecar and stops writing it for the rest of the
 // process (a fork switch or an explicit 'chain cache drop state').
 void dap_chain_state_drop(dap_chain_state_t *a_state);
+
+// Datum index and chain-wide transaction counter (moved here from the blocks
+// layer: both are chain-level state). add/find/remove/clear/count are safe to
+// call from any thread; find copies the record out.
+void dap_chain_state_datum_add(dap_chain_state_t *a_state, const dap_chain_state_datum_t *a_rec);
+bool dap_chain_state_datum_find(dap_chain_state_t *a_state, const dap_chain_hash_fast_t *a_hash,
+                                dap_chain_state_datum_t *a_out);
+void dap_chain_state_datum_remove(dap_chain_state_t *a_state, const dap_chain_hash_fast_t *a_hash);
+void dap_chain_state_datums_clear(dap_chain_state_t *a_state);
+size_t dap_chain_state_datum_count(dap_chain_state_t *a_state);
+// Iterator helpers over the datum index (insertion order, as before).
+bool dap_chain_state_datum_first(dap_chain_state_t *a_state, dap_chain_state_datum_t *a_out);
+bool dap_chain_state_datum_last(dap_chain_state_t *a_state, dap_chain_state_datum_t *a_out);
+bool dap_chain_state_datum_next(dap_chain_state_t *a_state, const dap_chain_hash_fast_t *a_cur,
+                                dap_chain_state_datum_t *a_out);
+bool dap_chain_state_datum_prev(dap_chain_state_t *a_state, const dap_chain_hash_fast_t *a_cur,
+                                dap_chain_state_datum_t *a_out);
+
+void dap_chain_state_tx_count_set(dap_chain_state_t *a_state, uint64_t a_value);
+uint64_t dap_chain_state_tx_count_get(dap_chain_state_t *a_state);
+uint64_t dap_chain_state_tx_count_add(dap_chain_state_t *a_state, int64_t a_delta);
 
 // One-line report of the sidecar (path, validity, records, tip, age).
 int dap_chain_state_info(dap_chain_state_t *a_state, char *a_buf, size_t a_buf_size);
