@@ -2421,6 +2421,59 @@ static char *s_chain_cell_path(dap_chain_t *a_chain)
                              l_dir, a_chain->active_cell_id.uint64);
 }
 
+typedef struct s_blocks_restore_ctx {
+    dap_chain_cs_blocks_t *blocks;
+    dap_chain_cell_t *cell;
+    uint64_t last_num;
+    uint64_t count;
+} s_blocks_restore_ctx_t;
+
+static bool s_blocks_restore_rec_cb(void *a_arg, const dap_chain_state_rec_t *a_rec)
+{
+    s_blocks_restore_ctx_t *l_ctx = (s_blocks_restore_ctx_t *)a_arg;
+    dap_chain_block_cache_t *l_bc = DAP_NEW_Z(dap_chain_block_cache_t);
+    if (!l_bc)
+        return false;
+    l_bc->block_hash = a_rec->hash;
+    dap_chain_hash_fast_to_str(&a_rec->hash, l_bc->block_hash_str, sizeof(l_bc->block_hash_str));
+    l_bc->block_size = a_rec->size;
+    l_bc->block_number = a_rec->num;
+    l_bc->ts_created = (time_t)a_rec->ts;
+    l_bc->prev_hash = a_rec->prev_hash;
+    // No body parse and no datum parse: dap_chain_block_cache_ensure() fills
+    // block/datum/datum_hash on first use.
+    l_bc->datum_count = a_rec->datum_count;
+    HASH_ADD(hh, PVT(l_ctx->blocks)->blocks, block_hash, sizeof(l_bc->block_hash), l_bc);
+    HASH_ADD_BYHASHVALUE(hh2, PVT(l_ctx->blocks)->blocks_num, block_number,
+                         sizeof(l_bc->block_number), l_bc->block_number, l_bc);
+    l_ctx->last_num = a_rec->num;
+    ++l_ctx->count;
+    return true;
+}
+
+// Builds the block cache from the chain-state index without reading the cell
+// body. The caller must have validated the index against the ledger anchor and
+// the cell file size. Returns the number of restored blocks, or <0.
+int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain)
+{
+    if (!a_chain || !s_is_blocks_chain(a_chain))
+        return -1;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    if (!l_state)
+        return -2;
+    s_blocks_restore_ctx_t l_ctx = { .blocks = l_blocks,
+            .cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id) };
+    pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+    int l_rc = dap_chain_state_for_each_record(l_state, s_blocks_restore_rec_cb, &l_ctx);
+    if (!l_rc) {
+        atomic_store(&PVT(l_blocks)->blocks_count, l_ctx.last_num);
+        a_chain->atom_num_last = l_ctx.last_num;
+    }
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    return l_rc ? -3 : (int64_t)l_ctx.count;
+}
+
 int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_atom_hash,
                                  uint32_t a_datum_idx, dap_chain_datum_t **a_datum, size_t *a_size)
 {
