@@ -2528,6 +2528,11 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain)
         return -6;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+    // The block index alone is not a no-scan state: without a COMPLETE ledger
+    // snapshot (and the explicit opt-in) the scan must run - it is what fills the
+    // ledger and replays the service side of the restored transactions.
+    if (!l_ledger || !dap_ledger_snapshot_full_apply_enabled(l_ledger))
+        return -9;
     uint64_t l_anchor_num = 0;
     dap_chain_hash_fast_t l_anchor_hash = {};
     if (l_ledger && dap_ledger_snapshot_skip_get(l_ledger, &l_anchor_num, &l_anchor_hash)
