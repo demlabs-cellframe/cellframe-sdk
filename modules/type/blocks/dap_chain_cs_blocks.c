@@ -2599,6 +2599,14 @@ int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast
     dap_chain_block_cache_t *l_bc = NULL;
     pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
     HASH_FIND(hh, PVT(l_blocks)->blocks, a_atom_hash, sizeof(*a_atom_hash), l_bc);
+    if (l_bc && !l_bc->datum) {
+        // Thin entry: parse on demand under the write lock (ensure mutates it).
+        pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+        dap_chain_block_cache_ensure(l_bc);
+        pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+        l_bc = NULL;
+        HASH_FIND(hh, PVT(l_blocks)->blocks, a_atom_hash, sizeof(*a_atom_hash), l_bc);
+    }
     if (l_bc && l_bc->datum && a_datum_idx < l_bc->datum_count && l_bc->datum[a_datum_idx]) {
         *a_datum = l_bc->datum[a_datum_idx];
         *a_size = dap_chain_datum_size(*a_datum);
@@ -3578,6 +3586,8 @@ static _Thread_local char s_datum_iter_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, const dap_chain_state_datum_t *a_rec)
 {
     dap_chain_block_cache_t *l_block = a_rec ? (dap_chain_block_cache_t *)a_rec->block_ref : NULL;
+    if (l_block && !l_block->datum)
+        dap_chain_block_cache_ensure(l_block); // thin index-restored entry
     if (l_block && l_block->datum) {
         a_datum_iter->cur = l_block->datum[a_rec->datum_index];
         a_datum_iter->cur_size = dap_chain_datum_size(a_datum_iter->cur);
