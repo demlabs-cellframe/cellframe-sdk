@@ -103,6 +103,10 @@ typedef struct dap_chain_cs_blocks_pvt {
     // snapshot is absent, so the ledger cache and the chain cache stay independent.
     dap_chain_state_t *state;
     bool state_loaded;
+    // Set when the block index was restored from the sidecar instead of a cell
+    // walk: the ledger then knows it must rebuild the datum index from its own
+    // snapshot atom links (the tail's few entries are not enough).
+    bool index_restored;
 } dap_chain_cs_blocks_pvt_t;
 
 typedef struct dap_chain_block_fork_resolved_notificator{
@@ -2507,6 +2511,11 @@ size_t dap_chain_cs_blocks_datum_index_count(dap_chain_t *a_chain)
     return l_state ? dap_chain_state_datum_count(l_state) : 0;
 }
 
+bool dap_chain_cs_blocks_index_was_restored(dap_chain_t *a_chain)
+{
+    return a_chain && s_is_blocks_chain(a_chain) && PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->index_restored;
+}
+
 void dap_chain_cs_blocks_tx_count_set(dap_chain_t *a_chain, uint64_t a_count)
 {
     if (!a_chain || !s_is_blocks_chain(a_chain))
@@ -2560,6 +2569,7 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
     if (!l_rc || (l_rc == -4 && l_ctx.have_resume)) {
         atomic_store(&PVT(l_blocks)->blocks_count, l_anchor_num);
         a_chain->atom_num_last = l_anchor_num;
+        PVT(l_blocks)->index_restored = true;
         *a_resume_offset = l_ctx.have_resume ? l_ctx.resume_offset : l_ctx.file_size;
         l_rc = 0;
     }

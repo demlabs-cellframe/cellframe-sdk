@@ -7685,7 +7685,7 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
                 break;
             }
         }
-        if (l_chain && !dap_chain_cs_blocks_datum_index_count(l_chain)) {
+        if (l_chain && dap_chain_cs_blocks_index_was_restored(l_chain)) {
             typedef struct { dap_hash_fast_t tx_hash, atom_hash; uint32_t idx; } s_link_t;
             pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
             size_t l_cap = HASH_COUNT(l_ledger_pvt->ledger_items), l_n = 0;
