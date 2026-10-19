@@ -2573,6 +2573,9 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
         return -7;
     s_blocks_restore_ctx_t l_ctx = { .blocks = l_blocks, .cell = l_cell,
             .anchor_num = l_anchor_num, .file_size = (uint64_t)(l_last.offset + l_last.size) };
+    // The chain-wide TX counter describes the whole chain, not only the ledger's
+    // items, so it comes from the index header (the tail adds its own below).
+    dap_chain_state_tx_count_set(l_state, l_hdr.tx_count);
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     int l_rc = dap_chain_state_for_each_record(l_state, s_blocks_restore_rec_cb, &l_ctx);
     // A callback stop above the anchor is the normal tail case, not an error.

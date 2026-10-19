@@ -93,6 +93,7 @@ static void s_write_header_locked(dap_chain_state_t *a_state, bool a_sync)
         .records_count = a_state->records,
         .records_crc64 = a_state->records
                 ? (a_state->crc_state ^ DAP_CHAIN_STATE_CRC_XOROUT) : 0,
+        .tx_count = atomic_load(&a_state->tx_count),
         .last_block_hash = a_state->last_hash
     };
     memcpy(l_hdr.magic, s_chain_state_magic, sizeof(l_hdr.magic));

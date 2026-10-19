@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define DAP_CHAIN_STATE_VERSION 4
+#define DAP_CHAIN_STATE_VERSION 5
 // crc64() = crc64_update(init, ...) ^ xorout with init = xorout = ~0; keeping the
 // running value lets the records CRC stay incremental.
 #define DAP_CHAIN_STATE_CRC_INIT UINT64_C(~0)
@@ -57,6 +57,7 @@ typedef struct DAP_PACKED dap_chain_state_hdr {
     uint64_t ts_saved;
     uint64_t records_count;     // block index records that follow the header
     uint64_t records_crc64;     // crc64 over all records (0 when none)
+    uint64_t tx_count;          // chain-wide TX datum counter at save time
     uint64_t crc64;             // over the whole header with crc64 zeroed
     dap_chain_hash_fast_t last_block_hash;
 } dap_chain_state_hdr_t;
