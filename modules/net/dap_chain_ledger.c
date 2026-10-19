@@ -229,6 +229,13 @@ typedef struct dap_ledger_private {
     bool snapshot_skip_active;
     uint64_t snapshot_skip_num;
     dap_chain_hash_fast_t snapshot_skip_hash;
+    // Full ledger snapshot (header flag bit2): the file carries the "ledger_state"
+    // section with tokens/emissions/stake locks/rewards/events/locked-outs.
+    // snapshot_full is set only after that section restored successfully; with
+    // snapshot_full_apply ([ledger] snapshot_full_apply) the service replay of
+    // restored transactions is suppressed because those sections are authoritative.
+    bool snapshot_full;
+    bool snapshot_full_apply;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -237,6 +244,15 @@ static void s_threshold_emissions_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_free(dap_ledger_t *a_ledger);
 static int s_sort_ledger_tx_item(dap_ledger_tx_item_t* a, dap_ledger_tx_item_t* b);
+// Defined next to the ledger cache maintenance code; the snapshot section
+// restore (further down) rebuilds the same ordered list.
+static int s_compare_locked_outs(dap_ledger_locked_out_t *a_out1, dap_ledger_locked_out_t *a_out2);
+// Ledger-state snapshot section (v3): dump/load are registered in dap_ledger_init().
+static int s_snapshot_ledger_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
+static int s_snapshot_ledger_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
+// Cache writers used when a restored record was missing from GlobalDB.
+static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
+void s_ledger_stake_lock_cache_update(dap_ledger_t *a_ledger, dap_ledger_stake_lock_item_t *a_stake_lock_item);
 
 // Arbitrage transaction helpers are now in dap_chain_arbitrage.c module
 
@@ -480,6 +496,13 @@ int dap_ledger_init()
 
     dap_chain_net_srv_uid_t l_uid_event = { .uint64 = DAP_CHAIN_NET_SRV_EVENT_ID };
     dap_ledger_service_add(l_uid_event, "event", s_tag_check_event);
+
+    // The ledger's own snapshot section: everything the restored transaction
+    // cache and balances do not carry (tokens/emissions/stake locks/rewards/
+    // events/locked-outs). Idempotent by name, so a second init is harmless.
+    dap_ledger_add_snapshot_section(DAP_LEDGER_SNAPSHOT_LEDGER_STATE_SECTION,
+            DAP_LEDGER_SNAPSHOT_SECTION_FLAG_FULL,
+            s_snapshot_ledger_state_dump, s_snapshot_ledger_state_load, NULL);
 
     return 0;
 }
@@ -3215,8 +3238,9 @@ static void s_pending_sections_clear(uint64_t a_net_id)
     pthread_mutex_unlock(&s_pending_sections_lock);
 }
 
-static void s_pending_sections_apply(uint64_t a_net_id)
+static void s_pending_sections_apply(dap_ledger_t *a_ledger)
 {
+    uint64_t a_net_id = a_ledger->net->pub.id.uint64;
     pthread_mutex_lock(&s_pending_sections_lock);
     // Take only this net's sections; another net's load end handles the rest.
     s_pending_snapshot_section_t *l_take = NULL, *l_rest = NULL;
@@ -3243,6 +3267,27 @@ static void s_pending_sections_apply(uint64_t a_net_id)
             int l_rc = l_load(l_ctx, l_it->data, l_it->size);
             log_it(l_rc ? L_WARNING : L_NOTICE, "Ledger snapshot: section '%s' %s (%zu bytes)",
                    l_it->name, l_rc ? "load failed" : "restored", l_it->size);
+            // The complete-state flag is valid only when that section actually
+            // restored: a truncated/failed ledger_state leaves the remaining
+            // state to the regular replay, which must keep running.
+            if (!dap_strcmp(l_it->name, DAP_LEDGER_SNAPSHOT_LEDGER_STATE_SECTION)) {
+                if (!l_rc) {
+                    PVT(a_ledger)->snapshot_full = true;
+                } else {
+                    // If the service replay was suppressed ([ledger] snapshot_full_apply),
+                    // this is not recoverable by replaying now - report loudly. With the
+                    // default (apply off) the scan replayed everything, so the failed
+                    // section only means the next snapshot is written from the replay.
+                    bool l_suppressed = PVT(a_ledger)->snapshot_full_apply;
+                    PVT(a_ledger)->snapshot_full = false;
+                    log_it(l_suppressed ? L_CRITICAL : L_WARNING,
+                           "Ledger snapshot: complete ledger state failed to restore (%d); %s",
+                           l_rc, l_suppressed
+                                ? "the chain scan suppressed the service replay, so polls/events/"
+                                  "rewards may be incomplete - rescan the network"
+                                : "the regular datum replay produced the service state");
+                }
+            }
         } else {
             log_it(L_INFO, "Ledger snapshot: section '%s' skipped (not registered)", l_it->name);
         }
@@ -3259,6 +3304,488 @@ static void s_pending_sections_apply(uint64_t a_net_id)
 static bool s_snapshot_wallet_section_enabled(void)
 {
     return dap_chain_wallet_cache_mode_all();
+}
+
+/* *** Snapshot section "ledger_state" (v3, full ledger snapshot) ***
+ *
+ * The transaction cache and the balances are restored by the core snapshot
+ * payload. This section carries the state that the scan does NOT rebuild for
+ * transactions already present in the restored ledger (dap_ledger_tx_load returns
+ * ALREADY_CACHED before the balance/service part of tx_add):
+ *   - stake-lock used marks (legacy IN_EMS_VIRTUAL);
+ *   - block-reward spends (IN_REWARD) - without them a reward already spent in
+ *     the restored history would pass the "already used" check again;
+ *   - service events and the event public-key allowlist;
+ *   - timed-locked outputs (OUT_STD ts_unlock) with the blockchain time they
+ *     were locked against.
+ * Tokens, token updates and emissions are NOT here: they arrive as non-TX
+ * datums, and the scan still feeds those into the ledger in every mode (the
+ * section would otherwise carry ~1 GB of one-emission-per-block-reward data).
+ * Loading is idempotent: every record is looked up before insertion, so a
+ * section restored on top of the regular replay adds only what is missing.
+ *
+ * The header flag bit2 ("complete ledger state") is set when this section is
+ * present. With [ledger] snapshot_full_apply the ledger then stops replaying the
+ * service side of restored transactions (dap_ledger_tx_load -> see
+ * s_ledger_tx_service_notify_added): polls/votes, events and rewards come from
+ * this snapshot instead of being rebuilt by the scan.
+ */
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_ledger_state_hdr {
+    uint64_t net_id;
+    uint64_t blockchain_time;
+    uint64_t cutoff_time;
+    uint64_t n_tokens;          // {current_supply[32], token_size} + datum
+    uint64_t n_token_updates;   // {updated_time, datum_size} + datum, time-ordered
+    uint64_t n_emissions;       // {hash, used_out, ts_added, datum_size} + datum
+    uint64_t n_stake_locks;     // {tx_for_stake_lock_hash, tx_used_out}
+    uint64_t n_rewards;         // {block_hash, sign_pkey_hash, spender_tx}
+    uint64_t n_events;          // {srv_uid, timestamp, tx_hash, pkey_hash, type, sizes} + blobs
+    uint64_t n_event_pkeys;     // {pkey_hash}
+    uint64_t n_locked_outs;     // {addr, value, unlock_time, ticker_len} + ticker
+} s_snapshot_ledger_state_hdr_t;
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_token_rec {
+    uint8_t current_supply[sizeof(uint256_t)];
+    uint64_t token_size;
+} s_snapshot_token_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_token_update_rec {
+    int64_t updated_time;
+    uint64_t datum_size;
+} s_snapshot_token_update_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_emission_rec {
+    uint8_t emission_hash[sizeof(dap_chain_hash_fast_t)];
+    uint8_t tx_used_out[sizeof(dap_chain_hash_fast_t)];
+    uint64_t ts_added;
+    uint64_t datum_size;
+} s_snapshot_emission_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_stake_lock_rec {
+    uint8_t tx_for_stake_lock_hash[sizeof(dap_chain_hash_fast_t)];
+    uint8_t tx_used_out[sizeof(dap_chain_hash_fast_t)];
+} s_snapshot_stake_lock_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_reward_rec {
+    uint8_t block_hash[sizeof(dap_chain_hash_fast_t)];
+    uint8_t sign_pkey_hash[sizeof(dap_chain_hash_fast_t)];
+    uint8_t spender_tx[sizeof(dap_chain_hash_fast_t)];
+} s_snapshot_reward_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_event_rec {
+    uint64_t srv_uid;
+    int64_t timestamp;
+    uint8_t tx_hash[sizeof(dap_chain_hash_fast_t)];
+    uint8_t pkey_hash[sizeof(dap_chain_hash_fast_t)];
+    uint16_t event_type;
+    uint16_t group_len;     // group_name bytes, no terminating NUL
+    uint32_t data_size;     // then group_name[group_len], event_data[data_size]
+} s_snapshot_event_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_event_pkey_rec {
+    uint8_t pkey_hash[sizeof(dap_chain_hash_fast_t)];
+} s_snapshot_event_pkey_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_locked_out_rec {
+    uint8_t addr[sizeof(dap_chain_addr_t)];
+    uint8_t value[sizeof(uint256_t)];
+    int64_t unlock_time;
+    uint16_t ticker_len;
+} s_snapshot_locked_out_rec_t;
+
+static bool s_snapshot_append(dap_string_t *a_out, const void *a_data, size_t a_size)
+{
+    return dap_string_append_len(a_out, (const char *)a_data, (ssize_t)a_size) != NULL;
+}
+
+static int s_snapshot_ledger_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+    if (!l_ledger)
+        return -1;
+    dap_ledger_private_t *l_pvt = PVT(l_ledger);
+    s_snapshot_ledger_state_hdr_t l_hdr = { .net_id = a_net_id,
+            .blockchain_time = (uint64_t)l_pvt->blockchain_time,
+            .cutoff_time = (uint64_t)l_pvt->cutoff_time };
+    dap_string_t *l_body = dap_string_new("");
+    if (!l_body)
+        return -2;
+    int l_ret = 0;
+
+    // Token declarations, token updates and emissions are deliberately NOT
+    // dumped: they are non-transaction datums and are still applied by the chain
+    // scan (dap_chain_datum_add -> token/emission load) in every mode, so the
+    // scan rebuilds them from the chain files/catch-up and the GlobalDB small
+    // groups. Dumping them would add ~1 GB (one emission per block reward) for
+    // state that is already recovered. The loader still understands the records
+    // (counts 0 from this build) so an older section stays readable.
+
+    if (!l_ret) {
+        pthread_rwlock_rdlock(&l_pvt->stake_lock_rwlock);
+        for (dap_ledger_stake_lock_item_t *l_sl = l_pvt->emissions_for_stake_lock; l_sl && !l_ret; l_sl = l_sl->hh.next) {
+            s_snapshot_stake_lock_rec_t l_rec;
+            memcpy(l_rec.tx_for_stake_lock_hash, &l_sl->tx_for_stake_lock_hash, sizeof(dap_chain_hash_fast_t));
+            memcpy(l_rec.tx_used_out, &l_sl->tx_used_out, sizeof(dap_chain_hash_fast_t));
+            if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec)))
+                l_ret = -2;
+            else
+                ++l_hdr.n_stake_locks;
+        }
+        pthread_rwlock_unlock(&l_pvt->stake_lock_rwlock);
+    }
+    if (!l_ret) {
+        pthread_rwlock_rdlock(&l_pvt->rewards_rwlock);
+        for (dap_ledger_reward_item_t *l_rw = l_pvt->rewards; l_rw && !l_ret; l_rw = l_rw->hh.next) {
+            s_snapshot_reward_rec_t l_rec;
+            memcpy(l_rec.block_hash, &l_rw->key.block_hash, sizeof(dap_chain_hash_fast_t));
+            memcpy(l_rec.sign_pkey_hash, &l_rw->key.sign_pkey_hash, sizeof(dap_chain_hash_fast_t));
+            memcpy(l_rec.spender_tx, &l_rw->spender_tx, sizeof(dap_chain_hash_fast_t));
+            if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec)))
+                l_ret = -2;
+            else
+                ++l_hdr.n_rewards;
+        }
+        pthread_rwlock_unlock(&l_pvt->rewards_rwlock);
+    }
+    if (!l_ret) {
+        pthread_rwlock_rdlock(&l_pvt->events_rwlock);
+        for (dap_ledger_event_t *l_ev = l_pvt->events; l_ev && !l_ret; l_ev = l_ev->hh.next) {
+            size_t l_group_len = l_ev->group_name ? strlen(l_ev->group_name) : 0;
+            if (l_group_len > UINT16_MAX || l_ev->event_data_size > UINT32_MAX) {
+                l_ret = -3;
+                break;
+            }
+            s_snapshot_event_rec_t l_rec = {
+                .srv_uid = l_ev->srv_uid.uint64,
+                .timestamp = l_ev->timestamp,
+                .event_type = l_ev->event_type,
+                .group_len = (uint16_t)l_group_len,
+                .data_size = (uint32_t)l_ev->event_data_size
+            };
+            memcpy(l_rec.tx_hash, &l_ev->tx_hash, sizeof(dap_chain_hash_fast_t));
+            memcpy(l_rec.pkey_hash, &l_ev->pkey_hash, sizeof(dap_chain_hash_fast_t));
+            if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec))
+                    || (l_group_len && !s_snapshot_append(l_body, l_ev->group_name, l_group_len))
+                    || (l_ev->event_data_size && !s_snapshot_append(l_body, l_ev->event_data, l_ev->event_data_size))) {
+                l_ret = -2;
+                break;
+            }
+            ++l_hdr.n_events;
+        }
+        pthread_rwlock_unlock(&l_pvt->events_rwlock);
+    }
+    if (!l_ret) {
+        pthread_rwlock_rdlock(&l_pvt->event_pkeys_rwlock);
+        for (dap_ledger_event_pkey_item_t *l_pk = l_pvt->event_pkeys_allowed; l_pk && !l_ret; l_pk = l_pk->hh.next) {
+            s_snapshot_event_pkey_rec_t l_rec;
+            memcpy(l_rec.pkey_hash, &l_pk->pkey_hash, sizeof(dap_chain_hash_fast_t));
+            if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec)))
+                l_ret = -2;
+            else
+                ++l_hdr.n_event_pkeys;
+        }
+        pthread_rwlock_unlock(&l_pvt->event_pkeys_rwlock);
+    }
+    if (!l_ret) {
+        pthread_rwlock_rdlock(&l_pvt->locked_outs_rwlock);
+        for (dap_ledger_locked_out_t *l_lo = l_pvt->locked_outs; l_lo && !l_ret; l_lo = l_lo->next) {
+            size_t l_ticker_len = strnlen(l_lo->ticker, sizeof(l_lo->ticker));
+            s_snapshot_locked_out_rec_t l_rec = {
+                .unlock_time = l_lo->unlock_time,
+                .ticker_len = (uint16_t)l_ticker_len
+            };
+            memcpy(l_rec.addr, &l_lo->addr, sizeof(dap_chain_addr_t));
+            memcpy(l_rec.value, &l_lo->value, sizeof(uint256_t));
+            if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec))
+                    || (l_ticker_len && !s_snapshot_append(l_body, l_lo->ticker, l_ticker_len))) {
+                l_ret = -2;
+                break;
+            }
+            ++l_hdr.n_locked_outs;
+        }
+        pthread_rwlock_unlock(&l_pvt->locked_outs_rwlock);
+    }
+
+    if (!l_ret && (!s_snapshot_append(a_out, &l_hdr, sizeof(l_hdr))
+            || (l_body->len && !s_snapshot_append(a_out, l_body->str, l_body->len))))
+        l_ret = -2;
+    dap_string_free(l_body, true);
+    return l_ret;
+}
+
+static int s_snapshot_ledger_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < sizeof(s_snapshot_ledger_state_hdr_t))
+        return -1;
+    s_snapshot_ledger_state_hdr_t l_hdr;
+    memcpy(&l_hdr, a_data, sizeof(l_hdr));
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_hdr.net_id });
+    dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+    if (!l_ledger)
+        return -2;
+    dap_ledger_private_t *l_pvt = PVT(l_ledger);
+    const uint8_t *l_ptr = a_data + sizeof(l_hdr), *l_end = a_data + a_size;
+    int l_ret = 0;
+
+#define SNAP_TAKE(rec_type, rec_var) \
+    if ((size_t)(l_end - l_ptr) < sizeof(rec_type)) { l_ret = -3; goto state_done; } \
+    rec_type rec_var; memcpy(&rec_var, l_ptr, sizeof(rec_var)); l_ptr += sizeof(rec_var)
+
+    // Blockchain time the locked-outs were compared against. The scan that ran
+    // before this call may have advanced it; never move it backwards.
+    if ((dap_time_t)l_hdr.blockchain_time > l_pvt->blockchain_time)
+        l_pvt->blockchain_time = (dap_time_t)l_hdr.blockchain_time;
+    if ((dap_time_t)l_hdr.cutoff_time > l_pvt->cutoff_time)
+        l_pvt->cutoff_time = (dap_time_t)l_hdr.cutoff_time;
+
+    // Token declarations. Created only when the GlobalDB token group did not
+    // provide them; an existing token keeps its (at least as new) supply.
+    for (uint64_t i = 0; i < l_hdr.n_tokens; ++i) {
+        SNAP_TAKE(s_snapshot_token_rec_t, l_rec);
+        if (l_rec.token_size < sizeof(dap_chain_datum_token_t) || l_rec.token_size > (uint64_t)(l_end - l_ptr)) {
+            l_ret = -4;
+            goto state_done;
+        }
+        const dap_chain_datum_token_t *l_datum = (const dap_chain_datum_token_t *)l_ptr;
+        char l_ticker[DAP_CHAIN_TICKER_SIZE_MAX] = {0};
+        dap_strncpy(l_ticker, l_datum->ticker, sizeof(l_ticker) - 1);
+        dap_ledger_token_item_t *l_item = NULL;
+        pthread_rwlock_rdlock(&l_pvt->tokens_rwlock);
+        HASH_FIND_STR(l_pvt->tokens, l_ticker, l_item);
+        pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
+        if (!l_item) {
+            dap_ledger_token_add(l_ledger, (byte_t *)l_ptr, (size_t)l_rec.token_size, dap_time_now());
+            pthread_rwlock_rdlock(&l_pvt->tokens_rwlock);
+            HASH_FIND_STR(l_pvt->tokens, l_ticker, l_item);
+            pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
+            if (l_item)
+                memcpy(&l_item->current_supply, l_rec.current_supply, sizeof(uint256_t));
+        }
+        l_ptr += l_rec.token_size;
+    }
+    // Token updates, in their original order. The update item is idempotent by
+    // datum hash; add only what the scan did not already apply.
+    for (uint64_t i = 0; i < l_hdr.n_token_updates; ++i) {
+        SNAP_TAKE(s_snapshot_token_update_rec_t, l_rec);
+        if (l_rec.datum_size < sizeof(dap_chain_datum_token_t) || l_rec.datum_size > (uint64_t)(l_end - l_ptr)) {
+            l_ret = -5;
+            goto state_done;
+        }
+        const dap_chain_datum_token_t *l_datum = (const dap_chain_datum_token_t *)l_ptr;
+        dap_ledger_token_item_t *l_item = NULL;
+        pthread_rwlock_rdlock(&l_pvt->tokens_rwlock);
+        HASH_FIND_STR(l_pvt->tokens, l_datum->ticker, l_item);
+        pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
+        if (l_item) {
+            dap_hash_fast_t l_update_hash = {};
+            dap_hash_fast((void *)l_ptr, (size_t)l_rec.datum_size, &l_update_hash);
+            dap_ledger_token_update_item_t *l_up = NULL;
+            pthread_rwlock_rdlock(&l_item->token_ts_updated_rwlock);
+            HASH_FIND(hh, l_item->token_ts_updated, &l_update_hash, sizeof(l_update_hash), l_up);
+            pthread_rwlock_unlock(&l_item->token_ts_updated_rwlock);
+            if (!l_up)
+                dap_ledger_token_add(l_ledger, (byte_t *)l_ptr, (size_t)l_rec.datum_size,
+                                     (dap_time_t)l_rec.updated_time);
+        }
+        l_ptr += l_rec.datum_size;
+    }
+    // Emissions: insert the item directly, like the GlobalDB emissions stage -
+    // the supply is already in the token record, re-applying it would double-count.
+    for (uint64_t i = 0; i < l_hdr.n_emissions; ++i) {
+        SNAP_TAKE(s_snapshot_emission_rec_t, l_rec);
+        if (l_rec.datum_size < sizeof(dap_chain_datum_token_emission_t)
+                || l_rec.datum_size > (uint64_t)(l_end - l_ptr)) {
+            l_ret = -6;
+            goto state_done;
+        }
+        const dap_chain_datum_token_emission_t *l_em_datum = (const dap_chain_datum_token_emission_t *)l_ptr;
+        dap_ledger_token_item_t *l_item = NULL;
+        pthread_rwlock_rdlock(&l_pvt->tokens_rwlock);
+        HASH_FIND_STR(l_pvt->tokens, l_em_datum->hdr.ticker, l_item);
+        pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
+        if (l_item) {
+            dap_hash_fast_t l_em_hash = {};
+            memcpy(&l_em_hash, l_rec.emission_hash, sizeof(l_em_hash));
+            dap_ledger_token_emission_item_t *l_exists = NULL;
+            pthread_rwlock_rdlock(&l_item->token_emissions_rwlock);
+            HASH_FIND(hh, l_item->token_emissions, &l_em_hash, sizeof(l_em_hash), l_exists);
+            pthread_rwlock_unlock(&l_item->token_emissions_rwlock);
+            if (!l_exists) {
+                dap_ledger_token_emission_item_t *l_new = DAP_NEW_Z(dap_ledger_token_emission_item_t);
+                if (!l_new) {
+                    l_ret = -7;
+                    goto state_done;
+                }
+                l_new->datum_token_emission_hash = l_em_hash;
+                memcpy(&l_new->tx_used_out, l_rec.tx_used_out, sizeof(dap_hash_fast_t));
+                l_new->datum_token_emission = DAP_DUP_SIZE((dap_chain_datum_token_emission_t *)l_ptr, l_rec.datum_size);
+                if (!l_new->datum_token_emission) {
+                    DAP_DELETE(l_new);
+                    l_ret = -7;
+                    goto state_done;
+                }
+                l_new->datum_token_emission_size = (size_t)l_rec.datum_size;
+                l_new->ts_added = (dap_nanotime_t)l_rec.ts_added;
+                pthread_rwlock_wrlock(&l_item->token_emissions_rwlock);
+                HASH_ADD(hh, l_item->token_emissions, datum_token_emission_hash,
+                         sizeof(l_em_hash), l_new);
+                pthread_rwlock_unlock(&l_item->token_emissions_rwlock);
+                // GlobalDB held no such record (otherwise it would exist here):
+                // write it back so a start without this snapshot still sees it.
+                s_ledger_emission_cache_update(l_ledger, l_new);
+            }
+        }
+        l_ptr += l_rec.datum_size;
+    }
+    for (uint64_t i = 0; i < l_hdr.n_stake_locks; ++i) {
+        SNAP_TAKE(s_snapshot_stake_lock_rec_t, l_rec);
+        dap_hash_fast_t l_hash = {};
+        memcpy(&l_hash, l_rec.tx_for_stake_lock_hash, sizeof(l_hash));
+        dap_ledger_stake_lock_item_t *l_exists = NULL;
+        pthread_rwlock_rdlock(&l_pvt->stake_lock_rwlock);
+        HASH_FIND(hh, l_pvt->emissions_for_stake_lock, &l_hash, sizeof(l_hash), l_exists);
+        pthread_rwlock_unlock(&l_pvt->stake_lock_rwlock);
+        if (!l_exists) {
+            dap_ledger_stake_lock_item_t *l_new = DAP_NEW_Z(dap_ledger_stake_lock_item_t);
+            if (!l_new) {
+                l_ret = -8;
+                goto state_done;
+            }
+            l_new->tx_for_stake_lock_hash = l_hash;
+            memcpy(&l_new->tx_used_out, l_rec.tx_used_out, sizeof(dap_chain_hash_fast_t));
+            pthread_rwlock_wrlock(&l_pvt->stake_lock_rwlock);
+            HASH_ADD(hh, l_pvt->emissions_for_stake_lock, tx_for_stake_lock_hash, sizeof(l_hash), l_new);
+            pthread_rwlock_unlock(&l_pvt->stake_lock_rwlock);
+            s_ledger_stake_lock_cache_update(l_ledger, l_new);
+        }
+    }
+    for (uint64_t i = 0; i < l_hdr.n_rewards; ++i) {
+        SNAP_TAKE(s_snapshot_reward_rec_t, l_rec);
+        dap_ledger_reward_key_t l_key = {};
+        memcpy(&l_key.block_hash, l_rec.block_hash, sizeof(dap_chain_hash_fast_t));
+        memcpy(&l_key.sign_pkey_hash, l_rec.sign_pkey_hash, sizeof(dap_chain_hash_fast_t));
+        dap_ledger_reward_item_t *l_exists = NULL;
+        pthread_rwlock_rdlock(&l_pvt->rewards_rwlock);
+        HASH_FIND(hh, l_pvt->rewards, &l_key, sizeof(l_key), l_exists);
+        pthread_rwlock_unlock(&l_pvt->rewards_rwlock);
+        if (!l_exists) {
+            dap_ledger_reward_item_t *l_new = DAP_NEW_Z(dap_ledger_reward_item_t);
+            if (!l_new) {
+                l_ret = -9;
+                goto state_done;
+            }
+            l_new->key = l_key;
+            memcpy(&l_new->spender_tx, l_rec.spender_tx, sizeof(dap_chain_hash_fast_t));
+            pthread_rwlock_wrlock(&l_pvt->rewards_rwlock);
+            HASH_ADD(hh, l_pvt->rewards, key, sizeof(l_key), l_new);
+            pthread_rwlock_unlock(&l_pvt->rewards_rwlock);
+        }
+    }
+    for (uint64_t i = 0; i < l_hdr.n_events; ++i) {
+        SNAP_TAKE(s_snapshot_event_rec_t, l_rec);
+        if ((size_t)(l_end - l_ptr) < (size_t)l_rec.group_len + l_rec.data_size) {
+            l_ret = -10;
+            goto state_done;
+        }
+        dap_hash_fast_t l_tx_hash = {};
+        memcpy(&l_tx_hash, l_rec.tx_hash, sizeof(l_tx_hash));
+        dap_ledger_event_t *l_exists = NULL;
+        pthread_rwlock_rdlock(&l_pvt->events_rwlock);
+        HASH_FIND(hh, l_pvt->events, &l_tx_hash, sizeof(l_tx_hash), l_exists);
+        pthread_rwlock_unlock(&l_pvt->events_rwlock);
+        if (!l_exists) {
+            dap_ledger_event_t *l_new = DAP_NEW_Z(dap_ledger_event_t);
+            if (!l_new) {
+                l_ret = -11;
+                goto state_done;
+            }
+            l_new->srv_uid.uint64 = l_rec.srv_uid;
+            l_new->timestamp = (dap_time_t)l_rec.timestamp;
+            l_new->tx_hash = l_tx_hash;
+            memcpy(&l_new->pkey_hash, l_rec.pkey_hash, sizeof(dap_chain_hash_fast_t));
+            l_new->event_type = l_rec.event_type;
+            if (l_rec.group_len) {
+                l_new->group_name = DAP_NEW_Z_SIZE(char, (size_t)l_rec.group_len + 1);
+                if (!l_new->group_name) {
+                    DAP_DELETE(l_new);
+                    l_ret = -11;
+                    goto state_done;
+                }
+                memcpy(l_new->group_name, l_ptr, l_rec.group_len);
+            }
+            l_ptr += l_rec.group_len;
+            if (l_rec.data_size) {
+                l_new->event_data = DAP_DUP_SIZE((void *)l_ptr, l_rec.data_size);
+                if (!l_new->event_data) {
+                    DAP_DEL_Z(l_new->group_name);
+                    DAP_DELETE(l_new);
+                    l_ret = -11;
+                    goto state_done;
+                }
+                l_new->event_data_size = l_rec.data_size;
+            }
+            l_ptr += l_rec.data_size;
+            pthread_rwlock_wrlock(&l_pvt->events_rwlock);
+            HASH_ADD(hh, l_pvt->events, tx_hash, sizeof(l_tx_hash), l_new);
+            pthread_rwlock_unlock(&l_pvt->events_rwlock);
+        } else {
+            l_ptr += (size_t)l_rec.group_len + l_rec.data_size;
+        }
+    }
+    for (uint64_t i = 0; i < l_hdr.n_event_pkeys; ++i) {
+        SNAP_TAKE(s_snapshot_event_pkey_rec_t, l_rec);
+        dap_hash_fast_t l_hash = {};
+        memcpy(&l_hash, l_rec.pkey_hash, sizeof(l_hash));
+        dap_ledger_event_pkey_item_t *l_exists = NULL;
+        pthread_rwlock_rdlock(&l_pvt->event_pkeys_rwlock);
+        HASH_FIND(hh, l_pvt->event_pkeys_allowed, &l_hash, sizeof(l_hash), l_exists);
+        pthread_rwlock_unlock(&l_pvt->event_pkeys_rwlock);
+        if (!l_exists) {
+            dap_ledger_event_pkey_item_t *l_new = DAP_NEW_Z(dap_ledger_event_pkey_item_t);
+            if (!l_new) {
+                l_ret = -12;
+                goto state_done;
+            }
+            l_new->pkey_hash = l_hash;
+            pthread_rwlock_wrlock(&l_pvt->event_pkeys_rwlock);
+            HASH_ADD(hh, l_pvt->event_pkeys_allowed, pkey_hash, sizeof(l_hash), l_new);
+            pthread_rwlock_unlock(&l_pvt->event_pkeys_rwlock);
+        }
+    }
+    // Timed-locked outputs are NEVER recreated by the datum replay of a
+    // snapshot-restored ledger: tx_add() returns ALREADY_CACHED before its
+    // output loop, so this section is the only source for them.
+    for (uint64_t i = 0; i < l_hdr.n_locked_outs; ++i) {
+        SNAP_TAKE(s_snapshot_locked_out_rec_t, l_rec);
+        if (l_rec.ticker_len >= DAP_CHAIN_TICKER_SIZE_MAX || (size_t)(l_end - l_ptr) < l_rec.ticker_len) {
+            l_ret = -13;
+            goto state_done;
+        }
+        dap_ledger_locked_out_t *l_new = DAP_NEW_Z(dap_ledger_locked_out_t);
+        if (!l_new) {
+            l_ret = -13;
+            goto state_done;
+        }
+        memcpy(&l_new->addr, l_rec.addr, sizeof(dap_chain_addr_t));
+        memcpy(&l_new->value, l_rec.value, sizeof(uint256_t));
+        memcpy(l_new->ticker, l_ptr, l_rec.ticker_len);
+        l_new->unlock_time = (dap_time_t)l_rec.unlock_time;
+        l_ptr += l_rec.ticker_len;
+        pthread_rwlock_wrlock(&l_pvt->locked_outs_rwlock);
+        LL_INSERT_INORDER(l_pvt->locked_outs, l_new, s_compare_locked_outs);
+        pthread_rwlock_unlock(&l_pvt->locked_outs_rwlock);
+    }
+    if (l_ptr != l_end)
+        log_it(L_WARNING, "Ledger snapshot: ledger_state section has %zu trailing bytes ignored",
+               (size_t)(l_end - l_ptr));
+
+state_done:
+#undef SNAP_TAKE
+    return l_ret;
 }
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_balance_record {
@@ -3309,6 +3836,16 @@ static char *s_snapshot_file_path(dap_ledger_t *a_ledger)
 bool dap_ledger_snapshot_mode(dap_ledger_t *a_ledger)
 {
     return a_ledger && PVT(a_ledger)->snapshot_mode;
+}
+
+bool dap_ledger_snapshot_is_full(dap_ledger_t *a_ledger)
+{
+    return a_ledger && PVT(a_ledger)->snapshot_full;
+}
+
+bool dap_ledger_snapshot_full_apply_enabled(dap_ledger_t *a_ledger)
+{
+    return a_ledger && PVT(a_ledger)->snapshot_full && PVT(a_ledger)->snapshot_full_apply;
 }
 
 int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
@@ -3512,6 +4049,7 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     // Extension sections (v3): registered services dump their data after the
     // wallet section; the ledger core does not interpret it.
     uint32_t l_n_sections = 0;
+    bool l_full_state = false;
     if (!l_ret) {
         dap_ledger_snapshot_section_desc_t l_descs[DAP_LEDGER_SNAPSHOT_MAX_SECTIONS] = {};
         s_snapshot_buf_t l_sections_buf = {};
@@ -3536,6 +4074,10 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
             dap_string_free(l_data, true);
             if (l_ret)
                 break;
+            // Header bit2: this file carries the complete ledger state, not only
+            // the transaction cache and balances.
+            if (l_sec->flags & DAP_LEDGER_SNAPSHOT_SECTION_FLAG_FULL)
+                l_full_state = true;
             ++l_n_sections;
         }
         pthread_mutex_unlock(&s_snapshot_sections_lock);
@@ -3565,7 +4107,8 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     l_header.n_balances = l_n_balances;
     l_header.payload_size = l_buf.size;
     l_header.crc64 = crc64(l_buf.data, l_buf.size);
-    l_header.flags = (l_n_wallet_outs ? 0x1u : 0u) | (l_n_sections ? 0x2u : 0u);
+    l_header.flags = (l_n_wallet_outs ? 0x1u : 0u) | (l_n_sections ? 0x2u : 0u)
+            | (l_full_state ? 0x4u : 0u);
     l_header.n_wallet_outs = l_n_wallet_outs;
     l_header.n_sections = l_n_sections;
     // Anchor the snapshot to the block chain position it was taken at: on the
@@ -3804,6 +4347,14 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             l_ret = 0;
             break;
         }
+        // Header flag bit2: the file carries the complete ledger state. This must
+        // be known BEFORE the chain scan starts (that is where the service replay
+        // of the restored transactions is suppressed); the section itself is
+        // applied later, at load end, and clears the flag if the restore fails.
+        l_ledger_pvt->snapshot_full = (l_header.flags & 0x4u) != 0;
+        if (l_ledger_pvt->snapshot_full && l_ledger_pvt->snapshot_full_apply)
+            log_it(L_NOTICE, "Ledger snapshot: %s is a complete ledger state, service replay of "
+                   "the restored transactions is suppressed", l_path);
         // An empty tx section with non-empty balances is not a coherent state:
         // the balances are aggregates over the history those items describe,
         // and the scan would re-apply every delta on top of them. (This is the
@@ -4174,7 +4725,14 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         l_ledger_pvt->snapshot_save_timer = dap_interval_timer_create(
                 l_ledger_pvt->snapshot_interval_sec * 1000u,
                 (dap_timer_callback_t)s_snapshot_save_timer_tick, l_ledger);
-        log_it(L_NOTICE, "Ledger snapshot cache enabled (save interval %u s)", l_ledger_pvt->snapshot_interval_sec);
+        // Full snapshot: the "ledger_state" section is always written, but its
+        // authoritative use (no service replay of restored transactions) is opt-in
+        // until the equivalence runner has compared a scan-only replica with a
+        // snapshot-restored one.
+        l_ledger_pvt->snapshot_full_apply =
+                dap_config_get_item_bool_default(g_config, "ledger", "snapshot_full_apply", false);
+        log_it(L_NOTICE, "Ledger snapshot cache enabled (save interval %u s, full apply %s)",
+               l_ledger_pvt->snapshot_interval_sec, l_ledger_pvt->snapshot_full_apply ? "on" : "off");
     }
     if (l_ledger_pvt->threshold_enabled)
         l_ledger_pvt->threshold_txs_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
@@ -4551,6 +5109,10 @@ int dap_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emissi
     }
     l_token_emission_item->datum_token_emission = l_emission;
     l_token_emission_item->datum_token_emission_hash = *a_emission_hash;
+    // Not a cosmetic field: the GlobalDB emissions cache record and the ledger
+    // snapshot section are built from it. Without it every live-added emission
+    // was cached as a bare hash and the snapshot could not restore it.
+    l_token_emission_item->datum_token_emission_size = a_token_emission_size;
     HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash, sizeof(*a_emission_hash), l_token_emission_item);
     //Update value in ledger memory object
     if (!s_ledger_token_supply_check_update(a_ledger, l_token_item, l_emission->hdr.value, false)) {
@@ -6957,7 +7519,7 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     // Deferred snapshot sections: the chain data they may consult is attached now.
-    s_pending_sections_apply(a_ledger->net->pub.id.uint64);
+    s_pending_sections_apply(a_ledger);
     // The cell-scan window is over: disarm the snapshot chain-scan skip. It
     // must not survive into the network phase - the zone accepts blocks
     // without verification, and if the scan ended below the snapshot anchor
@@ -7462,7 +8024,15 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
         // regular add path would have made (see s_ledger_tx_service_notify_added above).
         // Outside ledger_rwlock on purpose: the callbacks take the service locks and may
         // re-enter the ledger through its read paths.
-        if (l_restored_completed)
+        //
+        // A COMPLETE snapshot ([ledger] snapshot_full_apply, ledger_state section
+        // restored) already carries that service state - polls/votes, events,
+        // rewards, conditional-service records - so replaying the covered
+        // transactions would apply it twice (a restored vote is not idempotent by
+        // itself). Only the blocks above the snapshot anchor are new to the
+        // ledger and take the regular dap_ledger_tx_add() path.
+        if (l_restored_completed
+                && !(PVT(a_ledger)->snapshot_full && PVT(a_ledger)->snapshot_full_apply))
             s_ledger_tx_service_notify_added(a_ledger, a_tx, a_tx_hash);
         return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
@@ -7603,6 +8173,51 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
     pthread_rwlock_unlock(&l_ledger_pvt->stake_lock_rwlock);
 
+    // Service-side state that the snapshot's ledger_state section restores:
+    // a purge/reload must drop it as well, or the reloaded ledger keeps events,
+    // reward spends and timed locks of the state that was just discarded.
+    pthread_rwlock_wrlock(&l_ledger_pvt->rewards_rwlock);
+    dap_ledger_reward_item_t *l_reward_current, *l_reward_tmp;
+    HASH_ITER(hh, l_ledger_pvt->rewards, l_reward_current, l_reward_tmp) {
+        HASH_DEL(l_ledger_pvt->rewards, l_reward_current);
+        DAP_DELETE(l_reward_current);
+    }
+    l_ledger_pvt->rewards = NULL;
+    pthread_rwlock_unlock(&l_ledger_pvt->rewards_rwlock);
+
+    pthread_rwlock_wrlock(&l_ledger_pvt->events_rwlock);
+    dap_ledger_event_t *l_event_current, *l_event_tmp;
+    HASH_ITER(hh, l_ledger_pvt->events, l_event_current, l_event_tmp) {
+        HASH_DEL(l_ledger_pvt->events, l_event_current);
+        DAP_DEL_Z(l_event_current->group_name);
+        DAP_DEL_Z(l_event_current->event_data);
+        DAP_DELETE(l_event_current);
+    }
+    l_ledger_pvt->events = NULL;
+    pthread_rwlock_unlock(&l_ledger_pvt->events_rwlock);
+
+    pthread_rwlock_wrlock(&l_ledger_pvt->event_pkeys_rwlock);
+    dap_ledger_event_pkey_item_t *l_pkey_current, *l_pkey_tmp;
+    HASH_ITER(hh, l_ledger_pvt->event_pkeys_allowed, l_pkey_current, l_pkey_tmp) {
+        HASH_DEL(l_ledger_pvt->event_pkeys_allowed, l_pkey_current);
+        DAP_DELETE(l_pkey_current);
+    }
+    l_ledger_pvt->event_pkeys_allowed = NULL;
+    pthread_rwlock_unlock(&l_ledger_pvt->event_pkeys_rwlock);
+
+    pthread_rwlock_wrlock(&l_ledger_pvt->locked_outs_rwlock);
+    dap_ledger_locked_out_t *l_lo_current, *l_lo_tmp;
+    LL_FOREACH_SAFE(l_ledger_pvt->locked_outs, l_lo_current, l_lo_tmp) {
+        LL_DELETE(l_ledger_pvt->locked_outs, l_lo_current);
+        DAP_DELETE(l_lo_current);
+    }
+    LL_FOREACH_SAFE(l_ledger_pvt->reverse_list, l_lo_current, l_lo_tmp) {
+        LL_DELETE(l_ledger_pvt->reverse_list, l_lo_current);
+        DAP_DELETE(l_lo_current);
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->locked_outs_rwlock);
+
+    l_ledger_pvt->snapshot_full = false;
     l_ledger_pvt->load_end = false;
 }
 

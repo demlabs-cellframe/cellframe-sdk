@@ -102,6 +102,13 @@ typedef struct dap_ledger_tx_item {
     dap_chain_datum_tx_t *tx;
     dap_nanotime_t ts_added;
     UT_hash_handle hh;
+    // Snapshot v4 atom link: where the datum of a restored (datum-less) item
+    // lives, so it can be attached lazily from the block index without a chain
+    // scan. Zero for items created live (their datum is already attached).
+    dap_chain_hash_fast_t atom_hash;
+    uint32_t datum_index;
+    uint32_t atom_link_valid;
+    // Must stay last: flexible array member (spent-outs list).
     dap_ledger_tx_cache_t cache_data;
 } dap_ledger_tx_item_t;
 

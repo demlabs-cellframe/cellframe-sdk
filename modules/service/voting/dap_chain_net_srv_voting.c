@@ -56,6 +56,10 @@ typedef enum {
 
 typedef struct dap_chain_net_voting_params_offsets{
     dap_chain_datum_tx_t* voting_tx;
+    // true when voting_tx is a private copy (a poll rebuilt from a snapshot
+    // section whose block is not in the local cell files); the ledger owns
+    // every other datum and frees it itself.
+    bool voting_tx_owned;
     size_t voting_question_offset;
     size_t voting_question_length;
     dap_list_t *option_offsets_list;
@@ -245,10 +249,14 @@ static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
 
 static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
 
-// Snapshot section "polls": the list of polls per net. Votes are not dumped:
-// the scan re-applies every VOTE transaction, and a vote re-application is not
-// idempotent by itself, so restoring them twice would double the tally.
-// The section still makes a poll survive a start whose datums are not replayed.
+// Snapshot section "polls": the list of polls per net plus their final vote
+// state (votes, tally, spent conditional outs) in a trailer. A vote replay is
+// not idempotent by itself, so votes are restored only for polls that the
+// section had to CREATE (the replay did not produce them): in that case no vote
+// transaction of the covered range ran, and the trailer is the only source.
+// For polls the datum replay already created, restoring the trailer would have
+// to guess whether a covered vote is still current (vote changing, cancels), so
+// it is skipped - the replay is authoritative there.
 typedef struct DAP_PACKED s_snapshot_poll_rec {
     dap_chain_hash_fast_t voting_hash;
     uint64_t net_id;
@@ -257,16 +265,80 @@ typedef struct DAP_PACKED s_snapshot_poll_rec {
     uint32_t options_count;
 } s_snapshot_poll_rec_t;
 
+// Trailer after the fixed records. An older snapshot has no trailer at all;
+// the loader then stops after the poll records (remainder < trailer size).
+// VOT2 carried states/votes/cond-outs; VOT3 adds the voting transaction datums,
+// so a poll can be rebuilt from the section alone - without them a poll whose
+// block is not yet in the local cell files (the scan ended below the snapshot
+// anchor) could not be created when the full-apply mode suppresses the replay.
+#define S_SNAPSHOT_POLLS_TRAILER_MAGIC_V2 0x32544f56u   // "VOT2"
+#define S_SNAPSHOT_POLLS_TRAILER_MAGIC    0x33544f56u   // "VOT3"
+typedef struct DAP_PACKED s_snapshot_polls_trailer_base {
+    uint32_t magic;
+    uint32_t n_states;
+    uint32_t n_votes;
+    uint32_t n_cond_outs;
+} s_snapshot_polls_trailer_base_t;
+
+typedef struct DAP_PACKED s_snapshot_polls_trailer {
+    s_snapshot_polls_trailer_base_t base;
+    uint32_t n_poll_txs;
+    uint32_t reserved;
+} s_snapshot_polls_trailer_t;
+
+typedef struct DAP_PACKED s_snapshot_poll_tx_rec {
+    dap_chain_hash_fast_t voting_hash;
+    uint64_t tx_size;       // followed by tx_size bytes of dap_chain_datum_tx_t
+} s_snapshot_poll_tx_rec_t;
+
+typedef struct DAP_PACKED s_snapshot_poll_state_rec {
+    dap_chain_hash_fast_t voting_hash;
+    uint32_t status;
+    uint32_t reserved;
+    dap_chain_hash_fast_t cancelled_by_tx;
+} s_snapshot_poll_state_rec_t;
+
+typedef struct DAP_PACKED s_snapshot_poll_vote_rec {
+    dap_chain_hash_fast_t voting_hash;
+    dap_chain_hash_fast_t vote_hash;
+    dap_chain_hash_fast_t pkey_hash;
+    uint64_t answer_idx;
+    uint256_t weight;
+} s_snapshot_poll_vote_rec_t;
+
+typedef struct DAP_PACKED s_snapshot_poll_cond_rec {
+    dap_chain_hash_fast_t voting_hash;
+    dap_chain_hash_fast_t tx_hash;
+    dap_chain_hash_fast_t pkey_hash;
+    int32_t out_idx;
+    uint32_t reserved;
+} s_snapshot_poll_cond_rec_t;
+
+static void s_voting_tally_apply(dap_chain_net_votings_t *a_voting, uint64_t a_answer_idx,
+                                 const uint256_t *a_weight, int a_sign);
+
 static int s_snapshot_polls_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
 {
     (void)a_ctx;
     uint64_t l_count = 0;
+    uint32_t l_n_states = 0, l_n_votes = 0, l_n_cond = 0, l_n_txs = 0;
     pthread_rwlock_rdlock(&s_votings_rwlock);
-    for (dap_chain_net_votings_t *l_v = s_votings; l_v; l_v = l_v->hh.next)
-        if (l_v->net_id.uint64 == a_net_id)
-            ++l_count;
-    dap_string_append_len(a_out, (const char *)&l_count, sizeof(l_count));
     for (dap_chain_net_votings_t *l_v = s_votings; l_v; l_v = l_v->hh.next) {
+        if (l_v->net_id.uint64 != a_net_id)
+            continue;
+        ++l_count;
+        ++l_n_states;
+        if (l_v->voting_params.voting_tx)
+            ++l_n_txs;
+        pthread_rwlock_rdlock(&l_v->votes_rwlock);
+        l_n_votes += (uint32_t)dap_list_length(l_v->votes);
+        pthread_rwlock_unlock(&l_v->votes_rwlock);
+        pthread_rwlock_rdlock(&l_v->s_tx_outs_rwlock);
+        l_n_cond += (uint32_t)HASH_COUNT(l_v->voting_spent_cond_outs);
+        pthread_rwlock_unlock(&l_v->s_tx_outs_rwlock);
+    }
+    bool l_ok = dap_string_append_len(a_out, (const char *)&l_count, sizeof(l_count)) != NULL;
+    for (dap_chain_net_votings_t *l_v = s_votings; l_ok && l_v; l_v = l_v->hh.next) {
         if (l_v->net_id.uint64 != a_net_id)
             continue;
         s_snapshot_poll_rec_t l_rec = {
@@ -276,10 +348,80 @@ static int s_snapshot_polls_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a
             .status = (uint32_t)l_v->voting_params.status,
             .options_count = (uint32_t)dap_list_length(l_v->voting_params.option_offsets_list)
         };
-        dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec));
+        l_ok = dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)) != NULL;
+    }
+    s_snapshot_polls_trailer_t l_tr = { .base = {
+            .magic = S_SNAPSHOT_POLLS_TRAILER_MAGIC,
+            .n_states = l_n_states, .n_votes = l_n_votes, .n_cond_outs = l_n_cond },
+            .n_poll_txs = l_n_txs };
+    if (l_ok)
+        l_ok = dap_string_append_len(a_out, (const char *)&l_tr, sizeof(l_tr)) != NULL;
+    for (dap_chain_net_votings_t *l_v = s_votings; l_ok && l_v; l_v = l_v->hh.next) {
+        if (l_v->net_id.uint64 != a_net_id)
+            continue;
+        s_snapshot_poll_state_rec_t l_rec = {
+            .voting_hash = l_v->voting_hash,
+            .status = (uint32_t)l_v->voting_params.status,
+            .cancelled_by_tx = l_v->voting_params.cancelled_by_tx_hash
+        };
+        l_ok = dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)) != NULL;
+    }
+    for (dap_chain_net_votings_t *l_v = s_votings; l_ok && l_v; l_v = l_v->hh.next) {
+        if (l_v->net_id.uint64 != a_net_id)
+            continue;
+        pthread_rwlock_rdlock(&l_v->votes_rwlock);
+        for (dap_list_t *it = l_v->votes; l_ok && it; it = it->next) {
+            dap_chain_net_vote_t *l_vote = (dap_chain_net_vote_t *)it->data;
+            s_snapshot_poll_vote_rec_t l_rec = {
+                .voting_hash = l_v->voting_hash,
+                .vote_hash = l_vote->vote_hash,
+                .pkey_hash = l_vote->pkey_hash,
+                .answer_idx = l_vote->answer_idx,
+                .weight = l_vote->weight
+            };
+            l_ok = dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)) != NULL;
+        }
+        pthread_rwlock_unlock(&l_v->votes_rwlock);
+    }
+    for (dap_chain_net_votings_t *l_v = s_votings; l_ok && l_v; l_v = l_v->hh.next) {
+        if (l_v->net_id.uint64 != a_net_id)
+            continue;
+        pthread_rwlock_rdlock(&l_v->s_tx_outs_rwlock);
+        for (dap_chain_net_voting_cond_outs_t *l_out = l_v->voting_spent_cond_outs; l_ok && l_out;
+                l_out = l_out->hh.next) {
+            s_snapshot_poll_cond_rec_t l_rec = {
+                .voting_hash = l_v->voting_hash,
+                .tx_hash = l_out->tx_hash,
+                .pkey_hash = l_out->pkey_hash,
+                .out_idx = l_out->out_idx
+            };
+            l_ok = dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)) != NULL;
+        }
+        pthread_rwlock_unlock(&l_v->s_tx_outs_rwlock);
+    }
+    // Voting transaction datums: the poll's parameters are offsets into this
+    // datum, and the section must be able to rebuild a poll whose block is not
+    // in the local cell files yet (full-apply mode does not replay it).
+    for (dap_chain_net_votings_t *l_v = s_votings; l_ok && l_v; l_v = l_v->hh.next) {
+        if (l_v->net_id.uint64 != a_net_id || !l_v->voting_params.voting_tx)
+            continue;
+        size_t l_tx_size = dap_chain_datum_tx_get_size(l_v->voting_params.voting_tx);
+        s_snapshot_poll_tx_rec_t l_rec = { .voting_hash = l_v->voting_hash, .tx_size = l_tx_size };
+        l_ok = dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)) != NULL
+                && dap_string_append_len(a_out, (const char *)l_v->voting_params.voting_tx,
+                                         (ssize_t)l_tx_size) != NULL;
     }
     pthread_rwlock_unlock(&s_votings_rwlock);
-    return 0;
+    return l_ok ? 0 : -2;
+}
+
+static dap_chain_net_votings_t *s_snapshot_poll_find(const dap_chain_hash_fast_t *a_hash)
+{
+    dap_chain_net_votings_t *l_v = NULL;
+    pthread_rwlock_rdlock(&s_votings_rwlock);
+    HASH_FIND(hh, s_votings, a_hash, sizeof(*a_hash), l_v);
+    pthread_rwlock_unlock(&s_votings_rwlock);
+    return l_v;
 }
 
 static int s_snapshot_polls_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
@@ -293,27 +435,235 @@ static int s_snapshot_polls_load(void *a_ctx, const uint8_t *a_data, size_t a_si
     l_ptr += sizeof(l_count);
     if (l_count > (uint64_t)(l_end - l_ptr) / sizeof(s_snapshot_poll_rec_t))
         return -2;
+    s_snapshot_poll_rec_t *l_recs = DAP_NEW_Z_COUNT(s_snapshot_poll_rec_t, l_count ? l_count : 1);
+    if (!l_recs)
+        return -8;
+    memcpy(l_recs, l_ptr, sizeof(*l_recs) * l_count);
+    l_ptr += sizeof(*l_recs) * l_count;
+
+    // Trailer. An older snapshot ends right after the poll records; a VOT2
+    // trailer has no poll transactions, VOT3 does.
+    s_snapshot_polls_trailer_base_t l_base = {};
+    const uint8_t *l_states = NULL, *l_votes = NULL, *l_cond = NULL, *l_txs = NULL;
+    uint32_t l_n_txs = 0;
+    if ((size_t)(l_end - l_ptr) >= sizeof(l_base)) {
+        memcpy(&l_base, l_ptr, sizeof(l_base));
+        size_t l_tr_size = 0;
+        if (l_base.magic == S_SNAPSHOT_POLLS_TRAILER_MAGIC_V2) {
+            l_tr_size = sizeof(l_base);
+        } else if (l_base.magic == S_SNAPSHOT_POLLS_TRAILER_MAGIC
+                && (size_t)(l_end - l_ptr) >= sizeof(s_snapshot_polls_trailer_t)) {
+            s_snapshot_polls_trailer_t l_tr;
+            memcpy(&l_tr, l_ptr, sizeof(l_tr));
+            l_tr_size = sizeof(l_tr);
+            l_n_txs = l_tr.n_poll_txs;
+        } else {
+            l_base = (s_snapshot_polls_trailer_base_t){ 0 }; // unknown trailer: replay result stands
+        }
+        if (l_tr_size) {
+            l_ptr += l_tr_size;
+            // Validate every block before applying anything.
+            if ((size_t)(l_end - l_ptr) < (size_t)l_base.n_states * sizeof(s_snapshot_poll_state_rec_t)) {
+                DAP_DELETE(l_recs);
+                return -3;
+            }
+            l_states = l_ptr;
+            l_ptr += (size_t)l_base.n_states * sizeof(s_snapshot_poll_state_rec_t);
+            if ((size_t)(l_end - l_ptr) < (size_t)l_base.n_votes * sizeof(s_snapshot_poll_vote_rec_t)) {
+                DAP_DELETE(l_recs);
+                return -4;
+            }
+            l_votes = l_ptr;
+            l_ptr += (size_t)l_base.n_votes * sizeof(s_snapshot_poll_vote_rec_t);
+            if ((size_t)(l_end - l_ptr) < (size_t)l_base.n_cond_outs * sizeof(s_snapshot_poll_cond_rec_t)) {
+                DAP_DELETE(l_recs);
+                return -5;
+            }
+            l_cond = l_ptr;
+            l_ptr += (size_t)l_base.n_cond_outs * sizeof(s_snapshot_poll_cond_rec_t);
+            if (l_n_txs) {
+                const uint8_t *l_p = l_ptr;
+                for (uint32_t i = 0; i < l_n_txs; ++i) {
+                    if ((size_t)(l_end - l_p) < sizeof(s_snapshot_poll_tx_rec_t)) {
+                        DAP_DELETE(l_recs);
+                        return -6;
+                    }
+                    s_snapshot_poll_tx_rec_t l_tx_rec;
+                    memcpy(&l_tx_rec, l_p, sizeof(l_tx_rec));
+                    l_p += sizeof(l_tx_rec);
+                    if (l_tx_rec.tx_size < sizeof(dap_chain_datum_tx_t)
+                            || l_tx_rec.tx_size > (uint64_t)(l_end - l_p)) {
+                        DAP_DELETE(l_recs);
+                        return -6;
+                    }
+                    l_p += l_tx_rec.tx_size;
+                }
+                l_txs = l_ptr;
+            }
+        }
+    }
+
+    // Polls the section creates here; only for them the trailer state applies.
+    dap_chain_hash_fast_t *l_created = DAP_NEW_Z_COUNT(dap_chain_hash_fast_t, l_count ? l_count : 1);
+    if (!l_created) {
+        DAP_DELETE(l_recs);
+        return -8;
+    }
+    size_t l_created_count = 0;
     for (uint64_t i = 0; i < l_count; ++i) {
-        s_snapshot_poll_rec_t l_rec;
-        memcpy(&l_rec, l_ptr, sizeof(l_rec));
-        l_ptr += sizeof(l_rec);
-        dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_rec.net_id });
+        s_snapshot_poll_rec_t *l_rec = &l_recs[i];
+        dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_rec->net_id });
         dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
         if (!l_ledger)
             continue;
-        dap_chain_net_votings_t *l_existing = NULL;
-        pthread_rwlock_rdlock(&s_votings_rwlock);
-        HASH_FIND(hh, s_votings, &l_rec.voting_hash, sizeof(l_rec.voting_hash), l_existing);
-        pthread_rwlock_unlock(&s_votings_rwlock);
-        if (l_existing)
-            continue; // already created by the datum replay
-        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_rec.voting_hash);
+        if (s_snapshot_poll_find(&l_rec->voting_hash))
+            continue; // already created by the datum replay: replay is authoritative
+        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_rec->voting_hash);
+        size_t l_section_tx_size = 0;
+        if (!l_tx && l_txs) {
+            // The block may not be in the local cell files yet (the scan ended
+            // below the snapshot anchor): recreate the poll from the datum the
+            // section carries instead of losing it until the catch-up.
+            const uint8_t *l_p = l_txs;
+            for (uint32_t k = 0; k < l_n_txs; ++k) {
+                s_snapshot_poll_tx_rec_t l_tx_rec;
+                memcpy(&l_tx_rec, l_p, sizeof(l_tx_rec));
+                l_p += sizeof(l_tx_rec);
+                if (dap_hash_fast_compare(&l_tx_rec.voting_hash, &l_rec->voting_hash)) {
+                    l_tx = (dap_chain_datum_tx_t *)l_p;
+                    l_section_tx_size = (size_t)l_tx_rec.tx_size;
+                    break;
+                }
+                l_p += l_tx_rec.tx_size;
+            }
+        }
         if (!l_tx)
-            continue; // datum not attached yet; the scan will create the poll
-        dap_hash_fast_t l_hash = l_rec.voting_hash;
-        s_voting_verificator(l_ledger, TX_ITEM_TYPE_VOTING, l_tx, &l_hash, true);
+            continue;
+        // The poll keeps a pointer into its transaction for the process lifetime;
+        // the section buffer is freed after this callback, so a section-provided
+        // datum is copied BEFORE the poll is created (the poll then owns the copy).
+        if (l_section_tx_size) {
+            dap_chain_datum_tx_t *l_tx_copy = DAP_DUP_SIZE(l_tx, l_section_tx_size);
+            if (!l_tx_copy)
+                continue;
+            l_tx = l_tx_copy;
+        }
+        dap_hash_fast_t l_hash = l_rec->voting_hash;
+        if (s_voting_verificator(l_ledger, TX_ITEM_TYPE_VOTING, l_tx, &l_hash, true) != DAP_LEDGER_CHECK_OK) {
+            if (l_section_tx_size)
+                DAP_DELETE(l_tx);
+            continue;
+        }
+        if (l_section_tx_size) {
+            dap_chain_net_votings_t *l_v = s_snapshot_poll_find(&l_hash);
+            if (!l_v) { // the verificator stores it, but never keep an untracked copy
+                DAP_DELETE(l_tx);
+                continue;
+            }
+            l_v->voting_params.voting_tx_owned = true;
+        }
+        l_created[l_created_count++] = l_rec->voting_hash;
     }
-    return 0;
+
+    int l_ret = 0;
+    // Final status/cancellation of the polls this load created.
+    for (uint32_t i = 0; i < l_base.n_states; ++i) {
+        s_snapshot_poll_state_rec_t l_rec;
+        memcpy(&l_rec, l_states + (size_t)i * sizeof(l_rec), sizeof(l_rec));
+        bool l_is_created = false;
+        for (size_t k = 0; k < l_created_count; ++k)
+            if (dap_hash_fast_compare(&l_created[k], &l_rec.voting_hash)) {
+                l_is_created = true;
+                break;
+            }
+        if (!l_is_created)
+            continue;
+        dap_chain_net_votings_t *l_v = s_snapshot_poll_find(&l_rec.voting_hash);
+        if (!l_v)
+            continue;
+        pthread_rwlock_wrlock(&s_votings_rwlock);
+        l_v->voting_params.status = (dap_chain_net_voting_status_t)l_rec.status;
+        l_v->voting_params.cancelled_by_tx_hash = l_rec.cancelled_by_tx;
+        pthread_rwlock_unlock(&s_votings_rwlock);
+    }
+    // Votes and the conditional outs they marked.
+    for (uint32_t i = 0; i < l_base.n_votes; ++i) {
+        s_snapshot_poll_vote_rec_t l_rec;
+        memcpy(&l_rec, l_votes + (size_t)i * sizeof(l_rec), sizeof(l_rec));
+        bool l_is_created = false;
+        for (size_t k = 0; k < l_created_count; ++k)
+            if (dap_hash_fast_compare(&l_created[k], &l_rec.voting_hash)) {
+                l_is_created = true;
+                break;
+            }
+        if (!l_is_created)
+            continue;
+        dap_chain_net_votings_t *l_v = s_snapshot_poll_find(&l_rec.voting_hash);
+        if (!l_v)
+            continue;
+        dap_chain_net_vote_t *l_new = DAP_NEW_Z(dap_chain_net_vote_t);
+        if (!l_new) {
+            l_ret = -7;
+            goto polls_done;
+        }
+        l_new->vote_hash = l_rec.vote_hash;
+        l_new->pkey_hash = l_rec.pkey_hash;
+        l_new->answer_idx = l_rec.answer_idx;
+        l_new->weight = l_rec.weight;
+        pthread_rwlock_wrlock(&l_v->votes_rwlock);
+        bool l_dup = false;
+        for (dap_list_t *it = l_v->votes; it; it = it->next)
+            if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)it->data)->vote_hash, &l_new->vote_hash)) {
+                l_dup = true;
+                break;
+            }
+        if (!l_dup) {
+            l_v->votes = dap_list_append(l_v->votes, l_new);
+            s_voting_tally_apply(l_v, l_new->answer_idx, &l_new->weight, +1);
+        }
+        pthread_rwlock_unlock(&l_v->votes_rwlock);
+        if (l_dup)
+            DAP_DELETE(l_new);
+    }
+    for (uint32_t i = 0; i < l_base.n_cond_outs; ++i) {
+        s_snapshot_poll_cond_rec_t l_rec;
+        memcpy(&l_rec, l_cond + (size_t)i * sizeof(l_rec), sizeof(l_rec));
+        bool l_is_created = false;
+        for (size_t k = 0; k < l_created_count; ++k)
+            if (dap_hash_fast_compare(&l_created[k], &l_rec.voting_hash)) {
+                l_is_created = true;
+                break;
+            }
+        if (!l_is_created)
+            continue;
+        dap_chain_net_votings_t *l_v = s_snapshot_poll_find(&l_rec.voting_hash);
+        if (!l_v)
+            continue;
+        pthread_rwlock_wrlock(&l_v->s_tx_outs_rwlock);
+        dap_chain_net_voting_cond_outs_t *l_exists = NULL;
+        HASH_FIND(hh, l_v->voting_spent_cond_outs, &l_rec.tx_hash, sizeof(l_rec.tx_hash), l_exists);
+        if (!l_exists) {
+            dap_chain_net_voting_cond_outs_t *l_new = DAP_NEW_Z(dap_chain_net_voting_cond_outs_t);
+            if (!l_new) {
+                pthread_rwlock_unlock(&l_v->s_tx_outs_rwlock);
+                l_ret = -8;
+                goto polls_done;
+            }
+            l_new->tx_hash = l_rec.tx_hash;
+            l_new->out_idx = (int)l_rec.out_idx;
+            l_new->pkey_hash = l_rec.pkey_hash;
+            HASH_ADD(hh, l_v->voting_spent_cond_outs, tx_hash, sizeof(l_rec.tx_hash), l_new);
+        }
+        pthread_rwlock_unlock(&l_v->s_tx_outs_rwlock);
+    }
+    log_it(L_NOTICE, "Ledger snapshot: polls section restored %zu created poll(s), "
+           "%u vote(s), %u spent conditional out(s)", l_created_count,
+           l_base.n_votes, l_base.n_cond_outs);
+
+polls_done:
+    DAP_DEL_Z(l_created);
+    DAP_DELETE(l_recs);
+    return l_ret;
 }
 
 int dap_chain_net_srv_voting_init()
@@ -372,6 +722,8 @@ void dap_chain_net_srv_voting_purge_net(dap_chain_net_id_t a_net_id)
         pthread_rwlock_unlock(&l_voting->votes_rwlock);
         pthread_rwlock_destroy(&l_voting->votes_rwlock);
         pthread_rwlock_destroy(&l_voting->s_tx_outs_rwlock);
+        if (l_voting->voting_params.voting_tx_owned)
+            DAP_DEL_Z(l_voting->voting_params.voting_tx);
         DAP_DELETE(l_voting);
     }
     pthread_rwlock_unlock(&s_votings_rwlock);
@@ -927,6 +1279,8 @@ static bool s_datum_tx_voting_verification_delete_callback(dap_ledger_t *a_ledge
         pthread_rwlock_destroy(&l_voting->votes_rwlock);
         pthread_rwlock_destroy(&l_voting->s_tx_outs_rwlock);
 
+        if (l_voting->voting_params.voting_tx_owned)
+            DAP_DEL_Z(l_voting->voting_params.voting_tx);
         DAP_DELETE(l_voting);
 
         return true;

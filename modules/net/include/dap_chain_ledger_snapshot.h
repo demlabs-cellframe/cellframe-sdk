@@ -77,6 +77,13 @@ void dap_ledger_snapshot_skip_set(dap_ledger_t *a_ledger, uint64_t a_block_num,
  * Registration is idempotent by name (the first registration wins).
  */
 #define DAP_LEDGER_SNAPSHOT_SECTION_NAME_MAX 32
+// A section registered with this flag makes the snapshot a COMPLETE ledger
+// state: header flag bit2 is set and, when [ledger] snapshot_full_apply is on,
+// the ledger stops replaying the service side of the restored transactions
+// (polls/votes, events, rewards, conditional-service notifications) because the
+// sections carry that state. Only the ledger's own "ledger_state" section does.
+#define DAP_LEDGER_SNAPSHOT_SECTION_FLAG_FULL 0x1u
+#define DAP_LEDGER_SNAPSHOT_LEDGER_STATE_SECTION "ledger_state"
 // The dump callback receives the network whose snapshot is being written, so a
 // section must only emit that network's state (several networks share the
 // process and each has its own snapshot file).
@@ -85,6 +92,18 @@ typedef int (*dap_ledger_snapshot_load_cb_t)(void *a_ctx, const uint8_t *a_data,
 
 int dap_ledger_add_snapshot_section(const char *a_name, uint32_t a_flags,
         dap_ledger_snapshot_dump_cb_t a_dump, dap_ledger_snapshot_load_cb_t a_load, void *a_ctx);
+
+/**
+ * @brief Whether the loaded snapshot was a COMPLETE ledger state (the
+ *        "ledger_state" section restored successfully, header flag bit2).
+ */
+bool dap_ledger_snapshot_is_full(dap_ledger_t *a_ledger);
+
+/**
+ * @brief Whether the restored transactions' service replay is suppressed
+ *        ([ledger] snapshot_full_apply and a complete snapshot was loaded).
+ */
+bool dap_ledger_snapshot_full_apply_enabled(dap_ledger_t *a_ledger);
 
 /**
  * @brief Disarm the chain-scan skip (the loader reached the snapshot position

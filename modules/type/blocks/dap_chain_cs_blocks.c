@@ -2448,6 +2448,18 @@ int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_b
             l_state ? dap_chain_state_tx_count_get(l_state) : 0, l_datum_count, l_forks);
     if (l_off < 0)
         l_off = 0;
+    if ((size_t)l_off < a_buf_size) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+        if (l_ledger && dap_ledger_snapshot_mode(l_ledger)) {
+            int l_wr = snprintf(a_buf + l_off, a_buf_size - l_off,
+                    "ledger_snapshot: complete %s, full_apply %s\n",
+                    dap_ledger_snapshot_is_full(l_ledger) ? "yes" : "no",
+                    dap_ledger_snapshot_full_apply_enabled(l_ledger) ? "on" : "off");
+            if (l_wr > 0)
+                l_off += l_wr;
+        }
+    }
     if ((size_t)l_off < a_buf_size && l_state)
         dap_chain_state_info(l_state, a_buf + l_off, a_buf_size - l_off);
     return 0;
