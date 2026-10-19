@@ -2047,11 +2047,9 @@ void dap_chain_net_deinit()
     dap_chain_net_balancer_deinit();
     dap_chain_net_t *l_net, *l_tmp;
     HASH_ITER(hh2, s_nets_by_id, l_net, l_tmp) {
-        // Graceful shutdown: the interval timer is the only other save trigger,
-        // so without this the last up-to-interval of ledger work is lost (the
-        // next scan replays it, but polling/snapshot-heavy nets pay that twice).
-        if (l_net->pub.ledger)
-            dap_ledger_snapshot_save(l_net->pub.ledger, true);
+        // Note: the ledger snapshots are saved by the caller before the deinit
+        // chain runs (main() after dap_events_wait / the SIGTERM handler). Saving
+        // here as well would rewrite every snapshot twice on a graceful exit.
         dap_chain_net_delete(l_net);
     }
     dap_http_ban_list_client_deinit();
