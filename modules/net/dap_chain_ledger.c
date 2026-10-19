@@ -5466,6 +5466,32 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_datum_by_hash(dap_ledger_t *a_ledger, c
     HASH_FIND(hh, l_ledger_pvt->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_tx_item);
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     if(l_tx_item) {
+        // Snapshot-restored item without its datum: attach it lazily from the
+        // atom link (chain-state index), without a chain scan. Only for a complete
+        // snapshot: otherwise the scan's attach also replays the service side of
+        // the transaction, and attaching here first would suppress that replay.
+        if (!l_tx_item->tx && l_tx_item->atom_link_valid && l_ledger_pvt->snapshot_full) {
+            dap_chain_t *l_chain = NULL;
+            for (dap_chain_t *l_c = a_ledger->net ? a_ledger->net->pub.chains : NULL; l_c; l_c = l_c->next) {
+                const char *l_cs_type = dap_chain_get_cs_type(l_c);
+                if (l_cs_type && !dap_strcmp(l_cs_type, "esbocs")) {
+                    l_chain = l_c;
+                    break;
+                }
+            }
+            dap_chain_datum_t *l_datum = NULL;
+            size_t l_datum_size = 0;
+            if (l_chain && !dap_chain_cs_blocks_datum_at(l_chain, &l_tx_item->atom_hash,
+                                    l_tx_item->datum_index, &l_datum, &l_datum_size)
+                    && l_datum && l_datum_size > sizeof(dap_chain_datum_t)) {
+                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
+                if (!l_tx_item->tx) // another thread may have attached it meanwhile
+                    l_tx_item->tx = l_ledger_pvt->mapped ? l_tx
+                            : DAP_DUP_SIZE(l_tx, dap_chain_datum_tx_get_size(l_tx));
+                pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+            }
+        }
         if (!a_unspent_only || !l_tx_item->cache_data.ts_spent) {
             l_tx_ret = l_tx_item->tx;
             if(a_item_out)
