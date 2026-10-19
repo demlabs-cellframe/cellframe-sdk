@@ -147,6 +147,16 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
  * @brief dap_chain_block_cache_delete
  * @param a_block
  */
+int dap_chain_block_cache_ensure(dap_chain_block_cache_t *a_block_cache)
+{
+    if (!a_block_cache || !a_block_cache->block)
+        return -1;
+    if (a_block_cache->datum)
+        return 0;
+    a_block_cache->sign_count = dap_chain_block_get_signs_count(a_block_cache->block, a_block_cache->block_size);
+    return dap_chain_block_cache_update(a_block_cache, &a_block_cache->block_hash) ? -2 : 0;
+}
+
 void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
 {
     DAP_DEL_Z(a_block_cache->datum);

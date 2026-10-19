@@ -2441,7 +2441,9 @@ static bool s_blocks_restore_rec_cb(void *a_arg, const dap_chain_state_rec_t *a_
     l_bc->ts_created = (time_t)a_rec->ts;
     l_bc->prev_hash = a_rec->prev_hash;
     // No body parse and no datum parse: dap_chain_block_cache_ensure() fills
-    // block/datum/datum_hash on first use.
+    // block/datum/datum_hash on first use. The mmap pointer is computed, not read.
+    l_bc->block = l_ctx->cell && l_ctx->cell->map
+            ? (dap_chain_block_t *)(l_ctx->cell->map + a_rec->offset) : NULL;
     l_bc->datum_count = a_rec->datum_count;
     HASH_ADD(hh, PVT(l_ctx->blocks)->blocks, block_hash, sizeof(l_bc->block_hash), l_bc);
     HASH_ADD_BYHASHVALUE(hh2, PVT(l_ctx->blocks)->blocks_num, block_number,

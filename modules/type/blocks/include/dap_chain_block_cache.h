@@ -96,6 +96,10 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
                                                    size_t a_block_size, uint64_t a_block_number, bool a_copy_block);
 dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_block);
 int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
+// Thin entries restored from the chain-state index carry block/size/number/ts
+// only; the first consumer calls this to parse metadata and datums from the
+// mapped cell. Idempotent, not thread-safe (the caller holds the blocks lock).
+int dap_chain_block_cache_ensure(dap_chain_block_cache_t *a_block_cache);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 
 // Get the list of 'out_cond' items from previous transactions with summary out value. Put this summary value to a_value_out
