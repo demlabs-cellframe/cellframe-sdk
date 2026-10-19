@@ -2420,6 +2420,27 @@ static char *s_chain_cell_path(dap_chain_t *a_chain)
                              l_dir, a_chain->active_cell_id.uint64);
 }
 
+int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_atom_hash,
+                                 uint32_t a_datum_idx, dap_chain_datum_t **a_datum, size_t *a_size)
+{
+    if (!a_chain || !a_atom_hash || !a_datum || !a_size || !s_is_blocks_chain(a_chain))
+        return -1;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_block_cache_t *l_bc = NULL;
+    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    HASH_FIND(hh, PVT(l_blocks)->blocks, a_atom_hash, sizeof(*a_atom_hash), l_bc);
+    if (l_bc && l_bc->datum && a_datum_idx < l_bc->datum_count && l_bc->datum[a_datum_idx]) {
+        *a_datum = l_bc->datum[a_datum_idx];
+        *a_size = dap_chain_datum_size(*a_datum);
+        pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+        return 0;
+    }
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    // Thin block-cache entry (no scan): the caller can read the cell file by the
+    // chain-state offset, or wait for the tail/catch-up to attach it.
+    return -2;
+}
+
 int dap_chain_cs_blocks_datum_location(dap_chain_t *a_chain, const dap_hash_fast_t *a_hash,
                                        dap_chain_hash_fast_t *a_atom_hash, uint32_t *a_datum_idx)
 {
