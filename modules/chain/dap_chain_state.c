@@ -228,6 +228,32 @@ bool dap_chain_state_last_record(dap_chain_state_t *a_state, dap_chain_state_rec
     return l_ret;
 }
 
+int dap_chain_state_for_each_record(dap_chain_state_t *a_state,
+        bool (*a_cb)(void *a_arg, const dap_chain_state_rec_t *a_rec), void *a_arg)
+{
+    if (!a_state || !a_cb)
+        return -1;
+    char *l_path = dap_chain_state_path(a_state);
+    FILE *l_file = l_path ? fopen(l_path, "rb") : NULL;
+    DAP_DELETE(l_path);
+    if (!l_file)
+        return -2;
+    if (fseeko(l_file, sizeof(dap_chain_state_hdr_t), SEEK_SET)) {
+        fclose(l_file);
+        return -3;
+    }
+    dap_chain_state_rec_t l_rec;
+    int l_ret = 0;
+    while (fread(&l_rec, sizeof(l_rec), 1, l_file) == 1) {
+        if (!a_cb(a_arg, &l_rec)) {
+            l_ret = -4;
+            break;
+        }
+    }
+    fclose(l_file);
+    return l_ret;
+}
+
 void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint64_t a_blocks_count,
                                 time_t a_ts, uint64_t a_size, uint64_t a_offset,
                                 const dap_chain_hash_fast_t *a_hash,

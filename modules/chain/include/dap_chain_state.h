@@ -92,6 +92,12 @@ int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hd
 // Last indexed block record (readiness checks: offset/size against the cell file).
 bool dap_chain_state_last_record(dap_chain_state_t *a_state, dap_chain_state_rec_t *a_out);
 
+// Walks the block index in file order (own read handle, no lock held while the
+// callback runs). The callback returns false to stop. Used by the no-scan block
+// cache restore.
+int dap_chain_state_for_each_record(dap_chain_state_t *a_state,
+        bool (*a_cb)(void *a_arg, const dap_chain_state_rec_t *a_rec), void *a_arg);
+
 // Records one accepted block: the tip moves when a_num grows, and the block is
 // appended to the index when a_index_record is true (main branch only). The
 // header is flushed once per save period; readers take the tip from the last
