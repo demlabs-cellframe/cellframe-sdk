@@ -7706,6 +7706,8 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
                 dap_chain_cs_blocks_index_restored_datum(l_chain, &l_links[i].tx_hash,
                                                          &l_links[i].atom_hash, l_links[i].idx);
             log_it(L_NOTICE, "Ledger snapshot: datum index rebuilt from %zu tx atom links", l_n);
+            // The scan no longer counts them; the restored ledger is the source.
+            dap_chain_cs_blocks_tx_count_set(l_chain, l_n);
             DAP_DEL_Z(l_links);
         }
     }

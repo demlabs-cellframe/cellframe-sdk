@@ -2495,6 +2495,15 @@ size_t dap_chain_cs_blocks_datum_index_count(dap_chain_t *a_chain)
     return l_state ? dap_chain_state_datum_count(l_state) : 0;
 }
 
+void dap_chain_cs_blocks_tx_count_set(dap_chain_t *a_chain, uint64_t a_count)
+{
+    if (!a_chain || !s_is_blocks_chain(a_chain))
+        return;
+    dap_chain_state_t *l_state = s_chain_state_get(DAP_CHAIN_CS_BLOCKS(a_chain));
+    if (l_state)
+        dap_chain_state_tx_count_set(l_state, a_count);
+}
+
 int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain)
 {
     if (!a_chain || !s_is_blocks_chain(a_chain))
