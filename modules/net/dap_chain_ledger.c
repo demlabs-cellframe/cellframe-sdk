@@ -3082,7 +3082,7 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
  */
 
 #define DAP_LEDGER_SNAPSHOT_MAGIC "CFLEDGSN"
-#define DAP_LEDGER_SNAPSHOT_VERSION 3
+#define DAP_LEDGER_SNAPSHOT_VERSION 4
 #define DAP_LEDGER_SNAPSHOT_FILENAME "ledger-snapshot.bin"
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_header {
@@ -3107,6 +3107,16 @@ typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_tx_record {
     uint8_t  tx_hash[sizeof(dap_chain_hash_fast_t)];
     uint32_t cache_size;      // followed by exactly cache_size bytes of cache_data
 } dap_ledger_snapshot_tx_record_t;
+
+// v4: adds the atom link, so a restored item can attach its datum lazily from
+// the chain-state index instead of waiting for a chain scan.
+typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_tx_record_v4 {
+    uint8_t  tx_hash[sizeof(dap_chain_hash_fast_t)];
+    uint8_t  atom_hash[sizeof(dap_chain_hash_fast_t)];
+    uint32_t datum_index;
+    uint32_t atom_link_valid;
+    uint32_t cache_size;      // followed by exactly cache_size bytes of cache_data
+} dap_ledger_snapshot_tx_record_v4_t;
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_wallet_record {
     uint16_t addr_size;       // followed by: addr[addr_size], out_idx, out_type,
@@ -3921,13 +3931,31 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     int l_ret = 0;
     uint64_t l_n_wallet_outs = 0;
 
+    // Atom links come from the chain-state index (no block reads): the snapshot
+    // stores where each restored transaction's datum lives.
+    dap_chain_t *l_link_chain = NULL;
+    for (dap_chain_t *l_c = a_ledger->net->pub.chains; l_c; l_c = l_c->next) {
+        const char *l_cs_type = dap_chain_get_cs_type(l_c);
+        if (l_cs_type && !dap_strcmp(l_cs_type, "esbocs")) {
+            l_link_chain = l_c;
+            break;
+        }
+    }
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     dap_ledger_tx_item_t *l_item = NULL, *l_item_tmp = NULL;
     HASH_ITER (hh, l_ledger_pvt->ledger_items, l_item, l_item_tmp) {
         uint32_t l_cache_size = (uint32_t)(sizeof(l_item->cache_data)
                                            + l_item->cache_data.n_outs * sizeof(dap_chain_hash_fast_t));
-        dap_ledger_snapshot_tx_record_t l_rec = { .cache_size = l_cache_size };
+        dap_ledger_snapshot_tx_record_v4_t l_rec = { .cache_size = l_cache_size };
         memcpy(l_rec.tx_hash, &l_item->tx_hash_fast, sizeof(l_rec.tx_hash));
+        dap_chain_hash_fast_t l_atom_hash = {};
+        uint32_t l_datum_idx = 0;
+        if (l_link_chain && !dap_chain_cs_blocks_datum_location(l_link_chain, &l_item->tx_hash_fast,
+                                                            &l_atom_hash, &l_datum_idx)) {
+            memcpy(l_rec.atom_hash, &l_atom_hash, sizeof(l_rec.atom_hash));
+            l_rec.datum_index = l_datum_idx;
+            l_rec.atom_link_valid = 1;
+        }
         if (s_snapshot_buf_put(&l_buf, &l_rec, sizeof(l_rec)) || s_snapshot_buf_put(&l_buf, &l_item->cache_data, l_cache_size)) {
             l_ret = -2;
             break;
@@ -4214,21 +4242,25 @@ void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger)
 static int s_snapshot_validate_payload(const dap_ledger_snapshot_header_t *a_hdr, const uint8_t *a_payload, size_t a_size)
 {
     const uint8_t *l_ptr = a_payload, *l_end = a_payload + a_size;
+    const bool l_v4 = a_hdr->version >= 4;
+    const size_t l_tx_rec_size = l_v4 ? sizeof(dap_ledger_snapshot_tx_record_v4_t)
+                                      : sizeof(dap_ledger_snapshot_tx_record_t);
     for (uint64_t i = 0; i < a_hdr->n_tx_items; ++i) {
-        if (l_ptr + sizeof(dap_ledger_snapshot_tx_record_t) > l_end)
+        if ((size_t)(l_end - l_ptr) < l_tx_rec_size)
             return -1;
-        const dap_ledger_snapshot_tx_record_t *l_rec = (const dap_ledger_snapshot_tx_record_t *)l_ptr;
-        if (l_rec->cache_size < sizeof(dap_ledger_tx_cache_t))
+        uint32_t l_cache_size = l_v4 ? ((const dap_ledger_snapshot_tx_record_v4_t *)l_ptr)->cache_size
+                                     : ((const dap_ledger_snapshot_tx_record_t *)l_ptr)->cache_size;
+        if (l_cache_size < sizeof(dap_ledger_tx_cache_t))
             return -1;
-        const dap_ledger_tx_cache_t *l_cache = (const dap_ledger_tx_cache_t *)(l_ptr + sizeof(*l_rec));
+        const dap_ledger_tx_cache_t *l_cache = (const dap_ledger_tx_cache_t *)(l_ptr + l_tx_rec_size);
         // The cache record is exactly the fixed part plus one spent-mark hash
         // per output; n_outs_used cannot exceed n_outs.
-        if ((uint64_t)l_rec->cache_size != sizeof(dap_ledger_tx_cache_t)
+        if ((uint64_t)l_cache_size != sizeof(dap_ledger_tx_cache_t)
                 + (uint64_t)l_cache->n_outs * sizeof(dap_chain_hash_fast_t))
             return -1;
         if (l_cache->n_outs_used > l_cache->n_outs)
             return -1;
-        l_ptr += sizeof(*l_rec) + l_rec->cache_size;
+        l_ptr += l_tx_rec_size + l_cache_size;
         if (l_ptr > l_end)
             return -1;
     }
@@ -4367,27 +4399,40 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
         }
         // Restore the transaction cache items (datum-less: completed by the chain scan)
         uint8_t *l_ptr = l_payload, *l_end = l_payload + l_header.payload_size;
+        const bool l_v4 = l_header.version >= 4;
+        const size_t l_tx_rec_size = l_v4 ? sizeof(dap_ledger_snapshot_tx_record_v4_t)
+                                          : sizeof(dap_ledger_snapshot_tx_record_t);
         pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
         for (uint64_t i = 0; i < l_header.n_tx_items; ++i) {
-            if (l_ptr + sizeof(dap_ledger_snapshot_tx_record_t) > l_end) {
+            if ((size_t)(l_end - l_ptr) < l_tx_rec_size) {
                 log_it(L_WARNING, "Ledger snapshot: truncated tx section at item %"DAP_UINT64_FORMAT_U, i);
                 break;
             }
-            dap_ledger_snapshot_tx_record_t *l_rec = (dap_ledger_snapshot_tx_record_t *)l_ptr;
-            l_ptr += sizeof(*l_rec);
-            if (l_ptr + l_rec->cache_size > l_end) {
+            uint8_t *l_tx_hash = l_ptr;
+            uint8_t *l_atom_hash = l_v4 ? l_ptr + sizeof(dap_chain_hash_fast_t) : NULL;
+            uint32_t l_datum_index = l_v4 ? ((dap_ledger_snapshot_tx_record_v4_t *)l_ptr)->datum_index : 0;
+            uint32_t l_atom_link_valid = l_v4 ? ((dap_ledger_snapshot_tx_record_v4_t *)l_ptr)->atom_link_valid : 0;
+            uint32_t l_cache_size = l_v4 ? ((dap_ledger_snapshot_tx_record_v4_t *)l_ptr)->cache_size
+                                         : ((dap_ledger_snapshot_tx_record_t *)l_ptr)->cache_size;
+            l_ptr += l_tx_rec_size;
+            if ((size_t)(l_end - l_ptr) < l_cache_size) {
                 log_it(L_WARNING, "Ledger snapshot: truncated tx record payload at item %"DAP_UINT64_FORMAT_U, i);
                 break;
             }
             dap_ledger_tx_item_t *l_item = DAP_NEW_Z_SIZE(dap_ledger_tx_item_t,
-                                                sizeof(dap_ledger_tx_item_t) - sizeof(l_item->cache_data) + l_rec->cache_size);
+                                                sizeof(dap_ledger_tx_item_t) - sizeof(l_item->cache_data) + l_cache_size);
             if (!l_item) {
                 log_it(L_CRITICAL, "%s", c_error_memory_alloc);
                 break;
             }
-            memcpy(&l_item->tx_hash_fast, l_rec->tx_hash, sizeof(l_item->tx_hash_fast));
-            memcpy(&l_item->cache_data, l_ptr, l_rec->cache_size);
-            l_ptr += l_rec->cache_size;
+            memcpy(&l_item->tx_hash_fast, l_tx_hash, sizeof(l_item->tx_hash_fast));
+            if (l_atom_hash) {
+                memcpy(&l_item->atom_hash, l_atom_hash, sizeof(l_item->atom_hash));
+                l_item->datum_index = l_datum_index;
+                l_item->atom_link_valid = l_atom_link_valid;
+            }
+            memcpy(&l_item->cache_data, l_ptr, l_cache_size);
+            l_ptr += l_cache_size;
             HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(l_item->tx_hash_fast), l_item);
             ++l_loaded_tx;
         }

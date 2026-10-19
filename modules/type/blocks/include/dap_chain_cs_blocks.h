@@ -117,6 +117,11 @@ bool dap_chain_cs_blocks_get_tip(dap_chain_t *a_chain, uint64_t *a_block_num, da
 // Chain cache management (the 'chain cache' CLI command). All of them answer
 // with a human-readable report and return 0 on success.
 int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size);
+// Datum location from the chain-state index (no block read): the block hash the
+// datum belongs to and its ordinal inside the block. Used by the ledger snapshot
+// to store atom links and to attach restored datums lazily.
+int dap_chain_cs_blocks_datum_location(dap_chain_t *a_chain, const dap_hash_fast_t *a_hash,
+                                       dap_chain_hash_fast_t *a_atom_hash, uint32_t *a_datum_idx);
 int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size);
 int dap_chain_cs_blocks_state_flush(dap_chain_t *a_chain);
 int dap_chain_cs_blocks_state_drop(dap_chain_t *a_chain);

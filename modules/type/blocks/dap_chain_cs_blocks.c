@@ -2420,6 +2420,20 @@ static char *s_chain_cell_path(dap_chain_t *a_chain)
                              l_dir, a_chain->active_cell_id.uint64);
 }
 
+int dap_chain_cs_blocks_datum_location(dap_chain_t *a_chain, const dap_hash_fast_t *a_hash,
+                                       dap_chain_hash_fast_t *a_atom_hash, uint32_t *a_datum_idx)
+{
+    if (!a_chain || !a_hash || !a_atom_hash || !a_datum_idx || !s_is_blocks_chain(a_chain))
+        return -1;
+    dap_chain_state_t *l_state = s_chain_state_get(DAP_CHAIN_CS_BLOCKS(a_chain));
+    dap_chain_state_datum_t l_rec = {};
+    if (!l_state || !dap_chain_state_datum_find(l_state, a_hash, &l_rec))
+        return -2;
+    *a_atom_hash = l_rec.block_hash;
+    *a_datum_idx = l_rec.datum_index;
+    return 0;
+}
+
 int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size)
 {
     if (!a_chain)
