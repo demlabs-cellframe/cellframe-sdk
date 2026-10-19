@@ -4855,7 +4855,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         // until the equivalence runner has compared a scan-only replica with a
         // snapshot-restored one.
         l_ledger_pvt->snapshot_full_apply =
-                dap_config_get_item_bool_default(g_config, "ledger", "snapshot_full_apply", false);
+                dap_config_get_item_bool_default(g_config, "ledger", "snapshot_full_apply", true);
         log_it(L_NOTICE, "Ledger snapshot cache enabled (save interval %u s, full apply %s)",
                l_ledger_pvt->snapshot_interval_sec, l_ledger_pvt->snapshot_full_apply ? "on" : "off");
     }
