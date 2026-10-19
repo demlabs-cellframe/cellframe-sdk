@@ -3409,6 +3409,18 @@ static bool s_snapshot_append(dap_string_t *a_out, const void *a_data, size_t a_
     return dap_string_append_len(a_out, (const char *)a_data, (ssize_t)a_size) != NULL;
 }
 
+typedef struct s_snapshot_update_ref {
+    int64_t ts;
+    dap_ledger_token_update_item_t *item;
+} s_snapshot_update_ref_t;
+
+static int s_snapshot_update_ref_cmp(const void *a, const void *b)
+{
+    int64_t l_a = ((const s_snapshot_update_ref_t *)a)->ts;
+    int64_t l_b = ((const s_snapshot_update_ref_t *)b)->ts;
+    return l_a < l_b ? -1 : l_a > l_b ? 1 : 0;
+}
+
 static int s_snapshot_ledger_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
 {
     (void)a_ctx;
@@ -3425,13 +3437,61 @@ static int s_snapshot_ledger_state_dump(void *a_ctx, uint64_t a_net_id, dap_stri
         return -2;
     int l_ret = 0;
 
-    // Token declarations, token updates and emissions are deliberately NOT
-    // dumped: they are non-transaction datums and are still applied by the chain
-    // scan (dap_chain_datum_add -> token/emission load) in every mode, so the
-    // scan rebuilds them from the chain files/catch-up and the GlobalDB small
-    // groups. Dumping them would add ~1 GB (one emission per block reward) for
-    // state that is already recovered. The loader still understands the records
-    // (counts 0 from this build) so an older section stays readable.
+    // Token declarations with their current supply and the update datums in
+    // chronological order. Emissions stay out of this section for now (they
+    // return as two-tier compact records in the no-scan stage); until then the
+    // chain replay still feeds them, and the token supply restored here is the
+    // authoritative value for the snapshot height.
+    pthread_rwlock_rdlock(&l_pvt->tokens_rwlock);
+    for (dap_ledger_token_item_t *l_tok = l_pvt->tokens; l_tok && !l_ret; l_tok = l_tok->hh.next) {
+        uint64_t l_size = l_tok->datum_token ? l_tok->datum_token_size : 0;
+        s_snapshot_token_rec_t l_rec = { .token_size = l_size };
+        memcpy(l_rec.current_supply, &l_tok->current_supply, sizeof(uint256_t));
+        if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec))
+                || (l_size && !s_snapshot_append(l_body, l_tok->datum_token, l_size))) {
+            l_ret = -2;
+            break;
+        }
+        ++l_hdr.n_tokens;
+    }
+    if (!l_ret) {
+        size_t l_count = 0, l_cap = 0;
+        s_snapshot_update_ref_t *l_refs = NULL;
+        for (dap_ledger_token_item_t *l_tok = l_pvt->tokens; l_tok; l_tok = l_tok->hh.next) {
+            pthread_rwlock_rdlock(&l_tok->token_ts_updated_rwlock);
+            for (dap_ledger_token_update_item_t *l_up = l_tok->token_ts_updated; l_up; l_up = l_up->hh.next) {
+                if (l_count == l_cap) {
+                    size_t l_new_cap = l_cap ? l_cap * 2 : 64;
+                    s_snapshot_update_ref_t *l_new = DAP_REALLOC(l_refs, sizeof(*l_refs) * l_new_cap);
+                    if (!l_new) {
+                        l_ret = -2;
+                        break;
+                    }
+                    l_refs = l_new;
+                    l_cap = l_new_cap;
+                }
+                l_refs[l_count++] = (s_snapshot_update_ref_t){ .ts = l_up->updated_time, .item = l_up };
+            }
+            pthread_rwlock_unlock(&l_tok->token_ts_updated_rwlock);
+            if (l_ret)
+                break;
+        }
+        if (!l_ret && l_count)
+            qsort(l_refs, l_count, sizeof(*l_refs), s_snapshot_update_ref_cmp);
+        for (size_t i = 0; i < l_count && !l_ret; ++i) {
+            s_snapshot_token_update_rec_t l_rec = {
+                .updated_time = l_refs[i].ts,
+                .datum_size = l_refs[i].item->datum_token_update_size
+            };
+            if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec))
+                    || !s_snapshot_append(l_body, l_refs[i].item->datum_token_update, l_rec.datum_size))
+                l_ret = -2;
+            else
+                ++l_hdr.n_token_updates;
+        }
+        DAP_DEL_Z(l_refs);
+    }
+    pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
 
     if (!l_ret) {
         pthread_rwlock_rdlock(&l_pvt->stake_lock_rwlock);
