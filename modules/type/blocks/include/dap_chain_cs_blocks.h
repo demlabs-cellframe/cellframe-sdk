@@ -131,6 +131,11 @@ int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast
 // are thin until dap_chain_block_cache_ensure() parses them. Returns the number
 // of restored blocks or <0.
 int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain);
+// Datum-index entries for the no-scan start: the ledger snapshot carries the
+// atom links, the block cache provides block_ref (thin entry is enough).
+int dap_chain_cs_blocks_index_restored_datum(dap_chain_t *a_chain, const dap_hash_fast_t *a_datum_hash,
+                                             const dap_hash_fast_t *a_atom_hash, uint32_t a_datum_idx);
+size_t dap_chain_cs_blocks_datum_index_count(dap_chain_t *a_chain);
 int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a_buf_size);
 int dap_chain_cs_blocks_state_flush(dap_chain_t *a_chain);
 int dap_chain_cs_blocks_state_drop(dap_chain_t *a_chain);

@@ -2457,6 +2457,44 @@ static bool s_blocks_restore_rec_cb(void *a_arg, const dap_chain_state_rec_t *a_
 // Builds the block cache from the chain-state index without reading the cell
 // body. The caller must have validated the index against the ledger anchor and
 // the cell file size. Returns the number of restored blocks, or <0.
+// Rebuilds the datum index from the ledger snapshot's atom links after a no-scan
+// start: block_ref is resolved from the (thin) block cache when present, so the
+// datum iterator works without reading the block bodies.
+int dap_chain_cs_blocks_index_restored_datum(dap_chain_t *a_chain, const dap_hash_fast_t *a_datum_hash,
+                                             const dap_hash_fast_t *a_atom_hash, uint32_t a_datum_idx)
+{
+    if (!a_chain || !a_datum_hash || !a_atom_hash || !s_is_blocks_chain(a_chain))
+        return -1;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    if (!l_state)
+        return -2;
+    dap_chain_state_datum_t l_rec = {
+        .datum_hash = *a_datum_hash,
+        .block_hash = *a_atom_hash,
+        .ts_added = time(NULL),
+        .ret_code = DAP_LEDGER_CHECK_ALREADY_CACHED,
+        .datum_index = a_datum_idx,
+        .action = DAP_CHAIN_TX_TAG_ACTION_UNKNOWN
+    };
+    dap_strncpy(l_rec.token_ticker, "0", DAP_CHAIN_TICKER_SIZE_MAX);
+    dap_chain_block_cache_t *l_bc = NULL;
+    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    HASH_FIND(hh, PVT(l_blocks)->blocks, a_atom_hash, sizeof(*a_atom_hash), l_bc);
+    l_rec.block_ref = l_bc;
+    dap_chain_state_datum_add(l_state, &l_rec);
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    return 0;
+}
+
+size_t dap_chain_cs_blocks_datum_index_count(dap_chain_t *a_chain)
+{
+    if (!a_chain || !s_is_blocks_chain(a_chain))
+        return 0;
+    dap_chain_state_t *l_state = s_chain_state_get(DAP_CHAIN_CS_BLOCKS(a_chain));
+    return l_state ? dap_chain_state_datum_count(l_state) : 0;
+}
+
 int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain)
 {
     if (!a_chain || !s_is_blocks_chain(a_chain))

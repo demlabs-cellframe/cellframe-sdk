@@ -7671,6 +7671,44 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     // Deferred snapshot sections: the chain data they may consult is attached now.
     s_pending_sections_apply(a_ledger);
+    // No-scan startup: the chain-state datum index is empty because the cell walk
+    // did not happen. Rebuild its TX part from the snapshot atom links (the block
+    // cache was restored from the index before this call). Collected under the
+    // ledger lock, inserted without it: live block processing takes the blocks
+    // lock and then the ledger lock, never the other way around.
+    if (l_ledger_pvt->snapshot_full) {
+        dap_chain_t *l_chain = NULL;
+        for (dap_chain_t *l_c = a_ledger->net ? a_ledger->net->pub.chains : NULL; l_c; l_c = l_c->next) {
+            const char *l_cs_type = dap_chain_get_cs_type(l_c);
+            if (l_cs_type && !dap_strcmp(l_cs_type, "esbocs")) {
+                l_chain = l_c;
+                break;
+            }
+        }
+        if (l_chain && !dap_chain_cs_blocks_datum_index_count(l_chain)) {
+            typedef struct { dap_hash_fast_t tx_hash, atom_hash; uint32_t idx; } s_link_t;
+            pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+            size_t l_cap = HASH_COUNT(l_ledger_pvt->ledger_items), l_n = 0;
+            s_link_t *l_links = l_cap ? DAP_NEW_Z_COUNT(s_link_t, l_cap) : NULL;
+            if (l_links) {
+                dap_ledger_tx_item_t *l_it = NULL, *l_tmp = NULL;
+                HASH_ITER(hh, l_ledger_pvt->ledger_items, l_it, l_tmp) {
+                    if (!l_it->atom_link_valid || l_n == l_cap)
+                        continue;
+                    l_links[l_n].tx_hash = l_it->tx_hash_fast;
+                    l_links[l_n].atom_hash = l_it->atom_hash;
+                    l_links[l_n].idx = l_it->datum_index;
+                    ++l_n;
+                }
+            }
+            pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+            for (size_t i = 0; i < l_n; ++i)
+                dap_chain_cs_blocks_index_restored_datum(l_chain, &l_links[i].tx_hash,
+                                                         &l_links[i].atom_hash, l_links[i].idx);
+            log_it(L_NOTICE, "Ledger snapshot: datum index rebuilt from %zu tx atom links", l_n);
+            DAP_DEL_Z(l_links);
+        }
+    }
     // The cell-scan window is over: disarm the snapshot chain-scan skip. It
     // must not survive into the network phase - the zone accepts blocks
     // without verification, and if the scan ended below the snapshot anchor
