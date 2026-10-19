@@ -1479,9 +1479,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             if (l_full_arr) {
                 json_object_array_add(l_full_arr, l_out_arr);      // takes the listing array
                 json_object_array_add(l_full_arr, json_obj_out);   // takes the count object
-                const char *l_bl_ser = json_object_to_json_string_ext(l_full_arr, JSON_C_TO_STRING_PLAIN);
-                if (l_bl_cache_key[0] && l_bl_ser)
-                    dap_rpc_cache_put(dap_rpc_cache_class_get("block_list"), l_bl_cache_key, l_bl_ser, 0);
+                if (l_bl_cache_key[0] && dap_rpc_cache_is_enabled()) {
+                    const char *l_bl_ser = json_object_to_json_string_ext(l_full_arr, JSON_C_TO_STRING_PLAIN);
+                    if (l_bl_ser)
+                        dap_rpc_cache_put(dap_rpc_cache_class_get("block_list"), l_bl_cache_key, l_bl_ser, 0);
+                }
                 // Stream: the same rows into the nested element, then the count.
                 json_object *l_rows_arr = json_object_array_get_idx(l_full_arr, 0);
                 size_t l_out_count = json_object_array_length(l_rows_arr);

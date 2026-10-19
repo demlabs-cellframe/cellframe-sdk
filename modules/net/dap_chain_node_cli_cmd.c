@@ -2693,7 +2693,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             json_object_array_add(*a_json_arr_reply, json_arr_out);
             // Cache the reply exactly as the executor will serialize it (the enclosing
             // array with the collected rows), so a later hit can be embedded verbatim.
-            if (l_wo_cache_store) {
+            if (l_wo_cache_store && dap_rpc_cache_is_enabled()) {
                 const char *l_wo_ser = json_object_to_json_string_ext(*a_json_arr_reply, JSON_C_TO_STRING_PLAIN);
                 if (l_wo_ser)
                     dap_rpc_cache_put(dap_rpc_cache_class_get("wallet_outputs"), l_wo_cache_key, l_wo_ser, 0);
@@ -9776,7 +9776,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
         }        
         json_object_array_add(*a_json_arr_reply, json_obj_out);        
         json_object_array_add(*a_json_arr_reply, json_obj_summary);
-        if (l_th_cache_key[0]) {
+        if (l_th_cache_key[0] && dap_rpc_cache_is_enabled()) {
             const char *l_th_ser = json_object_to_json_string_ext(*a_json_arr_reply, JSON_C_TO_STRING_PLAIN);
             if (l_th_ser)
                 dap_rpc_cache_put(dap_rpc_cache_class_get("tx_history"), l_th_cache_key, l_th_ser, 0);
@@ -9799,7 +9799,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply, int a_version
 
         json_object_array_add(*a_json_arr_reply, json_arr_history_all);
         json_object_array_add(*a_json_arr_reply, json_obj_summary);
-        if (l_th_cache_key[0]) {
+        if (l_th_cache_key[0] && dap_rpc_cache_is_enabled()) {
             const char *l_th_ser = json_object_to_json_string_ext(*a_json_arr_reply, JSON_C_TO_STRING_PLAIN);
             if (l_th_ser)
                 dap_rpc_cache_put(dap_rpc_cache_class_get("tx_history"), l_th_cache_key, l_th_ser, 0);
