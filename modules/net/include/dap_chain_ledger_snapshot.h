@@ -77,7 +77,10 @@ void dap_ledger_snapshot_skip_set(dap_ledger_t *a_ledger, uint64_t a_block_num,
  * Registration is idempotent by name (the first registration wins).
  */
 #define DAP_LEDGER_SNAPSHOT_SECTION_NAME_MAX 32
-typedef int (*dap_ledger_snapshot_dump_cb_t)(void *a_ctx, dap_string_t *a_out);
+// The dump callback receives the network whose snapshot is being written, so a
+// section must only emit that network's state (several networks share the
+// process and each has its own snapshot file).
+typedef int (*dap_ledger_snapshot_dump_cb_t)(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
 typedef int (*dap_ledger_snapshot_load_cb_t)(void *a_ctx, const uint8_t *a_data, size_t a_size);
 
 int dap_ledger_add_snapshot_section(const char *a_name, uint32_t a_flags,

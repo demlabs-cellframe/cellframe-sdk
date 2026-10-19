@@ -3221,7 +3221,7 @@ static void s_pending_sections_apply(uint64_t a_net_id)
         void *l_ctx = NULL;
         if (s_snapshot_section_find(l_it->name, &l_load, &l_ctx) && l_load) {
             int l_rc = l_load(l_ctx, l_it->data, l_it->size);
-            log_it(l_rc ? L_WARNING : L_INFO, "Ledger snapshot: section '%s' %s (%zu bytes)",
+            log_it(l_rc ? L_WARNING : L_NOTICE, "Ledger snapshot: section '%s' %s (%zu bytes)",
                    l_it->name, l_rc ? "load failed" : "restored", l_it->size);
         } else {
             log_it(L_INFO, "Ledger snapshot: section '%s' skipped (not registered)", l_it->name);
@@ -3501,7 +3501,7 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
             if (!l_sec->dump)
                 continue;
             dap_string_t *l_data = dap_string_new("");
-            if (!l_data || l_sec->dump(l_sec->ctx, l_data) || !l_data->len) {
+            if (!l_data || l_sec->dump(l_sec->ctx, a_ledger->net->pub.id.uint64, l_data) || !l_data->len) {
                 if (l_data)
                     dap_string_free(l_data, true);
                 continue;

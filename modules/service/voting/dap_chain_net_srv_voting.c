@@ -257,15 +257,18 @@ typedef struct DAP_PACKED s_snapshot_poll_rec {
     uint32_t options_count;
 } s_snapshot_poll_rec_t;
 
-static int s_snapshot_polls_dump(void *a_ctx, dap_string_t *a_out)
+static int s_snapshot_polls_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
 {
     (void)a_ctx;
     uint64_t l_count = 0;
     pthread_rwlock_rdlock(&s_votings_rwlock);
     for (dap_chain_net_votings_t *l_v = s_votings; l_v; l_v = l_v->hh.next)
-        ++l_count;
+        if (l_v->net_id.uint64 == a_net_id)
+            ++l_count;
     dap_string_append_len(a_out, (const char *)&l_count, sizeof(l_count));
     for (dap_chain_net_votings_t *l_v = s_votings; l_v; l_v = l_v->hh.next) {
+        if (l_v->net_id.uint64 != a_net_id)
+            continue;
         s_snapshot_poll_rec_t l_rec = {
             .voting_hash = l_v->voting_hash,
             .net_id = l_v->net_id.uint64,
