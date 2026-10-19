@@ -28,6 +28,7 @@
 #include "dap_chain_ledger.h"
 
 typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
+struct dap_chain_cell;
 
 typedef struct dap_chain_block_cache {
     // Block's general non-nested attributes
@@ -65,6 +66,11 @@ typedef struct dap_chain_block_cache {
 
     // Pointer to block itself
     dap_chain_block_t * block;
+    // Thin (index-restored) entry: absolute file position and the owning cell.
+    // block is NULL until ensure() reads the body into heap (block_owned).
+    uint64_t file_offset;
+    struct dap_chain_cell *cell;
+    bool block_owned;
 
     // List for keeping pointers to list of atoms in side branches
     dap_list_t *forked_branches;

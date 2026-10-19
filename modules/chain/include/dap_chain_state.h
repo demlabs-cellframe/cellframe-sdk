@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define DAP_CHAIN_STATE_VERSION 3
+#define DAP_CHAIN_STATE_VERSION 4
 // crc64() = crc64_update(init, ...) ^ xorout with init = xorout = ~0; keeping the
 // running value lets the records CRC stay incremental.
 #define DAP_CHAIN_STATE_CRC_INIT UINT64_C(~0)

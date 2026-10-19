@@ -182,6 +182,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
 #endif
 #endif
     a_cell->map_pos = a_cell->map + l_offset;
+    a_cell->cur_vol_start = l_volume_start;
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map);
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map_end = a_cell->map + l_map_size);
 #ifndef DAP_OS_WINDOWS    
@@ -198,6 +199,18 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
  * @param a_cell_id dap_chain_cell_id_t cell (shard) id
  * @return dap_chain_cell_t* 
  */
+int dap_chain_cell_map_window(dap_chain_cell_t *a_cell, size_t a_file_pos)
+{
+    if (!a_cell || !a_cell->map || !a_cell->map_end)
+        return -1;
+    size_t l_off = a_file_pos - a_cell->cur_vol_start;
+    if (a_file_pos >= a_cell->cur_vol_start && a_cell->map + l_off < a_cell->map_end) {
+        a_cell->map_pos = a_cell->map + l_off;
+        return 0;
+    }
+    return s_cell_map_new_volume(a_cell, a_file_pos, true);
+}
+
 dap_chain_cell_t * dap_chain_cell_find_by_id(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
 {
     if (!a_chain->cells)
@@ -463,7 +476,8 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                    "resuming the cell at %" DAP_UINT64_FORMAT_U " (no rescan of covered blocks)",
                    a_chain->name, (long long)l_restored, l_resume);
             l_pos = (off_t)l_resume;
-            a_cell->map_pos = a_cell->map + l_pos;
+            if (dap_chain_cell_map_window(a_cell, (size_t)l_resume))
+                l_pos = l_full_size; // nothing more to read; the loop will not run
             // Fall through: only the blocks above the ledger anchor are read and
             // applied by the normal path below.
         } else {

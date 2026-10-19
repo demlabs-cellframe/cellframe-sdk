@@ -38,9 +38,9 @@ typedef struct dap_chain_cell {
     FILE *file_storage;
     uint8_t file_storage_type;
     dap_list_t *map_range_bounds;
-#ifdef DAP_OS_DARWIN
+    // Absolute file position the current mmap window starts at: block pointers
+    // are window-relative, persisted offsets must be absolute.
     size_t cur_vol_start;
-#endif
     pthread_rwlock_t storage_rwlock;
     UT_hash_handle hh;
 } dap_chain_cell_t;
@@ -78,6 +78,9 @@ typedef struct dap_chain_cell_decl{
 int dap_chain_cell_init(void);
 dap_chain_cell_t *dap_chain_cell_create_fill(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
 dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
+// Maps the file window containing a_file_pos (used by the index restore and the
+// lazy block parser). No-op when the current window already covers it.
+int dap_chain_cell_map_window(dap_chain_cell_t *a_cell, size_t a_file_pos);
 void dap_chain_cell_close(dap_chain_cell_t *a_cell);
 void dap_chain_cell_delete(dap_chain_cell_t *a_cell);
 void dap_chain_cell_delete_all_and_free_file(dap_chain_t *a_chain);

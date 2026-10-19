@@ -2395,8 +2395,10 @@ static uint64_t s_chain_state_block_offset(dap_chain_cs_blocks_t *a_blocks, dap_
     byte_t *l_map = (byte_t *)l_cell->map;
     byte_t *l_map_end = (byte_t *)l_cell->map_end;
     byte_t *l_block_ptr = (byte_t *)a_block_cache->block;
+    // Absolute file position: the mmap window starts at cur_vol_start, so the
+    // pointer delta alone is window-relative.
     return (l_block_ptr >= l_map && l_block_ptr < l_map_end)
-            ? (uint64_t)(l_block_ptr - l_map) : 0;
+            ? (uint64_t)l_cell->cur_vol_start + (uint64_t)(l_block_ptr - l_map) : 0;
 }
 
 // Called for every accepted block. Main-branch blocks are appended to the linear
@@ -2464,10 +2466,11 @@ static bool s_blocks_restore_rec_cb(void *a_arg, const dap_chain_state_rec_t *a_
     l_bc->block_number = a_rec->num;
     l_bc->ts_created = (time_t)a_rec->ts;
     l_bc->prev_hash = a_rec->prev_hash;
-    // No body parse and no datum parse: dap_chain_block_cache_ensure() fills
-    // block/datum/datum_hash on first use. The mmap pointer is computed, not read.
-    l_bc->block = l_ctx->cell && l_ctx->cell->map
-            ? (dap_chain_block_t *)(l_ctx->cell->map + a_rec->offset) : NULL;
+    // No body parse and no datum parse: dap_chain_block_cache_ensure() reads the
+    // body from the cell file and parses datums on first use.
+    l_bc->block = NULL;
+    l_bc->file_offset = a_rec->offset;
+    l_bc->cell = l_ctx->cell;
     l_bc->datum_count = a_rec->datum_count;
     HASH_ADD(hh, PVT(l_ctx->blocks)->blocks, block_hash, sizeof(l_bc->block_hash), l_bc);
     HASH_ADD_BYHASHVALUE(hh2, PVT(l_ctx->blocks)->blocks_num, block_number,

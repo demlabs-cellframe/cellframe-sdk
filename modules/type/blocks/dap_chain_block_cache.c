@@ -24,6 +24,7 @@
 #include <time.h>
 #include <stdatomic.h>
 #include "dap_common.h"
+#include "dap_chain_cell.h"
 #include "dap_chain_block_cache.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in.h"
@@ -149,10 +150,31 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
  */
 int dap_chain_block_cache_ensure(dap_chain_block_cache_t *a_block_cache)
 {
-    if (!a_block_cache || !a_block_cache->block)
+    if (!a_block_cache)
         return -1;
     if (a_block_cache->datum)
         return 0;
+    if (!a_block_cache->block) {
+        // Thin entry restored from the chain-state index: read the body from the
+        // cell file into heap. The mmap window can move under other readers, so a
+        // private buffer is the only stable representation.
+        if (!a_block_cache->cell || !a_block_cache->file_offset || !a_block_cache->block_size)
+            return -3;
+        dap_chain_cell_t *l_cell = a_block_cache->cell;
+        FILE *l_f = fopen(l_cell->file_storage_path, "rb");
+        if (!l_f)
+            return -4;
+        uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, a_block_cache->block_size);
+        bool l_ok = l_buf && fseeko(l_f, (off_t)a_block_cache->file_offset, SEEK_SET) == 0
+                && fread(l_buf, 1, a_block_cache->block_size, l_f) == a_block_cache->block_size;
+        fclose(l_f);
+        if (!l_ok) {
+            DAP_DEL_Z(l_buf);
+            return -5;
+        }
+        a_block_cache->block = (dap_chain_block_t *)l_buf;
+        a_block_cache->block_owned = true;
+    }
     a_block_cache->sign_count = dap_chain_block_get_signs_count(a_block_cache->block, a_block_cache->block_size);
     return dap_chain_block_cache_update(a_block_cache, &a_block_cache->block_hash) ? -2 : 0;
 }
@@ -163,6 +185,8 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
     DAP_DEL_Z(a_block_cache->datum_hash);
     DAP_DEL_Z(a_block_cache->links_hash);
     DAP_DEL_Z(a_block_cache->sign_pkey_hashes);
+    if (a_block_cache->block_owned)
+        DAP_DEL_Z(a_block_cache->block);
     DAP_DELETE(a_block_cache);
 }
 
