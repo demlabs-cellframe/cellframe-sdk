@@ -23,6 +23,7 @@
 */
 
 #pragma once
+#include <stdbool.h>
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"
@@ -44,6 +45,16 @@ typedef struct dap_chain_wallet_cache_iter {
     char *token_ticker;
     void *cur_item;
     void *cur_addr_cache;
+    // The iterator never holds pointers into the cache across calls: the cache
+    // entries may be cleared/replaced while a history read is in progress. The
+    // address locates the wallet entry again on every step, and the hashes and
+    // ticker are returned from these copies.
+    dap_chain_addr_t addr;
+    dap_chain_hash_fast_t cur_item_hash;
+    dap_chain_hash_fast_t cur_hash_copy;
+    dap_chain_hash_fast_t cur_atom_hash_copy;
+    char token_ticker_copy[DAP_CHAIN_TICKER_SIZE_MAX];
+    bool has_cur_item;
 } dap_chain_wallet_cache_iter_t;
 
 #ifdef __cplusplus
