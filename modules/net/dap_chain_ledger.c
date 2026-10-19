@@ -3491,6 +3491,26 @@ static int s_snapshot_ledger_state_dump(void *a_ctx, uint64_t a_net_id, dap_stri
         }
         DAP_DEL_Z(l_refs);
     }
+    // Emissions with their used-out marks. The full datum is stored (the item
+    // exposes it to stake-lock/bridge/mempool consumers); supply is NOT
+    // recomputed on load - the token record above carries it. A compact
+    // two-tier encoding is a size optimisation for a later pass.
+    for (dap_ledger_token_item_t *l_tok = l_pvt->tokens; l_tok && !l_ret; l_tok = l_tok->hh.next) {
+        pthread_rwlock_rdlock(&l_tok->token_emissions_rwlock);
+        for (dap_ledger_token_emission_item_t *l_em = l_tok->token_emissions; l_em; l_em = l_em->hh.next) {
+            s_snapshot_emission_rec_t l_rec = { .ts_added = l_em->ts_added,
+                    .datum_size = l_em->datum_token_emission_size };
+            memcpy(l_rec.emission_hash, &l_em->datum_token_emission_hash, sizeof(dap_chain_hash_fast_t));
+            memcpy(l_rec.tx_used_out, &l_em->tx_used_out, sizeof(dap_chain_hash_fast_t));
+            if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec))
+                    || (l_rec.datum_size && !s_snapshot_append(l_body, l_em->datum_token_emission, l_rec.datum_size))) {
+                l_ret = -2;
+                break;
+            }
+            ++l_hdr.n_emissions;
+        }
+        pthread_rwlock_unlock(&l_tok->token_emissions_rwlock);
+    }
     pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
 
     if (!l_ret) {
