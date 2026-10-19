@@ -2427,11 +2427,23 @@ typedef struct s_blocks_restore_ctx {
     dap_chain_cell_t *cell;
     uint64_t last_num;
     uint64_t count;
+    uint64_t anchor_num;
+    uint64_t resume_offset; // first record above the anchor (8-byte prefix position)
+    bool have_resume;
+    uint64_t file_size;
 } s_blocks_restore_ctx_t;
 
 static bool s_blocks_restore_rec_cb(void *a_arg, const dap_chain_state_rec_t *a_rec)
 {
     s_blocks_restore_ctx_t *l_ctx = (s_blocks_restore_ctx_t *)a_arg;
+    if (a_rec->num > l_ctx->anchor_num) {
+        // Blocks above the ledger anchor are not in the snapshot: they must go
+        // through the normal add path (datums applied), so the loader resumes
+        // right here.
+        l_ctx->resume_offset = a_rec->offset >= sizeof(uint64_t) ? a_rec->offset - sizeof(uint64_t) : 0;
+        l_ctx->have_resume = true;
+        return false;
+    }
     dap_chain_block_cache_t *l_bc = DAP_NEW_Z(dap_chain_block_cache_t);
     if (!l_bc)
         return false;
@@ -2504,9 +2516,9 @@ void dap_chain_cs_blocks_tx_count_set(dap_chain_t *a_chain, uint64_t a_count)
         dap_chain_state_tx_count_set(l_state, a_count);
 }
 
-int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain)
+int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offset)
 {
-    if (!a_chain || !s_is_blocks_chain(a_chain))
+    if (!a_chain || !a_resume_offset || !s_is_blocks_chain(a_chain))
         return -1;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
@@ -2535,17 +2547,21 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain)
         return -9;
     uint64_t l_anchor_num = 0;
     dap_chain_hash_fast_t l_anchor_hash = {};
-    if (l_ledger && dap_ledger_snapshot_skip_get(l_ledger, &l_anchor_num, &l_anchor_hash)
-            && (l_anchor_num > l_last.num
-                || (l_anchor_num == l_last.num
-                    && !dap_hash_fast_compare(&l_anchor_hash, &l_last.hash))))
+    if (!dap_ledger_snapshot_skip_get(l_ledger, &l_anchor_num, &l_anchor_hash) || !l_anchor_num)
         return -7;
-    s_blocks_restore_ctx_t l_ctx = { .blocks = l_blocks, .cell = l_cell };
+    if (l_anchor_num > l_last.num
+            || (l_anchor_num == l_last.num && !dap_hash_fast_compare(&l_anchor_hash, &l_last.hash)))
+        return -7;
+    s_blocks_restore_ctx_t l_ctx = { .blocks = l_blocks, .cell = l_cell,
+            .anchor_num = l_anchor_num, .file_size = (uint64_t)(l_last.offset + l_last.size) };
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     int l_rc = dap_chain_state_for_each_record(l_state, s_blocks_restore_rec_cb, &l_ctx);
-    if (!l_rc) {
-        atomic_store(&PVT(l_blocks)->blocks_count, l_ctx.last_num);
-        a_chain->atom_num_last = l_ctx.last_num;
+    // A callback stop above the anchor is the normal tail case, not an error.
+    if (!l_rc || (l_rc == -4 && l_ctx.have_resume)) {
+        atomic_store(&PVT(l_blocks)->blocks_count, l_anchor_num);
+        a_chain->atom_num_last = l_anchor_num;
+        *a_resume_offset = l_ctx.have_resume ? l_ctx.resume_offset : l_ctx.file_size;
+        l_rc = 0;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return l_rc ? -8 : (int64_t)l_ctx.count;

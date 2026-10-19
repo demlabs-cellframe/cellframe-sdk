@@ -204,9 +204,11 @@ typedef struct dap_chain {
     dap_chain_callback_atom_form_treshold_t callback_atom_add_from_treshold;
     dap_chain_callback_atom_verify_t callback_atom_verify;
     // No-scan startup: build the consensus cache from the persisted state index
-    // instead of walking the cell body. Returns the number of restored atoms, or
-    // <0 to refuse (the loader then falls back to the regular scan).
-    int64_t (*callback_restore_index)(dap_chain_t *a_chain);
+    // instead of walking the cell body, and report the file position to resume
+    // from (the first block above the ledger anchor, at its 8-byte size prefix;
+    // the file size when the index does not go past the anchor). Returns the
+    // number of restored atoms, or <0 to refuse (the loader then scans the cell).
+    int64_t (*callback_restore_index)(dap_chain_t *a_chain, uint64_t *a_resume_offset);
 
     dap_chain_callback_add_datums_t callback_add_datums;
     dap_chain_callback_atom_get_hdr_size_t callback_atom_get_hdr_static_size; // Get atom header's size

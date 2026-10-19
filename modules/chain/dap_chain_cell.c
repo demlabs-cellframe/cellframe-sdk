@@ -456,15 +456,20 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     // anchor itself and refuses (<0) when anything disagrees - then the regular
     // cell walk below runs. No cell-body reads happen on the accepted path.
     if (a_chain->is_mapped && a_chain->callback_restore_index) {
-        int64_t l_restored = a_chain->callback_restore_index(a_chain);
+        uint64_t l_resume = 0;
+        int64_t l_restored = a_chain->callback_restore_index(a_chain, &l_resume);
         if (l_restored >= 0) {
-            log_it(L_NOTICE, "Chain %s: restored %lld atoms from the state index (no cell scan)",
+            log_it(L_NOTICE, "Chain %s: restored %lld atoms from the state index, "
+                   "resuming the cell at %" DAP_UINT64_FORMAT_U " (no rescan of covered blocks)",
+                   a_chain->name, (long long)l_restored, l_resume);
+            l_pos = (off_t)l_resume;
+            a_cell->map_pos = a_cell->map + l_pos;
+            // Fall through: only the blocks above the ledger anchor are read and
+            // applied by the normal path below.
+        } else {
+            log_it(L_WARNING, "Chain %s: state index refused (code %lld), scanning the cell",
                    a_chain->name, (long long)l_restored);
-            a_cell->map_pos = a_cell->map + l_full_size;
-            return 0;
         }
-        log_it(L_WARNING, "Chain %s: state index refused (code %lld), scanning the cell",
-               a_chain->name, (long long)l_restored);
     }
 
     int l_ret = 0;    
