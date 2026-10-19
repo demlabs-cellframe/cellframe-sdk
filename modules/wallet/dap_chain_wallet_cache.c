@@ -947,14 +947,19 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
     // CRITICAL FIX: Check if cache was actually loaded
     // If wallet_txs is NULL, cache was never populated - trigger fallback to ledger
     // If wallet_txs exists but unspent_outputs is empty, wallet is genuinely empty - return success
-    if (!l_list_used_out && !l_wallet_item->wallet_txs) {
-        debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] Cache not loaded for %s (wallet_txs=NULL), falling back to ledger",
-                 dap_chain_addr_to_str_static(a_addr));
-        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return -101;  // Return error to trigger fallback to ledger
-    }
-
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    if (!l_list_used_out && !l_wallet_item->wallet_txs) {
+        // wallet_txs (the per-address history) is a separate index that the
+        // snapshot does not carry yet. With a restored unspent index an empty
+        // list IS the answer; falling back to a full ledger walk for every
+        // empty address turned a 5 ms reply into a 30 s one.
+        // (Checked after the unlock: the restored marker takes the same lock.)
+        if (!dap_chain_wallet_cache_index_restored(a_net->pub.id)) {
+            debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] Cache not loaded for %s (wallet_txs=NULL), falling back to ledger",
+                     dap_chain_addr_to_str_static(a_addr));
+            return -101;  // Return error to trigger fallback to ledger
+        }
+    }
     return 0;
 }
 

@@ -3652,7 +3652,7 @@ static int s_snapshot_validate_payload(const dap_ledger_snapshot_header_t *a_hdr
         }
     }
     if ((a_hdr->flags & 0x2u) && a_hdr->n_sections) {
-        if (a_hdr->n_sections > DAP_LEDGER_SNAPSHOT_MAX_SECTIONS)
+        if (!a_payload || a_hdr->n_sections > DAP_LEDGER_SNAPSHOT_MAX_SECTIONS)
             return -1;
         size_t l_desc_size = sizeof(dap_ledger_snapshot_section_desc_t) * a_hdr->n_sections;
         if (l_ptr + l_desc_size > l_end)
@@ -6371,6 +6371,8 @@ static void s_ledger_rpc_cache_invalidate_addr(const char *a_addr_str,
 static void s_ledger_rpc_cache_notify_tx(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
                                          dap_list_t *a_bound_items)
 {
+    if (!dap_rpc_cache_is_enabled())
+        return;
     dap_rpc_cache_class_t *l_wallet_outputs = dap_rpc_cache_class_find("wallet_outputs");
     dap_rpc_cache_class_t *l_tx_history = dap_rpc_cache_class_find("tx_history");
     if ((!l_wallet_outputs || !dap_rpc_cache_class_has_entries(l_wallet_outputs))

@@ -2086,6 +2086,11 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
 
     size_t l_block_offset = 0;
     size_t l_datum_size = 0;
+    // Evaluated once per block: this used to take the wallet-cache lock for
+    // every datum of every block during a full chain scan.
+    dap_chain_net_t *l_notify_net = dap_chain_net_by_id(a_blocks->chain->net_id);
+    bool l_notify = !(l_notify_net && dap_chain_net_get_load_mode(l_notify_net)
+            && dap_chain_wallet_cache_index_restored(a_blocks->chain->net_id));
     for(size_t i=0; i<a_block_cache->datum_count && l_block_offset +sizeof(a_block_cache->block->hdr) < a_block_cache->block_size ;
         i++, l_block_offset += l_datum_size ){
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
@@ -2132,9 +2137,6 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             // A load pass over a snapshot-restored wallet index already holds every
             // output: replaying one notification per datum only builds the pending
             // queue that keeps the node "warming up" for a long time after a restart.
-            dap_chain_net_t *l_notify_net = dap_chain_net_by_id(a_blocks->chain->net_id);
-            bool l_notify = !(l_notify_net && dap_chain_net_get_load_mode(l_notify_net)
-                    && dap_chain_wallet_cache_index_restored(a_blocks->chain->net_id));
             if (l_notify && !s_no_datum_notify)
                 dap_chain_datum_notify(l_cell, l_datum_hash, &a_block_cache->block_hash,
                                    (byte_t *) a_block_cache->block, a_block_cache->block_size,

@@ -97,7 +97,7 @@ static void s_class_evict_lru_locked(dap_rpc_cache_class_t *a_class, size_t a_ne
         }
         if (!l_oldest)
             break;
-        a_class->cur_bytes -= l_oldest->len;
+        a_class->cur_bytes -= l_oldest->len + 1;
         a_class->cur_items--;
         a_class->evicts++;
         HASH_DEL(a_class->entries, l_oldest);
@@ -218,6 +218,11 @@ dap_rpc_cache_class_t *dap_rpc_cache_class_find(const char *a_name)
     }
     pthread_rwlock_unlock(&s_classes_lock);
     return l_found;
+}
+
+bool dap_rpc_cache_is_enabled(void)
+{
+    return s_enabled;
 }
 
 bool dap_rpc_cache_class_has_entries(dap_rpc_cache_class_t *a_class)
@@ -404,7 +409,7 @@ void dap_rpc_cache_invalidate(dap_rpc_cache_class_t *a_class)
 
 void dap_rpc_cache_invalidate_name(const char *a_name)
 {
-    if (!a_name)
+    if (!a_name || !s_enabled)
         return;
     pthread_rwlock_rdlock(&s_classes_lock);
     for (dap_rpc_cache_class_t *l_it = s_classes; l_it; l_it = l_it->next) {
@@ -436,6 +441,8 @@ void dap_rpc_cache_invalidate_prefix(dap_rpc_cache_class_t *a_class, const char 
 
 void dap_rpc_cache_invalidate_prefix_name(const char *a_name, const char *a_prefix)
 {
+    if (!s_enabled)
+        return;
     dap_rpc_cache_class_t *l_class = dap_rpc_cache_class_find(a_name);
     if (l_class)
         dap_rpc_cache_invalidate_prefix(l_class, a_prefix);

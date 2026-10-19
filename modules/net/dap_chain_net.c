@@ -3378,10 +3378,9 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             // Count a transaction that is new to the ledger, and - only during a
             // load pass - one restored from the snapshot (ALREADY_CACHED). A live
             // merge re-applying blocks must not count the same tx twice.
-            dap_chain_net_t *l_count_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
             bool l_count_tx = (l_result == 0)
                     || (l_result == DAP_LEDGER_CHECK_ALREADY_CACHED
-                        && l_count_net && dap_chain_net_get_load_mode(l_count_net));
+                        && l_ledger->net && dap_chain_net_get_load_mode(l_ledger->net));
             if (l_count_tx && a_chain && a_chain->callback_count_tx_increase)
                 a_chain->callback_count_tx_increase(a_chain);
             return l_result;

@@ -35,6 +35,10 @@ void dap_rpc_cache_deinit(void);
 
 /* Find or lazily create the class with the configured policy. */
 dap_rpc_cache_class_t *dap_rpc_cache_class_get(const char *a_name);
+/* False when the cache is disabled (no RPC server / cache_enabled=false):
+ * hot-path callers use it to skip lookups entirely. */
+bool dap_rpc_cache_is_enabled(void);
+
 /* Find an already created class without creating one (NULL when unused). */
 dap_rpc_cache_class_t *dap_rpc_cache_class_find(const char *a_name);
 /* True when the class holds at least one live entry. */
