@@ -804,6 +804,11 @@ bool dap_chain_wallet_cache_cold_reply_unavailable(void)
     return s_wallets_cache_type == DAP_WALLET_CACHE_TYPE_ALL && s_cold_reply_unavailable;
 }
 
+static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx,
+                                    dap_hash_fast_t *a_tx_hash, dap_hash_fast_t *a_atom_hash, int a_ret_code,
+                                    char *a_main_token_ticker, dap_chain_net_srv_uid_t a_srv_uid,
+                                    dap_chain_tx_tag_action_type_t a_action, char a_cache_op);
+
 bool dap_chain_wallet_cache_index_restored(dap_chain_net_id_t a_net_id)
 {
     if (s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)
@@ -812,6 +817,20 @@ bool dap_chain_wallet_cache_index_restored(dap_chain_net_id_t a_net_id)
     bool l_restored = s_bulk_done_nets_has(a_net_id.uint64);
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
     return l_restored;
+}
+
+void dap_chain_wallet_cache_history_fill(dap_chain_t *a_chain, const dap_chain_addr_t *a_addr,
+                                         dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                         dap_hash_fast_t *a_atom_hash, int a_ret_code)
+{
+    if (!a_chain || !a_addr || !a_tx || !a_tx_hash)
+        return;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    s_save_tx_cache_for_addr(a_chain, (dap_chain_addr_t *)a_addr, a_tx, a_tx_hash, a_atom_hash,
+                             a_ret_code,
+                             l_net ? (char *)dap_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, a_tx_hash) : NULL,
+                             (dap_chain_net_srv_uid_t){ .uint64 = 0 },
+                             DAP_CHAIN_TX_TAG_ACTION_UNKNOWN, 'a');
 }
 
 bool dap_chain_wallet_cache_is_warm(dap_chain_net_id_t a_net_id, char *a_reason, size_t a_reason_size)

@@ -463,6 +463,10 @@ json_object* dap_db_history_addr(json_object* a_json_arr_reply, dap_chain_addr_t
         uint32_t l_action = l_from_cache ? l_wallet_cache_iter->action : l_datum_iter->action;
         dap_chain_net_srv_uid_t l_uid = l_from_cache ? l_wallet_cache_iter->uid : l_datum_iter->uid;
         dap_hash_fast_t l_atom_hash = l_from_cache ? *l_wallet_cache_iter->cur_atom_hash : *l_datum_iter->cur_atom_hash;
+        // First (cache-missing) walk of this address: record what it touches in
+        // wallet_txs, so repeats and the next snapshot start are cache hits.
+        if (!l_from_cache)
+            dap_chain_wallet_cache_history_fill(a_chain, a_addr, l_tx, &l_tx_hash, &l_atom_hash, l_ret_code);
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         uint8_t *l_tx_item = NULL;

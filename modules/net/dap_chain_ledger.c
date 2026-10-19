@@ -3195,6 +3195,26 @@ static void s_pending_section_add(uint64_t a_net_id, const char *a_name,
     pthread_mutex_unlock(&s_pending_sections_lock);
 }
 
+static void s_pending_sections_clear(uint64_t a_net_id)
+{
+    pthread_mutex_lock(&s_pending_sections_lock);
+    s_pending_snapshot_section_t *l_keep = NULL;
+    s_pending_snapshot_section_t *l_it = s_pending_sections;
+    while (l_it) {
+        s_pending_snapshot_section_t *l_next = l_it->next;
+        if (l_it->net_id == a_net_id) {
+            DAP_DEL_Z(l_it->data);
+            DAP_DELETE(l_it);
+        } else {
+            l_it->next = l_keep;
+            l_keep = l_it;
+        }
+        l_it = l_next;
+    }
+    s_pending_sections = l_keep;
+    pthread_mutex_unlock(&s_pending_sections_lock);
+}
+
 static void s_pending_sections_apply(uint64_t a_net_id)
 {
     pthread_mutex_lock(&s_pending_sections_lock);
@@ -7471,6 +7491,9 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
             DAP_DELETE(l_snapshot_path);
         }
     }
+    // Sections whose load was deferred from that snapshot must not be applied
+    // later to a ledger that no longer represents the snapshot state.
+    s_pending_sections_clear(a_ledger->net->pub.id.uint64);
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);

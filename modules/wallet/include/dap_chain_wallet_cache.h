@@ -117,6 +117,14 @@ bool dap_chain_wallet_cache_is_warm(dap_chain_net_id_t a_net_id, char *a_reason,
 // output, so replaying one datum notification per transaction only fills the
 // pending queue that used to keep the node in "warming up" for a long time.
 bool dap_chain_wallet_cache_index_restored(dap_chain_net_id_t a_net_id);
+
+// Records one transaction in the per-address history of a_addr (if it touches
+// that address). Used by the address-history read path to fill wallet_txs on
+// its first (cache-missing) walk, so repeats and the next snapshot start are
+// served from the cache. Idempotent per tx hash.
+void dap_chain_wallet_cache_history_fill(dap_chain_t *a_chain, const dap_chain_addr_t *a_addr,
+                                         dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                         dap_hash_fast_t *a_atom_hash, int a_ret_code);
 // [wallets] wallets_cache_cold_reply_unavailable (default true, ALL mode
 // only): RPC address queries the cache can't answer yet must be refused with
 // "index warming" instead of falling back to a full ledger scan.
