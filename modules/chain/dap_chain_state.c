@@ -9,8 +9,9 @@
 
 #define LOG_TAG "dap_chain_state"
 
-// Writes are buffered; the header is rewritten on every append (so it always
-// matches the records) and fsynced + trimmed once per period.
+// Writes are buffered; the header is flushed once per period and the reader
+// takes the tip from the last record, so a header that lags the records (or a
+// crash-torn tail) never invalidates the index.
 #define DAP_CHAIN_STATE_SAVE_PERIOD 10
 
 struct dap_chain_state {
@@ -129,35 +130,48 @@ int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hd
 {
     if (!a_state || !a_hdr)
         return -1;
+    // Serialized against note_block/flush: 'chain cache show/verify' reads at
+    // runtime while the writer may be mid-flush.
+    pthread_mutex_lock(&a_state->lock);
     char *l_path = dap_chain_state_path(a_state);
     FILE *l_file = l_path ? fopen(l_path, "rb") : NULL;
     DAP_DELETE(l_path);
-    if (!l_file)
+    if (!l_file) {
+        pthread_mutex_unlock(&a_state->lock);
         return -1;
-    if (fread(a_hdr, sizeof(*a_hdr), 1, l_file) != 1) {
-        fclose(l_file);
-        return -2;
     }
-    if (memcmp(a_hdr->magic, s_chain_state_magic, sizeof(a_hdr->magic))
+    bool l_ok = fread(a_hdr, sizeof(*a_hdr), 1, l_file) == 1;
+    if (!l_ok || memcmp(a_hdr->magic, s_chain_state_magic, sizeof(a_hdr->magic))
             || a_hdr->version != DAP_CHAIN_STATE_VERSION
-            || a_hdr->header_size != sizeof(*a_hdr))
-        { fclose(l_file); return -3; }
+            || a_hdr->header_size != sizeof(*a_hdr)) {
+        fclose(l_file);
+        pthread_mutex_unlock(&a_state->lock);
+        return -3;
+    }
     if (a_hdr->net_id != a_state->chain->net_id.uint64
-            || a_hdr->cell_id != a_state->cell_id.uint64 || !a_hdr->last_block_num)
-        { fclose(l_file); return -4; }
+            || a_hdr->cell_id != a_state->cell_id.uint64 || !a_hdr->last_block_num) {
+        fclose(l_file);
+        pthread_mutex_unlock(&a_state->lock);
+        return -4;
+    }
     uint64_t l_crc = a_hdr->crc64;
     a_hdr->crc64 = 0;
-    bool l_ok = crc64((const uint8_t *)a_hdr, sizeof(*a_hdr)) == l_crc;
+    l_ok = crc64((const uint8_t *)a_hdr, sizeof(*a_hdr)) == l_crc;
     a_hdr->crc64 = l_crc;
-    if (!l_ok)
-        { fclose(l_file); return -5; }
+    if (!l_ok) {
+        fclose(l_file);
+        pthread_mutex_unlock(&a_state->lock);
+        return -5;
+    }
     if (fseek(l_file, 0, SEEK_END) != 0) {
         fclose(l_file);
+        pthread_mutex_unlock(&a_state->lock);
         return -6;
     }
     off_t l_size = ftello(l_file);
     if (l_size < 0 || (uint64_t)l_size < sizeof(*a_hdr)) {
         fclose(l_file);
+        pthread_mutex_unlock(&a_state->lock);
         return -7;
     }
     // The header is flushed periodically, so the file may hold a few records it
@@ -167,6 +181,7 @@ int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hd
     uint64_t l_records_in_file = (uint64_t)(l_size - sizeof(*a_hdr)) / sizeof(dap_chain_state_rec_t);
     if (!l_records_in_file || a_hdr->records_count > l_records_in_file) {
         fclose(l_file);
+        pthread_mutex_unlock(&a_state->lock);
         return -8;
     }
     dap_chain_state_rec_t l_last = {};
@@ -174,19 +189,43 @@ int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hd
             + (l_records_in_file - 1) * sizeof(dap_chain_state_rec_t));
     l_ok = fseek(l_file, l_last_off, SEEK_SET) == 0
             && fread(&l_last, sizeof(l_last), 1, l_file) == 1;
-    if (!l_ok) {
+    if (!l_ok || dap_hash_fast_is_blank(&l_last.hash)) {
         fclose(l_file);
+        pthread_mutex_unlock(&a_state->lock);
         return -9;
-    }
-    if (dap_hash_fast_is_blank(&l_last.hash)) {
-        fclose(l_file);
-        return -10;
     }
     a_hdr->records_count = l_records_in_file;
     a_hdr->last_block_num = l_last.num;
     a_hdr->last_block_hash = l_last.hash;
     fclose(l_file);
+    pthread_mutex_unlock(&a_state->lock);
     return 0;
+}
+
+bool dap_chain_state_last_record(dap_chain_state_t *a_state, dap_chain_state_rec_t *a_out)
+{
+    if (!a_state || !a_out)
+        return false;
+    pthread_mutex_lock(&a_state->lock);
+    bool l_ret = false;
+    char *l_path = dap_chain_state_path(a_state);
+    FILE *l_file = l_path ? fopen(l_path, "rb") : NULL;
+    DAP_DELETE(l_path);
+    if (l_file) {
+        bool l_ok = fseek(l_file, 0, SEEK_END) == 0;
+        off_t l_size = l_ok ? ftello(l_file) : -1;
+        uint64_t l_records = l_size > (off_t)sizeof(dap_chain_state_hdr_t)
+                ? (uint64_t)(l_size - sizeof(dap_chain_state_hdr_t)) / sizeof(dap_chain_state_rec_t) : 0;
+        if (l_records) {
+            off_t l_off = (off_t)(sizeof(dap_chain_state_hdr_t)
+                    + (l_records - 1) * sizeof(dap_chain_state_rec_t));
+            l_ret = fseek(l_file, l_off, SEEK_SET) == 0
+                    && fread(a_out, sizeof(*a_out), 1, l_file) == 1;
+        }
+        fclose(l_file);
+    }
+    pthread_mutex_unlock(&a_state->lock);
+    return l_ret;
 }
 
 void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint64_t a_blocks_count,
@@ -279,6 +318,8 @@ void dap_chain_state_datum_add(dap_chain_state_t *a_state, const dap_chain_state
     if (!l_new)
         return;
     *l_new = *a_rec;
+    // The uthash handle belongs to the table, not to the caller's record.
+    memset(&l_new->hh, 0, sizeof(l_new->hh));
     dap_chain_state_datum_t *l_dup = NULL;
     pthread_rwlock_wrlock(&a_state->datums_lock);
     HASH_FIND(hh, a_state->datums, &l_new->datum_hash, sizeof(l_new->datum_hash), l_dup);
@@ -397,7 +438,19 @@ uint64_t dap_chain_state_tx_count_get(dap_chain_state_t *a_state)
 
 uint64_t dap_chain_state_tx_count_add(dap_chain_state_t *a_state, int64_t a_delta)
 {
-    return a_state ? atomic_fetch_add(&a_state->tx_count, (uint64_t)a_delta) : 0;
+    if (!a_state)
+        return 0;
+    if (a_delta < 0) {
+        // Saturate at zero: a re-applied rollback must not wrap the unsigned
+        // counter to UINT64_MAX.
+        uint64_t l_cur = atomic_load(&a_state->tx_count);
+        uint64_t l_dec = (uint64_t)(-(a_delta + 1)) + 1;
+        if (l_cur < l_dec) {
+            atomic_store(&a_state->tx_count, 0);
+            return l_cur;
+        }
+    }
+    return atomic_fetch_add(&a_state->tx_count, (uint64_t)a_delta);
 }
 
 int dap_chain_state_info(dap_chain_state_t *a_state, char *a_buf, size_t a_buf_size)

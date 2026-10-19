@@ -2465,9 +2465,13 @@ int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a
     }
     uint64_t l_tip = 0;
     dap_hash_fast_t l_tip_hash = {};
-    if (dap_chain_cs_blocks_get_tip(a_chain, &l_tip, &l_tip_hash)
-            && (l_tip != l_hdr.last_block_num
-                || !dap_hash_fast_compare(&l_tip_hash, &l_hdr.last_block_hash))) {
+    bool l_has_tip = dap_chain_cs_blocks_get_tip(a_chain, &l_tip, &l_tip_hash);
+    // A sidecar BEHIND the in-memory tip is normal: records are appended as the
+    // scan advances and the header/index is flushed periodically. Only an index
+    // ahead of the chain, or a different hash at the same height, is a mismatch.
+    if (l_has_tip && (l_hdr.last_block_num > l_tip
+            || (l_hdr.last_block_num == l_tip
+                && !dap_hash_fast_compare(&l_tip_hash, &l_hdr.last_block_hash)))) {
         snprintf(a_buf, a_buf_size,
                  "mismatch: sidecar tip %" DAP_UINT64_FORMAT_U " != in-memory tip %" DAP_UINT64_FORMAT_U,
                  l_hdr.last_block_num, l_tip);
@@ -2486,11 +2490,30 @@ int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a
         snprintf(a_buf, a_buf_size, "sidecar valid, but the cell file is missing");
         return -4;
     }
+    // The last indexed record must point inside the cell file: this catches a
+    // sidecar left over from another/rebuilt chain of the same id.
+    dap_chain_state_rec_t l_last = {};
+    if (dap_chain_state_last_record(l_state, &l_last) && l_last.offset
+            && l_last.offset + sizeof(uint64_t) + l_last.size > (uint64_t)l_cell_size) {
+        snprintf(a_buf, a_buf_size,
+                 "mismatch: last record (block %" DAP_UINT64_FORMAT_U ", offset %" DAP_UINT64_FORMAT_U
+                 ", size %" DAP_UINT64_FORMAT_U ") is past the cell file (%" DAP_UINT64_FORMAT_U " bytes)",
+                 l_last.num, l_last.offset, l_last.size, (uint64_t)l_cell_size);
+        return -5;
+    }
     char *l_path = dap_chain_state_path(l_state);
-    snprintf(a_buf, a_buf_size,
-             "ok: sidecar %s, records %" DAP_UINT64_FORMAT_U ", tip %" DAP_UINT64_FORMAT_U
-             ", cell file %" DAP_UINT64_FORMAT_U " bytes",
-             l_path ? l_path : "-", l_hdr.records_count, l_hdr.last_block_num, (uint64_t)l_cell_size);
+    if (l_has_tip && l_tip > l_hdr.last_block_num) {
+        snprintf(a_buf, a_buf_size,
+                 "ok: sidecar %s, records %" DAP_UINT64_FORMAT_U ", tip %" DAP_UINT64_FORMAT_U
+                 ", cell file %" DAP_UINT64_FORMAT_U " bytes, behind the tip by %" DAP_UINT64_FORMAT_U,
+                 l_path ? l_path : "-", l_hdr.records_count, l_hdr.last_block_num,
+                 (uint64_t)l_cell_size, l_tip - l_hdr.last_block_num);
+    } else {
+        snprintf(a_buf, a_buf_size,
+                 "ok: sidecar %s, records %" DAP_UINT64_FORMAT_U ", tip %" DAP_UINT64_FORMAT_U
+                 ", cell file %" DAP_UINT64_FORMAT_U " bytes",
+                 l_path ? l_path : "-", l_hdr.records_count, l_hdr.last_block_num, (uint64_t)l_cell_size);
+    }
     DAP_DELETE(l_path);
     return 0;
 }

@@ -344,6 +344,9 @@ char *dap_rpc_cache_get_or_build(dap_rpc_cache_class_t *a_class, const char *a_k
     if (a_build(a_ctx, &l_built, &l_built_len) != 0 || !l_built)
         return NULL;
     l_built_len = strlen(l_built);
+    // The build may have taken a while: the TTL comparison below and the new
+    // entry's timestamp must use the current time, not the pre-build one.
+    l_now = s_now_ms();
 
     pthread_rwlock_wrlock(&a_class->lock);
     HASH_FIND_STR(a_class->entries, a_key, l_entry);
@@ -354,7 +357,7 @@ char *dap_rpc_cache_get_or_build(dap_rpc_cache_class_t *a_class, const char *a_k
             l_reply = dap_strdup(l_entry->json);
             DAP_DELETE(l_built);
         } else {
-            a_class->cur_bytes -= l_entry->len;
+            a_class->cur_bytes -= l_entry->len + 1;
             a_class->cur_items--;
             HASH_DEL(a_class->entries, l_entry);
             s_entry_free(l_entry);

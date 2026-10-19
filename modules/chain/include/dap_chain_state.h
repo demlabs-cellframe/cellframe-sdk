@@ -85,10 +85,13 @@ char *dap_chain_state_path(dap_chain_state_t *a_state);
 // size vs records_count, last record vs the header tip).
 int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hdr);
 
+// Last indexed block record (readiness checks: offset/size against the cell file).
+bool dap_chain_state_last_record(dap_chain_state_t *a_state, dap_chain_state_rec_t *a_out);
+
 // Records one accepted block: the tip moves when a_num grows, and the block is
 // appended to the index when a_index_record is true (main branch only). The
-// header is rewritten after every append; fsync and torn-tail trimming happen
-// once per save period.
+// header is flushed once per save period; readers take the tip from the last
+// record.
 void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint64_t a_blocks_count,
                                 time_t a_ts, uint64_t a_size, uint64_t a_offset,
                                 const dap_chain_hash_fast_t *a_hash,
