@@ -3058,7 +3058,7 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
  */
 
 #define DAP_LEDGER_SNAPSHOT_MAGIC "CFLEDGSN"
-#define DAP_LEDGER_SNAPSHOT_VERSION 2
+#define DAP_LEDGER_SNAPSHOT_VERSION 3
 #define DAP_LEDGER_SNAPSHOT_FILENAME "ledger-snapshot.bin"
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_header {
@@ -3074,8 +3074,8 @@ typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_header {
     uint64_t block_num;       // last block of the block chain at save time (0 = unknown);
                               // the scan skips transaction processing up to this position
     uint8_t  block_hash[sizeof(dap_chain_hash_fast_t)]; // that block's hash: continuity check
-    uint32_t flags;           // bit0: wallet section (unspent outs per address) present
-    uint32_t reserved;
+    uint32_t flags;           // bit0: wallet section, bit1: extension sections present
+    uint32_t n_sections;      // extension section descriptors that follow the wallet section
     uint64_t n_wallet_outs;   // unspent-output records in the wallet section
 } dap_ledger_snapshot_header_t;
 
@@ -3091,6 +3091,128 @@ typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_wallet_record {
     uint16_t ticker_len;
     uint64_t ts_unlock;
 } dap_ledger_snapshot_wallet_record_t;
+
+#define DAP_LEDGER_SNAPSHOT_MAX_SECTIONS 16
+
+typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_section_desc {
+    char name[DAP_LEDGER_SNAPSHOT_SECTION_NAME_MAX];
+    uint32_t flags;
+    uint32_t reserved;
+    uint64_t size;
+    uint64_t crc64;
+} dap_ledger_snapshot_section_desc_t;
+
+typedef struct s_ledger_snapshot_section {
+    char name[DAP_LEDGER_SNAPSHOT_SECTION_NAME_MAX];
+    uint32_t flags;
+    dap_ledger_snapshot_dump_cb_t dump;
+    dap_ledger_snapshot_load_cb_t load;
+    void *ctx;
+    struct s_ledger_snapshot_section *next;
+} s_ledger_snapshot_section_t;
+
+static s_ledger_snapshot_section_t *s_snapshot_sections = NULL;
+static pthread_mutex_t s_snapshot_sections_lock = PTHREAD_MUTEX_INITIALIZER;
+
+int dap_ledger_add_snapshot_section(const char *a_name, uint32_t a_flags,
+        dap_ledger_snapshot_dump_cb_t a_dump, dap_ledger_snapshot_load_cb_t a_load, void *a_ctx)
+{
+    if (!a_name || !*a_name || (!a_dump && !a_load))
+        return -1;
+    pthread_mutex_lock(&s_snapshot_sections_lock);
+    for (s_ledger_snapshot_section_t *l_it = s_snapshot_sections; l_it; l_it = l_it->next) {
+        if (!dap_strcmp(l_it->name, a_name)) {
+            pthread_mutex_unlock(&s_snapshot_sections_lock);
+            return 0; // idempotent by name
+        }
+    }
+    s_ledger_snapshot_section_t *l_new = DAP_NEW_Z(s_ledger_snapshot_section_t);
+    if (!l_new) {
+        pthread_mutex_unlock(&s_snapshot_sections_lock);
+        return -2;
+    }
+    dap_strncpy(l_new->name, a_name, sizeof(l_new->name) - 1);
+    l_new->flags = a_flags;
+    l_new->dump = a_dump;
+    l_new->load = a_load;
+    l_new->ctx = a_ctx;
+    l_new->next = s_snapshot_sections;
+    s_snapshot_sections = l_new;
+    pthread_mutex_unlock(&s_snapshot_sections_lock);
+    log_it(L_INFO, "Ledger snapshot: section '%s' registered", a_name);
+    return 0;
+}
+
+// Copies the callbacks out so a load callback runs without the registry lock.
+static bool s_snapshot_section_find(const char *a_name, dap_ledger_snapshot_load_cb_t *a_load, void **a_ctx)
+{
+    bool l_found = false;
+    pthread_mutex_lock(&s_snapshot_sections_lock);
+    for (s_ledger_snapshot_section_t *l_it = s_snapshot_sections; l_it; l_it = l_it->next) {
+        if (!dap_strcmp(l_it->name, a_name)) {
+            if (a_load) *a_load = l_it->load;
+            if (a_ctx) *a_ctx = l_it->ctx;
+            l_found = true;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&s_snapshot_sections_lock);
+    return l_found;
+}
+
+// Sections may need chain data (transaction datums are attached to the ledger
+// items only while the scan runs), so their load callbacks are deferred to
+// dap_ledger_load_end() instead of running in the middle of the restore.
+typedef struct s_pending_snapshot_section {
+    char name[DAP_LEDGER_SNAPSHOT_SECTION_NAME_MAX];
+    uint8_t *data;
+    size_t size;
+    struct s_pending_snapshot_section *next;
+} s_pending_snapshot_section_t;
+
+static s_pending_snapshot_section_t *s_pending_sections = NULL;
+static pthread_mutex_t s_pending_sections_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void s_pending_section_add(const char *a_name, const uint8_t *a_data, size_t a_size)
+{
+    s_pending_snapshot_section_t *l_new = DAP_NEW_Z(s_pending_snapshot_section_t);
+    if (!l_new)
+        return;
+    l_new->data = a_size ? DAP_DUP_SIZE((uint8_t *)a_data, a_size) : NULL;
+    if (a_size && !l_new->data) {
+        DAP_DELETE(l_new);
+        return;
+    }
+    dap_strncpy(l_new->name, a_name, sizeof(l_new->name) - 1);
+    l_new->size = a_size;
+    pthread_mutex_lock(&s_pending_sections_lock);
+    l_new->next = s_pending_sections;
+    s_pending_sections = l_new;
+    pthread_mutex_unlock(&s_pending_sections_lock);
+}
+
+static void s_pending_sections_apply(void)
+{
+    pthread_mutex_lock(&s_pending_sections_lock);
+    s_pending_snapshot_section_t *l_it = s_pending_sections;
+    s_pending_sections = NULL;
+    pthread_mutex_unlock(&s_pending_sections_lock);
+    while (l_it) {
+        s_pending_snapshot_section_t *l_next = l_it->next;
+        dap_ledger_snapshot_load_cb_t l_load = NULL;
+        void *l_ctx = NULL;
+        if (s_snapshot_section_find(l_it->name, &l_load, &l_ctx) && l_load) {
+            int l_rc = l_load(l_ctx, l_it->data, l_it->size);
+            log_it(l_rc ? L_WARNING : L_INFO, "Ledger snapshot: section '%s' %s (%zu bytes)",
+                   l_it->name, l_rc ? "load failed" : "restored", l_it->size);
+        } else {
+            log_it(L_INFO, "Ledger snapshot: section '%s' skipped (not registered)", l_it->name);
+        }
+        DAP_DEL_Z(l_it->data);
+        DAP_DELETE(l_it);
+        l_it = l_next;
+    }
+}
 
 // Wallet section is persisted only when the node indexes every address
 // ([wallets] wallets_cache=all): in that mode the restored unspent index
@@ -3326,6 +3448,44 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     }
 
+    // Extension sections (v3): registered services dump their data after the
+    // wallet section; the ledger core does not interpret it.
+    uint32_t l_n_sections = 0;
+    if (!l_ret) {
+        dap_ledger_snapshot_section_desc_t l_descs[DAP_LEDGER_SNAPSHOT_MAX_SECTIONS] = {};
+        s_snapshot_buf_t l_sections_buf = {};
+        pthread_mutex_lock(&s_snapshot_sections_lock);
+        for (s_ledger_snapshot_section_t *l_sec = s_snapshot_sections;
+                l_sec && l_n_sections < DAP_LEDGER_SNAPSHOT_MAX_SECTIONS; l_sec = l_sec->next) {
+            if (!l_sec->dump)
+                continue;
+            dap_string_t *l_data = dap_string_new("");
+            if (!l_data || l_sec->dump(l_sec->ctx, l_data) || !l_data->len) {
+                if (l_data)
+                    dap_string_free(l_data, true);
+                continue;
+            }
+            dap_ledger_snapshot_section_desc_t *l_desc = &l_descs[l_n_sections];
+            dap_strncpy(l_desc->name, l_sec->name, sizeof(l_desc->name) - 1);
+            l_desc->flags = l_sec->flags;
+            l_desc->size = l_data->len;
+            l_desc->crc64 = crc64((const uint8_t *)l_data->str, l_data->len);
+            if (s_snapshot_buf_put(&l_sections_buf, l_data->str, l_data->len))
+                l_ret = -2;
+            dap_string_free(l_data, true);
+            if (l_ret)
+                break;
+            ++l_n_sections;
+        }
+        pthread_mutex_unlock(&s_snapshot_sections_lock);
+        if (!l_ret && l_n_sections) {
+            if (s_snapshot_buf_put(&l_buf, l_descs, sizeof(l_descs[0]) * l_n_sections)
+                    || s_snapshot_buf_put(&l_buf, l_sections_buf.data, l_sections_buf.size))
+                l_ret = -2;
+        }
+        DAP_DEL_Z(l_sections_buf.data);
+    }
+
     if (l_ret) {
         log_it(L_ERROR, "Ledger snapshot: allocation error, save aborted");
         DAP_DEL_Z(l_buf.data);
@@ -3344,8 +3504,9 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     l_header.n_balances = l_n_balances;
     l_header.payload_size = l_buf.size;
     l_header.crc64 = crc64(l_buf.data, l_buf.size);
-    l_header.flags = l_n_wallet_outs ? 0x1u : 0u;
+    l_header.flags = (l_n_wallet_outs ? 0x1u : 0u) | (l_n_sections ? 0x2u : 0u);
     l_header.n_wallet_outs = l_n_wallet_outs;
+    l_header.n_sections = l_n_sections;
     // Anchor the snapshot to the block chain position it was taken at: on the
     // next start the scan skips transaction processing up to this block and
     // validates continuity against the hash before switching to live processing
@@ -3471,6 +3632,24 @@ static int s_snapshot_validate_payload(const dap_ledger_snapshot_header_t *a_hdr
             if (l_ptr + l_rec->addr_size + l_rec->ticker_len + sizeof(uint256_t) + sizeof(dap_chain_hash_fast_t) > l_end)
                 return -1;
             l_ptr += l_rec->addr_size + l_rec->ticker_len + sizeof(uint256_t) + sizeof(dap_chain_hash_fast_t);
+        }
+    }
+    if ((a_hdr->flags & 0x2u) && a_hdr->n_sections) {
+        if (a_hdr->n_sections > DAP_LEDGER_SNAPSHOT_MAX_SECTIONS)
+            return -1;
+        size_t l_desc_size = sizeof(dap_ledger_snapshot_section_desc_t) * a_hdr->n_sections;
+        if (l_ptr + l_desc_size > l_end)
+            return -1;
+        const dap_ledger_snapshot_section_desc_t *l_desc =
+                (const dap_ledger_snapshot_section_desc_t *)l_ptr;
+        l_ptr += l_desc_size;
+        for (uint32_t i = 0; i < a_hdr->n_sections; ++i) {
+            if (!memchr(l_desc[i].name, 0, sizeof(l_desc[i].name))
+                    || l_desc[i].size > (uint64_t)(l_end - l_ptr))
+                return -1;
+            if (crc64(l_ptr, l_desc[i].size) != l_desc[i].crc64)
+                return -1;
+            l_ptr += l_desc[i].size;
         }
     }
     // No trailing bytes: a tail means the counts and the payload disagree.
@@ -3655,6 +3834,25 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             } else
                 log_it(L_WARNING, "Ledger snapshot: wallet section restored %"DAP_UINT64_FORMAT_U
                        " of %"DAP_UINT64_FORMAT_U" records - the wallet bulk pass will re-run", l_restored_wallet, l_header.n_wallet_outs);
+        }
+        // Extension sections (v3).
+        if ((l_header.flags & 0x2u) && l_header.n_sections) {
+            size_t l_desc_size = sizeof(dap_ledger_snapshot_section_desc_t) * l_header.n_sections;
+            if (l_ptr + l_desc_size > l_end) {
+                log_it(L_WARNING, "Ledger snapshot: truncated section table");
+            } else {
+                const dap_ledger_snapshot_section_desc_t *l_desc =
+                        (const dap_ledger_snapshot_section_desc_t *)l_ptr;
+                l_ptr += l_desc_size;
+                for (uint32_t i = 0; i < l_header.n_sections; ++i) {
+                    if (l_desc[i].size > (uint64_t)(l_end - l_ptr)) {
+                        log_it(L_WARNING, "Ledger snapshot: truncated section '%s'", l_desc[i].name);
+                        break;
+                    }
+                    s_pending_section_add(l_desc[i].name, l_ptr, l_desc[i].size);
+                    l_ptr += l_desc[i].size;
+                }
+            }
         }
         // Chain-scan skip (EXPERIMENTAL, disabled in release builds): with the
         // skip active the cell loader stops feeding blocks into the block cache
@@ -6677,6 +6875,8 @@ FIN:
 void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    // Deferred snapshot sections: the chain data they may consult is attached now.
+    s_pending_sections_apply();
     // The cell-scan window is over: disarm the snapshot chain-scan skip. It
     // must not survive into the network phase - the zone accepts blocks
     // without verification, and if the scan ended below the snapshot anchor

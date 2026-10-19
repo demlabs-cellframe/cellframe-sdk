@@ -34,6 +34,8 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_ledger_snapshot.h"
+#include "dap_string.h"
 #include "dap_chain_policy.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
@@ -241,10 +243,81 @@ static bool s_tag_check_voting(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_t
     return false;
 }
 
+static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_hash, bool a_apply);
+
+// Snapshot section "polls": the list of polls per net. Votes are not dumped:
+// the scan re-applies every VOTE transaction, and a vote re-application is not
+// idempotent by itself, so restoring them twice would double the tally.
+// The section still makes a poll survive a start whose datums are not replayed.
+typedef struct DAP_PACKED s_snapshot_poll_rec {
+    dap_chain_hash_fast_t voting_hash;
+    uint64_t net_id;
+    uint64_t votes_count;
+    uint32_t status;
+    uint32_t options_count;
+} s_snapshot_poll_rec_t;
+
+static int s_snapshot_polls_dump(void *a_ctx, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    uint64_t l_count = 0;
+    pthread_rwlock_rdlock(&s_votings_rwlock);
+    for (dap_chain_net_votings_t *l_v = s_votings; l_v; l_v = l_v->hh.next)
+        ++l_count;
+    dap_string_append_len(a_out, (const char *)&l_count, sizeof(l_count));
+    for (dap_chain_net_votings_t *l_v = s_votings; l_v; l_v = l_v->hh.next) {
+        s_snapshot_poll_rec_t l_rec = {
+            .voting_hash = l_v->voting_hash,
+            .net_id = l_v->net_id.uint64,
+            .votes_count = l_v->votes_count,
+            .status = (uint32_t)l_v->voting_params.status,
+            .options_count = (uint32_t)dap_list_length(l_v->voting_params.option_offsets_list)
+        };
+        dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec));
+    }
+    pthread_rwlock_unlock(&s_votings_rwlock);
+    return 0;
+}
+
+static int s_snapshot_polls_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < sizeof(uint64_t))
+        return -1;
+    const uint8_t *l_ptr = a_data, *l_end = a_data + a_size;
+    uint64_t l_count = 0;
+    memcpy(&l_count, l_ptr, sizeof(l_count));
+    l_ptr += sizeof(l_count);
+    if (l_count > (uint64_t)(l_end - l_ptr) / sizeof(s_snapshot_poll_rec_t))
+        return -2;
+    for (uint64_t i = 0; i < l_count; ++i) {
+        s_snapshot_poll_rec_t l_rec;
+        memcpy(&l_rec, l_ptr, sizeof(l_rec));
+        l_ptr += sizeof(l_rec);
+        dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_rec.net_id });
+        dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+        if (!l_ledger)
+            continue;
+        dap_chain_net_votings_t *l_existing = NULL;
+        pthread_rwlock_rdlock(&s_votings_rwlock);
+        HASH_FIND(hh, s_votings, &l_rec.voting_hash, sizeof(l_rec.voting_hash), l_existing);
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        if (l_existing)
+            continue; // already created by the datum replay
+        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_rec.voting_hash);
+        if (!l_tx)
+            continue; // datum not attached yet; the scan will create the poll
+        dap_hash_fast_t l_hash = l_rec.voting_hash;
+        s_voting_verificator(l_ledger, TX_ITEM_TYPE_VOTING, l_tx, &l_hash, true);
+    }
+    return 0;
+}
+
 int dap_chain_net_srv_voting_init()
 {
     pthread_rwlock_init(&s_votings_rwlock, NULL);
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback, s_datum_tx_voting_verification_delete_callback);
+    dap_ledger_add_snapshot_section("polls", 0, s_snapshot_polls_dump, s_snapshot_polls_load, NULL);
     dap_cli_cmd_t *l_poll_cmd = dap_cli_server_cmd_add(
                 "poll", s_cli_voting, NULL, "Voting/poll commands",
                             "poll create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <poll_expire_time_in_RCF822>]"

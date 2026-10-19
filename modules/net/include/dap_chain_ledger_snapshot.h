@@ -21,6 +21,7 @@
 #pragma once
 
 #include "dap_chain_ledger.h"
+#include "dap_string.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +66,22 @@ bool dap_ledger_snapshot_skip_get(dap_ledger_t *a_ledger, uint64_t *a_block_num,
  */
 void dap_ledger_snapshot_skip_set(dap_ledger_t *a_ledger, uint64_t a_block_num,
                                   const dap_chain_hash_fast_t *a_block_hash);
+
+/**
+ * @brief Snapshot section registry (v3).
+ *
+ * Services register a named section; the ledger core knows nothing about their
+ * data. On save the dump callback fills a string buffer; on load the section is
+ * handed back verbatim (a_size == what was dumped). Unknown sections in a file
+ * are skipped by size, so a newer snapshot still loads on an older node.
+ * Registration is idempotent by name (the first registration wins).
+ */
+#define DAP_LEDGER_SNAPSHOT_SECTION_NAME_MAX 32
+typedef int (*dap_ledger_snapshot_dump_cb_t)(void *a_ctx, dap_string_t *a_out);
+typedef int (*dap_ledger_snapshot_load_cb_t)(void *a_ctx, const uint8_t *a_data, size_t a_size);
+
+int dap_ledger_add_snapshot_section(const char *a_name, uint32_t a_flags,
+        dap_ledger_snapshot_dump_cb_t a_dump, dap_ledger_snapshot_load_cb_t a_load, void *a_ctx);
 
 /**
  * @brief Disarm the chain-scan skip (the loader reached the snapshot position
