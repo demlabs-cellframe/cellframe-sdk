@@ -91,6 +91,7 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_snapshot.h"
 #include "dap_chain_arbitrage.h"
 #include "dap_global_db.h"
 #include "dap_chain_wallet_cache.h"
@@ -2037,6 +2038,11 @@ void dap_chain_net_deinit()
     dap_chain_net_balancer_deinit();
     dap_chain_net_t *l_net, *l_tmp;
     HASH_ITER(hh2, s_nets_by_id, l_net, l_tmp) {
+        // Graceful shutdown: the interval timer is the only other save trigger,
+        // so without this the last up-to-interval of ledger work is lost (the
+        // next scan replays it, but polling/snapshot-heavy nets pay that twice).
+        if (l_net->pub.ledger)
+            dap_ledger_snapshot_save(l_net->pub.ledger, true);
         dap_chain_net_delete(l_net);
     }
     dap_http_ban_list_client_deinit();

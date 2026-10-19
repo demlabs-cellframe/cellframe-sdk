@@ -3165,6 +3165,7 @@ static bool s_snapshot_section_find(const char *a_name, dap_ledger_snapshot_load
 // dap_ledger_load_end() instead of running in the middle of the restore.
 typedef struct s_pending_snapshot_section {
     char name[DAP_LEDGER_SNAPSHOT_SECTION_NAME_MAX];
+    uint64_t net_id;            // sections are applied only by that net's load end
     uint8_t *data;
     size_t size;
     struct s_pending_snapshot_section *next;
@@ -3173,7 +3174,8 @@ typedef struct s_pending_snapshot_section {
 static s_pending_snapshot_section_t *s_pending_sections = NULL;
 static pthread_mutex_t s_pending_sections_lock = PTHREAD_MUTEX_INITIALIZER;
 
-static void s_pending_section_add(const char *a_name, const uint8_t *a_data, size_t a_size)
+static void s_pending_section_add(uint64_t a_net_id, const char *a_name,
+                                  const uint8_t *a_data, size_t a_size)
 {
     s_pending_snapshot_section_t *l_new = DAP_NEW_Z(s_pending_snapshot_section_t);
     if (!l_new)
@@ -3184,6 +3186,7 @@ static void s_pending_section_add(const char *a_name, const uint8_t *a_data, siz
         return;
     }
     dap_strncpy(l_new->name, a_name, sizeof(l_new->name) - 1);
+    l_new->net_id = a_net_id;
     l_new->size = a_size;
     pthread_mutex_lock(&s_pending_sections_lock);
     l_new->next = s_pending_sections;
@@ -3191,12 +3194,26 @@ static void s_pending_section_add(const char *a_name, const uint8_t *a_data, siz
     pthread_mutex_unlock(&s_pending_sections_lock);
 }
 
-static void s_pending_sections_apply(void)
+static void s_pending_sections_apply(uint64_t a_net_id)
 {
     pthread_mutex_lock(&s_pending_sections_lock);
+    // Take only this net's sections; another net's load end handles the rest.
+    s_pending_snapshot_section_t *l_take = NULL, *l_rest = NULL;
     s_pending_snapshot_section_t *l_it = s_pending_sections;
-    s_pending_sections = NULL;
+    while (l_it) {
+        s_pending_snapshot_section_t *l_next = l_it->next;
+        if (l_it->net_id == a_net_id) {
+            l_it->next = l_take;
+            l_take = l_it;
+        } else {
+            l_it->next = l_rest;
+            l_rest = l_it;
+        }
+        l_it = l_next;
+    }
+    s_pending_sections = l_rest;
     pthread_mutex_unlock(&s_pending_sections_lock);
+    l_it = l_take;
     while (l_it) {
         s_pending_snapshot_section_t *l_next = l_it->next;
         dap_ledger_snapshot_load_cb_t l_load = NULL;
@@ -3849,7 +3866,7 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
                         log_it(L_WARNING, "Ledger snapshot: truncated section '%s'", l_desc[i].name);
                         break;
                     }
-                    s_pending_section_add(l_desc[i].name, l_ptr, l_desc[i].size);
+                    s_pending_section_add(l_header.net_id, l_desc[i].name, l_ptr, l_desc[i].size);
                     l_ptr += l_desc[i].size;
                 }
             }
@@ -6876,7 +6893,7 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     // Deferred snapshot sections: the chain data they may consult is attached now.
-    s_pending_sections_apply();
+    s_pending_sections_apply(a_ledger->net->pub.id.uint64);
     // The cell-scan window is over: disarm the snapshot chain-scan skip. It
     // must not survive into the network phase - the zone accepts blocks
     // without verification, and if the scan ended below the snapshot anchor
