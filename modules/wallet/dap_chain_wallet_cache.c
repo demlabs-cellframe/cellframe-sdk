@@ -226,7 +226,11 @@ void dap_chain_wallet_cache_restore_unspent(dap_chain_net_id_t a_net_id, const d
 
 void dap_chain_wallet_cache_bulk_done_mark(dap_chain_net_id_t a_net_id)
 {
+    // The list is read under the cache lock elsewhere: mutate it under the same
+    // lock (a snapshot restore calls this from the load thread while readers run).
+    pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
     s_bulk_done_nets_add(a_net_id.uint64);
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
 }
 
 static void s_bulk_loading_nets_remove(uint64_t a_net_id)
@@ -507,7 +511,9 @@ int dap_chain_wallet_cache_load_for_net(dap_chain_net_t *a_net)
     // do NOT mark them loading, or the catch-up below starts a full history
     // pass on every start - that walk is I/O-bound and takes hours on a full
     // Backbone chain (seen live on cf-mm-0).
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
     bool l_index_restored = s_bulk_done_nets_has(a_net->pub.id.uint64);
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
     pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
     for (dap_list_t *it = l_local_addr_list; it; it = it->next) {
         dap_chain_addr_t *l_addr = (dap_chain_addr_t *)it->data;
@@ -1193,7 +1199,9 @@ static void *s_wallet_load_all_for_net(void *a_arg)
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
         dap_list_free_full(l_pre_addrs, NULL);
 
+        pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
         s_bulk_done_nets_add(l_net->pub.id.uint64);
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
 
         // Wallets opened while this pass ran: one more pass services their
         // marked addresses (an address is marked loading exactly until a pass
