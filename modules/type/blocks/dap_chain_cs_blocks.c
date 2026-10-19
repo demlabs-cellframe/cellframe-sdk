@@ -2399,7 +2399,8 @@ static void s_chain_state_note_block(dap_chain_cs_blocks_t *a_blocks, dap_chain_
             atomic_load(&PVT(a_blocks)->blocks_count), (time_t)a_block_cache->ts_created,
             a_block_cache->block_size,
             a_index_record ? s_chain_state_block_offset(a_blocks, a_block_cache) : 0,
-            &a_block_cache->block_hash, &a_block_cache->prev_hash, a_index_record);
+            &a_block_cache->block_hash, &a_block_cache->prev_hash, a_index_record,
+            a_block_cache->datum_count);
 }
 
 // The state management API is entered from the generic CLI: a dag/none chain has

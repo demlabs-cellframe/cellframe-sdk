@@ -231,7 +231,8 @@ bool dap_chain_state_last_record(dap_chain_state_t *a_state, dap_chain_state_rec
 void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint64_t a_blocks_count,
                                 time_t a_ts, uint64_t a_size, uint64_t a_offset,
                                 const dap_chain_hash_fast_t *a_hash,
-                                const dap_chain_hash_fast_t *a_prev_hash, bool a_index_record)
+                                const dap_chain_hash_fast_t *a_prev_hash, bool a_index_record,
+                                uint32_t a_datum_count)
 {
     if (!a_state)
         return;
@@ -252,7 +253,8 @@ void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint
                 .size = a_size,
                 .offset = a_offset,
                 .hash = *a_hash,
-                .prev_hash = a_prev_hash ? *a_prev_hash : (dap_chain_hash_fast_t){}
+                .prev_hash = a_prev_hash ? *a_prev_hash : (dap_chain_hash_fast_t){},
+                .datum_count = (uint16_t)(a_datum_count > UINT16_MAX ? UINT16_MAX : a_datum_count)
             };
             if (fwrite(&l_rec, sizeof(l_rec), 1, a_state->file) == 1) {
                 a_state->crc_state = crc64_update(a_state->crc_state,

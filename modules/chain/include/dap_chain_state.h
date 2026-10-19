@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-#define DAP_CHAIN_STATE_VERSION 2
+#define DAP_CHAIN_STATE_VERSION 3
 // crc64() = crc64_update(init, ...) ^ xorout with init = xorout = ~0; keeping the
 // running value lets the records CRC stay incremental.
 #define DAP_CHAIN_STATE_CRC_INIT UINT64_C(~0)
@@ -71,6 +71,10 @@ typedef struct DAP_PACKED dap_chain_state_rec {
     uint64_t offset;
     dap_chain_hash_fast_t hash;
     dap_chain_hash_fast_t prev_hash;
+    // v3: enough to build a thin block-cache entry without reading the body.
+    uint16_t datum_count;
+    uint16_t flags;
+    uint32_t reserved;
 } dap_chain_state_rec_t;
 
 // Per-chain state object; the cell id selects the sidecar file.
@@ -95,7 +99,8 @@ bool dap_chain_state_last_record(dap_chain_state_t *a_state, dap_chain_state_rec
 void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint64_t a_blocks_count,
                                 time_t a_ts, uint64_t a_size, uint64_t a_offset,
                                 const dap_chain_hash_fast_t *a_hash,
-                                const dap_chain_hash_fast_t *a_prev_hash, bool a_index_record);
+                                const dap_chain_hash_fast_t *a_prev_hash, bool a_index_record,
+                                uint32_t a_datum_count);
 
 // Forces a header write (a_sync also fsyncs and trims). Returns 0 on success,
 // -2 when the chain has not opened its index yet.
