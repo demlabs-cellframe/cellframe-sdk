@@ -850,6 +850,12 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
             return -6;
         }
     }
+    // The continuity check above moved the stream to the last record; the replay
+    // below starts from the first one.
+    if (fseeko(l_f, sizeof(l_hdr), SEEK_SET)) {
+        fclose(l_f);
+        return -4;
+    }
     s_dag_restore_mode = true;
     for (uint64_t i = 0; i < l_count; ++i) {
         s_dag_idx_rec_t l_rec = {};
@@ -894,6 +900,19 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
     fclose(l_f);
     if (!l_restored)
         return -5;
+    // Only the header-count records were validated; anything appended after the
+    // last header flush (a crash window) is not covered by the replay. Trim it so
+    // the loader's tail does not append duplicate records for the same events.
+    char *l_idx_path = s_dag_index_path(a_chain);
+    FILE *l_idx = l_idx_path ? fopen(l_idx_path, "r+b") : NULL;
+    if (l_idx) {
+        uint64_t l_keep = sizeof(s_dag_idx_hdr_t) + l_count * sizeof(s_dag_idx_rec_t);
+        if (!fseeko(l_idx, 0, SEEK_END) && (uint64_t)ftello(l_idx) > l_keep)
+            if (ftruncate(fileno(l_idx), (off_t)l_keep))
+                log_it(L_WARNING, "DAG index: can't trim the unvalidated tail: %s", dap_strerror(errno));
+        fclose(l_idx);
+    }
+    DAP_DELETE(l_idx_path);
     pthread_mutex_lock(&s_dag_index_mutex);
     if (s_dag_index_file && s_dag_index_chain == a_chain) {
         // The next append reopens the adopted file at EOF and recomputes the
