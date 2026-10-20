@@ -25,6 +25,17 @@
 #include <unistd.h>
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
+
+// Absolute file offset of the atom currently being fed to the chain from a
+// non-mapped cell: the consensus layer stores it in the chain-state index so the
+// same thin-restore/lazy-read path works without mmap.
+static _Thread_local uint64_t s_loading_atom_offset;
+
+uint64_t dap_chain_cell_load_offset(void)
+{
+    return s_loading_atom_offset;
+}
+
 #include "dap_chain_cs.h"
 #include "dap_common.h"
 #include "dap_config.h"
@@ -468,7 +479,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     // state index. It validates the index against the file size and the ledger
     // anchor itself and refuses (<0) when anything disagrees - then the regular
     // cell walk below runs. No cell-body reads happen on the accepted path.
-    if (a_chain->is_mapped && a_chain->callback_restore_index) {
+    if (a_chain->callback_restore_index) {
         uint64_t l_resume = 0;
         int64_t l_restored = a_chain->callback_restore_index(a_chain, &l_resume);
         if (l_restored >= 0) {
@@ -476,8 +487,12 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
                    "resuming the cell at %" DAP_UINT64_FORMAT_U " (no rescan of covered blocks)",
                    a_chain->name, (long long)l_restored, l_resume);
             l_pos = (off_t)l_resume;
-            if (dap_chain_cell_map_window(a_cell, (size_t)l_resume))
-                l_pos = l_full_size; // nothing more to read; the loop will not run
+            if (a_chain->is_mapped) {
+                if (dap_chain_cell_map_window(a_cell, (size_t)l_resume))
+                    l_pos = l_full_size; // nothing more to read; the loop will not run
+            } else if (fseeko(a_cell->file_storage, l_pos, SEEK_SET)) {
+                l_pos = l_full_size;
+            }
             // Fall through: only the blocks above the ledger anchor are read and
             // applied by the normal path below.
         } else {
@@ -543,7 +558,9 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             a_chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
             dap_hash_fast_t l_atom_hash = {};
             dap_hash_fast(l_element, l_el_size, &l_atom_hash);
+            s_loading_atom_offset = (uint64_t)(l_pos - l_read);
             dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size, &l_atom_hash, false);
+            s_loading_atom_offset = 0;
             
             if (l_res != ATOM_ACCEPT && l_res != ATOM_FORK) {
                 DAP_DELETE(l_element);

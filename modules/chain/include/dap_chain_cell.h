@@ -81,6 +81,9 @@ dap_chain_cell_t *dap_chain_cell_find_by_id(dap_chain_t *a_chain, dap_chain_cell
 // Maps the file window containing a_file_pos (used by the index restore and the
 // lazy block parser). No-op when the current window already covers it.
 int dap_chain_cell_map_window(dap_chain_cell_t *a_cell, size_t a_file_pos);
+// Absolute file offset of the atom the non-mapped loader is currently feeding
+// (thread-local; 0 when not in a load pass).
+uint64_t dap_chain_cell_load_offset(void);
 void dap_chain_cell_close(dap_chain_cell_t *a_cell);
 void dap_chain_cell_delete(dap_chain_cell_t *a_cell);
 void dap_chain_cell_delete_all_and_free_file(dap_chain_t *a_chain);

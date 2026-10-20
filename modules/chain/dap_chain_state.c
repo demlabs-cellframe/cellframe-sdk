@@ -265,13 +265,19 @@ void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint
         return;
     bool l_sync = false;
     pthread_mutex_lock(&a_state->lock);
-    if (a_num >= a_state->last_num) {
-        a_state->last_num = a_num;
-        a_state->last_count = a_blocks_count;
-        if (a_hash)
-            a_state->last_hash = *a_hash;
+    // Non-mapped chains: the file offset is known only during the load pass
+    // (the loader publishes it). A live block without an offset is not indexed;
+    // the next start resumes at the end of the index and reads that tail.
+    bool l_indexable = a_index_record && (a_state->chain->is_mapped || a_offset != 0);
+    if (a_state->chain->is_mapped || l_indexable) {
+        if (a_num >= a_state->last_num) {
+            a_state->last_num = a_num;
+            a_state->last_count = a_blocks_count;
+            if (a_hash)
+                a_state->last_hash = *a_hash;
+        }
     }
-    if (a_index_record && a_state->chain->is_mapped && !a_state->file_failed && a_hash) {
+    if (l_indexable && !a_state->file_failed && a_hash) {
         s_ensure_file_locked(a_state);
         if (a_state->file) {
             dap_chain_state_rec_t l_rec = {

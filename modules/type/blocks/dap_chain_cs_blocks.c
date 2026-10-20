@@ -2387,7 +2387,11 @@ static void s_chain_state_reset(dap_chain_cs_blocks_t *a_blocks)
 
 static uint64_t s_chain_state_block_offset(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
 {
-    if (!a_blocks->chain->is_mapped || !a_block_cache->block)
+    if (!a_blocks->chain->is_mapped)
+        // Non-mapped loader: it feeds atoms from a heap buffer but knows the
+        // absolute file position of the atom it is processing right now.
+        return dap_chain_cell_load_offset();
+    if (!a_block_cache->block)
         return 0;
     dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_blocks->chain, a_blocks->chain->active_cell_id);
     if (!l_cell || !l_cell->map)
@@ -2544,7 +2548,7 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
     if (!l_state)
         return -2;
     dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
-    if (!l_cell || !l_cell->map || !l_cell->file_storage)
+    if (!l_cell || !l_cell->file_storage)
         return -3;
     // The index must describe the file exactly, and its tip must not be ahead of
     // the ledger snapshot anchor (a ledger behind the index is fine: blocks above
@@ -2555,7 +2559,10 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
     dap_chain_state_rec_t l_last = {};
     if (!dap_chain_state_last_record(l_state, &l_last))
         return -5;
-    if (fseeko(l_cell->file_storage, 0, SEEK_END) || ftello(l_cell->file_storage) != (off_t)(l_last.offset + l_last.size))
+    // A file longer than the index is the normal tail (live blocks accepted after
+    // the last indexed one): resume there. A file SHORTER than the index means the
+    // index is ahead of the chain (rollback/truncation) - fall back to the scan.
+    if (fseeko(l_cell->file_storage, 0, SEEK_END) || ftello(l_cell->file_storage) < (off_t)(l_last.offset + l_last.size))
         return -6;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
