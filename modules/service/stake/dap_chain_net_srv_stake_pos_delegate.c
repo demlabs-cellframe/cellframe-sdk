@@ -25,6 +25,7 @@
 #include <math.h>
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_ledger_snapshot.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_stream.h"
@@ -200,6 +201,110 @@ static bool s_cli_srv_stake_is_heavy(int a_argc, char **a_argv)
     return false;
 }
 
+// Snapshot section "stake": the delegated-key registry. It is built ONLY by
+// replaying IN_COND/OUT_COND transactions, so a no-scan start would come up with
+// an empty registry and the esbocs verifier would reject every new block. The
+// section makes the registry part of the persisted state; load is idempotent
+// (keys already replayed are skipped) and weights are restored verbatim.
+static dap_chain_net_srv_stake_t *s_srv_stake_by_net_id(dap_chain_net_id_t a_net_id);
+
+typedef struct DAP_PACKED s_snapshot_stake_rec {
+    dap_chain_addr_t signing_addr;
+    dap_chain_addr_t sovereign_addr;
+    dap_chain_node_addr_t node_addr;
+    dap_chain_hash_fast_t tx_hash;
+    uint256_t locked_value;
+    uint256_t value;
+    uint256_t sovereign_tax;
+    uint32_t pkey_size;     // pkey bytes follow the record
+    uint8_t is_active;
+    uint8_t reserved[3];
+} s_snapshot_stake_rec_t;
+
+static int s_snapshot_stake_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    dap_chain_net_srv_stake_t *l_srv = s_srv_stake_by_net_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_srv)
+        return 0;
+    pthread_rwlock_rdlock(&l_srv->itemlist_rwlock);
+    uint64_t l_hdr[2] = { a_net_id, HASH_COUNT(l_srv->itemlist) };
+    bool l_ok = dap_string_append_len(a_out, (const char *)l_hdr, sizeof(l_hdr)) != NULL;
+    for (dap_chain_net_srv_stake_item_t *l_it = l_srv->itemlist; l_ok && l_it; l_it = l_it->hh.next) {
+        s_snapshot_stake_rec_t l_rec = {
+            .signing_addr = l_it->signing_addr,
+            .sovereign_addr = l_it->sovereign_addr,
+            .node_addr = l_it->node_addr,
+            .tx_hash = l_it->tx_hash,
+            .locked_value = l_it->locked_value,
+            .value = l_it->value,
+            .sovereign_tax = l_it->sovereign_tax,
+            .pkey_size = l_it->pkey ? (uint32_t)dap_pkey_get_size(l_it->pkey) : 0,
+            .is_active = l_it->is_active ? 1 : 0
+        };
+        l_ok = dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)) != NULL
+                && (!l_rec.pkey_size || dap_string_append_len(a_out, (const char *)l_it->pkey, l_rec.pkey_size) != NULL);
+    }
+    pthread_rwlock_unlock(&l_srv->itemlist_rwlock);
+    return l_ok ? 0 : -2;
+}
+
+static int s_snapshot_stake_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < 2 * sizeof(uint64_t))
+        return -1;
+    uint64_t l_hdr[2];
+    memcpy(l_hdr, a_data, sizeof(l_hdr));
+    uint64_t l_net_id = l_hdr[0], l_count = l_hdr[1];
+    dap_chain_net_srv_stake_t *l_srv = s_srv_stake_by_net_id((dap_chain_net_id_t){ .uint64 = l_net_id });
+    if (!l_srv)
+        return 0;
+    const uint8_t *l_ptr = a_data + sizeof(l_hdr), *l_end = a_data + a_size;
+    size_t l_loaded = 0;
+    for (uint64_t i = 0; i < l_count; ++i) {
+        if ((size_t)(l_end - l_ptr) < sizeof(s_snapshot_stake_rec_t))
+            return -3;
+        s_snapshot_stake_rec_t l_rec;
+        memcpy(&l_rec, l_ptr, sizeof(l_rec));
+        l_ptr += sizeof(l_rec);
+        if (l_rec.pkey_size > (uint32_t)(l_end - l_ptr))
+            return -4;
+        const uint8_t *l_pkey_data = l_ptr;
+        l_ptr += l_rec.pkey_size;
+        pthread_rwlock_wrlock(&l_srv->itemlist_rwlock);
+        dap_chain_net_srv_stake_item_t *l_existing = NULL;
+        HASH_FIND(hh, l_srv->itemlist, &l_rec.signing_addr.data.hash_fast,
+                  sizeof(dap_chain_hash_fast_t), l_existing);
+        if (!l_existing) {
+            dap_chain_net_srv_stake_item_t *l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+            if (l_stake) {
+                l_stake->net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_net_id });
+                l_stake->is_active = l_rec.is_active != 0;
+                l_stake->locked_value = l_rec.locked_value;
+                l_stake->value = l_rec.value;
+                l_stake->signing_addr = l_rec.signing_addr;
+                l_stake->tx_hash = l_rec.tx_hash;
+                l_stake->node_addr = l_rec.node_addr;
+                l_stake->sovereign_addr = l_rec.sovereign_addr;
+                l_stake->sovereign_tax = l_rec.sovereign_tax;
+                if (l_rec.pkey_size)
+                    l_stake->pkey = DAP_DUP_SIZE((dap_pkey_t *)l_pkey_data, l_rec.pkey_size);
+                HASH_ADD(hh, l_srv->itemlist, signing_addr.data.hash_fast,
+                         sizeof(dap_chain_hash_fast_t), l_stake);
+                if (!dap_hash_fast_is_blank(&l_rec.tx_hash))
+                    HASH_ADD(ht, l_srv->tx_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
+                ++l_loaded;
+            }
+        }
+        pthread_rwlock_unlock(&l_srv->itemlist_rwlock);
+        if (l_rec.is_active && !dap_hash_fast_is_blank(&l_rec.signing_addr.data.hash_fast))
+            dap_chain_esbocs_add_validator_to_clusters((dap_chain_net_id_t){ .uint64 = l_net_id }, &l_rec.node_addr);
+    }
+    log_it(L_NOTICE, "Ledger snapshot: stake registry restored (%zu keys)", l_loaded);
+    return 0;
+}
+
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @return 0 if everything is okay, lesser then zero if errors
@@ -207,6 +312,7 @@ static bool s_cli_srv_stake_is_heavy(int a_argc, char **a_argv)
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback, s_stake_deleted_callback);
+    dap_ledger_add_snapshot_section("stake", 0, s_snapshot_stake_dump, s_snapshot_stake_load, NULL);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, NULL, "Delegated stake service commands",
             "\t\t=== Commands for work with orders ===\n"
     "srv_stake order create [fee] -net <net_name> -value <value> -cert <priv_cert_name> [-H {hex(default) | base58}]\n"
