@@ -8049,6 +8049,13 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
         }
     }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    // Flush the chain-state index tails now that the scan window is over: the
+    // records are stdio-buffered, and the ledger snapshot is about to anchor at
+    // the tip. Without this the last few indexed blocks stayed in the buffer and
+    // the next start saw an index ending BELOW the snapshot anchor (refused with
+    // -12 and a full rescan, repeating after every scan).
+    for (dap_chain_t *l_c = a_ledger->net ? a_ledger->net->pub.chains : NULL; l_c; l_c = l_c->next)
+        dap_chain_cs_blocks_state_flush(l_c);
     if (l_phantoms)
         log_it(L_CRITICAL, "Ledger: dropped %zu cache-restored transaction(s) not found in any "
                "chain of this network (snapshot from a different branch?); consider "
