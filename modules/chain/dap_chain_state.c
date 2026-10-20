@@ -1082,7 +1082,10 @@ int dap_chain_state_adopt_file(dap_chain_state_t *a_state, uint64_t a_anchor_num
     a_state->last_count = a_state->last_num;
     a_state->last_hash = l_keep ? l_rec.hash : (dap_chain_hash_fast_t){};
     a_state->file_failed = false;
-    fseeko(l_file, 0, SEEK_END);
+    // Publish the trimmed count at once: the on-disk header still describes the
+    // dropped tail until the next periodic flush, and a crash in that window would
+    // make the reader reject its own index.
+    s_write_header_locked(a_state, true);
 out:
     pthread_mutex_unlock(&a_state->lock);
     return l_ret;
