@@ -703,7 +703,7 @@ int dap_chain_state_kv_dump(uint64_t a_net_id, dap_string_t *a_out)
     if (!l_kv || !a_out)
         return -1;
     pthread_rwlock_rdlock(&l_kv->lock);
-    struct { uint64_t net_id, next_id; uint32_t count; } l_hdr = {
+    struct DAP_PACKED { uint64_t net_id, next_id; uint32_t count; } l_hdr = {
         a_net_id, l_kv->next_id, (uint32_t)HASH_COUNT(l_kv->by_id) };
     bool l_ok = dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)) != NULL;
     for (s_kv_entry_t *l_e = l_kv->by_id; l_ok && l_e; l_e = l_e->hh.next) {
@@ -870,7 +870,7 @@ int dap_chain_state_cache_dump_all(dap_string_t *a_out)
     for (s_kv_reg_t *l_it = s_kv_regs; l_ok && l_it; l_it = l_it->next) {
         dap_chain_state_kv_t *l_kv = &l_it->kv;
         pthread_rwlock_rdlock(&l_kv->lock);
-        struct { uint64_t ns, next_id; uint32_t count; } l_hdr = {
+        struct DAP_PACKED { uint64_t ns, next_id; uint32_t count; } l_hdr = {
             l_kv->net_id, l_kv->next_id, (uint32_t)HASH_COUNT(l_kv->by_id) };
         l_ok = dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)) != NULL;
         for (s_kv_entry_t *l_e = l_kv->by_id; l_ok && l_e; l_e = l_e->hh.next) {
