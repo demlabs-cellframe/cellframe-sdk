@@ -163,6 +163,10 @@ int dap_chain_state_kv_foreach(dap_chain_state_kv_t *a_kv, dap_chain_state_kv_cb
 int dap_chain_state_kv_dump(uint64_t a_net_id, dap_string_t *a_out);
 int dap_chain_state_kv_load(const uint8_t *a_data, size_t a_size);
 
+// Attaches the writer to an existing sidecar after a successful index restore,
+// so the first live block appends instead of truncating the restored index.
+int dap_chain_state_adopt_file(dap_chain_state_t *a_state);
+
 #ifdef __cplusplus
 }
 #endif

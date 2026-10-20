@@ -2596,6 +2596,9 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
         PVT(l_blocks)->index_restored = true;
         *a_resume_offset = l_ctx.have_resume ? l_ctx.resume_offset : l_ctx.file_size;
         l_rc = 0;
+        // Keep appending to the restored index instead of truncating it when the
+        // first live block arrives.
+        dap_chain_state_adopt_file(l_state);
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return l_rc ? -8 : (int64_t)l_ctx.count;

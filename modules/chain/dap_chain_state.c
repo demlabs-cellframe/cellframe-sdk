@@ -1015,3 +1015,58 @@ int dap_chain_state_cache_set_bin(const char *a_group, const void *a_key, size_t
     size_t l_store_len = a_value ? a_value_len : a_key_len;
     return dap_chain_state_kv_set(l_kv, l_created_id, l_store, l_store_len);
 }
+
+int dap_chain_state_adopt_file(dap_chain_state_t *a_state)
+{
+    if (!a_state)
+        return -1;
+    pthread_mutex_lock(&a_state->lock);
+    int l_ret = 0;
+    char *l_path = dap_chain_state_path(a_state);
+    FILE *l_file = l_path ? fopen(l_path, "r+b") : NULL;
+    DAP_DELETE(l_path);
+    if (!l_file) {
+        l_ret = -2;
+        goto out;
+    }
+    if (fseeko(l_file, 0, SEEK_END) || ftello(l_file) < (off_t)sizeof(dap_chain_state_hdr_t)) {
+        fclose(l_file);
+        l_ret = -3;
+        goto out;
+    }
+    off_t l_size = ftello(l_file);
+    uint64_t l_records = (uint64_t)(l_size - sizeof(dap_chain_state_hdr_t)) / sizeof(dap_chain_state_rec_t);
+    if (!l_records) {
+        fclose(l_file);
+        l_ret = -3;
+        goto out;
+    }
+    // Adopt the existing index instead of truncating it on the first new block:
+    // the restored block cache is the same file's content.
+    uint64_t l_crc = DAP_CHAIN_STATE_CRC_INIT;
+    dap_chain_state_rec_t l_rec = {};
+    if (fseeko(l_file, sizeof(dap_chain_state_hdr_t), SEEK_SET)) {
+        fclose(l_file);
+        l_ret = -3;
+        goto out;
+    }
+    for (uint64_t i = 0; i < l_records; ++i) {
+        if (fread(&l_rec, sizeof(l_rec), 1, l_file) != 1) {
+            fclose(l_file);
+            l_ret = -4;
+            goto out;
+        }
+        l_crc = crc64_update(l_crc, (const uint8_t *)&l_rec, sizeof(l_rec));
+    }
+    a_state->file = l_file;
+    a_state->records = l_records;
+    a_state->crc_state = l_crc;
+    a_state->last_num = l_rec.num;
+    a_state->last_count = l_rec.num;
+    a_state->last_hash = l_rec.hash;
+    a_state->file_failed = false;
+    fseeko(l_file, 0, SEEK_END);
+out:
+    pthread_mutex_unlock(&a_state->lock);
+    return l_ret;
+}
