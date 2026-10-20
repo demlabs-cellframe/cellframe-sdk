@@ -17,6 +17,7 @@
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 #include "dap_hash.h"
+#include "dap_string.h"
 #include "uthash.h"
 
 #ifdef __cplusplus
@@ -140,6 +141,27 @@ uint64_t dap_chain_state_tx_count_add(dap_chain_state_t *a_state, int64_t a_delt
 
 // One-line report of the sidecar (path, validity, records, tip, age).
 int dap_chain_state_info(dap_chain_state_t *a_state, char *a_buf, size_t a_buf_size);
+
+// ---- per-network state cache: id-addressed key/value entries ----
+// Node-private state for services (order books, journals, shared-wallet data).
+// Entries are addressed by a numeric id; the string name is only a registration
+// key and is kept for snapshot output. Not the GlobalDB: no signing, no
+// replication, no size limit.
+typedef struct dap_chain_state_kv dap_chain_state_kv_t;
+dap_chain_state_kv_t *dap_chain_state_kv_for_net(uint64_t a_net_id);
+// Registers/looks up a name and returns its id (0 when absent and !a_create).
+uint64_t dap_chain_state_kv_key_id(dap_chain_state_kv_t *a_kv, const char *a_name, bool a_create);
+int dap_chain_state_kv_set(dap_chain_state_kv_t *a_kv, uint64_t a_id, const void *a_value, size_t a_value_len);
+const void *dap_chain_state_kv_get(dap_chain_state_kv_t *a_kv, uint64_t a_id, size_t *a_value_len);
+int dap_chain_state_kv_del(dap_chain_state_kv_t *a_kv, uint64_t a_id);
+const char *dap_chain_state_kv_name(dap_chain_state_kv_t *a_kv, uint64_t a_id);
+size_t dap_chain_state_kv_count(dap_chain_state_kv_t *a_kv);
+int dap_chain_state_kv_clear(dap_chain_state_kv_t *a_kv);
+typedef bool (*dap_chain_state_kv_cb_t)(void *a_arg, uint64_t a_id, const char *a_name);
+int dap_chain_state_kv_foreach(dap_chain_state_kv_t *a_kv, dap_chain_state_kv_cb_t a_cb, void *a_arg);
+// Snapshot payload: {net_id, next_id, count} + entries {id, ts, name, value}.
+int dap_chain_state_kv_dump(uint64_t a_net_id, dap_string_t *a_out);
+int dap_chain_state_kv_load(const uint8_t *a_data, size_t a_size);
 
 #ifdef __cplusplus
 }

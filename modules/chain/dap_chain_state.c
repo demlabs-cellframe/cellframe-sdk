@@ -503,3 +503,438 @@ int dap_chain_state_info(dap_chain_state_t *a_state, char *a_buf, size_t a_buf_s
     DAP_DELETE(l_path);
     return l_rc;
 }
+
+/* ---- per-network state cache: id-addressed entries ---- */
+typedef struct s_kv_entry {
+    uint64_t id;
+    char *name;
+    uint8_t *value;
+    size_t value_len;
+    dap_nanotime_t ts;
+    UT_hash_handle hh;       // by id
+    UT_hash_handle hh_name;  // by name
+} s_kv_entry_t;
+
+struct dap_chain_state_kv {
+    uint64_t net_id;
+    pthread_rwlock_t lock;
+    s_kv_entry_t *by_id;
+    s_kv_entry_t *by_name;
+    uint64_t next_id;
+};
+
+typedef struct s_kv_reg {
+    dap_chain_state_kv_t kv;
+    struct s_kv_reg *next;
+} s_kv_reg_t;
+
+static s_kv_reg_t *s_kv_regs = NULL;
+static pthread_mutex_t s_kv_regs_lock = PTHREAD_MUTEX_INITIALIZER;
+
+dap_chain_state_kv_t *dap_chain_state_kv_for_net(uint64_t a_net_id)
+{
+    pthread_mutex_lock(&s_kv_regs_lock);
+    for (s_kv_reg_t *l_it = s_kv_regs; l_it; l_it = l_it->next) {
+        if (l_it->kv.net_id == a_net_id) {
+            pthread_mutex_unlock(&s_kv_regs_lock);
+            return &l_it->kv;
+        }
+    }
+    s_kv_reg_t *l_new = DAP_NEW_Z(s_kv_reg_t);
+    if (l_new) {
+        l_new->kv.net_id = a_net_id;
+        l_new->kv.next_id = 1;
+        pthread_rwlock_init(&l_new->kv.lock, NULL);
+        l_new->next = s_kv_regs;
+        s_kv_regs = l_new;
+    }
+    pthread_mutex_unlock(&s_kv_regs_lock);
+    return l_new ? &l_new->kv : NULL;
+}
+
+uint64_t dap_chain_state_kv_key_id(dap_chain_state_kv_t *a_kv, const char *a_name, bool a_create)
+{
+    if (!a_kv || !a_name)
+        return 0;
+    pthread_rwlock_rdlock(&a_kv->lock);
+    s_kv_entry_t *l_e = NULL;
+    HASH_FIND_STR(a_kv->by_name, a_name, l_e);
+    uint64_t l_id = l_e ? l_e->id : 0;
+    pthread_rwlock_unlock(&a_kv->lock);
+    if (l_id || !a_create)
+        return l_id;
+    pthread_rwlock_wrlock(&a_kv->lock);
+    HASH_FIND_STR(a_kv->by_name, a_name, l_e);
+    if (l_e) {
+        l_id = l_e->id;
+    } else {
+        s_kv_entry_t *l_new = DAP_NEW_Z(s_kv_entry_t);
+        if (l_new) {
+            l_new->name = dap_strdup(a_name);
+            if (!l_new->name) {
+                DAP_DELETE(l_new);
+            } else {
+                l_new->id = a_kv->next_id++;
+                l_new->ts = dap_nanotime_now();
+                HASH_ADD(hh, a_kv->by_id, id, sizeof(uint64_t), l_new);
+                HASH_ADD_KEYPTR(hh_name, a_kv->by_name, l_new->name, strlen(l_new->name), l_new);
+                l_id = l_new->id;
+            }
+        }
+    }
+    pthread_rwlock_unlock(&a_kv->lock);
+    return l_id;
+}
+
+int dap_chain_state_kv_set(dap_chain_state_kv_t *a_kv, uint64_t a_id, const void *a_value, size_t a_value_len)
+{
+    if (!a_kv || !a_id || (!a_value && a_value_len))
+        return -1;
+    uint8_t *l_value = a_value_len ? DAP_DUP_SIZE((uint8_t *)a_value, a_value_len) : NULL;
+    if (a_value_len && !l_value)
+        return -2;
+    pthread_rwlock_wrlock(&a_kv->lock);
+    s_kv_entry_t *l_e = NULL;
+    HASH_FIND(hh, a_kv->by_id, &a_id, sizeof(uint64_t), l_e);
+    if (!l_e) {
+        pthread_rwlock_unlock(&a_kv->lock);
+        DAP_DEL_Z(l_value);
+        return -3;
+    }
+    DAP_DEL_Z(l_e->value);
+    l_e->value = l_value;
+    l_e->value_len = a_value_len;
+    l_e->ts = dap_nanotime_now();
+    pthread_rwlock_unlock(&a_kv->lock);
+    return 0;
+}
+
+const void *dap_chain_state_kv_get(dap_chain_state_kv_t *a_kv, uint64_t a_id, size_t *a_value_len)
+{
+    if (!a_kv || !a_id)
+        return NULL;
+    pthread_rwlock_rdlock(&a_kv->lock);
+    s_kv_entry_t *l_e = NULL;
+    HASH_FIND(hh, a_kv->by_id, &a_id, sizeof(uint64_t), l_e);
+    if (l_e && a_value_len)
+        *a_value_len = l_e->value_len;
+    const void *l_ret = l_e ? l_e->value : NULL;
+    pthread_rwlock_unlock(&a_kv->lock);
+    return l_ret;
+}
+
+int dap_chain_state_kv_del(dap_chain_state_kv_t *a_kv, uint64_t a_id)
+{
+    if (!a_kv || !a_id)
+        return -1;
+    pthread_rwlock_wrlock(&a_kv->lock);
+    s_kv_entry_t *l_e = NULL;
+    HASH_FIND(hh, a_kv->by_id, &a_id, sizeof(uint64_t), l_e);
+    if (l_e) {
+        HASH_DEL(a_kv->by_id, l_e);
+        HASH_DEL(a_kv->by_name, l_e);
+        DAP_DEL_Z(l_e->value);
+        DAP_DELETE(l_e->name);
+        DAP_DELETE(l_e);
+    }
+    pthread_rwlock_unlock(&a_kv->lock);
+    return l_e ? 0 : -2;
+}
+
+const char *dap_chain_state_kv_name(dap_chain_state_kv_t *a_kv, uint64_t a_id)
+{
+    if (!a_kv || !a_id)
+        return NULL;
+    pthread_rwlock_rdlock(&a_kv->lock);
+    s_kv_entry_t *l_e = NULL;
+    HASH_FIND(hh, a_kv->by_id, &a_id, sizeof(uint64_t), l_e);
+    const char *l_ret = l_e ? l_e->name : NULL;
+    pthread_rwlock_unlock(&a_kv->lock);
+    return l_ret;
+}
+
+size_t dap_chain_state_kv_count(dap_chain_state_kv_t *a_kv)
+{
+    if (!a_kv)
+        return 0;
+    pthread_rwlock_rdlock(&a_kv->lock);
+    size_t l_ret = HASH_COUNT(a_kv->by_id);
+    pthread_rwlock_unlock(&a_kv->lock);
+    return l_ret;
+}
+
+int dap_chain_state_kv_clear(dap_chain_state_kv_t *a_kv)
+{
+    if (!a_kv)
+        return -1;
+    pthread_rwlock_wrlock(&a_kv->lock);
+    s_kv_entry_t *l_e = NULL, *l_tmp = NULL;
+    size_t l_n = 0;
+    HASH_ITER(hh, a_kv->by_id, l_e, l_tmp) {
+        HASH_DEL(a_kv->by_id, l_e);
+        HASH_DEL(a_kv->by_name, l_e);
+        DAP_DEL_Z(l_e->value);
+        DAP_DELETE(l_e->name);
+        DAP_DELETE(l_e);
+        ++l_n;
+    }
+    pthread_rwlock_unlock(&a_kv->lock);
+    return (int)l_n;
+}
+
+int dap_chain_state_kv_foreach(dap_chain_state_kv_t *a_kv, dap_chain_state_kv_cb_t a_cb, void *a_arg)
+{
+    if (!a_kv || !a_cb)
+        return -1;
+    pthread_rwlock_rdlock(&a_kv->lock);
+    for (s_kv_entry_t *l_e = a_kv->by_id; l_e; l_e = l_e->hh.next) {
+        if (!a_cb(a_arg, l_e->id, l_e->name)) {
+            pthread_rwlock_unlock(&a_kv->lock);
+            return -1;
+        }
+    }
+    pthread_rwlock_unlock(&a_kv->lock);
+    return 0;
+}
+
+int dap_chain_state_kv_dump(uint64_t a_net_id, dap_string_t *a_out)
+{
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(a_net_id);
+    if (!l_kv || !a_out)
+        return -1;
+    pthread_rwlock_rdlock(&l_kv->lock);
+    struct { uint64_t net_id, next_id; uint32_t count; } l_hdr = {
+        a_net_id, l_kv->next_id, (uint32_t)HASH_COUNT(l_kv->by_id) };
+    bool l_ok = dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)) != NULL;
+    for (s_kv_entry_t *l_e = l_kv->by_id; l_ok && l_e; l_e = l_e->hh.next) {
+        uint32_t l_nlen = (uint32_t)(strlen(l_e->name) + 1);
+        uint32_t l_vlen = (uint32_t)l_e->value_len;
+        uint64_t l_ts = (uint64_t)l_e->ts;
+        l_ok = dap_string_append_len(a_out, (const char *)&l_e->id, sizeof(l_e->id))
+                && dap_string_append_len(a_out, (const char *)&l_ts, sizeof(l_ts))
+                && dap_string_append_len(a_out, (const char *)&l_nlen, sizeof(l_nlen))
+                && dap_string_append_len(a_out, (const char *)&l_vlen, sizeof(l_vlen))
+                && dap_string_append_len(a_out, l_e->name, l_nlen)
+                && (!l_vlen || dap_string_append_len(a_out, (const char *)l_e->value, l_vlen));
+    }
+    pthread_rwlock_unlock(&l_kv->lock);
+    return l_ok ? 0 : -2;
+}
+
+int dap_chain_state_kv_load(const uint8_t *a_data, size_t a_size)
+{
+    if (!a_data || a_size < sizeof(uint64_t) + sizeof(uint64_t) + sizeof(uint32_t))
+        return -1;
+    const uint8_t *l_ptr = a_data, *l_end = a_data + a_size;
+    uint64_t l_net_id = 0, l_next_id = 0;
+    uint32_t l_count = 0;
+    memcpy(&l_net_id, l_ptr, sizeof(l_net_id)); l_ptr += sizeof(l_net_id);
+    memcpy(&l_next_id, l_ptr, sizeof(l_next_id)); l_ptr += sizeof(l_next_id);
+    memcpy(&l_count, l_ptr, sizeof(l_count)); l_ptr += sizeof(l_count);
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(l_net_id);
+    if (!l_kv)
+        return -2;
+    size_t l_loaded = 0;
+    for (uint32_t i = 0; i < l_count; ++i) {
+        uint64_t l_id = 0, l_ts = 0;
+        uint32_t l_nlen = 0, l_vlen = 0;
+        if ((size_t)(l_end - l_ptr) < sizeof(l_id) + sizeof(l_ts) + sizeof(l_nlen) + sizeof(l_vlen))
+            return -3;
+        memcpy(&l_id, l_ptr, sizeof(l_id)); l_ptr += sizeof(l_id);
+        memcpy(&l_ts, l_ptr, sizeof(l_ts)); l_ptr += sizeof(l_ts);
+        memcpy(&l_nlen, l_ptr, sizeof(l_nlen)); l_ptr += sizeof(l_nlen);
+        memcpy(&l_vlen, l_ptr, sizeof(l_vlen)); l_ptr += sizeof(l_vlen);
+        if (!l_id || !l_nlen || (size_t)(l_end - l_ptr) < (size_t)l_nlen + l_vlen || l_ptr[l_nlen - 1])
+            return -4;
+        const char *l_name = (const char *)l_ptr;
+        l_ptr += l_nlen;
+        const uint8_t *l_value = l_ptr;
+        l_ptr += l_vlen;
+        uint64_t l_new_id = dap_chain_state_kv_key_id(l_kv, l_name, true);
+        if (!l_new_id)
+            return -5;
+        dap_chain_state_kv_set(l_kv, l_new_id, l_value, l_vlen);
+        ++l_loaded;
+    }
+    pthread_rwlock_wrlock(&l_kv->lock);
+    // IDs come from the dump: keep the counter ahead of everything restored.
+    if (l_next_id > l_kv->next_id)
+        l_kv->next_id = l_next_id;
+    pthread_rwlock_unlock(&l_kv->lock);
+    log_it(L_NOTICE, "Chain state: restored %zu state-cache entries for net 0x%016" DAP_UINT64_FORMAT_x,
+           l_loaded, l_net_id);
+    return l_ptr == l_end ? 0 : -6;
+}
+
+/* ---- string facade over the id-addressed cache ----
+ * Existing service code keeps its (group, key) names; each group maps to one
+ * KV namespace, and every access resolves the name to an id once and then works
+ * by id. State is dumped/loaded by snapshots, not by the GlobalDB.
+ */
+#include "dap_chain_state_cache.h"
+
+static uint64_t s_cache_ns(const char *a_group)
+{
+    dap_hash_fast_t l_hash = {};
+    dap_hash_fast(a_group, strlen(a_group), &l_hash);
+    uint64_t l_ns = 0;
+    memcpy(&l_ns, &l_hash, sizeof(l_ns));
+    return l_ns ? l_ns : 1;
+}
+
+int dap_chain_state_cache_set(const char *a_group, const char *a_key, const void *a_value, size_t a_value_len)
+{
+    if (!a_group || !a_key)
+        return -1;
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(s_cache_ns(a_group));
+    if (!l_kv)
+        return -2;
+    uint64_t l_id = dap_chain_state_kv_key_id(l_kv, a_key, true);
+    return l_id ? dap_chain_state_kv_set(l_kv, l_id, a_value, a_value_len) : -3;
+}
+
+int dap_chain_state_cache_del(const char *a_group, const char *a_key)
+{
+    if (!a_group || !a_key)
+        return -1;
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(s_cache_ns(a_group));
+    uint64_t l_id = l_kv ? dap_chain_state_kv_key_id(l_kv, a_key, false) : 0;
+    return l_id ? dap_chain_state_kv_del(l_kv, l_id) : -2;
+}
+
+const uint8_t *dap_chain_state_cache_get(const char *a_group, const char *a_key, size_t *a_value_len)
+{
+    if (!a_group || !a_key)
+        return NULL;
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(s_cache_ns(a_group));
+    uint64_t l_id = l_kv ? dap_chain_state_kv_key_id(l_kv, a_key, false) : 0;
+    return l_id ? (const uint8_t *)dap_chain_state_kv_get(l_kv, l_id, a_value_len) : NULL;
+}
+
+dap_global_db_obj_t *dap_chain_state_cache_get_all(const char *a_group, size_t *a_count)
+{
+    if (a_count)
+        *a_count = 0;
+    if (!a_group)
+        return NULL;
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(s_cache_ns(a_group));
+    if (!l_kv)
+        return NULL;
+    pthread_rwlock_rdlock(&l_kv->lock);
+    size_t l_n = HASH_COUNT(l_kv->by_id);
+    dap_global_db_obj_t *l_objs = l_n ? DAP_NEW_Z_COUNT(dap_global_db_obj_t, l_n) : NULL;
+    size_t i = 0;
+    for (s_kv_entry_t *l_e = l_kv->by_id; l_objs && l_e && i < l_n; l_e = l_e->hh.next) {
+        l_objs[i].key = dap_strdup(l_e->name);
+        l_objs[i].value = l_e->value_len ? DAP_DUP_SIZE(l_e->value, l_e->value_len) : NULL;
+        l_objs[i].value_len = l_e->value_len;
+        l_objs[i].timestamp = l_e->ts;
+        if (!l_objs[i].key || (l_e->value_len && !l_objs[i].value)) {
+            DAP_DEL_Z(l_objs[i].key);
+            DAP_DEL_Z(l_objs[i].value);
+            break;
+        }
+        ++i;
+    }
+    pthread_rwlock_unlock(&l_kv->lock);
+    if (a_count)
+        *a_count = i;
+    return l_objs;
+}
+
+size_t dap_chain_state_cache_count(const char *a_group)
+{
+    if (!a_group)
+        return 0;
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(s_cache_ns(a_group));
+    return l_kv ? dap_chain_state_kv_count(l_kv) : 0;
+}
+
+int dap_chain_state_cache_clear(const char *a_group)
+{
+    if (!a_group)
+        return -1;
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(s_cache_ns(a_group));
+    return l_kv ? dap_chain_state_kv_clear(l_kv) : -2;
+}
+
+int dap_chain_state_cache_dump_all(dap_string_t *a_out)
+{
+    if (!a_out)
+        return -1;
+    pthread_mutex_lock(&s_kv_regs_lock);
+    uint32_t l_count = 0;
+    for (s_kv_reg_t *l_it = s_kv_regs; l_it; l_it = l_it->next)
+        ++l_count;
+    bool l_ok = dap_string_append_len(a_out, (const char *)&l_count, sizeof(l_count)) != NULL;
+    for (s_kv_reg_t *l_it = s_kv_regs; l_ok && l_it; l_it = l_it->next) {
+        dap_chain_state_kv_t *l_kv = &l_it->kv;
+        pthread_rwlock_rdlock(&l_kv->lock);
+        struct { uint64_t ns, next_id; uint32_t count; } l_hdr = {
+            l_kv->net_id, l_kv->next_id, (uint32_t)HASH_COUNT(l_kv->by_id) };
+        l_ok = dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)) != NULL;
+        for (s_kv_entry_t *l_e = l_kv->by_id; l_ok && l_e; l_e = l_e->hh.next) {
+            uint32_t l_nlen = (uint32_t)(strlen(l_e->name) + 1);
+            uint32_t l_vlen = (uint32_t)l_e->value_len;
+            uint64_t l_ts = (uint64_t)l_e->ts;
+            l_ok = dap_string_append_len(a_out, (const char *)&l_e->id, sizeof(l_e->id))
+                    && dap_string_append_len(a_out, (const char *)&l_ts, sizeof(l_ts))
+                    && dap_string_append_len(a_out, (const char *)&l_nlen, sizeof(l_nlen))
+                    && dap_string_append_len(a_out, (const char *)&l_vlen, sizeof(l_vlen))
+                    && dap_string_append_len(a_out, l_e->name, l_nlen)
+                    && (!l_vlen || dap_string_append_len(a_out, (const char *)l_e->value, l_vlen));
+        }
+        pthread_rwlock_unlock(&l_kv->lock);
+    }
+    pthread_mutex_unlock(&s_kv_regs_lock);
+    return l_ok ? 0 : -2;
+}
+
+int dap_chain_state_cache_load_all(const uint8_t *a_data, size_t a_size)
+{
+    if (!a_data || a_size < sizeof(uint32_t))
+        return -1;
+    const uint8_t *l_ptr = a_data, *l_end = a_data + a_size;
+    uint32_t l_count = 0;
+    memcpy(&l_count, l_ptr, sizeof(l_count)); l_ptr += sizeof(l_count);
+    size_t l_loaded = 0;
+    for (uint32_t n = 0; n < l_count; ++n) {
+        uint64_t l_ns = 0, l_next_id = 0;
+        uint32_t l_n_entries = 0;
+        if ((size_t)(l_end - l_ptr) < sizeof(l_ns) + sizeof(l_next_id) + sizeof(l_n_entries))
+            return -2;
+        memcpy(&l_ns, l_ptr, sizeof(l_ns)); l_ptr += sizeof(l_ns);
+        memcpy(&l_next_id, l_ptr, sizeof(l_next_id)); l_ptr += sizeof(l_next_id);
+        memcpy(&l_n_entries, l_ptr, sizeof(l_n_entries)); l_ptr += sizeof(l_n_entries);
+        dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(l_ns);
+        if (!l_kv)
+            return -3;
+        for (uint32_t i = 0; i < l_n_entries; ++i) {
+            uint64_t l_id = 0, l_ts = 0;
+            uint32_t l_nlen = 0, l_vlen = 0;
+            if ((size_t)(l_end - l_ptr) < sizeof(l_id) + sizeof(l_ts) + sizeof(l_nlen) + sizeof(l_vlen))
+                return -4;
+            memcpy(&l_id, l_ptr, sizeof(l_id)); l_ptr += sizeof(l_id);
+            memcpy(&l_ts, l_ptr, sizeof(l_ts)); l_ptr += sizeof(l_ts);
+            memcpy(&l_nlen, l_ptr, sizeof(l_nlen)); l_ptr += sizeof(l_nlen);
+            memcpy(&l_vlen, l_ptr, sizeof(l_vlen)); l_ptr += sizeof(l_vlen);
+            if (!l_nlen || (size_t)(l_end - l_ptr) < (size_t)l_nlen + l_vlen || l_ptr[l_nlen - 1])
+                return -5;
+            const char *l_name = (const char *)l_ptr;
+            l_ptr += l_nlen;
+            const uint8_t *l_value = l_ptr;
+            l_ptr += l_vlen;
+            uint64_t l_new_id = dap_chain_state_kv_key_id(l_kv, l_name, true);
+            if (!l_new_id)
+                return -6;
+            dap_chain_state_kv_set(l_kv, l_new_id, l_value, l_vlen);
+            ++l_loaded;
+        }
+        pthread_rwlock_wrlock(&l_kv->lock);
+        if (l_next_id > l_kv->next_id)
+            l_kv->next_id = l_next_id;
+        pthread_rwlock_unlock(&l_kv->lock);
+    }
+    log_it(L_NOTICE, "Chain state: restored %zu state-cache entries (%u namespaces)", l_loaded, l_count);
+    return l_ptr == l_end ? 0 : -7;
+}

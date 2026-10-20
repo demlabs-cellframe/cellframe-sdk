@@ -71,7 +71,7 @@ static inline bool s_ledger_cache_storage_full(void)
 #include "dap_chain_ledger.h"
 #include "dap_rpc_cache.h"
 #include "dap_chain_ledger_snapshot.h"
-#include "dap_local_state.h"
+#include "dap_chain_state_cache.h"
 #include "dap_crc64.h"
 #include "dap_chain.h"
 #include "dap_chain_cs_blocks.h"
@@ -3329,13 +3329,13 @@ static int s_snapshot_local_state_dump(void *a_ctx, uint64_t a_net_id, dap_strin
 {
     (void)a_ctx;
     (void)a_net_id;
-    return dap_local_state_dump(a_out);
+    return dap_chain_state_cache_dump_all(a_out);
 }
 
 static int s_snapshot_local_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
 {
     (void)a_ctx;
-    return dap_local_state_load(a_data, a_size);
+    return dap_chain_state_cache_load_all(a_data, a_size);
 }
 
 // Copies the callbacks out so a load callback runs without the registry lock.
