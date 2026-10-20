@@ -123,6 +123,15 @@ static void s_ensure_file_locked(dap_chain_state_t *a_state)
     } else {
         a_state->records = 0;
         a_state->crc_state = DAP_CHAIN_STATE_CRC_INIT;
+        a_state->last_num = 0;
+        a_state->last_count = 0;
+        a_state->last_hash = (dap_chain_hash_fast_t){};
+        // Lay out the header BEFORE the first record. Without this the first
+        // record was written at offset 0 and the next periodic header flush
+        // overwrote its first 120 bytes: the file then started with an all-zero
+        // record (and the first block was missing from the index), which made
+        // every continuity check fail on the next start.
+        s_write_header_locked(a_state, false);
     }
     DAP_DELETE(l_path);
 }
