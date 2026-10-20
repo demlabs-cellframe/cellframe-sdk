@@ -2646,11 +2646,11 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
     // A truncated/rewritten index can start ABOVE the anchor (its first record is
     // newer than the snapshot position): it does not cover the restored state.
     // The records must also be CONTIGUOUS - last.num - first.num + 1 == records in
-    // the file, otherwise a tail-only index (e.g. after the old truncation bug)
+    // the index, otherwise a tail-only index (e.g. after the old truncation bug)
     // would silently "restore" a handful of blocks behind a fully restored ledger.
-    off_t l_file_size = ftello(l_cell->file_storage);
-    uint64_t l_file_recs = l_file_size > (off_t)sizeof(dap_chain_state_hdr_t)
-            ? (uint64_t)(l_file_size - sizeof(dap_chain_state_hdr_t)) / sizeof(dap_chain_state_rec_t) : 0;
+    // The record count comes from the index header (validated against the index
+    // file size by dap_chain_state_read); the cell file size is not a record count.
+    uint64_t l_file_recs = l_hdr.records_count;
     s_blocks_first_rec_ctx_t l_first = {};
     bool l_first_ok = dap_chain_state_for_each_record(l_state, s_blocks_first_rec_cb, &l_first) == -4
             && l_first.got;
