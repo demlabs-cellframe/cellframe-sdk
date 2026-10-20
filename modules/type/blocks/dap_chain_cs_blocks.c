@@ -2597,9 +2597,18 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
         return -7;
     // A truncated/rewritten index can start ABOVE the anchor (its first record is
     // newer than the snapshot position): it does not cover the restored state.
+    // The records must also be CONTIGUOUS - last.num - first.num + 1 == records in
+    // the file, otherwise a tail-only index (e.g. after the old truncation bug)
+    // would silently "restore" a handful of blocks behind a fully restored ledger.
+    off_t l_file_size = ftello(l_cell->file_storage);
+    uint64_t l_file_recs = l_file_size > (off_t)sizeof(dap_chain_state_hdr_t)
+            ? (uint64_t)(l_file_size - sizeof(dap_chain_state_hdr_t)) / sizeof(dap_chain_state_rec_t) : 0;
     s_blocks_first_rec_ctx_t l_first = {};
-    if (dap_chain_state_for_each_record(l_state, s_blocks_first_rec_cb, &l_first) == -4
-            && l_first.got && l_first.rec.num > l_anchor_num)
+    bool l_first_ok = dap_chain_state_for_each_record(l_state, s_blocks_first_rec_cb, &l_first) == -4
+            && l_first.got;
+    if (l_first_ok && (l_first.rec.num > l_anchor_num
+            || l_last.num < l_first.rec.num
+            || l_last.num - l_first.rec.num + 1 != l_file_recs))
         return -7;
     s_blocks_restore_ctx_t l_ctx = { .blocks = l_blocks, .cell = l_cell,
             .anchor_num = l_anchor_num, .file_size = (uint64_t)(l_last.offset + l_last.size) };
