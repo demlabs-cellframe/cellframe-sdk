@@ -26,7 +26,7 @@
 #include "dap_enc_base58.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_ledger_snapshot.h"
+#include "dap_chain_state_cache.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_mempool.h"
 #include "dap_cli_server.h"
@@ -444,8 +444,8 @@ static int s_collect_wallet_pkey_hashes()
                 l_shared_hashes->type = HASH_FILE_TYPE_WALLET;
                 dap_strncpy(l_shared_hashes->name, l_dir_entry->d_name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_dir_entry->d_name) - 8));
                 log_it(L_DEBUG, "Added wallet '%s' hash: %s", l_dir_entry->d_name, dap_hash_fast_to_str_static(&l_pkey_hash));
-                dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
-                    l_shared_hashes, sizeof(hold_tx_hashes_t), false);
+                dap_chain_state_cache_set(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash),
+                    l_shared_hashes, sizeof(hold_tx_hashes_t));
                 DAP_DELETE(l_shared_hashes);
                 dap_chain_wallet_close(l_wallet);
             } else {
@@ -488,8 +488,8 @@ static int s_collect_cert_pkey_hashes()
         hold_tx_hashes_t *l_shared_hashes = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(hold_tx_hashes_t, sizeof(hold_tx_hashes_t), -1);
         l_shared_hashes->type = HASH_FILE_TYPE_CERT;
         dap_strncpy(l_shared_hashes->name, l_cert->name, dap_min(sizeof(l_shared_hashes->name) - 1, strlen(l_cert->name)));
-        dap_global_db_set_sync(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash), 
-                    l_shared_hashes, sizeof(hold_tx_hashes_t), false);
+        dap_chain_state_cache_set(s_wallet_shared_gdb_group, dap_hash_fast_to_str_static(&l_pkey_hash),
+                    l_shared_hashes, sizeof(hold_tx_hashes_t));
         log_it(L_DEBUG, "Added certificate '%s' hash: %s", l_cert->name, dap_hash_fast_to_str_static(&l_pkey_hash));
         DAP_DELETE(l_shared_hashes);
     }  
@@ -1641,9 +1641,9 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     if (l_filter_count) {
         l_values_count = 1;
     } else if (l_local) {
-        l_values = dap_global_db_get_all_raw_sync(s_wallet_shared_gdb_group, &l_values_count);
+        l_values = dap_chain_state_cache_get_all_raw(s_wallet_shared_gdb_group, &l_values_count);
     } else {
-        l_values = dap_global_db_get_all_raw_sync(s_wallet_shared_gdb_pkeys, &l_values_count);
+        l_values = dap_chain_state_cache_get_all_raw(s_wallet_shared_gdb_pkeys, &l_values_count);
     }
     if (!l_values_count) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, 
@@ -1652,7 +1652,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     }
     dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
     if (!l_groups_list) {
-        dap_store_obj_free(l_values, l_values_count);
+        dap_chain_state_cache_raw_free(l_values, l_values_count);
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "Can't get groups from GDB by mask %s", s_wallet_shared_gdb_group);
         return ERROR_VALUE;
     }
@@ -1856,7 +1856,7 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
             json_object_put(l_jobj_item);
         }
     }
-    dap_store_obj_free(l_values, l_values_count);
+    dap_chain_state_cache_raw_free(l_values, l_values_count);
     dap_list_free_full(l_groups_list, NULL);
     if (!json_object_array_length(*a_json_arr_reply)) {
         dap_json_rpc_error_add(*a_json_arr_reply, ERROR_VALUE, "No shared wallet transactions found");
@@ -1949,7 +1949,7 @@ static void s_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *a_group, dap_h
     l_shared_hashes->tx[l_shared_hashes->tx_count].role = a_role;
     l_shared_hashes->tx_count++;
     log_it(L_DEBUG, "Added pkey hash %s as %s to shared hashes: %s", l_pkey_hash_str,a_role == TX_ROLE_CREATOR ? "creator" : "owner", dap_hash_fast_to_str_static(&l_shared_hashes->tx[l_shared_hashes->tx_count - 1].hash));
-    dap_global_db_set_sync(a_group, l_pkey_hash_str, l_shared_hashes, l_shared_hashes_size, false);
+    dap_chain_state_cache_set(a_group, l_pkey_hash_str, l_shared_hashes, l_shared_hashes_size);
     DAP_DEL_MULTY(l_pkey_hash_str, l_shared_hashes);
 }
 
@@ -1967,11 +1967,11 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
     dap_hash_fast_t l_hash = {0};
     dap_sign_get_pkey_hash(l_sig, &l_hash);
     s_hold_tx_add(a_tx, l_group, &l_hash, TX_ROLE_CREATOR);
-    dap_global_db_set_sync(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static(&l_hash), NULL, 0, false);
+    dap_chain_state_cache_set(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static(&l_hash), NULL, 0);
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             s_hold_tx_add(a_tx, l_group, (dap_hash_fast_t *)l_tsd->data, TX_ROLE_OWNER);
-            dap_global_db_set_sync(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), NULL, 0, false);
+            dap_chain_state_cache_set(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), NULL, 0);
         }
     }
     DAP_DELETE(l_group);
@@ -2186,16 +2186,8 @@ int dap_chain_wallet_shared_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL);
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
     dap_ledger_service_add(l_uid, "wallet_shared", s_tag_check);
-    // The groups are wiped on every start (derived state); with a no-scan start
-    // they must come back from the snapshot instead of the datum replay.
-    dap_ledger_add_snapshot_gdb_group("wallet_shared", s_shared_snapshot_group, s_wallet_shared_gdb_group);
-    dap_ledger_add_snapshot_gdb_group("wallet_shared_pkeys", s_shared_snapshot_group, s_wallet_shared_gdb_pkeys);
-
-    dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
-    for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {
-        dap_global_db_erase_table_sync(l_item->data);
-    }
-    dap_list_free_full(l_groups_list, NULL);
+    // The state lives in the chain-state cache and is carried by the snapshot,
+    // so a no-scan start restores it without the datum replay or the GlobalDB.
     s_collect_wallet_pkey_hashes();
     s_collect_cert_pkey_hashes();
     return 0;

@@ -938,3 +938,46 @@ int dap_chain_state_cache_load_all(const uint8_t *a_data, size_t a_size)
     log_it(L_NOTICE, "Chain state: restored %zu state-cache entries (%u namespaces)", l_loaded, l_count);
     return l_ptr == l_end ? 0 : -7;
 }
+
+dap_store_obj_t *dap_chain_state_cache_get_all_raw(const char *a_group, size_t *a_count)
+{
+    if (a_count)
+        *a_count = 0;
+    if (!a_group)
+        return NULL;
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(s_cache_ns(a_group));
+    if (!l_kv)
+        return NULL;
+    pthread_rwlock_rdlock(&l_kv->lock);
+    size_t l_n = HASH_COUNT(l_kv->by_id);
+    dap_store_obj_t *l_objs = l_n ? DAP_NEW_Z_COUNT(dap_store_obj_t, l_n) : NULL;
+    size_t i = 0;
+    for (s_kv_entry_t *l_e = l_kv->by_id; l_objs && l_e && i < l_n; l_e = l_e->hh.next) {
+        l_objs[i].group = dap_strdup(a_group);
+        l_objs[i].key = dap_strdup(l_e->name);
+        l_objs[i].value = l_e->value_len ? DAP_DUP_SIZE(l_e->value, l_e->value_len) : NULL;
+        l_objs[i].value_len = l_e->value_len;
+        l_objs[i].timestamp = l_e->ts;
+        if (!l_objs[i].group || !l_objs[i].key || (l_e->value_len && !l_objs[i].value)) {
+            DAP_DEL_Z(l_objs[i].group);
+            DAP_DEL_Z(l_objs[i].key);
+            DAP_DEL_Z(l_objs[i].value);
+            break;
+        }
+        ++i;
+    }
+    pthread_rwlock_unlock(&l_kv->lock);
+    if (a_count)
+        *a_count = i;
+    return l_objs;
+}
+
+void dap_chain_state_cache_raw_free(dap_store_obj_t *a_objs, size_t a_count)
+{
+    for (size_t i = 0; i < a_count; ++i) {
+        DAP_DEL_Z(a_objs[i].group);
+        DAP_DEL_Z(a_objs[i].key);
+        DAP_DEL_Z(a_objs[i].value);
+    }
+    DAP_DEL_Z(a_objs);
+}
