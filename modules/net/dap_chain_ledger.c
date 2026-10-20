@@ -257,6 +257,10 @@ static int s_snapshot_service_groups_load(void *a_ctx, const uint8_t *a_data, si
 // Node-local service state (dap_local_state): not replicated, no GDB limits.
 static int s_snapshot_local_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
 static int s_snapshot_local_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
+// Atom links for non-TX datums (emissions): completes the chain datum index
+// without a scan.
+static int s_snapshot_datum_links_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
+static int s_snapshot_datum_links_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
 static bool s_snapshot_append(dap_string_t *a_out, const void *a_data, size_t a_size);
 // Cache writers used when a restored record was missing from GlobalDB.
 static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
@@ -517,6 +521,9 @@ int dap_ledger_init()
     // Node-local service state (order books, journals, shared-wallet state).
     dap_ledger_add_snapshot_section("local_state", 0,
             s_snapshot_local_state_dump, s_snapshot_local_state_load, NULL);
+    // Atom links for non-TX datums: the TX part comes from the tx records.
+    dap_ledger_add_snapshot_section("datum_links", 0,
+            s_snapshot_datum_links_dump, s_snapshot_datum_links_load, NULL);
 
     return 0;
 }
@@ -3336,6 +3343,100 @@ static int s_snapshot_local_state_load(void *a_ctx, const uint8_t *a_data, size_
 {
     (void)a_ctx;
     return dap_chain_state_cache_load_all(a_data, a_size);
+}
+
+typedef struct DAP_ALIGN_PACKED s_snapshot_datum_link_rec {
+    uint8_t datum_hash[sizeof(dap_chain_hash_fast_t)];
+    uint8_t atom_hash[sizeof(dap_chain_hash_fast_t)];
+    uint32_t datum_idx;
+} s_snapshot_datum_link_rec_t;
+
+static dap_chain_t *s_snapshot_link_chain(dap_ledger_t *a_ledger)
+{
+    for (dap_chain_t *l_c = a_ledger && a_ledger->net ? a_ledger->net->pub.chains : NULL; l_c; l_c = l_c->next) {
+        const char *l_cs_type = dap_chain_get_cs_type(l_c);
+        if (l_cs_type && !dap_strcmp(l_cs_type, "esbocs"))
+            return l_c;
+    }
+    return NULL;
+}
+
+// Non-TX datums are not in the ledger tx records; their atom links let a no-scan
+// start rebuild the datum index for them too. Emissions carry their datum hash,
+// so this covers the bulk of the index (tokens/decrees keep their own stores).
+static int s_snapshot_datum_links_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+    dap_chain_t *l_chain = s_snapshot_link_chain(l_ledger);
+    if (!l_chain)
+        return 0;
+    dap_ledger_private_t *l_pvt = PVT(l_ledger);
+    dap_string_t *l_body = dap_string_new("");
+    if (!l_body)
+        return -2;
+    uint64_t l_n = 0;
+    bool l_ok = true;
+    pthread_rwlock_rdlock(&l_pvt->tokens_rwlock);
+    for (dap_ledger_token_item_t *l_tok = l_pvt->tokens; l_ok && l_tok; l_tok = l_tok->hh.next) {
+        pthread_rwlock_rdlock(&l_tok->token_emissions_rwlock);
+        for (dap_ledger_token_emission_item_t *l_em = l_tok->token_emissions; l_ok && l_em; l_em = l_em->hh.next) {
+            dap_chain_hash_fast_t l_atom = {};
+            uint32_t l_idx = 0;
+            if (dap_chain_cs_blocks_datum_location(l_chain, &l_em->datum_token_emission_hash, &l_atom, &l_idx))
+                continue;
+            s_snapshot_datum_link_rec_t l_rec = { .datum_idx = l_idx };
+            memcpy(l_rec.datum_hash, &l_em->datum_token_emission_hash, sizeof(l_rec.datum_hash));
+            memcpy(l_rec.atom_hash, &l_atom, sizeof(l_rec.atom_hash));
+            if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec)))
+                l_ok = false;
+            else
+                ++l_n;
+        }
+        pthread_rwlock_unlock(&l_tok->token_emissions_rwlock);
+    }
+    pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
+    if (l_ok && l_n) {
+        uint64_t l_hdr[2] = { a_net_id, l_n };
+        l_ok = s_snapshot_append(a_out, l_hdr, sizeof(l_hdr))
+                && s_snapshot_append(a_out, l_body->str, l_body->len);
+    }
+    dap_string_free(l_body, true);
+    return l_ok ? 0 : -2;
+}
+
+static int s_snapshot_datum_links_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < 2 * sizeof(uint64_t))
+        return -1;
+    uint64_t l_hdr[2];
+    memcpy(l_hdr, a_data, sizeof(l_hdr));
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_hdr[0] });
+    dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+    dap_chain_t *l_chain = s_snapshot_link_chain(l_ledger);
+    if (!l_chain)
+        return 0;
+    const uint8_t *l_ptr = a_data + sizeof(l_hdr), *l_end = a_data + a_size;
+    size_t l_restored = 0, l_missing = 0;
+    for (uint64_t i = 0; i < l_hdr[1]; ++i) {
+        if ((size_t)(l_end - l_ptr) < sizeof(s_snapshot_datum_link_rec_t))
+            return -3;
+        s_snapshot_datum_link_rec_t l_rec;
+        memcpy(&l_rec, l_ptr, sizeof(l_rec));
+        l_ptr += sizeof(l_rec);
+        dap_chain_hash_fast_t l_datum = {}, l_atom = {};
+        memcpy(&l_datum, l_rec.datum_hash, sizeof(l_datum));
+        memcpy(&l_atom, l_rec.atom_hash, sizeof(l_atom));
+        if (!dap_chain_cs_blocks_index_restored_datum(l_chain, &l_datum, &l_atom, l_rec.datum_idx))
+            ++l_restored;
+        else
+            ++l_missing;
+    }
+    log_it(L_NOTICE, "Ledger snapshot: datum links restored (%zu emission(s), %zu missing)",
+           l_restored, l_missing);
+    return 0;
 }
 
 // Copies the callbacks out so a load callback runs without the registry lock.
