@@ -2613,8 +2613,9 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
     // the ledger snapshot anchor (a ledger behind the index is fine: blocks above
     // the anchor are applied by the normal live/catch-up path).
     dap_chain_state_hdr_t l_hdr = {};
-    if (dap_chain_state_read(l_state, &l_hdr) || !l_hdr.records_count)
-        return -4;
+    int l_hdr_rc = dap_chain_state_read(l_state, &l_hdr);
+    if (l_hdr_rc || !l_hdr.records_count)
+        return l_hdr_rc ? l_hdr_rc : -4;
     dap_chain_state_rec_t l_last = {};
     if (!dap_chain_state_last_record(l_state, &l_last))
         return -5;
@@ -2633,10 +2634,15 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
     uint64_t l_anchor_num = 0;
     dap_chain_hash_fast_t l_anchor_hash = {};
     if (!dap_ledger_snapshot_skip_get(l_ledger, &l_anchor_num, &l_anchor_hash) || !l_anchor_num)
-        return -7;
-    if (l_anchor_num > l_last.num
-            || (l_anchor_num == l_last.num && !dap_hash_fast_compare(&l_anchor_hash, &l_last.hash)))
-        return -7;
+        return -11;   // the ledger snapshot carries no anchor to restore up to
+    if (l_anchor_num > l_last.num) {
+        log_it(L_WARNING, "Chain state: the index ends at block %" DAP_UINT64_FORMAT_U
+               " but the ledger anchor is %" DAP_UINT64_FORMAT_U " - the index is behind the snapshot",
+               l_last.num, l_anchor_num);
+        return -12;
+    }
+    if (l_anchor_num == l_last.num && !dap_hash_fast_compare(&l_anchor_hash, &l_last.hash))
+        return -13;   // same height, different chain
     // A truncated/rewritten index can start ABOVE the anchor (its first record is
     // newer than the snapshot position): it does not cover the restored state.
     // The records must also be CONTIGUOUS - last.num - first.num + 1 == records in
@@ -2650,8 +2656,13 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
             && l_first.got;
     if (l_first_ok && (l_first.rec.num > l_anchor_num
             || l_last.num < l_first.rec.num
-            || l_last.num - l_first.rec.num + 1 != l_file_recs))
-        return -7;
+            || l_last.num - l_first.rec.num + 1 != l_file_recs)) {
+        log_it(L_WARNING, "Chain state: the index is not contiguous (first block %" DAP_UINT64_FORMAT_U
+               ", last %" DAP_UINT64_FORMAT_U ", %" DAP_UINT64_FORMAT_U " records in the file, anchor %"
+               DAP_UINT64_FORMAT_U ") - rebuilding it by scan",
+               l_first.rec.num, l_last.num, l_file_recs, l_anchor_num);
+        return -14;
+    }
     s_blocks_restore_ctx_t l_ctx = { .blocks = l_blocks, .cell = l_cell,
             .anchor_num = l_anchor_num, .file_size = (uint64_t)(l_last.offset + l_last.size) };
     // The chain-wide TX counter describes the whole chain, not only the ledger's

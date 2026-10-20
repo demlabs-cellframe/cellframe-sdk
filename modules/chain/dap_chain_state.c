@@ -198,6 +198,18 @@ int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hd
     a_hdr->records_count = l_records_in_file;
     a_hdr->last_block_num = l_last.num;
     a_hdr->last_block_hash = l_last.hash;
+    // The first record is validated too: a zero/torn record at the head (left by a
+    // crash during the very first append) makes every continuity check fail and
+    // would keep the node scanning forever. Reject the index explicitly instead, so
+    // the caller rescans and rebuilds it.
+    dap_chain_state_rec_t l_first = {};
+    if (fseek(l_file, sizeof(*a_hdr), SEEK_SET) == 0
+            && fread(&l_first, sizeof(l_first), 1, l_file) == 1
+            && (!l_first.num || !l_first.size || dap_hash_fast_is_blank(&l_first.hash))) {
+        fclose(l_file);
+        pthread_mutex_unlock(&a_state->lock);
+        return -10;
+    }
     fclose(l_file);
     pthread_mutex_unlock(&a_state->lock);
     return 0;
@@ -270,7 +282,20 @@ void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint
     // the next start resumes at the end of the index and reads that tail. This
     // also covers mapped blocks accepted from the network while loading: their
     // pointer is not in the cell map, so they have no file offset yet.
-    bool l_indexable = a_index_record && a_offset != 0;
+    // A record with a zero number/size or a blank hash is never a real block and
+    // would break the index continuity check on the next start.
+    bool l_indexable = a_index_record && a_offset != 0 && a_num && a_size
+            && a_hash && !dap_hash_fast_is_blank(a_hash);
+    if (a_index_record && !l_indexable) {
+        // A main-branch block that cannot be indexed leaves a hole the next start
+        // would reject as non-contiguous: say why, a few times per process.
+        static _Atomic uint32_t s_skip_logged;
+        if (atomic_fetch_add(&s_skip_logged, 1) < 10)
+            log_it(L_WARNING, "Chain state: block %" DAP_UINT64_FORMAT_U " is not indexed "
+                   "(offset %" DAP_UINT64_FORMAT_U ", size %" DAP_UINT64_FORMAT_U ", hash %s)",
+                   a_num, a_offset, a_size,
+                   (a_hash && !dap_hash_fast_is_blank(a_hash)) ? dap_hash_fast_to_str_static(a_hash) : "blank");
+    }
     if (a_state->chain->is_mapped || l_indexable) {
         if (a_num >= a_state->last_num) {
             a_state->last_num = a_num;
