@@ -87,6 +87,8 @@ typedef struct DAP_PACKED s_dag_idx_rec {
 } s_dag_idx_rec_t;
 
 static _Thread_local bool s_dag_restore_mode;
+// Restore timing split (nanoseconds), logged once per replay.
+static _Thread_local uint64_t s_restore_t_datum, s_restore_t_frontier, s_restore_t_body;
 static FILE *s_dag_index_file = NULL;
 static uint64_t s_dag_index_records = 0;
 static dap_chain_t *s_dag_index_continue_chain = NULL; // chain whose index was restored
@@ -584,7 +586,10 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
     }
     dap_hash_fast_t l_datum_hash;
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
+    uint64_t l_t0 = s_dag_restore_mode ? dap_nanotime_now() : 0;
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
+    if (l_t0)
+        s_restore_t_datum += (uint64_t)(dap_nanotime_now() - l_t0);
     // Note: tx_count increment moved to dap_ledger_tx_add() to ensure it only increments for successfully verified transactions
     a_event_item->datum_hash = l_datum_hash;
     a_event_item->ret_code = l_ret;
@@ -733,7 +738,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
                 it->event_number = ++i;
         } else
             HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
+        uint64_t l_tf = s_dag_restore_mode ? dap_nanotime_now() : 0;
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
+        if (l_tf)
+            s_restore_t_frontier += (uint64_t)(dap_nanotime_now() - l_tf);
         // Index for the next start (skipped while restoring the index itself).
         s_dag_index_append(a_chain, &l_event_hash, l_event_item->event, l_event_item->event_size);
         // Index replay: the wallet cache and the services are already restored by
@@ -883,8 +891,10 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
             }
             l_event = (dap_chain_cs_dag_event_t *)l_heap;
         }
+        uint64_t l_tb0 = dap_nanotime_now();
         dap_chain_atom_verify_res_t l_res = s_chain_callback_atom_add(a_chain,
                 (dap_chain_atom_ptr_t)l_event, l_rec.size, &l_hash, false);
+        s_restore_t_body += (uint64_t)(dap_nanotime_now() - l_tb0);
         if (l_res == ATOM_ACCEPT || l_res == ATOM_PASS)
             ++l_restored;
         DAP_DEL_Z(l_heap);   // the add path duplicates the body for non-mapped chains
@@ -925,7 +935,11 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
     pthread_mutex_unlock(&s_dag_index_mutex);
     *a_resume_offset = l_resume;
     log_it(L_NOTICE, "DAG index: restored %" DAP_UINT64_FORMAT_U " of %" DAP_UINT64_FORMAT_U
-           " events, resuming the cell at %" DAP_UINT64_FORMAT_U, l_restored, l_count, l_resume);
+           " events, resuming the cell at %" DAP_UINT64_FORMAT_U " (add %" DAP_UINT64_FORMAT_U
+           " ms, of it datum %" DAP_UINT64_FORMAT_U " ms, frontier %" DAP_UINT64_FORMAT_U " ms)",
+           l_restored, l_count, l_resume,
+           s_restore_t_body / 1000000, s_restore_t_datum / 1000000, s_restore_t_frontier / 1000000);
+    s_restore_t_body = s_restore_t_datum = s_restore_t_frontier = 0;
     return (int64_t)l_restored;
 }
 
