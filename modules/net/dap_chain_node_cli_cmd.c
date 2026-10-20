@@ -9900,6 +9900,13 @@ int com_stats(int argc, char **a_argv, void **a_str_reply, int a_version)
 int com_chain_cache(int a_argc, char **a_argv, void **a_str_reply, int a_version)
 {
     json_object **a_json_arr_reply = (json_object **)a_str_reply;
+    // The CLI passes a text buffer for commands missing from the JSON command
+    // list: dereferencing the NULL array there was a live SEGV.
+    if (!a_json_arr_reply || !*a_json_arr_reply) {
+        log_it(L_WARNING, "chain cache: the command is not in the CLI JSON command list, "
+                          "add it to s_json_cmds_build()");
+        return -1;
+    }
     int arg_index = 1;
     if (a_argc < 3 || dap_strcmp(a_argv[1], "cache")) {
         dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_STATS_WRONG_FORMAT_ERR,
