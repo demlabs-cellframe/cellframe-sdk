@@ -71,6 +71,7 @@ static inline bool s_ledger_cache_storage_full(void)
 #include "dap_chain_ledger.h"
 #include "dap_rpc_cache.h"
 #include "dap_chain_ledger_snapshot.h"
+#include "dap_local_state.h"
 #include "dap_crc64.h"
 #include "dap_chain.h"
 #include "dap_chain_cs_blocks.h"
@@ -253,6 +254,9 @@ static int s_snapshot_ledger_state_load(void *a_ctx, const uint8_t *a_data, size
 // Service GlobalDB groups carried by the snapshot (services register providers).
 static int s_snapshot_service_groups_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
 static int s_snapshot_service_groups_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
+// Node-local service state (dap_local_state): not replicated, no GDB limits.
+static int s_snapshot_local_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
+static int s_snapshot_local_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
 static bool s_snapshot_append(dap_string_t *a_out, const void *a_data, size_t a_size);
 // Cache writers used when a restored record was missing from GlobalDB.
 static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
@@ -510,6 +514,9 @@ int dap_ledger_init()
     // Service registries: the snapshot is their durable source, not the GDB.
     dap_ledger_add_snapshot_section("service_groups", 0,
             s_snapshot_service_groups_dump, s_snapshot_service_groups_load, NULL);
+    // Node-local service state (order books, journals, shared-wallet state).
+    dap_ledger_add_snapshot_section("local_state", 0,
+            s_snapshot_local_state_dump, s_snapshot_local_state_load, NULL);
 
     return 0;
 }
@@ -3316,6 +3323,19 @@ static int s_snapshot_service_groups_load(void *a_ctx, const uint8_t *a_data, si
     }
     log_it(L_NOTICE, "Ledger snapshot: service groups restored (%u group(s))", l_n_groups);
     return l_ptr == l_end ? 0 : -6;
+}
+
+static int s_snapshot_local_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    (void)a_net_id;
+    return dap_local_state_dump(a_out);
+}
+
+static int s_snapshot_local_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    return dap_local_state_load(a_data, a_size);
 }
 
 // Copies the callbacks out so a load callback runs without the registry lock.

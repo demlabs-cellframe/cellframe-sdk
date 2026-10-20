@@ -26,6 +26,7 @@
 #include <strings.h>
 
 #include "dap_chain_net_srv_order.h"
+#include "dap_local_state.h"
 #include "dap_hash.h"
 #include "dap_enc_base58.h"
 #include "dap_enc_base64.h"
@@ -69,8 +70,35 @@ struct dap_order_notify {
  * @brief dap_chain_net_srv_order_init
  * @return
  */
+// One-time migration: order books used to live in the GlobalDB. The local state
+// (carried by the snapshot) is the store now; existing orders must survive the
+// switch, so an empty local group is seeded from its GDB counterpart.
+static void s_orders_import_from_gdb(void)
+{
+    const char *l_masks[] = { "*.service.orders", "*.orders" };
+    for (size_t m = 0; m < sizeof(l_masks) / sizeof(*l_masks); ++m) {
+        dap_list_t *l_groups = dap_global_db_driver_get_groups_by_mask(l_masks[m]);
+        for (dap_list_t *l_it = l_groups; l_it; l_it = l_it->next) {
+            const char *l_group = (const char *)l_it->data;
+            if (dap_local_state_count(l_group))
+                continue; // already carried by the snapshot
+            size_t l_count = 0;
+            dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_count);
+            for (size_t i = 0; i < l_count; ++i)
+                dap_local_state_set(l_group, l_objs[i].key, l_objs[i].value, l_objs[i].value_len);
+            if (l_objs)
+                dap_global_db_objs_delete(l_objs, l_count);
+            if (l_count)
+                log_it(L_NOTICE, "Order books: imported %zu order(s) from %s into local state",
+                       l_count, l_group);
+        }
+        dap_list_free_full(l_groups, NULL);
+    }
+}
+
 int dap_chain_net_srv_order_init()
 {
+    s_orders_import_from_gdb();
     return dap_chain_srv_order_pin_init();
 }
 
@@ -385,9 +413,9 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
                                      : dap_chain_net_srv_order_get_gdb_group(a_net);
     if (!l_gdb_group_str)
         return NULL;
-    int l_rc = dap_global_db_set_sync(l_gdb_group_str, l_order_hash_str, a_order, l_order_size, true);
+    int l_rc = dap_local_state_set(l_gdb_group_str, l_order_hash_str, a_order, l_order_size);
     DAP_DELETE(l_gdb_group_str);
-    if (l_rc == DAP_GLOBAL_DB_RC_SUCCESS)
+    if (!l_rc)
         return l_order_hash_str;
     DAP_DELETE(l_order_hash_str);
     return NULL;
@@ -406,14 +434,13 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_find_by_hash_str(dap_chain_ne
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
         size_t l_order_size = 0;
-        byte_t *l_gdb_order = dap_global_db_get_sync(l_gdb_group_str, a_hash_str, &l_order_size, NULL, NULL);
+        const uint8_t *l_gdb_order = dap_local_state_get(l_gdb_group_str, a_hash_str, &l_order_size);
         DAP_DELETE(l_gdb_group_str);
         if (!l_gdb_order)
             continue;
-        // check order size
+        // check order size; the value is owned by the local store
         l_order = dap_chain_net_srv_order_check(a_hash_str, l_gdb_order, l_order_size);
         if (!l_order || (l_order->ts_expires &&  l_order->ts_expires < dap_time_now())){
-            DAP_DELETE(l_gdb_order);
             break;
         }
     }
@@ -449,13 +476,13 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t *a_net, const dap_chain_
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
         size_t l_orders_count = 0;
-        dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+        dap_global_db_obj_t *l_orders = dap_local_state_get_all(l_gdb_group_str, &l_orders_count);
         log_it(L_DEBUG, "Loaded %zu orders", l_orders_count);
         const dap_chain_net_srv_order_t *l_order = NULL;
         for (size_t i = 0; i < l_orders_count; i++) {
             l_order = dap_chain_net_srv_order_check(l_orders[i].key, l_orders[i].value, l_orders[i].value_len);
             if (!l_order) {
-                dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
+                dap_local_state_del(l_gdb_group_str, l_orders[i].key);
                 continue; // order is corrupted
             }
 
@@ -515,7 +542,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
 
-        l_ret = dap_global_db_del_sync(l_gdb_group_str, a_hash_str);
+        l_ret = dap_local_state_del(l_gdb_group_str, a_hash_str);
         DAP_DELETE(l_gdb_group_str);
     }
     return l_ret;

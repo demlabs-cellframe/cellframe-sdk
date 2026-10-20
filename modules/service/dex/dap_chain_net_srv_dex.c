@@ -39,6 +39,7 @@
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_ledger_snapshot.h"
+#include "dap_local_state.h"
 #include "dap_common.h"
 #include <stddef.h>
 #include <string.h>
@@ -6951,7 +6952,7 @@ static void s_hist_journal_write(dap_ledger_t *a_ledger, const dex_pair_key_t *a
     // shutdown never loses the journal tail (mdbx applies it off-lock on the
     // proc thread; a hard kill can still lose the last moments, like every
     // other queued write in the node).
-    int l_rc = dap_global_db_set(l_group, l_key_str, &l_rec, sizeof(l_rec), true, NULL, NULL);
+    int l_rc = dap_local_state_set(l_group, l_key_str, &l_rec, sizeof(l_rec));
     debug_if_f(s_debug_more, L_DEBUG, "DEX hist journal: queued %s (%zu bytes), rc %d", l_key_str, sizeof(l_rec), l_rc);
 }
 
@@ -6961,7 +6962,7 @@ static void s_hist_journal_delete(struct dap_chain_net *a_net, const dex_pair_ke
     char l_group[128], l_key_str[DAP_HASH_FAST_STR_SIZE];
     s_hist_journal_group(a_net->pub.name, l_group, sizeof(l_group));
     s_hist_journal_key_str(a_pair, a_key, a_flags, l_key_str, sizeof(l_key_str));
-    dap_global_db_del(l_group, l_key_str, NULL, NULL);
+    dap_local_state_del(l_group, l_key_str);
 }
 
 static void s_hist_journal_load(dap_chain_net_t *a_net)
@@ -6969,7 +6970,7 @@ static void s_hist_journal_load(dap_chain_net_t *a_net)
     char l_group[128];
     s_hist_journal_group(a_net->pub.name, l_group, sizeof(l_group));
     size_t l_count = 0;
-    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_count);
+    dap_global_db_obj_t *l_objs = dap_local_state_get_all(l_group, &l_count);
     log_it_f(L_INFO, "DEX history journal load for net %s: group \"%s\", %zu record(s)", a_net->pub.name, l_group, l_count);
     if (!l_objs || !l_count) {
         debug_if_f(s_debug_more, L_DEBUG, "No DEX history journal for net %s", a_net->pub.name);
@@ -7050,7 +7051,7 @@ void dap_chain_net_srv_dex_purge_net(dap_chain_net_t *a_net)
         DAP_DELETE(hp_it);
     }
     pthread_rwlock_unlock(&s_dex_cache_rwlock);
-    dap_global_db_erase_table_sync(l_group);
+    dap_local_state_clear(l_group);
     log_it(L_INFO, "DEX history purged for net %s", a_net->pub.name);
 }
 
