@@ -57,6 +57,123 @@
 
 #define LOG_TAG "dap_chain_cs_dag"
 
+/* *** DAG event index (no-rescan startup) ***
+ * One record per accepted event: hash, absolute file offset, size, ordinal. On
+ * startup the event cache (events, datums, the unlinked frontier) is rebuilt by
+ * feeding every indexed event through the normal add path in RESTORE mode,
+ * which skips the PoA verification - the same trust model as the blocks skip
+ * zone. Events above the index form the tail the loader processes normally.
+ */
+#define DAG_INDEX_MAGIC "CFDAGIDX"
+#define DAG_INDEX_VERSION 1
+
+typedef struct DAP_PACKED s_dag_idx_hdr {
+    char magic[8];
+    uint32_t version;
+    uint32_t hsize;
+    uint64_t net_id;
+    uint64_t cell_id;
+    uint64_t count;
+} s_dag_idx_hdr_t;
+
+typedef struct DAP_PACKED s_dag_idx_rec {
+    uint8_t hash[sizeof(dap_chain_hash_fast_t)];
+    uint64_t offset;    // absolute position of the event body in the cell file
+    uint64_t size;
+    uint64_t num;
+} s_dag_idx_rec_t;
+
+static _Thread_local bool s_dag_restore_mode;
+static FILE *s_dag_index_file = NULL;
+static uint64_t s_dag_index_records = 0;
+static bool s_dag_index_continue = false;    // append to an adopted index
+static dap_chain_t *s_dag_index_chain = NULL;
+
+static char *s_dag_index_path(dap_chain_t *a_chain)
+{
+    dap_chain_cell_t *l_cell = a_chain ? dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id) : NULL;
+    return l_cell ? dap_strdup_printf("%s.dagindex", l_cell->file_storage_path) : NULL;
+}
+
+static void s_dag_index_flush_header(dap_chain_t *a_chain)
+{
+    if (!s_dag_index_file || !a_chain)
+        return;
+    s_dag_idx_hdr_t l_hdr = {
+        .version = DAG_INDEX_VERSION,
+        .hsize = sizeof(s_dag_idx_hdr_t),
+        .net_id = a_chain->net_id.uint64,
+        .cell_id = a_chain->active_cell_id.uint64,
+        .count = s_dag_index_records
+    };
+    memcpy(l_hdr.magic, DAG_INDEX_MAGIC, sizeof(l_hdr.magic));
+    if (!fflush(s_dag_index_file) && !fseeko(s_dag_index_file, 0, SEEK_SET)
+            && fwrite(&l_hdr, sizeof(l_hdr), 1, s_dag_index_file) == 1)
+        fflush(s_dag_index_file);
+    fseeko(s_dag_index_file, 0, SEEK_END);
+}
+
+static void s_dag_index_append(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_hash,
+                               const void *a_event_ptr, size_t a_size)
+{
+    if (s_dag_restore_mode || !a_chain || !a_hash || !a_size)
+        return;
+    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
+    if (!l_cell)
+        return;
+    uint64_t l_off = 0;
+    if (a_chain->is_mapped && a_event_ptr && (const char *)a_event_ptr >= l_cell->map
+            && (const char *)a_event_ptr < l_cell->map_end)
+        l_off = (uint64_t)l_cell->cur_vol_start + (uint64_t)((const char *)a_event_ptr - l_cell->map);
+    else
+        l_off = dap_chain_cell_load_offset();
+    if (!l_off)  // live non-mapped event: the next start reads it as the tail
+        return;
+    if (!s_dag_index_file || s_dag_index_chain != a_chain) {
+        if (s_dag_index_file)
+            fclose(s_dag_index_file);
+        char *l_path = s_dag_index_path(a_chain);
+        s_dag_index_file = l_path ? fopen(l_path, s_dag_index_continue ? "r+b" : "wb") : NULL;
+        DAP_DELETE(l_path);
+        s_dag_index_chain = a_chain;
+        if (!s_dag_index_file)
+            return;
+        if (s_dag_index_continue) {
+            fseeko(s_dag_index_file, 0, SEEK_END);
+            off_t l_size = ftello(s_dag_index_file);
+            s_dag_index_records = l_size > (off_t)sizeof(s_dag_idx_hdr_t)
+                    ? (uint64_t)(l_size - sizeof(s_dag_idx_hdr_t)) / sizeof(s_dag_idx_rec_t) : 0;
+            fseeko(s_dag_index_file, 0, SEEK_END);
+        } else {
+            s_dag_index_records = 0;
+            s_dag_index_flush_header(a_chain);
+        }
+    }
+    s_dag_idx_rec_t l_rec = { .offset = l_off, .size = a_size, .num = s_dag_index_records + 1 };
+    memcpy(l_rec.hash, a_hash, sizeof(l_rec.hash));
+    if (fwrite(&l_rec, sizeof(l_rec), 1, s_dag_index_file) == 1) {
+        ++s_dag_index_records;
+        if (!(s_dag_index_records % 1000))
+            s_dag_index_flush_header(a_chain);
+    }
+}
+
+static void s_dag_index_drop(dap_chain_t *a_chain)
+{
+    if (s_dag_index_file && s_dag_index_chain == a_chain) {
+        fclose(s_dag_index_file);
+        s_dag_index_file = NULL;
+        s_dag_index_chain = NULL;
+    }
+    char *l_path = s_dag_index_path(a_chain);
+    if (l_path) {
+        remove(l_path);
+        DAP_DELETE(l_path);
+    }
+    s_dag_index_records = 0;
+    s_dag_index_continue = false;
+}
+
 typedef struct dap_chain_cs_dag_event_item {
     dap_chain_hash_fast_t hash;
     dap_chain_hash_fast_t datum_hash;
@@ -94,6 +211,7 @@ static int s_chain_cs_dag_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 static void s_chain_cs_dag_start(dap_chain_t *a_chain);
 static void s_chain_cs_dag_delete(dap_chain_t *a_chain);
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
+static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offset);
 static void s_threshold_free(dap_chain_cs_dag_t *a_dag);
 static dap_chain_cs_dag_event_item_t *s_dag_proc_treshold(dap_chain_cs_dag_t *a_dag);
 
@@ -229,6 +347,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // Atom element callbacks
     a_chain->callback_atom_add = s_chain_callback_atom_add ;  // Accept new element in chain
+    a_chain->callback_restore_index = s_dag_restore_index;     // No-rescan startup
     a_chain->callback_atom_add_from_treshold = s_chain_callback_atom_add_from_treshold;  // Accept new elements in chain from treshold
     a_chain->callback_atom_verify = s_chain_callback_atom_verify ;  // Verify new element in chain
     a_chain->callback_atom_get_hdr_static_size = s_chain_callback_atom_get_static_hdr_size; // Get dag event hdr size
@@ -364,6 +483,7 @@ static void s_threshold_free(dap_chain_cs_dag_t *a_dag)
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
+    s_dag_index_drop(a_chain);   // offsets are meaningless after a rewrite
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
     HASH_CLEAR(hh_datums, l_dag_pvt->datums);
     dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
@@ -522,7 +642,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     // verify hashes and consensus
     switch (ret) {
     case ATOM_ACCEPT:
-        ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size, &l_event_hash);
+        if (!s_dag_restore_mode)
+            ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size, &l_event_hash);
         if (ret == ATOM_MOVE_TO_THRESHOLD) {
             if (!s_threshold_enabled /*&& !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id))*/)
                 ret = ATOM_REJECT;
@@ -601,6 +722,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         dap_chain_cs_dag_event_item_t *l_tail = HASH_LAST(PVT(l_dag)->events);
         if (l_tail && l_tail->ts_created > l_event->header.ts_created) {
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
+            s_dag_index_drop(a_chain);   // the cell will be rewritten, offsets change
         
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
             dap_chain_cs_dag_event_item_t *it = PVT(l_dag)->events;
@@ -609,6 +731,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         } else
             HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
+        // Index for the next start (skipped while restoring the index itself).
+        s_dag_index_append(a_chain, &l_event_hash, l_event_item->event, l_event_item->event_size);
         dap_chain_atom_notify(l_cell, &l_event_item->hash, (const byte_t *)l_event_item->event, l_event_item->event_size, l_event->header.ts_created);
         dap_chain_atom_add_from_threshold(a_chain);
     } break;
@@ -630,6 +754,77 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
  * @param a_chain DAG object
  * @return true if added one item, otherwise false
  */
+static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offset)
+{
+    if (!a_chain || !a_resume_offset)
+        return -1;
+    char *l_path = s_dag_index_path(a_chain);
+    FILE *l_f = l_path ? fopen(l_path, "rb") : NULL;
+    DAP_DELETE(l_path);
+    if (!l_f)
+        return -2;
+    s_dag_idx_hdr_t l_hdr = {};
+    if (fread(&l_hdr, sizeof(l_hdr), 1, l_f) != 1 || memcmp(l_hdr.magic, DAG_INDEX_MAGIC, sizeof(l_hdr.magic))
+            || l_hdr.version != DAG_INDEX_VERSION || l_hdr.net_id != a_chain->net_id.uint64
+            || l_hdr.cell_id != a_chain->active_cell_id.uint64) {
+        fclose(l_f);
+        return -3;
+    }
+    if (fseeko(l_f, 0, SEEK_END)) {
+        fclose(l_f);
+        return -3;
+    }
+    off_t l_size = ftello(l_f);
+    uint64_t l_count = l_size > (off_t)sizeof(l_hdr) ? (uint64_t)(l_size - sizeof(l_hdr)) / sizeof(s_dag_idx_rec_t) : 0;
+    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
+    if (!l_count || !l_cell || !l_cell->file_storage || fseeko(l_f, sizeof(l_hdr), SEEK_SET)) {
+        fclose(l_f);
+        return -4;
+    }
+    uint64_t l_restored = 0, l_resume = 0;
+    s_dag_restore_mode = true;
+    for (uint64_t i = 0; i < l_count; ++i) {
+        s_dag_idx_rec_t l_rec = {};
+        if (fread(&l_rec, sizeof(l_rec), 1, l_f) != 1 || !l_rec.size)
+            break;
+        dap_chain_hash_fast_t l_hash = {};
+        memcpy(&l_hash, l_rec.hash, sizeof(l_hash));
+        dap_chain_cs_dag_event_t *l_event = NULL;
+        uint8_t *l_heap = NULL;
+        if (a_chain->is_mapped) {
+            if (dap_chain_cell_map_window(l_cell, (size_t)l_rec.offset) || l_rec.offset < l_cell->cur_vol_start)
+                break;
+            size_t l_off = (size_t)(l_rec.offset - l_cell->cur_vol_start);
+            if (l_cell->map + l_off + l_rec.size > l_cell->map_end)
+                break;
+            l_event = (dap_chain_cs_dag_event_t *)(l_cell->map + l_off);
+        } else {
+            l_heap = DAP_NEW_SIZE(uint8_t, l_rec.size);
+            if (!l_heap || fseeko(l_cell->file_storage, (off_t)l_rec.offset, SEEK_SET)
+                    || fread(l_heap, 1, l_rec.size, l_cell->file_storage) != l_rec.size) {
+                DAP_DEL_Z(l_heap);
+                break;
+            }
+            l_event = (dap_chain_cs_dag_event_t *)l_heap;
+        }
+        dap_chain_atom_verify_res_t l_res = s_chain_callback_atom_add(a_chain,
+                (dap_chain_atom_ptr_t)l_event, l_rec.size, &l_hash, false);
+        if (l_res == ATOM_ACCEPT || l_res == ATOM_PASS)
+            ++l_restored;
+        DAP_DEL_Z(l_heap);   // the add path duplicates the body for non-mapped chains
+        l_resume = l_rec.offset + l_rec.size;
+    }
+    s_dag_restore_mode = false;
+    fclose(l_f);
+    if (!l_restored)
+        return -5;
+    s_dag_index_continue = true;
+    *a_resume_offset = l_resume;
+    log_it(L_NOTICE, "DAG index: restored %" DAP_UINT64_FORMAT_U " of %" DAP_UINT64_FORMAT_U
+           " events, resuming the cell at %" DAP_UINT64_FORMAT_U, l_restored, l_count, l_resume);
+    return (int64_t)l_restored;
+}
+
 static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t * a_chain, size_t *a_event_size_out)
 {
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
