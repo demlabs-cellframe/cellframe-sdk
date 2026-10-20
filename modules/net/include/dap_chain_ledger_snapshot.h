@@ -93,6 +93,13 @@ typedef int (*dap_ledger_snapshot_load_cb_t)(void *a_ctx, const uint8_t *a_data,
 int dap_ledger_add_snapshot_section(const char *a_name, uint32_t a_flags,
         dap_ledger_snapshot_dump_cb_t a_dump, dap_ledger_snapshot_load_cb_t a_load, void *a_ctx);
 
+// Services register their persistent GlobalDB group(s) here instead of relying on
+// the GDB contents surviving/being complete: the "service_groups" section dumps
+// every registered group per network and restores missing records synchronously
+// at load. The getter returns a malloc'd group name for the net (or NULL).
+typedef char *(*dap_ledger_snapshot_group_getter_t)(dap_chain_net_t *a_net, void *a_ctx);
+int dap_ledger_add_snapshot_gdb_group(const char *a_name, dap_ledger_snapshot_group_getter_t a_getter, void *a_ctx);
+
 /**
  * @brief Whether the loaded snapshot was a COMPLETE ledger state (the
  *        "ledger_state" section restored successfully, header flag bit2).

@@ -38,6 +38,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_wallet_cache.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_snapshot.h"
 #include "dap_common.h"
 #include <stddef.h>
 #include <string.h>
@@ -6595,6 +6596,12 @@ static bool s_tag_check_dex(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     return true;
 }
 
+static char *s_dex_snapshot_group_hist(dap_chain_net_t *a_net, void *a_ctx)
+{
+    (void)a_ctx;
+    return a_net ? dap_strdup_printf("local.dex-cache.%s.hist", a_net->pub.name) : NULL;
+}
+
 int dap_chain_net_srv_dex_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config, "srv_dex", "debug_more", false);
@@ -6605,6 +6612,9 @@ int dap_chain_net_srv_dex_init()
         s_dex_reply_cache_max_entries = 0, s_dex_reply_cache_max_bytes = 0; // cache off
     // Register verificator for SRV_DEX
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, s_dex_verificator_callback, NULL, NULL);
+    // Trading-history journal: keep it in the snapshot so a no-scan start does
+    // not depend on the GDB contents.
+    dap_ledger_add_snapshot_gdb_group("dex_history", s_dex_snapshot_group_hist, NULL);
     // Register service for tagging (mempool list, tx history)
     dap_ledger_service_add((dap_chain_net_srv_uid_t){.uint64 = DAP_CHAIN_NET_SRV_DEX_ID}, "dex", s_tag_check_dex);
     dap_ledger_service_tx_to_json_set((dap_chain_net_srv_uid_t){.uint64 = DAP_CHAIN_NET_SRV_DEX_ID}, s_dex_tx_to_json);

@@ -250,6 +250,10 @@ static int s_compare_locked_outs(dap_ledger_locked_out_t *a_out1, dap_ledger_loc
 // Ledger-state snapshot section (v3): dump/load are registered in dap_ledger_init().
 static int s_snapshot_ledger_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
 static int s_snapshot_ledger_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
+// Service GlobalDB groups carried by the snapshot (services register providers).
+static int s_snapshot_service_groups_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
+static int s_snapshot_service_groups_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
+static bool s_snapshot_append(dap_string_t *a_out, const void *a_data, size_t a_size);
 // Cache writers used when a restored record was missing from GlobalDB.
 static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_ledger_token_emission_item_t *a_emission_item);
 void s_ledger_stake_lock_cache_update(dap_ledger_t *a_ledger, dap_ledger_stake_lock_item_t *a_stake_lock_item);
@@ -503,6 +507,9 @@ int dap_ledger_init()
     dap_ledger_add_snapshot_section(DAP_LEDGER_SNAPSHOT_LEDGER_STATE_SECTION,
             DAP_LEDGER_SNAPSHOT_SECTION_FLAG_FULL,
             s_snapshot_ledger_state_dump, s_snapshot_ledger_state_load, NULL);
+    // Service registries: the snapshot is their durable source, not the GDB.
+    dap_ledger_add_snapshot_section("service_groups", 0,
+            s_snapshot_service_groups_dump, s_snapshot_service_groups_load, NULL);
 
     return 0;
 }
@@ -3175,6 +3182,140 @@ int dap_ledger_add_snapshot_section(const char *a_name, uint32_t a_flags,
     pthread_mutex_unlock(&s_snapshot_sections_lock);
     log_it(L_INFO, "Ledger snapshot: section '%s' registered", a_name);
     return 0;
+}
+
+/* *** Service GlobalDB groups in the snapshot ***
+ *
+ * Services keep their registries in per-network GlobalDB groups, and a start
+ * without a chain scan cannot rebuild them from datums. They register a group
+ * getter here; the "service_groups" section dumps the groups per network and
+ * restores every record synchronously at load. The snapshot is the durable
+ * source, the GDB is just the runtime store.
+ */
+typedef struct s_snapshot_group_provider {
+    char name[DAP_LEDGER_SNAPSHOT_SECTION_NAME_MAX];
+    dap_ledger_snapshot_group_getter_t getter;
+    void *ctx;
+    struct s_snapshot_group_provider *next;
+} s_snapshot_group_provider_t;
+
+static s_snapshot_group_provider_t *s_group_providers = NULL;
+static pthread_mutex_t s_group_providers_lock = PTHREAD_MUTEX_INITIALIZER;
+
+int dap_ledger_add_snapshot_gdb_group(const char *a_name, dap_ledger_snapshot_group_getter_t a_getter, void *a_ctx)
+{
+    if (!a_name || !*a_name || !a_getter)
+        return -1;
+    pthread_mutex_lock(&s_group_providers_lock);
+    for (s_snapshot_group_provider_t *l_it = s_group_providers; l_it; l_it = l_it->next) {
+        if (!dap_strcmp(l_it->name, a_name)) {
+            pthread_mutex_unlock(&s_group_providers_lock);
+            return 0; // idempotent by name
+        }
+    }
+    s_snapshot_group_provider_t *l_new = DAP_NEW_Z(s_snapshot_group_provider_t);
+    if (!l_new) {
+        pthread_mutex_unlock(&s_group_providers_lock);
+        return -2;
+    }
+    dap_strncpy(l_new->name, a_name, sizeof(l_new->name) - 1);
+    l_new->getter = a_getter;
+    l_new->ctx = a_ctx;
+    l_new->next = s_group_providers;
+    s_group_providers = l_new;
+    pthread_mutex_unlock(&s_group_providers_lock);
+    return 0;
+}
+
+static int s_snapshot_service_groups_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_net)
+        return 0;
+    dap_string_t *l_body = dap_string_new("");
+    if (!l_body)
+        return -2;
+    uint32_t l_n_groups = 0;
+    bool l_ok = true;
+    pthread_mutex_lock(&s_group_providers_lock);
+    for (s_snapshot_group_provider_t *l_p = s_group_providers; l_ok && l_p; l_p = l_p->next) {
+        char *l_group = l_p->getter(l_net, l_p->ctx);
+        if (!l_group)
+            continue;
+        size_t l_cnt = 0;
+        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_cnt);
+        size_t l_glen = strlen(l_group);
+        if (l_objs && l_cnt && l_glen < UINT16_MAX) {
+            uint16_t l_gl16 = (uint16_t)(l_glen + 1);   // namespace including NUL
+            uint32_t l_cnt32 = (uint32_t)l_cnt;
+            l_ok = s_snapshot_append(l_body, &l_gl16, sizeof(l_gl16))
+                    && s_snapshot_append(l_body, l_group, l_glen + 1)
+                    && s_snapshot_append(l_body, &l_cnt32, sizeof(l_cnt32));
+            for (size_t i = 0; l_ok && i < l_cnt; ++i) {
+                uint32_t l_klen = (uint32_t)(strlen(l_objs[i].key) + 1);
+                uint32_t l_vlen = (uint32_t)l_objs[i].value_len;
+                l_ok = s_snapshot_append(l_body, &l_klen, sizeof(l_klen))
+                        && s_snapshot_append(l_body, &l_vlen, sizeof(l_vlen))
+                        && s_snapshot_append(l_body, l_objs[i].key, l_klen)
+                        && (!l_vlen || s_snapshot_append(l_body, l_objs[i].value, l_vlen));
+            }
+            if (l_ok)
+                ++l_n_groups;
+        }
+        if (l_objs)
+            dap_global_db_objs_delete(l_objs, l_cnt);
+        DAP_DELETE(l_group);
+    }
+    pthread_mutex_unlock(&s_group_providers_lock);
+    if (l_ok && l_n_groups)
+        l_ok = s_snapshot_append(a_out, &l_n_groups, sizeof(l_n_groups))
+                && s_snapshot_append(a_out, l_body->str, l_body->len);
+    dap_string_free(l_body, true);
+    return l_ok ? 0 : -2;   // zero groups -> empty section, skipped by the save
+}
+
+static int s_snapshot_service_groups_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < sizeof(uint32_t))
+        return -1;
+    uint32_t l_n_groups = 0;
+    memcpy(&l_n_groups, a_data, sizeof(l_n_groups));
+    const uint8_t *l_ptr = a_data + sizeof(l_n_groups), *l_end = a_data + a_size;
+    for (uint32_t g = 0; g < l_n_groups; ++g) {
+        uint16_t l_glen = 0;
+        uint32_t l_cnt = 0;
+        if ((size_t)(l_end - l_ptr) < sizeof(l_glen) || (size_t)(l_end - l_ptr) < sizeof(l_glen) + sizeof(l_cnt))
+            return -2;
+        memcpy(&l_glen, l_ptr, sizeof(l_glen));
+        l_ptr += sizeof(l_glen);
+        if (!l_glen || (size_t)(l_end - l_ptr) < l_glen || l_ptr[l_glen - 1])
+            return -3;
+        const char *l_group = (const char *)l_ptr;
+        l_ptr += l_glen;
+        memcpy(&l_cnt, l_ptr, sizeof(l_cnt));
+        l_ptr += sizeof(l_cnt);
+        for (uint32_t i = 0; i < l_cnt; ++i) {
+            uint32_t l_klen = 0, l_vlen = 0;
+            if ((size_t)(l_end - l_ptr) < 2 * sizeof(uint32_t))
+                return -4;
+            memcpy(&l_klen, l_ptr, sizeof(l_klen));
+            l_ptr += sizeof(l_klen);
+            memcpy(&l_vlen, l_ptr, sizeof(l_vlen));
+            l_ptr += sizeof(l_vlen);
+            if (!l_klen || (size_t)(l_end - l_ptr) < (size_t)l_klen + l_vlen
+                    || l_ptr[l_klen - 1])
+                return -5;
+            const char *l_key = (const char *)l_ptr;
+            l_ptr += l_klen;
+            const void *l_value = l_ptr;
+            l_ptr += l_vlen;
+            dap_global_db_set_sync(l_group, l_key, l_value, l_vlen, false);
+        }
+    }
+    log_it(L_NOTICE, "Ledger snapshot: service groups restored (%u group(s))", l_n_groups);
+    return l_ptr == l_end ? 0 : -6;
 }
 
 // Copies the callbacks out so a load callback runs without the registry lock.

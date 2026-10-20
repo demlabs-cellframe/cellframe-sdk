@@ -26,6 +26,7 @@
 #include "dap_enc_base58.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_snapshot.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_mempool.h"
 #include "dap_cli_server.h"
@@ -43,6 +44,13 @@
 
 static char s_wallet_shared_gdb_group[] = "local.wallet_shared";
 static char s_wallet_shared_gdb_pkeys[] = "local.wallet_shared_pkeys";
+
+// Snapshot provider: the shared-wallet groups are global, not per-network.
+static char *s_shared_snapshot_group(dap_chain_net_t *a_net, void *a_ctx)
+{
+    (void)a_net;
+    return dap_strdup((const char *)a_ctx);
+}
 
 typedef enum hash_file_type {
     HASH_FILE_TYPE_WALLET = 0,
@@ -2178,6 +2186,10 @@ int dap_chain_wallet_shared_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_WALLET_SHARED, s_wallet_shared_verificator, NULL, NULL);
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_WALLET_SHARED_ID };
     dap_ledger_service_add(l_uid, "wallet_shared", s_tag_check);
+    // The groups are wiped on every start (derived state); with a no-scan start
+    // they must come back from the snapshot instead of the datum replay.
+    dap_ledger_add_snapshot_gdb_group("wallet_shared", s_shared_snapshot_group, s_wallet_shared_gdb_group);
+    dap_ledger_add_snapshot_gdb_group("wallet_shared_pkeys", s_shared_snapshot_group, s_wallet_shared_gdb_pkeys);
 
     dap_list_t *l_groups_list = dap_global_db_driver_get_groups_by_mask(s_wallet_shared_gdb_group);
     for (dap_list_t *l_item = l_groups_list; l_item; l_item = l_item->next) {

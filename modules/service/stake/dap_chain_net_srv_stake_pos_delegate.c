@@ -208,6 +208,18 @@ static bool s_cli_srv_stake_is_heavy(int a_argc, char **a_argv)
 // (keys already replayed are skipped) and weights are restored verbatim.
 static dap_chain_net_srv_stake_t *s_srv_stake_by_net_id(dap_chain_net_id_t a_net_id);
 
+static char *s_snapshot_group_stake_orders(dap_chain_net_t *a_net, void *a_ctx)
+{
+    (void)a_ctx;
+    return dap_chain_net_srv_order_get_gdb_group(a_net);
+}
+
+static char *s_snapshot_group_common_orders(dap_chain_net_t *a_net, void *a_ctx)
+{
+    (void)a_ctx;
+    return dap_chain_net_srv_order_get_common_group(a_net);
+}
+
 typedef struct DAP_PACKED s_snapshot_stake_rec {
     dap_chain_addr_t signing_addr;
     dap_chain_addr_t sovereign_addr;
@@ -313,6 +325,10 @@ int dap_chain_net_srv_stake_pos_delegate_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback, s_stake_deleted_callback);
     dap_ledger_add_snapshot_section("stake", 0, s_snapshot_stake_dump, s_snapshot_stake_load, NULL);
+    // Order books are read from the GDB at request time; the snapshot carries
+    // them so a no-scan start does not depend on the GDB contents.
+    dap_ledger_add_snapshot_gdb_group("stake_orders", s_snapshot_group_stake_orders, NULL);
+    dap_ledger_add_snapshot_gdb_group("common_orders", s_snapshot_group_common_orders, NULL);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, NULL, "Delegated stake service commands",
             "\t\t=== Commands for work with orders ===\n"
     "srv_stake order create [fee] -net <net_name> -value <value> -cert <priv_cert_name> [-H {hex(default) | base58}]\n"
