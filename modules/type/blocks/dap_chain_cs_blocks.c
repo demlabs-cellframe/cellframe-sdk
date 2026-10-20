@@ -1976,8 +1976,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
-        if (!a_chain->is_mapped)
-            DAP_DELETE(l_block->block);
+        // Body ownership (copied or mmap-backed) is tracked per cache entry.
         dap_chain_block_cache_delete(l_block);
     }
     // The linear index no longer describes this chain: drop it (the next start

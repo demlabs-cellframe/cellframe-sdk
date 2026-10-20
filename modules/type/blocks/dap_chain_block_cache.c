@@ -63,6 +63,9 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
 
     dap_chain_block_cache_t * l_block_cache = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_block_cache_t, NULL);
     l_block_cache->block = a_copy_block ? DAP_DUP_SIZE_RET_VAL_IF_FAIL(a_block, a_block_size, NULL, l_block_cache) : a_block;
+    // Ownership follows the buffer: a copied body (non-mapped chains and thin
+    // index-restored entries) is freed by dap_chain_block_cache_delete().
+    l_block_cache->block_owned = a_copy_block;
     l_block_cache->block_size = a_block_size;
     l_block_cache->block_number = a_block_number;
     l_block_cache->ts_created = a_block->hdr.ts_created;
