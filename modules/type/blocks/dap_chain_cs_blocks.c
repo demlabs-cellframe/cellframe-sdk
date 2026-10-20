@@ -3276,6 +3276,24 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         }
     } else if (ret == ATOM_MOVE_TO_THRESHOLD) {
         debug_if(s_debug_more,L_DEBUG,"%s","Can't find valid previous block in chain or forked branches.");
+        // Diagnose a silent chain-file continuity break: the loader keeps reading
+        // and rejecting, so without this the cause is invisible in production logs.
+        dap_chain_net_t *l_diag_net = dap_chain_net_by_id(a_chain->net_id);
+        static _Atomic uint32_t s_load_rejects_logged;
+        if (l_diag_net && dap_chain_net_get_load_mode(l_diag_net)
+                && atomic_fetch_add(&s_load_rejects_logged, 1) < 5) {
+            dap_chain_block_cache_t *l_last = HASH_LAST(PVT(l_blocks)->blocks);
+            char l_prev_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = "-";
+            const dap_hash_t *l_prev_meta = (const dap_hash_t *)dap_chain_block_meta_get(
+                    (dap_chain_block_t *)a_atom, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
+            if (l_prev_meta)
+                dap_hash_fast_to_str((dap_hash_fast_t *)l_prev_meta, l_prev_str, sizeof(l_prev_str));
+            log_it(L_WARNING, "Load: block %s (cell 0x%016" DAP_UINT64_FORMAT_x ") has no valid previous: "
+                   "prev %s, last cached %s (#%" DAP_UINT64_FORMAT_U "), cached blocks %u",
+                   dap_hash_fast_to_str_static(a_atom_hash), ((dap_chain_block_t *)a_atom)->hdr.cell_id.uint64,
+                   l_prev_str, l_last ? l_last->block_hash_str : "-",
+                   l_last ? l_last->block_number : 0, (unsigned)HASH_COUNT(PVT(l_blocks)->blocks));
+        }
         return ATOM_REJECT;
     }
     return ret;
