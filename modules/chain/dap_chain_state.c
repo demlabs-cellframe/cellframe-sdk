@@ -1016,7 +1016,7 @@ int dap_chain_state_cache_set_bin(const char *a_group, const void *a_key, size_t
     return dap_chain_state_kv_set(l_kv, l_created_id, l_store, l_store_len);
 }
 
-int dap_chain_state_adopt_file(dap_chain_state_t *a_state)
+int dap_chain_state_adopt_file(dap_chain_state_t *a_state, uint64_t a_anchor_num)
 {
     if (!a_state)
         return -1;
@@ -1041,16 +1041,28 @@ int dap_chain_state_adopt_file(dap_chain_state_t *a_state)
         l_ret = -3;
         goto out;
     }
-    // Adopt the existing index instead of truncating it on the first new block:
-    // the restored block cache is the same file's content.
-    uint64_t l_crc = DAP_CHAIN_STATE_CRC_INIT;
     dap_chain_state_rec_t l_rec = {};
+    if (fseeko(l_file, sizeof(dap_chain_state_hdr_t), SEEK_SET)
+            || fread(&l_rec, sizeof(l_rec), 1, l_file) != 1) {
+        fclose(l_file);
+        l_ret = -3;
+        goto out;
+    }
+    // Keep only the records up to the anchor: the loader re-applies the blocks
+    // above it and would append duplicate records for them otherwise.
+    uint64_t l_first_num = l_rec.num;
+    uint64_t l_keep = l_records;
+    if (a_anchor_num >= l_first_num && a_anchor_num - l_first_num < l_records)
+        l_keep = a_anchor_num - l_first_num + 1;
+    else if (a_anchor_num < l_first_num)
+        l_keep = 0;
+    uint64_t l_crc = DAP_CHAIN_STATE_CRC_INIT;
     if (fseeko(l_file, sizeof(dap_chain_state_hdr_t), SEEK_SET)) {
         fclose(l_file);
         l_ret = -3;
         goto out;
     }
-    for (uint64_t i = 0; i < l_records; ++i) {
+    for (uint64_t i = 0; i < l_keep; ++i) {
         if (fread(&l_rec, sizeof(l_rec), 1, l_file) != 1) {
             fclose(l_file);
             l_ret = -4;
@@ -1058,12 +1070,17 @@ int dap_chain_state_adopt_file(dap_chain_state_t *a_state)
         }
         l_crc = crc64_update(l_crc, (const uint8_t *)&l_rec, sizeof(l_rec));
     }
+    if (l_keep < l_records) {
+        fflush(l_file);
+        if (ftruncate(fileno(l_file), (off_t)(sizeof(dap_chain_state_hdr_t) + l_keep * sizeof(dap_chain_state_rec_t))))
+            log_it(L_WARNING, "Chain state: can't trim the index tail (%s)", dap_strerror(errno));
+    }
     a_state->file = l_file;
-    a_state->records = l_records;
+    a_state->records = l_keep;
     a_state->crc_state = l_crc;
-    a_state->last_num = l_rec.num;
-    a_state->last_count = l_rec.num;
-    a_state->last_hash = l_rec.hash;
+    a_state->last_num = l_keep ? l_rec.num : 0;
+    a_state->last_count = a_state->last_num;
+    a_state->last_hash = l_keep ? l_rec.hash : (dap_chain_hash_fast_t){};
     a_state->file_failed = false;
     fseeko(l_file, 0, SEEK_END);
 out:

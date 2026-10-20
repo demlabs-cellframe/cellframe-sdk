@@ -2626,7 +2626,7 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
         l_rc = 0;
         // Keep appending to the restored index instead of truncating it when the
         // first live block arrives.
-        dap_chain_state_adopt_file(l_state);
+        dap_chain_state_adopt_file(l_state, l_anchor_num);
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return l_rc ? -8 : (int64_t)l_ctx.count;

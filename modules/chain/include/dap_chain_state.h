@@ -165,7 +165,9 @@ int dap_chain_state_kv_load(const uint8_t *a_data, size_t a_size);
 
 // Attaches the writer to an existing sidecar after a successful index restore,
 // so the first live block appends instead of truncating the restored index.
-int dap_chain_state_adopt_file(dap_chain_state_t *a_state);
+// Records above the anchor are dropped: the loader re-applies those blocks and
+// would otherwise append duplicate records for them.
+int dap_chain_state_adopt_file(dap_chain_state_t *a_state, uint64_t a_anchor_num);
 
 #ifdef __cplusplus
 }
