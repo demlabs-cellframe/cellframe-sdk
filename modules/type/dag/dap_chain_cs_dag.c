@@ -65,7 +65,7 @@
  * zone. Events above the index form the tail the loader processes normally.
  */
 #define DAG_INDEX_MAGIC "CFDAGIDX"
-#define DAG_INDEX_VERSION 1
+#define DAG_INDEX_VERSION 2
 
 typedef struct DAP_PACKED s_dag_idx_hdr {
     char magic[8];
@@ -74,6 +74,8 @@ typedef struct DAP_PACKED s_dag_idx_hdr {
     uint64_t net_id;
     uint64_t cell_id;
     uint64_t count;
+    uint64_t file_size;             // cell file size at the last header flush
+    uint8_t last_hash[sizeof(dap_chain_hash_fast_t)];  // hash of the last indexed event
 } s_dag_idx_hdr_t;
 
 typedef struct DAP_PACKED s_dag_idx_rec {
@@ -88,6 +90,7 @@ static FILE *s_dag_index_file = NULL;
 static uint64_t s_dag_index_records = 0;
 static bool s_dag_index_continue = false;    // append to an adopted index
 static dap_chain_t *s_dag_index_chain = NULL;
+static dap_chain_hash_fast_t s_dag_index_last_hash;
 
 static char *s_dag_index_path(dap_chain_t *a_chain)
 {
@@ -106,6 +109,13 @@ static void s_dag_index_flush_header(dap_chain_t *a_chain)
         .cell_id = a_chain->active_cell_id.uint64,
         .count = s_dag_index_records
     };
+    memcpy(l_hdr.last_hash, &s_dag_index_last_hash, sizeof(l_hdr.last_hash));
+    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
+    if (l_cell && l_cell->file_storage && !fseeko(l_cell->file_storage, 0, SEEK_END)) {
+        off_t l_fs = ftello(l_cell->file_storage);
+        if (l_fs > 0)
+            l_hdr.file_size = (uint64_t)l_fs;
+    }
     memcpy(l_hdr.magic, DAG_INDEX_MAGIC, sizeof(l_hdr.magic));
     if (!fflush(s_dag_index_file) && !fseeko(s_dag_index_file, 0, SEEK_SET)
             && fwrite(&l_hdr, sizeof(l_hdr), 1, s_dag_index_file) == 1)
@@ -153,6 +163,7 @@ static void s_dag_index_append(dap_chain_t *a_chain, const dap_chain_hash_fast_t
     memcpy(l_rec.hash, a_hash, sizeof(l_rec.hash));
     if (fwrite(&l_rec, sizeof(l_rec), 1, s_dag_index_file) == 1) {
         ++s_dag_index_records;
+        s_dag_index_last_hash = *a_hash;
         if (!(s_dag_index_records % 1000))
             s_dag_index_flush_header(a_chain);
     }
@@ -782,6 +793,44 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
         return -4;
     }
     uint64_t l_restored = 0, l_resume = 0;
+    // Continuity: the cell file must still be the one the index was built on.
+    // A purge/reorder rewrites it with different offsets, and a stale index would
+    // otherwise feed wrong bodies (the add path trusts the indexed hash).
+    if (l_cell->file_storage && !fseeko(l_cell->file_storage, 0, SEEK_END)) {
+        off_t l_cell_size = ftello(l_cell->file_storage);
+        s_dag_idx_rec_t l_last = {};
+        if (l_hdr.file_size && (off_t)l_hdr.file_size > l_cell_size)
+            { fclose(l_f); return -6; }
+        if (fseeko(l_f, sizeof(l_hdr) + (off_t)((l_count - 1) * sizeof(l_last)), SEEK_SET)
+                || fread(&l_last, sizeof(l_last), 1, l_f) != 1 || !l_last.size
+                || l_last.offset + l_last.size > (uint64_t)l_cell_size)
+            { fclose(l_f); return -6; }
+        dap_chain_hash_fast_t l_last_hash = {};
+        bool l_have_body = false;
+        if (a_chain->is_mapped) {
+            if (!dap_chain_cell_map_window_force(l_cell, (size_t)l_last.offset)
+                    && l_last.offset >= l_cell->cur_vol_start) {
+                size_t l_off = (size_t)(l_last.offset - l_cell->cur_vol_start);
+                if (l_cell->map + l_off + l_last.size <= l_cell->map_end) {
+                    dap_hash_fast(l_cell->map + l_off, l_last.size, &l_last_hash);
+                    l_have_body = true;
+                }
+            }
+        } else {
+            uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_last.size);
+            if (l_buf && !fseeko(l_cell->file_storage, (off_t)l_last.offset, SEEK_SET)
+                    && fread(l_buf, 1, l_last.size, l_cell->file_storage) == l_last.size) {
+                dap_hash_fast(l_buf, l_last.size, &l_last_hash);
+                l_have_body = true;
+            }
+            DAP_DEL_Z(l_buf);
+        }
+        if (!l_have_body || !dap_hash_fast_compare(&l_last_hash, (dap_chain_hash_fast_t *)l_hdr.last_hash)) {
+            log_it(L_WARNING, "DAG index: the cell file does not match the index (rewritten?), rescanning");
+            fclose(l_f);
+            return -6;
+        }
+    }
     s_dag_restore_mode = true;
     for (uint64_t i = 0; i < l_count; ++i) {
         s_dag_idx_rec_t l_rec = {};
