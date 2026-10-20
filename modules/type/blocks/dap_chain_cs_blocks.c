@@ -2819,8 +2819,10 @@ int dap_chain_cs_blocks_state_verify(dap_chain_t *a_chain, char *a_buf, size_t a
     // The last indexed record must point inside the cell file: this catches a
     // sidecar left over from another/rebuilt chain of the same id.
     dap_chain_state_rec_t l_last = {};
+    // offset is the body position (already past the 8-byte length prefix), so the
+    // last body ends exactly at offset + size.
     if (dap_chain_state_last_record(l_state, &l_last) && l_last.offset
-            && l_last.offset + sizeof(uint64_t) + l_last.size > (uint64_t)l_cell_size) {
+            && l_last.offset + l_last.size > (uint64_t)l_cell_size) {
         snprintf(a_buf, a_buf_size,
                  "mismatch: last record (block %" DAP_UINT64_FORMAT_U ", offset %" DAP_UINT64_FORMAT_U
                  ", size %" DAP_UINT64_FORMAT_U ") is past the cell file (%" DAP_UINT64_FORMAT_U " bytes)",
