@@ -68,7 +68,7 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_wallet_cache.h"
-#include "dap_chain_state_cache.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_net_srv.h"
 #include "dap_config.h"
 
@@ -299,7 +299,7 @@ static void s_mempool_spent_index_seed(dap_chain_t *a_chain)
     if (!l_gdb_group)
         return;
     size_t l_objs_count = 0;
-    dap_global_db_obj_t *l_objs = dap_chain_state_cache_get_all(l_gdb_group, &l_objs_count);
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         if (!l_objs[i].value || l_objs[i].value_len < sizeof(dap_chain_datum_t))
             continue;
@@ -551,8 +551,8 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     }
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    int l_res = dap_chain_state_cache_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum));
-    if (!l_res) {
+    int l_res = dap_global_db_set_sync(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false);//, NULL, NULL);
+    if (l_res == DAP_GLOBAL_DB_RC_SUCCESS) {
         log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash) : l_key_str, l_gdb_group);
         // Index synchronously here, don't wait for the async cluster
@@ -565,7 +565,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
         log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, dap_strcmp(a_hash_out_type, "hex")
         ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
         : l_key_str, l_gdb_group);
-    char *ret = !l_res ? dap_strdup(dap_strcmp(a_hash_out_type, "hex")
+    char *ret = (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? dap_strdup(dap_strcmp(a_hash_out_type, "hex")
         ? dap_enc_base58_encode_hash_to_str_static(&l_key_hash)
         : l_key_str) : NULL;
     DAP_DELETE(l_gdb_group);
@@ -1343,15 +1343,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     }
     dap_list_free_full(l_list_used_out, NULL);
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    size_t l_saved = 0;
-    for (size_t i = 0; i < a_tx_num; ++i) {
-        if (l_objs[i].key && l_objs[i].value
-                && !dap_chain_state_cache_set(l_gdb_group, l_objs[i].key, l_objs[i].value, l_objs[i].value_len))
-            ++l_saved;
-    }
-    log_it(l_saved == a_tx_num ? L_NOTICE : L_ERROR, "%zu of %zu transactions are placed in mempool",
-           l_saved, a_tx_num);
-    dap_global_db_objs_delete(l_objs, a_tx_num);
+    dap_global_db_set_multiple_zc(l_gdb_group, l_objs, a_tx_num, s_tx_create_massive_gdb_save_callback, NULL);
     DAP_DEL_Z(l_gdb_group);
     return 0;
 }
@@ -1994,14 +1986,14 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_
 
 dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char *a_datum_hash_str)
 {
-    size_t l_datum_size = 0;
+    size_t l_datum_size;
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    const uint8_t *l_cached = dap_chain_state_cache_get(l_gdb_group, a_datum_hash_str, &l_datum_size);
-    dap_chain_datum_t *l_datum = l_cached ? DAP_DUP_SIZE((void *)l_cached, l_datum_size) : NULL;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                                    a_datum_hash_str, &l_datum_size, NULL, NULL );
     if (!l_datum) {
         char *l_datum_hash_str_base58 = dap_enc_base58_to_hex_str_from_str(a_datum_hash_str);
-        l_cached = dap_chain_state_cache_get(l_gdb_group, l_datum_hash_str_base58, &l_datum_size);
-        l_datum = l_cached ? DAP_DUP_SIZE((void *)l_cached, l_datum_size) : NULL;
+        l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                    l_datum_hash_str_base58, &l_datum_size, NULL, NULL );
         DAP_DELETE(l_datum_hash_str_base58);
     }
     DAP_DELETE(l_gdb_group);
@@ -2312,13 +2304,13 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     dap_time_t l_cut_off_time = dap_time_now() - 3 * 24 * 3600; // 3 days
     char l_cut_off_time_str[DAP_TIME_STR_SIZE] = {'\0'};
     dap_time_to_str_rfc822(l_cut_off_time_str, DAP_TIME_STR_SIZE, l_cut_off_time);
-    dap_global_db_obj_t * l_objs = dap_chain_state_cache_get_all(l_gdb_group, &l_objs_size);
+    dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_size);
     for (size_t i = 0; i < l_objs_size; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
         if (!l_datum) {
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s: empty (possibly trash) value", l_objs[i].key, l_gdb_group);
-            dap_chain_state_cache_del(l_gdb_group, l_objs[i].key);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
             continue;
         }
         size_t l_datum_size = dap_chain_datum_size(l_datum);
@@ -2327,7 +2319,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The size of the datum defined by the "
                              "function and the size specified in the record do not match.", l_objs[i].key, l_gdb_group);
-            dap_chain_state_cache_del(l_gdb_group, l_objs[i].key);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
             continue;
         }
         //Filter hash
@@ -2335,7 +2327,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The hash of the contents of the "
                              "datum does not match the key.", l_objs[i].key, l_gdb_group);
-            dap_chain_state_cache_del(l_gdb_group, l_objs[i].key);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
             continue;
         }
         //Filter time
@@ -2343,7 +2335,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The datum in the mempool was "
                              "created after the %s.", l_objs[i].key, l_gdb_group, l_cut_off_time_str);
-            dap_chain_state_cache_del(l_gdb_group, l_objs[i].key);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
         }
         //Filter size decree
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_DECREE) {
@@ -2352,7 +2344,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
                 l_removed++;
                 log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. Decree datums do not have a "
                                  "valid size.", l_objs[i].key, l_gdb_group);
-                dap_chain_state_cache_del(l_gdb_group, l_objs[i].key);
+                dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
             }
         }
     }
@@ -2461,7 +2453,7 @@ static bool s_mempool_out_is_used_scan(dap_chain_net_t *a_net, dap_hash_fast_t *
         return false;
     }
     size_t l_objs_count = 0;
-    dap_global_db_obj_t * l_objs = dap_chain_state_cache_get_all(l_gdb_group_mempool, &l_objs_count);
+    dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
         if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
