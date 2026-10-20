@@ -462,6 +462,8 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_
     pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
     HASH_FIND(hh, PVT(a_blocks)->blocks,a_block_hash, sizeof (*a_block_hash), l_ret );
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
+    if (l_ret && !l_ret->block) // index-restored thin entry: parse before use
+        dap_chain_block_cache_ensure(l_ret);
     return l_ret;
 }
 
@@ -477,6 +479,8 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_cs_block
     pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
     HASH_FIND_BYHASHVALUE(hh2, PVT(a_blocks)->blocks_num, &a_block_number, sizeof (a_block_number), a_block_number, l_ret);
     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
+    if (l_ret && !l_ret->block) // index-restored thin entry: parse before use
+        dap_chain_block_cache_ensure(l_ret);
     return l_ret;
 }
 
@@ -2921,7 +2925,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         dap_chain_block_cache_t *l_tmp = l_bcache_last;
                         int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
                         for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
-                        if (l_checked_atoms_cnt == 0 && l_tmp)
+                        // Index-restored entries are thin: parse the body before a
+                        // notifier reads block->hdr (NULL block was a live SEGV).
+                        if (l_checked_atoms_cnt == 0 && l_tmp && !l_tmp->block)
+                            dap_chain_block_cache_ensure(l_tmp);
+                        if (l_checked_atoms_cnt == 0 && l_tmp && l_tmp->block)
                             l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
                     }    
 #ifndef DAP_CHAIN_BLOCKS_TEST
