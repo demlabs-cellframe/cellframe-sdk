@@ -4255,6 +4255,14 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     dap_ledger_tx_item_t *l_phantom_item = NULL, *l_phantom_tmp = NULL;
     HASH_ITER(hh, l_ledger_pvt->ledger_items, l_phantom_item, l_phantom_tmp) {
         if (!l_phantom_item->tx) {
+            // A complete snapshot restores items without their datum on purpose:
+            // the datum is attached lazily from the atom link. Only an item with
+            // no datum AND no atom link is a phantom - it came from a block that
+            // is not in the local cell files. Refusing to save in the restored
+            // case kept the snapshot (and its anchor) frozen forever after a
+            // no-scan start.
+            if (l_ledger_pvt->snapshot_full && l_phantom_item->atom_link_valid)
+                continue;
             l_phantom = true;
             break;
         }
