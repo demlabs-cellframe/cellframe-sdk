@@ -164,8 +164,9 @@ static void s_dag_index_append(dap_chain_t *a_chain, const dap_chain_hash_fast_t
     if (fwrite(&l_rec, sizeof(l_rec), 1, s_dag_index_file) == 1) {
         ++s_dag_index_records;
         s_dag_index_last_hash = *a_hash;
-        if (!(s_dag_index_records % 1000))
-            s_dag_index_flush_header(a_chain);
+        // Flush the header on every append: the restore validates the LAST record
+        // against header.last_hash, so a lagging count/hash rejects a valid index.
+        s_dag_index_flush_header(a_chain);
     }
 }
 
