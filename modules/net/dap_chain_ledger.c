@@ -2782,7 +2782,7 @@ static void s_threshold_txs_proc( dap_ledger_t *a_ledger)
             if (l_res != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
                     l_res != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS) {
                 HASH_DEL(l_ledger_pvt->threshold_txs, l_tx_item);
-                if ( !l_ledger_pvt->mapped )
+                if (l_tx_item->tx_owned)
                     DAP_DELETE(l_tx_item->tx);
                 DAP_DELETE(l_tx_item);
                 l_success = true;
@@ -2810,7 +2810,7 @@ static void s_threshold_txs_free(dap_ledger_t *a_ledger)
             HASH_DEL(l_pvt->threshold_txs, l_current);
             char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_current->tx_hash_fast, l_tx_hash_str, sizeof(l_tx_hash_str));
-            if ( !l_pvt->mapped )
+            if (l_current->tx_owned)
                 DAP_DELETE(l_current->tx);
             DAP_DELETE(l_current);
             log_it(L_NOTICE, "Removed transaction %s form threshold ledger", l_tx_hash_str);
@@ -2937,6 +2937,7 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi
         }
         dap_chain_hash_fast_from_str(a_values[i].key, &l_tx_item->tx_hash_fast);
         l_tx_item->tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_current_record->datum_size);
+        l_tx_item->tx_owned = 1;
         if ( !l_tx_item->tx ) {
             DAP_DELETE(l_tx_item);
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -3373,32 +3374,59 @@ static int s_snapshot_datum_links_dump(void *a_ctx, uint64_t a_net_id, dap_strin
     if (!l_chain)
         return 0;
     dap_ledger_private_t *l_pvt = PVT(l_ledger);
-    dap_string_t *l_body = dap_string_new("");
-    if (!l_body)
-        return -2;
-    uint64_t l_n = 0;
-    bool l_ok = true;
+    // Snapshot the emission hashes under the token locks and resolve the atom
+    // links after releasing them: the location lookup takes the blocks lock, and
+    // the live path takes blocks -> ledger, so holding tokens while calling into
+    // the blocks layer would invert that order (ABBA with a block being added).
+    dap_chain_hash_fast_t *l_hashes = NULL;
+    size_t l_n = 0, l_cap = 0;
+    bool l_oom = false;
     pthread_rwlock_rdlock(&l_pvt->tokens_rwlock);
-    for (dap_ledger_token_item_t *l_tok = l_pvt->tokens; l_ok && l_tok; l_tok = l_tok->hh.next) {
+    for (dap_ledger_token_item_t *l_tok = l_pvt->tokens; l_tok && !l_oom; l_tok = l_tok->hh.next) {
         pthread_rwlock_rdlock(&l_tok->token_emissions_rwlock);
-        for (dap_ledger_token_emission_item_t *l_em = l_tok->token_emissions; l_ok && l_em; l_em = l_em->hh.next) {
-            dap_chain_hash_fast_t l_atom = {};
-            uint32_t l_idx = 0;
-            if (dap_chain_cs_blocks_datum_location(l_chain, &l_em->datum_token_emission_hash, &l_atom, &l_idx))
-                continue;
-            s_snapshot_datum_link_rec_t l_rec = { .datum_idx = l_idx };
-            memcpy(l_rec.datum_hash, &l_em->datum_token_emission_hash, sizeof(l_rec.datum_hash));
-            memcpy(l_rec.atom_hash, &l_atom, sizeof(l_rec.atom_hash));
-            if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec)))
-                l_ok = false;
-            else
-                ++l_n;
+        for (dap_ledger_token_emission_item_t *l_em = l_tok->token_emissions; l_em; l_em = l_em->hh.next) {
+            if (l_n == l_cap) {
+                size_t l_new_cap = l_cap ? l_cap * 2 : 4096;
+                dap_chain_hash_fast_t *l_new = DAP_REALLOC(l_hashes, sizeof(*l_hashes) * l_new_cap);
+                if (!l_new) {
+                    l_oom = true;
+                    break;
+                }
+                l_hashes = l_new;
+                l_cap = l_new_cap;
+            }
+            l_hashes[l_n++] = l_em->datum_token_emission_hash;
         }
         pthread_rwlock_unlock(&l_tok->token_emissions_rwlock);
     }
     pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
-    if (l_ok && l_n) {
-        uint64_t l_hdr[2] = { a_net_id, l_n };
+    if (l_oom) {
+        DAP_DEL_Z(l_hashes);
+        return -2;
+    }
+    dap_string_t *l_body = dap_string_new("");
+    if (!l_body) {
+        DAP_DEL_Z(l_hashes);
+        return -2;
+    }
+    uint64_t l_recs = 0;
+    bool l_ok = true;
+    for (size_t i = 0; l_ok && i < l_n; ++i) {
+        dap_chain_hash_fast_t l_atom = {};
+        uint32_t l_idx = 0;
+        if (dap_chain_cs_blocks_datum_location(l_chain, &l_hashes[i], &l_atom, &l_idx))
+            continue;
+        s_snapshot_datum_link_rec_t l_rec = { .datum_idx = l_idx };
+        memcpy(l_rec.datum_hash, &l_hashes[i], sizeof(l_rec.datum_hash));
+        memcpy(l_rec.atom_hash, &l_atom, sizeof(l_rec.atom_hash));
+        if (!s_snapshot_append(l_body, &l_rec, sizeof(l_rec)))
+            l_ok = false;
+        else
+            ++l_recs;
+    }
+    DAP_DEL_Z(l_hashes);
+    if (l_ok && l_recs) {
+        uint64_t l_hdr[2] = { a_net_id, l_recs };
         l_ok = s_snapshot_append(a_out, l_hdr, sizeof(l_hdr))
                 && s_snapshot_append(a_out, l_body->str, l_body->len);
     }
@@ -5828,9 +5856,13 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_datum_by_hash(dap_ledger_t *a_ledger, c
                     && l_datum && l_datum_size > sizeof(dap_chain_datum_t)) {
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
                 pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
-                if (!l_tx_item->tx) // another thread may have attached it meanwhile
-                    l_tx_item->tx = l_ledger_pvt->mapped ? l_tx
-                            : DAP_DUP_SIZE(l_tx, dap_chain_datum_tx_get_size(l_tx));
+                if (!l_tx_item->tx) { // another thread may have attached it meanwhile
+                    // Always own a copy: the datum comes from a thin entry's heap
+                    // body, which the block cache frees on purge/reorg - unlike the
+                    // scan-time attach, it is not part of the mmap'ed cell.
+                    l_tx_item->tx = DAP_DUP_SIZE(l_tx, dap_chain_datum_tx_get_size(l_tx));
+                    l_tx_item->tx_owned = 1;
+                }
                 pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
             }
         }
@@ -7525,6 +7557,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                         }
                         l_item_tmp->tx_hash_fast = *a_tx_hash;
                         l_item_tmp->tx = l_ledger_pvt->mapped ? a_tx : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+                        l_item_tmp->tx_owned = !l_ledger_pvt->mapped;
                         if ( !l_item_tmp->tx ) {
                             DAP_DELETE(l_item_tmp);
                             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
@@ -7827,6 +7860,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     l_tx_item->tx_hash_fast = *a_tx_hash;
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     l_tx_item->tx = l_ledger_pvt->mapped ? a_tx : DAP_DUP_SIZE(a_tx, l_tx_size);
+    l_tx_item->tx_owned = !l_ledger_pvt->mapped;
     l_tx_item->cache_data.n_outs = l_outs_count;
     l_tx_item->cache_data.tag = l_tag;
     l_tx_item->cache_data.action = l_action;
@@ -8284,7 +8318,7 @@ int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
             l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx, a_tx_hash, DAP_LEDGER_NOTIFY_OPCODE_DELETED, NULL);
         }
     }
-    if (!PVT(a_ledger)->mapped)
+    if (l_tx_item && l_tx_item->tx_owned)
         DAP_DELETE(l_tx_item->tx);
     DAP_DELETE(l_tx_item);
     if (l_cross_network) {
@@ -8458,6 +8492,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
         l_tx_item->tx = PVT(a_ledger)->mapped
                 ? a_tx
                 : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+        l_tx_item->tx_owned = !PVT(a_ledger)->mapped;
         l_restored_completed = true;
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
@@ -8530,7 +8565,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     char *l_gdb_group;
     HASH_ITER(hh, l_ledger_pvt->ledger_items , l_item_current, l_item_tmp) {
         HASH_DEL(l_ledger_pvt->ledger_items, l_item_current);
-        if (!l_ledger_pvt->mapped)
+        if (l_item_current->tx_owned)
             DAP_DELETE(l_item_current->tx);
         DAP_DEL_Z(l_item_current);
     }
@@ -8610,7 +8645,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     /* Delete threshold transactions */
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_item_current, l_item_tmp) {
         HASH_DEL(l_ledger_pvt->threshold_txs, l_item_current);
-        if (!l_ledger_pvt->mapped)
+        if (l_item_current->tx_owned)
             DAP_DELETE(l_item_current->tx);
         DAP_DEL_Z(l_item_current);
     }

@@ -108,6 +108,11 @@ typedef struct dap_ledger_tx_item {
     dap_chain_hash_fast_t atom_hash;
     uint32_t datum_index;
     uint32_t atom_link_valid;
+    // The item owns its tx datum (a heap copy) and every delete site must free
+    // it. Copies are made when the ledger is not mmap-backed and for lazily
+    // attached items, whose datum comes from a thin block entry's private buffer
+    // rather than from the cell map.
+    uint32_t tx_owned;
     // Must stay last: flexible array member (spent-outs list).
     dap_ledger_tx_cache_t cache_data;
 } dap_ledger_tx_item_t;

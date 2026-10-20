@@ -4307,6 +4307,8 @@ static json_object* s_dap_chain_net_srv_stake_reward_all(json_object* a_json_arr
             {
                 dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;            
                 dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(DAP_CHAIN_CS_BLOCKS(a_chain), &l_in_reward->block_hash);
+                if (!l_block_cache)
+                    continue;
                 json_arr_sign_out = json_object_new_array();
                 json_block_hash = json_object_new_object();
                 json_object_object_add(json_block_hash, a_version == 1 ? "block hash" : "block_hash", json_object_new_string(dap_chain_hash_fast_to_str_static(&l_in_reward->block_hash))); 

@@ -267,8 +267,10 @@ void dap_chain_state_note_block(dap_chain_state_t *a_state, uint64_t a_num, uint
     pthread_mutex_lock(&a_state->lock);
     // Non-mapped chains: the file offset is known only during the load pass
     // (the loader publishes it). A live block without an offset is not indexed;
-    // the next start resumes at the end of the index and reads that tail.
-    bool l_indexable = a_index_record && (a_state->chain->is_mapped || a_offset != 0);
+    // the next start resumes at the end of the index and reads that tail. This
+    // also covers mapped blocks accepted from the network while loading: their
+    // pointer is not in the cell map, so they have no file offset yet.
+    bool l_indexable = a_index_record && a_offset != 0;
     if (a_state->chain->is_mapped || l_indexable) {
         if (a_num >= a_state->last_num) {
             a_state->last_num = a_num;

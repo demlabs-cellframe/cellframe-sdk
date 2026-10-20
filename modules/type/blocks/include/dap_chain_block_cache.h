@@ -71,6 +71,10 @@ typedef struct dap_chain_block_cache {
     uint64_t file_offset;
     struct dap_chain_cell *cell;
     bool block_owned;
+    // Set by dap_chain_block_cache_update(): body, datums and signatures are
+    // parsed. A thin entry stays false until ensure() reads and parses it; an
+    // empty block keeps datum == NULL while still being fully parsed.
+    bool parsed;
 
     // List for keeping pointers to list of atoms in side branches
     dap_list_t *forked_branches;

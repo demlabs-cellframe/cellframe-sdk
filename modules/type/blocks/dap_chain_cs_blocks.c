@@ -915,6 +915,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR, "Can't find block %s ", l_hash_str);
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR;
             }
+            // Thin index-restored entry: read and parse the body before dumping it.
+            if ((!l_block_cache->parsed && dap_chain_block_cache_ensure(l_block_cache)) || !l_block_cache->parsed) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR,
+                        "Can't read the body of block %s from the cell file", l_block_cache->block_hash_str);
+                return DAP_CHAIN_NODE_CLI_COM_BLOCK_FIND_ERR;
+            }
             dap_chain_block_t *l_block = l_block_cache->block;
 
             char l_time_buf[DAP_TIME_STR_SIZE], l_hexbuf[32] = { '\0' };
@@ -1325,6 +1331,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 // one, to keep the liveness-check mutex off the hot path.
                 if (!(++l_scan_idx & 0xFFF) && !dap_cli_server_client_is_alive())
                     break;
+                // Index-restored entries are thin: read and parse the body before
+                // touching the header, signatures or datums below.
+                if (!l_block_cache->parsed && dap_chain_block_cache_ensure(l_block_cache))
+                    continue;
                 dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_head) {
                     if (l_to_time && l_ts < l_to_time)
@@ -1534,19 +1544,32 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             int ret_code = 0;
             int l_atoms_cnt = 0;
             dap_chain_hash_fast_from_str(l_datum_hash_str, &l_datum_hash);
-            pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
-            dap_chain_block_cache_t *l_curr_block = PVT(l_blocks)->blocks;
             json_object* json_arr_bl_cache_out = json_object_new_array();
-            for (;l_curr_block;l_curr_block = l_curr_block->hh.next){
-                for (size_t i = 0; i < l_curr_block->datum_count; i++){
-                    if (dap_hash_fast_compare(&l_datum_hash, &l_curr_block->datum_hash[i])){
-                        json_object_array_add(json_arr_bl_cache_out, json_object_new_string(dap_hash_fast_to_str_static(&l_curr_block->block_hash)));
-                        l_atoms_cnt++;
-                        continue;
+            // A datum lives in exactly one atom. Answer from the chain-state datum
+            // index (the store a no-scan start restores) instead of walking every
+            // block: thin index-restored entries hold no datum arrays. The walk
+            // stays as a fallback for blocks the index does not cover (dropped
+            // index, pre-index blocks).
+            dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+            dap_chain_state_datum_t l_datum_rec = {};
+            if (l_state && dap_chain_state_datum_find(l_state, &l_datum_hash, &l_datum_rec)) {
+                json_object_array_add(json_arr_bl_cache_out,
+                        json_object_new_string(dap_hash_fast_to_str_static(&l_datum_rec.block_hash)));
+                l_atoms_cnt = 1;
+            } else {
+                pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
+                dap_chain_block_cache_t *l_curr_block = PVT(l_blocks)->blocks;
+                for (; l_curr_block; l_curr_block = l_curr_block->hh.next) {
+                    for (size_t i = 0; i < l_curr_block->datum_count; i++) {
+                        if (dap_hash_fast_compare(&l_datum_hash, &l_curr_block->datum_hash[i])) {
+                            json_object_array_add(json_arr_bl_cache_out, json_object_new_string(dap_hash_fast_to_str_static(&l_curr_block->block_hash)));
+                            l_atoms_cnt++;
+                            continue;
+                        }
                     }
                 }
+                pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
             }
-            pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
             json_object_object_add(json_obj_out, a_version == 1 ? "Blocks" : "blocks", json_arr_bl_cache_out);
             json_object_object_add(json_obj_out, a_version == 1 ? "Total" : "total",json_object_new_int(l_atoms_cnt));
             dap_cli_cmd_reply_add(a_json_arr_reply, json_obj_out);
@@ -1765,6 +1788,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 json_object* json_arr_bl_out = json_object_new_array();
 
                 for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
+                    // Thin index-restored entries carry no body/signatures yet.
+                    if (!l_block_cache->parsed && dap_chain_block_cache_ensure(l_block_cache))
+                        continue;
                     dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                     dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                     if (!l_pub_key) {
@@ -2089,6 +2115,10 @@ static bool s_snapshot_zone_at(dap_chain_cs_blocks_t *a_blocks)
  */
 static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
 {
+    // `chain cache rebuild` walks the live cache, which after a no-scan start
+    // consists of thin index-restored entries (no body, no datums).
+    if (!a_block_cache->parsed && dap_chain_block_cache_ensure(a_block_cache))
+        return 1;
     if (! a_block_cache->datum_count){
         log_it(L_DEBUG,"Block %s has no datums at all, nothing to add to ledger", a_block_cache->block_hash_str);
         return 1; // No errors just empty block
@@ -2169,6 +2199,10 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
 
 static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
 {
+    // A fork reorg may revert blocks restored as thin entries; their datum_count
+    // is known from the index while the datum arrays are not built yet.
+    if (!a_block_cache->parsed && dap_chain_block_cache_ensure(a_block_cache))
+        return 1;
     if (! a_block_cache->datum_count){
         log_it(L_WARNING,"Block %s has no datums at all, can't remove anything from ledger", a_block_cache->block_hash_str);
         return 1; // No errors just empty block
@@ -2282,11 +2316,20 @@ static bool s_select_longest_branch(dap_chain_cs_blocks_t * a_blocks, dap_chain_
         unsigned l_new_forked_branch_len = HASH_COUNT(l_new_forked_branch);
         for (l_curr_index = 0; l_curr_index < l_new_forked_branch_len; ++l_curr_index) {
             dap_chain_block_cache_t *l_curr_atom = HASH_LAST(PVT(l_blocks)->blocks);
+            if (!l_curr_atom)
+                break;
             s_delete_atom_datums(l_blocks, l_curr_atom);
             --PVT(l_blocks)->blocks_count;
             HASH_DEL(PVT(l_blocks)->blocks, l_curr_atom);
             HASH_DELETE(hh2, PVT(l_blocks)->blocks_num, l_curr_atom);
-            dap_time_t l_prev_block_timestamp = l_curr_atom->hh.prev ? ((dap_chain_block_cache_t *)l_curr_atom->hh.prev)->block->hdr.ts_created : 0;
+            // Deep reorg: the reverted range may reach index-restored thin blocks.
+            if (!l_curr_atom->parsed && dap_chain_block_cache_ensure(l_curr_atom))
+                continue;
+            dap_chain_block_cache_t *l_prev_atom = (dap_chain_block_cache_t *)l_curr_atom->hh.prev;
+            if (l_prev_atom && !l_prev_atom->parsed)
+                dap_chain_block_cache_ensure(l_prev_atom);
+            dap_time_t l_prev_block_timestamp = (l_prev_atom && l_prev_atom->block)
+                    ? l_prev_atom->block->hdr.ts_created : 0;
             dap_chain_atom_remove_notify(a_blocks->chain, l_curr_atom->block->hdr.cell_id, l_prev_block_timestamp);
         }
         // Next we add all atoms from new main branch into blockchain 
@@ -2641,7 +2684,7 @@ int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast
     dap_chain_block_cache_t *l_bc = NULL;
     pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
     HASH_FIND(hh, PVT(l_blocks)->blocks, a_atom_hash, sizeof(*a_atom_hash), l_bc);
-    if (l_bc && !l_bc->datum) {
+    if (l_bc && !l_bc->parsed) {
         // Thin entry: parse on demand under the write lock (ensure mutates it).
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         dap_chain_block_cache_ensure(l_bc);
@@ -2997,8 +3040,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                                 dap_chain_block_cache_t *l_tmp = l_bcache_last;
                                 int l_checked_atoms_cnt = l_notifier->block_notify_cnt != 0 ? l_notifier->block_notify_cnt : PVT(l_blocks)->block_confirm_cnt;
                                 for (; l_tmp && l_checked_atoms_cnt; l_tmp = l_tmp->hh.prev, l_checked_atoms_cnt--);
-                                if (l_checked_atoms_cnt == 0 && l_tmp)
+                                if (l_checked_atoms_cnt == 0 && l_tmp) {
+                                    if (!l_tmp->parsed && dap_chain_block_cache_ensure(l_tmp))
+                                        continue;
                                     l_notifier->callback(l_notifier->arg, a_chain, a_chain->active_cell_id, &l_tmp->block_hash, (void*)l_tmp->block, l_tmp->block_size, l_tmp->block->hdr.ts_created);
+                                }
                             }    
 #ifndef DAP_CHAIN_BLOCKS_TEST
                         }
@@ -3360,11 +3406,12 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_block_cache_t *l_block_cache = NULL;
     pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
-    for (l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next)
-        if (l_block_cache->block_number == a_atom_num)
-            break;
+    HASH_FIND_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, &a_atom_num, sizeof(a_atom_num), a_atom_num, l_block_cache);
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    if (l_block_cache && !l_block_cache->parsed)
+        dap_chain_block_cache_ensure(l_block_cache);   // thin index-restored entry
     a_atom_iter->cur_item = l_block_cache;
-    if (l_block_cache) {
+    if (l_block_cache && l_block_cache->parsed) {
         a_atom_iter->cur        = l_block_cache->block;
         a_atom_iter->cur_size   = l_block_cache->block_size;
         a_atom_iter->cur_hash   = &l_block_cache->block_hash;
@@ -3391,10 +3438,15 @@ static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, da
     if (!l_state || !dap_chain_state_datum_find(l_state, a_datum_hash, &l_rec) || !l_rec.block_ref)
         return NULL;
     dap_chain_block_cache_t *l_block = (dap_chain_block_cache_t *)l_rec.block_ref;
+    // Thin index-restored entry: datums are parsed on first use.
+    if (!l_block->parsed && dap_chain_block_cache_ensure(l_block))
+        return NULL;
     if (a_block_hash)
         *a_block_hash = l_block->block_hash;
     if (a_ret_code)
         *a_ret_code = l_rec.ret_code;
+    if (!l_block->datum || l_rec.datum_index >= l_block->datum_count)
+        return NULL;
     return l_block->datum[l_rec.datum_index];
 }
 
@@ -3585,12 +3637,21 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
     }
     if (a_atom_iter->cur_item) {
         dap_chain_block_cache_t *l_item = a_atom_iter->cur_item;
-        a_atom_iter->cur        = l_item->block;
-        a_atom_iter->cur_size   = l_item->block_size;
-        a_atom_iter->cur_hash   = &l_item->block_hash;
-        a_atom_iter->cur_num    = l_item->block_number;
-        a_atom_iter->cur_ts     = l_item->ts_created;
-    } else 
+        // Thin index-restored entries have no body yet; the iterator feeds peer
+        // sync and block dumps, so the body must be materialized here.
+        if (!l_item->parsed)
+            dap_chain_block_cache_ensure(l_item);
+        if (!l_item->parsed)
+            a_atom_iter->cur_item = NULL;   // unreadable body: treat as end of chain
+        else {
+            a_atom_iter->cur        = l_item->block;
+            a_atom_iter->cur_size   = l_item->block_size;
+            a_atom_iter->cur_hash   = &l_item->block_hash;
+            a_atom_iter->cur_num    = l_item->block_number;
+            a_atom_iter->cur_ts     = l_item->ts_created;
+        }
+    }
+    if (!a_atom_iter->cur_item)
         *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
                                                  .cell_id = a_atom_iter->cell_id };
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
@@ -3933,9 +3994,11 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     s_blocks_hash_find_locked(l_blocks, a_block_hash, &l_block_cache);
     if (!l_block_cache)
         return l_ret;
+    if (!l_block_cache->parsed)
+        dap_chain_block_cache_ensure(l_block_cache);   // thin index-restored entry
     const dap_chain_block_t *l_block = l_block_cache->block;
     size_t l_block_size = l_block_cache->block_size;
-    if (!dap_chain_block_sign_match_pkey(l_block, l_block_size, a_block_sign_pkey))
+    if (!l_block || !dap_chain_block_sign_match_pkey(l_block, l_block_size, a_block_sign_pkey))
         return l_ret;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if (!l_net) {
@@ -3960,12 +4023,13 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
         log_it(L_ERROR, "[%s] l_block_cache is NULL", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
     }
+    if (!l_block_cache->parsed)
+        dap_chain_block_cache_ensure(l_block_cache);   // thin index-restored entry
     l_block = l_block_cache->block;
     if (!l_block) {
         log_it(L_ERROR, "[%s] l_block is NULL", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
-    }
-    assert(l_block);
+    }    assert(l_block);
     dap_time_t l_cur_time = dap_max(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
     if ( l_block_time > l_cur_time ) {
         dap_time_t l_time_diff = l_block_time - l_cur_time;
@@ -4016,6 +4080,8 @@ static dap_list_t *s_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size
     bool l_ok = dap_chain_state_datum_first(l_state, &l_rec);
     for (; l_ok && l_counter < l_end; ) {
         dap_chain_block_cache_t *l_block = (dap_chain_block_cache_t *)l_rec.block_ref;
+        if (l_block && !l_block->parsed)
+            dap_chain_block_cache_ensure(l_block);   // thin index-restored entry
         if (l_block && l_block->datum && l_rec.datum_index < l_block->datum_count) {
             dap_chain_datum_t *l_datum = l_block->datum[l_rec.datum_index];
             if (l_datum && l_datum->header.type_id == DAP_CHAIN_DATUM_TX && l_counter++ >= l_offset)
@@ -4042,6 +4108,9 @@ dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_has
     dap_pkey_t *l_ret = NULL;
     pthread_rwlock_rdlock(&PVT(DAP_CHAIN_CS_BLOCKS(l_chain))->rwlock);
     for (dap_chain_block_cache_t *l_block_cache = PVT(DAP_CHAIN_CS_BLOCKS(l_chain))->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
+        // Thin entries carry no parsed signatures; sign_count alone can't tell.
+        if (!l_block_cache->parsed && dap_chain_block_cache_ensure(l_block_cache))
+            continue;
         for (size_t i = 0; i < l_block_cache->sign_count; i++) {
             dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
             if (dap_sign_is_use_pkey_hash(l_sign))

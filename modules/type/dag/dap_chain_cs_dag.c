@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include "errno.h"
 #include "uthash.h"
 #include "utlist.h"
@@ -88,9 +89,13 @@ typedef struct DAP_PACKED s_dag_idx_rec {
 static _Thread_local bool s_dag_restore_mode;
 static FILE *s_dag_index_file = NULL;
 static uint64_t s_dag_index_records = 0;
-static bool s_dag_index_continue = false;    // append to an adopted index
+static dap_chain_t *s_dag_index_continue_chain = NULL; // chain whose index was restored
 static dap_chain_t *s_dag_index_chain = NULL;
 static dap_chain_hash_fast_t s_dag_index_last_hash;
+// The index stream and its counters are process-wide (one DAG chain at a time),
+// while accept paths run under per-chain events_mutex. Two chains in one process
+// would otherwise interleave records and header flushes.
+static pthread_mutex_t s_dag_index_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static char *s_dag_index_path(dap_chain_t *a_chain)
 {
@@ -111,11 +116,11 @@ static void s_dag_index_flush_header(dap_chain_t *a_chain)
     };
     memcpy(l_hdr.last_hash, &s_dag_index_last_hash, sizeof(l_hdr.last_hash));
     dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
-    if (l_cell && l_cell->file_storage && !fseeko(l_cell->file_storage, 0, SEEK_END)) {
-        off_t l_fs = ftello(l_cell->file_storage);
-        if (l_fs > 0)
-            l_hdr.file_size = (uint64_t)l_fs;
-    }
+    struct stat l_st = {0};
+    // stat(), not fseeko on the cell's FILE: the non-mapped loader reads that
+    // stream sequentially and any seek here truncates its view of the file.
+    if (l_cell && l_cell->file_storage_path[0] && !stat(l_cell->file_storage_path, &l_st) && l_st.st_size > 0)
+        l_hdr.file_size = (uint64_t)l_st.st_size;
     memcpy(l_hdr.magic, DAG_INDEX_MAGIC, sizeof(l_hdr.magic));
     if (!fflush(s_dag_index_file) && !fseeko(s_dag_index_file, 0, SEEK_SET)
             && fwrite(&l_hdr, sizeof(l_hdr), 1, s_dag_index_file) == 1)
@@ -139,16 +144,22 @@ static void s_dag_index_append(dap_chain_t *a_chain, const dap_chain_hash_fast_t
         l_off = dap_chain_cell_load_offset();
     if (!l_off)  // live non-mapped event: the next start reads it as the tail
         return;
+    pthread_mutex_lock(&s_dag_index_mutex);
     if (!s_dag_index_file || s_dag_index_chain != a_chain) {
         if (s_dag_index_file)
             fclose(s_dag_index_file);
+        // Per-chain: only a chain whose index was restored appends; another DAG
+        // chain in the same process must start a fresh index.
+        bool l_continue = (s_dag_index_continue_chain == a_chain);
         char *l_path = s_dag_index_path(a_chain);
-        s_dag_index_file = l_path ? fopen(l_path, s_dag_index_continue ? "r+b" : "wb") : NULL;
+        s_dag_index_file = l_path ? fopen(l_path, l_continue ? "r+b" : "wb") : NULL;
         DAP_DELETE(l_path);
         s_dag_index_chain = a_chain;
-        if (!s_dag_index_file)
+        if (!s_dag_index_file) {
+            pthread_mutex_unlock(&s_dag_index_mutex);
             return;
-        if (s_dag_index_continue) {
+        }
+        if (l_continue) {
             fseeko(s_dag_index_file, 0, SEEK_END);
             off_t l_size = ftello(s_dag_index_file);
             s_dag_index_records = l_size > (off_t)sizeof(s_dag_idx_hdr_t)
@@ -168,10 +179,12 @@ static void s_dag_index_append(dap_chain_t *a_chain, const dap_chain_hash_fast_t
         // against header.last_hash, so a lagging count/hash rejects a valid index.
         s_dag_index_flush_header(a_chain);
     }
+    pthread_mutex_unlock(&s_dag_index_mutex);
 }
 
 static void s_dag_index_drop(dap_chain_t *a_chain)
 {
+    pthread_mutex_lock(&s_dag_index_mutex);
     if (s_dag_index_file && s_dag_index_chain == a_chain) {
         fclose(s_dag_index_file);
         s_dag_index_file = NULL;
@@ -183,7 +196,9 @@ static void s_dag_index_drop(dap_chain_t *a_chain)
         DAP_DELETE(l_path);
     }
     s_dag_index_records = 0;
-    s_dag_index_continue = false;
+    if (s_dag_index_continue_chain == a_chain)
+        s_dag_index_continue_chain = NULL;
+    pthread_mutex_unlock(&s_dag_index_mutex);
 }
 
 typedef struct dap_chain_cs_dag_event_item {
@@ -787,7 +802,10 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
         return -3;
     }
     off_t l_size = ftello(l_f);
-    uint64_t l_count = l_size > (off_t)sizeof(l_hdr) ? (uint64_t)(l_size - sizeof(l_hdr)) / sizeof(s_dag_idx_rec_t) : 0;
+    uint64_t l_file_recs = l_size > (off_t)sizeof(l_hdr) ? (uint64_t)(l_size - sizeof(l_hdr)) / sizeof(s_dag_idx_rec_t) : 0;
+    // The header count is authoritative: a record appended after the last header
+    // flush (crash window) is not validated and stays part of the tail.
+    uint64_t l_count = (l_hdr.count && l_hdr.count <= l_file_recs) ? l_hdr.count : l_file_recs;
     dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
     if (!l_count || !l_cell || !l_cell->file_storage || fseeko(l_f, sizeof(l_hdr), SEEK_SET)) {
         fclose(l_f);
@@ -876,7 +894,16 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
     fclose(l_f);
     if (!l_restored)
         return -5;
-    s_dag_index_continue = true;
+    pthread_mutex_lock(&s_dag_index_mutex);
+    if (s_dag_index_file && s_dag_index_chain == a_chain) {
+        // The next append reopens the adopted file at EOF and recomputes the
+        // record count; a stream left open by an earlier append must not be reused.
+        fclose(s_dag_index_file);
+        s_dag_index_file = NULL;
+        s_dag_index_chain = NULL;
+    }
+    s_dag_index_continue_chain = a_chain;
+    pthread_mutex_unlock(&s_dag_index_mutex);
     *a_resume_offset = l_resume;
     log_it(L_NOTICE, "DAG index: restored %" DAP_UINT64_FORMAT_U " of %" DAP_UINT64_FORMAT_U
            " events, resuming the cell at %" DAP_UINT64_FORMAT_U, l_restored, l_count, l_resume);

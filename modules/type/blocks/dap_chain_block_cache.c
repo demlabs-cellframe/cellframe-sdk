@@ -141,6 +141,7 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
     a_block_cache->datum_hash = DAP_NEW_Z_SIZE(dap_hash_fast_t, a_block_cache->datum_count * sizeof(dap_hash_fast_t));
     for (size_t i = 0; i < a_block_cache->datum_count; i++)
         dap_chain_datum_calc_hash(a_block_cache->datum[i], a_block_cache->datum_hash + i);
+    a_block_cache->parsed = true;
     return 0;
 }
 
@@ -149,6 +150,11 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
  * @param a_block
  */
 static pthread_mutex_t s_ensure_mutex = PTHREAD_MUTEX_INITIALIZER;
+// Thin bodies are read one per iterator step (peer sync, listings): keeping the
+// read stream open instead of fopen/fclose per block turns a per-block syscall
+// pair into a seek+read. Guarded by s_ensure_mutex.
+static FILE *s_ensure_file = NULL;
+static char s_ensure_path[MAX_PATH] = { '\0' };
 
 int dap_chain_block_cache_ensure(dap_chain_block_cache_t *a_block_cache)
 {
@@ -156,7 +162,7 @@ int dap_chain_block_cache_ensure(dap_chain_block_cache_t *a_block_cache)
         return -1;
     pthread_mutex_lock(&s_ensure_mutex);
     int l_ret = 0;
-    if (!a_block_cache->datum) {
+    if (!a_block_cache->parsed) {
         if (!a_block_cache->block) {
             // Thin entry restored from the chain-state index: read the body from the
             // cell file into heap. The mmap window can move under other readers, so a
@@ -166,17 +172,27 @@ int dap_chain_block_cache_ensure(dap_chain_block_cache_t *a_block_cache)
                 goto out;
             }
             dap_chain_cell_t *l_cell = a_block_cache->cell;
-            FILE *l_f = fopen(l_cell->file_storage_path, "rb");
-            if (!l_f) {
+            if (!s_ensure_file || dap_strcmp(s_ensure_path, l_cell->file_storage_path)) {
+                if (s_ensure_file)
+                    fclose(s_ensure_file);
+                s_ensure_file = fopen(l_cell->file_storage_path, "rb");
+                dap_strncpy(s_ensure_path, l_cell->file_storage_path, sizeof(s_ensure_path));
+            }
+            if (!s_ensure_file) {
+                s_ensure_path[0] = '\0';
                 l_ret = -4;
                 goto out;
             }
             uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, a_block_cache->block_size);
-            bool l_ok = l_buf && fseeko(l_f, (off_t)a_block_cache->file_offset, SEEK_SET) == 0
-                    && fread(l_buf, 1, a_block_cache->block_size, l_f) == a_block_cache->block_size;
-            fclose(l_f);
+            bool l_ok = l_buf && fseeko(s_ensure_file, (off_t)a_block_cache->file_offset, SEEK_SET) == 0
+                    && fread(l_buf, 1, a_block_cache->block_size, s_ensure_file) == a_block_cache->block_size;
             if (!l_ok) {
                 DAP_DEL_Z(l_buf);
+                // The stream (and the file under it) may have been replaced: force a
+                // reopen on the next attempt instead of retrying a dead handle.
+                fclose(s_ensure_file);
+                s_ensure_file = NULL;
+                s_ensure_path[0] = '\0';
                 l_ret = -5;
                 goto out;
             }
@@ -216,6 +232,9 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
     uint256_t l_value_transfer = {};    
+    // Thin index-restored entry: datums are not parsed until ensure() runs.
+    if (!a_block_cache->parsed && dap_chain_block_cache_ensure(a_block_cache))
+        return NULL;
     for (size_t i = 0; i < a_block_cache->datum_count; i++) {
         if (a_block_cache->datum[i]->header.type_id != DAP_CHAIN_DATUM_TX)
             continue;
@@ -261,7 +280,12 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
  */
 dap_hash_fast_t *dap_chain_block_cache_sign_pkey_hashes(dap_chain_block_cache_t *a_block_cache)
 {
-    dap_return_val_if_fail(a_block_cache && a_block_cache->sign_count, NULL);
+    if (!a_block_cache)
+        return NULL;
+    // Thin index-restored entries have sign_count 0 until the body is parsed.
+    if (!a_block_cache->parsed)
+        dap_chain_block_cache_ensure(a_block_cache);
+    dap_return_val_if_fail(a_block_cache->sign_count, NULL);
     dap_hash_fast_t *l_hashes = atomic_load_explicit(&a_block_cache->sign_pkey_hashes, memory_order_acquire);
     if (l_hashes)
         return l_hashes;

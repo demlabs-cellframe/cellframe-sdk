@@ -894,6 +894,9 @@ void dap_chain_esbocs_add_block_collect(dap_chain_block_cache_t *a_block_cache,
                                         dap_chain_block_autocollect_type_t a_type)
 {
     dap_return_if_fail(a_block_cache && a_block_collect_params);
+    // Thin index-restored entry: signatures are parsed only after ensure().
+    if (!a_block_cache->parsed && dap_chain_block_cache_ensure(a_block_cache))
+        return;
     dap_chain_t *l_chain = a_block_collect_params->chain;
     if (a_type == DAP_CHAIN_BLOCK_COLLECT_BOTH || a_type == DAP_CHAIN_BLOCK_COLLECT_FEES) {
         dap_sign_t *l_sign = dap_chain_block_sign_get(a_block_cache->block, a_block_cache->block_size, 0);
