@@ -917,7 +917,7 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
                ", read %" DAP_UINT64_FORMAT_U ", stopped at %" DAP_UINT64_FORMAT_U " by '%s', mapped %d, "
                "map %p..%p, volume start %" DAP_UINT64_FORMAT_U ")",
                l_count, l_read, l_stop_at, l_why, (int)a_chain->is_mapped,
-               (void *)l_cell->map, (void *)l_cell->map_end, l_cell->cur_vol_start);
+               (void *)l_cell->map, (void *)l_cell->map_end, (uint64_t)l_cell->cur_vol_start);
         return -5;
     }
     // Only the header-count records were validated; anything appended after the
