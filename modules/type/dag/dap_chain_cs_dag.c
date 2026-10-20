@@ -792,12 +792,20 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
         dap_chain_cs_dag_event_t *l_event = NULL;
         uint8_t *l_heap = NULL;
         if (a_chain->is_mapped) {
-            if (dap_chain_cell_map_window(l_cell, (size_t)l_rec.offset) || l_rec.offset < l_cell->cur_vol_start)
-                break;
-            size_t l_off = (size_t)(l_rec.offset - l_cell->cur_vol_start);
-            if (l_cell->map + l_off + l_rec.size > l_cell->map_end)
-                break;
-            l_event = (dap_chain_cs_dag_event_t *)(l_cell->map + l_off);
+            if (l_cell->map && l_rec.offset >= l_cell->cur_vol_start
+                    && l_cell->map + (size_t)(l_rec.offset - l_cell->cur_vol_start) + l_rec.size <= l_cell->map_end) {
+                l_event = (dap_chain_cs_dag_event_t *)(l_cell->map + (size_t)(l_rec.offset - l_cell->cur_vol_start));
+            } else {
+                // The event crosses the current window end: remap so it starts
+                // inside the new window (the in-place check above cannot cover it).
+                if (dap_chain_cell_map_window_force(l_cell, (size_t)l_rec.offset)
+                        || l_rec.offset < l_cell->cur_vol_start)
+                    break;
+                size_t l_off = (size_t)(l_rec.offset - l_cell->cur_vol_start);
+                if (l_cell->map + l_off + l_rec.size > l_cell->map_end)
+                    break;
+                l_event = (dap_chain_cs_dag_event_t *)(l_cell->map + l_off);
+            }
         } else {
             l_heap = DAP_NEW_SIZE(uint8_t, l_rec.size);
             if (!l_heap || fseeko(l_cell->file_storage, (off_t)l_rec.offset, SEEK_SET)

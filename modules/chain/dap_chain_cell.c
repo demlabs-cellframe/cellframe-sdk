@@ -222,6 +222,13 @@ int dap_chain_cell_map_window(dap_chain_cell_t *a_cell, size_t a_file_pos)
     return s_cell_map_new_volume(a_cell, a_file_pos, true);
 }
 
+int dap_chain_cell_map_window_force(dap_chain_cell_t *a_cell, size_t a_file_pos)
+{
+    if (!a_cell || !a_cell->map)
+        return -1;
+    return s_cell_map_new_volume(a_cell, a_file_pos, true);
+}
+
 dap_chain_cell_t * dap_chain_cell_find_by_id(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
 {
     if (!a_chain->cells)
