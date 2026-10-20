@@ -857,10 +857,16 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
         return -4;
     }
     s_dag_restore_mode = true;
+    const char *l_why = "done";
+    uint64_t l_read = 0, l_stop_at = 0;
     for (uint64_t i = 0; i < l_count; ++i) {
         s_dag_idx_rec_t l_rec = {};
-        if (fread(&l_rec, sizeof(l_rec), 1, l_f) != 1 || !l_rec.size)
+        if (fread(&l_rec, sizeof(l_rec), 1, l_f) != 1 || !l_rec.size) {
+            l_why = "record read";
+            l_stop_at = i;
             break;
+        }
+        ++l_read;
         dap_chain_hash_fast_t l_hash = {};
         memcpy(&l_hash, l_rec.hash, sizeof(l_hash));
         dap_chain_cs_dag_event_t *l_event = NULL;
@@ -873,11 +879,17 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
                 // The event crosses the current window end: remap so it starts
                 // inside the new window (the in-place check above cannot cover it).
                 if (dap_chain_cell_map_window_force(l_cell, (size_t)l_rec.offset)
-                        || l_rec.offset < l_cell->cur_vol_start)
+                        || l_rec.offset < l_cell->cur_vol_start) {
+                    l_why = "window remap";
+                    l_stop_at = i;
                     break;
+                }
                 size_t l_off = (size_t)(l_rec.offset - l_cell->cur_vol_start);
-                if (l_cell->map + l_off + l_rec.size > l_cell->map_end)
+                if (l_cell->map + l_off + l_rec.size > l_cell->map_end) {
+                    l_why = "window bounds";
+                    l_stop_at = i;
                     break;
+                }
                 l_event = (dap_chain_cs_dag_event_t *)(l_cell->map + l_off);
             }
         } else {
@@ -885,6 +897,8 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
             if (!l_heap || fseeko(l_cell->file_storage, (off_t)l_rec.offset, SEEK_SET)
                     || fread(l_heap, 1, l_rec.size, l_cell->file_storage) != l_rec.size) {
                 DAP_DEL_Z(l_heap);
+                l_why = "heap read";
+                l_stop_at = i;
                 break;
             }
             l_event = (dap_chain_cs_dag_event_t *)l_heap;
@@ -898,8 +912,14 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
     }
     s_dag_restore_mode = false;
     fclose(l_f);
-    if (!l_restored)
+    if (!l_restored) {
+        log_it(L_WARNING, "DAG index: replay restored nothing (of %" DAP_UINT64_FORMAT_U
+               ", read %" DAP_UINT64_FORMAT_U ", stopped at %" DAP_UINT64_FORMAT_U " by '%s', mapped %d, "
+               "map %p..%p, volume start %" DAP_UINT64_FORMAT_U ")",
+               l_count, l_read, l_stop_at, l_why, (int)a_chain->is_mapped,
+               (void *)l_cell->map, (void *)l_cell->map_end, l_cell->cur_vol_start);
         return -5;
+    }
     // Only the header-count records were validated; anything appended after the
     // last header flush (a crash window) is not covered by the replay. Trim it so
     // the loader's tail does not append duplicate records for the same events.
