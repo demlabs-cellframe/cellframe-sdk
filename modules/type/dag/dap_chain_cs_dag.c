@@ -46,6 +46,7 @@
 #include "dap_strfuncs.h"
 #include "dap_hash.h"
 #include "dap_chain_datum.h"
+#include "dap_chain_ledger_snapshot.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_global_db.h"
@@ -798,6 +799,17 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
     if (!l_count || !l_cell || !l_cell->file_storage || fseeko(l_f, sizeof(l_hdr), SEEK_SET)) {
         fclose(l_f);
         return -4;
+    }
+    // Same rule as the blocks index: replaying the events without a COMPLETE
+    // ledger snapshot would skip their ledger/service application (the replay
+    // feeds only the event cache, the loader resumes past them).
+    {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+        if (!l_ledger || !dap_ledger_snapshot_full_apply_enabled(l_ledger)) {
+            fclose(l_f);
+            return -9;
+        }
     }
     uint64_t l_restored = 0, l_resume = 0;
     // Continuity: the cell file must still be the one the index was built on.
