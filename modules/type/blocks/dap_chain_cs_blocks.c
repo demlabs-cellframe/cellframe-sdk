@@ -2543,6 +2543,19 @@ void dap_chain_cs_blocks_tx_count_set(dap_chain_t *a_chain, uint64_t a_count)
         dap_chain_state_tx_count_set(l_state, a_count);
 }
 
+typedef struct s_blocks_first_rec_ctx {
+    dap_chain_state_rec_t rec;
+    bool got;
+} s_blocks_first_rec_ctx_t;
+
+static bool s_blocks_first_rec_cb(void *a_arg, const dap_chain_state_rec_t *a_rec)
+{
+    s_blocks_first_rec_ctx_t *l_ctx = (s_blocks_first_rec_ctx_t *)a_arg;
+    l_ctx->rec = *a_rec;
+    l_ctx->got = true;
+    return false;   // only the first record is needed
+}
+
 int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offset)
 {
     if (!a_chain || !a_resume_offset || !s_is_blocks_chain(a_chain))
@@ -2581,6 +2594,12 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
         return -7;
     if (l_anchor_num > l_last.num
             || (l_anchor_num == l_last.num && !dap_hash_fast_compare(&l_anchor_hash, &l_last.hash)))
+        return -7;
+    // A truncated/rewritten index can start ABOVE the anchor (its first record is
+    // newer than the snapshot position): it does not cover the restored state.
+    s_blocks_first_rec_ctx_t l_first = {};
+    if (dap_chain_state_for_each_record(l_state, s_blocks_first_rec_cb, &l_first) == -4
+            && l_first.got && l_first.rec.num > l_anchor_num)
         return -7;
     s_blocks_restore_ctx_t l_ctx = { .blocks = l_blocks, .cell = l_cell,
             .anchor_num = l_anchor_num, .file_size = (uint64_t)(l_last.offset + l_last.size) };
