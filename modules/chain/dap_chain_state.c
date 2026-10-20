@@ -981,3 +981,31 @@ void dap_chain_state_cache_raw_free(dap_store_obj_t *a_objs, size_t a_count)
     }
     DAP_DEL_Z(a_objs);
 }
+
+int dap_chain_state_cache_set_bin(const char *a_group, const void *a_key, size_t a_key_len,
+                                  const void *a_value, size_t a_value_len)
+{
+    if (!a_group || !a_key || !a_key_len)
+        return -1;
+    uint64_t l_id = 0;
+    size_t l_take = a_key_len < sizeof(l_id) ? a_key_len : sizeof(l_id);
+    memcpy(&l_id, a_key, l_take);
+    l_id ^= (uint64_t)a_key_len << 56;
+    if (!l_id)
+        l_id = 1;
+    dap_chain_state_kv_t *l_kv = dap_chain_state_kv_for_net(s_cache_ns(a_group));
+    if (!l_kv)
+        return -2;
+    // The readable name exists only for the snapshot output; the call site works
+    // with the id and the binary key.
+    char *l_name = dap_strdup_printf("#%" DAP_UINT64_FORMAT_x, l_id);
+    if (!l_name)
+        return -2;
+    uint64_t l_created_id = dap_chain_state_kv_key_id(l_kv, l_name, true);
+    DAP_DELETE(l_name);
+    if (!l_created_id)
+        return -3;
+    const void *l_store = a_value ? a_value : a_key;
+    size_t l_store_len = a_value ? a_value_len : a_key_len;
+    return dap_chain_state_kv_set(l_kv, l_created_id, l_store, l_store_len);
+}

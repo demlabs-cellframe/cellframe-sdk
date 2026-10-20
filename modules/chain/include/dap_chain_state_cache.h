@@ -15,6 +15,11 @@ extern "C" {
 // one namespace, every access resolves the key to an id once. Node-private (no
 // signing, no replication, no MDBX limit); carried by the snapshot.
 int dap_chain_state_cache_set(const char *a_group, const char *a_key, const void *a_value, size_t a_value_len);
+// Binary-key entry: the id comes from the key bytes themselves (no string
+// formatting at the call site); the key bytes are stored as the value when
+// a_value is NULL, so the caller keeps only the id on the hot path.
+int dap_chain_state_cache_set_bin(const char *a_group, const void *a_key, size_t a_key_len,
+                                  const void *a_value, size_t a_value_len);
 int dap_chain_state_cache_del(const char *a_group, const char *a_key);
 const uint8_t *dap_chain_state_cache_get(const char *a_group, const char *a_key, size_t *a_value_len);
 dap_global_db_obj_t *dap_chain_state_cache_get_all(const char *a_group, size_t *a_count);

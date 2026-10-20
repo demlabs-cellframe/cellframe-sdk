@@ -1660,17 +1660,23 @@ static int s_cli_list(int a_argc, char **a_argv, int a_arg_index, json_object **
     for (size_t i = 0; i < l_values_count; i++) {
         json_object *l_jobj_item = json_object_new_object();
         dap_hash_fast_t l_cur_pkey_hash;
+        dap_hash_str_t l_cur_pkey_hash_str = {0};
+        const char *l_cur_pkey_str = NULL;
         if (l_filter_count) {
             l_cur_pkey_hash = l_pkey_hash;
-        } else {
-            dap_chain_hash_fast_from_str(l_values[i].key, &l_cur_pkey_hash);
-        }
-        dap_hash_str_t l_cur_pkey_hash_str = {0};
-        const char *l_cur_pkey_str = l_values[i].key;
-        if (l_filter_count) {
             l_cur_pkey_hash_str = dap_chain_hash_fast_to_hash_str(&l_pkey_hash);
             l_cur_pkey_str = l_cur_pkey_hash_str.s;
+        } else if (l_values[i].value_len == sizeof(dap_hash_fast_t)) {
+            // Binary entry: the key bytes are the value, the name is only an id.
+            memcpy(&l_cur_pkey_hash, l_values[i].value, sizeof(l_cur_pkey_hash));
+            l_cur_pkey_hash_str = dap_chain_hash_fast_to_hash_str(&l_cur_pkey_hash);
+            l_cur_pkey_str = l_cur_pkey_hash_str.s;
+        } else {
+            dap_chain_hash_fast_from_str(l_values[i].key, &l_cur_pkey_hash);
+            l_cur_pkey_str = l_values[i].key;
         }
+        if (!l_cur_pkey_str)
+            l_cur_pkey_str = l_values[i].key;
         json_object_object_add(l_jobj_item, "pkey_hash", json_object_new_string(l_cur_pkey_str));
         json_object *l_jobj_tx_hashes = json_object_new_object();
         json_object *l_jobj_shared_wallets = json_object_new_object();
@@ -1967,11 +1973,11 @@ int dap_chain_wallet_shared_hold_tx_add(dap_chain_datum_tx_t *a_tx, const char *
     dap_hash_fast_t l_hash = {0};
     dap_sign_get_pkey_hash(l_sig, &l_hash);
     s_hold_tx_add(a_tx, l_group, &l_hash, TX_ROLE_CREATOR);
-    dap_chain_state_cache_set(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static(&l_hash), NULL, 0);
+    dap_chain_state_cache_set_bin(s_wallet_shared_gdb_pkeys, &l_hash, sizeof(l_hash), NULL, 0);
     dap_tsd_iter(l_tsd, l_tsd_size, l_cond->tsd, l_cond->tsd_size) {
         if (l_tsd->type == DAP_CHAIN_TX_OUT_COND_TSD_HASH && l_tsd->size == sizeof(dap_hash_fast_t)) {
             s_hold_tx_add(a_tx, l_group, (dap_hash_fast_t *)l_tsd->data, TX_ROLE_OWNER);
-            dap_chain_state_cache_set(s_wallet_shared_gdb_pkeys, dap_hash_fast_to_str_static((dap_hash_fast_t *)l_tsd->data), NULL, 0);
+            dap_chain_state_cache_set_bin(s_wallet_shared_gdb_pkeys, l_tsd->data, sizeof(dap_hash_fast_t), NULL, 0);
         }
     }
     DAP_DELETE(l_group);
