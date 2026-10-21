@@ -510,6 +510,9 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
 
     int l_ret = 0;    
     uint64_t l_el_size = 0, q = 0;
+    // Per-load outcome counters: a scan that stops short of the file end is
+    // otherwise indistinguishable from one that rejected everything.
+    uint64_t l_n_acc = 0, l_n_fork = 0, l_n_rej = 0;
     if (a_chain->is_mapped) {
         dap_hash_fast_t l_atom_hash;
         for ( off_t l_vol_rest = 0; l_pos + sizeof(uint64_t) < (size_t)l_full_size; ++q, l_pos += l_el_size + sizeof(uint64_t) ) {
@@ -531,7 +534,14 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             a_cell->map_pos += sizeof(uint64_t);
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos);
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
-            a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash, false);
+            dap_chain_atom_verify_res_t l_add_res =
+                    a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash, false);
+            if (l_add_res == ATOM_ACCEPT)
+                ++l_n_acc;
+            else if (l_add_res == ATOM_FORK)
+                ++l_n_fork;
+            else
+                ++l_n_rej;
             
             a_cell->map_pos += l_el_size;
             a_chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
@@ -568,6 +578,12 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             s_loading_atom_offset = (uint64_t)(l_pos - l_read);
             dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size, &l_atom_hash, false);
             s_loading_atom_offset = 0;
+            if (l_res == ATOM_ACCEPT)
+                ++l_n_acc;
+            else if (l_res == ATOM_FORK)
+                ++l_n_fork;
+            else
+                ++l_n_rej;
             
             if (l_res != ATOM_ACCEPT && l_res != ATOM_FORK) {
                 DAP_DELETE(l_element);
@@ -592,7 +608,9 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             log_it(L_ERROR, "ftruncate failed for cell %s: %s", a_cell->file_storage_path, dap_strerror(errno));
     }
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
-    log_it(L_INFO, "Loaded %" DAP_UINT64_FORMAT_U " atoms in cell %s", q, a_cell->file_storage_path);
+    log_it(L_INFO, "Loaded %" DAP_UINT64_FORMAT_U " atoms in cell %s (accepted %" DAP_UINT64_FORMAT_U
+           ", forks %" DAP_UINT64_FORMAT_U ", rejected %" DAP_UINT64_FORMAT_U ")",
+           q, a_cell->file_storage_path, l_n_acc, l_n_fork, l_n_rej);
     return l_ret;
 }
 

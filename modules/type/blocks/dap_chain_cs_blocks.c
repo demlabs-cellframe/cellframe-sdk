@@ -3347,7 +3347,26 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             struct cs_blocks_hal_item *l_hash_found = NULL;
             HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
             if (!l_hash_found) {
-                log_it(L_WARNING, "Block %s rejected by block verificator", dap_hash_fast_to_str_static(a_atom_hash));
+                // Block headers carry no number: report the file position and the
+                // header facts instead, so the block can be located in the cell.
+                const dap_hash_t *l_prev_meta = (const dap_hash_t *)dap_chain_block_meta_get(
+                        l_block, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
+                dap_chain_cell_t *l_off_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
+                uint64_t l_atom_off = 0;
+                if (a_chain->is_mapped && l_off_cell && l_off_cell->map
+                        && (const char *)a_atom >= (const char *)l_off_cell->map
+                        && (const char *)a_atom < (const char *)l_off_cell->map_end)
+                    l_atom_off = (uint64_t)l_off_cell->cur_vol_start
+                            + (uint64_t)((const char *)a_atom - (const char *)l_off_cell->map);
+                else
+                    l_atom_off = dap_chain_cell_load_offset();
+                log_it(L_WARNING, "Block %s (ts %" DAP_UINT64_FORMAT_U ", %u datum(s), prev %s, "
+                       "cell offset %" DAP_UINT64_FORMAT_U ") rejected by block verificator - "
+                       "not in the blocks hard_accept_list",
+                       dap_hash_fast_to_str_static(a_atom_hash), (uint64_t)l_block->hdr.ts_created,
+                       (unsigned)l_block->hdr.datum_count,
+                       l_prev_meta ? dap_hash_fast_to_str_static((dap_hash_fast_t *)l_prev_meta) : "-",
+                       l_atom_off);
                 return ATOM_REJECT;
             }
         }
