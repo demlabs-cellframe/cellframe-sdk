@@ -422,6 +422,11 @@ dap_ledger_locked_out_t *dap_ledger_get_locked_values(dap_ledger_t *a_ledger, da
  */
 dap_chain_datum_tx_t *dap_ledger_tx_find_datum_by_hash( dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash,
                                                         dap_ledger_tx_item_t **a_item_out, bool a_unspent_only );
+
+// Whether the ledger already tracks this transaction (datum attached or not).
+// Restored items carry no datum until it is attached lazily, so the datum lookup
+// above cannot answer this.
+bool dap_ledger_tx_is_known(dap_ledger_t *a_ledger, const dap_hash_fast_t *a_tx_hash);
 #define dap_ledger_tx_find_by_hash(a_ledger, a_tx_hash) \
     dap_ledger_tx_find_datum_by_hash(a_ledger, a_tx_hash, NULL, false)
 #define dap_ledger_tx_unspent_find_by_hash(a_ledger, a_tx_hash) \

@@ -90,6 +90,7 @@ typedef struct DAP_PACKED s_dag_idx_rec {
 static _Thread_local bool s_dag_restore_mode;
 // Restore timing split (nanoseconds), logged once per replay.
 static _Thread_local uint64_t s_restore_t_datum, s_restore_t_frontier, s_restore_t_body;
+static _Thread_local uint64_t s_restore_n_skipped;
 static FILE *s_dag_index_file = NULL;
 static uint64_t s_dag_index_records = 0;
 static dap_chain_t *s_dag_index_continue_chain = NULL; // chain whose index was restored
@@ -99,6 +100,10 @@ static dap_chain_hash_fast_t s_dag_index_last_hash;
 // while accept paths run under per-chain events_mutex. Two chains in one process
 // would otherwise interleave records and header flushes.
 static pthread_mutex_t s_dag_index_mutex = PTHREAD_MUTEX_INITIALIZER;
+// The DAG private struct is defined below the index helpers; these thin wrappers
+// keep the per-chain applied-record counter accessible from both places.
+static void s_dag_index_records_store(dap_chain_t *a_chain, uint64_t a_count);
+static uint64_t s_dag_index_records_get(dap_chain_t *a_chain);
 
 static char *s_dag_index_path(dap_chain_t *a_chain)
 {
@@ -177,6 +182,7 @@ static void s_dag_index_append(dap_chain_t *a_chain, const dap_chain_hash_fast_t
     memcpy(l_rec.hash, a_hash, sizeof(l_rec.hash));
     if (fwrite(&l_rec, sizeof(l_rec), 1, s_dag_index_file) == 1) {
         ++s_dag_index_records;
+        s_dag_index_records_store(a_chain, s_dag_index_records);
         s_dag_index_last_hash = *a_hash;
         // Flush the header on every append: the restore validates the LAST record
         // against header.last_hash, so a lagging count/hash rejects a valid index.
@@ -199,9 +205,85 @@ static void s_dag_index_drop(dap_chain_t *a_chain)
         DAP_DELETE(l_path);
     }
     s_dag_index_records = 0;
+    s_dag_index_records_store(a_chain, 0);
     if (s_dag_index_continue_chain == a_chain)
         s_dag_index_continue_chain = NULL;
     pthread_mutex_unlock(&s_dag_index_mutex);
+}
+
+// Set while replaying index records the ledger snapshot already covers.
+static _Thread_local bool s_dag_restore_skip_apply;
+
+
+// Index position per DAG chain as stored in the ledger snapshot ("dag_state"
+// section, applied early - before the chain loader runs).
+typedef struct s_dag_watermark {
+    uint64_t chain_id;
+    uint64_t records;
+} s_dag_watermark_t;
+
+typedef struct DAP_PACKED s_dag_wm_hdr {
+    uint64_t net_id;
+    uint32_t n;
+    uint32_t rsv;
+} s_dag_wm_hdr_t;
+static s_dag_watermark_t s_dag_watermarks[8];
+static size_t s_dag_watermarks_count;
+
+static uint64_t s_dag_watermark_get(uint64_t a_chain_id)
+{
+    for (size_t i = 0; i < s_dag_watermarks_count; ++i)
+        if (s_dag_watermarks[i].chain_id == a_chain_id)
+            return s_dag_watermarks[i].records;
+    return 0;
+}
+
+static int s_dag_snapshot_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_net)
+        return 0;
+    s_dag_wm_hdr_t l_hdr = { a_net_id, 0, 0 };
+    size_t l_body_at = a_out->len;
+    if (!dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)))
+        return -2;
+    for (dap_chain_t *l_c = l_net->pub.chains; l_c; l_c = l_c->next) {
+        const char *l_type = dap_chain_get_cs_type(l_c);
+        dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(l_c);
+        if (!l_type || dap_strcmp(l_type, "dag") || !l_dag || !l_dag->_pvt)
+            continue;
+        s_dag_watermark_t l_wm = { .chain_id = l_c->id.uint64,
+                .records = s_dag_index_records_get(l_c) };
+        if (!dap_string_append_len(a_out, (const char *)&l_wm, sizeof(l_wm)))
+            return -2;
+        ++l_hdr.n;
+    }
+    if (!l_hdr.n) {
+        dap_string_truncate(a_out, l_body_at);
+        return 0;
+    }
+    memcpy(a_out->str + l_body_at, &l_hdr, sizeof(l_hdr));
+    return 0;
+}
+
+static int s_dag_snapshot_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    s_dag_wm_hdr_t l_hdr = {};
+    if (!a_data || a_size < sizeof(l_hdr))
+        return -1;
+    memcpy(&l_hdr, a_data, sizeof(l_hdr));
+    size_t l_need = sizeof(l_hdr) + l_hdr.n * sizeof(s_dag_watermark_t);
+    if (a_size < l_need)
+        return -2;
+    s_dag_watermarks_count = 0;
+    const uint8_t *l_ptr = a_data + sizeof(l_hdr);
+    for (uint32_t i = 0; i < l_hdr.n && s_dag_watermarks_count < 8; ++i, l_ptr += sizeof(s_dag_watermark_t))
+        memcpy(&s_dag_watermarks[s_dag_watermarks_count++], l_ptr, sizeof(s_dag_watermark_t));
+    log_it(L_INFO, "DAG snapshot: %u index watermark(s) for net 0x%016" DAP_UINT64_FORMAT_x " loaded",
+           l_hdr.n, l_hdr.net_id);
+    return 0;
 }
 
 typedef struct dap_chain_cs_dag_event_item {
@@ -233,9 +315,26 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
     dap_interval_timer_t treshold_free_timer;
     uint64_t tx_count;
+    // Records covered by the current .dagindex (restored or appended). The ledger
+    // snapshot stores it as a watermark: records below it were already applied to
+    // the ledger when the snapshot was taken, so the replay can skip that work.
+    _Atomic uint64_t index_records;
 } dap_chain_cs_dag_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
+
+static void s_dag_index_records_store(dap_chain_t *a_chain, uint64_t a_count)
+{
+    dap_chain_cs_dag_t *l_dag = a_chain ? DAP_CHAIN_CS_DAG(a_chain) : NULL;
+    if (l_dag && l_dag->_pvt)
+        atomic_store(&PVT(l_dag)->index_records, a_count);
+}
+
+static uint64_t s_dag_index_records_get(dap_chain_t *a_chain)
+{
+    dap_chain_cs_dag_t *l_dag = a_chain ? DAP_CHAIN_CS_DAG(a_chain) : NULL;
+    return (l_dag && l_dag->_pvt) ? atomic_load(&PVT(l_dag)->index_records) : 0;
+}
 
 static int s_chain_cs_dag_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 static void s_chain_cs_dag_start(dap_chain_t *a_chain);
@@ -416,6 +515,11 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // Others
     a_chain->_inheritor = l_dag;
+    // The ledger snapshot carries this chain's applied-index position, applied
+    // EARLY (before the loader runs): the index replay below the watermark can
+    // then skip the ledger application, which the snapshot already reflects.
+    dap_ledger_add_snapshot_section("dag_state", DAP_LEDGER_SNAPSHOT_SECTION_FLAG_EARLY,
+                                    s_dag_snapshot_dump, s_dag_snapshot_load, NULL);
 
     const char * l_static_genesis_event_hash_str = dap_config_get_item_str_default(a_chain_cfg,"dag","static_genesis_event",NULL);
     if ( l_static_genesis_event_hash_str ){
@@ -588,9 +692,29 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
     dap_hash_fast_t l_datum_hash;
     dap_chain_datum_calc_hash(l_datum, &l_datum_hash);
     uint64_t l_t0 = s_dag_restore_mode ? dap_nanotime_now() : 0;
-    int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
-    if (l_t0)
+    int l_ret;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_dag->chain->net_id);
+    dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
+    // Below the snapshot's watermark the effects are already in the restored
+    // ledger. A transaction is skipped only when the ledger really tracks it
+    // (the watermark is taken from the index, and an event applied between the
+    // ledger payload and the section dump would otherwise be lost); non-ledger
+    // datums (decrees/anchors/certificates) are persistent and idempotent.
+    bool l_skip_apply = s_dag_restore_skip_apply && l_ledger
+            && (l_datum->header.type_id != DAP_CHAIN_DATUM_TX
+                || dap_ledger_tx_is_known(l_ledger, &l_datum_hash));
+    if (l_skip_apply) {
+        l_ret = DAP_LEDGER_CHECK_ALREADY_CACHED;
+        if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX && a_dag->chain->callback_count_tx_increase)
+            a_dag->chain->callback_count_tx_increase(a_dag->chain);
+    } else {
+        l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
+    }
+    if (l_t0) {
         s_restore_t_datum += (uint64_t)(dap_nanotime_now() - l_t0);
+        if (l_skip_apply)
+            s_restore_n_skipped++;
+    }
     // Note: tx_count increment moved to dap_ledger_tx_add() to ensure it only increments for successfully verified transactions
     a_event_item->datum_hash = l_datum_hash;
     a_event_item->ret_code = l_ret;
@@ -857,6 +981,13 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
         return -4;
     }
     s_dag_restore_mode = true;
+    // Records the ledger snapshot already covers: their ledger application is
+    // skipped, the event/datum tables are still rebuilt.
+    uint64_t l_watermark = s_dag_watermark_get(a_chain->id.uint64);
+    if (l_watermark > l_count)
+        l_watermark = l_count;
+    log_it(L_INFO, "DAG index: replaying %" DAP_UINT64_FORMAT_U " record(s), %" DAP_UINT64_FORMAT_U
+           " of them already covered by the ledger snapshot", l_count, l_watermark);
     const char *l_why = "done";
     uint64_t l_read = 0, l_stop_at = 0;
     for (uint64_t i = 0; i < l_count; ++i) {
@@ -904,8 +1035,10 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
             l_event = (dap_chain_cs_dag_event_t *)l_heap;
         }
         uint64_t l_tb0 = dap_nanotime_now();
+        s_dag_restore_skip_apply = (i < l_watermark);
         dap_chain_atom_verify_res_t l_res = s_chain_callback_atom_add(a_chain,
                 (dap_chain_atom_ptr_t)l_event, l_rec.size, &l_hash, false);
+        s_dag_restore_skip_apply = false;
         s_restore_t_body += (uint64_t)(dap_nanotime_now() - l_tb0);
         if (l_res == ATOM_ACCEPT || l_res == ATOM_PASS)
             ++l_restored;
@@ -946,12 +1079,15 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
     s_dag_index_continue_chain = a_chain;
     pthread_mutex_unlock(&s_dag_index_mutex);
     *a_resume_offset = l_resume;
+    s_dag_index_records_store(a_chain, l_count);
     log_it(L_NOTICE, "DAG index: restored %" DAP_UINT64_FORMAT_U " of %" DAP_UINT64_FORMAT_U
            " events, resuming the cell at %" DAP_UINT64_FORMAT_U " (add %" DAP_UINT64_FORMAT_U
-           " ms, of it datum %" DAP_UINT64_FORMAT_U " ms, frontier %" DAP_UINT64_FORMAT_U " ms)",
+           " ms, of it datum %" DAP_UINT64_FORMAT_U " ms for %" DAP_UINT64_FORMAT_U " snapshot-covered,"
+           " frontier %" DAP_UINT64_FORMAT_U " ms)",
            l_restored, l_count, l_resume,
-           s_restore_t_body / 1000000, s_restore_t_datum / 1000000, s_restore_t_frontier / 1000000);
-    s_restore_t_body = s_restore_t_datum = s_restore_t_frontier = 0;
+           s_restore_t_body / 1000000, s_restore_t_datum / 1000000, s_restore_n_skipped,
+           s_restore_t_frontier / 1000000);
+    s_restore_t_body = s_restore_t_datum = s_restore_t_frontier = s_restore_n_skipped = 0;
     return (int64_t)l_restored;
 }
 

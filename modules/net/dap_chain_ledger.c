@@ -3467,8 +3467,17 @@ static int s_snapshot_datum_links_load(void *a_ctx, const uint8_t *a_data, size_
     return 0;
 }
 
+static bool s_snapshot_section_find_flags(const char *a_name, dap_ledger_snapshot_load_cb_t *a_load,
+                                          void **a_ctx, uint32_t *a_flags);
+
 // Copies the callbacks out so a load callback runs without the registry lock.
 static bool s_snapshot_section_find(const char *a_name, dap_ledger_snapshot_load_cb_t *a_load, void **a_ctx)
+{
+    return s_snapshot_section_find_flags(a_name, a_load, a_ctx, NULL);
+}
+
+static bool s_snapshot_section_find_flags(const char *a_name, dap_ledger_snapshot_load_cb_t *a_load,
+                                          void **a_ctx, uint32_t *a_flags)
 {
     bool l_found = false;
     pthread_mutex_lock(&s_snapshot_sections_lock);
@@ -3476,6 +3485,7 @@ static bool s_snapshot_section_find(const char *a_name, dap_ledger_snapshot_load
         if (!dap_strcmp(l_it->name, a_name)) {
             if (a_load) *a_load = l_it->load;
             if (a_ctx) *a_ctx = l_it->ctx;
+            if (a_flags) *a_flags = l_it->flags;
             l_found = true;
             break;
         }
@@ -3564,9 +3574,11 @@ static void s_pending_sections_apply(dap_ledger_t *a_ledger)
         dap_ledger_snapshot_load_cb_t l_load = NULL;
         void *l_ctx = NULL;
         if (s_snapshot_section_find(l_it->name, &l_load, &l_ctx) && l_load) {
+            dap_nanotime_t l_t0 = dap_nanotime_now();
             int l_rc = l_load(l_ctx, l_it->data, l_it->size);
-            log_it(l_rc ? L_WARNING : L_NOTICE, "Ledger snapshot: section '%s' %s (%zu bytes)",
-                   l_it->name, l_rc ? "load failed" : "restored", l_it->size);
+            log_it(l_rc ? L_WARNING : L_NOTICE, "Ledger snapshot: section '%s' %s (%zu bytes, %"
+                   DAP_UINT64_FORMAT_U " ms)", l_it->name, l_rc ? "load failed" : "restored",
+                   l_it->size, (uint64_t)(dap_nanotime_now() - l_t0) / 1000000);
             // The complete-state flag is valid only when that section actually
             // restored: a truncated/failed ledger_state leaves the remaining
             // state to the regular replay, which must keep running.
@@ -4702,6 +4714,7 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
     dap_ledger_snapshot_header_t l_header = {};
     int l_ret = 0;
     uint64_t l_loaded_tx = 0, l_loaded_balances = 0;
+    const dap_nanotime_t l_t_start = dap_nanotime_now();
     uint8_t *l_payload = NULL;
     do {
         // The first 16 bytes (magic/version/header_size) are common to every
@@ -4815,6 +4828,7 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             ++l_loaded_tx;
         }
         pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+        dap_nanotime_t l_t_tx = dap_nanotime_now();
         // Restore the balances exactly like the GlobalDB balances stage does
         pthread_rwlock_wrlock(&l_ledger_pvt->balance_accounts_rwlock);
         for (uint64_t i = 0; i < l_header.n_balances; ++i) {
@@ -4849,6 +4863,7 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             ++l_loaded_balances;
         }
         pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
+        dap_nanotime_t l_t_bal = dap_nanotime_now();
         // Restore the wallet cache unspent index (v2 header, flag bit0)
         if ((l_header.flags & 0x1u) && l_header.n_wallet_outs) {
             uint64_t l_restored_wallet = 0;
@@ -4883,7 +4898,8 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             if (l_restored_wallet == l_header.n_wallet_outs) {
                 dap_chain_wallet_cache_bulk_done_mark(a_ledger->net->pub.id);
                 log_it(L_NOTICE, "Ledger snapshot: wallet cache restored (%"DAP_UINT64_FORMAT_U
-                       " unspent outputs), bulk pass is not needed", l_restored_wallet);
+                       " unspent outputs, %" DAP_UINT64_FORMAT_U " ms), bulk pass is not needed",
+                       l_restored_wallet, (uint64_t)(dap_nanotime_now() - l_t_bal) / 1000000);
             } else
                 log_it(L_WARNING, "Ledger snapshot: wallet section restored %"DAP_UINT64_FORMAT_U
                        " of %"DAP_UINT64_FORMAT_U" records - the wallet bulk pass will re-run", l_restored_wallet, l_header.n_wallet_outs);
@@ -4902,7 +4918,21 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
                         log_it(L_WARNING, "Ledger snapshot: truncated section '%s'", l_desc[i].name);
                         break;
                     }
-                    s_pending_section_add(l_header.net_id, l_desc[i].name, l_ptr, l_desc[i].size);
+                    dap_ledger_snapshot_load_cb_t l_early_load = NULL;
+                    void *l_early_ctx = NULL;
+                    uint32_t l_early_flags = 0;
+                    if (s_snapshot_section_find_flags(l_desc[i].name, &l_early_load, &l_early_ctx, &l_early_flags)
+                            && (l_early_flags & DAP_LEDGER_SNAPSHOT_SECTION_FLAG_EARLY) && l_early_load) {
+                        // Needed by the loader itself before it walks the chains.
+                        dap_nanotime_t l_t0 = dap_nanotime_now();
+                        int l_rc = l_early_load(l_early_ctx, l_ptr, l_desc[i].size);
+                        log_it(l_rc ? L_WARNING : L_INFO, "Ledger snapshot: early section '%s' %s "
+                               "(%" DAP_UINT64_FORMAT_U " bytes, %" DAP_UINT64_FORMAT_U " ms)",
+                               l_desc[i].name, l_rc ? "load failed" : "applied", l_desc[i].size,
+                               (uint64_t)(dap_nanotime_now() - l_t0) / 1000000);
+                    } else {
+                        s_pending_section_add(l_header.net_id, l_desc[i].name, l_ptr, l_desc[i].size);
+                    }
                     l_ptr += l_desc[i].size;
                 }
             }
@@ -4925,8 +4955,13 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
         }
 #endif
         log_it(L_NOTICE, "Ledger snapshot: restored %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
-               " balances from %s (saved %"DAP_UINT64_FORMAT_U" s ago); the chain scan will re-fill the transaction datums",
-               l_loaded_tx, l_loaded_balances, l_path, (uint64_t)time(NULL) - l_header.ts_saved);
+               " balances from %s (saved %"DAP_UINT64_FORMAT_U" s ago; tx %" DAP_UINT64_FORMAT_U
+               " ms, balances %" DAP_UINT64_FORMAT_U " ms, total %" DAP_UINT64_FORMAT_U
+               " ms); the chain scan will re-fill the transaction datums",
+               l_loaded_tx, l_loaded_balances, l_path, (uint64_t)time(NULL) - l_header.ts_saved,
+               (uint64_t)(l_t_tx - l_t_start) / 1000000,
+               (uint64_t)(l_t_bal - l_t_tx) / 1000000,
+               (uint64_t)(dap_nanotime_now() - l_t_start) / 1000000);
         if (l_loaded_tx != l_header.n_tx_items || l_loaded_balances != l_header.n_balances)
             log_it(L_WARNING, "Ledger snapshot: %s carries %"DAP_UINT64_FORMAT_U" tx items and %"DAP_UINT64_FORMAT_U
                    " balances, restored less - the chain scan will rebuild the difference", l_path,
@@ -5881,6 +5916,18 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_datum_by_hash(dap_ledger_t *a_ledger, c
         }
     }
     return l_tx_ret;
+}
+
+bool dap_ledger_tx_is_known(dap_ledger_t *a_ledger, const dap_hash_fast_t *a_tx_hash)
+{
+    if (!a_ledger || !a_tx_hash)
+        return false;
+    dap_ledger_tx_item_t *l_item = NULL;
+    dap_ledger_private_t *l_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_pvt->ledger_rwlock);
+    HASH_FIND(hh, l_pvt->ledger_items, a_tx_hash, sizeof(*a_tx_hash), l_item);
+    pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
+    return l_item != NULL;
 }
 
 // For callers that already hold ledger_rwlock: a nested rdlock on the same thread deadlocks as soon

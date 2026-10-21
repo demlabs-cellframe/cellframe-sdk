@@ -83,6 +83,10 @@ void dap_ledger_snapshot_skip_set(dap_ledger_t *a_ledger, uint64_t a_block_num,
 // (polls/votes, events, rewards, conditional-service notifications) because the
 // sections carry that state. Only the ledger's own "ledger_state" section does.
 #define DAP_LEDGER_SNAPSHOT_SECTION_FLAG_FULL 0x1u
+// Apply the section right after the snapshot is read, BEFORE the chain scan,
+// instead of at load end. For state the loader itself needs during the scan
+// (e.g. how much of a DAG index the snapshot already covers).
+#define DAP_LEDGER_SNAPSHOT_SECTION_FLAG_EARLY 0x2u
 #define DAP_LEDGER_SNAPSHOT_LEDGER_STATE_SECTION "ledger_state"
 // The dump callback receives the network whose snapshot is being written, so a
 // section must only emit that network's state (several networks share the
