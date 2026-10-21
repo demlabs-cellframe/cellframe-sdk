@@ -91,6 +91,9 @@ static _Thread_local bool s_dag_restore_mode;
 // Restore timing split (nanoseconds), logged once per replay.
 static _Thread_local uint64_t s_restore_t_datum, s_restore_t_frontier, s_restore_t_body;
 static _Thread_local uint64_t s_restore_n_skipped;
+
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t *a_chain,
+        dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_hash, bool a_atom_new);
 static FILE *s_dag_index_file = NULL;
 static uint64_t s_dag_index_records = 0;
 static dap_chain_t *s_dag_index_continue_chain = NULL; // chain whose index was restored
@@ -249,9 +252,10 @@ static int s_dag_snapshot_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_o
     if (!dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)))
         return -2;
     for (dap_chain_t *l_c = l_net->pub.chains; l_c; l_c = l_c->next) {
-        const char *l_type = dap_chain_get_cs_type(l_c);
+        // Identify the chain by its consensus implementation, not by the config
+        // string: a zerochain can be registered as "dag-poa" and would be skipped.
         dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(l_c);
-        if (!l_type || dap_strcmp(l_type, "dag") || !l_dag || !l_dag->_pvt)
+        if (!l_dag || !l_dag->_pvt || l_c->callback_atom_add != s_chain_callback_atom_add)
             continue;
         s_dag_watermark_t l_wm = { .chain_id = l_c->id.uint64,
                 .records = s_dag_index_records_get(l_c) };
