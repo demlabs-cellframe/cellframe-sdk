@@ -239,6 +239,12 @@ dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
 
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
 
+// Ledger replay statistics: every TX datum of a chain passes through
+// dap_ledger_tx_load() during a load pass, and the result distribution shows what a
+// from-scratch replay does with the chain (applied / already cached / rejected by code).
+void dap_chain_net_tx_replay_tally(int a_result, const dap_hash_fast_t *a_tx_hash);
+void dap_chain_net_tx_replay_summary(void);
+
 /**
  * @brief Flat record of one token datum of a chain, from the per-chain token
  * datum registry maintained at datum add/remove (see dap_chain_net.c).

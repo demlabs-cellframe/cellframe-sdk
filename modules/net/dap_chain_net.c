@@ -3323,6 +3323,88 @@ size_t dap_chain_token_datum_list(dap_chain_t *a_chain, dap_chain_token_datum_in
     return l_i;
 }
 
+/* *** Transaction replay tally ***
+ * Every TX datum of a chain goes through dap_ledger_tx_load() during the load pass.
+ * A snapshot-based start applies none of them (the items are restored), so the
+ * distribution of results is the only direct evidence of what a from-scratch replay
+ * would do with the same chain: how many transactions it applies, how many it finds
+ * already cached and how many it rejects, by code.
+ */
+#define DAP_NET_TX_TALLY_CODES 24
+typedef struct s_net_tx_tally {
+    _Atomic int64_t code;
+    _Atomic uint64_t count;
+} s_net_tx_tally_t;
+static s_net_tx_tally_t s_tx_tally[DAP_NET_TX_TALLY_CODES];
+static _Atomic uint64_t s_tx_tally_ok, s_tx_tally_cached;
+static _Atomic uint32_t s_tx_tally_logged;
+
+void dap_chain_net_tx_replay_tally(int a_result, const dap_hash_fast_t *a_tx_hash)
+{
+    if (a_result == 0) {
+        atomic_fetch_add(&s_tx_tally_ok, 1);
+        return;
+    }
+    if (a_result == DAP_LEDGER_CHECK_ALREADY_CACHED) {
+        atomic_fetch_add(&s_tx_tally_cached, 1);
+        return;
+    }
+    // Rejections: a fixed table keyed by code, plus the first few hashes for a
+    // post-mortem. Bounded work per datum, no allocation.
+    for (int i = 0; i < DAP_NET_TX_TALLY_CODES; ++i) {
+        int64_t l_code = atomic_load(&s_tx_tally[i].code);
+        if (l_code == a_result) {
+            atomic_fetch_add(&s_tx_tally[i].count, 1);
+            break;
+        }
+        if (l_code == 0) {
+            int64_t l_expected = 0;
+            if (atomic_compare_exchange_strong(&s_tx_tally[i].code, &l_expected, a_result)) {
+                atomic_fetch_add(&s_tx_tally[i].count, 1);
+                break;
+            }
+            if (atomic_load(&s_tx_tally[i].code) == a_result) {
+                atomic_fetch_add(&s_tx_tally[i].count, 1);
+                break;
+            }
+        }
+    }
+    if (atomic_fetch_add(&s_tx_tally_logged, 1) < 20)
+        log_it(L_WARNING, "Ledger replay: tx %s rejected with code %d",
+               a_tx_hash ? dap_hash_fast_to_str_static(a_tx_hash) : "-", a_result);
+}
+
+void dap_chain_net_tx_replay_summary(void)
+{
+    uint64_t l_ok = atomic_exchange(&s_tx_tally_ok, 0);
+    uint64_t l_cached = atomic_exchange(&s_tx_tally_cached, 0);
+    atomic_store(&s_tx_tally_logged, 0);
+    if (!l_ok && !l_cached) {
+        for (int i = 0; i < DAP_NET_TX_TALLY_CODES; ++i)
+            if (atomic_load(&s_tx_tally[i].code))
+                goto l_have_rejects;
+        return;   // nothing was replayed (pure snapshot start)
+    }
+l_have_rejects:;
+    char l_rej[512] = {0};
+    size_t l_off = 0;
+    uint64_t l_total = l_ok + l_cached;
+    for (int i = 0; i < DAP_NET_TX_TALLY_CODES; ++i) {
+        int64_t l_code = atomic_exchange(&s_tx_tally[i].code, 0);
+        uint64_t l_count = atomic_exchange(&s_tx_tally[i].count, 0);
+        if (!l_code)
+            continue;
+        if (l_off < sizeof(l_rej))
+            l_off += snprintf(l_rej + l_off, sizeof(l_rej) - l_off, "%s%d=%" DAP_UINT64_FORMAT_U,
+                              l_off ? ", " : " ", (int)l_code, l_count);
+        l_total += l_count;
+    }
+    log_it(L_NOTICE, "Ledger replay tally: %" DAP_UINT64_FORMAT_U " tx datum(s) processed "
+           "(applied %" DAP_UINT64_FORMAT_U ", already cached %" DAP_UINT64_FORMAT_U
+           ", rejected%" DAP_UINT64_FORMAT_U " of %" DAP_UINT64_FORMAT_U ")%s",
+           l_total, l_ok, l_cached, l_total - l_ok - l_cached, l_total, l_rej[0] ? l_rej : " none");
+}
+
 int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
@@ -3376,6 +3458,11 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Depricated\nsign type: %s\naddress: %s\nnet: %s\ndatum: %s", dap_sign_type_to_str(l_sig->header.type), dap_chain_addr_to_str_static(&l_addr), a_chain->net_name, dap_chain_hash_fast_to_str_static(a_datum_hash));
             }
             int l_result = dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash, (dap_ledger_datum_iter_data_t*)a_datum_index_data);
+
+            // Replay tally: how many TX datums the chain passes through the ledger and
+            // with which result. A snapshot-based start applies nothing (restored
+            // items), so this is what tells a restored ledger apart from a rebuilt one.
+            dap_chain_net_tx_replay_tally(l_result, a_datum_hash);
             
             // ALREADY_CACHED means the transaction is already in the ledger
             // (snapshot-restored or re-applied) - it is still a transaction of the

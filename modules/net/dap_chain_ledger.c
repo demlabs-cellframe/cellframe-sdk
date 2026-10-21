@@ -8214,6 +8214,7 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
     // -12 and a full rescan, repeating after every scan).
     for (dap_chain_t *l_c = a_ledger->net ? a_ledger->net->pub.chains : NULL; l_c; l_c = l_c->next)
         dap_chain_cs_blocks_state_flush(l_c);
+    dap_chain_net_tx_replay_summary();
     if (l_phantoms)
         log_it(L_CRITICAL, "Ledger: dropped %zu cache-restored transaction(s) not found in any "
                "chain of this network (snapshot from a different branch?); consider "
