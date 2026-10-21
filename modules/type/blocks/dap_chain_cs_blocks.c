@@ -150,6 +150,8 @@ static void s_callback_delete(dap_chain_t * a_chain);
 // Accept new block
 static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash, bool a_atom_new);
 static dap_chain_state_t *s_chain_state_get(dap_chain_cs_blocks_t *a_blocks);
+static void s_blocks_hash_find_locked(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash,
+                                     dap_chain_block_cache_t **a_block_cache);
 //    Verify new block
 static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t * a_atom_hash);
 
@@ -2943,6 +2945,15 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     dap_chain_hash_fast_t l_block_hash = *a_atom_hash;
 
     dap_chain_block_cache_t * l_block_cache = NULL;
+
+    // Already accepted: the loader resumes a few blocks below the index tip (the
+    // index is flushed periodically), so a restart re-reads atoms the ledger has
+    // already applied. Re-running consensus on them fails by construction (their
+    // outputs are spent) and used to log "rejected by block verificator" for
+    // perfectly good blocks. Accept idempotently; nothing to add.
+    s_blocks_hash_find_locked(l_blocks, &l_block_hash, &l_block_cache);
+    if (l_block_cache)
+        return ATOM_PASS;
 
     dap_chain_atom_verify_res_t ret;
 #ifdef DAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL
