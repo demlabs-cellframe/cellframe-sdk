@@ -282,15 +282,32 @@ static int s_dag_snapshot_load(void *a_ctx, const uint8_t *a_data, size_t a_size
     if (!a_data || a_size < sizeof(l_hdr))
         return -1;
     memcpy(&l_hdr, a_data, sizeof(l_hdr));
-    size_t l_need = sizeof(l_hdr) + l_hdr.n * sizeof(s_dag_watermark_t);
-    if (a_size < l_need)
+    // Older builds wrote {chain_id, records} (16 bytes) per entry; the network id
+    // came from the section header. Accept both so a snapshot written before the
+    // per-net fix keeps its watermark.
+    size_t l_entry_size = sizeof(s_dag_watermark_t);
+    if (a_size == sizeof(l_hdr) + l_hdr.n * 16)
+        l_entry_size = 16;
+    else if (a_size < sizeof(l_hdr) + l_hdr.n * sizeof(s_dag_watermark_t))
         return -2;
     // Append, do not reset: the networks' snapshots are read one after another and
     // both sets of watermarks must survive until the chains load.
     const uint8_t *l_ptr = a_data + sizeof(l_hdr);
     for (uint32_t i = 0; i < l_hdr.n && s_dag_watermarks_count < S_DAG_WATERMARKS_MAX;
-            ++i, l_ptr += sizeof(s_dag_watermark_t))
-        memcpy(&s_dag_watermarks[s_dag_watermarks_count++], l_ptr, sizeof(s_dag_watermark_t));
+            ++i, l_ptr += l_entry_size) {
+        s_dag_watermark_t l_wm = {};
+        if (l_entry_size == 16) {
+            uint64_t l_pair[2] = {};
+            memcpy(l_pair, l_ptr, sizeof(l_pair));
+            l_wm = (s_dag_watermark_t){ .net_id = l_hdr.net_id, .chain_id = l_pair[0], .records = l_pair[1] };
+        } else
+            memcpy(&l_wm, l_ptr, sizeof(l_wm));
+        bool l_dup = false;
+        for (size_t k = 0; k < s_dag_watermarks_count && !l_dup; ++k)
+            l_dup = s_dag_watermarks[k].net_id == l_wm.net_id && s_dag_watermarks[k].chain_id == l_wm.chain_id;
+        if (!l_dup)
+            s_dag_watermarks[s_dag_watermarks_count++] = l_wm;
+    }
     log_it(L_INFO, "DAG snapshot: %u index watermark(s) for net 0x%016" DAP_UINT64_FORMAT_x " loaded",
            l_hdr.n, l_hdr.net_id);
     return 0;
