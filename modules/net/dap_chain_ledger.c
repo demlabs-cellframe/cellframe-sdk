@@ -5943,7 +5943,10 @@ void dap_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr
 const char *dap_ledger_get_description_by_ticker(dap_ledger_t *a_ledger, const char *a_token_ticker){
     if (!a_ledger || !a_token_ticker)
         return NULL;
-    return s_ledger_find_token(a_ledger, a_token_ticker)->description;
+    // The ticker may legitimately be unknown to this ledger (a foreign-network
+    // token in a bridged listing): the NULL deref here crashed nodes at startup.
+    dap_ledger_token_item_t *l_token = s_ledger_find_token(a_ledger, a_token_ticker);
+    return l_token ? l_token->description : NULL;
 }
 
 /**
