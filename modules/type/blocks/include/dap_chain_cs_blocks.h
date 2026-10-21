@@ -125,13 +125,6 @@ int dap_chain_cs_blocks_datum_location(dap_chain_t *a_chain, const dap_hash_fast
 // Datum bytes by location (block hash + ordinal), without a chain scan. Returns
 // 0 and a pointer valid for the block cache lifetime; -2 when the block is not
 // in the cache/index (the caller may fall back to reading the cell file).
-// Walks every datum of the main chain in block order, reading block bodies one at
-// a time (nothing is kept in the block cache: memory stays at one block). Used to
-// rebuild derived indexes after a no-scan start without a chain scan.
-typedef void (*dap_chain_cs_blocks_datum_cb_t)(void *a_arg, const dap_hash_fast_t *a_datum_hash,
-        const dap_chain_datum_t *a_datum, const dap_hash_fast_t *a_block_hash, uint32_t a_datum_idx);
-int dap_chain_cs_blocks_foreach_datum(dap_chain_t *a_chain, dap_chain_cs_blocks_datum_cb_t a_cb, void *a_arg);
-
 int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_atom_hash,
                                  uint32_t a_datum_idx, dap_chain_datum_t **a_datum, size_t *a_size);
 // Builds the block cache from the chain-state index (no cell-body reads). Blocks

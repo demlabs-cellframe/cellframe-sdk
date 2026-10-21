@@ -3618,6 +3618,10 @@ static bool s_snapshot_wallet_section_enabled(void)
     return dap_chain_wallet_cache_mode_all();
 }
 
+// Defined together with the save code: whether a wallet section of the given size
+// can describe the ledger's whole unspent set.
+static bool s_snapshot_wallet_section_plausible(dap_ledger_t *a_ledger, uint64_t a_section_records);
+
 /* *** Snapshot section "ledger_state" (v3, full ledger snapshot) ***
  *
  * The transaction cache and the balances are restored by the core snapshot
@@ -4966,11 +4970,20 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
                                                        (dap_time_t)l_rec->ts_unlock, l_ticker, l_value);
                 ++l_restored_wallet;
             }
-            if (l_restored_wallet == l_header.n_wallet_outs) {
+            if (l_restored_wallet == l_header.n_wallet_outs
+                    && s_snapshot_wallet_section_plausible(a_ledger, l_header.n_wallet_outs)) {
                 dap_chain_wallet_cache_bulk_done_mark(a_ledger->net->pub.id);
                 log_it(L_NOTICE, "Ledger snapshot: wallet cache restored (%"DAP_UINT64_FORMAT_U
                        " unspent outputs, %" DAP_UINT64_FORMAT_U " ms), bulk pass is not needed",
                        l_restored_wallet, (uint64_t)(dap_nanotime_now() - l_t_bal) / 1000000);
+            } else if (l_restored_wallet == l_header.n_wallet_outs) {
+                // The section was written by a build that dumped it from datum-less
+                // ledger items: it says "complete" but covers almost nothing. Leave
+                // the marker unset so the regular wallet bulk pass rebuilds the
+                // index from the datums.
+                log_it(L_WARNING, "Ledger snapshot: wallet section carries only %"DAP_UINT64_FORMAT_U
+                       " record(s) for this ledger - the wallet bulk pass will rebuild the index",
+                       l_header.n_wallet_outs);
             } else
                 log_it(L_WARNING, "Ledger snapshot: wallet section restored %"DAP_UINT64_FORMAT_U
                        " of %"DAP_UINT64_FORMAT_U" records - the wallet bulk pass will re-run", l_restored_wallet, l_header.n_wallet_outs);
@@ -5987,18 +6000,6 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_datum_by_hash(dap_ledger_t *a_ledger, c
         }
     }
     return l_tx_ret;
-}
-
-dap_ledger_tx_item_t *dap_ledger_tx_item_find(dap_ledger_t *a_ledger, const dap_hash_fast_t *a_tx_hash)
-{
-    if (!a_ledger || !a_tx_hash)
-        return NULL;
-    dap_ledger_tx_item_t *l_item = NULL;
-    dap_ledger_private_t *l_pvt = PVT(a_ledger);
-    pthread_rwlock_rdlock(&l_pvt->ledger_rwlock);
-    HASH_FIND(hh, l_pvt->ledger_items, a_tx_hash, sizeof(*a_tx_hash), l_item);
-    pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
-    return l_item;
 }
 
 bool dap_ledger_tx_is_known(dap_ledger_t *a_ledger, const dap_hash_fast_t *a_tx_hash)
@@ -8100,51 +8101,11 @@ FIN:
     return l_ret;
 }
 
-typedef struct s_wallet_rebuild_ctx {
-    dap_ledger_t *ledger;
-    dap_chain_net_id_t net_id;
-    size_t restored;
-    size_t missing;
-} s_wallet_rebuild_ctx_t;
-
-static void s_wallet_rebuild_out(void *a_arg, dap_ledger_tx_item_t *a_item,
-        const dap_chain_addr_t *a_addr, const uint256_t *a_value, const char *a_ticker,
-        uint16_t a_out_idx, uint8_t a_out_type, dap_time_t a_ts_unlock)
+// Whether the wallet section of a snapshot describes (about) the whole unspent
+// set the ledger holds. Only the ledger's own aggregates are consulted: no chain
+// is walked here, a full scan is the job of the scan path.
+static bool s_snapshot_wallet_section_plausible(dap_ledger_t *a_ledger, uint64_t a_section_records)
 {
-    s_wallet_rebuild_ctx_t *l_ctx = (s_wallet_rebuild_ctx_t *)a_arg;
-    dap_chain_wallet_cache_restore_unspent(l_ctx->net_id, a_addr, &a_item->tx_hash_fast, a_out_idx,
-                                           a_out_type, a_ts_unlock, a_ticker, *a_value);
-    ++l_ctx->restored;
-}
-
-// One datum of the main chain: feed its unspent outputs back into the wallet index.
-static void s_wallet_rebuild_datum(void *a_arg, const dap_hash_fast_t *a_datum_hash,
-        const dap_chain_datum_t *a_datum, const dap_hash_fast_t *a_block_hash, uint32_t a_datum_idx)
-{
-    (void)a_block_hash; (void)a_datum_idx;
-    s_wallet_rebuild_ctx_t *l_ctx = (s_wallet_rebuild_ctx_t *)a_arg;
-    if (a_datum->header.type_id != DAP_CHAIN_DATUM_TX)
-        return;
-    dap_ledger_tx_item_t *l_item = dap_ledger_tx_item_find(l_ctx->ledger, a_datum_hash);
-    if (!l_item) {
-        ++l_ctx->missing;
-        return;
-    }
-    // Walk the datum from the walker's buffer; the item only supplies the spend
-    // marks, ticker and hash. No lazy attach here: the repair must not pull every
-    // block body into the block cache.
-    s_ledger_tx_walk_unspent((dap_chain_datum_tx_t *)a_datum->data, l_item, s_wallet_rebuild_out, l_ctx);
-}
-
-// A snapshot written by a build that dumped the wallet section from datum-less
-// (lazily attached) ledger items carries almost no records while its marker told
-// the node the index is complete. Detect that and rebuild the index from the
-// chain: block bodies are streamed one at a time from the state index, so memory
-// stays flat and no datum is cached.
-static void s_wallet_index_verify(dap_ledger_t *a_ledger)
-{
-    if (!a_ledger || !a_ledger->net || !dap_chain_wallet_cache_mode_all())
-        return;
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     size_t l_ledger_unspent = 0;
     pthread_rwlock_rdlock(&l_pvt->ledger_rwlock);
@@ -8155,21 +8116,8 @@ static void s_wallet_index_verify(dap_ledger_t *a_ledger)
                 ++l_ledger_unspent;
     }
     pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
-    dap_chain_net_id_t l_net_id = a_ledger->net->pub.id;
-    size_t l_have = dap_chain_wallet_cache_unspent_count(l_net_id);
-    if (!l_ledger_unspent || l_have + l_have / 20 >= l_ledger_unspent)
-        return;
-    dap_chain_t *l_chain = s_snapshot_link_chain(a_ledger);
-    if (!l_chain)
-        return;
-    log_it(L_WARNING, "Wallet cache: %zu unspent output(s) indexed, the ledger has %zu - "
-           "rebuilding the index from the chain", l_have, l_ledger_unspent);
-    s_wallet_rebuild_ctx_t l_ctx = { .ledger = a_ledger, .net_id = l_net_id };
-    dap_chain_cs_blocks_foreach_datum(l_chain, s_wallet_rebuild_datum, &l_ctx);
-    log_it(L_NOTICE, "Wallet cache: rebuilt %zu unspent output(s) from the chain "
-           "(%zu datum(s) without a ledger item)", l_ctx.restored, l_ctx.missing);
-    if (l_ctx.restored)
-        dap_chain_wallet_cache_bulk_done_mark(l_net_id);
+    // Allow for outputs above the snapshot anchor and for in-flight spends.
+    return !l_ledger_unspent || a_section_records + a_section_records / 2 >= l_ledger_unspent;
 }
 
 void dap_ledger_load_end(dap_ledger_t *a_ledger)
@@ -8266,10 +8214,6 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
     // -12 and a full rescan, repeating after every scan).
     for (dap_chain_t *l_c = a_ledger->net ? a_ledger->net->pub.chains : NULL; l_c; l_c = l_c->next)
         dap_chain_cs_blocks_state_flush(l_c);
-    // Self-healing: a snapshot dumped after a no-scan start could carry an almost
-    // empty wallet section while its marker said the index was complete.
-    if (l_ledger_pvt->snapshot_full)
-        s_wallet_index_verify(a_ledger);
     if (l_phantoms)
         log_it(L_CRITICAL, "Ledger: dropped %zu cache-restored transaction(s) not found in any "
                "chain of this network (snapshot from a different branch?); consider "

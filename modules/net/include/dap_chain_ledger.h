@@ -428,9 +428,6 @@ dap_chain_datum_tx_t *dap_ledger_tx_find_datum_by_hash( dap_ledger_t *a_ledger, 
 // above cannot answer this.
 bool dap_ledger_tx_is_known(dap_ledger_t *a_ledger, const dap_hash_fast_t *a_tx_hash);
 
-// Raw ledger item lookup (no lazy datum attach). The pointer is valid while the
-// ledger is not purged, like the other find-by-hash helpers.
-struct dap_ledger_tx_item *dap_ledger_tx_item_find(dap_ledger_t *a_ledger, const dap_hash_fast_t *a_tx_hash);
 #define dap_ledger_tx_find_by_hash(a_ledger, a_tx_hash) \
     dap_ledger_tx_find_datum_by_hash(a_ledger, a_tx_hash, NULL, false)
 #define dap_ledger_tx_unspent_find_by_hash(a_ledger, a_tx_hash) \
