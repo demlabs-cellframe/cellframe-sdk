@@ -8123,6 +8123,13 @@ static bool s_snapshot_wallet_section_plausible(dap_ledger_t *a_ledger, uint64_t
 void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    // Idempotent: besides the net load path this is also called from the sync's
+    // deferred heavy-ops step. The second run must not repeat the destructive part:
+    // by then the snapshot-scan skip is consumed, so the phantom clean below would
+    // drop every datum-less restored item (472k of them on Backbone, 2026-10-21).
+    if (l_ledger_pvt->load_end)
+        return;
+    l_ledger_pvt->load_end = true;
     // Deferred snapshot sections: the chain data they may consult is attached now.
     s_pending_sections_apply(a_ledger);
     // No-scan startup: the chain-state datum index is empty because the cell walk
