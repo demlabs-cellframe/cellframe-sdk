@@ -118,6 +118,18 @@ bool dap_chain_wallet_cache_is_warm(dap_chain_net_id_t a_net_id, char *a_reason,
 // pending queue that used to keep the node in "warming up" for a long time.
 bool dap_chain_wallet_cache_index_restored(dap_chain_net_id_t a_net_id);
 
+// Walks the unspent index of one network. Used by the ledger snapshot to persist
+// the wallet section after a no-scan start, where the ledger items carry no
+// datums (and therefore no output details) until they are attached lazily.
+typedef void (*dap_chain_wallet_cache_unspent_cb_t)(void *a_arg, const dap_chain_addr_t *a_addr,
+        const dap_chain_hash_fast_t *a_tx_hash, uint16_t a_out_idx, uint8_t a_out_type,
+        dap_time_t a_ts_unlock, const char *a_ticker, const uint256_t *a_value);
+size_t dap_chain_wallet_cache_foreach_unspent(dap_chain_net_id_t a_net_id,
+        dap_chain_wallet_cache_unspent_cb_t a_cb, void *a_arg);
+
+// Number of unspent outputs indexed for one network.
+size_t dap_chain_wallet_cache_unspent_count(dap_chain_net_id_t a_net_id);
+
 // Records one transaction in the per-address history of a_addr (if it touches
 // that address). Used by the address-history read path to fill wallet_txs on
 // its first (cache-missing) walk, so repeats and the next snapshot start are

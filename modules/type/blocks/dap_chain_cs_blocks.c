@@ -2714,6 +2714,67 @@ int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast
     return -2;
 }
 
+typedef struct s_blocks_foreach_ctx {
+    FILE *file;
+    dap_chain_cs_blocks_datum_cb_t cb;
+    void *arg;
+    uint64_t walked;
+    uint64_t failed;
+} s_blocks_foreach_ctx_t;
+
+static bool s_blocks_foreach_rec_cb(void *a_arg, const dap_chain_state_rec_t *a_rec)
+{
+    s_blocks_foreach_ctx_t *l_ctx = (s_blocks_foreach_ctx_t *)a_arg;
+    if (!a_rec->size || !a_rec->offset)
+        return true;
+    uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, a_rec->size);
+    if (!l_buf) {
+        ++l_ctx->failed;
+        return false;
+    }
+    bool l_ok = !fseeko(l_ctx->file, (off_t)a_rec->offset, SEEK_SET)
+            && fread(l_buf, 1, a_rec->size, l_ctx->file) == a_rec->size;
+    if (!l_ok) {
+        ++l_ctx->failed;
+        DAP_DELETE(l_buf);
+        return false;
+    }
+    size_t l_count = 0;
+    dap_chain_datum_t **l_datums = dap_chain_block_get_datums((dap_chain_block_t *)l_buf,
+                                                              a_rec->size, &l_count);
+    if (l_datums) {
+        for (size_t i = 0; i < l_count; ++i) {
+            dap_hash_fast_t l_hash = {};
+            dap_chain_datum_calc_hash(l_datums[i], &l_hash);
+            l_ctx->cb(l_ctx->arg, &l_hash, l_datums[i], &a_rec->hash, (uint32_t)i);
+            ++l_ctx->walked;
+        }
+        DAP_DELETE(l_datums);
+    }
+    DAP_DELETE(l_buf);
+    return true;
+}
+
+int dap_chain_cs_blocks_foreach_datum(dap_chain_t *a_chain, dap_chain_cs_blocks_datum_cb_t a_cb, void *a_arg)
+{
+    if (!a_chain || !a_cb || !s_is_blocks_chain(a_chain))
+        return -1;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
+    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
+    if (!l_state || !l_cell)
+        return -2;
+    s_blocks_foreach_ctx_t l_ctx = { .cb = a_cb, .arg = a_arg };
+    l_ctx.file = fopen(l_cell->file_storage_path, "rb");
+    if (!l_ctx.file)
+        return -3;
+    int l_rc = dap_chain_state_for_each_record(l_state, s_blocks_foreach_rec_cb, &l_ctx);
+    fclose(l_ctx.file);
+    log_it(L_NOTICE, "Chain state: walked %" DAP_UINT64_FORMAT_U " datum(s) from the block index "
+           "(%" DAP_UINT64_FORMAT_U " block(s) unreadable)", l_ctx.walked, l_ctx.failed);
+    return (l_rc == -4 && !l_ctx.failed) ? (int)l_ctx.walked : -4;
+}
+
 int dap_chain_cs_blocks_datum_location(dap_chain_t *a_chain, const dap_hash_fast_t *a_hash,
                                        dap_chain_hash_fast_t *a_atom_hash, uint32_t *a_datum_idx)
 {

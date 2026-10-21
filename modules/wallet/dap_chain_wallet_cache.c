@@ -226,6 +226,42 @@ void dap_chain_wallet_cache_restore_unspent(dap_chain_net_id_t a_net_id, const d
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
 }
 
+size_t dap_chain_wallet_cache_foreach_unspent(dap_chain_net_id_t a_net_id,
+        dap_chain_wallet_cache_unspent_cb_t a_cb, void *a_arg)
+{
+    if (s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL || !a_cb)
+        return 0;
+    size_t l_n = 0;
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
+    for (dap_wallet_cache_t *l_w = s_wallets_cache; l_w; l_w = l_w->hh.next) {
+        if (l_w->wallet_addr.net_id.uint64 != a_net_id.uint64)
+            continue;
+        for (dap_wallet_cache_unspent_outs_t *l_u = l_w->unspent_outputs; l_u; l_u = l_u->hh.next) {
+            a_cb(a_arg, &l_w->wallet_addr, &l_u->key.tx_hash, l_u->key.out_idx,
+                 (uint8_t)l_u->out_type, l_u->ts_unlock, l_u->token_ticker, &l_u->value);
+            ++l_n;
+        }
+    }
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    return l_n;
+}
+
+size_t dap_chain_wallet_cache_unspent_count(dap_chain_net_id_t a_net_id)
+{
+    if (s_wallets_cache_type != DAP_WALLET_CACHE_TYPE_ALL)
+        return 0;
+    size_t l_n = 0;
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
+    for (dap_wallet_cache_t *l_w = s_wallets_cache; l_w; l_w = l_w->hh.next) {
+        if (l_w->wallet_addr.net_id.uint64 != a_net_id.uint64)
+            continue;
+        for (dap_wallet_cache_unspent_outs_t *l_u = l_w->unspent_outputs; l_u; l_u = l_u->hh.next)
+            ++l_n;
+    }
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    return l_n;
+}
+
 void dap_chain_wallet_cache_bulk_done_mark(dap_chain_net_id_t a_net_id)
 {
     // The list is read under the cache lock elsewhere: mutate it under the same

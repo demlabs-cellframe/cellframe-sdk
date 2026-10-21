@@ -4240,6 +4240,130 @@ bool dap_ledger_snapshot_full_apply_enabled(dap_ledger_t *a_ledger)
     return a_ledger && PVT(a_ledger)->snapshot_full && PVT(a_ledger)->snapshot_full_apply;
 }
 
+typedef struct s_snapshot_wallet_ctx {
+    s_snapshot_buf_t *buf;
+    uint64_t *count;
+    bool failed;
+} s_snapshot_wallet_ctx_t;
+
+// One unspent output of a ledger transaction.
+typedef void (*s_ledger_out_cb_t)(void *a_arg, dap_ledger_tx_item_t *a_item,
+        const dap_chain_addr_t *a_addr, const uint256_t *a_value, const char *a_ticker,
+        uint16_t a_out_idx, uint8_t a_out_type, dap_time_t a_ts_unlock);
+
+// Walks the unspent outputs of one transaction. The tx is passed separately: the
+// spend marks live in the item's flexible array, and the datum may come from a
+// temporary buffer (the repair walk) rather than from the item.
+static void s_ledger_tx_walk_unspent(dap_chain_datum_tx_t *a_tx, dap_ledger_tx_item_t *a_item,
+                                     s_ledger_out_cb_t a_cb, void *a_arg)
+{
+    if (!a_tx || !a_item || !a_cb)
+        return;
+    uint8_t *l_it = NULL; size_t l_it_size = 0;
+    uint16_t l_out_idx = 0;
+    TX_ITEM_ITER_TX(l_it, l_it_size, a_tx) {
+        dap_chain_addr_t *l_out_addr = NULL;
+        uint256_t l_out_value = uint256_0;
+        const char *l_out_ticker = NULL;
+        dap_time_t l_out_ts_unlock = 0;
+        uint8_t l_out_type = *l_it;
+        switch (l_out_type) {
+        case TX_ITEM_TYPE_OUT: {
+            dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_it;
+            l_out_addr = &l_out->addr; l_out_value = l_out->header.value;
+            l_out_ticker = a_item->cache_data.token_ticker;
+            break;
+        }
+        case TX_ITEM_TYPE_OUT_OLD: {
+            dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t *)l_it;
+            l_out_addr = &l_out->addr; l_out_value = GET_256_FROM_64(l_out->header.value);
+            l_out_ticker = a_item->cache_data.token_ticker;
+            break;
+        }
+        case TX_ITEM_TYPE_OUT_EXT: {
+            dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_it;
+            l_out_addr = &l_out->addr; l_out_value = l_out->header.value;
+            l_out_ticker = l_out->token;
+            break;
+        }
+        case TX_ITEM_TYPE_OUT_STD: {
+            dap_chain_tx_out_std_t *l_out = (dap_chain_tx_out_std_t *)l_it;
+            l_out_addr = &l_out->addr; l_out_value = l_out->value;
+            l_out_ts_unlock = l_out->ts_unlock; l_out_ticker = l_out->token;
+            break;
+        }
+        case TX_ITEM_TYPE_OUT_COND:
+            // OUT_COND belongs to the ledger's OUT_ALL index domain (n_outs and
+            // the spent marks are indexed over it) but is not a wallet-cache output.
+            ++l_out_idx;
+            continue;
+        default:
+            continue; // not an output
+        }
+        ++l_out_idx;
+        if (l_out_idx > a_item->cache_data.n_outs)
+            break;
+        if (!dap_hash_fast_is_blank(&a_item->cache_data.tx_hash_spent_fast[l_out_idx - 1]))
+            continue; // spent output
+        a_cb(a_arg, a_item, l_out_addr, &l_out_value, l_out_ticker, (uint16_t)(l_out_idx - 1),
+             l_out_type, l_out_ts_unlock);
+    }
+}
+
+// Wallet section record produced from a ledger transaction (dump path).
+static void s_snapshot_wallet_out_put(void *a_arg, dap_ledger_tx_item_t *a_item,
+        const dap_chain_addr_t *a_addr, const uint256_t *a_value, const char *a_ticker,
+        uint16_t a_out_idx, uint8_t a_out_type, dap_time_t a_ts_unlock)
+{
+    s_snapshot_wallet_ctx_t *l_ctx = (s_snapshot_wallet_ctx_t *)a_arg;
+    if (l_ctx->failed)
+        return;
+    size_t l_ticker_len = a_ticker ? strnlen(a_ticker, DAP_CHAIN_TICKER_SIZE_MAX) : 0;
+    dap_ledger_snapshot_wallet_record_t l_rec = {
+        .addr_size = (uint16_t)sizeof(dap_chain_addr_t),
+        .out_idx = a_out_idx,
+        .out_type = a_out_type,
+        .ticker_len = (uint16_t)l_ticker_len,
+        .ts_unlock = (uint64_t)a_ts_unlock,
+    };
+    if (s_snapshot_buf_put(l_ctx->buf, &l_rec, sizeof(l_rec))
+            || s_snapshot_buf_put(l_ctx->buf, a_addr, sizeof(*a_addr))
+            || s_snapshot_buf_put(l_ctx->buf, a_ticker, l_ticker_len)
+            || s_snapshot_buf_put(l_ctx->buf, a_value, sizeof(*a_value))
+            || s_snapshot_buf_put(l_ctx->buf, &a_item->tx_hash_fast, sizeof(a_item->tx_hash_fast))) {
+        l_ctx->failed = true;
+        return;
+    }
+    ++*l_ctx->count;
+}
+
+// Wallet section record from the wallet cache (no-scan snapshot save).
+static void s_snapshot_wallet_record_put(void *a_arg, const dap_chain_addr_t *a_addr,
+        const dap_chain_hash_fast_t *a_tx_hash, uint16_t a_out_idx, uint8_t a_out_type,
+        dap_time_t a_ts_unlock, const char *a_ticker, const uint256_t *a_value)
+{
+    s_snapshot_wallet_ctx_t *l_ctx = (s_snapshot_wallet_ctx_t *)a_arg;
+    if (l_ctx->failed)
+        return;
+    size_t l_ticker_len = a_ticker ? strnlen(a_ticker, DAP_CHAIN_TICKER_SIZE_MAX) : 0;
+    dap_ledger_snapshot_wallet_record_t l_rec = {
+        .addr_size = (uint16_t)sizeof(dap_chain_addr_t),
+        .out_idx = a_out_idx,
+        .out_type = a_out_type,
+        .ticker_len = (uint16_t)l_ticker_len,
+        .ts_unlock = (uint64_t)a_ts_unlock,
+    };
+    if (s_snapshot_buf_put(l_ctx->buf, &l_rec, sizeof(l_rec))
+            || s_snapshot_buf_put(l_ctx->buf, a_addr, sizeof(*a_addr))
+            || s_snapshot_buf_put(l_ctx->buf, a_ticker, l_ticker_len)
+            || s_snapshot_buf_put(l_ctx->buf, a_value, sizeof(*a_value))
+            || s_snapshot_buf_put(l_ctx->buf, a_tx_hash, sizeof(*a_tx_hash))) {
+        l_ctx->failed = true;
+        return;
+    }
+    ++*l_ctx->count;
+}
+
 int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
 {
     dap_return_val_if_fail(a_ledger && PVT(a_ledger)->snapshot_mode, -1);
@@ -4385,81 +4509,28 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     // wallet cache is warm right after a snapshot restore without re-walking
     // the whole chain. Saved only in wallets_cache=all mode (the only mode
     // that keeps a per-address unspent index).
-    if (!l_ret && l_ledger_pvt->snapshot_mode && s_snapshot_wallet_section_enabled()) {
+    if (!l_ret && l_ledger_pvt->snapshot_mode && s_snapshot_wallet_section_enabled()
+            && dap_chain_wallet_cache_index_restored(a_ledger->net->pub.id)) {
+        // No-scan start: the ledger items carry no datums (they are attached
+        // lazily), so their outputs cannot be walked. The restored wallet index
+        // holds exactly that unspent set - dump it directly.
+        s_snapshot_wallet_ctx_t l_wctx = { .buf = &l_buf, .count = &l_n_wallet_outs };
+        dap_chain_wallet_cache_foreach_unspent(a_ledger->net->pub.id,
+                                               s_snapshot_wallet_record_put, &l_wctx);
+        if (l_wctx.failed)
+            l_ret = -2;
+    } else if (!l_ret && l_ledger_pvt->snapshot_mode && s_snapshot_wallet_section_enabled()) {
         pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+        s_snapshot_wallet_ctx_t l_wctx = { .buf = &l_buf, .count = &l_n_wallet_outs };
         dap_ledger_tx_item_t *l_witem = NULL, *l_wtmp = NULL;
         HASH_ITER (hh, l_ledger_pvt->ledger_items, l_witem, l_wtmp) {
             if (!l_witem->tx) // datum-less restored item: datums are absent until the scan
                 continue;
-            uint8_t *l_it = NULL; size_t l_it_size = 0;
-            uint16_t l_out_idx = 0;
-            TX_ITEM_ITER_TX(l_it, l_it_size, l_witem->tx) {
-                dap_chain_addr_t *l_out_addr = NULL;
-                uint256_t l_out_value = uint256_0;
-                const char *l_out_ticker = NULL;
-                dap_time_t l_out_ts_unlock = 0;
-                uint8_t l_out_type = *l_it;
-                switch (l_out_type) {
-                case TX_ITEM_TYPE_OUT: {
-                    dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_it;
-                    l_out_addr = &l_out->addr; l_out_value = l_out->header.value;
-                    l_out_ticker = l_witem->cache_data.token_ticker;
-                    break;
-                }
-                case TX_ITEM_TYPE_OUT_OLD: {
-                    dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t *)l_it;
-                    l_out_addr = &l_out->addr; l_out_value = GET_256_FROM_64(l_out->header.value);
-                    l_out_ticker = l_witem->cache_data.token_ticker;
-                    break;
-                }
-                case TX_ITEM_TYPE_OUT_EXT: {
-                    dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_it;
-                    l_out_addr = &l_out->addr; l_out_value = l_out->header.value;
-                    l_out_ticker = l_out->token;
-                    break;
-                }
-                case TX_ITEM_TYPE_OUT_STD: {
-                    dap_chain_tx_out_std_t *l_out = (dap_chain_tx_out_std_t *)l_it;
-                    l_out_addr = &l_out->addr; l_out_value = l_out->value;
-                    l_out_ts_unlock = l_out->ts_unlock; l_out_ticker = l_out->token;
-                    break;
-                }
-                case TX_ITEM_TYPE_OUT_COND:
-                    // OUT_COND belongs to the ledger's OUT_ALL index domain (the
-                    // n_outs count and the spent marks are indexed over it, and
-                    // the wallet-cache pass advances its out_idx over it too), so
-                    // it must advance l_out_idx here - but the wallet cache does
-                    // not index the conditional outputs themselves.
-                    ++l_out_idx;
-                    continue;
-                default:
-                    continue; // not an output
-                }
-                ++l_out_idx;
-                if (l_out_idx > l_witem->cache_data.n_outs)
-                    break;
-                if (!dap_hash_fast_is_blank(&l_witem->cache_data.tx_hash_spent_fast[l_out_idx - 1]))
-                    continue; // spent output - not part of the wallet cache
-                size_t l_ticker_len = strnlen(l_out_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
-                dap_ledger_snapshot_wallet_record_t l_rec = {
-                    .addr_size = (uint16_t)sizeof(dap_chain_addr_t),
-                    .out_idx = (uint16_t)(l_out_idx - 1),
-                    .out_type = l_out_type,
-                    .ticker_len = (uint16_t)l_ticker_len,
-                };
-                bool l_fail = s_snapshot_buf_put(&l_buf, &l_rec, sizeof(l_rec))
-                        || s_snapshot_buf_put(&l_buf, l_out_addr, sizeof(*l_out_addr))
-                        || s_snapshot_buf_put(&l_buf, l_out_ticker, l_ticker_len)
-                        || s_snapshot_buf_put(&l_buf, &l_out_value, sizeof(l_out_value))
-                        || s_snapshot_buf_put(&l_buf, &l_witem->tx_hash_fast, sizeof(l_witem->tx_hash_fast));
-                if (l_fail) {
-                    l_ret = -2;
-                    break;
-                }
-                ++l_n_wallet_outs;
-            }
-            if (l_ret)
+            s_ledger_tx_walk_unspent(l_witem->tx, l_witem, s_snapshot_wallet_out_put, &l_wctx);
+            if (l_wctx.failed) {
+                l_ret = -2;
                 break;
+            }
         }
         pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     }
@@ -5916,6 +5987,18 @@ dap_chain_datum_tx_t* dap_ledger_tx_find_datum_by_hash(dap_ledger_t *a_ledger, c
         }
     }
     return l_tx_ret;
+}
+
+dap_ledger_tx_item_t *dap_ledger_tx_item_find(dap_ledger_t *a_ledger, const dap_hash_fast_t *a_tx_hash)
+{
+    if (!a_ledger || !a_tx_hash)
+        return NULL;
+    dap_ledger_tx_item_t *l_item = NULL;
+    dap_ledger_private_t *l_pvt = PVT(a_ledger);
+    pthread_rwlock_rdlock(&l_pvt->ledger_rwlock);
+    HASH_FIND(hh, l_pvt->ledger_items, a_tx_hash, sizeof(*a_tx_hash), l_item);
+    pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
+    return l_item;
 }
 
 bool dap_ledger_tx_is_known(dap_ledger_t *a_ledger, const dap_hash_fast_t *a_tx_hash)
@@ -8017,6 +8100,78 @@ FIN:
     return l_ret;
 }
 
+typedef struct s_wallet_rebuild_ctx {
+    dap_ledger_t *ledger;
+    dap_chain_net_id_t net_id;
+    size_t restored;
+    size_t missing;
+} s_wallet_rebuild_ctx_t;
+
+static void s_wallet_rebuild_out(void *a_arg, dap_ledger_tx_item_t *a_item,
+        const dap_chain_addr_t *a_addr, const uint256_t *a_value, const char *a_ticker,
+        uint16_t a_out_idx, uint8_t a_out_type, dap_time_t a_ts_unlock)
+{
+    s_wallet_rebuild_ctx_t *l_ctx = (s_wallet_rebuild_ctx_t *)a_arg;
+    dap_chain_wallet_cache_restore_unspent(l_ctx->net_id, a_addr, &a_item->tx_hash_fast, a_out_idx,
+                                           a_out_type, a_ts_unlock, a_ticker, *a_value);
+    ++l_ctx->restored;
+}
+
+// One datum of the main chain: feed its unspent outputs back into the wallet index.
+static void s_wallet_rebuild_datum(void *a_arg, const dap_hash_fast_t *a_datum_hash,
+        const dap_chain_datum_t *a_datum, const dap_hash_fast_t *a_block_hash, uint32_t a_datum_idx)
+{
+    (void)a_block_hash; (void)a_datum_idx;
+    s_wallet_rebuild_ctx_t *l_ctx = (s_wallet_rebuild_ctx_t *)a_arg;
+    if (a_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+        return;
+    dap_ledger_tx_item_t *l_item = dap_ledger_tx_item_find(l_ctx->ledger, a_datum_hash);
+    if (!l_item) {
+        ++l_ctx->missing;
+        return;
+    }
+    // Walk the datum from the walker's buffer; the item only supplies the spend
+    // marks, ticker and hash. No lazy attach here: the repair must not pull every
+    // block body into the block cache.
+    s_ledger_tx_walk_unspent((dap_chain_datum_tx_t *)a_datum->data, l_item, s_wallet_rebuild_out, l_ctx);
+}
+
+// A snapshot written by a build that dumped the wallet section from datum-less
+// (lazily attached) ledger items carries almost no records while its marker told
+// the node the index is complete. Detect that and rebuild the index from the
+// chain: block bodies are streamed one at a time from the state index, so memory
+// stays flat and no datum is cached.
+static void s_wallet_index_verify(dap_ledger_t *a_ledger)
+{
+    if (!a_ledger || !a_ledger->net || !dap_chain_wallet_cache_mode_all())
+        return;
+    dap_ledger_private_t *l_pvt = PVT(a_ledger);
+    size_t l_ledger_unspent = 0;
+    pthread_rwlock_rdlock(&l_pvt->ledger_rwlock);
+    dap_ledger_tx_item_t *l_it = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, l_pvt->ledger_items, l_it, l_tmp) {
+        for (size_t i = 0; i < l_it->cache_data.n_outs; ++i)
+            if (dap_hash_fast_is_blank(&l_it->cache_data.tx_hash_spent_fast[i]))
+                ++l_ledger_unspent;
+    }
+    pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
+    dap_chain_net_id_t l_net_id = a_ledger->net->pub.id;
+    size_t l_have = dap_chain_wallet_cache_unspent_count(l_net_id);
+    if (!l_ledger_unspent || l_have + l_have / 20 >= l_ledger_unspent)
+        return;
+    dap_chain_t *l_chain = s_snapshot_link_chain(a_ledger);
+    if (!l_chain)
+        return;
+    log_it(L_WARNING, "Wallet cache: %zu unspent output(s) indexed, the ledger has %zu - "
+           "rebuilding the index from the chain", l_have, l_ledger_unspent);
+    s_wallet_rebuild_ctx_t l_ctx = { .ledger = a_ledger, .net_id = l_net_id };
+    dap_chain_cs_blocks_foreach_datum(l_chain, s_wallet_rebuild_datum, &l_ctx);
+    log_it(L_NOTICE, "Wallet cache: rebuilt %zu unspent output(s) from the chain "
+           "(%zu datum(s) without a ledger item)", l_ctx.restored, l_ctx.missing);
+    if (l_ctx.restored)
+        dap_chain_wallet_cache_bulk_done_mark(l_net_id);
+}
+
 void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -8111,6 +8266,10 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
     // -12 and a full rescan, repeating after every scan).
     for (dap_chain_t *l_c = a_ledger->net ? a_ledger->net->pub.chains : NULL; l_c; l_c = l_c->next)
         dap_chain_cs_blocks_state_flush(l_c);
+    // Self-healing: a snapshot dumped after a no-scan start could carry an almost
+    // empty wallet section while its marker said the index was complete.
+    if (l_ledger_pvt->snapshot_full)
+        s_wallet_index_verify(a_ledger);
     if (l_phantoms)
         log_it(L_CRITICAL, "Ledger: dropped %zu cache-restored transaction(s) not found in any "
                "chain of this network (snapshot from a different branch?); consider "
