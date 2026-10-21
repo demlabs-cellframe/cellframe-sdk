@@ -219,8 +219,11 @@ static _Thread_local bool s_dag_restore_skip_apply;
 
 
 // Index position per DAG chain as stored in the ledger snapshot ("dag_state"
-// section, applied early - before the chain loader runs).
+// section, applied early - before the chain loader runs). Several networks load
+// one after another in the same process, so each entry carries its network id:
+// a per-net load must not clobber the other network's watermarks.
 typedef struct s_dag_watermark {
+    uint64_t net_id;
     uint64_t chain_id;
     uint64_t records;
 } s_dag_watermark_t;
@@ -230,13 +233,14 @@ typedef struct DAP_PACKED s_dag_wm_hdr {
     uint32_t n;
     uint32_t rsv;
 } s_dag_wm_hdr_t;
-static s_dag_watermark_t s_dag_watermarks[8];
+#define S_DAG_WATERMARKS_MAX 16
+static s_dag_watermark_t s_dag_watermarks[S_DAG_WATERMARKS_MAX];
 static size_t s_dag_watermarks_count;
 
-static uint64_t s_dag_watermark_get(uint64_t a_chain_id)
+static uint64_t s_dag_watermark_get(uint64_t a_net_id, uint64_t a_chain_id)
 {
     for (size_t i = 0; i < s_dag_watermarks_count; ++i)
-        if (s_dag_watermarks[i].chain_id == a_chain_id)
+        if (s_dag_watermarks[i].net_id == a_net_id && s_dag_watermarks[i].chain_id == a_chain_id)
             return s_dag_watermarks[i].records;
     return 0;
 }
@@ -257,7 +261,7 @@ static int s_dag_snapshot_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_o
         dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(l_c);
         if (!l_dag || !l_dag->_pvt || l_c->callback_atom_add != s_chain_callback_atom_add)
             continue;
-        s_dag_watermark_t l_wm = { .chain_id = l_c->id.uint64,
+        s_dag_watermark_t l_wm = { .net_id = a_net_id, .chain_id = l_c->id.uint64,
                 .records = s_dag_index_records_get(l_c) };
         if (!dap_string_append_len(a_out, (const char *)&l_wm, sizeof(l_wm)))
             return -2;
@@ -281,9 +285,11 @@ static int s_dag_snapshot_load(void *a_ctx, const uint8_t *a_data, size_t a_size
     size_t l_need = sizeof(l_hdr) + l_hdr.n * sizeof(s_dag_watermark_t);
     if (a_size < l_need)
         return -2;
-    s_dag_watermarks_count = 0;
+    // Append, do not reset: the networks' snapshots are read one after another and
+    // both sets of watermarks must survive until the chains load.
     const uint8_t *l_ptr = a_data + sizeof(l_hdr);
-    for (uint32_t i = 0; i < l_hdr.n && s_dag_watermarks_count < 8; ++i, l_ptr += sizeof(s_dag_watermark_t))
+    for (uint32_t i = 0; i < l_hdr.n && s_dag_watermarks_count < S_DAG_WATERMARKS_MAX;
+            ++i, l_ptr += sizeof(s_dag_watermark_t))
         memcpy(&s_dag_watermarks[s_dag_watermarks_count++], l_ptr, sizeof(s_dag_watermark_t));
     log_it(L_INFO, "DAG snapshot: %u index watermark(s) for net 0x%016" DAP_UINT64_FORMAT_x " loaded",
            l_hdr.n, l_hdr.net_id);
@@ -987,7 +993,7 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
     s_dag_restore_mode = true;
     // Records the ledger snapshot already covers: their ledger application is
     // skipped, the event/datum tables are still rebuilt.
-    uint64_t l_watermark = s_dag_watermark_get(a_chain->id.uint64);
+    uint64_t l_watermark = s_dag_watermark_get(a_chain->net_id.uint64, a_chain->id.uint64);
     if (l_watermark > l_count)
         l_watermark = l_count;
     log_it(L_INFO, "DAG index: replaying %" DAP_UINT64_FORMAT_U " record(s), %" DAP_UINT64_FORMAT_U
