@@ -8198,13 +8198,26 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
             // 6.7, service registries carried OUTSIDE ledger_state: the delegated-stake
             // registry learns about delegations only from the verificator callbacks of
             // the add path, which a snapshot-based start suppresses (its own section may
-            // be from an older save). Replay the conditional-service notifications for
-            // every restored transaction IN BLOCK ORDER: the callbacks are idempotent
-            // (a delegation is looked up before insert/update), so the final registry
-            // state equals the live-apply one. Datum-less items whose datum is not
-            // available yet stay phantom (the network catch-up attaches them).
+            // be from an older save). Replay exactly the transactions the ledger tagged
+            // as belonging to that service, IN BLOCK ORDER (the callbacks are idempotent,
+            // so the final registry state equals the live-apply one).
+            //
+            // The filter is the ledger's own service tag (cache_data.tag), which the
+            // add path fills from s_tag_check_key_delegation - no block is read for a
+            // transaction that has nothing to do with delegations, so this pass touches
+            // a few thousand datums instead of the whole chain.
             size_t l_restored = 0, l_attached = 0;
             for (size_t i = 0; i < l_n; ++i) {
+                dap_ledger_tx_item_t *l_ritem = NULL;
+                pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+                HASH_FIND(hh, l_ledger_pvt->ledger_items, &l_links[i].tx_hash,
+                          sizeof(l_links[i].tx_hash), l_ritem);
+                bool l_need = l_ritem && !l_ritem->tx
+                        && l_ritem->cache_data.tag.uint64 == DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID;
+                pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+                if (!l_need)
+                    continue;
+                ++l_restored;
                 dap_chain_datum_t *l_datum = NULL;
                 size_t l_datum_size = 0;
                 if (dap_chain_cs_blocks_datum_at(l_chain, &l_links[i].atom_hash,
@@ -8212,7 +8225,6 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
                         || !l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX
                         || l_datum_size <= sizeof(dap_chain_datum_t))
                     continue;
-                ++l_restored;
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
                 // Attach the datum to the ledger item (no-op when another thread
                 // did it): tx_load stores its own reference and skips the (suppressed)
