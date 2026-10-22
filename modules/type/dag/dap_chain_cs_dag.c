@@ -1107,6 +1107,13 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
     pthread_mutex_unlock(&s_dag_index_mutex);
     *a_resume_offset = l_resume;
     s_dag_index_records_store(a_chain, l_count);
+    // The chain's atom position must reflect the restored content: without it the
+    // net sync FSM sees "0 known atoms", requests the chain from scratch and the
+    // peer answers MISS for every atom the index already covers - the node then
+    // spins on "reached MISS count limit, will sync from zero" forever (live on
+    // 0-rpc: 2026-10-22). The blocks layer does the same in its own restore.
+    if (a_chain->atom_num_last < l_restored)
+        a_chain->atom_num_last = l_restored;
     log_it(L_NOTICE, "DAG index: restored %" DAP_UINT64_FORMAT_U " of %" DAP_UINT64_FORMAT_U
            " events, resuming the cell at %" DAP_UINT64_FORMAT_U " (add %" DAP_UINT64_FORMAT_U
            " ms, of it datum %" DAP_UINT64_FORMAT_U " ms for %" DAP_UINT64_FORMAT_U " snapshot-covered,"
