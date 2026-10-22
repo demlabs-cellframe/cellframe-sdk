@@ -3461,6 +3461,11 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_
     dap_chain_block_cache_t *l_block_cache = NULL;
     pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
     HASH_FIND_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, &a_atom_num, sizeof(a_atom_num), a_atom_num, l_block_cache);
+    // The lock covers the hash lookup only: parsing a thin entry reads the cell
+    // file and must not run under the blocks rwlock. The single unlock here is
+    // the only one - a leftover unconditional unlock used to decrement the
+    // reader count twice per call, driving __readers negative and leaving the
+    // rwlock stuck in the write phase, which hung every later atom_add.
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     if (l_block_cache && !l_block_cache->parsed)
         dap_chain_block_cache_ensure(l_block_cache);   // thin index-restored entry
@@ -3473,7 +3478,6 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_
     } else
         *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
                                                  .cell_id = a_atom_iter->cell_id };
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return a_atom_iter->cur;
 }
 
