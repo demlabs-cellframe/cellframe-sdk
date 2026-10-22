@@ -443,12 +443,22 @@ static bool s_net_rpc_ready(char *a_reason, size_t a_reason_size)
  * register net* commands in cellframe-node-cli interface
  * @return
  */
+// Token datum registry section (see the dump/load pair below): declared here because
+// the section is registered from dap_chain_net_init(), far above the definition.
+#define DAP_NET_TOKEN_DATUM_REG_SECTION "token_registry"
+static int s_token_datum_reg_snapshot_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
+static int s_token_datum_reg_snapshot_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
+
 int dap_chain_net_init()
 {
     dap_ledger_init();
     dap_rpc_cache_init();
     dap_chain_ch_init();
     dap_chain_net_anchor_init();
+    // The token datum registry is a load-built index with no other persistence;
+    // as a state it is carried by its own snapshot section.
+    dap_ledger_add_snapshot_section(DAP_NET_TOKEN_DATUM_REG_SECTION, 0,
+            s_token_datum_reg_snapshot_dump, s_token_datum_reg_snapshot_load, NULL);
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_net_srv_voting_init();
@@ -3287,6 +3297,102 @@ static int s_token_datum_info_cmp(const void *a, const void *b)
 // Copy every token datum of a_chain (optionally only for a ticker) into a
 // freshly allocated array, ordered by creation time like the datum iterator
 // used to yield them. Caller frees *a_out with DAP_DELETE.
+// The token datum registry (which datums declare/update tokens, for `token list`)
+// is built by the datum walk and had no persistence: a snapshot-based start came up
+// with an empty registry and the token listing silently lost its declarations.
+// Per the state-not-replay rule it is stored as a section and loaded verbatim.
+static int s_token_datum_reg_snapshot_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_net)
+        return 0;
+    uint64_t l_count = 0;
+    pthread_mutex_lock(&s_token_datum_reg_lock);
+    for (dap_chain_token_datum_reg_t *l_e = s_token_datum_reg; l_e; l_e = l_e->hh.next)
+        if (l_e->chain && l_e->chain->net_id.uint64 == a_net_id)
+            ++l_count;
+    uint64_t l_hdr[2] = { a_net_id, l_count };
+    bool l_ok = dap_string_append_len(a_out, (const char *)l_hdr, sizeof(l_hdr)) != NULL;
+    for (dap_chain_token_datum_reg_t *l_e = s_token_datum_reg; l_ok && l_e; l_e = l_e->hh.next) {
+        if (!l_e->chain || l_e->chain->net_id.uint64 != a_net_id)
+            continue;
+        struct DAP_PACKED {
+            uint64_t chain_id;
+            uint8_t hash[sizeof(dap_chain_hash_fast_t)];
+            uint64_t ts_create;
+            int32_t ret_code;
+            uint16_t token_type;
+            char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+        } l_rec = { .chain_id = l_e->chain->id.uint64, .ts_create = l_e->ts_create,
+                .ret_code = l_e->ret_code, .token_type = l_e->token_type };
+        memcpy(l_rec.hash, &l_e->hash, sizeof(l_rec.hash));
+        dap_strncpy(l_rec.ticker, l_e->ticker, sizeof(l_rec.ticker) - 1);
+        l_ok = dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)) != NULL;
+    }
+    pthread_mutex_unlock(&s_token_datum_reg_lock);
+    return l_ok ? 0 : -2;
+}
+
+static int s_token_datum_reg_snapshot_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    // The section carries the net id before the record count: the registry's records
+    // name their chain by id, and the net must be resolved to look them up.
+    if (!a_data || a_size < 2 * sizeof(uint64_t))
+        return -1;
+    uint64_t l_net_id = 0, l_count = 0;
+    memcpy(&l_net_id, a_data, sizeof(l_net_id));
+    memcpy(&l_count, a_data + sizeof(l_net_id), sizeof(l_count));
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_net_id });
+    if (!l_net)
+        return -2;
+    const uint8_t *l_ptr = a_data + 2 * sizeof(uint64_t), *l_end = a_data + a_size;
+    struct DAP_PACKED {
+        uint64_t chain_id;
+        uint8_t hash[sizeof(dap_chain_hash_fast_t)];
+        uint64_t ts_create;
+        int32_t ret_code;
+        uint16_t token_type;
+        char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    } l_rec;
+    size_t l_loaded = 0;
+    for (uint64_t i = 0; i < l_count; ++i) {
+        if ((size_t)(l_end - l_ptr) < sizeof(l_rec))
+            return -2;
+        memcpy(&l_rec, l_ptr, sizeof(l_rec));
+        l_ptr += sizeof(l_rec);
+        dap_chain_hash_fast_t l_hash = {};
+        memcpy(&l_hash, l_rec.hash, sizeof(l_hash));
+        // The chain is resolved by its id through the chain registry: a restored
+        // entry must not hold a pointer that predates the chain objects.
+        dap_chain_t *l_chain = dap_chain_find_by_id(l_net->pub.id, (dap_chain_id_t){ .uint64 = l_rec.chain_id });
+        if (!l_chain)
+            continue;
+        pthread_mutex_lock(&s_token_datum_reg_lock);
+        dap_chain_token_datum_reg_t *l_entry = NULL;
+        HASH_FIND(hh, s_token_datum_reg, &l_hash, sizeof(l_hash), l_entry);
+        if (!l_entry) {
+            l_entry = DAP_NEW_Z(dap_chain_token_datum_reg_t);
+            if (l_entry) {
+                l_entry->hash = l_hash;
+                HASH_ADD(hh, s_token_datum_reg, hash, sizeof(l_hash), l_entry);
+            }
+        }
+        if (l_entry) {
+            l_entry->chain = l_chain;
+            l_entry->ts_create = l_rec.ts_create;
+            l_entry->ret_code = l_rec.ret_code;
+            l_entry->token_type = l_rec.token_type;
+            dap_strncpy(l_entry->ticker, l_rec.ticker, sizeof(l_entry->ticker) - 1);
+            ++l_loaded;
+        }
+        pthread_mutex_unlock(&s_token_datum_reg_lock);
+    }
+    log_it(L_NOTICE, "Token registry: %zu token datum(s) restored", l_loaded);
+    return 0;
+}
+
 size_t dap_chain_token_datum_list(dap_chain_t *a_chain, dap_chain_token_datum_info_t **a_out)
 {
     if (a_out)
