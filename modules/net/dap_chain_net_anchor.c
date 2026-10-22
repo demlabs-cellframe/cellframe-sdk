@@ -439,7 +439,22 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                 log_it(L_WARNING,"Can't get signing address from decree.");
                     return -105;
                 }
-                dap_chain_net_srv_stake_key_invalidate(&l_signing_addr);
+                // A revert must be as strict as the apply it undoes: the apply path
+                // verifies the key/node pair first and delegates only when it passes
+                // (DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE in
+                // s_common_decree_handler). Invalidating unconditionally stripped
+                // delegations whose approval had failed or was still pending - on a
+                // clean resync this dropped keys that are present in the chain
+                // ("Key and node verification error" -> "Decree applying failed" ->
+                // "Removed key ..."), leaving the stake registry short of the
+                // reference even while balances matched.
+                bool l_approve_applied = false;
+                dap_chain_net_decree_get_by_hash(l_net, &l_hash, &l_approve_applied);
+                if (l_approve_applied)
+                    dap_chain_net_srv_stake_key_invalidate(&l_signing_addr);
+                else
+                    log_it(L_INFO, "Anchor revert of stake approve %s: the approval was not applied, keeping the delegated key",
+                           dap_hash_fast_to_str_static(&l_hash));
                 dap_chain_net_decree_reset_applied(l_net, &l_hash);
                 s_delete_anchor(l_net, a_anchor_hash);
             }
