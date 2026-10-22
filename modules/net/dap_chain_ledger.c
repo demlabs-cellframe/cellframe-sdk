@@ -8209,11 +8209,6 @@ static bool s_snapshot_wallet_section_plausible(dap_ledger_t *a_ledger, uint64_t
     return !l_ledger_unspent || a_section_records + a_section_records / 2 >= l_ledger_unspent;
 }
 
-// Set while the ordered load-end pass attaches delegation datums: that pass makes
-// its own (conditional-only) notifications, so the generic service replay inside
-// dap_ledger_tx_load() must not run for it even when snapshot_full_apply is off.
-static _Thread_local bool s_tx_load_attach_only;
-
 static void s_ledger_tx_service_notify_cond_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
                                                   dap_hash_fast_t *a_tx_hash,
                                                   dap_chain_tx_out_cond_subtype_t a_only_subtype);
@@ -8305,53 +8300,29 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
             log_it(L_NOTICE, "Ledger snapshot: datum index rebuilt from %zu tx atom links "
                    "and %zu non-TX link(s), in block order", l_n, l_n_links);
             (void)l_all;
-            // 6.7, service registries carried OUTSIDE ledger_state: the delegated-stake
-            // registry learns about delegations only from the verificator callbacks of
-            // the add path, which a snapshot-based start suppresses (its own section may
-            // be from an older save). Replay exactly the transactions the ledger tagged
-            // as belonging to that service, IN BLOCK ORDER (the callbacks are idempotent,
-            // so the final registry state equals the live-apply one).
-            //
-            // The filter is the ledger's own service tag (cache_data.tag), which the
-            // add path fills from s_tag_check_key_delegation - no block is read for a
-            // transaction that has nothing to do with delegations, so this pass touches
-            // a few thousand datums instead of the whole chain.
-            size_t l_restored = 0, l_attached = 0;
-            for (size_t i = 0; i < l_n; ++i) {
-                dap_ledger_tx_item_t *l_ritem = NULL;
-                pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
-                HASH_FIND(hh, l_ledger_pvt->ledger_items, &l_links[i].tx_hash,
-                          sizeof(l_links[i].tx_hash), l_ritem);
-                bool l_need = l_ritem && !l_ritem->tx
-                        && l_ritem->cache_data.tag.uint64 == DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID;
-                pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-                if (!l_need)
+            // Index bookkeeping only - nothing is re-applied to the ledger. Items
+            // restored from a snapshot must be locatable by hash. Used to be
+            // replayed instead, which was wrong: a restored ledger IS the state.
+            size_t l_filled = 0;
+            pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+            dap_ledger_tx_item_t *l_fit = NULL, *l_ftmp = NULL;
+            HASH_ITER(hh, l_ledger_pvt->ledger_items, l_fit, l_ftmp) {
+                if (l_fit->tx || l_fit->atom_link_valid)
                     continue;
-                ++l_restored;
-                dap_chain_datum_t *l_datum = NULL;
-                size_t l_datum_size = 0;
-                if (dap_chain_cs_blocks_datum_at(l_chain, &l_links[i].atom_hash,
-                                                l_links[i].idx, &l_datum, &l_datum_size)
-                        || !l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX
-                        || l_datum_size <= sizeof(dap_chain_datum_t))
-                    continue;
-                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-                // Attach the datum to the ledger item (no-op when another thread
-                // did it): tx_load stores its own reference and skips the (suppressed)
-                // service replay in this mode.
-                s_tx_load_attach_only = true;
-                dap_ledger_tx_load(a_ledger, l_tx, &l_links[i].tx_hash, NULL);
-                s_tx_load_attach_only = false;
-                // The datum is at hand: replay only the conditional-service
-                // (verificator) notifications - events/rewards/polls are carried
-                // by ledger_state and must not be applied twice.
-                s_ledger_tx_service_notify_cond_added(a_ledger, l_tx, &l_links[i].tx_hash,
-                                                      DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE);
-                ++l_attached;
+                dap_chain_hash_fast_t l_atom_hash = {};
+                uint32_t l_idx = 0;
+                if (!dap_chain_cs_blocks_datum_location(l_chain, &l_fit->tx_hash_fast,
+                                                        &l_atom_hash, &l_idx)) {
+                    l_fit->atom_hash = l_atom_hash;
+                    l_fit->datum_index = l_idx;
+                    l_fit->atom_link_valid = 1;
+                    ++l_filled;
+                }
             }
-            if (l_restored)
-                log_it(L_NOTICE, "Ledger snapshot: conditional-service replay for %zu restored "
-                       "transaction(s) in block order (%zu datum(s) attached)", l_restored, l_attached);
+            pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+            if (l_filled)
+                log_it(L_NOTICE, "Ledger snapshot: datum links resolved for %zu restored "
+                       "transaction(s) (index bookkeeping)", l_filled);
             // The chain TX counter (all TX datums, not only ledger items) is
             // restored from the chain-state header by the index restore.
             DAP_DEL_Z(l_links);
@@ -8892,7 +8863,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
         // transactions would apply it twice (a restored vote is not idempotent by
         // itself). Only the blocks above the snapshot anchor are new to the
         // ledger and take the regular dap_ledger_tx_add() path.
-        if (l_restored_completed && !s_tx_load_attach_only
+        if (l_restored_completed
                 && !(PVT(a_ledger)->snapshot_full && PVT(a_ledger)->snapshot_full_apply))
             s_ledger_tx_service_notify_added(a_ledger, a_tx, a_tx_hash);
         return DAP_LEDGER_CHECK_ALREADY_CACHED;
