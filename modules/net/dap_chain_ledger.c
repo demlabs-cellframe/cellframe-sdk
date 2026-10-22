@@ -3409,6 +3409,17 @@ static int s_snapshot_decrees_load(void *a_ctx, const uint8_t *a_data, size_t a_
     return dap_chain_policy_state_load((dap_chain_net_id_t){ .uint64 = l_net_id }, a_data, a_size);
 }
 
+// Datum links (non-TX: emissions) read from the snapshot section. They are held
+// here until load end so that the datum index receives TX and non-TX entries in
+// one block-ordered pass: the wallet bulk pass and the tx/event iterators read
+// the index in insertion order and must see block order after a restore.
+typedef struct s_pending_datum_link {
+    dap_hash_fast_t datum_hash, atom_hash;
+    uint32_t datum_idx;
+} s_pending_datum_link_t;
+static s_pending_datum_link_t *s_pending_datum_links;
+static size_t s_pending_datum_links_n;
+
 typedef struct DAP_ALIGN_PACKED s_snapshot_datum_link_rec {
     uint8_t datum_hash[sizeof(dap_chain_hash_fast_t)];
     uint8_t atom_hash[sizeof(dap_chain_hash_fast_t)];
@@ -3520,6 +3531,18 @@ static int s_snapshot_datum_links_load(void *a_ctx, const uint8_t *a_data, size_
         dap_chain_hash_fast_t l_datum = {}, l_atom = {};
         memcpy(&l_datum, l_rec.datum_hash, sizeof(l_datum));
         memcpy(&l_atom, l_rec.atom_hash, sizeof(l_atom));
+        if (dap_chain_cs_blocks_index_was_restored(l_chain)) {
+            // Defer: merged with the TX links in block order at load end.
+            s_pending_datum_link_t *l_new = DAP_REALLOC(s_pending_datum_links,
+                    sizeof(*l_new) * (s_pending_datum_links_n + 1));
+            if (!l_new)
+                return -4;
+            s_pending_datum_links = l_new;
+            s_pending_datum_links[s_pending_datum_links_n++] = (s_pending_datum_link_t){
+                    .datum_hash = l_datum, .atom_hash = l_atom, .datum_idx = l_rec.datum_idx };
+            ++l_restored;
+            continue;
+        }
         if (!dap_chain_cs_blocks_index_restored_datum(l_chain, &l_datum, &l_atom, l_rec.datum_idx))
             ++l_restored;
         else
@@ -8249,15 +8272,39 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
                 }
             }
             pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+            // The non-TX links (emissions) collected by the datum_links section are
+            // merged in here: one array, one block-ordered pass, so the index has TX
+            // and non-TX entries interleaved exactly as the chain produced them.
+            size_t l_n_all = l_n + s_pending_datum_links_n;
+            size_t l_n_links = s_pending_datum_links_n;
+            // TX links alone, sorted: the service-replay loop below walks exactly this
+            // array, and its order must be the block order.
+            if (l_links)
+                qsort(l_links, l_n, sizeof(*l_links), s_ledger_link_block_cmp);
+            s_link_t *l_all = l_n_all ? DAP_NEW_Z_COUNT(s_link_t, l_n_all) : NULL;
+            if (l_all) {
+                for (size_t i = 0; i < l_n; ++i)
+                    l_all[i] = l_links[i];
+                for (size_t i = 0; i < s_pending_datum_links_n; ++i) {
+                    l_all[l_n + i].tx_hash = s_pending_datum_links[i].datum_hash;
+                    l_all[l_n + i].atom_hash = s_pending_datum_links[i].atom_hash;
+                    l_all[l_n + i].idx = s_pending_datum_links[i].datum_idx;
+                }
+            }
+            DAP_DEL_Z(s_pending_datum_links);
+            s_pending_datum_links_n = 0;
             // Block order is the service-replay order: the delegated-stake registry
             // and every other conditional-service registry are rebuilt from the
             // same pass below, and applying their updates out of block order
             // leaves them in a wrong final state.
-            qsort(l_links, l_n, sizeof(*l_links), s_ledger_link_block_cmp);
-            for (size_t i = 0; i < l_n; ++i)
-                dap_chain_cs_blocks_index_restored_datum(l_chain, &l_links[i].tx_hash,
-                                                         &l_links[i].atom_hash, l_links[i].idx);
-            log_it(L_NOTICE, "Ledger snapshot: datum index rebuilt from %zu tx atom links", l_n);
+            if (l_all)
+                qsort(l_all, l_n_all, sizeof(*l_all), s_ledger_link_block_cmp);
+            for (size_t i = 0; l_all && i < l_n_all; ++i)
+                dap_chain_cs_blocks_index_restored_datum(l_chain, &l_all[i].tx_hash,
+                                                         &l_all[i].atom_hash, l_all[i].idx);
+            log_it(L_NOTICE, "Ledger snapshot: datum index rebuilt from %zu tx atom links "
+                   "and %zu non-TX link(s), in block order", l_n, l_n_links);
+            (void)l_all;
             // 6.7, service registries carried OUTSIDE ledger_state: the delegated-stake
             // registry learns about delegations only from the verificator callbacks of
             // the add path, which a snapshot-based start suppresses (its own section may
