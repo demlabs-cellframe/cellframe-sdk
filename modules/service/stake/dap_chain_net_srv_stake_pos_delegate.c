@@ -99,6 +99,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply, int a_
 
 static int s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner, bool a_check_for_apply);
+static void s_stake_recalculate_weights(dap_chain_net_id_t a_net_id);
 static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in, dap_hash_fast_t *a_tx_in_hash, dap_chain_tx_out_cond_t *a_cond);
 
 static void s_stake_deleted_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
@@ -314,6 +315,11 @@ static int s_snapshot_stake_load(void *a_ctx, const uint8_t *a_data, size_t a_si
             dap_chain_esbocs_add_validator_to_clusters((dap_chain_net_id_t){ .uint64 = l_net_id }, &l_rec.node_addr);
     }
     log_it(L_NOTICE, "Ledger snapshot: stake registry restored (%zu keys)", l_loaded);
+    // Weights are derived values (they depend on the whole registry and on the
+    // current delegate_percent_max), and the dump stores them as they were at save
+    // time. Recompute them from the restored locked values so the registry matches
+    // what the live path would produce - same call the add path makes.
+    s_stake_recalculate_weights((dap_chain_net_id_t){ .uint64 = l_net_id });
     return 0;
 }
 
