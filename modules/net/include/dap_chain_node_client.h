@@ -101,6 +101,8 @@ typedef struct dap_chain_node_client {
     dap_net_trans_type_t desired_trans_type;
     bool no_transport_fallback;
     uint8_t tls_fp_profile_index;
+    char tls13_spki_sha256[65];
+    char tls13_server_name[254];
     dap_timerfd_t *sync_timer;
     dap_timerfd_t *reconnect_timer;
     // callbacks

@@ -311,6 +311,10 @@ static bool s_node_client_connect_impl(dap_chain_node_client_t *a_node_client,
         return false;
     a_node_client->client->no_transport_fallback = a_node_client->no_transport_fallback;
     a_node_client->client->tls_fp_profile_index = a_node_client->tls_fp_profile_index;
+    memcpy(a_node_client->client->tls13_spki_sha256, a_node_client->tls13_spki_sha256,
+           sizeof(a_node_client->client->tls13_spki_sha256));
+    memcpy(a_node_client->client->tls13_server_name, a_node_client->tls13_server_name,
+           sizeof(a_node_client->client->tls13_server_name));
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     /* P2P HTTP handshake mode is chosen per peer version (≤5.7 legacy, ≥5.8 modern). */
