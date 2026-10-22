@@ -178,6 +178,135 @@ int dap_chain_policy_init()
     return 0;
 }
 
+/* *** Final-state persistence (snapshot sections) ***
+ * The registry above is a product of decree replay: a snapshot-based start has no
+ * decrees to replay, so the resulting state itself is what gets stored.
+ */
+typedef struct DAP_ALIGN_PACKED s_policy_state_hdr {
+    uint64_t net_id;
+    uint32_t last_num;
+    uint32_t n_activate;
+    uint32_t n_deactivate;
+    uint32_t n_exceptions;   // count WITHOUT the [0] counter slot
+} s_policy_state_hdr_t;
+
+size_t dap_chain_policy_state_dump(dap_chain_net_id_t a_net_id, uint8_t **a_out)
+{
+    if (a_out)
+        *a_out = NULL;
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
+    if (!l_net_item)
+        return 0;
+    s_policy_state_hdr_t l_hdr = {
+        .net_id = a_net_id.uint64,
+        .last_num = l_net_item->last_num,
+        .n_exceptions = l_net_item->exceptions ? l_net_item->exceptions[0] : 0,
+    };
+    for (struct policy_activate_table *l_it = l_net_item->activate; l_it; l_it = l_it->hh.next)
+        ++l_hdr.n_activate;
+    for (struct policy_deactivate_table *l_it = l_net_item->deactivate; l_it; l_it = l_it->hh.next)
+        ++l_hdr.n_deactivate;
+    size_t l_size = sizeof(l_hdr) + l_hdr.n_activate * sizeof(dap_chain_policy_activate_t)
+            + l_hdr.n_deactivate * sizeof(uint32_t) + l_hdr.n_exceptions * sizeof(uint32_t);
+    uint8_t *l_buf = DAP_NEW_Z_SIZE_RET_VAL_IF_FAIL(uint8_t, l_size, 0);
+    memcpy(l_buf, &l_hdr, sizeof(l_hdr));
+    uint8_t *l_ptr = l_buf + sizeof(l_hdr);
+    for (struct policy_activate_table *l_it = l_net_item->activate; l_it; l_it = l_it->hh.next, l_ptr += sizeof(dap_chain_policy_activate_t))
+        memcpy(l_ptr, l_it->policy, sizeof(dap_chain_policy_activate_t));
+    for (struct policy_deactivate_table *l_it = l_net_item->deactivate; l_it; l_it = l_it->hh.next, l_ptr += sizeof(uint32_t))
+        memcpy(l_ptr, &l_it->num, sizeof(uint32_t));
+    for (uint32_t i = 0; i < l_hdr.n_exceptions; ++i, l_ptr += sizeof(uint32_t))
+        memcpy(l_ptr, &l_net_item->exceptions[i + 1], sizeof(uint32_t));
+    if (a_out)
+        *a_out = l_buf;
+    else
+        DAP_DELETE(l_buf);
+    return l_size;
+}
+
+int dap_chain_policy_state_load(dap_chain_net_id_t a_net_id, const uint8_t *a_data, size_t a_size)
+{
+    if (!a_data || a_size < sizeof(s_policy_state_hdr_t))
+        return -1;
+    s_policy_state_hdr_t l_hdr;
+    memcpy(&l_hdr, a_data, sizeof(l_hdr));
+    if (l_hdr.net_id != a_net_id.uint64)
+        return -2;
+    size_t l_need = sizeof(l_hdr) + l_hdr.n_activate * sizeof(dap_chain_policy_activate_t)
+            + l_hdr.n_deactivate * sizeof(uint32_t) + l_hdr.n_exceptions * sizeof(uint32_t);
+    if (a_size < l_need)
+        return -3;
+    struct net_policy_item *l_net_item = s_net_item_find(a_net_id);
+    if (!l_net_item) {
+        log_it(L_WARNING, "Policy state: net 0x%016" DAP_UINT64_FORMAT_x " is not in the policy registry",
+               a_net_id.uint64);
+        return -4;
+    }
+    const uint8_t *l_ptr = a_data + sizeof(l_hdr);
+    size_t l_added = 0;
+    for (uint32_t i = 0; i < l_hdr.n_activate; ++i, l_ptr += sizeof(dap_chain_policy_activate_t)) {
+        uint32_t l_num = 0;
+        memcpy(&l_num, l_ptr, sizeof(l_num));
+        struct policy_activate_table *l_exists = NULL;
+        HASH_FIND_BYHASHVALUE(hh, l_net_item->activate, &l_num, sizeof(l_num), l_num, l_exists);
+        if (l_exists)
+            continue;   // already replayed from the tail
+        dap_chain_policy_t *l_policy = dap_chain_policy_create_activate(l_num,
+                ((const dap_chain_policy_activate_t *)l_ptr)->ts_start,
+                ((const dap_chain_policy_activate_t *)l_ptr)->block_start,
+                ((const dap_chain_policy_activate_t *)l_ptr)->chain_id,
+                ((const dap_chain_policy_activate_t *)l_ptr)->generation);
+        if (!l_policy)
+            return -5;
+        int l_rc = dap_chain_policy_apply(l_policy, a_net_id);
+        DAP_DELETE(l_policy);
+        if (l_rc && l_rc != -4)   // -4 is the already-present case
+            log_it(L_WARNING, "Policy state: activation %u refused (%d)", l_num, l_rc);
+        else
+            ++l_added;
+    }
+    for (uint32_t i = 0; i < l_hdr.n_deactivate; ++i, l_ptr += sizeof(uint32_t)) {
+        uint32_t l_num = 0;
+        memcpy(&l_num, l_ptr, sizeof(l_num));
+        struct policy_deactivate_table *l_exists = NULL;
+        HASH_FIND_BYHASHVALUE(hh, l_net_item->deactivate, &l_num, sizeof(l_num), l_num, l_exists);
+        if (l_exists)
+            continue;
+        dap_chain_policy_t *l_policy = dap_chain_policy_create_deactivate((char *[]){ NULL }, 0);
+        if (!l_policy)
+            return -6;
+        // deactivate is stored as a bare number list: reuse the apply path with one entry
+        l_policy->data_size = sizeof(uint32_t) * 2;
+        dap_chain_policy_t *l_one = DAP_REALLOC(l_policy, sizeof(dap_chain_policy_t) + l_policy->data_size);
+        if (!l_one) {
+            DAP_DELETE(l_policy);
+            return -6;
+        }
+        l_policy = l_one;
+        ((uint32_t *)l_policy->data)[0] = 1;
+        ((uint32_t *)l_policy->data)[1] = l_num;
+        int l_rc = dap_chain_policy_apply(l_policy, a_net_id);
+        DAP_DELETE(l_policy);
+        if (!l_rc || l_rc == -4)
+            ++l_added;
+    }
+    if (l_hdr.n_exceptions && !l_net_item->exceptions) {
+        uint32_t *l_exc = DAP_NEW_Z_COUNT(uint32_t, l_hdr.n_exceptions + 1);
+        if (!l_exc)
+            return -7;
+        l_exc[0] = l_hdr.n_exceptions;
+        for (uint32_t i = 0; i < l_hdr.n_exceptions; ++i)
+            memcpy(&l_exc[i + 1], l_ptr + i * sizeof(uint32_t), sizeof(uint32_t));
+        l_net_item->exceptions = l_exc;
+    }
+    if (l_hdr.last_num > l_net_item->last_num)
+        l_net_item->last_num = l_hdr.last_num;
+    log_it(L_NOTICE, "Policy state: %u activation(s) and %u deactivation(s) restored for net 0x%016"
+           DAP_UINT64_FORMAT_x " (%zu applied)", l_hdr.n_activate, l_hdr.n_deactivate,
+           a_net_id.uint64, l_added);
+    return 0;
+}
+
 
 void dap_chain_policy_net_remove(dap_chain_net_id_t a_net_id)
 {

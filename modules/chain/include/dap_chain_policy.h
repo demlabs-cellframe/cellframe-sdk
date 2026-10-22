@@ -56,6 +56,13 @@ void dap_chain_policy_add_exceptions(dap_chain_net_id_t a_net_id, const char **a
 void dap_chain_policy_update_last_num(dap_chain_net_id_t a_net_id, uint32_t a_num);
 uint32_t dap_chain_policy_get_last_num(dap_chain_net_id_t a_net_id);
 json_object *dap_chain_policy_activate_json_collect(dap_chain_net_id_t a_net_id, uint32_t a_num);
+
+// Final-state persistence of the policy registry (per network): every ACTIVE grant
+// and every explicitly deactivated number, plus the last approved number and the
+// operator exception list. A decree replay only produces this state as its last
+// step, so the snapshot stores the state itself and restores it directly.
+size_t dap_chain_policy_state_dump(dap_chain_net_id_t a_net_id, uint8_t **a_out);
+int dap_chain_policy_state_load(dap_chain_net_id_t a_net_id, const uint8_t *a_data, size_t a_size);
 json_object *dap_chain_policy_json_collect(dap_chain_policy_t *a_policy);
 json_object *dap_chain_policy_list(dap_chain_net_id_t a_net_id, int a_version);
 bool dap_chain_policy_is_exist(dap_chain_net_id_t a_net_id, uint32_t a_num);

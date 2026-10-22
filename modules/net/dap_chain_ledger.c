@@ -82,6 +82,7 @@ static inline bool s_ledger_cache_storage_full(void)
 #include "dap_chain_net_srv_dex.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_cache.h"
+#include "dap_chain_policy.h"
 #include "dap_chain_wallet_shared.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_datum_tx_voting.h"
@@ -264,6 +265,8 @@ static int s_snapshot_local_state_dump(void *a_ctx, uint64_t a_net_id, dap_strin
 static int s_snapshot_local_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
 // Atom links for non-TX datums (emissions): completes the chain datum index
 // without a scan.
+static int s_snapshot_decrees_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
+static int s_snapshot_decrees_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
 static int s_snapshot_datum_links_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out);
 static int s_snapshot_datum_links_load(void *a_ctx, const uint8_t *a_data, size_t a_size);
 static bool s_snapshot_append(dap_string_t *a_out, const void *a_data, size_t a_size);
@@ -529,6 +532,11 @@ int dap_ledger_init()
     // Atom links for non-TX datums: the TX part comes from the tx records.
     dap_ledger_add_snapshot_section("datum_links", 0,
             s_snapshot_datum_links_dump, s_snapshot_datum_links_load, NULL);
+    // Approval-state registries of the decree system (active grants, explicit
+    // deactivations, last approved number, operator exceptions): a decree replay
+    // produces them only as its final step, so the state itself is persisted.
+    dap_ledger_add_snapshot_section("decrees", 0,
+            s_snapshot_decrees_dump, s_snapshot_decrees_load, NULL);
 
     return 0;
 }
@@ -3375,6 +3383,30 @@ static int s_snapshot_local_state_load(void *a_ctx, const uint8_t *a_data, size_
 {
     (void)a_ctx;
     return dap_chain_state_cache_load_all(a_data, a_size);
+}
+
+// Decree-system approval states (see dap_chain_policy_state_dump): persisted as
+// the resulting state, not as the decrees that produced it.
+static int s_snapshot_decrees_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    uint8_t *l_state = NULL;
+    size_t l_size = dap_chain_policy_state_dump((dap_chain_net_id_t){ .uint64 = a_net_id }, &l_state);
+    if (!l_size || !l_state)
+        return 0;   // no registry for this net: nothing to carry
+    bool l_ok = s_snapshot_append(a_out, l_state, l_size);
+    DAP_DELETE(l_state);
+    return l_ok ? 0 : -2;
+}
+
+static int s_snapshot_decrees_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < sizeof(uint64_t))
+        return -1;
+    uint64_t l_net_id = 0;
+    memcpy(&l_net_id, a_data, sizeof(l_net_id));
+    return dap_chain_policy_state_load((dap_chain_net_id_t){ .uint64 = l_net_id }, a_data, a_size);
 }
 
 typedef struct DAP_ALIGN_PACKED s_snapshot_datum_link_rec {
