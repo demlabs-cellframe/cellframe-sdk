@@ -1562,6 +1562,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 pthread_rwlock_rdlock(&PVT(l_blocks)->datums_rwlock);
                 dap_chain_block_cache_t *l_curr_block = PVT(l_blocks)->blocks;
                 for (; l_curr_block; l_curr_block = l_curr_block->hh.next) {
+                    // Thin index-restored entries carry no datum arrays: profile the
+                    // block first, or the walk dereferences a NULL datum_hash.
+                    if (!l_curr_block->parsed && dap_chain_block_cache_ensure(l_curr_block))
+                        continue;
                     for (size_t i = 0; i < l_curr_block->datum_count; i++) {
                         if (dap_hash_fast_compare(&l_datum_hash, &l_curr_block->datum_hash[i])) {
                             json_object_array_add(json_arr_bl_cache_out, json_object_new_string(dap_hash_fast_to_str_static(&l_curr_block->block_hash)));
