@@ -127,6 +127,9 @@ int dap_chain_cs_blocks_datum_location(dap_chain_t *a_chain, const dap_hash_fast
 // in the cache/index (the caller may fall back to reading the cell file).
 int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_atom_hash,
                                  uint32_t a_datum_idx, dap_chain_datum_t **a_datum, size_t *a_size);
+// Block number by hash from the block cache (thin entries included, no body
+// read). 0 when the block is unknown.
+uint64_t dap_chain_cs_blocks_number_by_hash(dap_chain_t *a_chain, const dap_hash_fast_t *a_block_hash);
 // Builds the block cache from the chain-state index (no cell-body reads). Blocks
 // are thin until dap_chain_block_cache_ensure() parses them. Returns the number
 // of restored blocks or <0.

@@ -2687,6 +2687,17 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
     return l_rc ? -8 : (int64_t)l_ctx.count;
 }
 
+uint64_t dap_chain_cs_blocks_number_by_hash(dap_chain_t *a_chain, const dap_hash_fast_t *a_block_hash)
+{
+    if (!a_chain || !a_block_hash || !s_is_blocks_chain(a_chain))
+        return 0;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_block_cache_t *l_bc = NULL;
+    dap_hash_fast_t l_hash = *a_block_hash;
+    s_blocks_hash_find_locked(l_blocks, &l_hash, &l_bc);
+    return l_bc ? l_bc->block_number : 0;
+}
+
 int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_atom_hash,
                                  uint32_t a_datum_idx, dap_chain_datum_t **a_datum, size_t *a_size)
 {

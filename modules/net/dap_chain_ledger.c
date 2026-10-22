@@ -8123,6 +8123,20 @@ static bool s_snapshot_wallet_section_plausible(dap_ledger_t *a_ledger, uint64_t
     return !l_ledger_unspent || a_section_records + a_section_records / 2 >= l_ledger_unspent;
 }
 
+static void s_ledger_tx_service_notify_cond_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                  dap_hash_fast_t *a_tx_hash,
+                                                  dap_chain_tx_out_cond_subtype_t a_only_subtype);
+
+static int s_ledger_link_block_cmp(const void *a_a, const void *a_b)
+{
+    const struct { dap_hash_fast_t tx_hash, atom_hash; uint64_t block_num; uint32_t idx; } *a = a_a, *b = a_b;
+    if (a->block_num != b->block_num)
+        return a->block_num < b->block_num ? -1 : 1;
+    if (a->idx != b->idx)
+        return a->idx < b->idx ? -1 : 1;
+    return memcmp(&a->tx_hash, &b->tx_hash, sizeof(a->tx_hash));
+}
+
 void dap_ledger_load_end(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
@@ -8150,7 +8164,7 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
             }
         }
         if (l_chain && dap_chain_cs_blocks_index_was_restored(l_chain)) {
-            typedef struct { dap_hash_fast_t tx_hash, atom_hash; uint32_t idx; } s_link_t;
+            typedef struct { dap_hash_fast_t tx_hash, atom_hash; uint64_t block_num; uint32_t idx; } s_link_t;
             pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
             size_t l_cap = HASH_COUNT(l_ledger_pvt->ledger_items), l_n = 0;
             s_link_t *l_links = l_cap ? DAP_NEW_Z_COUNT(s_link_t, l_cap) : NULL;
@@ -8162,14 +8176,53 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
                     l_links[l_n].tx_hash = l_it->tx_hash_fast;
                     l_links[l_n].atom_hash = l_it->atom_hash;
                     l_links[l_n].idx = l_it->datum_index;
+                    l_links[l_n].block_num = dap_chain_cs_blocks_number_by_hash(l_chain, &l_it->atom_hash);
                     ++l_n;
                 }
             }
             pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+            // Block order is the service-replay order: the delegated-stake registry
+            // and every other conditional-service registry are rebuilt from the
+            // same pass below, and applying their updates out of block order
+            // leaves them in a wrong final state.
+            qsort(l_links, l_n, sizeof(*l_links), s_ledger_link_block_cmp);
             for (size_t i = 0; i < l_n; ++i)
                 dap_chain_cs_blocks_index_restored_datum(l_chain, &l_links[i].tx_hash,
                                                          &l_links[i].atom_hash, l_links[i].idx);
             log_it(L_NOTICE, "Ledger snapshot: datum index rebuilt from %zu tx atom links", l_n);
+            // 6.7, service registries carried OUTSIDE ledger_state: the delegated-stake
+            // registry learns about delegations only from the verificator callbacks of
+            // the add path, which a snapshot-based start suppresses (its own section may
+            // be from an older save). Replay the conditional-service notifications for
+            // every restored transaction IN BLOCK ORDER: the callbacks are idempotent
+            // (a delegation is looked up before insert/update), so the final registry
+            // state equals the live-apply one. Datum-less items whose datum is not
+            // available yet stay phantom (the network catch-up attaches them).
+            size_t l_restored = 0, l_attached = 0;
+            for (size_t i = 0; i < l_n; ++i) {
+                dap_chain_datum_t *l_datum = NULL;
+                size_t l_datum_size = 0;
+                if (dap_chain_cs_blocks_datum_at(l_chain, &l_links[i].atom_hash,
+                                                l_links[i].idx, &l_datum, &l_datum_size)
+                        || !l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX
+                        || l_datum_size <= sizeof(dap_chain_datum_t))
+                    continue;
+                ++l_restored;
+                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                // Attach the datum to the ledger item (no-op when another thread
+                // did it): tx_load stores its own reference and skips the (suppressed)
+                // service replay in this mode.
+                dap_ledger_tx_load(a_ledger, l_tx, &l_links[i].tx_hash, NULL);
+                // The datum is at hand: replay only the conditional-service
+                // (verificator) notifications - events/rewards/polls are carried
+                // by ledger_state and must not be applied twice.
+                s_ledger_tx_service_notify_cond_added(a_ledger, l_tx, &l_links[i].tx_hash,
+                                                      DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE);
+                ++l_attached;
+            }
+            if (l_restored)
+                log_it(L_NOTICE, "Ledger snapshot: conditional-service replay for %zu restored "
+                       "transaction(s) in block order (%zu datum(s) attached)", l_restored, l_attached);
             // The chain TX counter (all TX datums, not only ledger items) is
             // restored from the chain-state header by the index restore.
             DAP_DEL_Z(l_links);
@@ -8560,7 +8613,12 @@ static void s_ledger_tx_voting_notify(dap_ledger_t *a_ledger, dap_chain_datum_tx
 // every block's signs) learn about the transaction. Replay those notifications once the item
 // gets its datum back, otherwise every restart through the snapshot silently drops the
 // affected delegations and the node rejects the next block signed by those validators.
-static void s_ledger_tx_service_notify_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
+// The conditional-service (verificator) part of the add-path notifications. When
+// a_only_subtype is non-zero, only that service's callback is invoked - the ordered
+// replay pass uses it to touch exactly the registry it is rebuilding.
+static void s_ledger_tx_service_notify_cond_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                                  dap_hash_fast_t *a_tx_hash,
+                                                  dap_chain_tx_out_cond_subtype_t a_only_subtype)
 {
     int l_items_count = 0;
     // Same notification as the bound-items loop of dap_ledger_tx_add(): for every IN_COND
@@ -8573,6 +8631,8 @@ static void s_ledger_tx_service_notify_added(dap_ledger_t *a_ledger, dap_chain_d
         if (!l_cond)
             continue;
         int l_subtype = l_cond->header.subtype;
+        if (a_only_subtype && l_subtype != (int)a_only_subtype)
+            continue;
         dap_ledger_verificator_t *l_verificator = NULL;
         pthread_rwlock_rdlock(&s_verificators_rwlock);
         HASH_FIND_INT(s_verificators, &l_subtype, l_verificator);
@@ -8588,6 +8648,8 @@ static void s_ledger_tx_service_notify_added(dap_ledger_t *a_ledger, dap_chain_d
     for (dap_list_t *l_it = l_list_out_cond; l_it; l_it = l_it->next) {
         dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)l_it->data;
         int l_subtype = l_cond->header.subtype;
+        if (a_only_subtype && l_subtype != (int)a_only_subtype)
+            continue;
         dap_ledger_verificator_t *l_verificator = NULL;
         pthread_rwlock_rdlock(&s_verificators_rwlock);
         HASH_FIND_INT(s_verificators, &l_subtype, l_verificator);
@@ -8597,6 +8659,12 @@ static void s_ledger_tx_service_notify_added(dap_ledger_t *a_ledger, dap_chain_d
     }
     if (l_list_out_cond)
         dap_list_free(l_list_out_cond);
+}
+
+static void s_ledger_tx_service_notify_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
+{
+    s_ledger_tx_service_notify_cond_added(a_ledger, a_tx, a_tx_hash, 0);
+    int l_items_count = 0;
     // And the "special tx items" pass of dap_ledger_tx_add(), which a restored tx never
     // reaches either: voting/event services apply their item state there, and the rewards
     // map (checked by dap_ledger_is_used_reward()) is filled from the IN_REWARD items -
