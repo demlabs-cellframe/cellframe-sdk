@@ -35,6 +35,8 @@
 #include "dap_chain_net.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_decree.h"
+#include "dap_chain_net_anchor.h"
+#include "dap_chain_ledger_snapshot.h"
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_cs_esbocs.h"
 
@@ -46,6 +48,91 @@ typedef struct anchor_table{
     UT_hash_handle hh;
 } anchor_table_t;  
 
+/* *** Final-state persistence (snapshot section "anchors") ***
+ * Anchors are the "un-apply" side of the decree system: an anchor activates a
+ * decree and a later anchor reverts it (reset_applied + service invalidation).
+ * A snapshot-based start walks no datums, so without this state every reverted
+ * decree would look active again. Only the anchor datum bytes and their hashes
+ * are stored - the effects are recomputed through the normal load path.
+ */
+#define DAP_NET_ANCHORS_SECTION "anchors"
+
+static int s_anchor_snapshot_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_net)
+        return 0;
+    anchor_table_t **l_anchors_ptr = dap_chain_net_get_anchors(l_net);
+    uint64_t l_count = 0;
+    for (anchor_table_t *l_it = l_anchors_ptr ? *l_anchors_ptr : NULL; l_it; l_it = l_it->hh.next)
+        ++l_count;
+    uint64_t l_hdr[2] = { a_net_id, l_count };
+    if (!dap_string_append_len(a_out, (const char *)l_hdr, sizeof(l_hdr)))
+        return -2;
+    for (anchor_table_t *l_it = l_anchors_ptr ? *l_anchors_ptr : NULL; l_it; l_it = l_it->hh.next) {
+        if (!l_it->anchor)
+            continue;
+        size_t l_size = dap_chain_datum_anchor_get_size(l_it->anchor);
+        if (!l_size || !dap_string_append_len(a_out, (const char *)&l_size, sizeof(l_size))
+                || !dap_string_append_len(a_out, (const char *)l_it->anchor, l_size))
+            return -2;
+    }
+    return 0;
+}
+
+static int s_anchor_snapshot_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < 2 * sizeof(uint64_t))
+        return -1;
+    uint64_t l_net_id = 0, l_count = 0;
+    memcpy(&l_net_id, a_data, sizeof(l_net_id));
+    memcpy(&l_count, a_data + sizeof(l_net_id), sizeof(l_count));
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_net_id });
+    if (!l_net)
+        return -2;
+    const uint8_t *l_ptr = a_data + 2 * sizeof(uint64_t), *l_end = a_data + a_size;
+    // The failover chain of the network is the block chain the anchors were applied
+    // against; resolving it here keeps the section self-contained.
+    dap_chain_t *l_chain = NULL;
+    for (dap_chain_t *l_c = l_net->pub.chains; l_c; l_c = l_c->next) {
+        const char *l_cs_type = dap_chain_get_cs_type(l_c);
+        if (l_cs_type && !dap_strcmp(l_cs_type, "esbocs")) {
+            l_chain = l_c;
+            break;
+        }
+    }
+    if (!l_chain)
+        return -3;
+    size_t l_loaded = 0;
+    for (uint64_t i = 0; i < l_count; ++i) {
+        size_t l_size = 0;
+        if ((size_t)(l_end - l_ptr) < sizeof(l_size))
+            return -4;
+        memcpy(&l_size, l_ptr, sizeof(l_size));
+        l_ptr += sizeof(l_size);
+        if (!l_size || (size_t)(l_end - l_ptr) < l_size)
+            return -4;
+        // Anchor datum bytes: re-applied through the normal load path, which verifies
+        // it and performs the same state transition as a chain walk would.
+        dap_chain_datum_t *l_datum = DAP_NEW_Z_SIZE(dap_chain_datum_t, sizeof(dap_chain_datum_t) + l_size);
+        if (!l_datum)
+            return -5;
+        l_datum->header.type_id = DAP_CHAIN_DATUM_ANCHOR;
+        l_datum->header.data_size = (uint32_t)l_size;
+        memcpy(l_datum->data, l_ptr, l_size);
+        dap_hash_fast_t l_hash = {};
+        dap_chain_datum_calc_hash(l_datum, &l_hash);
+        if (!dap_chain_net_anchor_load((dap_chain_datum_anchor_t *)l_datum->data, l_chain, &l_hash))
+            ++l_loaded;
+        DAP_DELETE(l_datum);
+        l_ptr += l_size;
+    }
+    log_it(L_NOTICE, "Anchors: %zu anchor(s) restored as state", l_loaded);
+    return 0;
+}
+
 // private function prototypes
 static bool s_verify_pubkeys(dap_sign_t *a_sign, dap_sign_t **a_decree_signs, size_t a_num_of_decree_sign);
 static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, size_t a_signs_size, size_t *a_sings_count, size_t *a_signs_arr_size);
@@ -55,6 +142,10 @@ static bool s_debug_more = false;
 int dap_chain_net_anchor_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config, "chain_net", "debug_more", s_debug_more);
+    // Anchor state (which decrees are reverted) travels with the ledger snapshot:
+    // it is a state, rebuilt from the stored anchors through the normal load path.
+    dap_ledger_add_snapshot_section(DAP_NET_ANCHORS_SECTION, 0,
+            s_anchor_snapshot_dump, s_anchor_snapshot_load, NULL);
     return 0;
 }
 
