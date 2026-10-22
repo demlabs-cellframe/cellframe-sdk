@@ -1016,6 +1016,11 @@ dap_store_obj_t *dap_chain_state_cache_get_all_raw(const char *a_group, size_t *
 
 void dap_chain_state_cache_raw_free(dap_store_obj_t *a_objs, size_t a_count)
 {
+    // The count can be non-zero with a NULL array: the wallet-shared filter path
+    // sets count=1 and builds its entries from the filter instead of reading the
+    // cache, then calls this to clean up. Indexing NULL here was a live SEGV.
+    if (!a_objs)
+        return;
     for (size_t i = 0; i < a_count; ++i) {
         DAP_DEL_Z(a_objs[i].group);
         DAP_DEL_Z(a_objs[i].key);
