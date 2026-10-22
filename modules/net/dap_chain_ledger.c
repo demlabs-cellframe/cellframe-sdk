@@ -8186,6 +8186,11 @@ static bool s_snapshot_wallet_section_plausible(dap_ledger_t *a_ledger, uint64_t
     return !l_ledger_unspent || a_section_records + a_section_records / 2 >= l_ledger_unspent;
 }
 
+// Set while the ordered load-end pass attaches delegation datums: that pass makes
+// its own (conditional-only) notifications, so the generic service replay inside
+// dap_ledger_tx_load() must not run for it even when snapshot_full_apply is off.
+static _Thread_local bool s_tx_load_attach_only;
+
 static void s_ledger_tx_service_notify_cond_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
                                                   dap_hash_fast_t *a_tx_hash,
                                                   dap_chain_tx_out_cond_subtype_t a_only_subtype);
@@ -8287,7 +8292,9 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
                 // Attach the datum to the ledger item (no-op when another thread
                 // did it): tx_load stores its own reference and skips the (suppressed)
                 // service replay in this mode.
+                s_tx_load_attach_only = true;
                 dap_ledger_tx_load(a_ledger, l_tx, &l_links[i].tx_hash, NULL);
+                s_tx_load_attach_only = false;
                 // The datum is at hand: replay only the conditional-service
                 // (verificator) notifications - events/rewards/polls are carried
                 // by ledger_state and must not be applied twice.
@@ -8838,7 +8845,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
         // transactions would apply it twice (a restored vote is not idempotent by
         // itself). Only the blocks above the snapshot anchor are new to the
         // ledger and take the regular dap_ledger_tx_add() path.
-        if (l_restored_completed
+        if (l_restored_completed && !s_tx_load_attach_only
                 && !(PVT(a_ledger)->snapshot_full && PVT(a_ledger)->snapshot_full_apply))
             s_ledger_tx_service_notify_added(a_ledger, a_tx, a_tx_hash);
         return DAP_LEDGER_CHECK_ALREADY_CACHED;
