@@ -199,10 +199,15 @@ typedef struct dap_ledger_private {
     dap_time_t blockchain_time;
     dap_time_t cutoff_time;
     pthread_rwlock_t locked_outs_rwlock;
-    // Save/load operations condition
+    // Save/load operations condition. load_end is the GlobalDB cache-stage
+    // completion flag (see dap_ledger_load_cache); load_end_done marks that the
+    // net-load finalization (dap_ledger_load_end) already ran for this ledger.
+    // They are different events: the GDB stage chain completes before the chains
+    // are walked, so sharing one flag would make the finalization a no-op.
     pthread_mutex_t load_mutex;
     pthread_cond_t load_cond;
     bool load_end;
+    bool load_end_done;
     // Ledger flags
     bool check_ds, check_cells_ds, check_token_emission, cached, mapped, threshold_enabled;
     dap_chain_cell_id_t local_cell_id;
@@ -8144,9 +8149,9 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
     // deferred heavy-ops step. The second run must not repeat the destructive part:
     // by then the snapshot-scan skip is consumed, so the phantom clean below would
     // drop every datum-less restored item (472k of them on Backbone, 2026-10-21).
-    if (l_ledger_pvt->load_end)
+    if (l_ledger_pvt->load_end_done)
         return;
-    l_ledger_pvt->load_end = true;
+    l_ledger_pvt->load_end_done = true;
     // Deferred snapshot sections: the chain data they may consult is attached now.
     s_pending_sections_apply(a_ledger);
     // No-scan startup: the chain-state datum index is empty because the cell walk
@@ -8951,6 +8956,8 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
 
     l_ledger_pvt->snapshot_full = false;
     l_ledger_pvt->load_end = false;
+    // A new load cycle may follow the purge: re-arm the finalization guard too.
+    l_ledger_pvt->load_end_done = false;
 }
 
 /**
