@@ -8272,8 +8272,8 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
             // and non-TX entries interleaved exactly as the chain produced them.
             size_t l_n_all = l_n + s_pending_datum_links_n;
             size_t l_n_links = s_pending_datum_links_n;
-            // TX links alone, sorted: the service-replay loop below walks exactly this
-            // array, and its order must be the block order.
+            // Both runs go into one array sorted by block position: the index must
+            // read in block order for every consumer (wallet bulk pass, tx/event lists).
             if (l_links)
                 qsort(l_links, l_n, sizeof(*l_links), s_ledger_link_block_cmp);
             s_link_t *l_all = l_n_all ? DAP_NEW_Z_COUNT(s_link_t, l_n_all) : NULL;
