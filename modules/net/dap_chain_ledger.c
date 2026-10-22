@@ -2825,6 +2825,12 @@ static void s_threshold_txs_free(dap_ledger_t *a_ledger)
 }
 
 static void s_load_cache_finish(dap_ledger_t *a_ledger);
+static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi, int a_rc,
+        const char *a_group, const size_t a_values_total, const size_t a_values_count,
+        dap_global_db_obj_t *a_values, void *a_arg);
+static bool s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_instance_t *a_dbi, int a_rc,
+        const char *a_group, const size_t a_values_total, const size_t a_values_count,
+        dap_global_db_obj_t *a_values, void *a_arg);
 
 /* Hands the load over to the next cache group. The loader thread waits for the chain to reach
  * its last stage, so a request that cannot even be queued must end the load here instead of
@@ -2842,6 +2848,26 @@ static void s_load_cache_next_stage(dap_ledger_t *a_ledger, const char *a_suffix
         else
             s_load_cache_next_stage(a_ledger, DAP_LEDGER_BALANCES_STR, a_callback);
         return;
+    }
+    // A COMPLETE snapshot carries tokens, emissions and stake-lock marks in its own
+    // ledger_state section, which is applied at load end - after this GDB stage chain
+    // has finished. Reading those groups here would run BEFORE the tokens exist (the
+    // tokens themselves come from the same section), so every emission record was
+    // dropped with "Not found token with ticker" on a node whose GDB had been reset
+    // (535k of them on 0-rpc). The section is authoritative for the covered height;
+    // the tail above it re-applies its datums through the live path anyway.
+    if (PVT(a_ledger)->snapshot_mode && PVT(a_ledger)->snapshot_full) {
+        if (!strcmp(a_suffix, DAP_LEDGER_EMISSIONS_STR)) {
+            log_it(L_NOTICE, "Ledger cache: %s group is carried by the complete snapshot, skipping", a_suffix);
+            s_load_cache_next_stage(a_ledger, DAP_LEDGER_STAKE_LOCK_STR,
+                                    s_load_cache_gdb_loaded_stake_lock_callback);
+            return;
+        }
+        if (!strcmp(a_suffix, DAP_LEDGER_STAKE_LOCK_STR)) {
+            log_it(L_NOTICE, "Ledger cache: %s group is carried by the complete snapshot, skipping", a_suffix);
+            s_load_cache_next_stage(a_ledger, DAP_LEDGER_TXS_STR, s_load_cache_gdb_loaded_txs_callback);
+            return;
+        }
     }
     char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, a_suffix);
     log_it(L_NOTICE, "Ledger cache: reading group %s", l_gdb_group);
