@@ -221,6 +221,9 @@ static char *s_snapshot_group_common_orders(dap_chain_net_t *a_net, void *a_ctx)
     return dap_chain_net_srv_order_get_common_group(a_net);
 }
 
+// Trailer magic that marks the decree-set parameters stored after the records.
+static const uint64_t s_stake_section_trailer_magic = 0x5354414B455F5032ull; // "STAKE_P2"
+
 typedef struct DAP_PACKED s_snapshot_stake_rec {
     dap_chain_addr_t signing_addr;
     dap_chain_addr_t sovereign_addr;
@@ -258,6 +261,17 @@ static int s_snapshot_stake_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a
         l_ok = dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)) != NULL
                 && (!l_rec.pkey_size || dap_string_append_len(a_out, (const char *)l_it->pkey, l_rec.pkey_size) != NULL);
     }
+    // Trailer: the two decree-set parameters (stake min value / percent max). They
+    // are set by decree replay and had no persistence at all, so a restored
+    // registry would enforce the built-in default instead of the network's current
+    // policy. A reader that predates the trailer simply stops after the records.
+    struct DAP_PACKED {
+        uint64_t magic;
+        uint256_t allowed_min, percent_max;
+    } l_trailer = { .magic = s_stake_section_trailer_magic,
+            .allowed_min = l_srv->delegate_allowed_min, .percent_max = l_srv->delegate_percent_max };
+    if (l_ok)
+        l_ok = dap_string_append_len(a_out, (const char *)&l_trailer, sizeof(l_trailer)) != NULL;
     pthread_rwlock_unlock(&l_srv->itemlist_rwlock);
     return l_ok ? 0 : -2;
 }
@@ -270,10 +284,26 @@ static int s_snapshot_stake_load(void *a_ctx, const uint8_t *a_data, size_t a_si
     uint64_t l_hdr[2];
     memcpy(l_hdr, a_data, sizeof(l_hdr));
     uint64_t l_net_id = l_hdr[0], l_count = l_hdr[1];
+    size_t l_hdr_size = 2 * sizeof(uint64_t);
     dap_chain_net_srv_stake_t *l_srv = s_srv_stake_by_net_id((dap_chain_net_id_t){ .uint64 = l_net_id });
     if (!l_srv)
         return 0;
-    const uint8_t *l_ptr = a_data + sizeof(l_hdr), *l_end = a_data + a_size;
+    const uint8_t *l_ptr = a_data + l_hdr_size, *l_end = a_data + a_size;
+    // Optional trailer with the decree-set parameters (see the dump). Everything
+    // after the records is the trailer, so it is located by magic, not by position.
+    uint256_t l_allowed_min = {}, l_percent_max = {};
+    {
+        struct DAP_PACKED { uint64_t magic; uint256_t allowed_min, percent_max; } l_trailer;
+        size_t l_trailer_size = sizeof(l_trailer);
+        if (a_size >= l_trailer_size) {
+            memcpy(&l_trailer, a_data + a_size - l_trailer_size, l_trailer_size);
+            if (l_trailer.magic == s_stake_section_trailer_magic) {
+                l_allowed_min = l_trailer.allowed_min;
+                l_percent_max = l_trailer.percent_max;
+                l_end -= l_trailer_size;
+            }
+        }
+    }
     size_t l_loaded = 0;
     for (uint64_t i = 0; i < l_count; ++i) {
         if ((size_t)(l_end - l_ptr) < sizeof(s_snapshot_stake_rec_t))
@@ -313,6 +343,13 @@ static int s_snapshot_stake_load(void *a_ctx, const uint8_t *a_data, size_t a_si
         pthread_rwlock_unlock(&l_srv->itemlist_rwlock);
         if (l_rec.is_active && !dap_hash_fast_is_blank(&l_rec.signing_addr.data.hash_fast))
             dap_chain_esbocs_add_validator_to_clusters((dap_chain_net_id_t){ .uint64 = l_net_id }, &l_rec.node_addr);
+    }
+    dap_chain_net_srv_stake_t *l_srv_param = s_srv_stake_by_net_id((dap_chain_net_id_t){ .uint64 = l_net_id });
+    if (l_srv_param) {
+        if (!IS_ZERO_256(l_allowed_min))
+            l_srv_param->delegate_allowed_min = l_allowed_min;
+        if (!IS_ZERO_256(l_percent_max))
+            l_srv_param->delegate_percent_max = l_percent_max;
     }
     log_it(L_NOTICE, "Ledger snapshot: stake registry restored (%zu keys)", l_loaded);
     // Weights are derived values (they depend on the whole registry and on the
