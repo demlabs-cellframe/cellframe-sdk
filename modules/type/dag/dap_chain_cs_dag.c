@@ -881,8 +881,14 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         
         dap_chain_cs_dag_event_item_t *l_tail = HASH_LAST(PVT(l_dag)->events);
         if (l_tail && l_tail->ts_created > l_event->header.ts_created) {
+            // The live accept path only APPENDS the event: the offsets of the
+            // already-indexed events do not move, so the index stays valid and
+            // must be kept. Dropping it here (as an earlier build did) left a
+            // tail-only index - every start then "restored" a handful of events
+            // and the net re-downloaded the whole chain into the same file
+            // (live on 0-rpc). The actual rewrite paths (net load reorder, DAG
+            // purge, CLI round complete) drop the index themselves.
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
-            s_dag_index_drop(a_chain);   // the cell will be rewritten, offsets change
         
             HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
             dap_chain_cs_dag_event_item_t *it = PVT(l_dag)->events;
@@ -963,6 +969,24 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
         }
     }
     uint64_t l_restored = 0, l_resume = 0;
+    // Coverage: the index must describe the cell file from its FIRST atom. An
+    // index whose first record sits deeper in the file covers only a tail - the
+    // events before it would silently disappear from the cache while the loader
+    // resumes past them (live on 0-rpc: `need_reorder` dropped the index, the
+    // next appends recreated it as a tail, every start then restored a handful
+    // of events, the net saw an empty chain and re-downloaded the whole
+    // zerochain INTO THE SAME FILE, 3.3 GB per cycle until OOM).
+    {
+        s_dag_idx_rec_t l_first = {};
+        if (fseeko(l_f, sizeof(l_hdr), SEEK_SET) || fread(&l_first, sizeof(l_first), 1, l_f) != 1
+                || !l_first.size || l_first.offset != dap_chain_cell_first_atom_offset()) {
+            log_it(L_WARNING, "DAG index: the first record (offset %" DAP_UINT64_FORMAT_U
+                   ") does not start at the beginning of the cell file (%zu) - the index covers a tail only, rescanning",
+                   l_first.offset, dap_chain_cell_first_atom_offset());
+            fclose(l_f);
+            return -15;
+        }
+    }
     // Continuity: the cell file must still be the one the index was built on.
     // A purge/reorder rewrites it with different offsets, and a stale index would
     // otherwise feed wrong bodies (the add path trusts the indexed hash).
@@ -1969,6 +1993,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply, int a_version)
                 }
             }
             if(l_list_to_del) {
+                // The file_update below rewrites the cell from the event table,
+                // so the stored offsets may change: the index must not survive it.
+                s_dag_index_drop(l_chain);
                 dap_chain_cell_file_update(l_chain->cells);
                 dap_list_t *l_el;
                 DL_FOREACH(l_list_to_del, l_el) {

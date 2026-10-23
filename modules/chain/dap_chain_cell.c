@@ -66,6 +66,11 @@ typedef struct dap_chain_cell_file_header
     dap_chain_cell_id_t cell_id;
 } DAP_ALIGN_PACKED dap_chain_cell_file_header_t;
 
+size_t dap_chain_cell_first_atom_offset(void)
+{
+    return sizeof(dap_chain_cell_file_header_t) + sizeof(uint64_t);
+}
+
 #ifdef DAP_OS_WINDOWS
 typedef NTSTATUS (*pfn_NtCreateSection)(
     OUT PHANDLE SectionHandle, IN ACCESS_MASK DesiredAccess,

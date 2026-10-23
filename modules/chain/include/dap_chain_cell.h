@@ -87,6 +87,10 @@ int dap_chain_cell_map_window_force(dap_chain_cell_t *a_cell, size_t a_file_pos)
 // Absolute file offset of the atom the non-mapped loader is currently feeding
 // (thread-local; 0 when not in a load pass).
 uint64_t dap_chain_cell_load_offset(void);
+// File offset of the first atom body in a cell file (past the cell header and
+// its 8-byte length prefix). A state index whose first record is not here does
+// not cover the file from its start.
+size_t dap_chain_cell_first_atom_offset(void);
 void dap_chain_cell_close(dap_chain_cell_t *a_cell);
 void dap_chain_cell_delete(dap_chain_cell_t *a_cell);
 void dap_chain_cell_delete_all_and_free_file(dap_chain_t *a_chain);
