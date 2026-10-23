@@ -87,26 +87,56 @@ typedef struct DAP_PACKED s_dag_idx_rec {
     uint64_t num;
 } s_dag_idx_rec_t;
 
+// The element types keep their full definitions below; the index helpers only
+// need them as pointers.
+typedef struct dap_chain_cs_dag_event_item dap_chain_cs_dag_event_item_t;
+typedef struct dap_chain_cs_dag_blocked dap_chain_cs_dag_blocked_t;
+
+typedef struct dap_chain_cs_dag_pvt {
+    pthread_mutex_t events_mutex;
+    dap_chain_cs_dag_event_item_t * events;
+    dap_chain_cs_dag_event_item_t * datums;
+    dap_chain_cs_dag_event_item_t * events_treshold;
+    dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
+    dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
+    dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
+    dap_interval_timer_t treshold_free_timer;
+    uint64_t tx_count;
+    // Records covered by the current .dagindex (restored or appended). The ledger
+    // snapshot stores it as a watermark: records below it were already applied to
+    // the ledger when the snapshot was taken, so the replay can skip that work.
+    _Atomic uint64_t index_records;
+    // Per-chain index stream (see s_dag_index_append for why it cannot be shared).
+    FILE *index_file;
+    bool index_adopted;             // continue an existing index instead of creating one
+    dap_chain_hash_fast_t index_last_hash;
+    pthread_mutex_t index_mutex;
+} dap_chain_cs_dag_pvt_t;
+
+#define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
+
 static _Thread_local bool s_dag_restore_mode;
+// File offset of the body currently being fed to the add path by the index
+// replay; zero on the live path. Threshold events must remember where their
+// body sits so the promotion indexes it instead of appending a duplicate.
+static _Thread_local uint64_t s_dag_current_file_offset;
 // Restore timing split (nanoseconds), logged once per replay.
 static _Thread_local uint64_t s_restore_t_datum, s_restore_t_frontier, s_restore_t_body;
 static _Thread_local uint64_t s_restore_n_skipped;
 
 static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t *a_chain,
         dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_hash, bool a_atom_new);
-static FILE *s_dag_index_file = NULL;
-static uint64_t s_dag_index_records = 0;
-static dap_chain_t *s_dag_index_continue_chain = NULL; // chain whose index was restored
-static dap_chain_t *s_dag_index_chain = NULL;
-static dap_chain_hash_fast_t s_dag_index_last_hash;
-// The index stream and its counters are process-wide (one DAG chain at a time),
-// while accept paths run under per-chain events_mutex. Two chains in one process
-// would otherwise interleave records and header flushes.
-static pthread_mutex_t s_dag_index_mutex = PTHREAD_MUTEX_INITIALIZER;
+// The index stream state is PER CHAIN (dap_chain_cs_dag_pvt_t.index_*): two DAG
+// chains load in one process (Backbone and KelVPN zerochains, their scans
+// overlapping), and the old process-wide stream/counter made each chain's
+// appends close, truncate and renumber the other chain's index - the surviving
+// index then began with record #1 in the middle of the file and every start had
+// to rescan (live on 0-rpc, 2026-10-23).
 // The DAG private struct is defined below the index helpers; these thin wrappers
 // keep the per-chain applied-record counter accessible from both places.
 static void s_dag_index_records_store(dap_chain_t *a_chain, uint64_t a_count);
 static uint64_t s_dag_index_records_get(dap_chain_t *a_chain);
+static dap_chain_cs_dag_pvt_t *s_dag_index_pvt(dap_chain_t *a_chain);
 
 static char *s_dag_index_path(dap_chain_t *a_chain)
 {
@@ -114,18 +144,25 @@ static char *s_dag_index_path(dap_chain_t *a_chain)
     return l_cell ? dap_strdup_printf("%s.dagindex", l_cell->file_storage_path) : NULL;
 }
 
+static dap_chain_cs_dag_pvt_t *s_dag_index_pvt(dap_chain_t *a_chain)
+{
+    dap_chain_cs_dag_t *l_dag = a_chain ? DAP_CHAIN_CS_DAG(a_chain) : NULL;
+    return (l_dag && l_dag->_pvt) ? PVT(l_dag) : NULL;
+}
+
 static void s_dag_index_flush_header(dap_chain_t *a_chain)
 {
-    if (!s_dag_index_file || !a_chain)
+    dap_chain_cs_dag_pvt_t *l_pvt = s_dag_index_pvt(a_chain);
+    if (!l_pvt || !l_pvt->index_file)
         return;
     s_dag_idx_hdr_t l_hdr = {
         .version = DAG_INDEX_VERSION,
         .hsize = sizeof(s_dag_idx_hdr_t),
         .net_id = a_chain->net_id.uint64,
         .cell_id = a_chain->active_cell_id.uint64,
-        .count = s_dag_index_records
+        .count = atomic_load(&l_pvt->index_records)
     };
-    memcpy(l_hdr.last_hash, &s_dag_index_last_hash, sizeof(l_hdr.last_hash));
+    memcpy(l_hdr.last_hash, &l_pvt->index_last_hash, sizeof(l_hdr.last_hash));
     dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
     struct stat l_st = {0};
     // stat(), not fseeko on the cell's FILE: the non-mapped loader reads that
@@ -133,85 +170,95 @@ static void s_dag_index_flush_header(dap_chain_t *a_chain)
     if (l_cell && l_cell->file_storage_path[0] && !stat(l_cell->file_storage_path, &l_st) && l_st.st_size > 0)
         l_hdr.file_size = (uint64_t)l_st.st_size;
     memcpy(l_hdr.magic, DAG_INDEX_MAGIC, sizeof(l_hdr.magic));
-    if (!fflush(s_dag_index_file) && !fseeko(s_dag_index_file, 0, SEEK_SET)
-            && fwrite(&l_hdr, sizeof(l_hdr), 1, s_dag_index_file) == 1)
-        fflush(s_dag_index_file);
-    fseeko(s_dag_index_file, 0, SEEK_END);
+    if (!fflush(l_pvt->index_file) && !fseeko(l_pvt->index_file, 0, SEEK_SET)
+            && fwrite(&l_hdr, sizeof(l_hdr), 1, l_pvt->index_file) == 1)
+        fflush(l_pvt->index_file);
+    fseeko(l_pvt->index_file, 0, SEEK_END);
 }
 
+static void s_dag_index_append_at(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_hash,
+                                  uint64_t a_offset, size_t a_size)
+{
+    if (s_dag_restore_mode || !a_chain || !a_hash || !a_size || !a_offset)
+        return;
+    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
+    dap_chain_cs_dag_pvt_t *l_pvt = s_dag_index_pvt(a_chain);
+    if (!l_cell || !l_pvt)
+        return;
+    uint64_t l_off = a_offset;
+    pthread_mutex_lock(&l_pvt->index_mutex);
+    if (!l_pvt->index_file) {
+        // Continue an adopted index; a chain whose index was not restored starts
+        // a fresh one (its own file only - this stream is per chain).
+        char *l_path = s_dag_index_path(a_chain);
+        l_pvt->index_file = l_path ? fopen(l_path, l_pvt->index_adopted ? "r+b" : "wb") : NULL;
+        DAP_DELETE(l_path);
+        if (!l_pvt->index_file) {
+            pthread_mutex_unlock(&l_pvt->index_mutex);
+            return;
+        }
+        if (l_pvt->index_adopted) {
+            fseeko(l_pvt->index_file, 0, SEEK_END);
+            off_t l_size = ftello(l_pvt->index_file);
+            uint64_t l_recs = l_size > (off_t)sizeof(s_dag_idx_hdr_t)
+                    ? (uint64_t)(l_size - sizeof(s_dag_idx_hdr_t)) / sizeof(s_dag_idx_rec_t) : 0;
+            atomic_store(&l_pvt->index_records, l_recs);
+        } else {
+            atomic_store(&l_pvt->index_records, 0);
+            s_dag_index_flush_header(a_chain);
+        }
+    }
+    uint64_t l_records = atomic_load(&l_pvt->index_records);
+    s_dag_idx_rec_t l_rec = { .offset = l_off, .size = a_size, .num = l_records + 1 };
+    memcpy(l_rec.hash, a_hash, sizeof(l_rec.hash));
+    if (fwrite(&l_rec, sizeof(l_rec), 1, l_pvt->index_file) == 1) {
+        atomic_store(&l_pvt->index_records, l_records + 1);
+        l_pvt->index_last_hash = *a_hash;
+        // Flush the header on every append: the restore validates the LAST record
+        // against header.last_hash, so a lagging count/hash rejects a valid index.
+        s_dag_index_flush_header(a_chain);
+    }
+    pthread_mutex_unlock(&l_pvt->index_mutex);
+}
+
+// Index a body that lives in the cell file or in a freshly appended atom: the
+// offset comes from the mapped window when the pointer is inside it, and from
+// the loader's position when a non-mapped loader feeds the atom.
 static void s_dag_index_append(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_hash,
                                const void *a_event_ptr, size_t a_size)
 {
-    if (s_dag_restore_mode || !a_chain || !a_hash || !a_size)
+    if (s_dag_restore_mode || !a_chain || !a_event_ptr)
         return;
     dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
     if (!l_cell)
         return;
     uint64_t l_off = 0;
-    if (a_chain->is_mapped && a_event_ptr && (const char *)a_event_ptr >= l_cell->map
+    if (a_chain->is_mapped && (const char *)a_event_ptr >= l_cell->map
             && (const char *)a_event_ptr < l_cell->map_end)
         l_off = (uint64_t)l_cell->cur_vol_start + (uint64_t)((const char *)a_event_ptr - l_cell->map);
     else
         l_off = dap_chain_cell_load_offset();
-    if (!l_off)  // live non-mapped event: the next start reads it as the tail
-        return;
-    pthread_mutex_lock(&s_dag_index_mutex);
-    if (!s_dag_index_file || s_dag_index_chain != a_chain) {
-        if (s_dag_index_file)
-            fclose(s_dag_index_file);
-        // Per-chain: only a chain whose index was restored appends; another DAG
-        // chain in the same process must start a fresh index.
-        bool l_continue = (s_dag_index_continue_chain == a_chain);
-        char *l_path = s_dag_index_path(a_chain);
-        s_dag_index_file = l_path ? fopen(l_path, l_continue ? "r+b" : "wb") : NULL;
-        DAP_DELETE(l_path);
-        s_dag_index_chain = a_chain;
-        if (!s_dag_index_file) {
-            pthread_mutex_unlock(&s_dag_index_mutex);
-            return;
-        }
-        if (l_continue) {
-            fseeko(s_dag_index_file, 0, SEEK_END);
-            off_t l_size = ftello(s_dag_index_file);
-            s_dag_index_records = l_size > (off_t)sizeof(s_dag_idx_hdr_t)
-                    ? (uint64_t)(l_size - sizeof(s_dag_idx_hdr_t)) / sizeof(s_dag_idx_rec_t) : 0;
-            fseeko(s_dag_index_file, 0, SEEK_END);
-        } else {
-            s_dag_index_records = 0;
-            s_dag_index_flush_header(a_chain);
-        }
-    }
-    s_dag_idx_rec_t l_rec = { .offset = l_off, .size = a_size, .num = s_dag_index_records + 1 };
-    memcpy(l_rec.hash, a_hash, sizeof(l_rec.hash));
-    if (fwrite(&l_rec, sizeof(l_rec), 1, s_dag_index_file) == 1) {
-        ++s_dag_index_records;
-        s_dag_index_records_store(a_chain, s_dag_index_records);
-        s_dag_index_last_hash = *a_hash;
-        // Flush the header on every append: the restore validates the LAST record
-        // against header.last_hash, so a lagging count/hash rejects a valid index.
-        s_dag_index_flush_header(a_chain);
-    }
-    pthread_mutex_unlock(&s_dag_index_mutex);
+    s_dag_index_append_at(a_chain, a_hash, l_off, a_size);
 }
 
 static void s_dag_index_drop(dap_chain_t *a_chain)
 {
-    pthread_mutex_lock(&s_dag_index_mutex);
-    if (s_dag_index_file && s_dag_index_chain == a_chain) {
-        fclose(s_dag_index_file);
-        s_dag_index_file = NULL;
-        s_dag_index_chain = NULL;
+    dap_chain_cs_dag_pvt_t *l_pvt = s_dag_index_pvt(a_chain);
+    if (l_pvt) {
+        pthread_mutex_lock(&l_pvt->index_mutex);
+        if (l_pvt->index_file) {
+            fclose(l_pvt->index_file);
+            l_pvt->index_file = NULL;
+        }
+        atomic_store(&l_pvt->index_records, 0);
+        l_pvt->index_adopted = false;
+        pthread_mutex_unlock(&l_pvt->index_mutex);
     }
     char *l_path = s_dag_index_path(a_chain);
     if (l_path) {
         remove(l_path);
         DAP_DELETE(l_path);
     }
-    s_dag_index_records = 0;
-    s_dag_index_records_store(a_chain, 0);
-    if (s_dag_index_continue_chain == a_chain)
-        s_dag_index_continue_chain = NULL;
-    pthread_mutex_unlock(&s_dag_index_mutex);
 }
 
 // Set while replaying index records the ledger snapshot already covers.
@@ -313,7 +360,7 @@ static int s_dag_snapshot_load(void *a_ctx, const uint8_t *a_data, size_t a_size
     return 0;
 }
 
-typedef struct dap_chain_cs_dag_event_item {
+struct dap_chain_cs_dag_event_item {
     dap_chain_hash_fast_t hash;
     dap_chain_hash_fast_t datum_hash;
     dap_nanotime_t ts_added;
@@ -323,32 +370,17 @@ typedef struct dap_chain_cs_dag_event_item {
     uint64_t event_number;
     int ret_code;
     char *mapped_region;
+    // File offset of the body when the event entered the cache from the cell
+    // file (load/scan). Zero for live events - those are not in the file yet,
+    // the promotion from the threshold writes and indexes them.
+    uint64_t file_offset;
     UT_hash_handle hh, hh_select, hh_datums;
-} dap_chain_cs_dag_event_item_t;
+};
 
-typedef struct dap_chain_cs_dag_blocked {
+struct dap_chain_cs_dag_blocked {
     dap_chain_hash_fast_t hash;
     UT_hash_handle hh;
-}dap_chain_cs_dag_blocked_t;
-
-
-typedef struct dap_chain_cs_dag_pvt {
-    pthread_mutex_t events_mutex;
-    dap_chain_cs_dag_event_item_t * events;
-    dap_chain_cs_dag_event_item_t * datums;
-    dap_chain_cs_dag_event_item_t * events_treshold;
-    dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
-    dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
-    dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
-    dap_interval_timer_t treshold_free_timer;
-    uint64_t tx_count;
-    // Records covered by the current .dagindex (restored or appended). The ledger
-    // snapshot stores it as a watermark: records below it were already applied to
-    // the ledger when the snapshot was taken, so the replay can skip that work.
-    _Atomic uint64_t index_records;
-} dap_chain_cs_dag_pvt_t;
-
-#define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
+};
 
 static void s_dag_index_records_store(dap_chain_t *a_chain, uint64_t a_count)
 {
@@ -497,6 +529,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&PVT(l_dag)->events_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
+    pthread_mutex_init(&PVT(l_dag)->index_mutex, NULL);
 
     a_chain->callback_delete = s_chain_cs_dag_delete;
     a_chain->callback_purge = s_dap_chain_cs_dag_purge;
@@ -689,6 +722,11 @@ static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
     dap_return_if_pass(!PVT(l_dag));
     dap_interval_timer_delete(PVT(l_dag)->treshold_free_timer);
     s_dap_chain_cs_dag_purge(a_chain);
+    if (PVT(l_dag)->index_file) {
+        fclose(PVT(l_dag)->index_file);
+        PVT(l_dag)->index_file = NULL;
+    }
+    pthread_mutex_destroy(& PVT(l_dag)->index_mutex);
     pthread_mutex_destroy(& PVT(l_dag)->events_mutex);
     if(l_dag->callback_delete )
         l_dag->callback_delete(l_dag);
@@ -836,8 +874,26 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         dap_chain_cs_dag_blocked_t *el = NULL;
         HASH_FIND(hh, PVT(l_dag)->removed_events_from_treshold, &l_event_hash, sizeof(dap_chain_hash_fast_t), el);
         if (!el) {
-            if ( a_chain->is_mapped && dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)) )
-                l_event_item->mapped_region = (char*)l_event;
+            bool l_load_mode = dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id));
+            if (l_load_mode) {
+                // The body already sits in the cell file: remember where, so the
+                // promotion can index that position instead of appending a
+                // duplicate body (which would also grow the file on every start).
+                // The replay knows the exact record offset; the loaders their
+                // position. A live event (load_mode off) has no file body yet -
+                // the promotion appends it and yields its own offset.
+                dap_chain_cell_t *l_cell_th = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
+                uint64_t l_body_off = s_dag_current_file_offset;
+                if (!l_body_off && a_chain->is_mapped && l_cell_th
+                        && (const char *)l_event >= l_cell_th->map && (const char *)l_event < l_cell_th->map_end)
+                    l_body_off = (uint64_t)l_cell_th->cur_vol_start
+                            + (uint64_t)((const char *)l_event - l_cell_th->map);
+                if (!l_body_off)
+                    l_body_off = dap_chain_cell_load_offset();
+                l_event_item->file_offset = l_body_off;
+                if (a_chain->is_mapped && l_body_off)
+                    l_event_item->mapped_region = (char*)l_event;
+            }
             HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_hash), l_event_item);
             debug_if(s_debug_more, L_DEBUG, "... added to threshold");
         } else {
@@ -1087,14 +1143,21 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
         }
         uint64_t l_tb0 = dap_nanotime_now();
         s_dag_restore_skip_apply = (i < l_watermark);
+        s_dag_current_file_offset = l_rec.offset;
         dap_chain_atom_verify_res_t l_res = s_chain_callback_atom_add(a_chain,
                 (dap_chain_atom_ptr_t)l_event, l_rec.size, &l_hash, false);
+        s_dag_current_file_offset = 0;
         s_dag_restore_skip_apply = false;
         s_restore_t_body += (uint64_t)(dap_nanotime_now() - l_tb0);
         if (l_res == ATOM_ACCEPT || l_res == ATOM_PASS)
             ++l_restored;
         DAP_DEL_Z(l_heap);   // the add path duplicates the body for non-mapped chains
-        l_resume = l_rec.offset + l_rec.size;
+        // Max, not last: a promotion from the threshold indexes a body that was
+        // written earlier in the file, so record order need not follow offsets.
+        // Resuming at the highest covered end keeps every un-indexed body in the
+        // tail for the loader to pick up.
+        if (l_rec.offset + l_rec.size > l_resume)
+            l_resume = l_rec.offset + l_rec.size;
     }
     s_dag_restore_mode = false;
     fclose(l_f);
@@ -1119,16 +1182,18 @@ static int64_t s_dag_restore_index(dap_chain_t *a_chain, uint64_t *a_resume_offs
         fclose(l_idx);
     }
     DAP_DELETE(l_idx_path);
-    pthread_mutex_lock(&s_dag_index_mutex);
-    if (s_dag_index_file && s_dag_index_chain == a_chain) {
-        // The next append reopens the adopted file at EOF and recomputes the
-        // record count; a stream left open by an earlier append must not be reused.
-        fclose(s_dag_index_file);
-        s_dag_index_file = NULL;
-        s_dag_index_chain = NULL;
+    dap_chain_cs_dag_pvt_t *l_pvt = s_dag_index_pvt(a_chain);
+    if (l_pvt) {
+        pthread_mutex_lock(&l_pvt->index_mutex);
+        if (l_pvt->index_file) {
+            // The next append reopens the adopted file at EOF and recomputes the
+            // record count; a stream left open by an earlier append must not be reused.
+            fclose(l_pvt->index_file);
+            l_pvt->index_file = NULL;
+        }
+        l_pvt->index_adopted = true;
+        pthread_mutex_unlock(&l_pvt->index_mutex);
     }
-    s_dag_index_continue_chain = a_chain;
-    pthread_mutex_unlock(&s_dag_index_mutex);
     *a_resume_offset = l_resume;
     s_dag_index_records_store(a_chain, l_count);
     // The chain's atom position must reflect the restored content: without it the
@@ -1501,7 +1566,12 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
             debug_if(s_debug_more, L_DEBUG, "Processing event (threshold): %s...",
                     dap_chain_hash_fast_to_str_static(&l_event_item->hash));
             dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_dag->chain, l_event_item->event->header.cell_id);
-            if ( !l_event_item->mapped_region ) {
+            // The body may already be in the cell file: the mapped loader and the
+            // index replay know its offset, the non-mapped loader read it from
+            // there. Saving again would append a duplicate body (and, during the
+            // replay, grow the file on every start). Only a live event - whose
+            // body exists nowhere but in memory - is appended here.
+            if ( !l_event_item->mapped_region && !l_event_item->file_offset ) {
                 if ( dap_chain_atom_save(l_cell, (const byte_t*)l_event_item->event, l_event_item->event_size, NULL) < 0 ) {
                     log_it(L_CRITICAL, "Can't move atom from threshold to file");
                     res = false;
@@ -1516,8 +1586,21 @@ dap_chain_cs_dag_event_item_t* s_dag_proc_treshold(dap_chain_cs_dag_t * a_dag)
             if (!l_add_res) {
                 HASH_ADD(hh, PVT(a_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
                 s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
+                // The promotion writes a body into the cell file just like a direct
+                // accept, so it must be indexed the same way: a file body without
+                // an index record falls out of the cache on the next start (the
+                // loader resumes past it). A live non-mapped event is the one
+                // exception - it is appended at the file end and stays the tail
+                // for the next start, exactly as on the direct-accept path.
+                if (l_event_item->file_offset)
+                    s_dag_index_append_at(a_dag->chain, &l_event_item->hash, l_event_item->file_offset,
+                            l_event_item->event_size);
+                else if (a_dag->chain->is_mapped)
+                    s_dag_index_append(a_dag->chain, &l_event_item->hash, l_event_item->event,
+                            l_event_item->event_size);
                 debug_if(s_debug_more, L_INFO, "... moved from threshold to chain");
-                dap_chain_atom_notify(l_cell, &l_event_item->hash, (byte_t *)l_event_item->event, l_event_item->event_size, l_event_item->event->header.ts_created);
+                if (!s_dag_restore_mode)
+                    dap_chain_atom_notify(l_cell, &l_event_item->hash, (byte_t *)l_event_item->event, l_event_item->event_size, l_event_item->event->header.ts_created);
                 res = true;
             } else {
                 // TODO clear other threshold items linked with this one
