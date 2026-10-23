@@ -99,7 +99,8 @@ bool dap_chain_node_peer_needs_legacy_handshake(dap_chain_net_t *a_net, dap_stre
     if (!l_gdb_group)
         return true;
 
-    const char *l_key = dap_stream_node_addr_to_str_static(*a_addr);
+    dap_node_addr_str_t l_key_storage = dap_stream_node_addr_to_str_static_(*a_addr);
+    const char *l_key = l_key_storage.s;
     size_t l_data_size = 0;
     byte_t *l_data = dap_global_db_get_sync(l_gdb_group, l_key, &l_data_size, NULL, NULL);
     DAP_DELETE(l_gdb_group);
