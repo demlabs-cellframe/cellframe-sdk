@@ -3393,12 +3393,66 @@ static int s_token_datum_reg_snapshot_load(void *a_ctx, const uint8_t *a_data, s
     return 0;
 }
 
+// Chains whose registry rebuild was already attempted. A pointer set is enough:
+// it is only a guard against walking the chain again when the walk legitimately
+// finds no token datums at all (an empty answer must not re-walk on every CLI
+// call); the chain objects live for the process's lifetime.
+static bool s_token_datum_reg_rebuild_tried(dap_chain_t *a_chain)
+{
+    static dap_chain_t *s_tried[8];
+    static size_t s_n_tried;
+    for (size_t i = 0; i < s_n_tried; ++i)
+        if (s_tried[i] == a_chain)
+            return true;
+    if (s_n_tried < 8)
+        s_tried[s_n_tried++] = a_chain;
+    return false;
+}
+
+// A no-scan start never walks datums, so the registry `token list` reads comes
+// up empty - and the snapshot section, dumped from that registry, is written a
+// header only. That is self-sustaining (live on cf-mm-0, 5.7-79: `token list`
+// answered "tokens: 0" while the restored ledger held every declaration).
+// Rebuild on demand by walking the chain's datum iterator: it reads block
+// bodies transiently (dap_chain_block_cache_transient), so the whole-chain walk
+// keeps one body in the heap at most. The walk FILLS the registry, so the next
+// snapshot carries it and later starts need no walk at all.
+static bool s_token_datum_reg_rebuild_walk(dap_chain_t *a_chain)
+{
+    if (!a_chain || !a_chain->callback_datum_iter_create)
+        return false;
+    dap_chain_datum_iter_t *l_iter = a_chain->callback_datum_iter_create(a_chain);
+    if (!l_iter)
+        return false;
+    size_t l_found = 0;
+    for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_iter);
+            l_datum; l_datum = a_chain->callback_datum_iter_get_next(l_iter)) {
+        if (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN)
+            continue;
+        dap_hash_fast_t l_hash = {};
+        if (l_iter->cur_hash)
+            l_hash = *l_iter->cur_hash;
+        else
+            dap_chain_datum_calc_hash(l_datum, &l_hash);
+        s_token_datum_reg_add(a_chain, l_datum, &l_hash, l_iter->ret_code);
+        ++l_found;
+    }
+    a_chain->callback_datum_iter_delete(l_iter);
+    if (l_found)
+        log_it(L_NOTICE, "Token registry: %zu token datum(s) rebuilt by a chain walk", l_found);
+    return l_found > 0;
+}
+
 size_t dap_chain_token_datum_list(dap_chain_t *a_chain, dap_chain_token_datum_info_t **a_out)
 {
     if (a_out)
         *a_out = NULL;
     if (!a_chain || !a_out)
         return 0;
+    // Lazy once-per-chain rebuild for a no-scan start (see the helper): only the
+    // chain that actually answers the listing pays for the walk, and only once.
+    if (!s_token_datum_reg_rebuild_tried(a_chain))
+        s_token_datum_reg_rebuild_walk(a_chain);
     size_t l_count = 0;
     pthread_mutex_lock(&s_token_datum_reg_lock);
     dap_chain_token_datum_reg_t *l_entry = NULL;
