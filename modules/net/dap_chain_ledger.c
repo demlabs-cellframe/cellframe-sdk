@@ -2198,6 +2198,19 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
         pthread_rwlock_wrlock(&PVT(a_ledger)->tokens_rwlock);
         HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item);
     } else {
+        // A DECL for a token the ledger already knows: on a snapshot-based start
+        // the item can have been created from a section/GDB record without its
+        // declaration bytes, and the ledger_state dump then wrote token_size = 0
+        // for it - the next start could not recreate the token at all (measured
+        // on cf-mm-0: the section shrank from 1.07 GB to 393 MB across restarts
+        // and `token info -name QEVM` stopped finding a token the ledger had held
+        // since 17 Oct). Adopt the declaration here so the state stays complete.
+        if (l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_DECL && !l_token_item->datum_token) {
+            l_token_item->datum_token_size = sizeof(dap_chain_datum_token_t) + l_tsd_total_size + l_signs_size;
+            l_token_item->datum_token = l_token;
+            s_ledger_token_cache_update(a_ledger, l_token_item);
+            return DAP_LEDGER_CHECK_OK;
+        }
         assert(l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE);
         pthread_rwlock_wrlock(&PVT(a_ledger)->tokens_rwlock);
         dap_ledger_token_update_item_t *l_token_update_item = NULL;
@@ -4573,6 +4586,33 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         log_it(L_WARNING, "Ledger snapshot: ledger has items without datums (their blocks are "
                           "not in the local cell files yet) - keeping the previous snapshot");
         return 0;
+    }
+
+    // Same rule for tokens: the ledger_state section writes each declaration's
+    // bytes, and a token without them is written with token_size = 0 - the next
+    // start cannot recreate that token at all. That is exactly how the section
+    // shrank from 1.07 GB to 393 MB across restarts on cf-mm-0 and tokens the
+    // ledger had held for a week (QEVM) disappeared from `token info`. Keep the
+    // previous snapshot until every token carries its declaration.
+    {
+        bool l_token_without_decl = false;
+        const char *l_bad_ticker = NULL;
+        pthread_rwlock_rdlock(&l_ledger_pvt->tokens_rwlock);
+        for (dap_ledger_token_item_t *l_tok = l_ledger_pvt->tokens; l_tok; l_tok = l_tok->hh.next) {
+            if (!l_tok->datum_token || !l_tok->datum_token_size) {
+                l_token_without_decl = true;
+                l_bad_ticker = l_tok->ticker;
+                break;
+            }
+        }
+        pthread_rwlock_unlock(&l_ledger_pvt->tokens_rwlock);
+        if (l_token_without_decl) {
+            log_it(L_WARNING, "Ledger snapshot: token '%s' carries no declaration in this ledger "
+                              "(a restored item without its datum) - keeping the previous snapshot "
+                              "instead of writing a section that would lose it",
+                   l_bad_ticker ? l_bad_ticker : "?");
+            return 0;
+        }
     }
 
     char *l_path = s_snapshot_file_path(a_ledger);
