@@ -3645,15 +3645,22 @@ static void s_pending_section_add(s_snapshot_mapping_t *a_map, uint64_t a_net_id
     s_pending_snapshot_section_t *l_new = DAP_NEW_Z(s_pending_snapshot_section_t);
     if (!l_new)
         return;
-    // Borrowed pointer into the mapped payload - zero copy.
-    l_new->data = a_size ? (uint8_t *)a_data : NULL;
-    if (a_size && !l_new->data) {
-        DAP_DELETE(l_new);
-        return;
-    }
-    if (l_new->data && a_map)
+    if (a_size && a_map) {
+        // Borrowed pointer into the mapped payload - zero copy. The mapping
+        // stays alive through the section's reference.
+        l_new->data = (uint8_t *)a_data;
         ++a_map->refs;
-    l_new->map = a_map;
+        l_new->map = a_map;
+    } else if (a_size) {
+        // Heap payload (Windows, or a failed mmap): the buffer is freed at the
+        // end of the load, while sections run later at load end - they must own
+        // their bytes. (The borrowed-pointer version crashed exactly here.)
+        l_new->data = DAP_DUP_SIZE((uint8_t *)a_data, a_size);
+        if (!l_new->data) {
+            DAP_DELETE(l_new);
+            return;
+        }
+    }
     dap_strncpy(l_new->name, a_name, sizeof(l_new->name) - 1);
     l_new->net_id = a_net_id;
     l_new->size = a_size;
@@ -3665,10 +3672,10 @@ static void s_pending_section_add(s_snapshot_mapping_t *a_map, uint64_t a_net_id
 
 static void s_pending_sections_clear(uint64_t a_net_id)
 {
-    // The sections do not own their bytes - they point into the snapshot
-    // mapping, one reference per section. Take them out under the lock, then
-    // release each reference outside it.
-    dap_list_t *l_drop = NULL;
+    // A section either owns its bytes (heap payload) or holds a reference into
+    // the snapshot mapping. Take the owners and the mapping references out under
+    // the lock, then release both outside it.
+    dap_list_t *l_drop = NULL, *l_owned = NULL;
     pthread_mutex_lock(&s_pending_sections_lock);
     s_pending_snapshot_section_t *l_keep = NULL;
     s_pending_snapshot_section_t *l_it = s_pending_sections;
@@ -3677,6 +3684,8 @@ static void s_pending_sections_clear(uint64_t a_net_id)
         if (l_it->net_id == a_net_id) {
             if (l_it->data && l_it->map)
                 l_drop = dap_list_append(l_drop, l_it->map);
+            else if (l_it->data)
+                l_owned = dap_list_append(l_owned, l_it->data);
             DAP_DELETE(l_it);
         } else {
             l_it->next = l_keep;
@@ -3689,6 +3698,9 @@ static void s_pending_sections_clear(uint64_t a_net_id)
     for (dap_list_t *l_d = l_drop; l_d; l_d = l_d->next)
         s_snapshot_mapping_release((s_snapshot_mapping_t *)l_d->data);
     dap_list_free(l_drop);
+    for (dap_list_t *l_o = l_owned; l_o; l_o = l_o->next)
+        DAP_DELETE(l_o->data);
+    dap_list_free(l_owned);
 }
 
 static void s_pending_sections_apply(dap_ledger_t *a_ledger)
@@ -3746,11 +3758,13 @@ static void s_pending_sections_apply(dap_ledger_t *a_ledger)
         } else {
             log_it(L_INFO, "Ledger snapshot: section '%s' skipped (not registered)", l_it->name);
         }
-        // The section borrowed its bytes from the snapshot mapping; release the
-        // reference (the mapping itself goes away with the last pending section
-        // of that snapshot).
+        // The section either borrowed its bytes from the snapshot mapping (then
+        // the reference goes back, and the mapping itself goes away with the
+        // last pending section of that snapshot) or owns a heap copy.
         if (l_it->data && l_it->map)
             s_snapshot_mapping_release(l_it->map);
+        else
+            DAP_DEL_Z(l_it->data);
         DAP_DELETE(l_it);
         l_it = l_next;
     }
@@ -4983,17 +4997,23 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             // 0-rpc box two 1.7-1.9 GB payloads in malloc'd memory (plus a copy
             // of every extension section out of them) was what drove the node
             // into the OOM killer. Mapped pages are file-backed and reclaimable.
+            // The payload starts right after the header, at an offset that is
+            // not page-aligned: map from the page boundary below and offset into
+            // the mapping, or mmap answers EINVAL.
 #ifndef _WIN32
             off_t l_payload_off = ftello(l_file);
-            void *l_map = l_payload_off >= 0
-                    ? mmap(NULL, l_header.payload_size, PROT_READ, MAP_PRIVATE, fileno(l_file), l_payload_off)
-                    : MAP_FAILED;
-            if (l_map != MAP_FAILED) {
-                l_snapshot_map = s_snapshot_mapping_hold(l_map, l_header.payload_size);
-                if (l_snapshot_map)
-                    l_payload = (uint8_t *)l_map;
-                else
-                    munmap(l_map, l_header.payload_size);   // no tracker: fall through to the heap
+            long l_page = sysconf(_SC_PAGESIZE);
+            if (l_payload_off >= 0 && l_page > 0) {
+                off_t l_map_off = l_payload_off - (l_payload_off % l_page);
+                size_t l_map_len = (size_t)(l_payload_off - l_map_off) + l_header.payload_size;
+                void *l_map = mmap(NULL, l_map_len, PROT_READ, MAP_PRIVATE, fileno(l_file), l_map_off);
+                if (l_map != MAP_FAILED) {
+                    l_snapshot_map = s_snapshot_mapping_hold(l_map, l_map_len);
+                    if (l_snapshot_map)
+                        l_payload = (uint8_t *)l_map + (l_payload_off - l_map_off);
+                    else
+                        munmap(l_map, l_map_len);   // no tracker: fall through to the heap
+                }
             }
 #endif
             if (!l_payload) {
@@ -5003,6 +5023,9 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
                     l_ret = 0;
                     break;
                 }
+            } else {
+                log_it(L_INFO, "Ledger snapshot: payload of %" DAP_UINT64_FORMAT_U
+                       " bytes is mapped, not copied", l_header.payload_size);
             }
             if (crc64(l_payload, l_header.payload_size) != l_header.crc64) {
                 log_it(L_WARNING, "Ledger snapshot: %s is corrupt, ignoring", l_path);
