@@ -126,6 +126,14 @@ typedef dap_time_t (*dap_chain_callback_atom_get_timestamp_t)(dap_chain_atom_ptr
 
 typedef dap_chain_datum_t * (*dap_chain_callback_datum_find_by_hash_t)(dap_chain_t *, dap_chain_hash_fast_t *, dap_chain_hash_fast_t *, int *);
 
+// Borrowed-datum variant of the lookup: the body stays valid only until the
+// next call with the same handle, and the chain is free to serve it from a
+// transient parse instead of pinning the whole block in its cache. Bulk walks
+// (the wallet pass over the entire chain) must use this - the pinned variant
+// materializes every body it touches for the process's lifetime.
+typedef dap_chain_datum_t * (*dap_chain_callback_datum_peek_by_hash_t)(dap_chain_t *, dap_chain_hash_fast_t *, void *a_handle);
+typedef void (*dap_chain_callback_datum_peek_free_t)(dap_chain_t *, void *a_handle);
+
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_block_find_by_hash_t)(dap_chain_t * ,dap_chain_hash_fast_t *, size_t *);
 
 typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t* ,size_t**);
@@ -225,6 +233,10 @@ typedef struct dap_chain {
     dap_chain_callback_atom_iter_find_by_hash_t callback_atom_find_by_hash;
     dap_chain_callback_atom_iter_get_by_num_t callback_atom_get_by_num;
     dap_chain_callback_datum_find_by_hash_t callback_datum_find_by_hash;
+    // Optional: borrowed-body lookup for bulk walks (see the typedefs above).
+    // NULL on chains that have nothing to gain from it.
+    dap_chain_callback_datum_peek_by_hash_t callback_datum_peek_by_hash;
+    dap_chain_callback_datum_peek_free_t callback_datum_peek_free;
     dap_chain_callback_atom_to_json callback_atom_dump_json;
 
     dap_chain_callback_block_find_by_hash_t callback_block_find_by_tx_hash;

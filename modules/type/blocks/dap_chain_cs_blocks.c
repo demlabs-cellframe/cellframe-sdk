@@ -199,6 +199,9 @@ static json_object *s_callback_atom_dump_json(json_object **a_arr_out, dap_chain
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_t *a_atom_iter, uint64_t a_atom_num);
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                         dap_chain_hash_fast_t *a_block_hash, int *a_ret_code);
+static dap_chain_datum_t *s_callback_datum_peek_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
+                                                        void *a_handle);
+static void s_callback_datum_peek_free(dap_chain_t *a_chain, void *a_handle);
 
 static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash, size_t *a_block_size);
 
@@ -387,6 +390,8 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
     a_chain->callback_atom_dump_json = s_callback_atom_dump_json;
     a_chain->callback_atom_get_by_num = s_callback_atom_iter_get_by_num;
     a_chain->callback_datum_find_by_hash = s_callback_datum_find_by_hash;
+    a_chain->callback_datum_peek_by_hash = s_callback_datum_peek_by_hash;
+    a_chain->callback_datum_peek_free = s_callback_datum_peek_free;
 //    a_chain->callback_atom_dump_json =
 
     a_chain->callback_block_find_by_tx_hash = s_callback_block_find_by_tx_hash;
@@ -3510,6 +3515,52 @@ static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, da
     if (!l_block->datum || l_rec.datum_index >= l_block->datum_count)
         return NULL;
     return l_block->datum[l_rec.datum_index];
+}
+
+// Borrowed-body lookup for bulk walks: a thin entry is served from a transient
+// parse held in *a_handle (replaced on the next call, released with _peek_free)
+// instead of being materialized into the cache entry. Without this the wallet
+// bulk pass pinned every block body it touched - a 20 GB chain does not fit in
+// the 8 GB box (live on 0-rpc: RSS grew until the OOM killer).
+static dap_chain_datum_t *s_callback_datum_peek_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
+                                                        void *a_handle)
+{
+    dap_chain_cs_blocks_t *l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_state_t *l_state = s_chain_state_get(l_cs_blocks);
+    dap_chain_state_datum_t l_rec = {};
+    if (!l_state || !dap_chain_state_datum_find(l_state, a_datum_hash, &l_rec) || !l_rec.block_ref)
+        return NULL;
+    dap_chain_block_cache_t *l_block = (dap_chain_block_cache_t *)l_rec.block_ref;
+    dap_chain_block_cache_t *l_effective = l_block;
+    // Replace the previous transient (its datum is dead the moment we return a
+    // new one) and parse this block's body transiently when it is still thin.
+    dap_chain_block_cache_transient_t **l_handle = (dap_chain_block_cache_transient_t **)a_handle;
+    if (l_handle && *l_handle) {
+        dap_chain_block_cache_transient_free(*l_handle);
+        *l_handle = NULL;
+    }
+    if (!l_block->parsed && l_handle) {
+        dap_chain_block_cache_transient_t *l_tr = dap_chain_block_cache_transient(l_block);
+        if (l_tr) {
+            *l_handle = l_tr;
+            l_effective = &l_tr->cache;
+        } else if (dap_chain_block_cache_ensure(l_block))
+            return NULL;
+    } else if (!l_block->parsed && dap_chain_block_cache_ensure(l_block))
+        return NULL;
+    if (!l_effective->datum || l_rec.datum_index >= l_effective->datum_count)
+        return NULL;
+    return l_effective->datum[l_rec.datum_index];
+}
+
+static void s_callback_datum_peek_free(dap_chain_t *a_chain, void *a_handle)
+{
+    (void)a_chain;
+    dap_chain_block_cache_transient_t **l_handle = (dap_chain_block_cache_transient_t **)a_handle;
+    if (l_handle && *l_handle) {
+        dap_chain_block_cache_transient_free(*l_handle);
+        *l_handle = NULL;
+    }
 }
 
 /**

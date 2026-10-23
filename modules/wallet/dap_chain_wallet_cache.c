@@ -1571,6 +1571,11 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_ret_val_if_any(-EINVAL, !l_net || !l_net->pub.ledger);
     dap_ledger_t *l_ledger = l_net->pub.ledger;
+    // Borrowed-body lookups for the previous transactions of inputs: the bulk
+    // pass walks the entire chain, and the pinned variant of the lookup would
+    // materialize every block body it touches into the chain's cache for the
+    // rest of the process's life (a 20 GB chain, an 8 GB box: OOM).
+    dap_chain_block_cache_transient_t *l_prev_handle = NULL;
 #define m_check_addr(addr) (                                                                                    \
     !dap_chain_addr_is_blank(&addr) && (                                                                        \
         a_addr ? dap_chain_addr_compare(&addr, a_addr) :                                                        \
@@ -1595,7 +1600,9 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
             if ( dap_hash_fast_is_blank(&l_prev_tx_hash) )
                 continue;
             l_prev_idx = ((dap_chain_tx_in_t*)l_tx_item)->header.tx_out_prev_idx;
-            dap_chain_datum_t *l_prev_datum = a_chain->callback_datum_find_by_hash(a_chain, &l_prev_tx_hash, NULL, NULL);
+            dap_chain_datum_t *l_prev_datum = a_chain->callback_datum_peek_by_hash
+                    ? a_chain->callback_datum_peek_by_hash(a_chain, &l_prev_tx_hash, &l_prev_handle)
+                    : a_chain->callback_datum_find_by_hash(a_chain, &l_prev_tx_hash, NULL, NULL);
             dap_chain_datum_tx_t *l_tx_prev = l_prev_datum ? (dap_chain_datum_tx_t *)(l_prev_datum->data) : NULL;
             if (!l_tx_prev) {
                 // The initial bulk pass walks the whole historical chain, where
@@ -1881,6 +1888,9 @@ static int s_save_tx_cache_for_addr(dap_chain_t *a_chain, dap_chain_addr_t *a_ad
         pthread_rwlock_unlock(&s_wallet_cache_rwlock);
     }
     dap_list_free(l_reset_wallets);
+    // Release the last borrowed body (see the peek handle above).
+    if (l_prev_handle && a_chain->callback_datum_peek_free)
+        a_chain->callback_datum_peek_free(a_chain, &l_prev_handle);
     return l_ret_val;
 }
 
