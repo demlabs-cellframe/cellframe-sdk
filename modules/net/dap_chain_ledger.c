@@ -3420,6 +3420,11 @@ typedef struct s_pending_datum_link {
 } s_pending_datum_link_t;
 static s_pending_datum_link_t *s_pending_datum_links;
 static size_t s_pending_datum_links_n;
+// Geometric growth: the Realloc-per-record version memcpy'd the whole array on
+// every one of the ~1M links a full Backbone snapshot carries (and left a
+// transient double-sized copy for the allocator) - measurable in both time and
+// peak RSS on the restore path.
+static size_t s_pending_datum_links_cap;
 
 typedef struct DAP_ALIGN_PACKED s_snapshot_datum_link_rec {
     uint8_t datum_hash[sizeof(dap_chain_hash_fast_t)];
@@ -3534,11 +3539,15 @@ static int s_snapshot_datum_links_load(void *a_ctx, const uint8_t *a_data, size_
         memcpy(&l_atom, l_rec.atom_hash, sizeof(l_atom));
         if (dap_chain_cs_blocks_index_was_restored(l_chain)) {
             // Defer: merged with the TX links in block order at load end.
-            s_pending_datum_link_t *l_new = DAP_REALLOC(s_pending_datum_links,
-                    sizeof(*l_new) * (s_pending_datum_links_n + 1));
-            if (!l_new)
-                return -4;
-            s_pending_datum_links = l_new;
+            if (s_pending_datum_links_n == s_pending_datum_links_cap) {
+                size_t l_cap = s_pending_datum_links_cap ? s_pending_datum_links_cap * 2 : 4096;
+                s_pending_datum_link_t *l_new = DAP_REALLOC(s_pending_datum_links,
+                        sizeof(*l_new) * l_cap);
+                if (!l_new)
+                    return -4;
+                s_pending_datum_links = l_new;
+                s_pending_datum_links_cap = l_cap;
+            }
             s_pending_datum_links[s_pending_datum_links_n++] = (s_pending_datum_link_t){
                     .datum_hash = l_datum, .atom_hash = l_atom, .datum_idx = l_rec.datum_idx };
             ++l_restored;
@@ -8371,6 +8380,7 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
             }
             DAP_DEL_Z(s_pending_datum_links);
             s_pending_datum_links_n = 0;
+            s_pending_datum_links_cap = 0;
             // Block order is the service-replay order: the delegated-stake registry
             // and every other conditional-service registry are rebuilt from the
             // same pass below, and applying their updates out of block order
