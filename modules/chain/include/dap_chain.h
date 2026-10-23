@@ -68,6 +68,12 @@ typedef struct dap_chain_datum_iter {
     int ret_code;
     char *token_ticker;
     void *cur_item;
+    // The current datum may come from a transiently parsed block (a thin
+    // index-restored entry, see dap_chain_block_cache_transient). This holds
+    // that snapshot, so cur/cur_hash stay valid until the step after next,
+    // and the source entry, so consecutive datums of one block reuse it.
+    void *transient;
+    void *transient_src;
 } dap_chain_datum_iter_t;
 
 typedef enum dap_chain_atom_verify_res{

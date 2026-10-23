@@ -3782,6 +3782,8 @@ static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a
 
 static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_iter)
 {
+    if (a_datum_iter && a_datum_iter->transient)
+        dap_chain_block_cache_transient_free(a_datum_iter->transient);
     DAP_DELETE(a_datum_iter);
 }
 
@@ -3791,9 +3793,29 @@ static _Thread_local char s_datum_iter_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
 static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, const dap_chain_state_datum_t *a_rec)
 {
-    dap_chain_block_cache_t *l_block = a_rec ? (dap_chain_block_cache_t *)a_rec->block_ref : NULL;
-    if (l_block && !l_block->datum)
-        dap_chain_block_cache_ensure(l_block); // thin index-restored entry
+    // The snapshot the previous step produced is dead the moment the caller
+    // steps past its datum - release it before building the next one, so a
+    // walk over the whole chain keeps at most one block body in the heap.
+    if (a_datum_iter->transient) {
+        dap_chain_block_cache_transient_free(a_datum_iter->transient);
+        a_datum_iter->transient = NULL;
+        a_datum_iter->transient_src = NULL;
+    }
+    dap_chain_block_cache_t *l_source = a_rec ? (dap_chain_block_cache_t *)a_rec->block_ref : NULL;
+    dap_chain_block_cache_t *l_block = l_source;
+    if (l_block && !l_block->parsed) {
+        // Thin index-restored entry: parse a detached snapshot instead of
+        // pinning the body in the cache. ensure() stays the fallback for the
+        // rare case where the snapshot cannot be built.
+        dap_chain_block_cache_transient_t *l_tr = dap_chain_block_cache_transient(l_block);
+        if (l_tr) {
+            a_datum_iter->transient = l_tr;
+            a_datum_iter->transient_src = l_source;
+            l_block = &l_tr->cache;
+        } else {
+            dap_chain_block_cache_ensure(l_source);
+        }
+    }
     if (l_block && l_block->datum) {
         a_datum_iter->cur = l_block->datum[a_rec->datum_index];
         a_datum_iter->cur_size = dap_chain_datum_size(a_datum_iter->cur);

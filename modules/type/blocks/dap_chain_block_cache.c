@@ -222,6 +222,72 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
     DAP_DELETE(a_block_cache);
 }
 
+// Single-pass walks (the wallet bulk pass over every datum of a 20 GB chain)
+// need the block body only while they are on that block. Handing them the
+// cache entry through ensure() would pin every body in the heap for the whole
+// walk - measured live on 0-rpc: RSS 2.2 GB -> 6.8 GB and OOM. This variant
+// reads and parses the body into a detached copy and leaves the entry thin.
+dap_chain_block_cache_transient_t *dap_chain_block_cache_transient(dap_chain_block_cache_t *a_block_cache)
+{
+    if (!a_block_cache)
+        return NULL;
+    if (a_block_cache->parsed || a_block_cache->block_owned)
+        return NULL;    // already materialized: the entry itself is the answer
+    if (!a_block_cache->cell || !a_block_cache->file_offset || !a_block_cache->block_size)
+        return NULL;
+    dap_chain_block_cache_transient_t *l_tr = DAP_NEW_Z(dap_chain_block_cache_transient_t);
+    if (!l_tr)
+        return NULL;
+    l_tr->body = DAP_NEW_SIZE(uint8_t, a_block_cache->block_size);
+    if (!l_tr->body) {
+        DAP_DELETE(l_tr);
+        return NULL;
+    }
+    pthread_mutex_lock(&s_ensure_mutex);
+    dap_chain_cell_t *l_cell = a_block_cache->cell;
+    if (!s_ensure_file || dap_strcmp(s_ensure_path, l_cell->file_storage_path)) {
+        if (s_ensure_file)
+            fclose(s_ensure_file);
+        s_ensure_file = fopen(l_cell->file_storage_path, "rb");
+        dap_strncpy(s_ensure_path, l_cell->file_storage_path, sizeof(s_ensure_path));
+    }
+    bool l_ok = s_ensure_file
+            && fseeko(s_ensure_file, (off_t)a_block_cache->file_offset, SEEK_SET) == 0
+            && fread(l_tr->body, 1, a_block_cache->block_size, s_ensure_file) == a_block_cache->block_size;
+    pthread_mutex_unlock(&s_ensure_mutex);
+    if (!l_ok) {
+        DAP_DEL_Z(l_tr->body);
+        DAP_DELETE(l_tr);
+        return NULL;
+    }
+    l_tr->cache = *a_block_cache;               // headers/metadata copied as-is
+    l_tr->cache.block = (dap_chain_block_t *)l_tr->body;
+    l_tr->cache.block_owned = false;            // ownership: the transient's body
+    l_tr->cache.parsed = false;                 // update() will parse below
+    l_tr->cache.datum = NULL;                   // never inherit the entry's buffers
+    l_tr->cache.datum_hash = NULL;
+    l_tr->cache.links_hash = NULL;
+    l_tr->cache.sign_pkey_hashes = NULL;
+    l_tr->cache.forked_branches = NULL;
+    l_tr->cache.prev = l_tr->cache.next = NULL;
+    if (dap_chain_block_cache_update(&l_tr->cache, &a_block_cache->block_hash)) {
+        dap_chain_block_cache_transient_free(l_tr);
+        return NULL;
+    }
+    return l_tr;
+}
+
+void dap_chain_block_cache_transient_free(dap_chain_block_cache_transient_t *a_transient)
+{
+    if (!a_transient)
+        return;
+    DAP_DEL_Z(a_transient->cache.datum);
+    DAP_DEL_Z(a_transient->cache.datum_hash);
+    DAP_DEL_Z(a_transient->cache.links_hash);
+    DAP_DEL_Z(a_transient->body);
+    DAP_DELETE(a_transient);
+}
+
 /**
  * @brief dap_chain_datum_get_list_tx_outs_cond_with_val
  * @param a_ledger

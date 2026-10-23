@@ -110,6 +110,19 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
 // only; the first consumer calls this to parse metadata and datums from the
 // mapped cell. Idempotent, not thread-safe (the caller holds the blocks lock).
 int dap_chain_block_cache_ensure(dap_chain_block_cache_t *a_block_cache);
+// Transient variant for single-pass walks (the wallet bulk pass reads every
+// datum of the chain): the body is read and parsed into a detached snapshot
+// that the caller releases with dap_chain_block_cache_transient_free(). The
+// cache entry itself stays thin. A walk over a 20 GB chain must not pin every
+// block body in the heap - that is exactly what took 0-rpc from 2.2 GB to
+// 6.8 GB of RSS and into the OOM killer. Returns NULL when the entry is thin
+// and its body cannot be read (the caller skips the block).
+typedef struct dap_chain_block_cache_transient {
+    dap_chain_block_cache_t cache;      // parsed copy; owns its own buffers
+    uint8_t *body;                      // the file body it was parsed from
+} dap_chain_block_cache_transient_t;
+dap_chain_block_cache_transient_t *dap_chain_block_cache_transient(dap_chain_block_cache_t *a_block_cache);
+void dap_chain_block_cache_transient_free(dap_chain_block_cache_transient_t *a_transient);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 
 // Get the list of 'out_cond' items from previous transactions with summary out value. Put this summary value to a_value_out
