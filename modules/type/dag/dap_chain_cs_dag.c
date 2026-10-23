@@ -102,6 +102,9 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_blocked_t *removed_events_from_treshold;
     dap_interval_timer_t treshold_free_timer;
     uint64_t tx_count;
+    // Monotonic event ordinal for the events table; see the add path for why it
+    // cannot be a HASH_COUNT call. Reset by the purge that clears the table.
+    uint64_t events_count;
     // Records covered by the current .dagindex (restored or appended). The ledger
     // snapshot stores it as a watermark: records below it were already applied to
     // the ledger when the snapshot was taken, so the replay can skip that work.
@@ -688,6 +691,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
             DAP_DELETE(l_event_current->event);
         DAP_DELETE(l_event_current);
     }
+    l_dag_pvt->events_count = 0;    // the table is empty again
     HASH_ITER(hh, l_dag_pvt->events_lasts_unlinked, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events_lasts_unlinked, l_event_current);
         //if (!a_chain->is_mapped && !l_event_current->mapped_region)
@@ -783,7 +787,11 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
     // Note: tx_count increment moved to dap_ledger_tx_add() to ensure it only increments for successfully verified transactions
     a_event_item->datum_hash = l_datum_hash;
     a_event_item->ret_code = l_ret;
-    a_event_item->event_number = HASH_COUNT(PVT(a_dag)->events) + 1;
+    // O(1) instead of HASH_COUNT(PVT(a_dag)->events): the full-table walk per
+    // event made a 106k-event index replay quadratic (150+ s of pure counting
+    // on 0-rpc). The table is only cleared wholesale (purge), never decremented
+    // one by one, so a counter that grows with every add stays accurate.
+    a_event_item->event_number = ++PVT(a_dag)->events_count;
     unsigned l_hash_item_hashv;
     HASH_VALUE(&l_datum_hash, sizeof(l_datum_hash), l_hash_item_hashv);
     pthread_mutex_lock(&PVT(a_dag)->events_mutex);
