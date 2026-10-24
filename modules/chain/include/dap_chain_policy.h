@@ -35,6 +35,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_POLICY_XCHANGE_LEGACY_TX_CUTOFF           0x4
 #define DAP_CHAIN_POLICY_XCHANGE_MIGRATE_CUTOFF             0x5
 #define DAP_CHAIN_POLICY_VOTING_SPENT_CUTOFF                0x6
+// Strict stake-lock mint rules (EMIT flag mandatory for a girdled mint, no
+// girdled-mint + CREATE_BASE_TX combination, mandatory burn on unstake) are
+// enforced from this policy's ts_start onwards. Activated by a policy decree
+// like the other cutoffs; inactive policy means the pre-fix lenient semantics.
+#define DAP_CHAIN_POLICY_STAKE_LOCK_STRICT_MINT_CUTOFF      0x7
 
 typedef struct dap_chain_policy {
     uint16_t version;

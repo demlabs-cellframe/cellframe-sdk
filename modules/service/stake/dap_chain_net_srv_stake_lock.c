@@ -1035,8 +1035,9 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
 
     // A lock transaction that minted m-tokens itself (girdled IN_EMS) must burn them on
     // unstake even if its flags do not advertise emission: the mint is real regardless of
-    // the flags, so the backing burn is mandatory the same way. Enforced from the strict
-    // cutoff on, so pre-fix blocks replay exactly as before.
+    // the flags, so the backing burn is mandatory the same way. Enforced while the
+    // stake-lock strict-mint policy decree is in force, so pre-decree blocks replay
+    // exactly as before.
     bool l_lock_minted = false;
     if (dap_ledger_stake_strict_mint_in_force(a_ledger)) {
         dap_chain_datum_tx_t *l_lock_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_tx_in_cond->header.tx_prev_hash);

@@ -1263,8 +1263,9 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
 
     // The lock minted value*rate m-tokens for this very condition, so unlocking must burn
     // them: a blank-address OUT_EXT of the delegated ticker equal to value*rate is mandatory.
-    // This check is unconditional (no flag can disable it), enforced from the strict cutoff
-    // on so that blocks mined before the fix replay exactly as before.
+    // This check is unconditional (no flag can disable it), enforced while the
+    // stake-lock strict-mint policy decree is in force so that blocks mined before
+    // the decree replay exactly as before.
     if (ret_code == 0 && dap_ledger_stake_strict_mint_in_force(a_ledger)) {
         dap_hash_fast_t l_lock_tx_hash = a_cond->subtype.srv_stake_ext_lock.stake_ext_hash;
         const char *l_lock_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_lock_tx_hash);

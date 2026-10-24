@@ -19,6 +19,7 @@
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag_poa.h"
+#include "dap_chain_policy.h"
 
 static const uint64_t s_fee = 2;
 static const uint64_t s_total_supply = 500;
@@ -1210,6 +1211,16 @@ void dap_ledger_test_run(void){
 
     // Test legacy stake operations
     dap_ledger_test_legacy_stake_operations(l_ledger, &l_first_tx_hash, l_first_cert->enc_key, l_iddn);
+    // Activate the strict stake-lock mint policy the way a decree does, then run the guards
+    if (dap_chain_policy_net_add(l_iddn, g_config) == 0 || dap_chain_policy_is_exist(l_iddn, DAP_CHAIN_POLICY_STAKE_LOCK_STRICT_MINT_CUTOFF)) {
+        dap_chain_policy_t *l_policy = dap_chain_policy_create_activate(DAP_CHAIN_POLICY_STAKE_LOCK_STRICT_MINT_CUTOFF,
+                                                                        dap_time_now() - 1, 0, (dap_chain_id_t){0}, 0);
+        dap_assert_PIF(l_policy, "Strict-mint policy object created");
+        dap_assert_PIF(!dap_chain_policy_apply(l_policy, l_iddn), "Strict-mint policy applied");
+        dap_assert_PIF(dap_ledger_stake_strict_mint_in_force(l_ledger), "Strict-mint rules are in force after the policy");
+    } else {
+        dap_fail("Can't register the test net in the policy registry");
+    }
     dap_ledger_test_girdled_mint_flags(l_ledger, l_cert, l_first_cert, l_iddn);
 
 }

@@ -5973,13 +5973,16 @@ dap_ledger_stake_lock_item_t *s_emissions_for_stake_lock_item_find(dap_ledger_t 
 }
 
 // The strict girdled-mint rules (EMIT flag mandatory, no mint-plus-base-TX combination,
-// mandatory burn on unstake) apply from the cutoff date on, so blocks mined before the fix
-// replay exactly as before. The key is read with a fixed default: every node must derive
-// the same cutoff on its own.
+// mandatory burn on unstake) are enforced from the policy's ts_start onwards, so blocks
+// mined before activation replay exactly as before. The boundary comes from a policy
+// decree, the same mechanism the xchange/voting cutoffs use, so every node derives it
+// from the chain itself rather than from local config.
 bool dap_ledger_stake_strict_mint_in_force(dap_ledger_t *a_ledger)
 {
-    dap_time_t l_strict_since = (dap_time_t)dap_config_get_item_uint64_default(
-            g_config, "stake", "strict_mint_cutoff_date", 1792800000 /* 2026-10-24T00:00Z */);
+    dap_time_t l_strict_since = 0;
+    if (!dap_chain_policy_get_ts_start(a_ledger->net->pub.id, DAP_CHAIN_POLICY_STAKE_LOCK_STRICT_MINT_CUTOFF,
+                                       &l_strict_since) || !l_strict_since)
+        return false;   // no policy decree applied yet: lenient semantics
     return l_strict_since <= dap_ledger_get_blockchain_time(a_ledger);
 }
 
