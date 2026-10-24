@@ -27,6 +27,7 @@ static const char* s_token_ticker = "TestCoin";
 static const char* s_delegated_token_ticker = "mTestCoin";
 
 static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hash_prev, dap_enc_key_t *a_from_key, dap_chain_net_id_t a_net_id);
+static void dap_ledger_test_girdled_mint_flags(dap_ledger_t *a_ledger, dap_cert_t *a_cert, dap_cert_t *a_second_cert, dap_chain_net_id_t a_net_id);
 
 dap_chain_datum_token_t *dap_ledger_test_create_datum_update(dap_cert_t *a_cert, size_t *a_token_size,
                                                                   const char *a_token_ticker, byte_t *a_tsd_section, size_t a_size_tsd_section){
@@ -1209,6 +1210,7 @@ void dap_ledger_test_run(void){
 
     // Test legacy stake operations
     dap_ledger_test_legacy_stake_operations(l_ledger, &l_first_tx_hash, l_first_cert->enc_key, l_iddn);
+    dap_ledger_test_girdled_mint_flags(l_ledger, l_cert, l_first_cert, l_iddn);
 
 }
 
@@ -1384,4 +1386,140 @@ static void dap_ledger_test_legacy_stake_operations(dap_ledger_t *a_ledger, dap_
 
         dap_pass_msg("Legacy unstake transaction tests overall");
     }
+}
+
+/**
+ * @brief Fund a lock amount for the girdled-mint cases by picking any unspent
+ *        TestCoin output owned by either of the test certificates.
+ * Returns the number of accumulated outs (0 when nothing usable is left).
+ */
+static int s_collect_outs_for_lock(dap_ledger_t *a_ledger, dap_enc_key_t *a_key,
+                                   dap_list_t **a_outs, uint256_t a_value) {
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_addr_fill_from_key(&l_addr, a_key, a_ledger->net->pub.id);
+    uint256_t l_value_transfer = {};
+    *a_outs = dap_ledger_get_list_tx_outs_with_val(a_ledger, s_token_ticker, &l_addr, a_value, &l_value_transfer);
+    return *a_outs ? 1 : 0;
+}
+
+/**
+ * @brief Build a girdled stake-lock mint spending (a_parent_hash : a_out_idx) with
+ *        the given stake-lock flags; the delegated out_ext carries value * rate.
+ */
+static dap_chain_datum_tx_t *s_create_girdled_stake_tx(dap_ledger_t *a_ledger, dap_enc_key_t *a_key_from,
+                                                       dap_hash_fast_t *a_parent_hash, uint32_t a_out_idx,
+                                                       uint256_t a_value, uint32_t a_flags) {
+    dap_chain_datum_tx_t *l_tx_prev = dap_ledger_tx_find_by_hash(a_ledger, a_parent_hash);
+    if (!l_tx_prev)
+        return NULL;
+    dap_chain_tx_out_ext_t *l_prev_out = (dap_chain_tx_out_ext_t *)dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, a_out_idx);
+    if (!l_prev_out || *(uint8_t *)l_prev_out != TX_ITEM_TYPE_OUT_EXT)
+        return NULL;
+
+    dap_chain_addr_t l_addr_to = {0};
+    dap_chain_addr_fill_from_key(&l_addr_to, a_key_from, a_ledger->net->pub.id);
+
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_parent_hash, a_out_idx);
+    dap_chain_tx_in_ems_t *l_in_ems = DAP_NEW_Z(dap_chain_tx_in_ems_t);
+    l_in_ems->header.type = TX_ITEM_TYPE_IN_EMS;
+    l_in_ems->header.token_emission_chain_id.uint64 = 0;
+    memset(&l_in_ems->header.token_emission_hash, 0, sizeof(l_in_ems->header.token_emission_hash));
+    strcpy(l_in_ems->header.ticker, s_delegated_token_ticker);
+
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
+                                            l_uid, a_value, dap_time_now() + 1, uint256_0);
+    if (!l_out_cond) {
+        DAP_DEL_MULTY(l_tx, l_in, l_in_ems);
+        return NULL;
+    }
+    l_out_cond->subtype.srv_stake_lock.flags = a_flags;
+
+    uint256_t l_change = {};
+    SUBTRACT_256_256(l_prev_out->header.value, a_value, &l_change);
+    dap_chain_tx_out_ext_t *l_out_change = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, l_change, s_token_ticker);
+    uint256_t l_delegated_value = {};
+    MULT_256_COIN(a_value, dap_chain_coins_to_balance("0.1"), &l_delegated_value);
+    dap_chain_tx_out_ext_t *l_out_delegated = dap_chain_datum_tx_item_out_ext_create(&l_addr_to, l_delegated_value, s_delegated_token_ticker);
+
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_in);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_in_ems);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_change);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_delegated);
+    dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from);
+    DAP_DEL_MULTY(l_in, l_in_ems, l_out_cond, l_out_change, l_out_delegated);
+    return l_tx;
+}
+
+/**
+ * @brief dap_ledger_test_girdled_mint_flags
+ * Regression for the Oct-2026 security fix: a girdled (self-minting) stake-lock
+ * emission must carry the EMIT flag and must not double as a base TX for a later
+ * mint. Both rules key off the strict cutoff date, which lies in the past for the
+ * test clock, so they are active here. Cases are driven through the public ledger
+ * check API on freshly funded outputs.
+ */
+static void dap_ledger_test_girdled_mint_flags(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
+                                               dap_cert_t *a_second_cert, dap_chain_net_id_t a_net_id) {
+    dap_print_module_name("dap_ledger_test_girdled_mint_flags");
+
+    printf("strict mint rules in force: %s\n", dap_ledger_stake_strict_mint_in_force(a_ledger) ? "yes" : "no");
+
+    // Pick an unspent TestCoin output owned by either test certificate
+    dap_enc_key_t *l_key = a_cert->enc_key;
+    dap_list_t *l_outs = NULL;
+    if (!s_collect_outs_for_lock(a_ledger, l_key, &l_outs, dap_chain_uint256_from(200U))) {
+        l_key = a_second_cert->enc_key;
+        if (!s_collect_outs_for_lock(a_ledger, l_key, &l_outs, dap_chain_uint256_from(200U))) {
+            dap_fail("No unspent TestCoin output available for the girdled-mint cases");
+            return;
+        }
+    }
+    dap_list_t *l_first = l_outs;
+    dap_hash_fast_t l_parent_hash = {};
+    int l_out_idx = 0;
+    {
+        // outs list entries carry the parent hash and out index used by the ledger helpers
+        dap_chain_tx_used_out_item_t *l_oi = l_first->data;
+        l_parent_hash = l_oi->tx_hash_fast;
+        l_out_idx = (int)l_oi->num_idx_out;
+    }
+
+    // 1. Girdled mint without the EMIT flag: rejected
+    {
+        dap_chain_datum_tx_t *l_tx = s_create_girdled_stake_tx(a_ledger, l_key, &l_parent_hash, l_out_idx,
+                                                              dap_chain_uint256_from(200U), 0);
+        dap_assert_PIF(l_tx, "Girdled stake tx with flags=0 created");
+        dap_hash_fast_t l_tx_hash = {};
+        dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+        int l_err = dap_ledger_tx_add_check(a_ledger, l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+        printf("girdled mint with flags=0 check result: %d (%s)\n", l_err, dap_ledger_check_error_str(l_err));
+        dap_assert(l_err == DAP_LEDGER_TX_CHECK_STAKE_LOCK_EMIT_FLAG_REQUIRED,
+                   "Checking that a girdled stake-lock mint without EMIT flag is");
+        DAP_DELETE(l_tx);
+        dap_pass_msg("Girdled stake-lock mint without the EMIT flag is rejected");
+    }
+
+    // 2. Girdled mint that also registers as a base TX: rejected
+    {
+        dap_chain_datum_tx_t *l_tx = s_create_girdled_stake_tx(a_ledger, l_key, &l_parent_hash, l_out_idx,
+                        dap_chain_uint256_from(200U),
+                        DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME | DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT |
+                        DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX);
+        dap_assert_PIF(l_tx, "Girdled stake tx with EMIT|CREATE_BASE_TX created");
+        dap_hash_fast_t l_tx_hash = {};
+        dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+        int l_err = dap_ledger_tx_add_check(a_ledger, l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+        printf("girdled mint with EMIT|CREATE_BASE_TX check result: %d (%s)\n", l_err, dap_ledger_check_error_str(l_err));
+        dap_assert(l_err == DAP_LEDGER_TX_CHECK_STAKE_LOCK_GIRDLED_BASE_TX_CONFLICT,
+                   "Checking that a girdled stake-lock mint combined with CREATE_BASE_TX is");
+        DAP_DELETE(l_tx);
+        dap_pass_msg("Girdled stake-lock mint combined with CREATE_BASE_TX is rejected");
+    }
+
+    dap_list_free_full(l_outs, NULL);
+    (void)a_net_id;
+    dap_pass_msg("Girdled stake-lock mint flag guards overall");
 }

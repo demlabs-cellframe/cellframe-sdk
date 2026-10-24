@@ -120,7 +120,10 @@ typedef enum dap_ledger_check_error {
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_FORBIDDEN,
     DAP_LEDGER_TOKEN_ADD_CHECK_TSD_OTHER_TICKER_EXPECTED,
     DAP_LEDGER_TX_CHECK_MULTIPLE_OUTS_TO_OTHER_NET,
-    DAP_LEDGER_TX_CHECK_INVALID_ADDR_TYPE
+    DAP_LEDGER_TX_CHECK_INVALID_ADDR_TYPE,
+    /* Girdled stake-lock emission guards */
+    DAP_LEDGER_TX_CHECK_STAKE_LOCK_EMIT_FLAG_REQUIRED,
+    DAP_LEDGER_TX_CHECK_STAKE_LOCK_GIRDLED_BASE_TX_CONFLICT
 } dap_ledger_check_error_t;
 
 typedef struct dap_ledger_datum_iter {
@@ -233,6 +236,8 @@ DAP_STATIC_INLINE const char *dap_ledger_check_error_str(dap_ledger_check_error_
     case DAP_LEDGER_TX_CHECK_OUT_ITEM_BLOCKED: return "Transaction output is blocked in UTXO blocklist for this token";
     case DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED: return "Arbitrage transaction not authorized: invalid owner signature or arbitrage disabled for token";
     case DAP_LEDGER_TX_CHECK_INVALID_ADDR_TYPE: return "Standard output cannot target a non-regular address type";
+    case DAP_LEDGER_TX_CHECK_STAKE_LOCK_EMIT_FLAG_REQUIRED: return "Self-minting stake-lock condition must carry the EMIT flag";
+    case DAP_LEDGER_TX_CHECK_STAKE_LOCK_GIRDLED_BASE_TX_CONFLICT: return "Self-minting stake-lock TX must not register itself as a base TX for a later mint";
     /* Emisssion check return codes */
     case DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY: return "Value of emission execeeds current token supply";
     case DAP_LEDGER_EMISSION_CHECK_LEGACY_FORBIDDEN: return "Legacy type of emissions are present for old chains comliance only";
@@ -528,6 +533,8 @@ void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_c
 dap_chain_tx_out_cond_t* dap_chain_ledger_get_tx_out_cond_linked_to_tx_in_cond(dap_ledger_t *a_ledger, dap_chain_tx_in_cond_t *a_in_cond);
 void dap_ledger_load_end(dap_ledger_t *a_ledger);
 dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger);
+// True when the strict girdled-mint rules are in force at the ledger's current blockchain time
+bool dap_ledger_stake_strict_mint_in_force(dap_ledger_t *a_ledger);
 
 dap_chain_tx_event_t *dap_ledger_event_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 dap_list_t *dap_ledger_event_get_list_ex(dap_ledger_t *a_ledger, const char *a_group_name, bool a_need_lock);

@@ -5972,6 +5972,17 @@ dap_ledger_stake_lock_item_t *s_emissions_for_stake_lock_item_find(dap_ledger_t 
     return l_new_stake_lock_emission;
 }
 
+// The strict girdled-mint rules (EMIT flag mandatory, no mint-plus-base-TX combination,
+// mandatory burn on unstake) apply from the cutoff date on, so blocks mined before the fix
+// replay exactly as before. The key is read with a fixed default: every node must derive
+// the same cutoff on its own.
+bool dap_ledger_stake_strict_mint_in_force(dap_ledger_t *a_ledger)
+{
+    dap_time_t l_strict_since = (dap_time_t)dap_config_get_item_uint64_default(
+            g_config, "stake", "strict_mint_cutoff_date", 1792800000 /* 2026-10-24T00:00Z */);
+    return l_strict_since <= dap_ledger_get_blockchain_time(a_ledger);
+}
+
 
 int dap_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission,
                                          size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash)
@@ -6655,13 +6666,13 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     dap_return_val_if_fail(a_ledger && a_tx && a_tx_hash, DAP_LEDGER_CHECK_INVALID_ARGS);
     
     // ARBITRAGE TRANSACTION CHECK
-    // Arbitrage TX (marked with TSD) bypass ALL blocking checks:
-    // - UTXO blocking
-    // - Conditional outputs
-    // - Address ban-lists (sender/receiver)
-    // This allows token owners to claim ANY output in emergency situations.
+    // Arbitrage TX (marked with TSD) bypass PER-TOKEN blocking checks:
+    // - UTXO blocking (for the arbitrage token only)
+    // - Address ban-lists sender/receiver (for the arbitrage token only)
+    // This allows token owners to claim blocked outputs of THEIR token in emergency situations.
     bool l_is_arbitrage = dap_chain_arbitrage_tx_is_arbitrage(a_tx);
     bool l_arbitrage_auth_valid = false;  // Track if arbitrage authorization passed
+    const char *l_arbitrage_token_ticker = NULL;  // Token the arbitrage is authorized for (per-token bypass)
     
     // SECURITY CRITICAL: For arbitrage TX, validate authorization BEFORE processing inputs
     // We must determine the arbitrage token from OUTPUTS (not inputs) to prevent:
@@ -6673,9 +6684,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                  dap_chain_hash_fast_to_str_static(a_tx_hash));
         
         // Determine arbitrage token from outputs (SECURITY CRITICAL)
-        const char *l_arbitrage_token_ticker = dap_chain_arbitrage_tx_get_token_ticker(a_ledger, a_tx);
+        l_arbitrage_token_ticker = dap_chain_arbitrage_tx_get_token_ticker(a_ledger, a_tx);
         if (!l_arbitrage_token_ticker) {
-            log_it(L_WARNING, "Arbitrage TX %s has no non-native token in outputs - rejecting",
+            log_it(L_WARNING, "Arbitrage TX %s: can't determine arbitrage token from outputs - rejecting",
                    dap_chain_hash_fast_to_str_static(a_tx_hash));
             return DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED;
         }
@@ -6703,7 +6714,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
         
         // Authorization passed - mark as valid
         l_arbitrage_auth_valid = true;
-        debug_if(s_debug_more, L_INFO, "Arbitrage TX %s authorized for token '%s' - bypassing all blocking checks",
+        debug_if(s_debug_more, L_INFO, "Arbitrage TX %s authorized for token '%s' - bypassing blocking checks for that token only",
                  dap_chain_hash_fast_to_str_static(a_tx_hash), l_arbitrage_token_ticker);
     }
     
@@ -6845,6 +6856,16 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                     break;
                 }
+                // A base TX that minted m-tokens in its own transaction (contains IN_EMS) must
+                // not serve as a second mint source for somebody else: its own mint already
+                // credited value*rate, and its registry entry keeps tx_used_out blank.
+                if (!l_girdled_ems && !a_check_for_removing &&
+                        dap_ledger_stake_strict_mint_in_force(a_ledger) &&
+                        dap_chain_datum_tx_item_get(l_tx_stake_lock, NULL, NULL, TX_ITEM_TYPE_IN_EMS, NULL)) {
+                    log_it(L_WARNING, "Stake-lock base TX already minted m-tokens in its own transaction - rejecting the second mint");
+                    l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_GIRDLED_BASE_TX_CONFLICT;
+                    break;
+                }
 
                 dap_ledger_token_item_t *l_delegated_item = s_ledger_find_token(a_ledger, l_token);
                 if (!l_delegated_item) {
@@ -6895,6 +6916,32 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 }
                 
                 debug_if(s_debug_more, L_NOTICE, "Found service OUT_COND subtype 0x%04X for IN_EMS [%s]", l_detected_subtype, l_tx_in_ems->header.ticker);
+
+                if (l_detected_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                    uint32_t l_stake_lock_flags = l_tx_service_out_cond->subtype.srv_stake_lock.flags;
+                    bool l_strict_mint_rules = dap_ledger_stake_strict_mint_in_force(a_ledger);
+                    // Girdled (self-minting) stake-lock emission: the ledger credits value*rate
+                    // to the very transaction that carries the lock, so the lock condition must
+                    // carry the EMIT flag. Otherwise a lock with flags=0 mints normally and then
+                    // unstakes with every burn check skipped (the verificator keys its burn
+                    // block off those same flags), leaving the minted m-tokens unbacked.
+                    if (l_girdled_ems && l_strict_mint_rules &&
+                            !(l_stake_lock_flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT)) {
+                        log_it(L_WARNING, "Girdled stake-lock mint with EMIT flag not set on the lock condition (flags=0x%08X)", l_stake_lock_flags);
+                        l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_EMIT_FLAG_REQUIRED;
+                        break;
+                    }
+                    // A lock that mints in its own transaction must not double as a base TX for
+                    // a later mint: the self-mint leaves the registry entry's tx_used_out blank,
+                    // so a second IN_EMS referencing this very tx would mint value*rate again.
+                    if (l_girdled_ems && l_strict_mint_rules &&
+                            (l_stake_lock_flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX)) {
+                        log_it(L_WARNING, "Girdled stake-lock mint combined with CREATE_BASE_TX (flags=0x%08X) would allow minting twice", l_stake_lock_flags);
+                        l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_GIRDLED_BASE_TX_CONFLICT;
+                        break;
+                    }
+                }
+
                 uint256_t l_value_expected ={};
                 if (MULT_256_COIN(l_tx_service_out_cond->header.value, l_delegated_item->emission_rate, &l_value_expected)) {
                     if (s_debug_more) {
@@ -7156,9 +7203,11 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             // 3. Check if UTXO is blocked in token-specific blocklist (UTXO blocking mechanism)
             // This check is skipped if:
             // - UTXO_BLOCKING_DISABLED flag is set for this token
-            // - Transaction is an authorized arbitrage TX (bypasses all checks)
+            // - Transaction is an authorized arbitrage TX and this input's token matches the arbitrage token
             dap_ledger_token_item_t *l_token_item_for_utxo_check = s_ledger_find_token(a_ledger, l_token);
-            if (!l_arbitrage_auth_valid &&  // Authorized arbitrage TX bypasses UTXO blocking
+            bool l_arb_bypass_for_this_input = l_arbitrage_auth_valid &&
+                l_arbitrage_token_ticker && !dap_strcmp(l_token, l_arbitrage_token_ticker);
+            if (!l_arb_bypass_for_this_input &&
                 l_token_item_for_utxo_check && 
                 !(l_token_item_for_utxo_check->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_UTXO_BLOCKING_DISABLED) &&
                 !a_check_for_removing) {
@@ -7172,7 +7221,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             }
             // Note: Arbitrage authorization is checked ONCE at the beginning of the function
             // (before processing inputs) to prevent order-dependent vulnerabilities and token confusion attacks.
-            // If l_arbitrage_auth_valid is true, we bypass all blocking checks for this input.
+            // The bypass is per-token: only inputs whose token matches l_arbitrage_token_ticker are exempted.
 
             // Get one 'out' item in previous transaction bound with current 'in' item
             l_tx_prev_out = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
@@ -7226,6 +7275,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_bound_item->in.addr_from = *l_addr_from;
                 dap_strncpy(l_bound_item->in.token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX);
                 // 4. compare public key hashes in the signature of the current transaction and in the 'out' item of the previous transaction
+                // Arbitrage lifts the blocking mechanisms, not the UTXO-ownership rule:
+                // the input must still belong to the first signer's key.
                 if (l_addr_from->net_id.uint64 != a_ledger->net->pub.id.uint64 ||
                         !dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast)) {
                     l_err_num = DAP_LEDGER_TX_CHECK_PKEY_HASHES_DONT_MATCH;
@@ -7245,7 +7296,8 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                     break;
                 }
                 // Check permissions
-                if (s_ledger_addr_check(a_ledger, l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+                if (!l_arb_bypass_for_this_input &&
+                    s_ledger_addr_check(a_ledger, l_token_item, l_addr_from, false) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
                     debug_if(s_debug_more, L_WARNING, "No permission to send for addr %s", dap_chain_addr_to_str_static(l_addr_from));
                     l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
                     break;
@@ -7547,7 +7599,10 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             break;
         }
         // Check permissions
-        if (s_ledger_addr_check(a_ledger, l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
+        bool l_arb_bypass_for_output = l_arbitrage_auth_valid &&
+            l_arbitrage_token_ticker && !dap_strcmp(l_token, l_arbitrage_token_ticker);
+        if (!l_arb_bypass_for_output &&
+            s_ledger_addr_check(a_ledger, l_token_item, &l_tx_out_to, true) == DAP_LEDGER_CHECK_ADDR_FORBIDDEN) {
             debug_if(s_debug_more, L_WARNING, "[%s] No permission to receive for addr %s", dap_chain_hash_fast_to_str_static(a_tx_hash), dap_chain_addr_to_str_static(&l_tx_out_to));
             l_err_num = DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
             break;

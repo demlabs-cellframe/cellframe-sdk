@@ -1033,7 +1033,19 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
 
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_prev_tx_ticker);
 
-    if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX ||
+    // A lock transaction that minted m-tokens itself (girdled IN_EMS) must burn them on
+    // unstake even if its flags do not advertise emission: the mint is real regardless of
+    // the flags, so the backing burn is mandatory the same way. Enforced from the strict
+    // cutoff on, so pre-fix blocks replay exactly as before.
+    bool l_lock_minted = false;
+    if (dap_ledger_stake_strict_mint_in_force(a_ledger)) {
+        dap_chain_datum_tx_t *l_lock_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_tx_in_cond->header.tx_prev_hash);
+        l_lock_minted = l_lock_tx &&
+                dap_chain_datum_tx_item_get(l_lock_tx, NULL, NULL, TX_ITEM_TYPE_IN_EMS, NULL);
+    }
+
+    if (l_lock_minted ||
+            a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX ||
             a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT) {
         // Validate reinvest_percent ∈ [0; 100.0]
         uint256_t l_percent_max = dap_chain_coins_to_balance("100.0");

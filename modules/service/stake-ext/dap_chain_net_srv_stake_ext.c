@@ -1261,6 +1261,52 @@ static int s_stake_ext_lock_callback_verificator(dap_ledger_t *a_ledger, dap_cha
 
     pthread_rwlock_unlock(&s_stake_ext_cache->cache_rwlock);
 
+    // The lock minted value*rate m-tokens for this very condition, so unlocking must burn
+    // them: a blank-address OUT_EXT of the delegated ticker equal to value*rate is mandatory.
+    // This check is unconditional (no flag can disable it), enforced from the strict cutoff
+    // on so that blocks mined before the fix replay exactly as before.
+    if (ret_code == 0 && dap_ledger_stake_strict_mint_in_force(a_ledger)) {
+        dap_hash_fast_t l_lock_tx_hash = a_cond->subtype.srv_stake_ext_lock.stake_ext_hash;
+        const char *l_lock_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_lock_tx_hash);
+        if (!l_lock_ticker) {
+            // Fall back to the outgoing condition's own previous tx ticker
+            dap_chain_tx_in_cond_t *l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL);
+            if (l_in_cond)
+                l_lock_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_in_cond->header.tx_prev_hash);
+        }
+        char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] = {};
+        if (!l_lock_ticker) {
+            log_it(L_WARNING, "stake_ext unlock: can't determine the locked token ticker");
+            return -30;
+        }
+        dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_lock_ticker);
+        uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(a_ledger, l_delegated_ticker_str);
+        uint256_t l_value_delegated = {};
+        if (IS_ZERO_256(l_emission_rate) ||
+                MULT_256_COIN(a_cond->header.value, l_emission_rate, &l_value_delegated) ||
+                IS_ZERO_256(l_value_delegated)) {
+            log_it(L_WARNING, "stake_ext unlock: can't derive the expected burn value for '%s'", l_delegated_ticker_str);
+            return -31;
+        }
+        uint256_t l_blank_out_value = {};
+        dap_chain_addr_t l_out_addr = {};
+        byte_t *l_item = NULL; size_t l_size = 0; int l_item_idx = 0;
+        TX_ITEM_ITER_TX_TYPE(l_item, TX_ITEM_TYPE_OUT_ALL, l_size, l_item_idx, a_tx_in) {
+            if (*l_item == TX_ITEM_TYPE_OUT_EXT) {
+                dap_chain_tx_out_ext_t *l_out = (dap_chain_tx_out_ext_t *)l_item;
+                l_out_addr = l_out->addr;
+                if (dap_chain_addr_is_blank(&l_out_addr) && !strcmp(l_out->token, l_delegated_ticker_str)) {
+                    SUM_256_256(l_blank_out_value, l_out->header.value, &l_blank_out_value);
+                }
+            }
+        }
+        if (IS_ZERO_256(l_blank_out_value) || !EQUAL_256(l_blank_out_value, l_value_delegated)) {
+            log_it(L_WARNING, "stake_ext unlock: mandatory burn of %s m-tokens to the blank address is missing or wrong",
+                   l_delegated_ticker_str);
+            return -32;
+        }
+    }
+
     return ret_code;
 }
 

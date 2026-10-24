@@ -34,6 +34,9 @@ void utxo_blocking_test_arbitrage_multiple_outputs_mixed_addresses(void);
 // Test 14: Arbitrage without TSD marker
 void utxo_blocking_test_arbitrage_without_tsd_marker(void);
 
+// Test 15: Arbitrage with a forged token owner signature (must be rejected)
+void utxo_blocking_test_arbitrage_forged_owner_signature(void);
+
 #ifdef __cplusplus
 }
 #endif

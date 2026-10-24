@@ -165,6 +165,7 @@ int main(void)
     utxo_blocking_test_arbitrage_without_token_owner_signature();    l_test_count++; // Test 12: Arbitrage without token owner signature
     utxo_blocking_test_arbitrage_multiple_outputs_mixed_addresses(); l_test_count++; // Test 13: Arbitrage with multiple outputs (mixed)
     utxo_blocking_test_arbitrage_without_tsd_marker();              l_test_count++; // Test 14: Arbitrage without TSD marker
+    utxo_blocking_test_arbitrage_forged_owner_signature();          l_test_count++; // Test 15: Arbitrage with forged owner signature
     
     // Teardown
     s_teardown();

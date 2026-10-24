@@ -1028,6 +1028,153 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
 }
 
 /**
+ * @brief Test 15: Arbitrage With Forged Token Owner Signature
+ * @details The token owner pkey is copied into a SIG item verbatim, but the signature
+ *          bytes are garbage. Before the Oct-2026 fix the owner check compared pkey
+ *          HASHES only, so this TX passed arbitrage authorization and lifted every
+ *          blocking check. Now the signature must be cryptographically verified.
+ */
+void utxo_blocking_test_arbitrage_forged_owner_signature(void)
+{
+    dap_print_module_name("Integration Test 15: Arbitrage With Forged Token Owner Signature");
+
+    int l_res = 0;
+
+    // ========== PHASE 1: Setup Network Fee Address ==========
+    log_it(L_INFO, "PHASE 1: Setting up network fee address");
+
+    dap_enc_key_t *l_fee_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_fee_key != NULL, "Fee key created");
+
+    dap_chain_addr_t l_fee_addr_setup = {0};
+    dap_chain_addr_fill_from_key(&l_fee_addr_setup, l_fee_key, s_net_fixture->net->pub.id);
+
+    if (dap_chain_addr_is_blank(&s_net_fixture->net->pub.fee_addr)) {
+        uint256_t l_zero_fee = uint256_0;
+        dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_zero_fee, l_fee_addr_setup);
+    }
+
+    const dap_chain_addr_t *l_fee_addr = &s_net_fixture->net->pub.fee_addr;
+    dap_assert_PIF(!dap_chain_addr_is_blank(l_fee_addr), "Network has fee address configured");
+
+    dap_enc_key_delete(l_fee_key);
+
+    // ========== PHASE 2: Create Token with Emission ==========
+    log_it(L_INFO, "PHASE 2: Creating token with emission");
+
+    dap_enc_key_t *l_emission_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_emission_owner_key != NULL, "Emission owner key created");
+
+    dap_chain_addr_t l_emission_owner_addr;
+    dap_chain_addr_fill_from_key(&l_emission_owner_addr, l_emission_owner_key, s_net_fixture->net->pub.id);
+
+    dap_cert_t *l_emission_owner_cert = DAP_NEW_Z(dap_cert_t);
+    dap_assert_PIF(l_emission_owner_cert != NULL, "Emission owner certificate allocation");
+    l_emission_owner_cert->enc_key = l_emission_owner_key;
+    snprintf(l_emission_owner_cert->name, sizeof(l_emission_owner_cert->name), "arb_forged_sig_owner");
+
+    dap_chain_hash_fast_t l_emission_hash;
+    test_token_fixture_t *l_token_fixture = test_token_fixture_create_with_emission(
+        s_net_fixture->ledger,
+        "ARBFORGE",
+        "100000.0",
+        "50000.0",
+        &l_emission_owner_addr,
+        l_emission_owner_cert,
+        &l_emission_hash
+    );
+    dap_assert_PIF(l_token_fixture != NULL, "Token ARBFORGE with emission created");
+
+    // ========== PHASE 3: Create TX and Block UTXO ==========
+    log_it(L_INFO, "PHASE 3: Creating TX and blocking UTXO");
+
+    test_tx_fixture_t *l_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, "ARBFORGE", "5000.0", &l_emission_owner_addr, l_emission_owner_cert);
+    dap_assert_PIF(l_tx != NULL, "TX fixture created");
+
+    l_res = test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_tx);
+    dap_assert_PIF(l_res == 0, "TX added to ledger");
+
+    size_t l_update_size = 0;
+    dap_chain_datum_token_t *l_block_update = utxo_blocking_test_create_token_update_with_utxo_block_tsd(
+        "ARBFORGE", &l_tx->tx_hash, 0, l_token_fixture->owner_cert, 0, &l_update_size);
+    dap_assert_PIF(l_block_update != NULL, "UTXO block update created");
+
+    l_res = dap_ledger_token_add(s_net_fixture->ledger, (byte_t*)l_block_update, l_update_size, dap_time_now());
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_OK, "UTXO blocked");
+    DAP_DELETE(l_block_update);
+
+    log_it(L_INFO, "✓ UTXO blocked");
+
+    // ========== PHASE 4: Arbitrage TX with a forged owner signature (Should FAIL) ==========
+    log_it(L_INFO, "PHASE 4: Attempting arbitrage with forged owner signature (should FAIL)");
+
+    dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
+    dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
+
+    dap_chain_datum_tx_add_in_item(&l_arb_tx, &l_tx->tx_hash, 0);
+    dap_chain_datum_tx_add_out_ext_item(&l_arb_tx, l_fee_addr, dap_chain_balance_scan("5000.0"), "ARBFORGE");
+
+    byte_t l_arb_data = 0;
+    dap_chain_tx_tsd_t *l_tsd_arb = dap_chain_datum_tx_item_tsd_create(&l_arb_data, DAP_CHAIN_TX_TSD_TYPE_ARBITRAGE, 1);
+    dap_assert_PIF(l_tsd_arb != NULL, "Arbitrage TSD created");
+    dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
+    DAP_DELETE(l_tsd_arb);
+
+    // Sign with the emission owner (UTXO owner), so the ownership check passes, and add a
+    // FORGED owner signature: the token owner's real pkey with a corrupted signature blob.
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_emission_owner_key);
+
+    dap_sign_t *l_owner_real_sign = dap_sign_create(l_token_fixture->owner_cert->enc_key,
+                                                    "forged-data", sizeof("forged-data"));
+    dap_assert_PIF(l_owner_real_sign != NULL, "Owner signature blob created for forgery");
+    size_t l_owner_sign_size = dap_sign_get_size(l_owner_real_sign);
+    dap_sign_t *l_forged_sign = DAP_DUP_SIZE(l_owner_real_sign, l_owner_sign_size);
+    DAP_DELETE(l_owner_real_sign);
+    dap_assert_PIF(l_forged_sign != NULL, "Forged signature copy allocated");
+    // Keep the genuine pubkey, corrupt the signature bytes that follow it
+    uint8_t *l_sig_bytes = dap_sign_get_sign(l_forged_sign, NULL);
+    size_t l_sig_size = l_forged_sign->header.sign_size;
+    for (size_t i = 0; i < l_sig_size; i++)
+        l_sig_bytes[i] ^= 0xA5;
+    dap_chain_tx_sig_t *l_forged_item = dap_chain_datum_tx_item_sign_create_from_sign(l_forged_sign);
+    DAP_DELETE(l_forged_sign);
+    dap_assert_PIF(l_forged_item != NULL, "Forged signature item created");
+    dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, (const uint8_t *)l_forged_item) == 1,
+                   "Forged owner signature item added to TX");
+    DAP_DELETE(l_forged_item);
+
+    dap_chain_hash_fast_t l_arb_hash;
+    dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
+
+    l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
+    log_it(L_INFO, "  Arbitrage TX result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
+    dap_assert_PIF(l_res == DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED,
+                   "Arbitrage TX REJECTED (forged owner signature does not authorize)");
+
+    DAP_DELETE(l_arb_tx);
+    log_it(L_INFO, "✓ Arbitrage TX correctly REJECTED with a forged owner signature");
+
+    // ========== Summary ==========
+    log_it(L_NOTICE, " ");
+    log_it(L_NOTICE, "Arbitrage With Forged Owner Signature Test PASSED:");
+    log_it(L_NOTICE, "  ✓ Phase 1: Network fee address configured");
+    log_it(L_NOTICE, "  ✓ Phase 2: Token created with emission");
+    log_it(L_NOTICE, "  ✓ Phase 3: UTXO blocked");
+    log_it(L_NOTICE, "  ✓ Phase 4: Arbitrage TX rejected (forged owner signature)");
+    log_it(L_NOTICE, " ");
+
+    // Cleanup
+    test_tx_fixture_destroy(l_tx);
+    test_token_fixture_destroy(l_token_fixture);
+    l_emission_owner_cert->enc_key = NULL;  // Prevent double deletion
+    dap_enc_key_delete(l_emission_owner_key);
+    DAP_DELETE(l_emission_owner_cert);
+
+    dap_pass_msg("✅ Arbitrage with forged owner signature test PASSED");
+}
+
+/**
  * @brief Test 13: Arbitrage With Multiple Outputs (Mixed Addresses)
  * @details Verifies that arbitrage transaction is rejected if it has multiple outputs
  *          where not all outputs go to fee address
