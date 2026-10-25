@@ -29,6 +29,14 @@
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 
+// One lazy-read window: a read-only mapping of a file range, kept until the cell
+// is closed (a body pointer handed out earlier must stay valid).
+typedef struct dap_chain_cell_read_win {
+    void *ptr;             // mapping base
+    size_t file_start;     // absolute file offset the window starts at
+    size_t len;            // mapped length, page rounded
+} dap_chain_cell_read_win_t;
+
 typedef struct dap_chain_cell {
     dap_chain_cell_id_t id;
     dap_chain_t * chain;
@@ -41,6 +49,24 @@ typedef struct dap_chain_cell {
     // Absolute file position the current mmap window starts at: block pointers
     // are window-relative, persisted offsets must be absolute.
     size_t cur_vol_start;
+    // Lazy-read window: bodies of thin (index-restored) blocks are served IN
+    // PLACE from a read-only file mapping instead of being copied into the heap.
+    // A private heap copy per touched body pinned one full cell file per walk
+    // (measured on cf-mm-0: two malloc arenas held ~15 GB each, one per network,
+    // with only 300 MB of free chunks). This window is deliberately separate
+    // from map/map_pos/map_end above: those are the loader/append cursor, they
+    // are mutated without a lock by the loader, and a lazy reader must never
+    // move the append position (the next live block is taken at map_pos).
+    // Windows are never unmapped while the cell lives; an earlier window's pages
+    // are advised away when a new one is mapped (clean file pages re-fault from
+    // disk). read_windows holds dap_chain_cell_read_win_t entries so that a
+    // lookup can tell whether an already mapped window covers the range.
+    char *read_map;
+    size_t read_map_start;     // absolute file offset read_map starts at
+    size_t read_map_size;      // read_map length, page rounded
+    int read_fd;               // private read-only fd for the lazy windows (-1 = none)
+    dap_list_t *read_windows;  // dap_chain_cell_read_win_t*, ownership of all windows
+    pthread_mutex_t read_map_mutex;
     pthread_rwlock_t storage_rwlock;
     UT_hash_handle hh;
 } dap_chain_cell_t;
@@ -87,7 +113,35 @@ int dap_chain_cell_map_window_force(dap_chain_cell_t *a_cell, size_t a_file_pos)
 // Absolute file offset of the atom the non-mapped loader is currently feeding
 // (thread-local; 0 when not in a load pass).
 uint64_t dap_chain_cell_load_offset(void);
-// File offset of the first atom body in a cell file (past the cell header and
+// Body of the atom the loader is feeding right now, returned only when the
+// request matches it exactly. A scan-created block cache entry stays thin and
+// parses its body from bytes the loader has already read instead of faulting the
+// same range in a second time (NULL when the hint does not match).
+const uint8_t *dap_chain_cell_load_hint_view(size_t a_file_offset, size_t a_size);
+// Drops the resident pages of the loader's mmap volumes, keeping the one that
+// holds a_keep_ptr (the range the caller is walking right now; pass NULL when
+// there is none) and the one at the loader's append cursor. The mappings - and
+// every pointer into them - stay valid; only residency is returned to the
+// kernel, so a 20 GB scan no longer leaves ~9 GB of cell mappings resident for
+// the rest of the run. Called by whole-chain walks and after a load pass.
+void dap_chain_cell_volumes_trim(dap_chain_cell_t *a_cell, const void *a_keep_ptr);
+// Borrowed view of a byte range of the cell file: the range is served from a
+// read-only file mapping, so a lazy body read costs page-cache pages instead of
+// a private heap copy. Pages of a previous window are advised away (they are
+// clean and re-fault from the file on the next access), the mapping itself is
+// kept until the cell is closed - a returned pointer stays valid for the cell's
+// lifetime and its contents never change (the file is only appended to).
+// Returns NULL when the range is outside the file or the view cannot be set up
+// (callers fall back to their own buffer).
+const uint8_t *dap_chain_cell_body_view(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size);
+// Mapped/borrowed byte ranges currently held by lazy reads, for accounting.
+void dap_chain_cell_read_window_stats(dap_chain_cell_t *a_cell, size_t *a_window_bytes, size_t *a_views);
+// Releases every lazy-read window. Called when the file is rewritten in place
+// (rewind/purge) - the bytes behind those mappings are gone. Only purge paths,
+// which also clear the block cache, may call it: no cache entry can keep a body
+// pointer into a dropped window.
+void dap_chain_cell_read_windows_drop(dap_chain_cell_t *a_cell);
+ // File offset of the first atom body in a cell file (past the cell header and
 // its 8-byte length prefix). A state index whose first record is not here does
 // not cover the file from its start.
 size_t dap_chain_cell_first_atom_offset(void);

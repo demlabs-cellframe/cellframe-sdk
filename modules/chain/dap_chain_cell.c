@@ -30,10 +30,54 @@
 // non-mapped cell: the consensus layer stores it in the chain-state index so the
 // same thin-restore/lazy-read path works without mmap.
 static _Thread_local uint64_t s_loading_atom_offset;
+// The bytes the loader is feeding right now (both mapped and non-mapped paths).
+// A block cache entry created during a scan stays THIN (no body pointer, no
+// private copy); the parse it needs for applying datums is then served from
+// these already-read bytes instead of faulting the same range in a second time.
+static _Thread_local const uint8_t *s_loading_atom_body;
+static _Thread_local size_t s_loading_atom_body_size;
 
 uint64_t dap_chain_cell_load_offset(void)
 {
     return s_loading_atom_offset;
+}
+
+// Body of the atom the loader is feeding right now, when the caller's request
+// matches it exactly (offset and size). During a full scan every block passes
+// through the loader, so this replaces a per-block mapping/read with a pointer
+// to bytes that are already in cache. Returns NULL when the hint does not match.
+const uint8_t *dap_chain_cell_load_hint_view(size_t a_file_offset, size_t a_size)
+{
+    return (s_loading_atom_body && s_loading_atom_offset == (uint64_t)a_file_offset
+            && s_loading_atom_body_size == a_size) ? s_loading_atom_body : NULL;
+}
+
+// Loader hint accessors, used by dap_chain_cell.c itself. The body pointer is
+// published only by the mapped loader: its bytes live in a mapping that outlives
+// the callback, while the non-mapped loader frees its read buffer as soon as the
+// callback returns (a cache entry that kept such a pointer would dangle - and the
+// ledger keeps datum pointers when it is mmap-backed). The non-mapped path still
+// publishes the OFFSET: it is what lets a cache entry stay thin and read the body
+// from the cell's own read-only view when it is needed.
+static inline void s_cell_load_hint_set(uint64_t a_offset, const void *a_body, size_t a_size)
+{
+    s_loading_atom_offset = a_offset;
+    s_loading_atom_body = (const uint8_t *)a_body;
+    s_loading_atom_body_size = a_size;
+}
+
+static inline void s_cell_load_hint_set_offset(uint64_t a_offset)
+{
+    s_loading_atom_offset = a_offset;
+    s_loading_atom_body = NULL;
+    s_loading_atom_body_size = 0;
+}
+
+static inline void s_cell_load_hint_clear(void)
+{
+    s_loading_atom_offset = 0;
+    s_loading_atom_body = NULL;
+    s_loading_atom_body_size = 0;
 }
 
 #include "dap_chain_cs.h"
@@ -45,6 +89,8 @@ uint64_t dap_chain_cell_load_offset(void)
 #include <winternl.h>
 #else
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #endif
 #define LOG_TAG "dap_chain_cell"
 
@@ -234,6 +280,250 @@ int dap_chain_cell_map_window_force(dap_chain_cell_t *a_cell, size_t a_file_pos)
     return s_cell_map_new_volume(a_cell, a_file_pos, true);
 }
 
+/* Lazy body reads: a thin (index-restored) block's body is served in place from
+ * a read-only mapping of the cell file instead of a private heap copy. One heap
+ * copy per touched body pinned a whole cell file per walk - on cf-mm-0 two
+ * malloc arenas held ~15 GB each (one per network) with only 300 MB of free
+ * chunks, which is exactly the "all blocks end up in memory" failure this
+ * avoids. The window is kept separate from map/map_pos/map_end: those are the
+ * loader/append cursor mutated by the loader without the reader's knowledge. */
+#ifndef DAP_OS_WINDOWS
+// Drops the resident pages of every window except a_keep (the one being served),
+// leaving the mappings themselves in place. Called on a window switch: without
+// it a sequential walk faults each 64 MB window in and all of them stay resident.
+static void s_cell_read_win_advise_others(dap_chain_cell_t *a_cell, const void *a_keep);
+
+#define DAP_CELL_READ_WINDOW (64u << 20)
+static int s_cell_read_map_window(dap_chain_cell_t *a_cell, size_t a_fpos)
+{
+    // A private read-only descriptor: the shared file_storage stream is seeked
+    // and written by the loader/append path, so touching it here would race with
+    // the loader (and its ftello would report the loader's position, not ours).
+    if (a_cell->read_fd < 0) {
+        a_cell->read_fd = open(a_cell->file_storage_path, O_RDONLY | O_CLOEXEC);
+        if (a_cell->read_fd < 0) {
+            log_it(L_WARNING, "Chain cell \"%s\": cannot open for lazy reads, errno %d",
+                   a_cell->file_storage_path, errno);
+            return -1;
+        }
+    }
+    struct stat l_st = {0};
+    if (fstat(a_cell->read_fd, &l_st) || l_st.st_size <= 0)
+        return -1;
+    size_t l_file_size = (size_t)l_st.st_size;
+    size_t l_page = (size_t)sysconf(_SC_PAGESIZE);
+    size_t l_start = a_fpos & ~(l_page - 1);
+    if (l_start >= l_file_size)
+        return -1;
+    size_t l_len = l_file_size - l_start;
+    if (l_len > DAP_CELL_READ_WINDOW)
+        l_len = DAP_CELL_READ_WINDOW;
+    size_t l_map_len = dap_page_roundup(l_len);
+    if (l_map_len > l_file_size - l_start)
+        l_map_len = l_file_size - l_start;   // never map past EOF: a touched page would SIGBUS
+    void *l_map = mmap(NULL, l_map_len, PROT_READ, MAP_PRIVATE, a_cell->read_fd, (off_t)l_start);
+    if (l_map == MAP_FAILED) {
+        log_it(L_WARNING, "Chain cell \"%s\": lazy-read window at %zu (len %zu) cannot be mapped, errno %d",
+               a_cell->file_storage_path, l_start, l_map_len, errno);
+        return -1;
+    }
+    madvise(l_map, l_map_len, MADV_RANDOM);
+    // Every older window has its resident pages advised away here. They are clean
+    // file pages of an append-only file, so MADV_DONTNEED only drops residency -
+    // the mapping and every pointer into it stay valid, and the next touch reads
+    // the same bytes back from disk. Without this sweep a walk gradually faulted
+    // whole windows in and kept them (live on cf-mm-0: dozens of 64 MB windows
+    // per chain stayed resident, ~6 GB). The sweep runs once per window switch,
+    // i.e. once per DAP_CELL_READ_WINDOW bytes walked.
+    s_cell_read_win_advise_others(a_cell, l_map);
+    a_cell->read_map = l_map;
+    a_cell->read_map_start = l_start;
+    a_cell->read_map_size = l_map_len;
+    // One list entry per window with its file start, so a lookup can tell whether
+    // an existing window already covers the requested range.
+    dap_chain_cell_read_win_t *l_win = DAP_NEW_Z(dap_chain_cell_read_win_t);
+    if (!l_win) {
+        munmap(l_map, l_map_len);
+        a_cell->read_map = NULL;
+        a_cell->read_map_size = 0;
+        return -1;
+    }
+    *l_win = (dap_chain_cell_read_win_t){ .ptr = l_map, .file_start = l_start, .len = l_map_len };
+    a_cell->read_windows = dap_list_append(a_cell->read_windows, l_win);
+    return 0;
+}
+
+// Drops the resident pages of every window except a_keep (the one being served),
+// leaving the mappings themselves in place. Called on a window switch: without
+// it a sequential walk faults each 64 MB window in and all of them stay resident.
+static void s_cell_read_win_advise_others(dap_chain_cell_t *a_cell, const void *a_keep)
+{
+    for (dap_list_t *l_i = a_cell->read_windows; l_i; l_i = l_i->next) {
+        dap_chain_cell_read_win_t *l_old = (dap_chain_cell_read_win_t *)l_i->data;
+        if (l_old && l_old->ptr && l_old->len && l_old->ptr != a_keep)
+            madvise(l_old->ptr, l_old->len, MADV_DONTNEED);
+    }
+}
+
+// Reuses an existing window that already covers [a_file_offset, +a_size).
+static const uint8_t *s_cell_read_win_lookup(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size)
+{
+    for (dap_list_t *l_i = a_cell->read_windows; l_i; l_i = l_i->next) {
+        dap_chain_cell_read_win_t *l_w = (dap_chain_cell_read_win_t *)l_i->data;
+        if (!l_w)
+            continue;
+        if (a_file_offset >= l_w->file_start && a_file_offset + a_size <= l_w->file_start + l_w->len) {
+            if (a_cell->read_map != l_w->ptr) {
+                // Switching windows: drop every other window's resident pages.
+                // MADV_DONTNEED on a clean file mapping only discards residency -
+                // the mapping, every pointer into it and the bytes read back are
+                // unchanged (the file is append-only). Skipping this was the leak:
+                // a walk that kept hitting already-mapped windows never created a
+                // new one, so nothing was ever advised away and the whole chain
+                // stayed resident through the view windows.
+                s_cell_read_win_advise_others(a_cell, l_w->ptr);
+            }
+            a_cell->read_map = l_w->ptr;
+            a_cell->read_map_start = l_w->file_start;
+            a_cell->read_map_size = l_w->len;
+            return (const uint8_t *)l_w->ptr + (a_file_offset - l_w->file_start);
+        }
+    }
+    return NULL;
+}
+
+const uint8_t *dap_chain_cell_body_view(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size)
+{
+    if (!a_cell || !a_cell->file_storage || !a_size)
+        return NULL;
+    pthread_mutex_lock(&a_cell->read_map_mutex);
+    const uint8_t *l_ret = s_cell_read_win_lookup(a_cell, a_file_offset, a_size);
+    // Not covered: map a window at this offset. A caller alternating between two
+    // distant regions (the snapshot restore and the wallet pass do) then hits the
+    // lookup above on every switch instead of mapping a window per switch.
+    if (!l_ret && !s_cell_read_map_window(a_cell, a_file_offset))
+        l_ret = s_cell_read_win_lookup(a_cell, a_file_offset, a_size);
+    pthread_mutex_unlock(&a_cell->read_map_mutex);
+    return l_ret;
+}
+
+void dap_chain_cell_read_window_stats(dap_chain_cell_t *a_cell, size_t *a_window_bytes, size_t *a_views)
+{
+    if (a_window_bytes)
+        *a_window_bytes = a_cell ? a_cell->read_map_size : 0;
+    if (!a_cell || !a_views) {
+        if (a_views) *a_views = 0;
+        return;
+    }
+    // Window count is the number of mapped ranges: entries are per window now,
+    // and each is released only when the cell closes (or on an in-place rewrite).
+    size_t l_n = 0;
+    pthread_mutex_lock(&a_cell->read_map_mutex);
+    for (dap_list_t *l_i = a_cell->read_windows; l_i; l_i = l_i->next)
+        ++l_n;
+    pthread_mutex_unlock(&a_cell->read_map_mutex);
+    *a_views = l_n;
+}
+
+// Drops every lazy-read window. Called when the file is rewritten in place
+// (rewind/purge): the bytes behind those mappings are gone, so serving a body
+// from them would hand out stale or truncated data. A rewrite happens only on a
+// purge/rollback, which clears the block cache as well - no cache entry can
+// still hold a pointer into these windows afterwards.
+void dap_chain_cell_read_windows_drop(dap_chain_cell_t *a_cell)
+{
+#ifndef DAP_OS_WINDOWS
+    if (!a_cell)
+        return;
+    pthread_mutex_lock(&a_cell->read_map_mutex);
+    for (dap_list_t *l_i = a_cell->read_windows; l_i; l_i = l_i->next) {
+        dap_chain_cell_read_win_t *l_w = (dap_chain_cell_read_win_t *)l_i->data;
+        if (l_w && l_w->ptr && l_w->len)
+            munmap(l_w->ptr, l_w->len);
+        DAP_DELETE(l_w);
+    }
+    dap_list_free(a_cell->read_windows);
+    a_cell->read_windows = NULL;
+    a_cell->read_map = NULL;
+    a_cell->read_map_size = 0;
+    a_cell->read_map_start = 0;
+    if (a_cell->read_fd >= 0) {
+        // The descriptor is dropped too: the rewrite may be a reopen of a
+        // different inode (freopen), and a stale fd would keep serving the old
+        // file's bytes.
+        close(a_cell->read_fd);
+        a_cell->read_fd = -1;
+    }
+    pthread_mutex_unlock(&a_cell->read_map_mutex);
+#else
+    (void)a_cell;
+#endif
+}
+#else /* DAP_OS_WINDOWS */
+const uint8_t *dap_chain_cell_body_view(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size)
+{
+    (void)a_cell; (void)a_file_offset; (void)a_size;
+    return NULL;   // Windows keeps the heap-copy path
+}
+void dap_chain_cell_read_window_stats(dap_chain_cell_t *a_cell, size_t *a_window_bytes, size_t *a_views)
+{
+    (void)a_cell;
+    if (a_window_bytes) *a_window_bytes = 0;
+    if (a_views) *a_views = 0;
+}
+#endif
+
+/* Loader volumes and residency.
+ * The mapped loader maps a 256 MB volume per window and never unmaps the older
+ * ones (map_range_bounds keeps every base/end pair for the cell's lifetime), so
+ * a full scan of a 20 GB cell file leaves ~78 windows mapped. Mapping is cheap;
+ * what costs RAM is that every atom of every block was touched during the scan,
+ * so all of those pages are resident and nothing ever drops them. Measured on
+ * cf-mm-0 with the scan path in use: 152 volumes / 8.68 GB RSS of cell mappings
+ * on a 28 GB process - pages the process holds only because the loader once read
+ * them, not state anyone still needs.
+ *
+ * dap_chain_cell_volumes_trim() advises those pages away (MADV_DONTNEED). The
+ * mappings are private and read-only over an append-only file, so this drops
+ * residency only: the mappings, every pointer into them (ledger tx items and
+ * block cache bodies taken during a scan) and the bytes read back afterwards are
+ * unchanged - a dropped page simply re-faults from the file. The volume that
+ * holds the loader's current position is kept: the loader appends there and the
+ * tail of a block being written lives in it. Callers are the whole-chain walks
+ * (the wallet bulk pass and other index passes) and the end of a load pass. */
+#ifndef DAP_OS_WINDOWS
+void dap_chain_cell_volumes_trim(dap_chain_cell_t *a_cell, const void *a_keep_ptr)
+{
+    if (!a_cell || !a_cell->map_range_bounds)
+        return;
+    size_t l_kept = 0, l_dropped = 0, l_bytes = 0;
+    for (dap_list_t *l_i = a_cell->map_range_bounds; l_i && l_i->next; l_i = l_i->next->next) {
+        char *l_base = (char *)l_i->data;
+        char *l_end = (char *)l_i->next->data;
+        if (!l_base || l_end <= l_base)
+            continue;
+        // Keep the volume the caller is working in (its pages are about to be
+        // used again) and the one holding the loader's append cursor.
+        if (l_base == a_cell->map
+                || ((const char *)a_keep_ptr >= l_base && (const char *)a_keep_ptr < l_end)) {
+            ++l_kept;
+            continue;
+        }
+        if (!madvise(l_base, (size_t)(l_end - l_base), MADV_DONTNEED)) {
+            ++l_dropped;
+            l_bytes += (size_t)(l_end - l_base);
+        }
+    }
+    debug_if(s_debug_more, L_INFO, "Chain cell \"%s\": dropped residency of %zu loader volume(s) "
+             "(%zu MB), kept %zu", a_cell->file_storage_path, l_dropped, l_bytes >> 20, l_kept);
+}
+#else
+void dap_chain_cell_volumes_trim(dap_chain_cell_t *a_cell, const void *a_keep_ptr)
+{
+    (void)a_cell; (void)a_keep_ptr;
+}
+#endif
+
 dap_chain_cell_t * dap_chain_cell_find_by_id(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
 {
     if (!a_chain->cells)
@@ -280,6 +570,8 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
         .id             = a_cell_id,
         .chain          = a_chain,
         .file_storage   = l_file,
+        .read_fd        = -1,
+        .read_map_mutex = PTHREAD_MUTEX_INITIALIZER,
         .storage_rwlock = PTHREAD_RWLOCK_INITIALIZER
     };
     off_t l_size = !fseeko(l_file, 0, SEEK_END) ? ftello(l_file) : -1;
@@ -321,6 +613,9 @@ void dap_chain_cell_close(dap_chain_cell_t *a_cell)
 {
     if(!a_cell)
         return;
+    // Lazy-read windows: released only here (or on an in-place rewrite) - body
+    // pointers handed out earlier must stay valid for the cell's lifetime.
+    dap_chain_cell_read_windows_drop(a_cell);
     if(a_cell->file_storage) {
         fclose(a_cell->file_storage);
         a_cell->file_storage = NULL;
@@ -381,6 +676,7 @@ void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
     }
     a_cell->chain = NULL;
     a_cell->file_storage_path[0] = '\0';
+    pthread_mutex_destroy(&a_cell->read_map_mutex);
     pthread_rwlock_destroy(&a_cell->storage_rwlock);
     DAP_DELETE(a_cell);
 }
@@ -404,7 +700,9 @@ void dap_chain_cell_delete_all_and_free_file(dap_chain_t *a_chain) {
         *l_cell_nh = (dap_chain_cell_t) {
                 .id             = l_cell_id,
                 .chain          = a_chain,
-                .file_storage   = l_file
+                .file_storage   = l_file,
+                .read_fd        = -1,
+                .read_map_mutex = PTHREAD_MUTEX_INITIALIZER
         };
         if ( s_cell_file_write_header(l_cell_nh) < 0 ) {
             log_it(L_ERROR, "Can't init file storage for cell 0x%016"DAP_UINT64_FORMAT_X" \"%s\", errno %d",
@@ -417,6 +715,8 @@ void dap_chain_cell_delete_all_and_free_file(dap_chain_t *a_chain) {
 
         DAP_DELETE(l_fsp);
         HASH_DEL(a_chain->cells, l_cell);
+        pthread_mutex_destroy(&l_cell_nh->read_map_mutex);
+        DAP_DELETE(l_cell_nh);   // was leaked: built only to rewrite the file header
         pthread_rwlock_destroy(&l_cell->storage_rwlock);
         DAP_DELETE(l_cell);
     }
@@ -431,6 +731,7 @@ void dap_chain_cell_delete_all(dap_chain_t *a_chain) {
     HASH_ITER(hh, a_chain->cells, l_cell, l_tmp) {
         dap_chain_cell_close(l_cell);
         HASH_DEL(a_chain->cells, l_cell);
+        pthread_mutex_destroy(&l_cell->read_map_mutex);
         pthread_rwlock_destroy(&l_cell->storage_rwlock);
         DAP_DELETE(l_cell);
     }
@@ -539,8 +840,13 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             a_cell->map_pos += sizeof(uint64_t);
             dap_chain_atom_ptr_t l_atom = (dap_chain_atom_ptr_t)(a_cell->map_pos);
             dap_hash_fast(l_atom, l_el_size, &l_atom_hash);
+            // Hand the body to the consensus layer: a cache entry it creates for
+            // this block stays thin, and the parse it needs for applying datums
+            // is served from these bytes instead of faulting them in again.
+            s_cell_load_hint_set((uint64_t)l_pos + sizeof(uint64_t), l_atom, l_el_size);
             dap_chain_atom_verify_res_t l_add_res =
                     a_chain->callback_atom_add(a_chain, l_atom, l_el_size, &l_atom_hash, false);
+            s_cell_load_hint_clear();
             if (l_add_res == ATOM_ACCEPT)
                 ++l_n_acc;
             else if (l_add_res == ATOM_FORK)
@@ -553,6 +859,12 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         }
 #ifndef DAP_OS_WINDOWS
         s_cell_reclaim_cur_volume(a_cell);
+        // A scan walked the whole file, so every volume it mapped is resident.
+        // Dropping the pages here is what keeps a 20 GB scan from leaving ~9 GB
+        // of cell mappings in RSS until the process dies (measured on cf-mm-0:
+        // 152 volumes / 8.68 GB). Bodies and datums taken during the scan stay
+        // valid - this only returns residency to the kernel.
+        dap_chain_cell_volumes_trim(a_cell, NULL);
 #endif
     } else { 
         DAP_DELETE(l_hdr);
@@ -580,9 +892,11 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             a_chain->load_progress = (int)((float)l_pos/l_full_size * 100 + 0.5);
             dap_hash_fast_t l_atom_hash = {};
             dap_hash_fast(l_element, l_el_size, &l_atom_hash);
-            s_loading_atom_offset = (uint64_t)(l_pos - l_read);
+            // Offset only: this buffer is freed right after the callback, so it
+            // must never become a body pointer inside a cache entry.
+            s_cell_load_hint_set_offset((uint64_t)(l_pos - l_read));
             dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size, &l_atom_hash, false);
-            s_loading_atom_offset = 0;
+            s_cell_load_hint_clear();
             if (l_res == ATOM_ACCEPT)
                 ++l_n_acc;
             else if (l_res == ATOM_FORK)
@@ -592,6 +906,14 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             
             if (l_res != ATOM_ACCEPT && l_res != ATOM_FORK) {
                 DAP_DELETE(l_element);
+            } else {
+                // Non-mapped loader: the block cache takes its OWN copy of the body
+                // (dap_chain_block_cache_new with copy_block=true), and the ledger
+                // and both notify paths copy anything they keep. The read buffer is
+                // therefore dead when the callback returns. It used to be left
+                // allocated - one full block buffer leaked per accepted block on a
+                // full scan, a second complete copy of the chain in the heap.
+                DAP_DELETE(l_element);
             }
             ++q;
         }
@@ -599,6 +921,11 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
     if ( l_pos < l_full_size ) {
         log_it(L_ERROR, "Chain \"%s\" has incomplete tail, truncating %lld bytes",
                         a_cell->file_storage_path, (long long)(l_full_size - l_pos) );
+        // Truncation shrinks the file: a lazy-read window may now cover a range
+        // that no longer exists, and touching such a page would SIGBUS. Drop the
+        // windows before the file shrinks (the block cache is being rebuilt from
+        // the truncated tail at this point, so no body pointer outlives them).
+        dap_chain_cell_read_windows_drop(a_cell);
 #ifdef DAP_OS_WINDOWS
         if (a_cell->chain->is_mapped) {
             LARGE_INTEGER SectionSize = (LARGE_INTEGER) { .QuadPart = l_pos };
@@ -693,6 +1020,8 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
     bool l_err = false;
     pthread_rwlock_wrlock(&a_cell->storage_rwlock);
     if (!a_atom || !a_atom_size) {
+        // In-place rewrite: everything the lazy-read windows pointed at is gone.
+        dap_chain_cell_read_windows_drop(a_cell);
 #ifdef DAP_OS_WINDOWS
         strcat(a_cell->file_storage_path, ".new");
 #endif

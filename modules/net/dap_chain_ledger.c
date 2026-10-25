@@ -5024,12 +5024,32 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
             l_ret = 0;
             break;
         }
+        // Each rejection names its own reason. A single opaque message that printed
+        // only the version turned a payload that had outgrown the size cap into
+        // "not a usable snapshot for this network (version 4)" - it reads like a
+        // format problem and cost a full rescan of the chain to diagnose (live on
+        // cf-mm-0: the payload crossed 4 GiB, the loader refused the file, the
+        // state index followed with -9 and the node scanned 595k blocks, which is
+        // what pinned every block body in memory). The cap is a sanity bound
+        // against a truncated or crafted header pointing at absurd section sizes,
+        // not a limit on the state: Backbone's snapshot is already 1.74 GB with a
+        // complete ledger state, 346 MB of wallet history and 20 MB of local
+        // state, so 16 GiB leaves room to grow without hitting a wall silently.
+        const uint64_t l_payload_cap = ((uint64_t)16) << 30;
         if (l_header.version < 1 || l_header.version > DAP_LEDGER_SNAPSHOT_VERSION
                 || l_header.header_size < sizeof(dap_ledger_snapshot_header_t) - 16 // the fixed fields v1 always had
                 || l_header.net_id != a_ledger->net->pub.id.uint64
-                || l_header.payload_size > ((uint64_t)4) << 30) {
-            log_it(L_WARNING, "Ledger snapshot: %s is not a usable snapshot for this network (version %u), ignoring",
-                   l_path, l_header.version);
+                || l_header.payload_size > l_payload_cap) {
+            const char *l_reason = (l_header.version < 1 || l_header.version > DAP_LEDGER_SNAPSHOT_VERSION)
+                    ? "unsupported version"
+                    : (l_header.header_size < sizeof(dap_ledger_snapshot_header_t) - 16 ? "truncated header"
+                            : (l_header.net_id != a_ledger->net->pub.id.uint64 ? "written by another network"
+                                    : "payload size out of range"));
+            log_it(L_WARNING, "Ledger snapshot: %s is not a usable snapshot for this network (%s: version %u, "
+                   "header %u bytes, net 0x%016"DAP_UINT64_FORMAT_x", payload %"DAP_UINT64_FORMAT_U
+                   " bytes, cap %"DAP_UINT64_FORMAT_U" bytes), ignoring",
+                   l_path, l_reason, l_header.version, l_header.header_size, l_header.net_id,
+                   l_header.payload_size, l_payload_cap);
             l_ret = 0;
             break;
         }
@@ -8478,16 +8498,30 @@ static bool s_snapshot_wallet_section_plausible(dap_ledger_t *a_ledger, uint64_t
 {
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     size_t l_ledger_unspent = 0;
+    size_t l_ledger_txs = 0;
     pthread_rwlock_rdlock(&l_pvt->ledger_rwlock);
     dap_ledger_tx_item_t *l_it = NULL, *l_tmp = NULL;
     HASH_ITER(hh, l_pvt->ledger_items, l_it, l_tmp) {
+        ++l_ledger_txs;
         for (size_t i = 0; i < l_it->cache_data.n_outs; ++i)
             if (dap_hash_fast_is_blank(&l_it->cache_data.tx_hash_spent_fast[i]))
                 ++l_ledger_unspent;
     }
     pthread_rwlock_unlock(&l_pvt->ledger_rwlock);
     // Allow for outputs above the snapshot anchor and for in-flight spends.
-    return !l_ledger_unspent || a_section_records + a_section_records / 2 >= l_ledger_unspent;
+    if (!l_ledger_unspent || a_section_records + a_section_records / 2 >= l_ledger_unspent)
+        return true;
+    // The ledger-wide unspent count is a deliberately strict reference - it also
+    // numbers conditional outputs (OUT_COND, every DEX/service transaction) and
+    // legacy OUT_OLD entries, which the section never carries because they have
+    // no wallet owner. On a chain with a heavy service load the ratio therefore
+    // fails for a perfectly complete section (live on cf-mm-0: 547 795 records
+    // against a ledger whose n_outs domain was ~2x that, so every single start
+    // launched a full wallet bulk pass). A section covering a respectable
+    // fraction of the chain's transactions cannot be the "dumped from datum-less
+    // items" artefact the ratio guards against - that one carries tens of
+    // records for a ledger of hundreds of thousands.
+    return l_ledger_txs && a_section_records >= l_ledger_txs / 20;
 }
 
 static void s_ledger_tx_service_notify_cond_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,

@@ -82,6 +82,42 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
 }
 
 /**
+ * @brief dap_chain_block_cache_new_indexed
+ * Index-style entry for the scan path (see the header): everything the cache
+ * needs to be addressable by hash/number and to resume the chain-state index,
+ * nothing that requires the body to stay in memory. dap_chain_block_cache_ensure()
+ * fills block/sign_count/metadata/datums on first use from the loader's hint or
+ * from the cell's read-only mapping.
+ */
+dap_chain_block_cache_t *dap_chain_block_cache_new_indexed(dap_hash_fast_t *a_block_hash, size_t a_block_size,
+                                                          uint64_t a_block_number, time_t a_ts_created,
+                                                          const dap_chain_hash_fast_t *a_prev_hash,
+                                                          uint64_t a_file_offset, struct dap_chain_cell *a_cell,
+                                                          size_t a_datum_count)
+{
+    if (!a_block_hash || !a_block_size || !a_cell || !a_file_offset)
+        return NULL;
+    dap_chain_block_cache_t *l_bc = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_block_cache_t, NULL);
+    l_bc->block_hash = *a_block_hash;
+    dap_hash_fast_to_str(&l_bc->block_hash, l_bc->block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    l_bc->block_size = a_block_size;
+    l_bc->block_number = a_block_number;
+    l_bc->ts_created = a_ts_created;
+    if (a_prev_hash)
+        l_bc->prev_hash = *a_prev_hash;
+    // No body parse: the entry is addressable now and readable on demand.
+    l_bc->block = NULL;
+    l_bc->file_offset = a_file_offset;
+    l_bc->cell = a_cell;
+    l_bc->parsed = false;
+    // From the block header the consensus layer already read; the parse
+    // overwrites it with the same value. Consumers that walk the index without
+    // materializing bodies (the state index, chain cache show) count on it.
+    l_bc->datum_count = a_datum_count;
+    return l_bc;
+}
+
+/**
  * @brief dap_chain_block_cache_dup
  * @param a_block
  * @return
@@ -167,40 +203,63 @@ int dap_chain_block_cache_ensure(dap_chain_block_cache_t *a_block_cache)
     int l_ret = 0;
     if (!a_block_cache->parsed) {
         if (!a_block_cache->block) {
-            // Thin entry restored from the chain-state index: read the body from the
-            // cell file into heap. The mmap window can move under other readers, so a
-            // private buffer is the only stable representation.
+            // Thin entry restored from the chain-state index: the body is not in
+            // this process yet. The file is append-only, so the bytes at a given
+            // offset never change - serve them IN PLACE from a read-only mapping
+            // of the cell file instead of a private heap copy. A copy per touched
+            // body pinned one cell file per walk (live on cf-mm-0: two malloc
+            // arenas held ~15 GB each, one per network, with only 300 MB of free
+            // chunks - the whole chain resident, which is what the block index
+            // was built to avoid). Mapping pages are file pages: reclaimable, and
+            // they re-fault from disk on the next access.
             if (!a_block_cache->cell || !a_block_cache->file_offset || !a_block_cache->block_size) {
                 l_ret = -3;
                 goto out;
             }
             dap_chain_cell_t *l_cell = a_block_cache->cell;
-            if (!s_ensure_file || dap_strcmp(s_ensure_path, l_cell->file_storage_path)) {
-                if (s_ensure_file)
+            // While a scan is feeding this very atom, parse straight from the
+            // bytes the loader has already mapped: same pages, no extra fault.
+            // (The hint carries a body pointer only on the mapped path, where the
+            // mapping outlives the callback.) The pages themselves are advised
+            // away later by dap_chain_cell_volumes_trim(), so the entry pointing
+            // into a loader volume costs no RSS of its own.
+            const uint8_t *l_view = dap_chain_cell_load_hint_view((size_t)a_block_cache->file_offset,
+                                                                  a_block_cache->block_size);
+            if (!l_view)
+                l_view = dap_chain_cell_body_view(l_cell, a_block_cache->file_offset,
+                                                  a_block_cache->block_size);
+            if (l_view) {
+                a_block_cache->block = (dap_chain_block_t *)l_view;
+                a_block_cache->block_owned = false;   // owned by the cell's mapping
+            } else {
+                // Fallback (non-mapped platforms, unreadable file): private copy.
+                if (!s_ensure_file || dap_strcmp(s_ensure_path, l_cell->file_storage_path)) {
+                    if (s_ensure_file)
+                        fclose(s_ensure_file);
+                    s_ensure_file = fopen(l_cell->file_storage_path, "rb");
+                    dap_strncpy(s_ensure_path, l_cell->file_storage_path, sizeof(s_ensure_path));
+                }
+                if (!s_ensure_file) {
+                    s_ensure_path[0] = '\0';
+                    l_ret = -4;
+                    goto out;
+                }
+                uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, a_block_cache->block_size);
+                bool l_ok = l_buf && fseeko(s_ensure_file, (off_t)a_block_cache->file_offset, SEEK_SET) == 0
+                        && fread(l_buf, 1, a_block_cache->block_size, s_ensure_file) == a_block_cache->block_size;
+                if (!l_ok) {
+                    DAP_DEL_Z(l_buf);
+                    // The stream (and the file under it) may have been replaced: force a
+                    // reopen on the next attempt instead of retrying a dead handle.
                     fclose(s_ensure_file);
-                s_ensure_file = fopen(l_cell->file_storage_path, "rb");
-                dap_strncpy(s_ensure_path, l_cell->file_storage_path, sizeof(s_ensure_path));
+                    s_ensure_file = NULL;
+                    s_ensure_path[0] = '\0';
+                    l_ret = -5;
+                    goto out;
+                }
+                a_block_cache->block = (dap_chain_block_t *)l_buf;
+                a_block_cache->block_owned = true;
             }
-            if (!s_ensure_file) {
-                s_ensure_path[0] = '\0';
-                l_ret = -4;
-                goto out;
-            }
-            uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, a_block_cache->block_size);
-            bool l_ok = l_buf && fseeko(s_ensure_file, (off_t)a_block_cache->file_offset, SEEK_SET) == 0
-                    && fread(l_buf, 1, a_block_cache->block_size, s_ensure_file) == a_block_cache->block_size;
-            if (!l_ok) {
-                DAP_DEL_Z(l_buf);
-                // The stream (and the file under it) may have been replaced: force a
-                // reopen on the next attempt instead of retrying a dead handle.
-                fclose(s_ensure_file);
-                s_ensure_file = NULL;
-                s_ensure_path[0] = '\0';
-                l_ret = -5;
-                goto out;
-            }
-            a_block_cache->block = (dap_chain_block_t *)l_buf;
-            a_block_cache->block_owned = true;
         }
         a_block_cache->sign_count = dap_chain_block_get_signs_count(a_block_cache->block, a_block_cache->block_size);
         if (dap_chain_block_cache_update(a_block_cache, &a_block_cache->block_hash))
@@ -224,9 +283,10 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
 
 // Single-pass walks (the wallet bulk pass over every datum of a 20 GB chain)
 // need the block body only while they are on that block. Handing them the
-// cache entry through ensure() would pin every body in the heap for the whole
-// walk - measured live on 0-rpc: RSS 2.2 GB -> 6.8 GB and OOM. This variant
-// reads and parses the body into a detached copy and leaves the entry thin.
+// cache entry through ensure() pins the body for the whole walk, so this
+// variant keeps the entry thin and parses into a detached snapshot instead.
+// The body itself comes from the cell's read-only view (same as ensure()): the
+// detached snapshot owns only the datum pointer array, not the block bytes.
 dap_chain_block_cache_transient_t *dap_chain_block_cache_transient(dap_chain_block_cache_t *a_block_cache)
 {
     if (!a_block_cache)
@@ -238,31 +298,38 @@ dap_chain_block_cache_transient_t *dap_chain_block_cache_transient(dap_chain_blo
     dap_chain_block_cache_transient_t *l_tr = DAP_NEW_Z(dap_chain_block_cache_transient_t);
     if (!l_tr)
         return NULL;
-    l_tr->body = DAP_NEW_SIZE(uint8_t, a_block_cache->block_size);
-    if (!l_tr->body) {
-        DAP_DELETE(l_tr);
-        return NULL;
-    }
-    pthread_mutex_lock(&s_ensure_mutex);
     dap_chain_cell_t *l_cell = a_block_cache->cell;
-    if (!s_ensure_file || dap_strcmp(s_ensure_path, l_cell->file_storage_path)) {
-        if (s_ensure_file)
-            fclose(s_ensure_file);
-        s_ensure_file = fopen(l_cell->file_storage_path, "rb");
-        dap_strncpy(s_ensure_path, l_cell->file_storage_path, sizeof(s_ensure_path));
-    }
-    bool l_ok = s_ensure_file
-            && fseeko(s_ensure_file, (off_t)a_block_cache->file_offset, SEEK_SET) == 0
-            && fread(l_tr->body, 1, a_block_cache->block_size, s_ensure_file) == a_block_cache->block_size;
-    pthread_mutex_unlock(&s_ensure_mutex);
-    if (!l_ok) {
-        DAP_DEL_Z(l_tr->body);
-        DAP_DELETE(l_tr);
-        return NULL;
+    const uint8_t *l_view = dap_chain_cell_body_view(l_cell, a_block_cache->file_offset,
+                                                     a_block_cache->block_size);
+    if (!l_view) {
+        // Fallback: read the body into the transient's own buffer. Only taken when
+        // the mapping cannot serve the range (non-mapped platform, unreadable file).
+        l_tr->body = DAP_NEW_SIZE(uint8_t, a_block_cache->block_size);
+        if (!l_tr->body) {
+            DAP_DELETE(l_tr);
+            return NULL;
+        }
+        pthread_mutex_lock(&s_ensure_mutex);
+        if (!s_ensure_file || dap_strcmp(s_ensure_path, l_cell->file_storage_path)) {
+            if (s_ensure_file)
+                fclose(s_ensure_file);
+            s_ensure_file = fopen(l_cell->file_storage_path, "rb");
+            dap_strncpy(s_ensure_path, l_cell->file_storage_path, sizeof(s_ensure_path));
+        }
+        bool l_ok = s_ensure_file
+                && fseeko(s_ensure_file, (off_t)a_block_cache->file_offset, SEEK_SET) == 0
+                && fread(l_tr->body, 1, a_block_cache->block_size, s_ensure_file) == a_block_cache->block_size;
+        pthread_mutex_unlock(&s_ensure_mutex);
+        if (!l_ok) {
+            DAP_DEL_Z(l_tr->body);
+            DAP_DELETE(l_tr);
+            return NULL;
+        }
+        l_view = l_tr->body;
     }
     l_tr->cache = *a_block_cache;               // headers/metadata copied as-is
-    l_tr->cache.block = (dap_chain_block_t *)l_tr->body;
-    l_tr->cache.block_owned = false;            // ownership: the transient's body
+    l_tr->cache.block = (dap_chain_block_t *)l_view;
+    l_tr->cache.block_owned = false;            // ownership: the view's source
     l_tr->cache.parsed = false;                 // update() will parse below
     l_tr->cache.datum = NULL;                   // never inherit the entry's buffers
     l_tr->cache.datum_hash = NULL;

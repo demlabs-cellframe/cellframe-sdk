@@ -104,6 +104,20 @@ void dap_chain_block_cache_deinit();
 
 dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block,
                                                    size_t a_block_size, uint64_t a_block_number, bool a_copy_block);
+// Index-style entry: hash/size/number/ts/prev-hash plus where the body lives, but
+// NO body pointer, no datum parse and no signature walk (block == NULL,
+// parsed == false). A scan over a 20 GB chain creates one entry per block, so a
+// body pointer (or a heap copy) per entry is what makes "all blocks in memory"
+// true: the entries are the index, not the data. The first consumer calls
+// ensure(), which serves the bytes from the loader's hint when the loader is
+// feeding that very atom, or from the cell's read-only view otherwise.
+// a_datum_count is what the consensus layer already knows from the block header
+// (it is what the chain-state index records); the parsed value replaces it.
+dap_chain_block_cache_t *dap_chain_block_cache_new_indexed(dap_hash_fast_t *a_block_hash, size_t a_block_size,
+                                                          uint64_t a_block_number, time_t a_ts_created,
+                                                          const dap_chain_hash_fast_t *a_prev_hash,
+                                                          uint64_t a_file_offset, struct dap_chain_cell *a_cell,
+                                                          size_t a_datum_count);
 dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_block);
 int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
 // Thin entries restored from the chain-state index carry block/size/number/ts
