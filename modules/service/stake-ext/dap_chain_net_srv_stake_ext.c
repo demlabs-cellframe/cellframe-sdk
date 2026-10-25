@@ -348,6 +348,7 @@ int dap_stake_ext_cache_add_lock(dap_stake_ext_cache_t *a_cache,
     dap_stake_ext_position_cache_item_t *l_position = NULL;
     HASH_FIND(hh, l_stake_ext->positions, &a_position_id, sizeof(uint64_t), l_position);
     if (!l_position) {
+        pthread_rwlock_unlock(&a_cache->cache_rwlock);
         log_it(L_ERROR, "Position not found in stake_ext cache for lock add");
         return -4;
     }
@@ -468,7 +469,11 @@ dap_stake_ext_cache_item_t *dap_stake_ext_cache_find_stake_ext(dap_stake_ext_cac
 {
     dap_return_val_if_fail(a_cache && a_stake_ext_hash, NULL);
     
-    pthread_rwlock_rdlock(&a_cache->cache_rwlock);
+    // Unlock only if the read lock was actually taken: a nested acquisition by the
+    // thread that already owns the write lock fails with EDEADLK, and the paired
+    // unlock would then release the OUTER lock.
+    if (pthread_rwlock_rdlock(&a_cache->cache_rwlock))
+        return NULL;
     
     // Direct O(1) hash lookup using optimized secondary table
     dap_stake_ext_cache_item_t *l_stake_ext = s_find_stake_ext_by_hash_fast(a_cache, a_stake_ext_hash);
@@ -565,7 +570,9 @@ dap_stake_ext_cache_item_t *dap_stake_ext_cache_find_stake_ext_by_name(dap_stake
 {
     if (!a_cache || !a_guuid)
         return NULL;
-    pthread_rwlock_rdlock(&a_cache->cache_rwlock);
+    // Unlock only on a successful acquisition, see dap_stake_ext_cache_find_stake_ext()
+    if (pthread_rwlock_rdlock(&a_cache->cache_rwlock))
+        return NULL;
     dap_stake_ext_cache_item_t *l_stake_ext = NULL, *l_tmp_stake_ext = NULL;
     HASH_FIND_STR(a_cache->stake_ext, a_guuid, l_stake_ext);
     pthread_rwlock_unlock(&a_cache->cache_rwlock);

@@ -405,6 +405,29 @@ void dap_srv_stake_ext_test_cache_lock_management(void)
     dap_assert_PIF(l_result != 0, "Lock to non-existent stake_ext should fail");
     dap_pass_msg("Test 7: Testing lock to non-existent stake_ext rejection: passed");
     
+    // Test 6b: Add lock naming a position that does not exist. This branch used to
+    // return without releasing the cache write lock, so the very next operation on
+    // the same cache deadlocked.
+    dap_test_msg("Test 7b: Lock add with a non-existent position must not hold the cache lock");
+    dap_hash_fast_t l_absent_position_hash;
+    generate_test_hash(3004, &l_absent_position_hash);
+    l_result = dap_stake_ext_cache_add_lock(l_cache, &l_stake_ext_hash, &l_absent_position_hash,
+                                        l_lock_amount, l_lock_time, dap_time_now(),
+                                        (uint64_t)777777);
+    dap_assert_PIF(l_result != 0, "Lock add with a non-existent position should fail");
+    // The rejected branch must not leave the cache write lock held. trywrlock reports
+    // the state instead of blocking: while the calling thread still owns the lock it
+    // fails (EDEADLK), once released it succeeds. Checked directly, before any helper
+    // that itself takes the lock - those would mask the leak (a failed rdlock is
+    // followed by an unpaired unlock, which releases the outer write lock).
+    int l_lock_state = pthread_rwlock_trywrlock(&l_cache->cache_rwlock);
+    dap_assert_PIF(l_lock_state == 0, "Cache write lock must be free after the rejected lock add");
+    if (l_lock_state == 0)
+        pthread_rwlock_unlock(&l_cache->cache_rwlock);
+    dap_assert_PIF(l_stake_ext->locks_count == 2,
+                   "Rejected lock add must not change the lock count");
+    dap_pass_msg("Test 7b: Non-existent position rejection releases the cache lock: passed");
+    
     // Test 7: Find non-existent lock
     dap_test_msg("Test 8: Find non-existent lock");
     dap_hash_fast_t l_nonexistent_lock;
