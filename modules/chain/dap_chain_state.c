@@ -598,15 +598,25 @@ uint64_t dap_chain_state_kv_key_id(dap_chain_state_kv_t *a_kv, const char *a_nam
 {
     if (!a_kv || !a_name)
         return 0;
+    // Lookup by NAME, and it has to use the handle the entries are stored with:
+    // HASH_FIND_STR expands to HASH_FIND(hh, ...), i.e. it searches the hh handle
+    // (the by-id table), where the key is the numeric id - a name can never match
+    // there. The by-name table is threaded on hh_name. With the wrong macro every
+    // lookup missed, so each access to an existing key minted a NEW id for the
+    // same name: the snapshot carried the same entries twice after one restart,
+    // three times after two, ... (82481 -> 164969 -> 329945 -> 659897 entries
+    // live on cf-mm-0), which is what grew the payload past the loader's size cap
+    // and sent the node into a full rescan. The by-name table exists precisely so
+    // this resolution is O(1) per access.
     pthread_rwlock_rdlock(&a_kv->lock);
     s_kv_entry_t *l_e = NULL;
-    HASH_FIND_STR(a_kv->by_name, a_name, l_e);
+    HASH_FIND(hh_name, a_kv->by_name, a_name, (unsigned)strlen(a_name), l_e);
     uint64_t l_id = l_e ? l_e->id : 0;
     pthread_rwlock_unlock(&a_kv->lock);
     if (l_id || !a_create)
         return l_id;
     pthread_rwlock_wrlock(&a_kv->lock);
-    HASH_FIND_STR(a_kv->by_name, a_name, l_e);
+    HASH_FIND(hh_name, a_kv->by_name, a_name, (unsigned)strlen(a_name), l_e);
     if (l_e) {
         l_id = l_e->id;
     } else {
