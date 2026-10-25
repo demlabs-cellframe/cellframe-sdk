@@ -36,7 +36,10 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+// bionic (Android) has no glob.h; the stale-tmp cleanup below is excluded there too
+#if !defined(DAP_OS_ANDROID)
 #include <glob.h>
+#endif
 #endif
 
 #include "uthash.h"
@@ -4640,7 +4643,9 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
     }
     // Remove tmp files of saves interrupted by a shutdown/kill. Only stale ones:
     // a concurrent save may be writing its own unique tmp right now.
-#ifndef DAP_OS_WINDOWS
+    // Not on Android: bionic provides no glob(), and the removed tmp files are a
+    // hygiene measure, not a correctness one.
+#if !defined(DAP_OS_WINDOWS) && !defined(DAP_OS_ANDROID)
     {
         char *l_glob = dap_strdup_printf("%s.tmp.*", l_path);
         glob_t l_matches = {0};
