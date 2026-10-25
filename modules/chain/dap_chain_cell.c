@@ -471,6 +471,13 @@ void dap_chain_cell_read_window_stats(dap_chain_cell_t *a_cell, size_t *a_window
     if (a_window_bytes) *a_window_bytes = 0;
     if (a_views) *a_views = 0;
 }
+// Windows has no lazy-read windows to drop, but the call sites are unconditional,
+// so the symbol must exist here or the link fails (dap_chain_cell_close/load/
+// file_append all reference it regardless of the platform).
+void dap_chain_cell_read_windows_drop(dap_chain_cell_t *a_cell)
+{
+    (void)a_cell;
+}
 #endif
 
 /* Loader volumes and residency.
