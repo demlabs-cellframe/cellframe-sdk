@@ -1534,6 +1534,116 @@ static void test_utxo_blocking_disabled_flag(void)
     test_token_fixture_destroy(l_token);
 }
 
+/**
+ * @brief Cert-only arbitrage: tx_create -arbitrage -from_addr <holder> -certs <owner>
+ * @details The arbitrator claims a UTXO held at an address it does not own the key for.
+ *          No -from_wallet: the owner cert is the only signature. Covers the CLI path
+ *          dap_chain_arbitrage_cli_create() end to end.
+ */
+static void test_arbitrage_cert_only_from_addr(void)
+{
+    log_it(L_NOTICE, "=== TEST: cert-only arbitrage via -from_addr ===");
+
+    dap_cert_t *l_cert = s_create_cert_with_seed("cert_certonly", "test_seed_certonly");
+    dap_assert_PIF(l_cert != NULL, "Certificate created");
+    dap_chain_addr_t l_cert_addr = {0};
+    dap_chain_addr_fill_from_key(&l_cert_addr, l_cert->enc_key, s_net_fixture->net->pub.id);
+
+    // The holder of the UTXO: the arbitrator does NOT have this key, which is exactly
+    // the situation cert-only arbitrage is for.
+    dap_enc_key_t *l_holder_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_holder_key != NULL, "UTXO holder key created");
+    dap_chain_addr_t l_holder_addr = {0};
+    dap_chain_addr_fill_from_key(&l_holder_addr, l_holder_key, s_net_fixture->net->pub.id);
+
+    // Fee token so the arbitrage token differs from the fee token
+    s_net_fixture->net->pub.native_ticker = "FeeCO";
+    // No fee while the base tokens are created: a fee would leave the base TX
+    // (which mints the first UTXO) unfunded and it would be dropped from the mempool
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, uint256_0, l_cert_addr);
+    dap_assert_PIF(s_create_token_and_emission("FeeCO", &l_holder_addr, l_cert), "Fee token created");
+
+    // Arbitrage token: declared and emitted by the cert (token owner = cert),
+    // emission lands on the HOLDER address so there is a spendable UTXO there.
+    const char *l_ticker = "CertOnly";
+    char l_cmd[4096], l_json[8192];
+    snprintf(l_cmd, sizeof(l_cmd),
+             "token_decl -net %s -chain %s -token %s -total_supply %s -decimals 18 -signs_total 1 -signs_valid 1 -signs_emission 1 -certs %s",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             l_ticker, TEST_TOKEN_SUPPLY, l_cert->name);
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd, "token_decl", l_json, sizeof(l_json), 1);
+    char *l_reply = dap_cli_cmd_exec(l_json);
+    dap_assert_PIF(l_reply != NULL, "Token decl executed");
+    DAP_DELETE(l_reply);
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+
+    snprintf(l_cmd, sizeof(l_cmd),
+             "token_emit -net %s -chain_emission %s -token %s -emission_value %s -addr %s -certs %s",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             l_ticker, TEST_TOKEN_SUPPLY, dap_chain_addr_to_str(&l_holder_addr), l_cert->name);
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd, "token_emit", l_json, sizeof(l_json), 1);
+    l_reply = dap_cli_cmd_exec(l_json);
+    dap_assert_PIF(l_reply != NULL, "Emission executed");
+    // Emission hash out of the reply text ("Datum 0x... is placed in datum pool")
+    const char *l_hash_start = strstr(l_reply, "0x");
+    char l_emission_hash_str[80] = {0};
+    if (l_hash_start)
+        strncpy(l_emission_hash_str, l_hash_start, 66);
+    DAP_DELETE(l_reply);
+    dap_assert_PIF(strlen(l_emission_hash_str) > 0, "Emission hash extracted");
+    dap_chain_node_mempool_process_all(s_net_fixture->chain_main, true);
+
+    // Base TX turns the emission into a UTXO at the holder address
+    dap_chain_hash_fast_t l_emission_hash = {};
+    dap_assert_PIF(dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash) == 0,
+                   "Emission hash parsed");
+    test_tx_fixture_t *l_base_tx = test_tx_fixture_create_from_emission(
+        s_net_fixture->ledger, &l_emission_hash, l_ticker, "5000.0", &l_holder_addr, l_cert);
+    dap_assert_PIF(l_base_tx != NULL, "Base TX fixture created");
+    dap_assert_PIF(test_tx_fixture_add_to_ledger(s_net_fixture->ledger, l_base_tx) == 0,
+                   "Base TX added to ledger (UTXO exists at the holder address)");
+
+    uint256_t l_fee = dap_chain_balance_scan(ARBITRAGE_FEE);
+    dap_chain_net_tx_set_fee(s_net_fixture->net->pub.id, l_fee, l_cert_addr);
+    dap_chain_wallet_cache_load_for_net(s_net_fixture->net);
+    test_wait_for_wallet_cache_loaded(s_net_fixture->net, &l_holder_addr, 50, 100);
+
+    // Claim the holder's UTXO with the owner cert as the ONLY signer, no wallet involved
+    snprintf(l_cmd, sizeof(l_cmd),
+             "tx_create -net %s -chain %s -arbitrage -from_addr %s -token %s -value 100.0 -certs %s -fee %s",
+             s_net_fixture->net->pub.name, s_net_fixture->chain_main->name,
+             dap_chain_addr_to_str(&l_holder_addr), l_ticker, l_cert->name, ARBITRAGE_FEE);
+    log_it(L_INFO, "Cert-only arbitrage command: %s", l_cmd);
+    utxo_blocking_test_cli_cmd_to_json_rpc(l_cmd, "tx_create", l_json, sizeof(l_json), 1);
+    l_reply = dap_cli_cmd_exec(l_json);
+    dap_assert_PIF(l_reply != NULL, "Reply received");
+    log_it(L_INFO, "Reply: %s", l_reply);
+
+    json_object *l_json_resp = json_tokener_parse(l_reply);
+    dap_assert_PIF(l_json_resp != NULL, "JSON parsed");
+    json_object *l_result_array = NULL;
+    dap_assert_PIF(json_object_object_get_ex(l_json_resp, "result", &l_result_array), "Result field present");
+    dap_assert_PIF(json_object_is_type(l_result_array, json_type_array), "Result is an array");
+    json_object *l_first = json_object_array_get_idx(l_result_array, 0);
+    dap_assert_PIF(l_first != NULL, "First result element present");
+    json_object *l_hash_obj = NULL;
+    bool l_ok = json_object_object_get_ex(l_first, "hash", &l_hash_obj);
+    if (!l_ok) {
+        json_object *l_error_obj = NULL;
+        if (json_object_object_get_ex(l_first, "errors", &l_error_obj))
+            log_it(L_ERROR, "Cert-only arbitrage failed: %s", json_object_to_json_string(l_error_obj));
+    }
+    dap_assert_PIF(l_ok, "Cert-only arbitrage TX created (hash present)");
+    const char *l_hash_str = json_object_get_string(l_hash_obj);
+    dap_assert_PIF(l_hash_str && strlen(l_hash_str) > 0, "Cert-only arbitrage hash is non-empty");
+    log_it(L_INFO, "✓ Cert-only arbitrage TX: %s", l_hash_str);
+
+    json_object_put(l_json_resp);
+    DAP_DELETE(l_reply);
+    test_tx_fixture_destroy(l_base_tx);
+    dap_enc_key_delete(l_holder_key);
+}
+
 int main(int argc, char **argv)
 {
     dap_print_module_name("Arbitrage Regression Tests");
@@ -1549,6 +1659,7 @@ int main(int argc, char **argv)
     test_utxo_blocking_disabled_flag();     // BUG-005: UTXO_BLOCKING_DISABLED flag
     test_bug_arbitrage_availability();      // Original test - additional coverage
     test_bug_arbitrage_arguments();         // BUG-002: Arguments validation - additional coverage
+    test_arbitrage_cert_only_from_addr();   // Cert-only arbitrage: -from_addr + -certs, no wallet
     
     // Cleanup
     s_cleanup();
