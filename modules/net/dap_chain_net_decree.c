@@ -34,6 +34,9 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_http_ban_list_client.h"
 #include "dap_chain_policy.h"
+#include "dap_chain_ledger.h"
+#include "dap_chain_ledger_snapshot.h"
+#include "dap_string.h"
 
 
 
@@ -50,6 +53,164 @@ typedef struct decree_table {
 
 // Private variable
 
+// Decrees of a subtype/type this build does not recognize. They are accepted (see
+// the default branches below) so that an upgrade can make them effective without a
+// full chain scan; the counter keeps them visible in diagnostics.
+static _Atomic uint64_t s_unknown_decree_count;
+
+uint64_t dap_chain_net_decree_unknown_count(void)
+{
+    return atomic_load(&s_unknown_decree_count);
+}
+
+/* *** Decree journal (snapshot section "decree_journal") ***
+ * The decree table itself is in-memory only: it is built by walking the chain.
+ * A snapshot-based start walks no datums, so without this section every decree
+ * effect that has no dedicated section of its own (esbocs consensus version and
+ * its strict-era boundary, min validators, fee, rewards, bans) is lost, and a
+ * decree carrying a subtype this build does not know could never become
+ * effective after an upgrade without a full rescan.
+ *
+ * The section stores the decree datums themselves, in chain order. Loading
+ * replays each one through the ordinary load path, i.e. with the CURRENT binary:
+ * an unknown subtype is recorded (see the default branch of the common handler)
+ * and applied as soon as a build understands it, while known ones re-apply
+ * idempotently (decree table -123, policy -4, anchor -111).
+ */
+#define DAP_NET_DECREE_JOURNAL_SECTION "decree_journal"
+#define DAP_NET_DECREE_JOURNAL_VERSION 1
+
+typedef struct DAP_ALIGN_PACKED s_decree_journal_hdr {
+    uint32_t version;
+    uint32_t reserved;
+    uint64_t net_id;
+    uint64_t count;
+} s_decree_journal_hdr_t;
+
+typedef struct DAP_ALIGN_PACKED s_decree_journal_rec {
+    uint64_t size;      // decree datum size in bytes
+    uint8_t applied;     // it was effective when the snapshot was taken
+    uint8_t reserved[7];
+} s_decree_journal_rec_t;
+
+static int s_decree_journal_cmp(const void *a_a, const void *a_b)
+{
+    const dap_chain_datum_decree_t *l_a = *(const dap_chain_datum_decree_t **)a_a;
+    const dap_chain_datum_decree_t *l_b = *(const dap_chain_datum_decree_t **)a_b;
+    if (l_a->header.ts_created != l_b->header.ts_created)
+        return l_a->header.ts_created < l_b->header.ts_created ? -1 : 1;
+    return 0;
+}
+
+static int s_decree_journal_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_net)
+        return 0;   // nothing to store for a net we do not have
+    decree_table_t **l_decrees = dap_chain_net_get_decrees(l_net);
+    if (!l_decrees)
+        return 0;
+    size_t l_count = 0;
+    for (decree_table_t *l_it = *l_decrees; l_it; l_it = l_it->hh.next)
+        if (l_it->decree)
+            ++l_count;
+    if (!l_count)
+        return 0;
+    // Chain order, not hash order: some decrees adjust values that others set
+    // (fee, owners, consensus version), so the replay must follow the chain.
+    dap_chain_datum_decree_t **l_sorted = DAP_NEW_Z_COUNT(dap_chain_datum_decree_t *, l_count);
+    if (!l_sorted)
+        return -2;
+    size_t l_n = 0;
+    for (decree_table_t *l_it = *l_decrees; l_it; l_it = l_it->hh.next)
+        if (l_it->decree)
+            l_sorted[l_n++] = l_it->decree;
+    qsort(l_sorted, l_n, sizeof(dap_chain_datum_decree_t *), s_decree_journal_cmp);
+    s_decree_journal_hdr_t l_hdr = { .version = DAP_NET_DECREE_JOURNAL_VERSION,
+            .net_id = a_net_id, .count = l_n };
+    int l_ret = 0;
+    if (!dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)))
+        l_ret = -2;
+    for (size_t i = 0; i < l_n && !l_ret; ++i) {
+        size_t l_size = dap_chain_datum_decree_get_size(l_sorted[i]);
+        s_decree_journal_rec_t l_rec = { .size = l_size, .applied = 1 };
+        if (!l_size || !dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec))
+                || !dap_string_append_len(a_out, (const char *)l_sorted[i], l_size))
+            l_ret = -2;
+    }
+    DAP_DELETE(l_sorted);
+    return l_ret;
+}
+
+static int s_decree_journal_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < sizeof(s_decree_journal_hdr_t))
+        return -1;
+    s_decree_journal_hdr_t l_hdr;
+    memcpy(&l_hdr, a_data, sizeof(l_hdr));
+    if (l_hdr.version != DAP_NET_DECREE_JOURNAL_VERSION) {
+        log_it(L_WARNING, "Decree journal: unsupported format version %u (this build understands %u)",
+               l_hdr.version, DAP_NET_DECREE_JOURNAL_VERSION);
+        return -2;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_hdr.net_id });
+    if (!l_net)
+        return -3;
+    // The decrees were applied against the network's block chain; resolving it here
+    // keeps the section self-contained (same approach as the anchor section).
+    dap_chain_t *l_chain = NULL;
+    for (dap_chain_t *l_c = l_net->pub.chains; l_c; l_c = l_c->next) {
+        const char *l_cs_type = dap_chain_get_cs_type(l_c);
+        if (l_cs_type && !dap_strcmp(l_cs_type, "esbocs")) {
+            l_chain = l_c;
+            break;
+        }
+    }
+    if (!l_chain && l_net->pub.chains)
+        l_chain = l_net->pub.chains;
+    if (!l_chain)
+        return -4;
+    const uint8_t *l_ptr = a_data + sizeof(l_hdr), *l_end = a_data + a_size;
+    size_t l_applied = 0, l_kept = 0;
+    for (uint64_t i = 0; i < l_hdr.count; ++i) {
+        if ((size_t)(l_end - l_ptr) < sizeof(s_decree_journal_rec_t))
+            return -5;
+        s_decree_journal_rec_t l_rec;
+        memcpy(&l_rec, l_ptr, sizeof(l_rec));
+        l_ptr += sizeof(l_rec);
+        if (!l_rec.size || (size_t)(l_end - l_ptr) < l_rec.size)
+            return -5;
+        dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)l_ptr;
+        size_t l_datum_size = dap_chain_datum_decree_get_size(l_decree);
+        if (l_datum_size != l_rec.size) {
+            log_it(L_WARNING, "Decree journal: record %" DAP_UINT64_FORMAT_U " has inconsistent size %zu != %" DAP_UINT64_FORMAT_U,
+                   i, l_datum_size, l_rec.size);
+            return -6;
+        }
+        dap_hash_fast_t l_hash = {};
+        dap_hash_fast(l_decree, l_rec.size, &l_hash);
+        // Replay through the ordinary path: verification, then apply. Already applied
+        // decrees are refused there (-123), which makes the replay idempotent.
+        int l_rc = dap_chain_net_decree_load(l_decree, l_chain, &l_hash);
+        if (!l_rc || l_rc == -123)
+            ++l_applied;
+        else
+            ++l_kept;   // recorded, not effective (unknown subtype, or already reverted)
+        l_ptr += l_rec.size;
+    }
+    log_it(L_NOTICE, "Decree journal: %zu decree(s) replayed (%zu effective, %zu recorded without effect)",
+           (size_t)l_hdr.count, l_applied, l_kept);
+    return 0;
+}
+
+int dap_chain_net_decree_journal_init(void)
+{
+    dap_ledger_add_snapshot_section(DAP_NET_DECREE_JOURNAL_SECTION, 0,
+            s_decree_journal_dump, s_decree_journal_load, NULL);
+    return 0;
+}
 
 // Private fuctions prototype
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
@@ -221,8 +382,12 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
     break;
     default:
-        log_it(L_WARNING, "Decree type is undefined!");
-        l_ret = -100;
+        // Unknown decree type: accepted, no effect. See the subtype default in
+        // s_common_decree_handler() - the datum is still recorded so that a later
+        // build, which knows the type, can apply it without a chain scan.
+        log_it(L_NOTICE, "Decree type 0x%04X is not known to this build - accepted without applying",
+               a_decree->header.type);
+        s_unknown_decree_count++;
     }
     if (l_ret) {
         log_it(L_WARNING, "TSD checking error. Decree verification failed");
@@ -297,8 +462,10 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
         break;
     default:
-        log_it(L_WARNING,"Decree type is undefined!");
-        ret_val = -100;
+        // Unknown decree type: accepted, no effect (see s_common_decree_handler())
+        log_it(L_NOTICE, "Decree type 0x%04X is not known to this build - accepted without applying",
+               l_new_decree->decree->header.type);
+        s_unknown_decree_count++;
     }
 
     if (!ret_val) {
@@ -749,7 +916,17 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
         } break;
         default:
-            return -1;
+            // A decree subtype this binary does not know yet. Accept it so the datum
+            // reaches the decree table (and, through it, the snapshot journal) instead
+            // of being rejected: after a software upgrade the same decree must be able
+            // to become effective without a full chain scan. Nothing is applied here -
+            // an unrecognized subtype has no effect by definition. Rejecting it, as was
+            // done before, silently discarded both the decree and the state it carries
+            // for every node running an older build.
+            log_it(L_NOTICE, "Decree subtype 0x%04X is not known to this build - accepted without applying (net %s)",
+                   a_decree->header.sub_type, a_net->pub.name);
+            s_unknown_decree_count++;
+            break;
     }
 
     return 0;

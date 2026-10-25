@@ -47,6 +47,16 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash, bool *is_applied);
 int dap_chain_net_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_decree_hash);
 
+// Number of decree datums accepted but not applied because this build does not
+// recognize their type/subtype. They are kept so that a later build applies them
+// without a chain scan.
+uint64_t dap_chain_net_decree_unknown_count(void);
+
+// Registers the decree journal snapshot section: the decree datums themselves,
+// replayed through the normal load path on a snapshot-based start (see the
+// section comment in dap_chain_net_decree.c).
+int dap_chain_net_decree_journal_init(void);
+
 #ifdef __cplusplus
 }
 #endif
