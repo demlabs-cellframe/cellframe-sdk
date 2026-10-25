@@ -129,3 +129,28 @@ set_tests_properties(rpc_executor_bench PROPERTIES
     TIMEOUT 60
     LABELS "bench;rpc;executor"
 )
+
+# Service-order signature verification (policy rule 0xD): the order body is
+# node-local and its embedded signature is the only binding to its author.
+add_executable(order_signature_unit_test
+    order_signature_unit_test.c
+)
+
+target_include_directories(order_signature_unit_test PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+)
+
+target_link_libraries(order_signature_unit_test
+    dap_test
+    dap_core
+    dap_crypto
+    dap_chain_common
+    dap_chain_net
+)
+
+add_test(NAME order_signature_unit COMMAND order_signature_unit_test)
+
+set_tests_properties(order_signature_unit PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;order;signature"
+)

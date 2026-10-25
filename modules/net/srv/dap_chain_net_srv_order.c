@@ -33,6 +33,8 @@
 #include "dap_global_db.h"
 #include "dap_chain_net_srv_countries.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_policy.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"
 
@@ -65,6 +67,10 @@ struct dap_order_notify {
     dap_store_obj_callback_notify_t callback;
     void *cb_arg;
 };
+
+// Orders whose embedded signature did not verify (rule 0xD). Kept visible so an
+// operator can tell a forged order apart from a formatting bug.
+static _Atomic uint64_t s_orders_rejected_by_signature;
 
 /**
  * @brief dap_chain_net_srv_order_init
@@ -155,6 +161,10 @@ const dap_chain_net_srv_order_t *dap_chain_net_srv_order_check(const char *a_ord
     const dap_chain_net_srv_order_t *l_order = (const dap_chain_net_srv_order_t *)a_order;
     dap_return_val_if_fail(l_order && a_order_size >= sizeof(dap_chain_net_srv_order_t) + sizeof(dap_sign_t) &&
                            l_order->version == 3 && l_order->direction <= SERV_DIR_SELL, NULL);
+    // ext_size is attacker-controlled and used as the signed-range length below:
+    // reject anything that does not leave room for the sign inside the buffer.
+    if (a_order_size < sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + sizeof(dap_sign_t))
+        return NULL;
     size_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
     if (l_order_size != a_order_size)
         return NULL;
@@ -164,7 +174,66 @@ const dap_chain_net_srv_order_t *dap_chain_net_srv_order_check(const char *a_ord
         return NULL;
     if (memcmp(&l_hash, &l_hash_real, sizeof(dap_hash_fast_t)))
         return NULL;
+    // The hash above only proves the bytes are the ones named by the key. It says
+    // nothing about who produced them: the whole order body (price, node address,
+    // tax, the delegated key that later rides an on-chain conditional tx) is
+    // attacker-supplied unless the embedded signature is verified over it.
+    // Rule 0xD, off until its decree is applied - see dap_chain_policy.h.
+    if (!dap_chain_net_srv_order_signature_rules_active(l_order))
+        return l_order;
+    if (!dap_chain_net_srv_order_verify_sign(l_order)) {
+        log_it(L_WARNING, "Order %s rejected: embedded signature does not verify over the order body",
+               dap_hash_fast_to_str_static(&l_hash_real));
+        s_orders_rejected_by_signature++;
+        return NULL;
+    }
     return l_order;
+}
+
+int dap_chain_net_srv_order_verify_sign(const dap_chain_net_srv_order_t *a_order)
+{
+    if (!a_order || a_order->version != 3)
+        return 0;
+    dap_sign_t *l_sign = (dap_sign_t *)(a_order->ext_n_sign + a_order->ext_size);
+    if (l_sign->header.type.type == SIG_TYPE_NULL)
+        return 0;   // explicitly unsigned order
+    // The producer signed exactly the fixed header plus the extension bytes
+    // (dap_chain_net_srv_order_compose). dap_sign_verify_all validates the sign
+    // header's own sizes against the buffer, so a crafted header cannot make this
+    // read out of bounds.
+    size_t l_sign_size = dap_sign_get_size(l_sign);
+    if (!l_sign_size)
+        return 0;
+    size_t l_signed_size = sizeof(dap_chain_net_srv_order_t) + a_order->ext_size;
+    return !dap_sign_verify_all(l_sign, l_sign_size, a_order, l_signed_size);
+}
+
+bool dap_chain_net_srv_order_signature_rules_active(const dap_chain_net_srv_order_t *a_order)
+{
+    (void)a_order;
+    // The rule is a decree, resolved per network: orders carry no net id, so the
+    // check is done against every initialized network - an order is trusted only
+    // where the decree is in force. A single-network node is the normal case.
+    for (dap_chain_net_t *l_net = dap_chain_net_iter_start(); l_net; l_net = dap_chain_net_iter_next(l_net)) {
+        if (l_net->pub.ledger && dap_chain_net_srv_order_signature_cutoff_in_force(l_net))
+            return true;
+    }
+    return false;
+}
+
+bool dap_chain_net_srv_order_signature_cutoff_in_force(dap_chain_net_t *a_net)
+{
+    if (!a_net || !a_net->pub.ledger)
+        return false;
+    dap_time_t l_since = 0;
+    if (!dap_chain_policy_get_ts_start(a_net->pub.id, DAP_CHAIN_POLICY_SRV_ORDER_SIGNATURE_CUTOFF, &l_since) || !l_since)
+        return false;   // no decree applied yet: pre-fix semantics
+    return l_since <= dap_ledger_get_blockchain_time(a_net->pub.ledger);
+}
+
+uint64_t dap_chain_net_srv_order_rejected_by_signature_count(void)
+{
+    return atomic_load(&s_orders_rejected_by_signature);
 }
 
 /**
@@ -395,6 +464,34 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     return l_order;
 }
 
+int dap_chain_net_srv_order_re_sign(dap_chain_net_srv_order_t **a_order, dap_enc_key_t *a_key)
+{
+    if (!a_order || !*a_order || !a_key)
+        return -1;
+    // The caller hands over a body-only buffer (both update paths reallocate to
+    // sizeof(order) + ext_size, which drops the previous signature), so there is
+    // nothing to strip here - and reading a signature that is no longer inside the
+    // allocation would read past its end.
+    dap_chain_net_srv_order_t *l_body = *a_order;
+    if (l_body->ext_size > DAP_CHAIN_NET_SRV_ORDER_EXT_MAX)
+        return -2;
+    size_t l_body_size = sizeof(dap_chain_net_srv_order_t) + l_body->ext_size;
+    dap_sign_t *l_sign = dap_sign_create(a_key, l_body, l_body_size);
+    if (!l_sign)
+        return -3;
+    size_t l_sign_size = dap_sign_get_size(l_sign);
+    dap_chain_net_srv_order_t *l_new = DAP_REALLOC(l_body, l_body_size + l_sign_size);
+    if (!l_new) {
+        DAP_DELETE(l_sign);
+        return -4;
+    }
+    memcpy(l_new->ext_n_sign + l_new->ext_size, l_sign, l_sign_size);
+    DAP_DELETE(l_sign);
+    *a_order = l_new;
+    log_it(L_DEBUG, "Order re-signed: body %zu bytes, sign %zu bytes", l_body_size, l_sign_size);
+    return 0;
+}
+
 /**
  * @brief dap_chain_net_srv_order_update
  * @param a_net
@@ -429,7 +526,6 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
  */
 dap_chain_net_srv_order_t *dap_chain_net_srv_order_find_by_hash_str(dap_chain_net_t *a_net, const char *a_hash_str)
 {
-    const dap_chain_net_srv_order_t *l_order = NULL;
     for (int i = 0; a_net && a_hash_str && i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
                                   : dap_chain_net_srv_order_get_common_group(a_net);
@@ -438,13 +534,21 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_find_by_hash_str(dap_chain_ne
         DAP_DELETE(l_gdb_group_str);
         if (!l_gdb_order)
             continue;
-        // check order size; the value is owned by the local store
-        l_order = dap_chain_net_srv_order_check(a_hash_str, l_gdb_order, l_order_size);
-        if (!l_order || (l_order->ts_expires &&  l_order->ts_expires < dap_time_now())){
-            break;
-        }
+        const dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_check(a_hash_str, l_gdb_order, l_order_size);
+        if (!l_order)
+            return NULL;    // present but rejected (bad size/hash, or signature rule 0xD)
+        if (l_order->ts_expires && l_order->ts_expires < dap_time_now())
+            continue;       // expired: keep looking in the other group, do not hand it out
+        // The bytes above belong to the local store and stay valid only while its
+        // lock is held. Callers free what they get, so return their own copy -
+        // handing out the borrowed pointer made every caller free memory it did
+        // not own (heap corruption / use-after-free).
+        size_t l_copy_size = dap_chain_net_srv_order_get_size(l_order);
+        dap_chain_net_srv_order_t *l_copy = DAP_DUP_SIZE((dap_chain_net_srv_order_t *)l_order,
+                l_copy_size ? l_copy_size : l_order_size);
+        return l_copy;
     }
-    return (dap_chain_net_srv_order_t *)l_order;
+    return NULL;
 }
 
 /**

@@ -40,6 +40,15 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 // enforced from this policy's ts_start onwards. Activated by a policy decree
 // like the other cutoffs; inactive policy means the pre-fix lenient semantics.
 #define DAP_CHAIN_POLICY_STAKE_LOCK_STRICT_MINT_CUTOFF      0x7
+// Each rule below gets its own number so an operator can switch them on
+// independently - one rule that turns out to be wrong must not hold the others
+// back, and a rollback touches only its own number. All of them follow the same
+// idiom as 0x7: inactive policy means the pre-fix lenient semantics, active means
+// the rule applies from ts_start onwards (compared against the ledger's
+// blockchain time, never the wall clock).
+// Service orders must carry a signature that actually verifies over the order
+// body; an order that fails is skipped by its consumers instead of being trusted.
+#define DAP_CHAIN_POLICY_SRV_ORDER_SIGNATURE_CUTOFF         0xD
 
 typedef struct dap_chain_policy {
     uint16_t version;

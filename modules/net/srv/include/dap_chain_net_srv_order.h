@@ -167,3 +167,41 @@ DAP_STATIC_INLINE dap_sign_t *dap_chain_net_srv_order_get_sign(dap_chain_net_srv
         return NULL;
     return (dap_sign_t*)(a_order->ext_n_sign + a_order->ext_size);
 }
+
+// Upper bound for the extension block (order->ext_size). The extension carries a
+// region/continent tag, a validator fee extension (two uint256) or a similar small
+// blob; this bound only guards the signed-range arithmetic against a forged size.
+#define DAP_CHAIN_NET_SRV_ORDER_EXT_MAX 1024
+
+/**
+ * @brief Verify the signature embedded in the order over its own body.
+ * @details The producer signs the fixed header plus the extension bytes; the sign
+ *          blob follows them. An explicitly unsigned order (SIG_TYPE_NULL) is
+ *          reported as "not verified" - callers decide what that means.
+ * @return 1 if the signature verifies, 0 otherwise (including NULL-type signs)
+ */
+int dap_chain_net_srv_order_verify_sign(const dap_chain_net_srv_order_t *a_order);
+
+/**
+ * @brief Re-sign an order whose body was just changed.
+ * @details The caller passes a body-only buffer (both update paths reallocate to
+ *          the body size, dropping the previous signature). The signature is
+ *          produced over the same byte range as in dap_chain_net_srv_order_compose().
+ * @return 0 on success, negative on error
+ */
+int dap_chain_net_srv_order_re_sign(dap_chain_net_srv_order_t **a_order, dap_enc_key_t *a_key);
+
+/**
+ * @brief Is the mandatory-order-signature rule (policy 0xD) in force on any network?
+ */
+bool dap_chain_net_srv_order_signature_rules_active(const dap_chain_net_srv_order_t *a_order);
+
+/**
+ * @brief Is the rule in force on this particular network, per its policy decree?
+ */
+bool dap_chain_net_srv_order_signature_cutoff_in_force(dap_chain_net_t *a_net);
+
+/**
+ * @brief How many orders were dropped because their signature did not verify.
+ */
+uint64_t dap_chain_net_srv_order_rejected_by_signature_count(void);

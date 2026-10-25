@@ -3857,6 +3857,20 @@ static dap_chain_net_srv_order_t *s_get_remote_srv_order(const char* l_order_has
         }
         DAP_DEL_Z(l_hash_str_current);
     }
+    // Least trustworthy ingestion path: the bytes came from a remote node over RPC
+    // and only their hash was checked so far, while the delegated key and the tax
+    // extension are read out of them further down. Verify the embedded signature
+    // (rule 0xD) - a remote peer must not be able to hand us an order attributed to
+    // a validator whose key it does not hold.
+    if (dap_chain_net_srv_order_signature_rules_active(l_order) &&
+            !dap_chain_net_srv_order_verify_sign(l_order)) {
+        log_it(L_WARNING, "Remote order rejected: embedded signature does not verify over the order body");
+        s_json_compose_error_add(a_config->response_handler, GET_REMOTE_SRV_ORDER_INVALID_ORDER_HASH,
+                                 "Remote order signature does not verify");
+        DAP_DELETE(l_order);
+        json_object_put(l_raw_response);
+        return NULL;
+    }
     json_object_put(l_raw_response);
     return l_order;
 }

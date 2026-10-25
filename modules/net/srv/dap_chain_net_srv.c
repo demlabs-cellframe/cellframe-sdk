@@ -311,21 +311,30 @@ static int s_cli_net_srv( int argc, char **argv, void **a_str_reply, int a_versi
                             memcpy(l_order->ext_n_sign, l_ext, l_order->ext_size);
                         } else
                             dap_chain_net_srv_order_set_continent_region(&l_order, l_continent_num, l_region_str);
+                        // The body just changed, so the stored signature no longer covers
+                        // it. Re-sign with the certificate named by -cert (the same key
+                        // that signed the original order); without it the update is
+                        // refused rather than saved with a stale signature.
+                        {
+                            const char *l_cert_str = NULL;
+                            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
+                            dap_cert_t *l_cert = l_cert_str ? dap_cert_find_by_name(l_cert_str) : NULL;
+                            if (!l_cert || !l_cert->enc_key) {
+                                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_ERR,
+                                        "Order update requires -cert <name> of the key that signed the order: "
+                                        "the body changed and the old signature cannot cover it\n");
+                                DAP_DELETE(l_order);
+                                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_ERR;
+                            }
+                            if (dap_chain_net_srv_order_re_sign(&l_order, l_cert->enc_key)) {
+                                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_ERR,
+                                        "Can't re-sign the updated order\n");
+                                DAP_DELETE(l_order);
+                                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_ERR;
+                            }
+                        }
                         char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order, false);
                         if (l_new_order_hash_str) {
-                            /*const char *l_cert_str = NULL;
-                            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
-                            if (!l_cert_str) {
-                                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_PARAM_CERT_ERR, "Fee order creation requires parameter -cert");
-                                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_PARAM_CERT_ERR;
-                            }
-                            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
-                            if (!l_cert) {
-                                dap_json_rpc_error_add(*json_arr_reply, DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_LOAD_CERT_ERR, "Can't load cert %s", l_cert_str);
-                                DAP_DEL_MULTY(l_new_order_hash_str, l_order_hash_hex_str, l_order_hash_base58_str, l_order);
-                                return -DAP_CHAIN_NET_SRV_CLI_COM_ORDER_UPDATE_LOAD_CERT_ERR;
-                            }
-                            */ // WTF is this? ^^^
                             // delete prev order
                             if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
                                 dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
