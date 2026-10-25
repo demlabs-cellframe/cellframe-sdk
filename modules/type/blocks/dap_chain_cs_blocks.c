@@ -21,6 +21,7 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <pthread.h>
+#include <errno.h>
 #include "dap_common.h"
 #include "dap_chain.h"
 #include "dap_chain_ledger_snapshot.h"
@@ -87,13 +88,21 @@ typedef struct dap_chain_cs_blocks_pvt {
     bool is_celled;
 
     pthread_rwlock_t rwlock;
-    // Thread holding rwlock for writing in s_callback_atom_add() (0 if none). Ledger verification
-    // run from s_add_atom_datums()/s_delete_atom_datums() under that wrlock re-enters
-    // s_callback_calc_reward() for IN_REWARD items. Re-taking the rwlock on the thread that owns it
-    // for writing fails with EDEADLK and the paired unlock then releases the outer write lock early
-    // (glibc: reader counter underflow, the next wrlock blocks forever), so the lookup must skip
-    // locking on that thread.
+    // Owner of rwlock (0 if none) and the count of the owner's nested acquisitions.
+    // Ledger verification run from s_add_atom_datums()/s_delete_atom_datums() under
+    // that wrlock re-enters the chain for block lookups (lazy datum attach ->
+    // dap_chain_cs_blocks_datum_at(), s_callback_calc_reward() for IN_REWARD items,
+    // dap_chain_cs_blocks_get_pkey_by_hash()). pthread rwlocks are not recursive: a
+    // nested acquisition by the owner fails with EDEADLK while the paired unlock
+    // releases the OUTER lock - the counter underflows and every later wrlock blocks
+    // forever (live: Backbone wedged in SYNC_CHAINS with __readers=0xFFFFFFFA, sync
+    // FSM restarting every ~2 s, peers timing out). All acquisitions in this file go
+    // through the wrappers below: nested acquisitions by the owner are counted and
+    // touch no lock; only the outermost unlock releases the real lock. The wrappers
+    // serve both write and read nesting - a nested reader under the owner never takes
+    // the reader state, so one counter is enough.
     _Atomic uintptr_t rwlock_writer;
+    _Atomic uint32_t rwlock_depth;   // owner's nested acquisitions
     struct cs_blocks_hal_item *hal;
     // Number of blocks for one block confirmation
     uint64_t block_confirm_cnt;
@@ -124,17 +133,80 @@ typedef struct s_fork_switch_notify {
 
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
 
-#define print_rdlock(blocks) log_it(L_DEBUG, "Try to rdlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());\
-        pthread_rwlock_rdlock(& PVT(blocks)->rwlock);\
-        log_it(L_DEBUG, "Locked rdlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());
+// Recursion-safe wrappers for PVT->rwlock. The chain's own threads re-enter
+// themselves here: the ledger applies datums called from s_callback_atom_add()
+// while it still holds the write lock, and those code paths come back for block
+// lookups (datum_at, calc_reward, get_pkey_by_hash, ensure-from-listings). A
+// pthread rwlock is not recursive - a nested acquisition by the lock owner fails
+// with EDEADLK, and the paired unlock then releases the OUTER lock: the reader
+// counter underflows and every following wrlock waits forever (observed live as
+// Backbone stuck in SYNC_CHAINS, __readers=0xFFFFFFFA). These wrappers make
+// owner re-entry a counted no-op; only the outermost owner unlock touches the
+// lock itself. Both read and write nesting by the owner share one counter: a
+// nested acquisition never takes the real reader state, so no ordering matters.
+static void s_blocks_rdlock(dap_chain_cs_blocks_pvt_t *a_pvt)
+{
+    if (atomic_load_explicit(&a_pvt->rwlock_writer, memory_order_acquire) == (uintptr_t)pthread_self()) {
+        atomic_fetch_add_explicit(&a_pvt->rwlock_depth, 1, memory_order_relaxed);
+        return;
+    }
+    int l_rc = pthread_rwlock_rdlock(&a_pvt->rwlock);
+    if (l_rc == EDEADLK) {
+        // The thread already owns this lock for writing but the owner marker is not
+        // set (lock taken by a path older than the marker): treat as nested so the
+        // paired unlock does not release the outer lock early.
+        atomic_store_explicit(&a_pvt->rwlock_writer, (uintptr_t)pthread_self(), memory_order_release);
+        atomic_fetch_add_explicit(&a_pvt->rwlock_depth, 1, memory_order_relaxed);
+    } else if (l_rc)
+        log_it(L_ERROR, "Chain blocks rdlock failed with code %d on thread %lu", l_rc, (unsigned long)pthread_self());
+}
 
-#define print_wrlock(blocks) log_it(L_DEBUG, "Try to wrlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());\
-        pthread_rwlock_wrlock(& PVT(blocks)->rwlock);\
-        log_it(L_DEBUG, "Locked wrlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());
+static void s_blocks_wrlock(dap_chain_cs_blocks_pvt_t *a_pvt)
+{
+    if (atomic_load_explicit(&a_pvt->rwlock_writer, memory_order_acquire) == (uintptr_t)pthread_self()) {
+        // Nested write acquisition by the current owner: the outer lock already
+        // gives exclusive access, so only the depth counter moves.
+        atomic_fetch_add_explicit(&a_pvt->rwlock_depth, 1, memory_order_relaxed);
+        return;
+    }
+    int l_rc = pthread_rwlock_wrlock(&a_pvt->rwlock);
+    if (l_rc == EDEADLK) {
+        atomic_store_explicit(&a_pvt->rwlock_writer, (uintptr_t)pthread_self(), memory_order_release);
+        atomic_fetch_add_explicit(&a_pvt->rwlock_depth, 1, memory_order_relaxed);
+    } else if (l_rc)
+        log_it(L_ERROR, "Chain blocks wrlock failed with code %d on thread %lu", l_rc, (unsigned long)pthread_self());
+    else {
+        atomic_store_explicit(&a_pvt->rwlock_writer, (uintptr_t)pthread_self(), memory_order_release);
+        atomic_store_explicit(&a_pvt->rwlock_depth, 0, memory_order_relaxed);
+    }
+}
 
-#define print_unlock(blocks) log_it(L_DEBUG, "Try to unlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());\
-        pthread_rwlock_unlock(& PVT(blocks)->rwlock);\
-        log_it(L_DEBUG, "Unlocked rwqlock, %s, %d, thread_id=%u", __FUNCTION__, __LINE__, dap_gettid());
+static void s_blocks_unlock(dap_chain_cs_blocks_pvt_t *a_pvt)
+{
+    if (atomic_load_explicit(&a_pvt->rwlock_writer, memory_order_acquire) == (uintptr_t)pthread_self()) {
+        uint32_t l_depth = atomic_load_explicit(&a_pvt->rwlock_depth, memory_order_relaxed);
+        if (l_depth) {
+            atomic_fetch_sub_explicit(&a_pvt->rwlock_depth, 1, memory_order_relaxed);
+            return;
+        }
+        atomic_store_explicit(&a_pvt->rwlock_writer, 0, memory_order_release);
+    }
+    int l_rc = pthread_rwlock_unlock(&a_pvt->rwlock);
+    if (l_rc)
+        log_it(L_ERROR, "Chain blocks unlock failed with code %d on thread %lu", l_rc, (unsigned long)pthread_self());
+}
+
+#define print_rdlock(blocks) log_it(L_DEBUG, "Try to rdlock, %s, %d, thread_id=%lu", __FUNCTION__, __LINE__, (unsigned long)pthread_self());\
+        s_blocks_rdlock(PVT(blocks));\
+        log_it(L_DEBUG, "Locked rdlock, %s, %d, thread_id=%lu", __FUNCTION__, __LINE__, (unsigned long)pthread_self());
+
+#define print_wrlock(blocks) log_it(L_DEBUG, "Try to wrlock, %s, %d, thread_id=%lu", __FUNCTION__, __LINE__, (unsigned long)pthread_self());\
+        s_blocks_wrlock(PVT(blocks));\
+        log_it(L_DEBUG, "Locked wrlock, %s, %d, thread_id=%lu", __FUNCTION__, __LINE__, (unsigned long)pthread_self());
+
+#define print_unlock(blocks) log_it(L_DEBUG, "Try to unlock, %s, %d, thread_id=%lu", __FUNCTION__, __LINE__, (unsigned long)pthread_self());\
+        s_blocks_unlock(PVT(blocks));\
+        log_it(L_DEBUG, "Unlocked rwqlock, %s, %d, thread_id=%lu", __FUNCTION__, __LINE__, (unsigned long)pthread_self());
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, void **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
 static void s_cli_meta_hash_print(  json_object* a_json_obj_out, const char * a_meta_title, dap_chain_block_meta_t * a_meta, const char *a_hash_out_type);
@@ -466,9 +538,9 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
 dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_t * a_blocks,  dap_chain_hash_fast_t *a_block_hash)
 {
     dap_chain_block_cache_t * l_ret = NULL;
-    pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
+    s_blocks_rdlock(PVT(a_blocks));
     HASH_FIND(hh, PVT(a_blocks)->blocks,a_block_hash, sizeof (*a_block_hash), l_ret );
-    pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
+    s_blocks_unlock(PVT(a_blocks));
     if (l_ret && !l_ret->block) // index-restored thin entry: parse before use
         dap_chain_block_cache_ensure(l_ret);
     return l_ret;
@@ -483,9 +555,9 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_
 dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_cs_blocks_t * a_blocks,  uint64_t a_block_number)
 {
     dap_chain_block_cache_t * l_ret = NULL;
-    pthread_rwlock_rdlock(& PVT(a_blocks)->rwlock);
+    s_blocks_rdlock(PVT(a_blocks));
     HASH_FIND_BYHASHVALUE(hh2, PVT(a_blocks)->blocks_num, &a_block_number, sizeof (a_block_number), a_block_number, l_ret);
-    pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
+    s_blocks_unlock(PVT(a_blocks));
     if (l_ret && !l_ret->block) // index-restored thin entry: parse before use
         dap_chain_block_cache_ensure(l_ret);
     return l_ret;
@@ -799,23 +871,23 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
     switch ( l_subcmd ){
         // Flush memory for the new block
         case SUBCMD_NEW_FLUSH:{
-            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
+            s_blocks_wrlock(PVT(l_blocks));
             if ( l_blocks->block_new )
                 DAP_DELETE( l_blocks->block_new );
             dap_chain_block_cache_t *l_bcache_last = PVT(l_blocks)->blocks ? PVT(l_blocks)->blocks->hh.tbl->tail->prev : NULL;
             l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : PVT(l_blocks)->blocks;
             l_blocks->block_new = dap_chain_block_new(l_bcache_last ? &l_bcache_last->block_hash : NULL,
                                                       &l_blocks->block_new_size);
-            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
+            s_blocks_unlock(PVT(l_blocks));
         } break;
 
         // Add datum to the forming new block
         case SUBCMD_NEW_DATUM_LIST:{
-            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
-            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
+            s_blocks_wrlock(PVT(l_blocks));
+            s_blocks_unlock(PVT(l_blocks));
         }break;
         case SUBCMD_NEW_DATUM_DEL:{
-            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
+            s_blocks_wrlock(PVT(l_blocks));
             if ( l_blocks->block_new ){
                 dap_chain_hash_fast_t l_datum_hash;
                 s_cli_parse_cmd_hash(a_argv,arg_index,a_argc,a_str_reply,"-datum", &l_datum_hash );
@@ -824,7 +896,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_DEL_ERR, "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
                 ret = DAP_CHAIN_NODE_CLI_COM_BLOCK_DATUM_DEL_ERR;
             }
-            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
+            s_blocks_unlock(PVT(l_blocks));
         }break;
         case SUBCMD_NEW_DATUM_ADD:{
             size_t l_datums_count=1;
@@ -1252,7 +1324,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             }
 
             dap_cli_cmd_reply_stream_begin_nested();
-            pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+            s_blocks_rdlock(PVT(l_blocks));
             json_object* json_arr_bl_cache_out = json_object_new_array();
             size_t l_start_arr = 0;
             size_t l_arr_end = 0;
@@ -1271,7 +1343,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
             size_t l_row_max = (l_arr_end > l_start_arr ? l_arr_end - l_start_arr : 0);
             bool l_oom = false;
             if (l_row_max && !l_rows) {
-                pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                s_blocks_unlock(PVT(l_blocks));
                 json_object_put(l_lim_obj);
                 dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_BLOCK_MEMORY_ERR, "%s", c_error_memory_alloc);
                 return DAP_CHAIN_NODE_CLI_COM_BLOCK_MEMORY_ERR;
@@ -1455,7 +1527,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply, int a_ve
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
                     break;
             }
-            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+            s_blocks_unlock(PVT(l_blocks));
             if (l_oom) {
                 DAP_DELETE(l_rows);
                 json_object_put(l_lim_obj);
@@ -1950,10 +2022,10 @@ static void s_callback_delete(dap_chain_t * a_chain)
 {
     s_callback_cs_blocks_purge(a_chain);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+    s_blocks_wrlock(PVT(l_blocks));
     if(l_blocks->callback_delete )
         l_blocks->callback_delete(l_blocks);
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_unlock(PVT(l_blocks));
     dap_chain_state_destroy(PVT(l_blocks)->state);
     PVT(l_blocks)->state = NULL;
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
@@ -1983,7 +2055,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     DAP_DEL_Z(PVT(l_blocks)->forked_branches);
     pthread_rwlock_unlock(&PVT(l_blocks)->forked_branches_rwlock);
 
-    pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+    s_blocks_wrlock(PVT(l_blocks));
     dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
@@ -2002,7 +2074,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     dap_rpc_cache_invalidate_name("tx_history");
     PVT(l_blocks)->blocks_count = 0;
     HASH_CLEAR(hh2, PVT(l_blocks)->blocks_num);
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_unlock(PVT(l_blocks));
     
     if (PVT(l_blocks)->state)
         dap_chain_state_datums_clear(PVT(l_blocks)->state);
@@ -2566,11 +2638,11 @@ int dap_chain_cs_blocks_index_restored_datum(dap_chain_t *a_chain, const dap_has
     };
     dap_strncpy(l_rec.token_ticker, "0", DAP_CHAIN_TICKER_SIZE_MAX);
     dap_chain_block_cache_t *l_bc = NULL;
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    s_blocks_rdlock(PVT(l_blocks));
     HASH_FIND(hh, PVT(l_blocks)->blocks, a_atom_hash, sizeof(*a_atom_hash), l_bc);
     l_rec.block_ref = l_bc;
     dap_chain_state_datum_add(l_state, &l_rec);
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_unlock(PVT(l_blocks));
     return 0;
 }
 
@@ -2679,7 +2751,7 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
     // The chain-wide TX counter describes the whole chain, not only the ledger's
     // items, so it comes from the index header (the tail adds its own below).
     dap_chain_state_tx_count_set(l_state, l_hdr.tx_count);
-    pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
+    s_blocks_wrlock(PVT(l_blocks));
     int l_rc = dap_chain_state_for_each_record(l_state, s_blocks_restore_rec_cb, &l_ctx);
     // A callback stop above the anchor is the normal tail case, not an error.
     if (!l_rc || (l_rc == -4 && l_ctx.have_resume)) {
@@ -2692,7 +2764,7 @@ int64_t dap_chain_cs_blocks_restore_index(dap_chain_t *a_chain, uint64_t *a_resu
         // first live block arrives.
         dap_chain_state_adopt_file(l_state, l_anchor_num);
     }
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_unlock(PVT(l_blocks));
     return l_rc ? -8 : (int64_t)l_ctx.count;
 }
 
@@ -2714,23 +2786,23 @@ int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast
         return -1;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_block_cache_t *l_bc = NULL;
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    s_blocks_rdlock(PVT(l_blocks));
     HASH_FIND(hh, PVT(l_blocks)->blocks, a_atom_hash, sizeof(*a_atom_hash), l_bc);
     if (l_bc && !l_bc->parsed) {
         // Thin entry: parse on demand under the write lock (ensure mutates it).
-        pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+        s_blocks_unlock(PVT(l_blocks));
         dap_chain_block_cache_ensure(l_bc);
-        pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+        s_blocks_rdlock(PVT(l_blocks));
         l_bc = NULL;
         HASH_FIND(hh, PVT(l_blocks)->blocks, a_atom_hash, sizeof(*a_atom_hash), l_bc);
     }
     if (l_bc && l_bc->datum && a_datum_idx < l_bc->datum_count && l_bc->datum[a_datum_idx]) {
         *a_datum = l_bc->datum[a_datum_idx];
         *a_size = dap_chain_datum_size(*a_datum);
-        pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+        s_blocks_unlock(PVT(l_blocks));
         return 0;
     }
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_unlock(PVT(l_blocks));
     // Thin block-cache entry (no scan): the caller can read the cell file by the
     // chain-state offset, or wait for the tail/catch-up to attach it.
     return -2;
@@ -2766,10 +2838,10 @@ int dap_chain_cs_blocks_state_info(dap_chain_t *a_chain, char *a_buf, size_t a_b
         snprintf(a_buf, a_buf_size, "chain %s is not a blocks chain", a_chain->name);
         return -1;
     }
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    s_blocks_rdlock(PVT(l_blocks));
     uint64_t l_count = PVT(l_blocks)->blocks_count;
     size_t l_forks = PVT(l_blocks)->forked_br_cnt;
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_unlock(PVT(l_blocks));
     dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
     size_t l_datum_count = l_state ? dap_chain_state_datum_count(l_state) : 0;
     int l_off = snprintf(a_buf, a_buf_size,
@@ -2919,14 +2991,14 @@ int dap_chain_cs_blocks_state_rebuild(dap_chain_t *a_chain)
     dap_chain_block_cache_t **l_blocks_arr = DAP_NEW_Z_COUNT(dap_chain_block_cache_t *, l_cap);
     if (!l_blocks_arr)
         return -2;
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    s_blocks_rdlock(PVT(l_blocks));
     dap_chain_block_cache_t *l_bc = NULL, *l_bc_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_bc, l_bc_tmp) {
         if (l_count == l_cap)
             break;
         l_blocks_arr[l_count++] = l_bc;
     }
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_unlock(PVT(l_blocks));
     uint64_t l_tx_count = 0;
     s_no_datum_notify = true;
     for (size_t i = 0; i < l_count; i++) {
@@ -3010,8 +3082,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
 
-        pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
-        PVT(l_blocks)->rwlock_writer = (uintptr_t)pthread_self();
+        s_blocks_wrlock(PVT(l_blocks));
         if (PVT(l_blocks)->blocks){
             dap_chain_block_cache_t *l_last_block = HASH_LAST(PVT(l_blocks)->blocks);
             if (l_last_block && dap_hash_fast_compare(&l_last_block->block_hash, &l_block_prev_hash)){
@@ -3029,8 +3100,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                 s_add_atom_datums_load(l_blocks, l_block_cache, &l_block_prev_hash);
                 dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
                 dap_chain_atom_add_from_threshold(a_chain);
-                PVT(l_blocks)->rwlock_writer = 0;
-                pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                s_blocks_unlock(PVT(l_blocks));
 
                 dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
                 // Send it to notificator listeners
@@ -3094,8 +3164,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
                         }
 #endif
                     }
-                    PVT(l_blocks)->rwlock_writer = 0;
-                    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+                    s_blocks_unlock(PVT(l_blocks));
                     if (l_fork_notify.pending) {
                         s_chain_state_reset(l_blocks);
                         s_fork_resolved_notify(l_blocks->chain, l_fork_notify.block_before_fork_hash,
@@ -3137,14 +3206,12 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             s_add_atom_datums_load(l_blocks, l_block_cache, NULL);
             dap_chain_atom_notify(l_cell, &l_block_cache->block_hash, (byte_t*)l_block, a_atom_size, l_block->hdr.ts_created);
             dap_chain_atom_add_from_threshold(a_chain);
-            PVT(l_blocks)->rwlock_writer = 0;
-            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+            s_blocks_unlock(PVT(l_blocks));
             return ret;
         }
 
         DAP_DELETE(l_block_cache);
-        PVT(l_blocks)->rwlock_writer = 0;
-        pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+        s_blocks_unlock(PVT(l_blocks));
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         return ATOM_REJECT;
     }
@@ -3180,7 +3247,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         }
         debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
         dap_chain_block_cache_t *l_prev_bcache = NULL, *l_tmp = NULL;
-        pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);        log_it(L_INFO, "New fork. Previous block hash %s, current block hash %s", dap_chain_hash_fast_to_str_static(&l_block_prev_hash), 
+        s_blocks_wrlock(PVT(l_blocks));        log_it(L_INFO, "New fork. Previous block hash %s, current block hash %s", dap_chain_hash_fast_to_str_static(&l_block_prev_hash), 
                                                                                     l_block_cache->block_hash_str);
         HASH_FIND(hh, PVT(l_blocks)->blocks, &l_block_prev_hash, sizeof(dap_hash_fast_t), l_prev_bcache);
         if (l_prev_bcache){
@@ -3198,13 +3265,13 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1] = forked_branch;
 
             l_prev_bcache->forked_branches = dap_list_append(l_prev_bcache->forked_branches, PVT(l_blocks)->forked_branches[PVT(l_blocks)->forked_br_cnt-1]);
-            pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
+            s_blocks_unlock(PVT(l_blocks));
             debug_if(s_debug_more, L_DEBUG, "Fork is made successfuly.");
             return ATOM_FORK;
         }
 
         DAP_DELETE(l_block_cache);
-        pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
+        s_blocks_unlock(PVT(l_blocks));
         return ATOM_REJECT;
     }
     case ATOM_PASS:
@@ -3320,7 +3387,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
         if (l_bcache_last && dap_hash_fast_compare(&l_bcache_last->block_hash, &l_block_prev_hash))
             ret = ATOM_ACCEPT;
         else { // search block and previous block in forked branch
-            pthread_rwlock_rdlock(& PVT(l_blocks)->rwlock);
+            s_blocks_rdlock(PVT(l_blocks));
             for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){
                 dap_chain_block_forked_branch_t *l_cur_branch = PVT(l_blocks)->forked_branches[i];
                 dap_chain_block_forked_branch_atoms_table_t *l_item = NULL;
@@ -3368,7 +3435,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                     }
                 }
             }
-            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+            s_blocks_unlock(PVT(l_blocks));
         }
     }
 
@@ -3468,14 +3535,14 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_by_num(dap_chain_atom_iter_
     assert(a_atom_iter);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_block_cache_t *l_block_cache = NULL;
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    s_blocks_rdlock(PVT(l_blocks));
     HASH_FIND_BYHASHVALUE(hh2, PVT(l_blocks)->blocks_num, &a_atom_num, sizeof(a_atom_num), a_atom_num, l_block_cache);
     // The lock covers the hash lookup only: parsing a thin entry reads the cell
     // file and must not run under the blocks rwlock. The single unlock here is
     // the only one - a leftover unconditional unlock used to decrement the
     // reader count twice per call, driving __readers negative and leaving the
     // rwlock stuck in the write phase, which hung every later atom_add.
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_unlock(PVT(l_blocks));
     if (l_block_cache && !l_block_cache->parsed)
         dap_chain_block_cache_ensure(l_block_cache);   // thin index-restored entry
     a_atom_iter->cur_item = l_block_cache;
@@ -3731,7 +3798,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
         log_it(L_ERROR, "l_blocks_pvt is NULL");
         return NULL;
     }
-    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
+    s_blocks_rdlock(l_blocks_pvt);
     switch (a_operation) {
     case DAP_CHAIN_ITER_OP_FIRST:
         a_atom_iter->cur_item = l_blocks_pvt->blocks;
@@ -3767,7 +3834,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get(dap_chain_atom_iter_t *a_at
     if (!a_atom_iter->cur_item)
         *a_atom_iter = (dap_chain_atom_iter_t) { .chain = a_atom_iter->chain,
                                                  .cell_id = a_atom_iter->cell_id };
-    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    s_blocks_unlock(l_blocks_pvt);
     if (a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;
 
@@ -3938,14 +4005,14 @@ static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size
     size_t l_ret_size = 0;
     dap_chain_block_t *l_ret = NULL;
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
-    pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+    s_blocks_wrlock(l_blocks_pvt);
     if ( a_blocks->block_new ) {
         l_ret = a_blocks->block_new;
         l_ret_size = a_blocks->block_new_size;
         a_blocks->block_new = NULL;
         a_blocks->block_new_size = 0;
     }
-    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    s_blocks_unlock(l_blocks_pvt);
     if (a_new_block_size)
         *a_new_block_size = l_ret_size;
     return l_ret;
@@ -3957,14 +4024,14 @@ static dap_chain_block_t *s_block_create(dap_chain_cs_blocks_t *a_blocks, size_t
     size_t l_ret_size = 0;
     dap_chain_block_t *l_ret = NULL;
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
-    pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+    s_blocks_wrlock(l_blocks_pvt);
     dap_chain_block_cache_t *l_bcache_last = HASH_LAST(l_blocks_pvt->blocks);
     if (l_bcache_last) {
         l_ret = dap_chain_block_new(&l_bcache_last->block_hash, &l_ret_size);
         l_ret->hdr.cell_id.uint64 = a_blocks->chain->cells->id.uint64;
         l_ret->hdr.chain_id.uint64 = a_blocks->chain->id.uint64;
     } // genesis block can't be blank
-    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    s_blocks_unlock(l_blocks_pvt);
     if (a_new_block_size)
         *a_new_block_size = l_ret_size;
     return l_ret;
@@ -3984,7 +4051,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     // dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
 
     size_t l_datum_processed = 0;
-    pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
+    s_blocks_wrlock(l_blocks_pvt);
 #ifdef DAP_TPS_TEST
     log_it(L_TPS, "Start tps %zu datums add", a_datums_count);
 #endif
@@ -4021,7 +4088,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 #ifdef DAP_TPS_TEST
     log_it(L_TPS, "Finish tps %zu datums add", a_datums_count);
 #endif
-    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
+    s_blocks_unlock(l_blocks_pvt);
     return l_datum_processed;
 }
 
@@ -4051,9 +4118,9 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    s_blocks_rdlock(PVT(l_blocks));
     if (!l_blocks_pvt->blocks) {
-        pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+        s_blocks_unlock(PVT(l_blocks));
         return NULL;
     }
     size_t l_offset = a_count * (a_page - 1);
@@ -4061,7 +4128,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     if (a_page < 2)
         l_offset = 0;
     if (l_offset > l_count){
-        pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+        s_blocks_unlock(PVT(l_blocks));
         return NULL;
     }
     dap_list_t *l_list = NULL;
@@ -4097,7 +4164,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
             l_counter++;
         }
     }
-    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    s_blocks_unlock(PVT(l_blocks));
     return l_list;
 }
 
@@ -4109,12 +4176,10 @@ static const dap_time_t s_block_timediff_unit_size = 60;
 
 static void s_blocks_hash_find_locked(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash, dap_chain_block_cache_t **a_block_cache)
 {
-    bool l_need_lock = PVT(a_blocks)->rwlock_writer != (uintptr_t)pthread_self();
-    if (l_need_lock)
-        pthread_rwlock_rdlock(&PVT(a_blocks)->rwlock);
+    // s_blocks_rdlock() is a counted no-op for the thread already holding the lock
+    s_blocks_rdlock(PVT(a_blocks));
     HASH_FIND(hh, PVT(a_blocks)->blocks, a_block_hash, sizeof(*a_block_hash), *a_block_cache);
-    if (l_need_lock)
-        pthread_rwlock_unlock(&PVT(a_blocks)->rwlock);
+    s_blocks_unlock(PVT(a_blocks));
 }
 
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey)
@@ -4241,7 +4306,7 @@ dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_has
     if (!l_chain || !DAP_CHAIN_CS_BLOCKS(l_chain) || !PVT(DAP_CHAIN_CS_BLOCKS(l_chain)))
         return NULL;
     dap_pkey_t *l_ret = NULL;
-    pthread_rwlock_rdlock(&PVT(DAP_CHAIN_CS_BLOCKS(l_chain))->rwlock);
+    s_blocks_rdlock(PVT(DAP_CHAIN_CS_BLOCKS(l_chain)));
     for (dap_chain_block_cache_t *l_block_cache = PVT(DAP_CHAIN_CS_BLOCKS(l_chain))->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
         // Thin entries carry no parsed signatures; sign_count alone can't tell.
         if (!l_block_cache->parsed && dap_chain_block_cache_ensure(l_block_cache))
@@ -4258,7 +4323,7 @@ dap_pkey_t *dap_chain_cs_blocks_get_pkey_by_hash(dap_chain_net_t *a_net, dap_has
             }
         }
     }
-    pthread_rwlock_unlock(&PVT(DAP_CHAIN_CS_BLOCKS(l_chain))->rwlock);
+    s_blocks_unlock(PVT(DAP_CHAIN_CS_BLOCKS(l_chain)));
     return l_ret;
 }
 
@@ -4304,12 +4369,12 @@ bool dap_chain_cs_blocks_get_tip(dap_chain_t *a_chain, uint64_t *a_block_num, da
     if (!l_blocks)
         return false;
     dap_chain_cs_blocks_pvt_t *l_pvt = PVT(l_blocks);
-    pthread_rwlock_rdlock(&l_pvt->rwlock);
+    s_blocks_rdlock(l_pvt);
     dap_chain_block_cache_t *l_last = HASH_LAST(l_pvt->blocks);
     if (l_last) {
         *a_block_num = l_last->block_number;
         *a_block_hash = l_last->block_hash;
     }
-    pthread_rwlock_unlock(&l_pvt->rwlock);
+    s_blocks_unlock(l_pvt);
     return l_last != NULL;
 }
