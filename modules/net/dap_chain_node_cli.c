@@ -427,13 +427,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, NULL, "Make transaction",
-            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> [-to_addr <addr>] [-arbitrage] [-lock_before <unlock_time>] "
-            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value> [-certs <certs>]\n"
+            "tx_create -net <net_name> [-chain <chain_name>] -value <value> -token <token_ticker> [-to_addr <addr>] [-lock_before <unlock_time>] "
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n"
+            "tx_create -net <net_name> [-chain <chain_name>] -arbitrage -from_addr <addr> -token <token_ticker> -value <value> -certs <cert_names> -fee <fee>\n"
             "OPTIONS:\n"
-            "  -arbitrage: Create arbitrage transaction (requires token owner signature, bypasses UTXO blocking)\n"
-            "              For arbitrage: -to_addr is optional and ignored, all outputs go to network fee address\n"
-            "  -certs: Comma-separated certificate names for arbitrage transactions\n"
-            "  -wallet_fee: Wallet for fee payment\n");
+            "  -arbitrage: Create arbitrage transaction (token owner operation, bypasses UTXO blocking)\n"
+            "              Requires -from_addr (target address to claim UTXOs from) and -certs (owner certificates).\n"
+            "              All outputs go to network fee address. Cannot be used with -from_wallet or -from_emission.\n"
+            "  -wallet_fee: Wallet for fee payment when using -from_emission (not used with -from_wallet)\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, NULL, "Make transaction",
                 "tx_create_json -net <net_name> [-chain <chain_name>] -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("mempool_add", com_mempool_add, NULL, "Make transaction and put that to mempool",

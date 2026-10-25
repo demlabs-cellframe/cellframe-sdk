@@ -845,7 +845,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_tx_recv_allow = l_tmp;
             l_new_tx_recv_allow[l_new_tx_recv_allow_size++].addr = *l_add_addr;
-            l_new_tx_recv_allow[l_new_tx_recv_allow_size - 1].becomes_effective = dap_time_now();
+            l_new_tx_recv_allow[l_new_tx_recv_allow_size - 1].becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE: {
@@ -940,7 +940,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_tx_recv_block = l_tmp;
             l_new_tx_recv_block[l_new_tx_recv_block_size++].addr = *l_add_addr;
-            l_new_tx_recv_block[l_new_tx_recv_block_size - 1].becomes_effective = dap_time_now();
+            l_new_tx_recv_block[l_new_tx_recv_block_size - 1].becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE: {
@@ -1035,7 +1035,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_tx_send_allow = l_tmp;
             l_new_tx_send_allow[l_new_tx_send_allow_size++].addr = *l_add_addr;
-            l_new_tx_send_allow[l_new_tx_send_allow_size - 1].becomes_effective = dap_time_now();
+            l_new_tx_send_allow[l_new_tx_send_allow_size - 1].becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE: {
@@ -1133,7 +1133,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_tx_send_block = l_tmp;
             l_new_tx_send_block[l_new_tx_send_block_size++].addr = *l_add_addr;
-            l_new_tx_send_block[l_new_tx_send_block_size - 1].becomes_effective = dap_time_now();
+            l_new_tx_send_block[l_new_tx_send_block_size - 1].becomes_effective = dap_ledger_get_blockchain_time(a_ledger);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE: {
@@ -2562,6 +2562,12 @@ uint256_t dap_ledger_token_get_emission_rate(dap_ledger_t *a_ledger, const char 
     if (!l_token_item || !l_token_item->is_delegated)
         return uint256_0;
     return l_token_item->emission_rate;
+}
+
+uint32_t dap_ledger_token_get_flags(dap_ledger_t *a_ledger, const char *a_token_ticker)
+{
+    dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, a_token_ticker);
+    return l_token_item ? l_token_item->flags : 0;
 }
 
 json_object *s_token_item_to_json(dap_ledger_token_item_t *a_token_item, int a_version, int a_history_limit)
@@ -5632,8 +5638,9 @@ dap_ledger_check_error_t s_ledger_addr_check(dap_ledger_t *a_ledger, dap_ledger_
             if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_RECEIVER_ALLOWED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED) ||
-                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN)) {
-            // Check we are in black list
+                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN) ||
+                a_token_item->tx_recv_block_size > 0) {
+            // Blacklist mode: reject if in blocked list
             if (s_ledger_permissions_check(a_ledger,a_token_item, LEDGER_PERMISSION_RECEIVER_BLOCKED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         }
@@ -5644,8 +5651,9 @@ dap_ledger_check_error_t s_ledger_addr_check(dap_ledger_t *a_ledger, dap_ledger_
             if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_ALLOWED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED) ||
-                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN)) {
-            // Check we are in black list
+                (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN) ||
+                a_token_item->tx_send_block_size > 0) {
+            // Blacklist mode: reject if in blocked list
             if (s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_BLOCKED, a_addr))
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
         }
@@ -7278,10 +7286,12 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_bound_item->in.addr_from = *l_addr_from;
                 dap_strncpy(l_bound_item->in.token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX);
                 // 4. compare public key hashes in the signature of the current transaction and in the 'out' item of the previous transaction
-                // Arbitrage lifts the blocking mechanisms, not the UTXO-ownership rule:
-                // the input must still belong to the first signer's key.
-                if (l_addr_from->net_id.uint64 != a_ledger->net->pub.id.uint64 ||
-                        !dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast)) {
+                // Arbitrage TX bypass: only for the specific arbitrage token (CRITICAL-2 fix: per-token bypass).
+                // This is what lets cert-only arbitrage claim UTXOs at an arbitrary victim address:
+                // the signature is the arbitrator certificate, not the UTXO owner's key.
+                if (!l_arb_bypass_for_this_input &&
+                    (l_addr_from->net_id.uint64 != a_ledger->net->pub.id.uint64 ||
+                        !dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast))) {
                     l_err_num = DAP_LEDGER_TX_CHECK_PKEY_HASHES_DONT_MATCH;
                     break;
                 }

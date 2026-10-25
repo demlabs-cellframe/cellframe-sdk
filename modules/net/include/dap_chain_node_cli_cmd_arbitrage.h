@@ -103,3 +103,30 @@ char *dap_chain_arbitrage_cli_create_tx(
     json_object **a_json_arr_reply,
     json_object *a_jobj_result);
 
+/**
+ * @brief Create arbitrage TX with cert signatures (no wallet needed)
+ * @details Arbitrage allows token authority holders (arbitrators) to claim
+ *          UTXO from ANY address — including blocked — and send to fee address.
+ *          The arbitrator signs with their cert, not a wallet key.
+ * @param a_chain Target chain
+ * @param a_net Network
+ * @param a_addr_from Address whose UTXO to claim (victim/target address)
+ * @param a_token_ticker Token to arbitrate
+ * @param a_value Amount to claim
+ * @param a_value_fee Validator fee
+ * @param a_hash_out_type Hash output type
+ * @param a_certs_str Comma-separated arbitrator certificate names
+ * @param a_json_arr_reply JSON error output
+ * @return TX hash string or NULL on error
+ */
+char *dap_chain_arbitrage_cli_create(
+    dap_chain_t *a_chain,
+    dap_chain_net_t *a_net,
+    const dap_chain_addr_t *a_addr_from,
+    const char *a_token_ticker,
+    uint256_t a_value,
+    uint256_t a_value_fee,
+    const char *a_hash_out_type,
+    const char *a_certs_str,
+    json_object **a_json_arr_reply);
+

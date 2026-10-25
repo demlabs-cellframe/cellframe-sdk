@@ -848,9 +848,9 @@ void utxo_blocking_test_arbitrage_without_emission_owner_signature(void)
     
     log_it(L_INFO, "✓ UTXO blocked");
     
-    // ========== PHASE 4: Attempt Arbitrage TX Without Emission Owner Signature (Should FAIL) ==========
-    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX without emission owner signature (should FAIL)");
-    
+    // ========== PHASE 4: Cert-only arbitrage (owner key as sole signer) ==========
+    log_it(L_INFO, "PHASE 4: Attempting cert-only arbitrage TX (owner key as sole signer, should PASS)");
+
     dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
     dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
     
@@ -863,28 +863,28 @@ void utxo_blocking_test_arbitrage_without_emission_owner_signature(void)
     dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
     DAP_DELETE(l_tsd_arb);
     
-    // Sign ONLY with token owner (NOT emission owner) - should FAIL
-    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_token_fixture->owner_cert->enc_key);
+    // The owner key is the sole signature: it must be recognized as an owner even at
+    // index 0, otherwise a single-cert arbitrage (no separate wallet) could never authorize.
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_emission_owner_key);
     
     dap_chain_hash_fast_t l_arb_hash;
     dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
     
     l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
     log_it(L_INFO, "  Arbitrage TX result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    // Should fail because emission owner didn't sign (UTXO ownership check)
-    dap_assert_PIF(l_res != 0, "Arbitrage TX REJECTED (missing emission owner signature)");
+    dap_assert_PIF(l_res == 0, "Cert-only arbitrage TX ACCEPTED (owner key recognized in position 0)");
     
     DAP_DELETE(l_arb_tx);
-    log_it(L_INFO, "✓ Arbitrage TX correctly REJECTED without emission owner signature");
+    log_it(L_INFO, "✓ Cert-only arbitrage TX accepted with the owner key as sole signature");
     
     // ========== Summary ==========
     log_it(L_NOTICE, " ");
     log_it(L_NOTICE, "═══════════════════════════════════════════════════════════");
-    log_it(L_NOTICE, "Arbitrage Without Emission Owner Signature Test PASSED:");
+    log_it(L_NOTICE, "Cert-Only Arbitrage Test PASSED:");
     log_it(L_NOTICE, "  ✓ Phase 1: Network fee address configured");
     log_it(L_NOTICE, "  ✓ Phase 2: Token created with emission");
     log_it(L_NOTICE, "  ✓ Phase 3: UTXO blocked");
-    log_it(L_NOTICE, "  ✓ Phase 4: Arbitrage TX rejected (missing emission owner signature)");
+    log_it(L_NOTICE, "  ✓ Phase 4: Cert-only arbitrage TX accepted");
     log_it(L_NOTICE, "═══════════════════════════════════════════════════════════");
     log_it(L_NOTICE, " ");
     
@@ -895,7 +895,7 @@ void utxo_blocking_test_arbitrage_without_emission_owner_signature(void)
     dap_enc_key_delete(l_emission_owner_key);
     DAP_DELETE(l_emission_owner_cert);
     
-    dap_pass_msg("✅ Arbitrage without emission owner signature test PASSED");
+    dap_pass_msg("✅ Cert-only arbitrage test PASSED");
 }
 
 /**
@@ -976,9 +976,13 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     
     log_it(L_INFO, "✓ UTXO blocked");
     
-    // ========== PHASE 4: Attempt Arbitrage TX Without Token Owner Signature (Should FAIL) ==========
-    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX without token owner signature (should FAIL)");
-    
+    // ========== PHASE 4: Attempt Arbitrage TX — non-owner signature only, no owner auth ==========
+    log_it(L_INFO, "PHASE 4: Attempting arbitrage TX (non-owner signature only, should FAIL auth)");
+
+    // A random key that belongs to neither the token owners nor the UTXO holder
+    dap_enc_key_t *l_non_owner_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_non_owner_key != NULL, "Non-owner key created");
+
     dap_chain_datum_tx_t *l_arb_tx = dap_chain_datum_tx_create();
     dap_assert_PIF(l_arb_tx != NULL, "Arbitrage TX created");
     
@@ -991,20 +995,22 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
     DAP_DELETE(l_tsd_arb);
     
-    // Sign ONLY with emission owner (NOT token owner) - should FAIL arbitrage auth check
-    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_emission_owner_key);
+    // Non-owner signature only: no owner signature present, so the TX must not authorize
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_non_owner_key);
     
     dap_chain_hash_fast_t l_arb_hash;
     dap_hash_fast(l_arb_tx, dap_chain_datum_tx_get_size(l_arb_tx), &l_arb_hash);
     
     l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
     log_it(L_INFO, "  Arbitrage TX result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    // Should fail because token owner didn't sign (arbitrage authorization check)
-    dap_assert_PIF(l_res == DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED, 
-                   "Arbitrage TX REJECTED (missing token owner signature)");
+    // No owner signature: the TX stays in mempool for distributed signing (tx_sign) and is
+    // never applied to the ledger, so no blocking check is lifted.
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS,
+                   "Arbitrage TX kept in mempool (no token owner signature)");
     
     DAP_DELETE(l_arb_tx);
-    log_it(L_INFO, "✓ Arbitrage TX correctly REJECTED without token owner signature");
+    dap_enc_key_delete(l_non_owner_key);
+    log_it(L_INFO, "✓ Arbitrage TX correctly kept in mempool without token owner signature");
     
     // ========== Summary ==========
     log_it(L_NOTICE, " ");
@@ -1013,7 +1019,7 @@ void utxo_blocking_test_arbitrage_without_token_owner_signature(void)
     log_it(L_NOTICE, "  ✓ Phase 1: Network fee address configured");
     log_it(L_NOTICE, "  ✓ Phase 2: Token created with emission");
     log_it(L_NOTICE, "  ✓ Phase 3: UTXO blocked");
-    log_it(L_NOTICE, "  ✓ Phase 4: Arbitrage TX rejected (missing token owner signature)");
+    log_it(L_NOTICE, "  ✓ Phase 4: Arbitrage TX kept in mempool (for distributed signing)");
     log_it(L_NOTICE, "═══════════════════════════════════════════════════════════");
     log_it(L_NOTICE, " ");
     
@@ -1121,9 +1127,12 @@ void utxo_blocking_test_arbitrage_forged_owner_signature(void)
     dap_assert_PIF(dap_chain_datum_tx_add_item(&l_arb_tx, l_tsd_arb) == 1, "Arbitrage TSD added to TX");
     DAP_DELETE(l_tsd_arb);
 
-    // Sign with the emission owner (UTXO owner), so the ownership check passes, and add a
-    // FORGED owner signature: the token owner's real pkey with a corrupted signature blob.
-    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_emission_owner_key);
+    // Sign with a NON-owner wallet key first (position 0 is the wallet/fee signature),
+    // then add a FORGED owner signature: the token owner's real pkey with a corrupted
+    // signature blob. Only the forgery could authorize, and it must not.
+    dap_enc_key_t *l_wallet_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, NULL, 0, 0);
+    dap_assert_PIF(l_wallet_key != NULL, "Non-owner wallet key created");
+    dap_chain_datum_tx_add_sign_item(&l_arb_tx, l_wallet_key);
 
     dap_sign_t *l_owner_real_sign = dap_sign_create(l_token_fixture->owner_cert->enc_key,
                                                     "forged-data", sizeof("forged-data"));
@@ -1149,10 +1158,14 @@ void utxo_blocking_test_arbitrage_forged_owner_signature(void)
 
     l_res = dap_ledger_tx_add(s_net_fixture->ledger, l_arb_tx, &l_arb_hash, false, NULL);
     log_it(L_INFO, "  Arbitrage TX result: %d (%s)", l_res, dap_ledger_check_error_str(l_res));
-    dap_assert_PIF(l_res == DAP_LEDGER_TX_CHECK_ARBITRAGE_NOT_AUTHORIZED,
+    // The forged signature does not count as an owner signature, so the TX has zero valid
+    // owner signatures: it stays in the mempool for distributed signing and is never
+    // applied, i.e. no UTXO-blocking bypass is ever granted.
+    dap_assert_PIF(l_res == DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS,
                    "Arbitrage TX REJECTED (forged owner signature does not authorize)");
 
     DAP_DELETE(l_arb_tx);
+    dap_enc_key_delete(l_wallet_key);
     log_it(L_INFO, "✓ Arbitrage TX correctly REJECTED with a forged owner signature");
 
     // ========== Summary ==========

@@ -362,9 +362,9 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
     dap_list_t *l_list_tx_sign = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_SIG, &l_sign_count);
     
     if (!l_list_tx_sign || l_sign_count == 0) {
-        log_it(L_WARNING, "Arbitrage TX has no signatures");
+        log_it(L_WARNING, "Arbitrage TX has no signatures - keeping in mempool for tx_sign");
         dap_list_free(l_list_tx_sign);
-        return -1;
+        return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
     }
 
     // Determine fee token (native ticker) and compare with arbitrage token
@@ -431,7 +431,10 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
         
         // CRITICAL: First signature (wallet signature) is used ONLY for fee payment authorization.
         // It should NOT count towards arbitrage authorization unless fee token == arbitrage token.
-        if (l_sign_index == 0 && !l_fee_token_same_as_arbitrage) {
+        // Exception: a cert-only arbitrage (see dap_chain_arbitrage_cli_create) has exactly one
+        // signature - the token owner's - and it lands at index 0, so an owner key at index 0
+        // must still be counted, otherwise single-cert arbitrage could never authorize.
+        if (l_sign_index == 0 && !l_fee_token_same_as_arbitrage && !l_is_owner) {
             // First signature is wallet signature for fee payment - skip it for arbitrage auth
             debug_if(s_arbitrage_debug_more(), L_DEBUG, "Skipping first signature (wallet) for arbitrage auth: fee_token=%s != arbitrage_token=%s",
                      l_fee_token_ticker ? l_fee_token_ticker : "NULL", a_token_item->ticker);
@@ -473,21 +476,13 @@ int dap_chain_arbitrage_tx_check_auth(dap_ledger_t *a_ledger,
     dap_list_free(l_list_tx_sign);
     DAP_DEL_Z(l_counted_hashes);
 
-    if (l_valid_owner_signs == 0) {
-        log_it(L_WARNING, "Arbitrage TX for token %s not signed by token owner", 
-               a_token_item->ticker);
-        return -1;
-    }
-
-    // Check if we need minimum number of signatures (auth_signs_valid)
+    // Insufficient owner signatures: keep TX in mempool for distributed signing via tx_sign.
+    // dap_chain_node_mempool_process() keeps TXs with DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS.
+    // A forged or missing owner signature both land here: such a TX is never applied to the
+    // ledger, it only waits for further signatures.
     if (l_valid_owner_signs < l_min_required) {
-        log_it(L_WARNING, "Arbitrage TX for token %s requires %zu owner signatures, found %zu",
-               a_token_item->ticker, l_min_required, l_valid_owner_signs);
-        // Return NOT_ENOUGH_VALID_SIGNS so transaction stays in mempool for additional signatures
-        // This allows distributed signing: transaction can be created on one node,
-        // then signatures added from other nodes using tx_sign command.
-        // See dap_chain_node_mempool_process() - transactions with DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS
-        // are NOT deleted from mempool, allowing additional signatures to be added.
+        log_it(L_WARNING, "Arbitrage TX for token %s: %zu/%zu owner signatures - keeping in mempool for tx_sign",
+               a_token_item->ticker, l_valid_owner_signs, l_min_required);
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
     }
 

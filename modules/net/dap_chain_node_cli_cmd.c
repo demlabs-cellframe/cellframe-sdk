@@ -93,6 +93,7 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_utxo.h"
 #include "dap_chain_mempool.h"
 #include "dap_global_db.h"
 #include "dap_global_db_pkt.h"
@@ -2209,6 +2210,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
             }
             uint256_t l_value_sum = uint256_0;
+            uint256_t l_available_sum = uint256_0, l_blocked_sum = uint256_0;
+            bool l_cond_outs = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cond") != -1;
 
             if (l_addr->addr_type == DAP_CHAIN_ADDR_TYPE_SHARED) {
                 dap_hash_fast_t l_hold_hash = l_addr->data.hash_fast;
@@ -2251,7 +2254,6 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 const char *l_value_str = NULL, *l_cond_type_str = NULL;
                 uint256_t l_value_datoshi = uint256_0;
                 dap_chain_tx_out_cond_subtype_t l_cond_type = DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL;
-                bool l_cond_outs = dap_cli_server_cmd_check_option(a_argv, l_arg_index, a_argc, "-cond") != -1;
                 if (!l_cond_outs) {
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
                     if (l_value_str) {
@@ -2291,10 +2293,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     l_outs_list = dap_ledger_get_list_tx_cond_outs(l_net->pub.ledger, l_cond_type, l_token_tiker, l_addr);
                 else if (l_value_str)
                     l_cache_rc = dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list,
-                                                                                            l_value_datoshi, &l_value_sum, l_check_mempool, false);
+                                                                                            l_value_datoshi, &l_value_sum, l_check_mempool, true);
                 else
                     l_cache_rc = dap_chain_wallet_cache_tx_find_outs_mempool_check(l_net, l_token_tiker, l_addr, &l_outs_list,
-                                                                                    &l_value_sum, l_check_mempool, false);
+                                                                                    &l_value_sum, l_check_mempool, true);
                 // With wallets_cache=all the cache is the UTXO index of this
                 // node. A miss while it is still being built must not turn into
                 // a full ledger scan on a public RPC node: answer "index warming"
@@ -2322,7 +2324,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     if (l_cache_rc) {
                         debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Wallet cache failed, using ledger fallback for %s (value needed)",
                                  dap_chain_addr_to_str_static(l_addr));
-                        l_outs_list = dap_ledger_get_list_tx_outs_with_val_mempool_check(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum, l_check_mempool);
+                        l_outs_list = dap_ledger_get_list_tx_outs_with_val_skip_blocklist(l_net->pub.ledger, l_token_tiker, l_addr, l_value_datoshi, &l_value_sum);
                         if (l_outs_list) {
                             debug_if(s_debug_more, L_DEBUG, "[WALLET_OUTPUTS] Ledger fallback found %" DAP_UINT64_FORMAT_U " UTXO",
                                      dap_list_length(l_outs_list));
@@ -2352,21 +2354,41 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     dap_chain_tx_used_out_item_t *l_item = l_temp->data;
                     const char *l_out_value_coins_str, *l_out_value_str = dap_uint256_to_char(l_item->value, &l_out_value_coins_str);
+                    // The list is requested with skip_blocklist=true above so that blocked UTXOs
+                    // are shown too; their state is reported per item instead of being hidden.
+                    bool l_is_blocked = !l_cond_outs &&
+                        dap_ledger_utxo_is_blocked_by_ticker(l_net->pub.ledger, l_token_tiker,
+                                                             &l_item->tx_hash_fast, l_item->num_idx_out);
                     json_object_object_add(json_obj_item, "item_type", json_object_new_string(l_cond_outs ? "unspent_cond_out" : "unspent_out"));
+                    json_object_object_add(json_obj_item, "status", json_object_new_string(l_is_blocked ? "blocked" : "available"));
                     json_object_object_add(json_obj_item, "value_coins", json_object_new_string(l_out_value_coins_str));
                     json_object_object_add(json_obj_item, a_version == 1 ? "value_datosi" : "value_datoshi", json_object_new_string(l_out_value_str));
                     json_object_object_add(json_obj_item, "prev_hash", json_object_new_string(dap_hash_fast_to_str_static(&l_item->tx_hash_fast)));
                     json_object_object_add(json_obj_item, "out_prev_idx", json_object_new_int64(l_item->num_idx_out));
                     json_object_array_add(l_json_outs_arr, json_obj_item);
+                    if (l_is_blocked)
+                        SUM_256_256(l_blocked_sum, l_item->value, &l_blocked_sum);
+                    else
+                        SUM_256_256(l_available_sum, l_item->value, &l_available_sum);
                     if (l_cond_outs)
                         SUM_256_256(l_value_sum, l_item->value, &l_value_sum);
                 }
                 dap_list_free_full(l_outs_list, NULL);
+                if (!l_cond_outs)
+                    SUM_256_256(l_available_sum, l_blocked_sum, &l_value_sum);
             }
 
             const char *l_out_total_value_coins_str, *l_out_total_value_str = dap_uint256_to_char(l_value_sum, &l_out_total_value_coins_str);
             json_object_object_add(json_obj_wall, "total_value_coins", json_object_new_string(l_out_total_value_coins_str));
             json_object_object_add(json_obj_wall, "total_value_datoshi", json_object_new_string(l_out_total_value_str));
+            if (!l_cond_outs && !IS_ZERO_256(l_blocked_sum)) {
+                const char *l_avail_coins_str, *l_avail_str = dap_uint256_to_char(l_available_sum, &l_avail_coins_str);
+                const char *l_block_coins_str, *l_block_str = dap_uint256_to_char(l_blocked_sum, &l_block_coins_str);
+                json_object_object_add(json_obj_wall, "available_value_coins", json_object_new_string(l_avail_coins_str));
+                json_object_object_add(json_obj_wall, "available_value_datoshi", json_object_new_string(l_avail_str));
+                json_object_object_add(json_obj_wall, "blocked_value_coins", json_object_new_string(l_block_coins_str));
+                json_object_object_add(json_obj_wall, "blocked_value_datoshi", json_object_new_string(l_block_str));
+            }
             json_object_object_add(json_obj_wall, "outs", l_json_outs_arr);
             json_object_array_add(json_arr_out, json_obj_wall);
             if (l_wo_cache_key[0])
@@ -5208,7 +5230,6 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_params->ext.tx_receiver_allowed);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_blocked", &a_params->ext.tx_receiver_blocked);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_sender_allowed", &a_params->ext.tx_sender_allowed);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_params->ext.tx_receiver_allowed);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_sender_blocked", &a_params->ext.tx_sender_blocked);
 
     if (a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE) {
@@ -5416,125 +5437,133 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, json_ob
         l_tsd_list = s_parse_wallet_addresses(a_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);
 
     // Parse UTXO blocking parameters
-    const char *l_utxo_blocked_add = NULL;
-    const char *l_utxo_blocked_remove = NULL;
     bool l_utxo_blocked_clear = false;
-    
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-utxo_blocked_add", &l_utxo_blocked_add);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-utxo_blocked_remove", &l_utxo_blocked_remove);
+
     l_utxo_blocked_clear = dap_cli_server_cmd_check_option(a_argv, 0, a_argc, "-utxo_blocked_clear") >= 0;
 
-    // Process -utxo_blocked_add
-    if (l_utxo_blocked_add) {
-        // Parse format: tx_hash:out_idx[:timestamp]
-        dap_chain_hash_fast_t l_tx_hash = {};
-        uint32_t l_out_idx = 0;
-        dap_time_t l_timestamp = 0;
-        
-        char *l_utxo_str_copy = dap_strdup(l_utxo_blocked_add);
-        char *l_saveptr = NULL;
-        char *l_hash_str = strtok_r(l_utxo_str_copy, ":", &l_saveptr);
-        char *l_idx_str = l_hash_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
-        char *l_time_str = l_idx_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
-        
-        if (!l_hash_str || !l_idx_str) {
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                                   "Invalid UTXO format for -utxo_blocked_add. Expected: tx_hash:out_idx[:timestamp]");
+    // Process ALL -utxo_blocked_add parameters (iterate to handle multiple occurrences)
+    {
+        int l_arg_idx = 0;
+        const char *l_utxo_val = NULL;
+        while ((l_arg_idx = dap_cli_server_cmd_find_option_val(a_argv, l_arg_idx, a_argc,
+                                                              "-utxo_blocked_add", &l_utxo_val)) > 0) {
+            // Parse format: tx_hash:out_idx[:timestamp]
+            dap_chain_hash_fast_t l_tx_hash = {};
+            uint32_t l_out_idx = 0;
+            dap_time_t l_timestamp = 0;
+
+            char *l_utxo_str_copy = dap_strdup(l_utxo_val);
+            char *l_saveptr = NULL;
+            char *l_hash_str = strtok_r(l_utxo_str_copy, ":", &l_saveptr);
+            char *l_idx_str = l_hash_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
+            char *l_time_str = l_idx_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
+
+            if (!l_hash_str || !l_idx_str) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                       "Invalid UTXO format for -utxo_blocked_add. Expected: tx_hash:out_idx[:timestamp]");
+                DAP_DELETE(l_utxo_str_copy);
+                return -30;
+            }
+
+            if (dap_chain_hash_fast_from_str(l_hash_str, &l_tx_hash) != 0) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                       "Invalid transaction hash in -utxo_blocked_add: %s", l_hash_str);
+                DAP_DELETE(l_utxo_str_copy);
+                return -31;
+            }
+
+            l_out_idx = (uint32_t)atoi(l_idx_str);
+            if (l_time_str) {
+                l_timestamp = (dap_time_t)atoll(l_time_str);
+            }
+
+            // Create TSD section
+            typedef struct {
+                dap_chain_hash_fast_t tx_hash;
+                uint32_t out_idx;
+                dap_time_t becomes_effective;  // Delayed activation timestamp (0 = immediate)
+            } DAP_ALIGN_PACKED utxo_block_add_t;
+
+            utxo_block_add_t l_utxo_data = {
+                .tx_hash = l_tx_hash,
+                .out_idx = l_out_idx,
+                .becomes_effective = l_timestamp
+            };
+
+            dap_tsd_t *l_utxo_add_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_ADD, 
+                                                        &l_utxo_data, sizeof(utxo_block_add_t));
+            l_tsd_list = dap_list_append(l_tsd_list, l_utxo_add_tsd);
+            l_tsd_total_size += dap_tsd_size(l_utxo_add_tsd);
+
+            // Log before freeing l_utxo_str_copy (l_hash_str points into it)
+            log_it(L_INFO, "Added UTXO blocking: %s:%u%s", l_hash_str, l_out_idx, 
+                   l_timestamp ? " (delayed)" : "");
             DAP_DELETE(l_utxo_str_copy);
-            return -30;
+            l_arg_idx++;
         }
-        
-        if (dap_chain_hash_fast_from_str(l_hash_str, &l_tx_hash) != 0) {
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                                   "Invalid transaction hash in -utxo_blocked_add: %s", l_hash_str);
-            DAP_DELETE(l_utxo_str_copy);
-            return -31;
-        }
-        
-        l_out_idx = (uint32_t)atoi(l_idx_str);
-        if (l_time_str) {
-            l_timestamp = (dap_time_t)atoll(l_time_str);
-        }
-        
-        // Create TSD section
-        typedef struct {
-            dap_chain_hash_fast_t tx_hash;
-            uint32_t out_idx;
-            dap_time_t becomes_effective;  // Delayed activation timestamp (0 = immediate)
-        } DAP_ALIGN_PACKED utxo_block_add_t;
-        
-        utxo_block_add_t l_utxo_data = {
-            .tx_hash = l_tx_hash,
-            .out_idx = l_out_idx,
-            .becomes_effective = l_timestamp
-        };
-        
-        dap_tsd_t *l_utxo_add_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_ADD, 
-                                                    &l_utxo_data, sizeof(utxo_block_add_t));
-        l_tsd_list = dap_list_append(l_tsd_list, l_utxo_add_tsd);
-        l_tsd_total_size += dap_tsd_size(l_utxo_add_tsd);
-        
-        // Log before freeing l_utxo_str_copy (l_hash_str points into it)
-        log_it(L_INFO, "Added UTXO blocking: %s:%u%s", l_hash_str, l_out_idx, 
-               l_timestamp ? " (delayed)" : "");
-        DAP_DELETE(l_utxo_str_copy);
     }
     
-    // Process -utxo_blocked_remove
-    if (l_utxo_blocked_remove) {
-        // Parse format: tx_hash:out_idx[:timestamp]
-        dap_chain_hash_fast_t l_tx_hash = {};
-        uint32_t l_out_idx = 0;
-        dap_time_t l_timestamp = 0;
-        
-        char *l_utxo_str_copy = dap_strdup(l_utxo_blocked_remove);
-        char *l_saveptr = NULL;
-        char *l_hash_str = strtok_r(l_utxo_str_copy, ":", &l_saveptr);
-        char *l_idx_str = l_hash_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
-        char *l_time_str = l_idx_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
-        
-        if (!l_hash_str || !l_idx_str) {
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                                   "Invalid UTXO format for -utxo_blocked_remove. Expected: tx_hash:out_idx[:timestamp]");
+    // Process ALL -utxo_blocked_remove parameters (iterate to handle multiple occurrences)
+    {
+        int l_arg_idx = 0;
+        const char *l_utxo_val = NULL;
+        while ((l_arg_idx = dap_cli_server_cmd_find_option_val(a_argv, l_arg_idx, a_argc,
+                                                              "-utxo_blocked_remove", &l_utxo_val)) > 0) {
+            // Parse format: tx_hash:out_idx[:timestamp]
+            dap_chain_hash_fast_t l_tx_hash = {};
+            uint32_t l_out_idx = 0;
+            dap_time_t l_timestamp = 0;
+
+            char *l_utxo_str_copy = dap_strdup(l_utxo_val);
+            char *l_saveptr = NULL;
+            char *l_hash_str = strtok_r(l_utxo_str_copy, ":", &l_saveptr);
+            char *l_idx_str = l_hash_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
+            char *l_time_str = l_idx_str ? strtok_r(NULL, ":", &l_saveptr) : NULL;
+
+            if (!l_hash_str || !l_idx_str) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                       "Invalid UTXO format for -utxo_blocked_remove. Expected: tx_hash:out_idx[:timestamp]");
+                DAP_DELETE(l_utxo_str_copy);
+                return -32;
+            }
+
+            if (dap_chain_hash_fast_from_str(l_hash_str, &l_tx_hash) != 0) {
+                dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
+                                       "Invalid transaction hash in -utxo_blocked_remove: %s", l_hash_str);
+                DAP_DELETE(l_utxo_str_copy);
+                return -33;
+            }
+
+            l_out_idx = (uint32_t)atoi(l_idx_str);
+            if (l_time_str) {
+                l_timestamp = (dap_time_t)atoll(l_time_str);
+            }
+
+            // Create TSD section
+            typedef struct {
+                dap_chain_hash_fast_t tx_hash;
+                uint32_t out_idx;
+                dap_time_t becomes_unblocked;  // Delayed unblocking timestamp (0 = immediate)
+            } DAP_ALIGN_PACKED utxo_block_remove_t;
+
+            utxo_block_remove_t l_utxo_data = {
+                .tx_hash = l_tx_hash,
+                .out_idx = l_out_idx,
+                .becomes_unblocked = l_timestamp
+            };
+
+            dap_tsd_t *l_utxo_remove_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_REMOVE, 
+                                                           &l_utxo_data, sizeof(utxo_block_remove_t));
+            l_tsd_list = dap_list_append(l_tsd_list, l_utxo_remove_tsd);
+            l_tsd_total_size += dap_tsd_size(l_utxo_remove_tsd);
+
+            // Log before freeing l_utxo_str_copy (l_hash_str points into it), as
+            // in the -utxo_blocked_add branch above
+            log_it(L_INFO, "Added UTXO unblocking: %s:%u%s", l_hash_str, l_out_idx,
+                   l_timestamp ? " (delayed)" : "");
             DAP_DELETE(l_utxo_str_copy);
-            return -32;
+            l_arg_idx++;
         }
-        
-        if (dap_chain_hash_fast_from_str(l_hash_str, &l_tx_hash) != 0) {
-            dap_json_rpc_error_add(a_json_arr_reply, DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_FLAG_UNDEF,
-                                   "Invalid transaction hash in -utxo_blocked_remove: %s", l_hash_str);
-            DAP_DELETE(l_utxo_str_copy);
-            return -33;
-        }
-        
-        l_out_idx = (uint32_t)atoi(l_idx_str);
-        if (l_time_str) {
-            l_timestamp = (dap_time_t)atoll(l_time_str);
-        }
-        
-        // Create TSD section
-        typedef struct {
-            dap_chain_hash_fast_t tx_hash;
-            uint32_t out_idx;
-            dap_time_t becomes_unblocked;  // Delayed unblocking timestamp (0 = immediate)
-        } DAP_ALIGN_PACKED utxo_block_remove_t;
-        
-        utxo_block_remove_t l_utxo_data = {
-            .tx_hash = l_tx_hash,
-            .out_idx = l_out_idx,
-            .becomes_unblocked = l_timestamp
-        };
-        
-        dap_tsd_t *l_utxo_remove_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UTXO_BLOCKED_REMOVE, 
-                                                       &l_utxo_data, sizeof(utxo_block_remove_t));
-        l_tsd_list = dap_list_append(l_tsd_list, l_utxo_remove_tsd);
-        l_tsd_total_size += dap_tsd_size(l_utxo_remove_tsd);
-        
-        // Log before freeing l_utxo_str_copy (l_hash_str points into it), as
-        // in the -utxo_blocked_add branch above
-        log_it(L_INFO, "Added UTXO unblocking: %s:%u%s", l_hash_str, l_out_idx,
-               l_timestamp ? " (delayed)" : "");
-        DAP_DELETE(l_utxo_str_copy);
     }
     
     // Process -utxo_blocked_clear
@@ -9014,7 +9043,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     const char *l_emission_hash_str = NULL;
     const char *l_cert_str = NULL;
     const char *l_time_str = NULL;
-    const char *l_arbitrage_str = NULL;
+    const char *l_from_addr_str = NULL;
     bool l_is_arbitrage = false;
     dap_cert_t *l_cert = NULL;
     dap_enc_key_t *l_priv_key = NULL;
@@ -9044,6 +9073,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     size_t l_addr_el_count = 0;
     size_t l_value_el_count = 0;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_wallet", &l_from_wallet_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_addr", &l_from_addr_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-wallet_fee", &l_wallet_fee_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_emission", &l_emission_hash_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_emission", &l_emission_chain_name);
@@ -9055,7 +9085,7 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-lock_before", &l_time_str);
     
     // Check for arbitrage flag
-    l_is_arbitrage = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-arbitrage", &l_arbitrage_str);
+    l_is_arbitrage = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-arbitrage", NULL);
 
 
     if(l_tx_num_str)
@@ -9074,8 +9104,73 @@ int com_tx_create(int a_argc, char **a_argv, void **a_json_arr_reply, UNUSED_ARG
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_FEE_IS_UINT256;
     }
 
+    // Cert-only arbitrage: tx_create -arbitrage -from_addr <addr> -token <tok> -value <val> -certs <cert> [-fee <fee>]
+    if (l_is_arbitrage && l_from_addr_str && !l_from_wallet_name && !l_emission_hash_str) {
+        if (!l_certs_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                   "Arbitrage with -from_addr requires -certs parameter (arbitrator certificates)");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
+        }
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_ticker);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_str);
+        if (!l_token_ticker || !l_value_str) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION,
+                                   "Arbitrage requires -token and -value parameters");
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
+        }
+        if (!dap_ledger_token_ticker_check(l_net->pub.ledger, l_token_ticker)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_TOKEN_NOT_DECLARATED_IN_NET,
+                                   "Ticker '%s' is not declared on network '%s'", l_token_ticker, l_net_name);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_TOKEN_NOT_DECLARATED_IN_NET;
+        }
+        dap_chain_addr_t *l_target_addr = dap_chain_addr_from_str(l_from_addr_str);
+        if (!l_target_addr || dap_chain_addr_check_sum(l_target_addr)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID,
+                                   "Invalid target address in -from_addr: %s", l_from_addr_str);
+            DAP_DEL_Z(l_target_addr);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_SOURCE_ADDRESS_INVALID;
+        }
+        uint256_t l_arb_value = dap_chain_balance_scan(l_value_str);
+        if (IS_ZERO_256(l_arb_value)) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE,
+                                   "Invalid -value for arbitrage");
+            DAP_DELETE(l_target_addr);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_VALUE_OR_INVALID_FORMAT_VALUE;
+        }
+        dap_chain_t *l_arb_chain = l_chain_name
+            ? dap_chain_net_get_chain_by_name(l_net, l_chain_name)
+            : dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        if (!l_arb_chain) {
+            dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NOT_FOUND_CHAIN,
+                                   "Chain not found");
+            DAP_DELETE(l_target_addr);
+            return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_NOT_FOUND_CHAIN;
+        }
+        char *l_tx_hash_str = dap_chain_arbitrage_cli_create(
+            l_arb_chain, l_net, l_target_addr, l_token_ticker,
+            l_arb_value, l_value_fee, l_hash_out_type, l_certs_str,
+            (json_object **)a_json_arr_reply);
+        DAP_DELETE(l_target_addr);
+        {
+            json_object *l_jobj_result = json_object_new_object();
+            int l_ret;
+            if (l_tx_hash_str) {
+                json_object_object_add(l_jobj_result, "transfer", json_object_new_string("Ok"));
+                json_object_object_add(l_jobj_result, "hash", json_object_new_string(l_tx_hash_str));
+                DAP_DELETE(l_tx_hash_str);
+                l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_OK;
+            } else {
+                json_object_object_add(l_jobj_result, "transfer", json_object_new_string("False"));
+                l_ret = DAP_CHAIN_NODE_CLI_COM_TX_CREATE_CAN_NOT_CREATE_TRANSACTION;
+            }
+            json_object_array_add(*a_json_arr_reply, l_jobj_result);
+            return l_ret;
+        }
+    }
+
     if((!l_from_wallet_name && !l_emission_hash_str)||(l_from_wallet_name && l_emission_hash_str)) {
-        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION, "tx_create requires one of parameters '-from_wallet' or '-from_emission'");
+        dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION,
+                               "tx_create requires one of parameters '-from_wallet', '-from_emission', or '-arbitrage -from_addr'");
         return DAP_CHAIN_NODE_CLI_COM_TX_CREATE_REQUIRE_PARAMETER_FROM_WALLET_OR_FROM_EMISSION;
     }
 
