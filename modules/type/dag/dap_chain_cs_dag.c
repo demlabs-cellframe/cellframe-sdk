@@ -158,12 +158,18 @@ static void s_dag_index_flush_header(dap_chain_t *a_chain)
     dap_chain_cs_dag_pvt_t *l_pvt = s_dag_index_pvt(a_chain);
     if (!l_pvt || !l_pvt->index_file)
         return;
+    // Every field is listed explicitly: gcc and clang build this file with
+    // -Werror, where a partial designated initializer trips
+    // -Wmissing-field-initializers (Apple clang, used by local builds, does not warn).
     s_dag_idx_hdr_t l_hdr = {
+        .magic = { 0 },
         .version = DAG_INDEX_VERSION,
         .hsize = sizeof(s_dag_idx_hdr_t),
         .net_id = a_chain->net_id.uint64,
         .cell_id = a_chain->active_cell_id.uint64,
-        .count = atomic_load(&l_pvt->index_records)
+        .count = atomic_load(&l_pvt->index_records),
+        .file_size = 0,
+        .last_hash = { 0 }
     };
     memcpy(l_hdr.last_hash, &l_pvt->index_last_hash, sizeof(l_hdr.last_hash));
     dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_chain->active_cell_id);
