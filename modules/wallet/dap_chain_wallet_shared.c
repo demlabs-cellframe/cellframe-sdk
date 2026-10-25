@@ -40,6 +40,7 @@
 #include "dap_tsd.h"
 #include "dap_sign.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_policy.h"
 #include <dirent.h>
 
 static char s_wallet_shared_gdb_group[] = "local.wallet_shared";
@@ -158,6 +159,17 @@ static int s_validate_tsd_bijection(const uint8_t *a_tsd, uint32_t a_tsd_size)
     return 0;
 }
 
+static bool dap_chain_wallet_shared_min_signers_rule_in_force(dap_ledger_t *a_ledger)
+{
+    if (!a_ledger)
+        return false;
+    dap_time_t l_since = 0;
+    if (!dap_chain_policy_get_ts_start(a_ledger->net->pub.id,
+            DAP_CHAIN_POLICY_WALLET_SHARED_MIN_SIGNERS_CUTOFF, &l_since) || !l_since)
+        return false;   // no decree applied yet: pre-fix semantics
+    return l_since <= dap_ledger_get_blockchain_time(a_ledger);
+}
+
 static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner, bool a_check_for_apply)
 {
     size_t l_tsd_hashes_count = s_count_tsd_owners(a_cond->tsd, a_cond->tsd_size);
@@ -168,6 +180,16 @@ static int s_wallet_shared_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_
     int l_bijection_rc = s_validate_tsd_bijection(a_cond->tsd, a_cond->tsd_size);
     if (l_bijection_rc)
         return l_bijection_rc;
+    // A minimum of zero makes the write-off check below satisfiable without a
+    // single signature, i.e. anyone could spend the shared funds. Rule 0x8, in
+    // force only once its decree is applied (pre-decree behaviour unchanged).
+    if (dap_chain_wallet_shared_min_signers_rule_in_force(a_ledger) &&
+            (!a_cond->subtype.wallet_shared.signers_minimum ||
+             a_cond->subtype.wallet_shared.signers_minimum > l_tsd_hashes_count)) {
+        log_it(L_WARNING, "Shared wallet condition has an impossible signer minimum (%u) for %zu owner(s)",
+               a_cond->subtype.wallet_shared.signers_minimum, l_tsd_hashes_count);
+        return -15;
+    }
     dap_sign_t *l_signs[l_tsd_hashes_count * 2];
     uint32_t l_signs_counter = 0, l_signs_verified = 0;
     uint256_t l_writeoff_value = uint256_0;

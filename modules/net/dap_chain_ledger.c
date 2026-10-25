@@ -5994,6 +5994,37 @@ bool dap_ledger_stake_strict_mint_in_force(dap_ledger_t *a_ledger)
     return l_strict_since <= dap_ledger_get_blockchain_time(a_ledger);
 }
 
+// Rule 0xB: run the DEX/XCHANGE order-creation validation even when an input
+// conditional output already went through its verificator. Inactive means the
+// historical suppression stays (and the suppressed cases are counted).
+bool dap_ledger_dex_order_gate_in_force(dap_ledger_t *a_ledger)
+{
+    if (!a_ledger)
+        return false;
+    dap_time_t l_since = 0;
+    if (!dap_chain_policy_get_ts_start(a_ledger->net->pub.id,
+            DAP_CHAIN_POLICY_DEX_ORDER_CREATION_GATE_CUTOFF, &l_since) || !l_since)
+        return false;
+    return l_since <= dap_ledger_get_blockchain_time(a_ledger);
+}
+
+// Diagnostics for the rule above: how many order-creation checks were skipped
+// because of an earlier input verificator, and how many the rule would restore.
+// Measured on the whole Backbone history: zero - the rule changes nothing for the
+// blocks already on chain (see the replay tally line), it only affects new ones.
+static uint64_t s_dex_gate_suppressed_count;
+static uint64_t s_dex_gate_unlocked_count;
+
+uint64_t dap_ledger_dex_gate_suppressed_count(void)
+{
+    return s_dex_gate_suppressed_count;
+}
+
+uint64_t dap_ledger_dex_gate_unlocked_count(void)
+{
+    return s_dex_gate_unlocked_count;
+}
+
 
 int dap_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission,
                                          size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash)
@@ -6771,6 +6802,13 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     const char *l_token = NULL, *l_main_ticker = NULL;
 
     int l_err_num = DAP_LEDGER_CHECK_OK, l_verificator_error = -1;
+    // Set when an IN_COND verificator ran for THIS transaction's inputs. The
+    // new-OUT_COND (order creation) check below must not be suppressed just
+    // because some unrelated input condition verified fine - that is why it has
+    // its own flag instead of reusing l_verificator_error, which the input loop
+    // overwrites (a verifier returning OK there used to switch the creation check
+    // off for the whole transaction).
+    bool l_verificator_ran_for_input = false;
     int l_prev_tx_count = 0;
 
     // 1. Verify signature in current transaction
@@ -7351,6 +7389,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 }
 
                 l_verificator_error = l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner, a_check_for_apply);
+                l_verificator_ran_for_input = true;
                 if ( !s_check_hal(a_ledger, a_tx_hash) && l_verificator_error != DAP_LEDGER_CHECK_OK ) { // TODO add string representation for verificator return codes
                     debug_if(s_debug_more, L_WARNING, "Verificator check error %d for conditional output %s",
                                                                     l_verificator_error, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
@@ -7539,8 +7578,27 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
             // Call verificator for new OUT_COND (ORDER creation validation)
             // Pass a_tx_out_cond=NULL to indicate this is a NEW conditional output
-            if (l_verificator_error == -1 && (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX ||
-                                              l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)) {
+            // Whether the new-OUT_COND (DEX/XCHANGE order creation) validation must run for
+            // this transaction. Historically it ran only when no input conditional output
+            // went through a verificator, so bundling any IN_COND whose verifier returned OK
+            // silently switched the creation check off for the whole transaction. Rule 0xB
+            // lifts that suppression; until its decree is applied the old behaviour is kept
+            // and the suppressed cases are counted so the impact is measurable on replay.
+            dap_chain_tx_out_cond_subtype_t l_new_cond_subtype = l_tx_out->header.subtype;
+            bool l_creation_check_subtype = (l_new_cond_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX ||
+                                             l_new_cond_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE);
+            if (l_creation_check_subtype && l_verificator_ran_for_input) {
+                if (dap_ledger_dex_order_gate_in_force(a_ledger)) {
+                    s_dex_gate_unlocked_count++;
+                } else {
+                    // Log mode: count what the rule would change on this history.
+                    s_dex_gate_suppressed_count++;
+                    debug_if(s_debug_more, L_DEBUG,
+                             "New OUT_COND subtype %d creation check suppressed by an input verificator "
+                             "(rule 0xB inactive)", (int)l_new_cond_subtype);
+                }
+            }
+            if (l_creation_check_subtype && (!l_verificator_ran_for_input || dap_ledger_dex_order_gate_in_force(a_ledger))) {
                 dap_ledger_verificator_t *l_verificator = NULL;
                 int l_sub_tmp = l_tx_out->header.subtype;
                 pthread_rwlock_rdlock(&s_verificators_rwlock);

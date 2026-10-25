@@ -541,6 +541,12 @@ dap_time_t dap_ledger_get_blockchain_time(dap_ledger_t *a_ledger);
 // True when the strict girdled-mint rules are in force at the ledger's current blockchain time
 bool dap_ledger_stake_strict_mint_in_force(dap_ledger_t *a_ledger);
 
+// Rule 0xB: is the DEX/XCHANGE order-creation check exempt from the input-verifier
+// suppression? Plus counters describing what the suppression did.
+bool dap_ledger_dex_order_gate_in_force(dap_ledger_t *a_ledger);
+uint64_t dap_ledger_dex_gate_suppressed_count(void);
+uint64_t dap_ledger_dex_gate_unlocked_count(void);
+
 dap_chain_tx_event_t *dap_ledger_event_find(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_hash);
 dap_list_t *dap_ledger_event_get_list_ex(dap_ledger_t *a_ledger, const char *a_group_name, bool a_need_lock);
 DAP_STATIC_INLINE dap_list_t *dap_ledger_event_get_list(dap_ledger_t *a_ledger, const char *a_group_name)

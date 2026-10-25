@@ -49,6 +49,15 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 // Service orders must carry a signature that actually verifies over the order
 // body; an order that fails is skipped by its consumers instead of being trusted.
 #define DAP_CHAIN_POLICY_SRV_ORDER_SIGNATURE_CUTOFF         0xD
+// A shared wallet condition must require at least one signature (and never more
+// than it has listed owners). min_count == 0 made the write-off gate at
+// dap_chain_wallet_shared.c satisfiable with zero signatures.
+#define DAP_CHAIN_POLICY_WALLET_SHARED_MIN_SIGNERS_CUTOFF   0x8
+// The DEX/XCHANGE order-creation validation (verificator called with a NULL
+// condition) must run for every creation, even when another input conditional
+// output in the same transaction already went through its verificator. Until this
+// decree, such an input silently suppressed the creation check.
+#define DAP_CHAIN_POLICY_DEX_ORDER_CREATION_GATE_CUTOFF     0xB
 
 typedef struct dap_chain_policy {
     uint16_t version;

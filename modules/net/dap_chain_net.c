@@ -455,6 +455,10 @@ int dap_chain_net_init()
     dap_rpc_cache_init();
     dap_chain_ch_init();
     dap_chain_net_anchor_init();
+    // The decree datums themselves, replayed on a snapshot-based start. Registered
+    // after the anchor section: sections run in registration order, and the anchors
+    // resolve their decree by hash, so the journal must be replayed first.
+    dap_chain_net_decree_journal_init();
     // The token datum registry is a load-built index with no other persistence;
     // as a state it is carried by its own snapshot section.
     dap_ledger_add_snapshot_section(DAP_NET_TOKEN_DATUM_REG_SECTION, 0,
@@ -3563,6 +3567,13 @@ l_have_rejects:;
            "(applied %" DAP_UINT64_FORMAT_U ", already cached %" DAP_UINT64_FORMAT_U
            ", rejected%" DAP_UINT64_FORMAT_U " of %" DAP_UINT64_FORMAT_U ")%s",
            l_total, l_ok, l_cached, l_total - l_ok - l_cached, l_total, l_rej[0] ? l_rej : " none");
+    // Rule 0xB impact measurement: how often an input verificator suppressed the
+    // DEX/XCHANGE order-creation check on this history. Zero means the rule changes
+    // nothing for the blocks already on chain; non-zero names exactly how many
+    // creations ran unvalidated, which is what the decree has to weigh.
+    log_it(L_NOTICE, "Policy 0xB measurement: DEX/XCHANGE order-creation check suppressed "
+           "%" DAP_UINT64_FORMAT_U " time(s), restored by the rule %" DAP_UINT64_FORMAT_U " time(s)",
+           dap_ledger_dex_gate_suppressed_count(), dap_ledger_dex_gate_unlocked_count());
 }
 
 int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
