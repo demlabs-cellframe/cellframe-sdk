@@ -352,6 +352,26 @@ static int s_snapshot_stake_load(void *a_ctx, const uint8_t *a_data, size_t a_si
             l_srv_param->delegate_percent_max = l_percent_max;
     }
     log_it(L_NOTICE, "Ledger snapshot: stake registry restored (%zu keys)", l_loaded);
+    // An empty registry next to a ledger full of the service's transactions is not
+    // a coherent state: the ledger's cached records carry the service tag, so the
+    // count proves the history exists while the registry that describes its result
+    // is missing (live: a KelVPN snapshot restored 556k tx items with an empty
+    // stake section; the node then rejected every new block in the strict era,
+    // "signer holds no active delegated stake", and the registry could not rebuild
+    // itself because the complete-snapshot flag suppresses the datum replay).
+    // Report the section as failed: the ledger then drops the complete-state flag
+    // and the chain scan replays the datums, rebuilding the registry.
+    if (!l_loaded) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_net_id });
+        uint64_t l_tagged = l_net ? dap_ledger_tx_cache_count_by_service_tag(l_net->pub.ledger,
+                                (dap_chain_net_srv_uid_t){ .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID }) : 0;
+        if (l_tagged) {
+            log_it(L_WARNING, "Ledger snapshot: stake section is empty but the ledger holds "
+                   "%" DAP_UINT64_FORMAT_U " stake transaction(s) - restoring by datum replay",
+                   l_tagged);
+            return -5;
+        }
+    }
     // Weights are derived values (they depend on the whole registry and on the
     // current delegate_percent_max), and the dump stores them as they were at save
     // time. Recompute them from the restored locked values so the registry matches

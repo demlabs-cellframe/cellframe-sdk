@@ -9571,6 +9571,34 @@ dap_chain_datum_tx_t *dap_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const c
  * @param a_srv_uid
  * @return
  */
+/**
+ * @brief Count cached transactions that carry the given service tag.
+ * @param a_ledger
+ * @param a_srv_uid
+ * @return number of items whose cached service tag matches
+ * @note Unlike dap_ledger_tx_cache_find_out_cond_all() this reads only the cached
+ *       tag, not the datum: snapshot-restored items carry no datum until the chain
+ *       scan attaches it, and the tag itself IS persisted in the snapshot (it is
+ *       part of cache_data). Service sections use this to detect a snapshot that
+ *       restored an empty registry while the ledger clearly holds transactions of
+ *       that service - the state the snapshot claims to describe does not exist.
+ */
+uint64_t dap_ledger_tx_cache_count_by_service_tag(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid)
+{
+    if (!a_ledger || !a_srv_uid.uint64)
+        return 0;
+    uint64_t l_count = 0;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_ledger_tx_item_t *l_it = NULL, *l_tmp = NULL;
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    HASH_ITER(hh, l_ledger_pvt->ledger_items, l_it, l_tmp) {
+        if (l_it->cache_data.tag.uint64 == a_srv_uid.uint64)
+            ++l_count;
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    return l_count;
+}
+
 dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid)
 {
     dap_list_t * l_ret = NULL;

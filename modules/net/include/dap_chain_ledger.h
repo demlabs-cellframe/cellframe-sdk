@@ -459,6 +459,10 @@ bool dap_ledger_tx_check_recipient(dap_ledger_t* a_ledger, dap_chain_hash_fast_t
 // Get all transactions from the cache with the specified out_cond items
 dap_list_t* dap_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid);
 
+// Count cached transactions carrying the given service tag (works on
+// snapshot-restored items without datums; the tag is part of the cached record)
+uint64_t dap_ledger_tx_cache_count_by_service_tag(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid);
+
 dap_chain_tx_out_cond_t *dap_ledger_out_cond_unspent_find_by_addr(dap_ledger_t *a_ledger, const char *a_token, dap_chain_tx_out_cond_subtype_t a_subtype,
                                                                   const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash, int *a_out_idx);
 
