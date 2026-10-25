@@ -6,8 +6,24 @@
 
 #include <pthread.h>
 #include <string.h>
+#ifdef _WIN32
+#include <io.h>     // _commit/_fileno in the portable fsync lens below
+#endif
 
 #define LOG_TAG "dap_chain_state"
+
+// Flush a file's buffers to the storage device. Windows has no fsync and
+// commits the descriptor with _commit instead; naming fsync there is a compile
+// error (-Werror=implicit-function-declaration) on the MinGW build. Same lens
+// as s_ledger_file_sync() in dap_chain_ledger.c.
+static inline int s_chain_state_file_sync(FILE *a_file)
+{
+#ifdef _WIN32
+    return _commit(_fileno(a_file));
+#else
+    return fsync(fileno(a_file));
+#endif
+}
 
 // Writes are buffered; the header is flushed once per period and the reader
 // takes the tip from the last record, so a header that lags the records (or a
@@ -103,7 +119,7 @@ static void s_write_header_locked(dap_chain_state_t *a_state, bool a_sync)
             && fwrite(&l_hdr, sizeof(l_hdr), 1, l_file) == 1
             && fflush(l_file) == 0;
     if (l_ok && a_sync) {
-        fsync(fileno(l_file));
+        s_chain_state_file_sync(l_file);
         ftruncate(fileno(l_file), (off_t)(sizeof(l_hdr)
                 + a_state->records * sizeof(dap_chain_state_rec_t)));
     }
