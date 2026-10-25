@@ -69,6 +69,18 @@ static inline bool s_ledger_cache_storage_full(void)
     return dap_global_db_driver_storage_full();
 }
 
+// Flush a file's buffers to the storage device. Windows has no fsync and calls
+// _commit on the descriptor instead; naming fsync there is a compile error
+// (-Werror=implicit-function-declaration), which the MinGW build hit.
+static inline int s_ledger_file_sync(FILE *a_file)
+{
+#ifdef _WIN32
+    return _commit(_fileno(a_file));
+#else
+    return fsync(fileno(a_file));
+#endif
+}
+
 #include "dap_chain_ledger.h"
 #include "dap_rpc_cache.h"
 #include "dap_chain_ledger_snapshot.h"
@@ -4844,7 +4856,7 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         l_ok = false;
         for (int l_try = 0; l_try < 3; l_try++) {
             errno = 0;
-            if (fflush(l_file) == 0 && fsync(fileno(l_file)) == 0) {
+            if (fflush(l_file) == 0 && s_ledger_file_sync(l_file) == 0) {
                 l_ok = true;
                 break;
             }
