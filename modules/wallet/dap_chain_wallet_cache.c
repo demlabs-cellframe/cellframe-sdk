@@ -106,6 +106,13 @@ typedef struct dap_s_wallets_cache {
     dap_wallet_cache_unspent_outs_t *unspent_outputs;
 
     _Atomic bool is_loading;
+    // Set once this address has been answered from the ledger index directly
+    // (see s_wallet_cache_enrich_from_index()). An address with this mark is
+    // authoritative for its own (address, token) pairs: an empty lookup result
+    // is then a real "no such output" and must not be reported as "cache can't
+    // answer" (-101), which is what sent callers into a full ledger walk on
+    // every request for a genuinely empty wallet.
+    bool index_enriched;
     UT_hash_handle hh;
 } dap_wallet_cache_t;
 
@@ -195,6 +202,98 @@ void dap_chain_wallet_cache_bulk_reset(dap_chain_net_id_t a_net_id)
         }
         l_it = l_next;
     }
+}
+
+// Collector for the ledger's per-address walk: the callback runs with no cache
+// lock held (see the primitive), so the results are gathered first and inserted
+// under one write lock afterwards instead of locking per output.
+typedef struct s_wallet_enrich_ctx {
+    dap_list_t *outs;
+    uint64_t n;
+} s_wallet_enrich_ctx_t;
+
+typedef struct s_wallet_enrich_out {
+    dap_chain_hash_fast_t tx_hash;
+    uint32_t out_idx;
+    uint8_t out_type;
+    dap_time_t ts_unlock;
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t value;
+} s_wallet_enrich_out_t;
+
+static void s_wallet_enrich_collect(void *a_arg, const dap_chain_hash_fast_t *a_tx_hash,
+        uint32_t a_out_idx, uint8_t a_out_type, dap_time_t a_ts_unlock,
+        const char *a_token_ticker, const uint256_t *a_value)
+{
+    s_wallet_enrich_ctx_t *l_ctx = (s_wallet_enrich_ctx_t *)a_arg;
+    if (!l_ctx || !a_tx_hash || !a_value)
+        return;
+    s_wallet_enrich_out_t *l_out = DAP_NEW_Z(s_wallet_enrich_out_t);
+    if (!l_out)
+        return;
+    l_out->tx_hash = *a_tx_hash;
+    l_out->out_idx = a_out_idx;
+    l_out->out_type = a_out_type;
+    l_out->ts_unlock = a_ts_unlock;
+    l_out->value = *a_value;
+    if (a_token_ticker)
+        dap_strncpy(l_out->ticker, a_token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    l_ctx->outs = dap_list_append(l_ctx->outs, l_out);
+    ++l_ctx->n;
+}
+
+// Fills the index slice of one address straight from the ledger, so a miss becomes
+// a cache hit instead of a ledger walk on every later lookup. Called on a miss
+// only, at most once per address. Identified by the ADDRESS, never by a pointer
+// into the map: the walk runs without the cache lock (it reads the ledger), and
+// the entry can be dropped by invalidate/reset while it runs.
+//
+// The walk itself is index-driven: the ledger index yields candidate transactions
+// and each one's block location, and only those blocks are read (pointwise,
+// parsed in the moment) rather than the whole chain.
+// Returns false when the ledger could not be consulted at all (then the caller
+// keeps its "can't answer yet" contract and lets the normal path take over).
+static bool s_wallet_cache_enrich_from_index(dap_chain_net_t *a_net, const dap_chain_addr_t *a_addr)
+{
+    if (!a_net || !a_net->pub.ledger || !a_addr)
+        return false;
+    s_wallet_enrich_ctx_t l_ctx = { 0 };
+    dap_ledger_foreach_unspent_out_by_addr(a_net->pub.ledger, NULL, a_addr,
+                                           s_wallet_enrich_collect, &l_ctx);
+    pthread_rwlock_wrlock(&s_wallet_cache_rwlock);
+    dap_wallet_cache_t *l_wallet_item = NULL;
+    HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(*a_addr), l_wallet_item);
+    if (!l_wallet_item) {
+        // The entry vanished while the walk ran (invalidate/reset): the walk's
+        // result has no home. Report failure so the caller re-resolves the
+        // address instead of treating the empty cache as an answer.
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        dap_list_free_full(l_ctx.outs, NULL);
+        return false;
+    }
+    for (dap_list_t *l_it = l_ctx.outs; l_it; l_it = l_it->next) {
+        s_wallet_enrich_out_t *l_out = (s_wallet_enrich_out_t *)l_it->data;
+        unspent_cache_hh_key l_key = { .tx_hash = l_out->tx_hash, .out_idx = l_out->out_idx };
+        dap_wallet_cache_unspent_outs_t *l_item = NULL;
+        HASH_FIND(hh, l_wallet_item->unspent_outputs, &l_key, sizeof(l_key), l_item);
+        if (l_item)
+            continue;   // already known (another path may have inserted it)
+        l_item = DAP_NEW_Z(dap_wallet_cache_unspent_outs_t);
+        if (!l_item)
+            break;
+        l_item->key = l_key;
+        l_item->value = l_out->value;
+        l_item->out_type = (dap_chain_tx_item_type_t)l_out->out_type;
+        l_item->ts_unlock = l_out->ts_unlock;
+        dap_strncpy(l_item->token_ticker, l_out->ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+        HASH_ADD(hh, l_wallet_item->unspent_outputs, key, sizeof(l_item->key), l_item);
+    }
+    l_wallet_item->index_enriched = true;
+    pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+    dap_list_free_full(l_ctx.outs, NULL);
+    debug_if(s_debug_more, L_INFO, "[WALLET_CACHE] %s: index filled from the ledger (%" DAP_UINT64_FORMAT_U " unspent out(s))",
+             dap_chain_addr_to_str_static(a_addr), l_ctx.n);
+    return true;
 }
 
 void dap_chain_wallet_cache_restore_unspent(dap_chain_net_id_t a_net_id, const dap_chain_addr_t *a_addr,
@@ -293,6 +392,8 @@ static void s_callback_datum_removed_notify(void *a_arg, dap_chain_hash_fast_t *
 static void s_wallet_opened_callback(dap_chain_wallet_t *a_wallet, void *a_arg);
 static void s_wallet_cache_request_pass(dap_chain_net_t *a_net);
 static void *s_wallet_load_all_for_net(void *a_arg);
+static int s_wallet_cache_lookup_or_enrich(dap_chain_net_t *a_net, const dap_chain_addr_t *a_addr,
+                                          dap_wallet_cache_t **a_out);
 
 static void s_wallet_cache_drop_unspent_by_tx_hash(dap_wallet_cache_t *a_wallet_item, const dap_hash_fast_t *a_tx_hash)
 {
@@ -349,16 +450,21 @@ static void s_wallet_cache_clear_unspent(dap_wallet_cache_t *a_wallet_item)
     }
 }
 
-// Decides what an address unknown to the cache means in ALL mode: it's only
-// safe to report "genuinely empty wallet" (0) once the initial bulk load for
-// this net has finished. While bulk loading is still running, an unseen
-// address may simply not have been reached by the scan yet - reporting it as
-// empty makes every caller (dap_chain_net_tx_create_by_json among them, see
-// cellframe_node_rpc_overload_research_2026_09 sec. 10.1/9.3.2) skip the
-// ledger fallback entirely and fail compose with "not enough funds" for a
-// wallet that in fact has funds. -101 tells the caller "cache can't answer
-// yet, go check the ledger" instead - the same contract already used for the
-// is_loading and cache-not-populated cases right above each call site.
+// Decides what an address unknown to the cache means in ALL mode. "Genuinely
+// empty" (0) is only an honest answer once the per-address index actually covers
+// the network's history - i.e. the bulk pass ran or a snapshot restored the
+// index (the same completion marker). Without that coverage an unseen address
+// may simply be one the index never reached, and reporting it as empty makes
+// every caller skip its ledger fallback and fail with "not enough funds" for a
+// wallet that in fact has funds. -101 tells the caller "cache can't answer yet,
+// go check the ledger" instead - the same contract already used for the
+// is_loading and cache-not-populated cases at each call site.
+//
+// Note this deliberately does NOT consult the ledger itself: a passive query
+// (a public RPC "wallet outputs") must not turn into a ledger walk per request.
+// The callers that do need an answer have their own fallback, and the write
+// paths enrich the index from the ledger once (see
+// s_wallet_cache_enrich_from_index()) so later lookups are real cache hits.
 // Called with s_wallet_cache_rwlock released: s_bulk_loading_nets is unlinked
 // and freed under the write lock when a net finishes its bulk load.
 static int s_wallet_cache_unknown_addr_ret_code(const dap_chain_addr_t *a_addr)
@@ -367,11 +473,13 @@ static int s_wallet_cache_unknown_addr_ret_code(const dap_chain_addr_t *a_addr)
         return -101; // LOCAL/unexpected: address was never meant to be cached, ledger fallback path
     pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
     bool l_bulk_loading = s_bulk_loading_nets_has(a_addr->net_id.uint64);
+    bool l_index_covers = s_bulk_done_nets_has(a_addr->net_id.uint64);
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-    if (l_bulk_loading) {
+    if (l_bulk_loading || !l_index_covers) {
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_addr->net_id);
-        debug_if(s_debug_more, L_DEBUG, "Wallet \"%s\" not yet seen, net %s is still bulk-loading",
-                 dap_chain_addr_to_str_static(a_addr), l_net ? l_net->pub.name : "?");
+        debug_if(s_debug_more, L_DEBUG, "Wallet \"%s\" not yet seen, net %s %s",
+                 dap_chain_addr_to_str_static(a_addr), l_net ? l_net->pub.name : "?",
+                 l_bulk_loading ? "is still bulk-loading" : "has no completed per-address index yet");
         return -101;
     }
     log_it(L_INFO, "Wallet \"%s\" is empty", dap_chain_addr_to_str_static(a_addr));
@@ -1153,18 +1261,18 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
     }
 
     dap_wallet_cache_t *l_wallet_item = NULL;
-    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
-    HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-    if ( l_wallet_item ) {
-        if ( l_wallet_item->is_loading ) {
-            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-            log_it( L_WARNING, "Wallet address \"%s\" is pending...", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
-    } else {
-        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return s_wallet_cache_unknown_addr_ret_code(a_addr);
+    int l_lookup_rc = s_wallet_cache_lookup_or_enrich(a_net, a_addr, &l_wallet_item);
+    if (l_lookup_rc < 0)
+        return l_lookup_rc;             // -101 "can't answer": let the caller fall back
+    if (l_lookup_rc == 0) {
+        // The index covers this net and has no such address: an authoritative
+        // empty answer. No lock is held and there is no entry to walk.
+        *a_outs_list = NULL;
+        if (a_value_transfer)
+            *a_value_transfer = uint256_0;
+        return 0;
     }
+    // l_lookup_rc == 1: entry found, read lock held here, released below.
 
     dap_wallet_cache_unspent_outs_t *l_item_cur = NULL, *l_tmp = NULL;
     HASH_ITER(hh, l_wallet_item->unspent_outputs, l_item_cur, l_tmp) {
@@ -1206,18 +1314,73 @@ int dap_chain_wallet_cache_tx_find_outs_mempool_check(dap_chain_net_t *a_net, co
     // If wallet_txs exists but unspent_outputs is empty, wallet is genuinely empty - return success
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);
     if (!l_list_used_out && !l_wallet_item->wallet_txs) {
-        // wallet_txs (the per-address history) is a separate index that the
-        // snapshot does not carry yet. With a restored unspent index an empty
-        // list IS the answer; falling back to a full ledger walk for every
-        // empty address turned a 5 ms reply into a 30 s one.
-        // (Checked after the unlock: the restored marker takes the same lock.)
-        if (!dap_chain_wallet_cache_index_restored(a_net->pub.id)) {
+        // wallet_txs (the per-address HISTORY) is a separate index that the
+        // snapshot does not carry yet, so its absence is not evidence about the
+        // unspent set. The unspent answer is authoritative when either the index
+        // was restored from a snapshot or this address was filled from the ledger
+        // by s_wallet_cache_lookup_or_enrich() - in both cases an empty result IS
+        // the answer, and the caller needs a quick reply, not a full ledger walk
+        // (that walk turned a 5 ms reply into a 30 s one). The flags are read
+        // under the read lock the caller already holds, so no re-check is needed.
+        if (!l_wallet_item->index_enriched && !dap_chain_wallet_cache_index_restored(a_net->pub.id)) {
             debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] Cache not loaded for %s (wallet_txs=NULL), falling back to ledger",
                      dap_chain_addr_to_str_static(a_addr));
             return -101;  // Return error to trigger fallback to ledger
         }
     }
     return 0;
+}
+
+// Looks the address up and, on a miss, fills its index slice from the ledger once
+// (see s_wallet_cache_enrich_from_index()). Return protocol - the three outcomes
+// must stay distinguishable, because "authoritative empty" (no entry, no lock) is
+// NOT the same as "entry found" (entry, read lock held):
+//   1  - entry found: the caller holds the read lock and *a_out is valid
+//   0  - no entry, but the index covers this net: an authoritative empty answer
+//        (the lock is NOT held, *a_out is NULL - the caller must not dereference)
+//   <0 - cannot answer yet (-101) or a hard error: the caller returns it as is
+// Shared by every read path so they cannot drift apart: before this, one variant
+// had the restored-index escape and the other did not, and the difference was a
+// full ledger walk per lookup on the variant without it.
+static int s_wallet_cache_lookup_or_enrich(dap_chain_net_t *a_net, const dap_chain_addr_t *a_addr,
+                                          dap_wallet_cache_t **a_out)
+{
+    dap_wallet_cache_t *l_wallet_item = NULL;
+    *a_out = NULL;
+    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
+    HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
+    if (!l_wallet_item) {
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        int l_rc = s_wallet_cache_unknown_addr_ret_code(a_addr);
+        // 0 ("genuinely empty") passed straight through would make the caller
+        // dereference the NULL entry it got back; report it as the distinct
+        // "authoritative empty" outcome instead.
+        return l_rc == 0 ? 0 : l_rc;
+    }
+    if (l_wallet_item->is_loading) {
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        log_it(L_WARNING, "Wallet address \"%s\" is pending...", dap_chain_addr_to_str_static(a_addr));
+        return -101;
+    }
+    if (!l_wallet_item->index_enriched) {
+        // Miss: fill this address's slice of the index straight from the ledger
+        // ONCE. The walk reads the ledger and must not run under the cache lock,
+        // so the lock is dropped and re-taken, then the entry is re-found - it is
+        // identified by the address because it can be dropped while the walk runs
+        // (invalidate/reset), and the enrich call re-resolves it itself.
+        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+        if (!s_wallet_cache_enrich_from_index(a_net, a_addr))
+            return -101;    // ledger not consultable (or the entry went away): re-ask
+        pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
+        HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
+        if (!l_wallet_item) {
+            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+            int l_rc = s_wallet_cache_unknown_addr_ret_code(a_addr);
+            return l_rc == 0 ? 0 : l_rc;
+        }
+    }
+    *a_out = l_wallet_item;
+    return 1;   // read lock held on success
 }
 
 int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *a_net, const char *a_token_ticker, const dap_chain_addr_t *a_addr, 
@@ -1255,18 +1418,18 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
     }
 
     dap_wallet_cache_t *l_wallet_item = NULL;
-    pthread_rwlock_rdlock(&s_wallet_cache_rwlock);
-    HASH_FIND(hh, s_wallets_cache, a_addr, sizeof(dap_chain_addr_t), l_wallet_item);
-    if ( l_wallet_item ) {
-        if ( l_wallet_item->is_loading ) {
-            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-            log_it( L_WARNING, "Wallet address \"%s\" is pending...", dap_chain_addr_to_str_static(a_addr));
-            return -101;
-        }
-    } else {
-        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return s_wallet_cache_unknown_addr_ret_code(a_addr);
+    int l_lookup_rc = s_wallet_cache_lookup_or_enrich(a_net, a_addr, &l_wallet_item);
+    if (l_lookup_rc < 0)
+        return l_lookup_rc;             // -101 "can't answer": let the caller fall back
+    if (l_lookup_rc == 0) {
+        // Authoritative empty answer: the index covers this net and this address
+        // has no outputs. No lock and no entry to walk.
+        *a_outs_list = NULL;
+        if (a_value_transfer)
+            *a_value_transfer = uint256_0;
+        return 0;
     }
+    // l_lookup_rc == 1: entry found, read lock held here, released below.
 
     dap_wallet_cache_unspent_outs_t *l_item_cur = NULL, *l_tmp = NULL;
     HASH_ITER(hh, l_wallet_item->unspent_outputs, l_item_cur, l_tmp) {
@@ -1302,14 +1465,21 @@ int dap_chain_wallet_cache_tx_find_outs_with_val_mempool_check(dap_chain_net_t *
         }
     }
 
-    // CRITICAL FIX: Check if cache was actually loaded
-    // If wallet_txs is NULL, cache was never populated - trigger fallback to ledger
-    // If wallet_txs exists but unspent_outputs is empty, wallet is genuinely empty - return success
-    if (!l_list_used_out && !l_wallet_item->wallet_txs) {
-        debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] Cache not loaded for %s (wallet_txs=NULL), falling back to ledger",
-                 dap_chain_addr_to_str_static(a_addr));
-        pthread_rwlock_unlock(&s_wallet_cache_rwlock);
-        return -101;  // Return error to trigger fallback to ledger
+    // The per-address HISTORY (wallet_txs) is a different index and the snapshot
+    // does not carry it yet, so its absence says nothing about the unspent set.
+    // The unspent answer is authoritative once the address was filled from the
+    // ledger (index_enriched) or the index was restored from a snapshot: an empty
+    // list then IS the answer. Without this the empty case was reported as "cache
+    // can't answer" and every request for a funded-but-unspent address went to a
+    // full ledger walk - the same 5 ms -> 30 s regression the sibling variant
+    // already guarded against.
+    if (!l_list_used_out && !l_wallet_item->wallet_txs && !l_wallet_item->index_enriched) {
+        if (!dap_chain_wallet_cache_index_restored(a_net->pub.id)) {
+            debug_if(s_debug_more, L_DEBUG, "[WALLET_CACHE] Cache not loaded for %s (wallet_txs=NULL), falling back to ledger",
+                     dap_chain_addr_to_str_static(a_addr));
+            pthread_rwlock_unlock(&s_wallet_cache_rwlock);
+            return -101;  // Return error to trigger fallback to ledger
+        }
     }
 
     pthread_rwlock_unlock(&s_wallet_cache_rwlock);

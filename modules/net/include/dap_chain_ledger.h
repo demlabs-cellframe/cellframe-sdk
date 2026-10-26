@@ -454,6 +454,21 @@ dap_list_t *dap_ledger_get_list_tx_outs_unspent_by_addr(dap_ledger_t *a_ledger, 
         bool a_cond_only, dap_chain_tx_out_cond_subtype_t a_cond_subtype, bool a_mempool_check,
         bool a_skip_blocklist);
 
+// One unspent output of an address, with the details a per-address index needs
+// to store it (not just hash+index). a_out_type is a TX_ITEM_TYPE_* value,
+// a_ts_unlock the OUT_STD unlock time (0 when the output has none).
+typedef void (*dap_ledger_unspent_out_cb_t)(void *a_arg, const dap_chain_hash_fast_t *a_tx_hash,
+        uint32_t a_out_idx, uint8_t a_out_type, dap_time_t a_ts_unlock,
+        const char *a_token_ticker, const uint256_t *a_value);
+
+// Walks the ledger's in-memory index once and reports every unspent output of
+// a_addr (optionally filtered by token). One in-memory pass, no disk I/O: this
+// is the primitive for filling a per-address cache after a miss, so the next
+// lookup - including an empty one - is answered from that cache instead of
+// scanning the ledger again. Returns the number of outputs reported.
+uint64_t dap_ledger_foreach_unspent_out_by_addr(dap_ledger_t *a_ledger, const char *a_token,
+        const dap_chain_addr_t *a_addr, dap_ledger_unspent_out_cb_t a_cb, void *a_arg);
+
 bool dap_ledger_tx_check_recipient(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_tx_prev_hash, dap_chain_addr_t *a_addr);
 
 // Get all transactions from the cache with the specified out_cond items

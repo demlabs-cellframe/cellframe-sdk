@@ -9895,6 +9895,185 @@ complete:
     return l_ret;
 }
 
+// One candidate transaction of a per-address walk: the identifiers needed to get
+// its datum later (pointwise, outside the ledger lock) plus the out count from
+// the cached record.
+typedef struct s_ledger_out_candidate {
+    dap_chain_hash_fast_t tx_hash;
+    dap_chain_hash_fast_t atom_hash;
+    uint32_t datum_index;
+    uint32_t atom_link_valid;
+    uint32_t n_outs;
+} s_ledger_out_candidate_t;
+
+// The blocks-based chain of the ledger's network - the one whose index can load
+// a datum body pointwise. NULL when the network has no such chain (nothing to
+// read bodies from, callers then work with whatever is already resident).
+static dap_chain_t *s_ledger_blocks_chain(dap_ledger_t *a_ledger)
+{
+    if (!a_ledger || !a_ledger->net)
+        return NULL;
+    for (dap_chain_t *l_c = a_ledger->net->pub.chains; l_c; l_c = l_c->next) {
+        const char *l_cs_type = dap_chain_get_cs_type(l_c);
+        if (l_cs_type && !dap_strcmp(l_cs_type, "esbocs"))
+            return l_c;
+    }
+    return NULL;
+}
+
+// Walks the ledger's index and reports every unspent output that belongs to
+// a_addr, with the details a consumer needs to keep its own per-address cache in
+// sync (out type, unlock time, ticker, value) - not just the tx hash and index
+// that dap_ledger_get_list_tx_outs_unspent_by_addr() returns for a value search.
+//
+// Two phases, so that no disk read ever happens under the ledger lock:
+//   1. the in-memory index is walked once and yields candidates (tx hash, out
+//      count and the block location of the transaction from the chain-state
+//      index: atom hash + datum ordinal);
+//   2. each candidate's own BLOCK is loaded pointwise from disk, by that index,
+//      and parsed in the moment (dap_chain_cs_blocks_datum_at -> the block cache
+//      maps just that block's bytes and parses it) instead of requiring every
+//      datum to already be resident. This is the same pointwise path the ledger
+//      itself uses to attach a snapshot-restored datum lazily.
+// Cost: one in-memory pass plus one pointwise block read per candidate
+// transaction; no full-chain scan, and the mapped pages are file pages that the
+// kernel can reclaim.
+uint64_t dap_ledger_foreach_unspent_out_by_addr(dap_ledger_t *a_ledger, const char *a_token,
+        const dap_chain_addr_t *a_addr, dap_ledger_unspent_out_cb_t a_cb, void *a_arg)
+{
+    if (!a_ledger || !a_addr || !a_cb)
+        return 0;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_ledger_tx_item_t *l_cur = NULL, *l_tmp = NULL;
+    dap_list_t *l_candidates = NULL;
+    uint64_t l_item_idx = 0;
+
+    // Phase 1: pick the transactions that can carry an output of this address,
+    // reading only the in-memory index (spent marks, ticker, out count).
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    HASH_ITER(hh, l_ledger_pvt->ledger_items, l_cur, l_tmp) {
+        // Same cooperative-cancellation cadence as the value-gathering walk:
+        // both can look at every item of a mainnet-sized ledger.
+        if (!(++l_item_idx & 0xFFF) && !dap_cli_server_client_is_alive())
+            break;
+        if (l_cur->cache_data.ts_spent || !l_cur->cache_data.n_outs)
+            continue;
+        if (a_token && dap_strcmp(l_cur->cache_data.token_ticker, a_token) && !l_cur->cache_data.multichannel)
+            continue;
+        s_ledger_out_candidate_t *l_cand = DAP_NEW_Z(s_ledger_out_candidate_t);
+        if (!l_cand)
+            break;
+        l_cand->tx_hash = l_cur->tx_hash_fast;
+        l_cand->atom_hash = l_cur->atom_hash;
+        l_cand->datum_index = l_cur->datum_index;
+        l_cand->atom_link_valid = l_cur->atom_link_valid;
+        l_cand->n_outs = l_cur->cache_data.n_outs;
+        l_candidates = dap_list_append(l_candidates, l_cand);
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+
+    // Phase 2: parse each candidate's datum (pointwise block read when it is not
+    // already resident) and report the outputs that belong to the address.
+    dap_chain_t *l_chain = s_ledger_blocks_chain(a_ledger);
+    uint64_t l_found = 0;
+    dap_time_t l_chain_time = dap_ledger_get_blockchain_time(a_ledger);
+    for (dap_list_t *l_it = l_candidates; l_it; l_it = l_it->next) {
+        s_ledger_out_candidate_t *l_cand = (s_ledger_out_candidate_t *)l_it->data;
+        dap_ledger_tx_item_t *l_item = NULL;
+        // find_datum_by_hash also attaches the datum lazily when the snapshot is
+        // complete; otherwise the pointwise read below loads just this block.
+        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_datum_by_hash(a_ledger, &l_cand->tx_hash, &l_item, false);
+        if (!l_tx && l_cand->atom_link_valid && l_chain) {
+            dap_chain_datum_t *l_datum = NULL;
+            size_t l_datum_size = 0;
+            if (!dap_chain_cs_blocks_datum_at(l_chain, &l_cand->atom_hash, l_cand->datum_index, &l_datum, &l_datum_size)
+                    && l_datum && l_datum_size > sizeof(dap_chain_datum_t))
+                l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+        }
+        if (!l_tx)
+            continue;   // neither resident nor locatable by the index: nothing to read
+        const char *l_tx_ticker = l_item ? l_item->cache_data.token_ticker : NULL;
+        int l_out_idx = -1;
+        byte_t *l_out_item = NULL; size_t l_size = 0;
+        TX_ITEM_ITER_TX(l_out_item, l_size, l_tx) {
+            dap_chain_addr_t l_out_addr = { };
+            uint256_t l_value = { };
+            const char *l_out_token = NULL;
+            dap_time_t l_ts_unlock = 0;
+            bool l_is_output = true;
+            switch (*l_out_item) {
+            case TX_ITEM_TYPE_OUT:
+                ++l_out_idx;
+                l_out_addr = ((dap_chain_tx_out_t *)l_out_item)->addr;
+                l_value = ((dap_chain_tx_out_t *)l_out_item)->header.value;
+                break;
+            case TX_ITEM_TYPE_OUT_OLD:
+                ++l_out_idx;
+                l_out_addr = ((dap_chain_tx_out_old_t *)l_out_item)->addr;
+                l_value = dap_chain_uint256_from(((dap_chain_tx_out_old_t *)l_out_item)->header.value);
+                break;
+            case TX_ITEM_TYPE_OUT_EXT:
+                ++l_out_idx;
+                l_out_addr = ((dap_chain_tx_out_ext_t *)l_out_item)->addr;
+                l_value = ((dap_chain_tx_out_ext_t *)l_out_item)->header.value;
+                l_out_token = ((dap_chain_tx_out_ext_t *)l_out_item)->token;
+                break;
+            case TX_ITEM_TYPE_OUT_STD:
+                ++l_out_idx;
+                l_out_addr = ((dap_chain_tx_out_std_t *)l_out_item)->addr;
+                l_value = ((dap_chain_tx_out_std_t *)l_out_item)->value;
+                l_ts_unlock = ((dap_chain_tx_out_std_t *)l_out_item)->ts_unlock;
+                l_out_token = ((dap_chain_tx_out_std_t *)l_out_item)->token;
+                break;
+            case TX_ITEM_TYPE_OUT_COND: {
+                ++l_out_idx;
+                // A conditional output is held by the service: report the seller
+                // address the way the wallet cache stores it, so a consumer that
+                // mirrors this walk indexes the same key.
+                dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)l_out_item;
+                l_value = l_cond->header.value;
+                switch (l_cond->header.subtype) {
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX:
+                    l_out_addr = l_cond->subtype.srv_dex.seller_addr;
+                    break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
+                    l_out_addr = l_cond->subtype.srv_xchange.seller_addr;
+                    break;
+                default:
+                    l_is_output = false;   // no address of its own to index
+                    break;
+                }
+            } break;
+            default:
+                l_is_output = false;
+                break;
+            }
+            if (!l_is_output || dap_chain_addr_is_blank(&l_out_addr))
+                continue;
+            if (!dap_chain_addr_compare(&l_out_addr, a_addr))
+                continue;
+            // The plain token comes from the transaction record (it is set for the
+            // main ticker; a multichannel transaction carries the ticker per out).
+            if (!l_out_token)
+                l_out_token = l_tx_ticker;
+            if (a_token && (!l_out_token || dap_strcmp(l_out_token, a_token)))
+                continue;
+            if (dap_ledger_tx_hash_is_used_out_item(a_ledger, &l_cand->tx_hash, l_out_idx, NULL))
+                continue;
+            // Same rule the cache applies when it serves a lookup: a timed lock
+            // that has not expired yet is not spendable, so it stays out until it
+            // does (the cache re-checks the unlock time on every read anyway).
+            if (l_ts_unlock && l_ts_unlock > l_chain_time)
+                continue;
+            a_cb(a_arg, &l_cand->tx_hash, (uint32_t)l_out_idx, l_out_item ? *l_out_item : 0, l_ts_unlock,
+                 l_out_token ? l_out_token : "", &l_value);
+            ++l_found;
+        }
+    }
+    dap_list_free_full(l_candidates, NULL);
+    return l_found;
+}
+
 
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, -1 error, overwise returns 0
 int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback, dap_ledger_updater_callback_t a_callback_added, dap_ledger_delete_callback_t a_callback_deleted)
