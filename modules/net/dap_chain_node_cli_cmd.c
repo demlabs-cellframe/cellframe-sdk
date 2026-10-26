@@ -11401,7 +11401,12 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
             return -17;
         }
     } else {
-        l_policy_num = strtoull(l_num_str, NULL, 10);
+        // Accept "0x..." as well as decimal: the registry documents its numbers in
+        // hex (DAP_CHAIN_POLICY_* = 0xN) and policy list/find print them that way, so
+        // an operator copying "0xB" from the docs must not silently get 0 (which the
+        // next check would reject as "should be not equal 0") or, worse, an unrelated
+        // number.
+        l_policy_num = strtoull(l_num_str, NULL, 0);
         if (!l_policy_num) {
             dap_json_rpc_error_add(*a_json_arr_reply, -16, "Policy num sould be not equal 0");
             return -16;
@@ -11411,7 +11416,19 @@ int com_policy(int argc, char **argv, void **reply, int a_version) {
     if (l_cmd == CMD_FIND) {
         json_object *l_answer = dap_chain_policy_activate_json_collect(l_net->pub.id, l_policy_num);
         if (l_answer) {
+            // "active" is retained for compatibility but compares the node's WALL
+            // clock, which is what dap_chain_policy_is_activated() uses - it can
+            // disagree with what the validators actually enforce. The rule itself
+            // compares against the ledger's blockchain time, so report that verdict
+            // as well and let callers use it to decide whether the rule is in force
+            // on the chain (and not just on this node's clock).
             json_object_object_add(l_answer, "active", json_object_new_string(dap_chain_policy_is_activated(l_net->pub.id, l_policy_num) ? "true" : "false"));
+            dap_time_t l_ts_start = 0;
+            bool l_has_policy = dap_chain_policy_get_ts_start(l_net->pub.id, l_policy_num, &l_ts_start);
+            dap_time_t l_chain_ts = l_net->pub.ledger ? dap_ledger_get_blockchain_time(l_net->pub.ledger) : 0;
+            json_object_object_add(l_answer, "active_by_chain_time",
+                                   json_object_new_string(l_has_policy && l_ts_start && l_ts_start <= l_chain_ts ? "true" : "false"));
+            json_object_object_add(l_answer, "chain_time", json_object_new_int64(l_chain_ts));
             json_object_array_add(*a_json_arr_reply, l_answer);
         } else {
             json_object_array_add(*a_json_arr_reply, json_object_new_string("Detailed information not exist"));

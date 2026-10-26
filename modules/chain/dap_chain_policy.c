@@ -357,7 +357,9 @@ dap_chain_policy_t *dap_chain_policy_create_deactivate(char **a_nums, uint32_t a
     dap_chain_policy_deactivate_t *l_deactivate = (dap_chain_policy_deactivate_t *)l_ret->data;
     l_deactivate->count = a_count;
     for (uint32_t i = 0; i < l_deactivate->count; ++i) {
-        l_deactivate->nums[i] = strtoull(a_nums[i], NULL, 10);
+        // Base 0 accepts both decimal and 0x-hex, matching how the numbers are
+        // documented (DAP_CHAIN_POLICY_* = 0xN) and printed by policy list/find.
+        l_deactivate->nums[i] = strtoull(a_nums[i], NULL, 0);
     }
     return l_ret;
 }
