@@ -32,7 +32,14 @@ struct dap_rpc_cache_class {
     size_t cur_bytes;
     size_t cur_items;
     uint64_t epoch;
-    uint64_t hits, misses, evicts;
+    // The counters are bumped with __atomic_add_fetch(), i.e. a 64-bit atomic
+    // that needs 8-byte alignment. On a 32-bit target (Android x86, arm32) a
+    // uint64_t here would only be 4-byte aligned - after the size_t block above
+    // it lands on a 4-byte boundary - and clang rejects the operation with
+    // -Werror,-Watomic-alignment ("expected alignment (8 bytes) exceeds the
+    // actual alignment (4 bytes)"). _Alignas(8) pins the alignment without
+    // widening the counter or moving the field order.
+    _Alignas(8) uint64_t hits, misses, evicts;
     pthread_rwlock_t lock;
     dap_rpc_cache_entry_t *entries;
     struct dap_rpc_cache_class *next;
