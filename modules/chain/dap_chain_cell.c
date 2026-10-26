@@ -158,10 +158,14 @@ int dap_chain_cell_init(void)
         HMODULE ntdll = GetModuleHandle("ntdll.dll");
         if ( !ntdll )
             return log_it(L_CRITICAL, "Ntdll error"), -1;
-        pfnNtCreateSection      = (pfn_NtCreateSection)     GetProcAddress(ntdll, "NtCreateSection");
-        pfnNtMapViewOfSection   = (pfn_NtMapViewOfSection)  GetProcAddress(ntdll, "NtMapViewOfSection");
-        pfnNtExtendSection      = (pfn_NtExtendSection)     GetProcAddress(ntdll, "NtExtendSection");
-        pfnNtUnmapViewOfSection = (pfn_NtUnmapViewOfSection)GetProcAddress(ntdll, "NtUnmapViewOfSection");
+        // GetProcAddress returns FARPROC; casting it straight to a specific
+        // function-pointer type trips -Werror=cast-function-type (the CI MinGW
+        // job treats warnings as errors). Routing through void* is the
+        // conventional way to convert between function-pointer types here.
+        pfnNtCreateSection      = (pfn_NtCreateSection)     (void *)GetProcAddress(ntdll, "NtCreateSection");
+        pfnNtMapViewOfSection   = (pfn_NtMapViewOfSection)  (void *)GetProcAddress(ntdll, "NtMapViewOfSection");
+        pfnNtExtendSection      = (pfn_NtExtendSection)     (void *)GetProcAddress(ntdll, "NtExtendSection");
+        pfnNtUnmapViewOfSection = (pfn_NtUnmapViewOfSection)(void *)GetProcAddress(ntdll, "NtUnmapViewOfSection");
     }
     
 #endif
@@ -210,7 +214,7 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
         NTSTATUS err = pfnNtCreateSection(&hSection, SECTION_MAP_READ | SECTION_EXTEND_SIZE,
                                           NULL, &SectionSize, PAGE_READWRITE, SEC_RESERVE, (HANDLE)_get_osfhandle(fileno(a_cell->file_storage)));
         if ( !NT_SUCCESS(err) )
-            return log_it(L_ERROR, "NtCreateSection() failed, status %lx", err), -1;
+            return log_it(L_ERROR, "NtCreateSection() failed, status %08X", (unsigned)err), -1;
         a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, hSection);
     }
 #endif
@@ -231,7 +235,10 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     err = pfnNtMapViewOfSection(hSection, GetCurrentProcess(), (HANDLE)&a_cell->map, 0, 0, 
                                 &Offset, &l_map_size, ViewUnmap, MEM_RESERVE, PAGE_READONLY);
     if ( !NT_SUCCESS(err) )
-        return NtClose(hSection), log_it(L_ERROR, "NtMapViewOfSection() failed, status %lx", err), -1;
+        // NTSTATUS is a LONG (int) here, so "%lx" mismatched its type and the CI
+        // MinGW job failed the file with -Werror=format. Print it as unsigned.
+        return NtClose(hSection), log_it(L_ERROR, "NtMapViewOfSection() failed, status %08X",
+                                         (unsigned)err), -1;
 #else
     if (a_load)
         s_cell_reclaim_cur_volume(a_cell);
@@ -939,7 +946,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             HANDLE hSection = (HANDLE)a_cell->map_range_bounds->data;
             NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
             if ( !NT_SUCCESS(err) ) {
-                log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+                log_it(L_ERROR, "NtExtendSection() failed, status %08X", (unsigned)err);
             }
         } else
 #endif
@@ -1096,7 +1103,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
                 HANDLE hSection = (HANDLE)a_cell->map_range_bounds->data;
                 NTSTATUS err = pfnNtExtendSection(hSection, &SectionSize);
                 if ( !NT_SUCCESS(err) ) {
-                    log_it(L_ERROR, "NtExtendSection() failed, status %lx", err);
+                    log_it(L_ERROR, "NtExtendSection() failed, status %08X", (unsigned)err);
                     l_err = true;
                 }
             }
