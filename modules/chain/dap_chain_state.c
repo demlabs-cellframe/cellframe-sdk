@@ -699,8 +699,21 @@ int dap_chain_state_kv_del(dap_chain_state_kv_t *a_kv, uint64_t a_id)
     s_kv_entry_t *l_e = NULL;
     HASH_FIND(hh, a_kv->by_id, &a_id, sizeof(uint64_t), l_e);
     if (l_e) {
+        // Two tables, two handles: HASH_DEL(head, el) always deletes the hh
+        // handle (HASH_DELETE expands to HASH_DELETE_HH(hh, head, &el->hh)), so
+        // the second call deleted the SAME element from by_id a second time and
+        // never touched by_name. The consequences were not just a wrong count:
+        // the double unlink corrupts the by_id chain, and once the element is
+        // the last one HASH_DELETE_HH frees the table and NULLs the head it was
+        // given - i.e. it wiped by_id (the "head" of the by_name call) while
+        // by_name still held entries. Entries then stayed reachable by name after
+        // their memory was freed (use-after-free, double free on the next delete
+        // of that name), and once the name table was orphaned the name lookup
+        // missed again and re-minted ids - the same duplicate growth the lookup
+        // fix addressed. HASH_DELETE_HH is what deletes from the by-name table,
+        // because the handle is passed explicitly.
+        HASH_DELETE_HH(hh_name, a_kv->by_name, &l_e->hh_name);
         HASH_DEL(a_kv->by_id, l_e);
-        HASH_DEL(a_kv->by_name, l_e);
         DAP_DEL_Z(l_e->value);
         DAP_DELETE(l_e->name);
         DAP_DELETE(l_e);
@@ -739,8 +752,11 @@ int dap_chain_state_kv_clear(dap_chain_state_kv_t *a_kv)
     s_kv_entry_t *l_e = NULL, *l_tmp = NULL;
     size_t l_n = 0;
     HASH_ITER(hh, a_kv->by_id, l_e, l_tmp) {
+        // Same two-handle rule as dap_chain_state_kv_del(): the by-name table
+        // must be unlinked through its own handle, or it keeps pointers to freed
+        // entries (and the second HASH_DEL re-unlinks by_id instead).
+        HASH_DELETE_HH(hh_name, a_kv->by_name, &l_e->hh_name);
         HASH_DEL(a_kv->by_id, l_e);
-        HASH_DEL(a_kv->by_name, l_e);
         DAP_DEL_Z(l_e->value);
         DAP_DELETE(l_e->name);
         DAP_DELETE(l_e);
@@ -812,7 +828,12 @@ int dap_chain_state_kv_load(const uint8_t *a_data, size_t a_size)
         memcpy(&l_ts, l_ptr, sizeof(l_ts)); l_ptr += sizeof(l_ts);
         memcpy(&l_nlen, l_ptr, sizeof(l_nlen)); l_ptr += sizeof(l_nlen);
         memcpy(&l_vlen, l_ptr, sizeof(l_vlen)); l_ptr += sizeof(l_vlen);
-        if (!l_id || !l_nlen || (size_t)(l_end - l_ptr) < (size_t)l_nlen + l_vlen || l_ptr[l_nlen - 1])
+        // Compare against the remaining bytes one field at a time: the sum of two
+        // 32-bit lengths overflows size_t on a 32-bit build, and the check would
+        // then pass while l_ptr[l_nlen - 1] reads far past the buffer.
+        size_t l_rem = (size_t)(l_end - l_ptr);
+        if (!l_id || !l_nlen || (size_t)l_nlen > l_rem || (size_t)l_vlen > l_rem - l_nlen
+                || l_ptr[l_nlen - 1])
             return -4;
         const char *l_name = (const char *)l_ptr;
         l_ptr += l_nlen;
@@ -825,13 +846,18 @@ int dap_chain_state_kv_load(const uint8_t *a_data, size_t a_size)
         ++l_loaded;
     }
     pthread_rwlock_wrlock(&l_kv->lock);
-    // IDs come from the dump: keep the counter ahead of everything restored.
-    if (l_next_id > l_kv->next_id)
-        l_kv->next_id = l_next_id;
-    pthread_rwlock_unlock(&l_kv->lock);
-    log_it(L_NOTICE, "Chain state: restored %zu state-cache entries for net 0x%016" DAP_UINT64_FORMAT_x,
-           l_loaded, l_net_id);
-    return l_ptr == l_end ? 0 : -6;
+        // IDs come from the dump: keep the counter ahead of everything restored.
+        // The value is not trusted - it is read from a file, and a bogus/attacker
+        // supplied counter at UINT64_MAX would wrap on the next ++ and hand out
+        // ids that are already occupied (two entries with one id, kv_set/kv_del
+        // then act on the wrong one). Only a value the restored entries actually
+        // justify is adopted.
+        if (l_next_id > l_kv->next_id && l_next_id != UINT64_MAX)
+            l_kv->next_id = l_next_id;
+        pthread_rwlock_unlock(&l_kv->lock);
+        log_it(L_NOTICE, "Chain state: restored %zu state-cache entries for net 0x%016" DAP_UINT64_FORMAT_x,
+               l_loaded, l_net_id);
+        return l_ptr == l_end ? 0 : -6;
 }
 
 /* ---- string facade over the id-addressed cache ----
@@ -841,14 +867,9 @@ int dap_chain_state_kv_load(const uint8_t *a_data, size_t a_size)
  */
 #include "dap_chain_state_cache.h"
 
-static uint64_t s_cache_ns(const char *a_group)
-{
-    dap_hash_fast_t l_hash = {};
-    dap_hash_fast(a_group, strlen(a_group), &l_hash);
-    uint64_t l_ns = 0;
-    memcpy(&l_ns, &l_hash, sizeof(l_ns));
-    return l_ns ? l_ns : 1;
-}
+// Resolves a group name to its namespace and records the group for the scoped
+// snapshot dump (defined with the scoping helpers below the facade).
+static uint64_t s_cache_ns(const char *a_group);
 
 int dap_chain_state_cache_set(const char *a_group, const char *a_key, const void *a_value, size_t a_value_len)
 {
@@ -926,21 +947,130 @@ int dap_chain_state_cache_clear(const char *a_group)
     return l_kv ? dap_chain_state_kv_clear(l_kv) : -2;
 }
 
-int dap_chain_state_cache_dump_all(dap_string_t *a_out)
+/* Group -> network ownership.
+ * The cache is keyed by group NAME, and the names say which network a registry
+ * belongs to: every network-specific one embeds the net name as a dot-delimited
+ * segment ("scorpion.service.orders", "local.dex-cache.scorpion.hist"), while
+ * node-global registries name no network ("local.wallet_shared"). The host
+ * registers its network names here, so ownership is decided by matching segments
+ * - no guessing: a group that matches no registered network stays global.
+ *
+ * Why it matters: without this EVERY namespace was dumped into EVERY network's
+ * snapshot. On cf-mm-0 the section was byte-identical in both profiles (20.8 MB
+ * each); in the bloated era it was 2.33 GB, the same order of magnitude that
+ * pushed the payload past the loader's cap. A namespace written into the wrong
+ * network's file duplicates bytes and mixes one network's registry into another.
+ */
+#define DAP_CHAIN_STATE_GROUP_NETS_MAX 8
+#define DAP_CHAIN_STATE_GROUP_NET_NAME_MAX 64
+
+static size_t s_group_nets_registered = 0;
+static char s_group_nets[DAP_CHAIN_STATE_GROUP_NETS_MAX][DAP_CHAIN_STATE_GROUP_NET_NAME_MAX];
+// Group name recorded per namespace, so a dump can tell per-network registries
+// from node-global ones. Filled the first time a group is used.
+static char s_ns_group_name[DAP_CHAIN_STATE_GROUP_NETS_MAX][DAP_CHAIN_STATE_GROUP_NET_NAME_MAX];
+static pthread_mutex_t s_group_nets_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void dap_chain_state_cache_set_net_names(const char *const *a_names, size_t a_count)
+{
+    pthread_mutex_lock(&s_group_nets_lock);
+    s_group_nets_registered = 0;
+    for (size_t i = 0; a_names && i < a_count && s_group_nets_registered < DAP_CHAIN_STATE_GROUP_NETS_MAX; ++i) {
+        if (!a_names[i] || !*a_names[i] || strlen(a_names[i]) >= DAP_CHAIN_STATE_GROUP_NET_NAME_MAX)
+            continue;
+        dap_strncpy(s_group_nets[s_group_nets_registered], a_names[i], DAP_CHAIN_STATE_GROUP_NET_NAME_MAX - 1);
+        ++s_group_nets_registered;
+    }
+    pthread_mutex_unlock(&s_group_nets_lock);
+    log_it(L_INFO, "Chain state: %zu network name(s) registered for cache scoping", s_group_nets_registered);
+}
+
+// Records the group a namespace belongs to (first use wins).
+static void s_ns_group_record(uint64_t a_ns, const char *a_group)
+{
+    if (!a_ns || !a_group || !*a_group || strlen(a_group) >= DAP_CHAIN_STATE_GROUP_NET_NAME_MAX)
+        return;
+    pthread_mutex_lock(&s_group_nets_lock);
+    char *l_slot = s_ns_group_name[a_ns % DAP_CHAIN_STATE_GROUP_NETS_MAX];
+    if (!*l_slot)
+        dap_strncpy(l_slot, a_group, DAP_CHAIN_STATE_GROUP_NET_NAME_MAX - 1);
+    pthread_mutex_unlock(&s_group_nets_lock);
+}
+
+static uint64_t s_cache_ns(const char *a_group)
+{
+    dap_hash_fast_t l_hash = {};
+    dap_hash_fast(a_group, strlen(a_group), &l_hash);
+    uint64_t l_ns = 0;
+    memcpy(&l_ns, &l_hash, sizeof(l_ns));
+    if (!l_ns)
+        l_ns = 1;
+    s_ns_group_record(l_ns, a_group);
+    return l_ns;
+}
+
+// Should this namespace go into the snapshot of network a_net_name? Global
+// namespaces go into all of them; a per-network namespace only into its own.
+static bool s_ns_belongs_to_net(uint64_t a_ns, const char *a_net_name)
+{
+    if (!a_net_name || !*a_net_name)
+        return true;   // no scoping requested: keep everything
+    char l_group[DAP_CHAIN_STATE_GROUP_NET_NAME_MAX] = { 0 };
+    pthread_mutex_lock(&s_group_nets_lock);
+    dap_strncpy(l_group, s_ns_group_name[a_ns % DAP_CHAIN_STATE_GROUP_NETS_MAX], sizeof(l_group) - 1);
+    size_t l_nets = s_group_nets_registered;
+    char l_nets_copy[DAP_CHAIN_STATE_GROUP_NETS_MAX][DAP_CHAIN_STATE_GROUP_NET_NAME_MAX];
+    memcpy(l_nets_copy, s_group_nets, sizeof(l_nets_copy));
+    pthread_mutex_unlock(&s_group_nets_lock);
+    if (!l_group[0])
+        return true;   // unknown group: treat as node-global rather than drop state
+    // Walk the group's segments: a segment equal to one of the registered
+    // networks makes the group network-specific.
+    bool l_per_net = false, l_matches_this_net = false;
+    const char *l_seg = l_group;
+    while (l_seg && *l_seg) {
+        const char *l_dot = strchr(l_seg, '.');
+        size_t l_len = l_dot ? (size_t)(l_dot - l_seg) : strlen(l_seg);
+        for (size_t i = 0; i < l_nets; ++i) {
+            if (strlen(l_nets_copy[i]) != l_len || strncmp(l_nets_copy[i], l_seg, l_len))
+                continue;
+            l_per_net = true;
+            if (strlen(a_net_name) == l_len && !strncmp(a_net_name, l_seg, l_len))
+                l_matches_this_net = true;
+        }
+        l_seg = l_dot ? l_dot + 1 : NULL;
+    }
+    if (!l_per_net)
+        return true;    // names no network: node-global
+    return l_matches_this_net;
+}
+
+// Dump for one network. a_net_name == NULL keeps every namespace (the historic
+// behaviour, used by diagnostics); a name restricts the dump to node-global
+// namespaces plus those that name that network. The count is written after the
+// namespaces are known to fit, so it always matches what follows.
+static int s_cache_dump_scoped(dap_string_t *a_out, const char *a_net_name)
 {
     if (!a_out)
         return -1;
     pthread_mutex_lock(&s_kv_regs_lock);
-    uint32_t l_count = 0;
+    // Pass 1: how many namespaces are actually going in.
+    uint32_t l_selected = 0;
     for (s_kv_reg_t *l_it = s_kv_regs; l_it; l_it = l_it->next)
-        ++l_count;
-    bool l_ok = dap_string_append_len(a_out, (const char *)&l_count, sizeof(l_count)) != NULL;
+        if (s_ns_belongs_to_net(l_it->kv.net_id, a_net_name))
+            ++l_selected;
+    bool l_ok = dap_string_append_len(a_out, (const char *)&l_selected, sizeof(l_selected)) != NULL;
     for (s_kv_reg_t *l_it = s_kv_regs; l_ok && l_it; l_it = l_it->next) {
         dap_chain_state_kv_t *l_kv = &l_it->kv;
+        if (!s_ns_belongs_to_net(l_kv->net_id, a_net_name))
+            continue;
         pthread_rwlock_rdlock(&l_kv->lock);
+        size_t l_entries = HASH_COUNT(l_kv->by_id);
         struct DAP_PACKED { uint64_t ns, next_id; uint32_t count; } l_hdr = {
-            l_kv->net_id, l_kv->next_id, (uint32_t)HASH_COUNT(l_kv->by_id) };
+            l_kv->net_id, l_kv->next_id, (uint32_t)l_entries };
         l_ok = dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)) != NULL;
+        // Even an empty namespace is dumped: its next_id is the counter a later
+        // live entry continues from, and dropping the namespace would restart it.
         for (s_kv_entry_t *l_e = l_kv->by_id; l_ok && l_e; l_e = l_e->hh.next) {
             uint32_t l_nlen = (uint32_t)(strlen(l_e->name) + 1);
             uint32_t l_vlen = (uint32_t)l_e->value_len;
@@ -956,6 +1086,16 @@ int dap_chain_state_cache_dump_all(dap_string_t *a_out)
     }
     pthread_mutex_unlock(&s_kv_regs_lock);
     return l_ok ? 0 : -2;
+}
+
+int dap_chain_state_cache_dump_all(dap_string_t *a_out)
+{
+    return s_cache_dump_scoped(a_out, NULL);
+}
+
+int dap_chain_state_cache_dump_net(dap_string_t *a_out, const char *a_net_name)
+{
+    return s_cache_dump_scoped(a_out, a_net_name);
 }
 
 int dap_chain_state_cache_load_all(const uint8_t *a_data, size_t a_size)
@@ -986,7 +1126,11 @@ int dap_chain_state_cache_load_all(const uint8_t *a_data, size_t a_size)
             memcpy(&l_ts, l_ptr, sizeof(l_ts)); l_ptr += sizeof(l_ts);
             memcpy(&l_nlen, l_ptr, sizeof(l_nlen)); l_ptr += sizeof(l_nlen);
             memcpy(&l_vlen, l_ptr, sizeof(l_vlen)); l_ptr += sizeof(l_vlen);
-            if (!l_nlen || (size_t)(l_end - l_ptr) < (size_t)l_nlen + l_vlen || l_ptr[l_nlen - 1])
+            // Field-by-field compare: the sum of two 32-bit lengths overflows a
+            // 32-bit size_t and would let l_ptr[l_nlen - 1] read out of bounds.
+            size_t l_rem = (size_t)(l_end - l_ptr);
+            if (!l_nlen || (size_t)l_nlen > l_rem || (size_t)l_vlen > l_rem - l_nlen
+                    || l_ptr[l_nlen - 1])
                 return -5;
             const char *l_name = (const char *)l_ptr;
             l_ptr += l_nlen;
@@ -999,7 +1143,8 @@ int dap_chain_state_cache_load_all(const uint8_t *a_data, size_t a_size)
             ++l_loaded;
         }
         pthread_rwlock_wrlock(&l_kv->lock);
-        if (l_next_id > l_kv->next_id)
+        // Same rule as the per-net load: never adopt a counter that would wrap.
+        if (l_next_id > l_kv->next_id && l_next_id != UINT64_MAX)
             l_kv->next_id = l_next_id;
         pthread_rwlock_unlock(&l_kv->lock);
     }

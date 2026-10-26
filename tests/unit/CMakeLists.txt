@@ -180,3 +180,30 @@ set_tests_properties(xchange_fee_contract PROPERTIES
     TIMEOUT 60
     LABELS "unit;xchange;regression"
 )
+
+# Chain-state KV: deleting a key and writing it again must not touch freed memory.
+# The delete unlinked both uthash tables through one handle, so the by-name table
+# kept a pointer to the freed entry and the next write to that name corrupted the
+# heap (it crashed the DEX integration test - see chain_state_kv_uaf_test.c).
+add_executable(chain_state_kv_uaf_test
+    chain_state_kv_uaf_test.c
+)
+
+target_include_directories(chain_state_kv_uaf_test PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_SOURCE_DIR}/modules/chain/include
+)
+
+target_link_libraries(chain_state_kv_uaf_test
+    dap_test
+    dap_core
+    dap_chain_common
+    dap_chain
+)
+
+add_test(NAME chain_state_kv_uaf COMMAND chain_state_kv_uaf_test)
+
+set_tests_properties(chain_state_kv_uaf PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;state;regression"
+)
