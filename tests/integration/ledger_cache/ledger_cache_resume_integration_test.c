@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>	// access() in the stale-state regression check
 
 #include "dap_common.h"
 #include "dap_config.h"
@@ -110,14 +111,35 @@ static void s_setup(void)
     snprintf(s_cfg_dir, sizeof(s_cfg_dir), "%s/ledger_cache_resume_test_config", test_get_temp_dir());
     snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/ledger_cache_resume_test_gdb", test_get_temp_dir());
     snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/ledger_cache_resume_test_certs", test_get_temp_dir());
+    // Regression: the GlobalDB directory must start empty. It is a FIXED path
+    // under the temp dir, so a previous run of this test (or a killed one) leaves
+    // its MDBX files behind; opening them again makes the old token/emission
+    // records visible to the new run and the very first fixture step fails with
+    // "Datum already cached in ledger" - the test then reports a failure that has
+    // nothing to do with ledger-cache resume. Wipe the three dirs before use.
+    dap_rm_rf(s_cfg_dir);
+    dap_rm_rf(s_gdb_dir);
+    dap_rm_rf(s_certs_dir);
+    // The dir must really be gone now; a leftover here is exactly the state that
+    // made the run fail (checked rather than assumed, so the regression is
+    // reported as itself instead of as a downstream fixture error).
+    dap_assert_PIF(access(s_gdb_dir, F_OK) != 0,
+                   "Stale GlobalDB directory removed before the run (regression: dirty state breaks token creation)");
     dap_mkdir_with_parents(s_cfg_dir);
     dap_mkdir_with_parents(s_certs_dir);
 
     // Config that points GlobalDB at a private directory (same shape as the
-    // DEX integration test uses).
+    // DEX integration test uses) and selects the cache implementation under test:
+    // this test verifies the GlobalDB-group cache (records in the txs group), and
+    // with the snapshot cache on by default those group writes are deliberately
+    // disabled (see the "cached && !snapshot_mode" gates in dap_chain_ledger.c) -
+    // the state then lives in the snapshot file instead and every txs-group
+    // assertion below would read zero. The snapshot path has its own coverage, so
+    // pin this test to the mechanism it was written for.
     char l_config_content[2048];
     snprintf(l_config_content, sizeof(l_config_content),
         "[general]\ndebug_mode=true\n"
+        "[ledger]\nsnapshot_cache=false\n"
         "[global_db]\ndriver=%s\npath=%s\n"
         "[resources]\nca_folders=%s\n", getenv("LCR_GDB_DRIVER") ? getenv("LCR_GDB_DRIVER") : "mdbx", s_gdb_dir, s_certs_dir);
     char l_config_path[1024];
