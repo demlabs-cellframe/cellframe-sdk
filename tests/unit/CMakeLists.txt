@@ -154,3 +154,29 @@ set_tests_properties(order_signature_unit PROPERTIES
     TIMEOUT 60
     LABELS "unit;order;signature"
 )
+
+# Xchange service-fee contract: get_fee() must leave its out-parameters defined
+# even when no fee is configured (a caller read the address unconditionally and
+# compared uninitialized stack bytes - see xchange_fee_contract_test.c).
+add_executable(xchange_fee_contract_test
+    xchange_fee_contract_test.c
+)
+
+target_include_directories(xchange_fee_contract_test PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_SOURCE_DIR}/modules/service/xchange/include
+)
+
+target_link_libraries(xchange_fee_contract_test
+    dap_test
+    dap_core
+    dap_chain_common
+    dap_chain_net_srv_xchange
+)
+
+add_test(NAME xchange_fee_contract COMMAND xchange_fee_contract_test)
+
+set_tests_properties(xchange_fee_contract PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;xchange;regression"
+)

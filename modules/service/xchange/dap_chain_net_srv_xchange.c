@@ -801,7 +801,7 @@ static int s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_o
     uint256_t l_buy_val = {}, l_fee_val = {},
               l_sell_again_val = {}, l_service_fee_val = {};
 
-    dap_chain_addr_t l_service_fee_addr, *l_seller_addr = &a_tx_out_cond->subtype.srv_xchange.seller_addr;
+    dap_chain_addr_t l_service_fee_addr = { }, *l_seller_addr = &a_tx_out_cond->subtype.srv_xchange.seller_addr;
     uint16_t l_service_fee_type = 0;
     dap_chain_net_t *l_net = a_ledger->net;
     bool l_service_fee_used = dap_chain_net_srv_xchange_get_fee(l_net->pub.id, &l_service_fee_val, &l_service_fee_addr, &l_service_fee_type);
@@ -960,8 +960,20 @@ bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a
     dap_chain_net_srv_fee_item_t *l_fee = NULL;
     HASH_FIND(hh,s_service_fees, &a_net_id, sizeof(a_net_id), l_fee);
     pthread_rwlock_unlock(&s_service_fees_rwlock);
-    if (!l_fee || IS_ZERO_256(l_fee->fee))
+    if (!l_fee || IS_ZERO_256(l_fee->fee)) {
+        // "No fee configured" must still leave the outputs in a defined state:
+        // callers read the address unconditionally (the memcmp in
+        // s_xchange_verificator_callback()), so returning with the caller's
+        // stack garbage in place made that comparison meaningless. Zero the
+        // outputs and return - the contract the xchange_fee_contract test pins.
+        if (a_addr)
+            *a_addr = (dap_chain_addr_t){ };
+        if (a_fee)
+            *a_fee = uint256_0;
+        if (a_type)
+            *a_type = 0;
         return false;
+    }
     if (a_type)
         *a_type = l_fee->fee_type;
     if (a_addr)
@@ -1122,7 +1134,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
               l_service_fee,
               l_total_fee = a_datoshi_fee,
               l_fee_transfer;
-    dap_chain_addr_t l_net_fee_addr, l_service_fee_addr;
+    dap_chain_addr_t l_net_fee_addr = { }, l_service_fee_addr = { };
     dap_list_t *l_list_fee_out = NULL;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
