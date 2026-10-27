@@ -130,6 +130,10 @@ int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast
 // Block number by hash from the block cache (thin entries included, no body
 // read). 0 when the block is unknown.
 uint64_t dap_chain_cs_blocks_number_by_hash(dap_chain_t *a_chain, const dap_hash_fast_t *a_block_hash);
+// Block hash by number from the block cache (thin entries included). False when
+// the block is not cached.
+bool dap_chain_cs_blocks_hash_by_num(dap_chain_t *a_chain, uint64_t a_block_num,
+                                     dap_chain_hash_fast_t *a_block_hash);
 // Builds the block cache from the chain-state index (no cell-body reads). Blocks
 // are thin until dap_chain_block_cache_ensure() parses them. Returns the number
 // of restored blocks or <0.

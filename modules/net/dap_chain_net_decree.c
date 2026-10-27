@@ -63,19 +63,268 @@ uint64_t dap_chain_net_decree_unknown_count(void)
     return atomic_load(&s_unknown_decree_count);
 }
 
+static void s_list_free_full(dap_list_t *a_list)
+{
+    for (dap_list_t *l_it = a_list; l_it; l_it = l_it->next)
+        DAP_DELETE(l_it->data);
+    dap_list_free(a_list);
+}
+
+// True when this build knows the decree subtype, i.e. its effect is carried by a
+// dedicated snapshot section (esbocs_state, stake, ledger_state, decrees/policy,
+// net_params) rather than by the journal. See s_common_decree_handler().
+static bool s_decree_subtype_is_known(uint16_t a_subtype)
+{
+    switch (a_subtype) {
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_PKEY_UPDATE:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_POLICY:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_ADD:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EVENT_PKEY_REMOVE:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMPTY_BLOCKGEN:
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CONSENSUS_VERSION:
+        return true;
+    default:
+        return false;
+    }
+}
+
+/* *** Network parameters state section ("net_params") ***
+ * Decree-driven network state that has no section of its own, kept per the
+ * state-not-operation rule: the snapshot carries the RESULT (a fee, an owners
+ * set, a rewards history, a ban list, stake limits) together with the time it
+ * was last changed, not the decrees that produced it. Fee is the worst case the
+ * journal never covered - its replay path runs with a_anchored=false, so every
+ * restart silently reverted the fee to the config value.
+ */
+#define DAP_NET_PARAMS_SECTION "net_params"
+#define DAP_NET_PARAMS_VERSION 1
+
+// Fields tracked for their last-change time.
+typedef enum {
+    S_NET_PARAMS_TS_FEE = 0,
+    S_NET_PARAMS_TS_OWNERS,
+    S_NET_PARAMS_TS_REWARD,
+    S_NET_PARAMS_TS_BAN,
+    S_NET_PARAMS_TS_STAKE,
+    S_NET_PARAMS_TS_COUNT
+} s_net_params_ts_field_t;
+
+typedef struct s_net_params_ts {
+    uint64_t net_id;
+    dap_time_t ts[S_NET_PARAMS_TS_COUNT];
+    UT_hash_handle hh;
+} s_net_params_ts_t;
+
+static s_net_params_ts_t *s_net_params_ts_tbl;
+static pthread_mutex_t s_net_params_ts_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void s_net_params_ts_note(uint64_t a_net_id, s_net_params_ts_field_t a_field, dap_time_t a_ts)
+{
+    if (!a_ts)
+        return;
+    pthread_mutex_lock(&s_net_params_ts_lock);
+    s_net_params_ts_t *l_rec = NULL;
+    HASH_FIND(hh, s_net_params_ts_tbl, &a_net_id, sizeof(a_net_id), l_rec);
+    if (!l_rec) {
+        l_rec = DAP_NEW_Z(s_net_params_ts_t);
+        if (!l_rec) {
+            pthread_mutex_unlock(&s_net_params_ts_lock);
+            return;
+        }
+        l_rec->net_id = a_net_id;
+        HASH_ADD(hh, s_net_params_ts_tbl, net_id, sizeof(uint64_t), l_rec);
+    }
+    if (a_field < S_NET_PARAMS_TS_COUNT && a_ts > l_rec->ts[a_field])
+        l_rec->ts[a_field] = a_ts;
+    pthread_mutex_unlock(&s_net_params_ts_lock);
+}
+
+static dap_time_t s_net_params_ts_get(uint64_t a_net_id, s_net_params_ts_field_t a_field)
+{
+    dap_time_t l_ret = 0;
+    pthread_mutex_lock(&s_net_params_ts_lock);
+    s_net_params_ts_t *l_rec = NULL;
+    HASH_FIND(hh, s_net_params_ts_tbl, &a_net_id, sizeof(a_net_id), l_rec);
+    if (l_rec && a_field < S_NET_PARAMS_TS_COUNT)
+        l_ret = l_rec->ts[a_field];
+    pthread_mutex_unlock(&s_net_params_ts_lock);
+    return l_ret;
+}
+
+typedef struct DAP_ALIGN_PACKED s_net_params_hdr {
+    uint32_t version;
+    uint32_t flags;                 // bit0: the fee record follows
+    uint64_t net_id;
+    uint16_t num_of_owners;
+    uint16_t min_num_of_owners;
+    uint32_t n_owner_pkeys;
+    uint32_t n_rewards;
+    uint32_t n_bans;
+    uint32_t reserved;
+    dap_time_t ts_fee;
+    dap_time_t ts_owners;
+    dap_time_t ts_reward;
+    dap_time_t ts_ban;
+    dap_time_t ts_stake;
+} s_net_params_hdr_t;
+
+#define S_NET_PARAMS_FLAG_FEE 0x1
+
+typedef struct DAP_ALIGN_PACKED s_net_params_fee_rec {
+    uint8_t value[32];
+    uint8_t addr[sizeof(dap_chain_addr_t)];
+} s_net_params_fee_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_net_params_stake_rec {
+    uint8_t allowed_min[32];
+    uint8_t percent_max[32];
+} s_net_params_stake_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_net_params_reward_rec {
+    uint64_t block_num;
+    uint8_t value[32];
+} s_net_params_reward_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_net_params_owner_rec {
+    uint16_t size;                  // dap_pkey_t total size, bytes follow
+    uint16_t reserved;
+} s_net_params_owner_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_net_params_ban_rec {
+    uint8_t decree_hash[32];
+    dap_time_t ts;
+    uint16_t addr_len;              // bytes follow
+    uint16_t reserved;
+} s_net_params_ban_rec_t;
+
+typedef struct s_net_params_dump_ctx {
+    dap_string_t *out;
+    uint32_t *n_rewards;
+    uint32_t *n_bans;
+} s_net_params_dump_ctx_t;
+
+static void s_net_params_reward_cb(uint64_t a_block_num, uint256_t a_reward, void *a_arg)
+{
+    s_net_params_dump_ctx_t *l_ctx = (s_net_params_dump_ctx_t *)a_arg;
+    s_net_params_reward_rec_t l_rec = { .block_num = a_block_num, .value = { 0 } };
+    memcpy(l_rec.value, &a_reward, sizeof(l_rec.value));
+    if (dap_string_append_len(l_ctx->out, (const char *)&l_rec, sizeof(l_rec)))
+        ++*l_ctx->n_rewards;
+}
+
+static int s_net_params_ban_cb(const char *a_addr, dap_hash_fast_t a_decree_hash, dap_time_t a_ts, void *a_arg)
+{
+    s_net_params_dump_ctx_t *l_ctx = (s_net_params_dump_ctx_t *)a_arg;
+    size_t l_len = a_addr ? strlen(a_addr) : 0;
+    if (!l_len || l_len > 255)
+        return 0;   // skip the malformed entry, keep the walk going
+    s_net_params_ban_rec_t l_rec = { .decree_hash = { 0 }, .ts = a_ts, .addr_len = (uint16_t)l_len, .reserved = 0 };
+    memcpy(l_rec.decree_hash, &a_decree_hash, sizeof(l_rec.decree_hash));
+    if (dap_string_append_len(l_ctx->out, (const char *)&l_rec, sizeof(l_rec))
+            && dap_string_append_len(l_ctx->out, a_addr, l_len)) {
+        ++*l_ctx->n_bans;
+        return 0;
+    }
+    return -1;      // stop the walk on the first append failure
+}
+
+static int s_net_params_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_net)
+        return 0;
+    dap_string_t *l_body = dap_string_new("");
+    if (!l_body)
+        return -2;
+    s_net_params_hdr_t l_hdr = {
+        .version = DAP_NET_PARAMS_VERSION,
+        .net_id = a_net_id,
+        .ts_fee = s_net_params_ts_get(a_net_id, S_NET_PARAMS_TS_FEE),
+        .ts_owners = s_net_params_ts_get(a_net_id, S_NET_PARAMS_TS_OWNERS),
+        .ts_reward = s_net_params_ts_get(a_net_id, S_NET_PARAMS_TS_REWARD),
+        .ts_ban = s_net_params_ts_get(a_net_id, S_NET_PARAMS_TS_BAN),
+        .ts_stake = s_net_params_ts_get(a_net_id, S_NET_PARAMS_TS_STAKE),
+    };
+    bool l_ok = true;
+    // Fee: present only when the live state has one (get_fee fills both fields).
+    uint256_t l_fee_value;
+    dap_chain_addr_t l_fee_addr;
+    if (dap_chain_net_tx_get_fee(l_net->pub.id, &l_fee_value, &l_fee_addr)
+            && !dap_chain_addr_is_blank(&l_fee_addr)) {
+        l_hdr.flags |= S_NET_PARAMS_FLAG_FEE;
+        s_net_params_fee_rec_t l_rec;
+        memcpy(l_rec.value, &l_fee_value, sizeof(l_rec.value));
+        memcpy(l_rec.addr, &l_fee_addr, sizeof(l_rec.addr));
+        l_ok = dap_string_append_len(l_body, (const char *)&l_rec, sizeof(l_rec));
+    }
+    // Owners: the live list the decree verification runs against.
+    if (l_ok) {
+        dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(l_net);
+        if (l_net_decree) {
+            l_hdr.num_of_owners = l_net_decree->num_of_owners;
+            l_hdr.min_num_of_owners = l_net_decree->min_num_of_owners;
+            for (dap_list_t *l_it = l_net_decree->pkeys; l_ok && l_it; l_it = l_it->next) {
+                dap_pkey_t *l_pkey = (dap_pkey_t *)l_it->data;
+                if (!l_pkey || l_pkey->header.size > 4096)
+                    continue;
+                s_net_params_owner_rec_t l_rec = { .size = (uint16_t)(sizeof(dap_pkey_t) + l_pkey->header.size), .reserved = 0 };
+                l_ok = dap_string_append_len(l_body, (const char *)&l_rec, sizeof(l_rec))
+                        && dap_string_append_len(l_body, (const char *)l_pkey, l_rec.size);
+                ++l_hdr.n_owner_pkeys;
+            }
+        }
+    }
+    // Rewards history, oldest first (add_reward refuses retrospective entries).
+    uint32_t l_n_rewards = 0, l_n_bans = 0;
+    s_net_params_dump_ctx_t l_ctx = { .out = l_body, .n_rewards = &l_n_rewards, .n_bans = &l_n_bans };
+    if (l_ok)
+        dap_chain_net_enum_rewards(l_net, s_net_params_reward_cb, &l_ctx);
+    l_hdr.n_rewards = l_n_rewards;
+    l_hdr.n_bans = l_n_bans;
+    // Stake limits.
+    if (l_ok) {
+        s_net_params_stake_rec_t l_rec;
+        uint256_t l_min = dap_chain_net_srv_stake_get_allowed_min_value(l_net->pub.id);
+        uint256_t l_max = dap_chain_net_srv_stake_get_percent_max(l_net->pub.id);
+        memcpy(l_rec.allowed_min, &l_min, sizeof(l_rec.allowed_min));
+        memcpy(l_rec.percent_max, &l_max, sizeof(l_rec.percent_max));
+        l_ok = dap_string_append_len(l_body, (const char *)&l_rec, sizeof(l_rec));
+    }
+    // Ban list (a dap-sdk global list; carried by every net's snapshot, deduped on load).
+    if (l_ok && dap_http_ban_list_client_enum(s_net_params_ban_cb, &l_ctx) == (size_t)-1)
+        l_ok = false;
+    if (!l_ok) {
+        dap_string_free(l_body, true);
+        return -2;
+    }
+    l_ok = dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr))
+            && dap_string_append_len(a_out, l_body->str, l_body->len);
+    dap_string_free(l_body, true);
+    return l_ok ? 0 : -2;
+}
+
 /* *** Decree journal (snapshot section "decree_journal") ***
- * The decree table itself is in-memory only: it is built by walking the chain.
- * A snapshot-based start walks no datums, so without this section every decree
- * effect that has no dedicated section of its own (esbocs consensus version and
- * its strict-era boundary, min validators, fee, rewards, bans) is lost, and a
- * decree carrying a subtype this build does not know could never become
- * effective after an upgrade without a full rescan.
- *
- * The section stores the decree datums themselves, in chain order. Loading
- * replays each one through the ordinary load path, i.e. with the CURRENT binary:
- * an unknown subtype is recorded (see the default branch of the common handler)
- * and applied as soon as a build understands it, while known ones re-apply
- * idempotently (decree table -123, policy -4, anchor -111).
+ * Carries ONLY the decrees this build does not understand (an unknown type or
+ * subtype): those have no snapshot section of their own, and recording them is
+ * what lets a later build apply them without a full chain scan. Known subtypes
+ * are state, and their state lives in the dedicated sections (net_params,
+ * esbocs_state, stake, ledger_state, decrees/policy) - storing the datums here
+ * as well would either double-apply on restore or drift out of sync with the
+ * sections.
  */
 #define DAP_NET_DECREE_JOURNAL_SECTION "decree_journal"
 #define DAP_NET_DECREE_JOURNAL_VERSION 1
@@ -112,9 +361,16 @@ static int s_decree_journal_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a
     if (!l_decrees)
         return 0;
     size_t l_count = 0;
-    for (decree_table_t *l_it = *l_decrees; l_it; l_it = l_it->hh.next)
-        if (l_it->decree)
-            ++l_count;
+    for (decree_table_t *l_it = *l_decrees; l_it; l_it = l_it->hh.next) {
+        if (!l_it->decree)
+            continue;
+        // A decree this build understands is state already carried by a dedicated
+        // section; the journal keeps only what no section knows about.
+        if (l_it->decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON
+                && s_decree_subtype_is_known(l_it->decree->header.sub_type))
+            continue;
+        ++l_count;
+    }
     if (!l_count)
         return 0;
     // Chain order, not hash order: some decrees adjust values that others set
@@ -123,9 +379,14 @@ static int s_decree_journal_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a
     if (!l_sorted)
         return -2;
     size_t l_n = 0;
-    for (decree_table_t *l_it = *l_decrees; l_it; l_it = l_it->hh.next)
-        if (l_it->decree)
-            l_sorted[l_n++] = l_it->decree;
+    for (decree_table_t *l_it = *l_decrees; l_it; l_it = l_it->hh.next) {
+        if (!l_it->decree)
+            continue;
+        if (l_it->decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON
+                && s_decree_subtype_is_known(l_it->decree->header.sub_type))
+            continue;
+        l_sorted[l_n++] = l_it->decree;
+    }
     qsort(l_sorted, l_n, sizeof(dap_chain_datum_decree_t *), s_decree_journal_cmp);
     s_decree_journal_hdr_t l_hdr = { .version = DAP_NET_DECREE_JOURNAL_VERSION,
             .net_id = a_net_id, .count = l_n };
@@ -173,7 +434,7 @@ static int s_decree_journal_load(void *a_ctx, const uint8_t *a_data, size_t a_si
     if (!l_chain)
         return -4;
     const uint8_t *l_ptr = a_data + sizeof(l_hdr), *l_end = a_data + a_size;
-    size_t l_applied = 0, l_kept = 0;
+    size_t l_applied = 0, l_kept = 0, l_skipped = 0;
     for (uint64_t i = 0; i < l_hdr.count; ++i) {
         if ((size_t)(l_end - l_ptr) < sizeof(s_decree_journal_rec_t))
             return -5;
@@ -191,6 +452,17 @@ static int s_decree_journal_load(void *a_ctx, const uint8_t *a_data, size_t a_si
         }
         dap_hash_fast_t l_hash = {};
         dap_hash_fast(l_decree, l_rec.size, &l_hash);
+        // A known subtype must NOT re-apply here: its state was restored by the
+        // dedicated sections (net_params, esbocs_state, stake, ...), and a second
+        // application would corrupt it - a REWARD decree would add a second entry,
+        // a BAN decree would refuse an already-banned address. Old-format journals
+        // (this build and earlier stored every decree) degrade through this skip.
+        if (l_decree->header.type == DAP_CHAIN_DATUM_DECREE_TYPE_COMMON
+                && s_decree_subtype_is_known(l_decree->header.sub_type)) {
+            ++l_skipped;
+            l_ptr += l_rec.size;
+            continue;
+        }
         // Replay through the ordinary path: verification, then apply. Already applied
         // decrees are refused there (-123), which makes the replay idempotent.
         int l_rc = dap_chain_net_decree_load(l_decree, l_chain, &l_hash);
@@ -200,15 +472,137 @@ static int s_decree_journal_load(void *a_ctx, const uint8_t *a_data, size_t a_si
             ++l_kept;   // recorded, not effective (unknown subtype, or already reverted)
         l_ptr += l_rec.size;
     }
-    log_it(L_NOTICE, "Decree journal: %zu decree(s) replayed (%zu effective, %zu recorded without effect)",
-           (size_t)l_hdr.count, l_applied, l_kept);
+    log_it(L_NOTICE, "Decree journal: %zu decree(s) replayed (%zu effective, %zu recorded without effect, "
+           "%zu skipped - state carried by sections)",
+           (size_t)l_hdr.count, l_applied, l_kept, l_skipped);
+    return 0;
+}
+
+static int s_net_params_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < sizeof(s_net_params_hdr_t))
+        return -1;
+    s_net_params_hdr_t l_hdr;
+    memcpy(&l_hdr, a_data, sizeof(l_hdr));
+    if (l_hdr.version != DAP_NET_PARAMS_VERSION) {
+        log_it(L_WARNING, "Net params: unsupported format version %u (this build understands %u)",
+               l_hdr.version, DAP_NET_PARAMS_VERSION);
+        return -2;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = l_hdr.net_id });
+    if (!l_net)
+        return -3;
+    const uint8_t *l_ptr = a_data + sizeof(l_hdr), *l_end = a_data + a_size;
+#define NP_TAKE(a_buf, a_sz) \
+    do { if ((size_t)(l_end - l_ptr) < (size_t)(a_sz)) return -4; \
+         memcpy((a_buf), l_ptr, (size_t)(a_sz)); l_ptr += (size_t)(a_sz); } while (0)
+    // Fee. Blank addresses never passed the dump, but the file is untrusted.
+    if (l_hdr.flags & S_NET_PARAMS_FLAG_FEE) {
+        s_net_params_fee_rec_t l_rec;
+        NP_TAKE(&l_rec, sizeof(l_rec));
+        uint256_t l_value;
+        dap_chain_addr_t l_addr;
+        memcpy(&l_value, l_rec.value, sizeof(l_value));
+        memcpy(&l_addr, l_rec.addr, sizeof(l_addr));
+        if (!dap_chain_addr_is_blank(&l_addr))
+            dap_chain_net_tx_set_fee(l_net->pub.id, l_value, l_addr);
+    }
+    // Owners: replace the verification list wholesale, like the OWNERS decree
+    // does - but only when the section actually carried one, so that a net whose
+    // previous run ran on config certificates keeps them.
+    if (l_hdr.n_owner_pkeys) {
+        dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(l_net);
+        dap_list_t *l_pkeys = NULL;
+        bool l_bad = false;
+        for (uint32_t i = 0; i < l_hdr.n_owner_pkeys && !l_bad; ++i) {
+            s_net_params_owner_rec_t l_rec;
+            NP_TAKE(&l_rec, sizeof(l_rec));
+            if (l_rec.size < sizeof(dap_pkey_t) || (size_t)(l_end - l_ptr) < l_rec.size) {
+                l_bad = true;
+                break;
+            }
+            dap_pkey_t *l_pkey = DAP_DUP_SIZE((void *)(uintptr_t)l_ptr, l_rec.size);
+            l_ptr += l_rec.size;
+            if (l_pkey->header.size != l_rec.size - sizeof(dap_pkey_t)) {
+                DAP_DELETE(l_pkey);
+                l_bad = true;
+                break;
+            }
+            l_pkeys = dap_list_append(l_pkeys, l_pkey);
+        }
+        if (l_bad) {
+            s_list_free_full(l_pkeys);
+            return -5;
+        }
+        if (l_net_decree) {
+            for (dap_list_t *l_it = l_net_decree->pkeys; l_it; l_it = l_it->next)
+                DAP_DELETE(l_it->data);
+            dap_list_free(l_net_decree->pkeys);
+            l_net_decree->pkeys = l_pkeys;
+            l_net_decree->num_of_owners = (uint16_t)l_hdr.n_owner_pkeys;
+            if (l_hdr.min_num_of_owners)
+                l_net_decree->min_num_of_owners = l_hdr.min_num_of_owners;
+        } else
+            s_list_free_full(l_pkeys);
+    }
+    // Rewards history, ascending block numbers; add_reward refuses retrospective
+    // entries on its own, so an already-restored (or config-preset) history is
+    // never duplicated.
+    for (uint32_t i = 0; i < l_hdr.n_rewards; ++i) {
+        s_net_params_reward_rec_t l_rec;
+        NP_TAKE(&l_rec, sizeof(l_rec));
+        uint256_t l_value;
+        memcpy(&l_value, l_rec.value, sizeof(l_value));
+        dap_chain_net_add_reward(l_net, l_value, l_rec.block_num);
+    }
+    // Stake limits: the setters recompute what depends on them (weights, locked
+    // values of config-era keys), same as the decree apply path does.
+    {
+        s_net_params_stake_rec_t l_rec;
+        NP_TAKE(&l_rec, sizeof(l_rec));
+        uint256_t l_min, l_max;
+        memcpy(&l_min, l_rec.allowed_min, sizeof(l_min));
+        memcpy(&l_max, l_rec.percent_max, sizeof(l_max));
+        dap_chain_net_srv_stake_set_allowed_min_value(l_net->pub.id, l_min);
+        dap_chain_net_srv_stake_set_percent_max(l_net->pub.id, l_max);
+    }
+    // Ban list: adds are deduplicated inside the ban list itself.
+    for (uint32_t i = 0; i < l_hdr.n_bans; ++i) {
+        s_net_params_ban_rec_t l_rec;
+        NP_TAKE(&l_rec, sizeof(l_rec));
+        if (!l_rec.addr_len || l_rec.addr_len > 255 || (size_t)(l_end - l_ptr) < l_rec.addr_len)
+            return -6;
+        char l_addr[256];
+        memcpy(l_addr, l_ptr, l_rec.addr_len);
+        l_ptr += l_rec.addr_len;
+        l_addr[l_rec.addr_len] = '\0';
+        dap_hash_fast_t l_hash;
+        memcpy(&l_hash, l_rec.decree_hash, sizeof(l_hash));
+        dap_http_ban_list_client_add(l_addr, l_hash, l_rec.ts);
+    }
+#undef NP_TAKE
+    // Last-change times: never move them backwards.
+    s_net_params_ts_note(l_hdr.net_id, S_NET_PARAMS_TS_FEE, l_hdr.ts_fee);
+    s_net_params_ts_note(l_hdr.net_id, S_NET_PARAMS_TS_OWNERS, l_hdr.ts_owners);
+    s_net_params_ts_note(l_hdr.net_id, S_NET_PARAMS_TS_REWARD, l_hdr.ts_reward);
+    s_net_params_ts_note(l_hdr.net_id, S_NET_PARAMS_TS_BAN, l_hdr.ts_ban);
+    s_net_params_ts_note(l_hdr.net_id, S_NET_PARAMS_TS_STAKE, l_hdr.ts_stake);
+    log_it(L_NOTICE, "Net params: restored fee %s, %u owner key(s) (min %u), %u reward(s), "
+           "%u ban(s), stake limits", (l_hdr.flags & S_NET_PARAMS_FLAG_FEE) ? "set" : "not set",
+           l_hdr.n_owner_pkeys, l_hdr.min_num_of_owners, l_hdr.n_rewards, l_hdr.n_bans);
     return 0;
 }
 
 int dap_chain_net_decree_journal_init(void)
 {
+    // Registered back-to-front on purpose: the pending-section apply runs in the
+    // reverse registration order, so net_params restores the state first and the
+    // journal (unknown decrees only) is replayed after it.
     dap_ledger_add_snapshot_section(DAP_NET_DECREE_JOURNAL_SECTION, 0,
             s_decree_journal_dump, s_decree_journal_load, NULL);
+    dap_ledger_add_snapshot_section(DAP_NET_PARAMS_SECTION, 0,
+            s_net_params_dump, s_net_params_load, NULL);
     return 0;
 }
 
@@ -571,8 +965,10 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 }
                 if (!a_apply)
                     break;
-                if (!dap_chain_net_tx_set_fee(a_net->pub.id, l_value, l_addr))
+                if (!dap_chain_net_tx_set_fee(a_net->pub.id, l_value, l_addr)) {
                     log_it(L_ERROR, "Can't set fee value for network %s", a_net->pub.name);
+                } else
+                    s_net_params_ts_note(a_net->pub.id.uint64, S_NET_PARAMS_TS_FEE, a_decree->header.ts_created);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
             l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_owners_num);
@@ -580,13 +976,41 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get ownners from decree.");
                 return -104;
             }
-            if (!a_apply)
+            if (!a_apply) {
+                // The dry run only validates; the fetched TSD list is temporary here.
+                s_list_free_full(l_owners_list);
                 break;
+            }
+            // The owner keys arrive wrapped in TSD records, but the pkeys list - and
+            // s_verify_pkey with it - works with plain dap_pkey_t pointers (that is
+            // what the certificate path stores). Storing the TSD wrappers here made
+            // every later owner-signature check read the record header instead of
+            // the key and fail, silently breaking decree verification until restart.
             dap_chain_net_decree_t *l_net_decree = dap_chain_net_get_net_decree(a_net);
+            if (!l_net_decree) {
+                s_list_free_full(l_owners_list);
+                log_it(L_WARNING, "Decree module hasn't been initialized yet");
+                return -108;
+            }
+            dap_list_t *l_pkeys = NULL;
+            for (dap_list_t *l_it = l_owners_list; l_it; l_it = l_it->next) {
+                dap_tsd_t *l_tsd = (dap_tsd_t *)l_it->data;
+                if (!l_tsd || l_tsd->size < sizeof(dap_pkey_t)
+                        || l_tsd->size != sizeof(dap_pkey_t) + ((dap_pkey_t *)l_tsd->data)->header.size) {
+                    log_it(L_WARNING, "Invalid owner pkey record of size %u in decree", l_tsd ? l_tsd->size : 0);
+                    s_list_free_full(l_pkeys);
+                    s_list_free_full(l_owners_list);
+                    return -104;
+                }
+                l_pkeys = dap_list_append(l_pkeys, DAP_DUP_SIZE((byte_t *)l_tsd->data, l_tsd->size));
+            }
+            s_list_free_full(l_owners_list);
+            for (dap_list_t *l_it = l_net_decree->pkeys; l_it; l_it = l_it->next)
+                DAP_DELETE(l_it->data);
+            dap_list_free(l_net_decree->pkeys);
+            l_net_decree->pkeys = l_pkeys;
             l_net_decree->num_of_owners = l_owners_num;
-            dap_list_free_full(l_net_decree->pkeys, NULL);
-
-            l_net_decree->pkeys = l_owners_list;
+            s_net_params_ts_note(a_net->pub.id.uint64, S_NET_PARAMS_TS_OWNERS, a_decree->header.ts_created);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
             if (dap_chain_datum_decree_get_min_owners(a_decree, &l_value)) {
@@ -599,7 +1023,12 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
+            if (!dap_chain_net_get_net_decree(a_net)) {
+                log_it(L_WARNING, "Decree module hasn't been initialized yet");
+                return -108;
+            }
             dap_chain_net_get_net_decree(a_net)->min_num_of_owners = dap_uint256_to_uint64(l_value);
+            s_net_params_ts_note(a_net->pub.id.uint64, S_NET_PARAMS_TS_OWNERS, a_decree->header.ts_created);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
             if (dap_chain_datum_decree_get_hash(a_decree, &l_hash)){
@@ -666,6 +1095,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_apply)
                 break;
             dap_chain_net_srv_stake_set_allowed_min_value(a_net->pub.id, l_value);
+            s_net_params_ts_note(a_net->pub.id.uint64, S_NET_PARAMS_TS_STAKE, a_decree->header.ts_created);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT: {
             if (dap_chain_datum_decree_get_stake_min_signers_count(a_decree, &l_value)){
@@ -708,6 +1138,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             dap_hash_fast_t l_decree_hash = {0};
             dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
             dap_http_ban_list_client_add(l_ban_addr, l_decree_hash, a_decree->header.ts_created);
+            s_net_params_ts_note(a_net->pub.id.uint64, S_NET_PARAMS_TS_BAN, a_decree->header.ts_created);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN: {
             if (dap_chain_datum_decree_get_ban_addr(a_decree, &l_ban_addr)) {
@@ -721,6 +1152,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_apply)
                 break;
             dap_http_ban_list_client_remove(l_ban_addr);
+            s_net_params_ts_note(a_net->pub.id.uint64, S_NET_PARAMS_TS_BAN, a_decree->header.ts_created);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD: {
             if (dap_chain_datum_decree_get_value(a_decree, &l_value)) {
@@ -739,7 +1171,14 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_apply)
                 break;
             uint64_t l_cur_block_num = l_chain->callback_count_atom(l_chain);
+            // A re-applied reward decree (zone replay after an anchor holdback)
+            // must not add a second entry: the restored state already carries
+            // this value, and add_reward's retrospective guard only rejects
+            // entries anchored in the future.
+            if (compare256(dap_chain_net_get_reward(a_net, l_cur_block_num), l_value) == 0)
+                break;
             dap_chain_net_add_reward(a_net, l_value, l_cur_block_num);
+            s_net_params_ts_note(a_net->pub.id.uint64, S_NET_PARAMS_TS_REWARD, a_decree->header.ts_created);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_MAX_WEIGHT: {
             if (dap_chain_datum_decree_get_value(a_decree, &l_value)) {
@@ -762,6 +1201,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_apply)
                 break;
             dap_chain_net_srv_stake_set_percent_max(a_net->pub.id, l_value);
+            s_net_params_ts_note(a_net->pub.id.uint64, S_NET_PARAMS_TS_STAKE, a_decree->header.ts_created);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CHECK_SIGNS_STRUCTURE: {
             if (dap_chain_datum_decree_get_action(a_decree, &l_action)) {

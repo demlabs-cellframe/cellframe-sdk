@@ -3763,6 +3763,21 @@ void dap_chain_net_remove_last_reward(dap_chain_net_t *a_net)
     DL_DELETE(PVT(a_net)->rewards, PVT(a_net)->rewards);
 }
 
+void dap_chain_net_enum_rewards(dap_chain_net_t *a_net,
+        void (*a_cb)(uint64_t a_block_num, uint256_t a_reward, void *a_arg), void *a_arg)
+{
+    dap_return_if_fail(a_net && a_cb);
+    // The list is kept newest-first; report in the natural (ascending block) order.
+    dap_list_t *l_rev = NULL;
+    for (struct block_reward *l_r = PVT(a_net)->rewards; l_r; l_r = l_r->next)
+        l_rev = dap_list_prepend(l_rev, l_r);
+    for (dap_list_t *l_it = l_rev; l_it; l_it = l_it->next) {
+        struct block_reward *l_r = (struct block_reward *)l_it->data;
+        a_cb(l_r->block_number, l_r->reward, a_arg);
+    }
+    dap_list_free(l_rev);
+}
+
 uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
 {
     struct block_reward *l_reward;

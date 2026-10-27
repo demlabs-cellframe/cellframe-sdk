@@ -122,6 +122,18 @@ bool dap_ledger_snapshot_full_apply_enabled(dap_ledger_t *a_ledger);
  */
 void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger);
 
+/**
+ * @brief Record that a datum of block @a a_block_num did not apply to the
+ *        ledger. Keeps the lowest such block; the snapshot save anchors before
+ *        it so the file never claims coverage it does not carry.
+ */
+void dap_ledger_replay_datum_failed(dap_ledger_t *a_ledger, uint64_t a_block_num);
+
+/**
+ * @brief Clear the anchor holdback (after a purge or a full ledger rebuild).
+ */
+void dap_ledger_replay_fail_reset(dap_ledger_t *a_ledger);
+
 
 #ifdef __cplusplus
 }

@@ -2248,6 +2248,16 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
                 && l_res == DAP_LEDGER_CHECK_ALREADY_CACHED;
         if (!l_tx_already_cached)
             l_ret++;
+        // A transaction that did not apply means the ledger will not carry it:
+        // the snapshot must not claim coverage past this block, or the rejected
+        // tx - and everything spending its outputs - would be lost again on
+        // every restart with a growing cascade. Only transactions trigger the
+        // anchor holdback: duplicate decrees legitimately report codes of their
+        // own on replay (-123), their state is carried by the dedicated sections,
+        // and a re-applied ban decree would masquerade as a fresh failure.
+        if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX && l_res != 0
+                && l_res != DAP_LEDGER_CHECK_ALREADY_CACHED && l_notify_ledger)
+            dap_ledger_replay_datum_failed(l_notify_ledger, a_block_cache->block_number);
         // Index every datum - transactions restored from the ledger cache included.
         // Skipping cached ones used to leave them invisible to find-by-hash
         // consumers (wallet cache inputs, tx lookups): with a cache-fed ledger the
@@ -2796,6 +2806,29 @@ uint64_t dap_chain_cs_blocks_number_by_hash(dap_chain_t *a_chain, const dap_hash
     dap_hash_fast_t l_hash = *a_block_hash;
     s_blocks_hash_find_locked(l_blocks, &l_hash, &l_bc);
     return l_bc ? l_bc->block_number : 0;
+}
+
+bool dap_chain_cs_blocks_hash_by_num(dap_chain_t *a_chain, uint64_t a_block_num,
+                                     dap_chain_hash_fast_t *a_block_hash)
+{
+    if (!a_chain || !a_block_hash || !s_is_blocks_chain(a_chain))
+        return false;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    // No by-number index over the cache; the walk runs only when the ledger
+    // snapshot has to anchor below the tip (a datum failed to apply), which is
+    // rare and happens on a save timer, not on a hot path.
+    bool l_found = false;
+    s_blocks_rdlock(PVT(l_blocks));
+    dap_chain_block_cache_t *l_bc = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, PVT(l_blocks)->blocks, l_bc, l_tmp) {
+        if (l_bc->block_number == a_block_num) {
+            *a_block_hash = l_bc->block_hash;
+            l_found = true;
+            break;
+        }
+    }
+    s_blocks_unlock(PVT(l_blocks));
+    return l_found;
 }
 
 int dap_chain_cs_blocks_datum_at(dap_chain_t *a_chain, const dap_chain_hash_fast_t *a_atom_hash,
