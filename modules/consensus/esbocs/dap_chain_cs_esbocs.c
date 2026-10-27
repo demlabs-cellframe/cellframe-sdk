@@ -3414,6 +3414,9 @@ DAP_STATIC_INLINE bool s_block_is_emergency(dap_chain_block_t *a_block, size_t a
     return dap_chain_block_meta_get(a_block, a_block_size, DAP_CHAIN_BLOCK_META_EMERGENCY);
 }
 
+// Lock-free on purpose: the emergency list mutates under pvt->state_lock, and
+// the callers either hold it already (the decree handlers, write side) or take
+// the read lock around this call (block verification, CLI listing).
 static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr)
 {
     for (dap_list_t *it = PVT(a_esbocs)->emergency_validator_addrs; it; it = it->next) {
@@ -4498,7 +4501,15 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             }
         }
         if (i == 0) {
-            if (l_block_is_emergency && !s_check_emergency_rights(l_esbocs, &l_signing_addr)) {
+            // The emergency list is mutated by decree handlers and the snapshot
+            // load under state_lock; this verify thread takes it for the read.
+            bool l_is_emergency_validator = false;
+            if (l_block_is_emergency) {
+                pthread_rwlock_rdlock(&l_esbocs_pvt->state_lock);
+                l_is_emergency_validator = s_check_emergency_rights(l_esbocs, &l_signing_addr) != NULL;
+                pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
+            }
+            if (l_block_is_emergency && !l_is_emergency_validator) {
                 if (l_esbocs_pvt->debug) {
                     char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(a_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
@@ -4520,7 +4531,11 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             if (l_block_is_emergency) {
                 // Emergency block signer must be an emergency validator or a member of the
                 // declared committee
-                if (!s_check_emergency_rights(l_esbocs, &l_signing_addr) && l_signs_check_required &&
+                bool l_is_emergency_validator = false;
+                pthread_rwlock_rdlock(&l_esbocs_pvt->state_lock);
+                l_is_emergency_validator = s_check_emergency_rights(l_esbocs, &l_signing_addr) != NULL;
+                pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
+                if (!l_is_emergency_validator && l_signs_check_required &&
                         !s_check_signing_rights(l_esbocs, l_block, l_block_size, &l_signing_addr, false)) {
                     if (l_esbocs_pvt->debug) {
                         char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
@@ -4918,9 +4933,13 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
             }
         } else {
             json_object * json_obj_out = json_object_new_object();
+            // The list mutates under state_lock (decree handlers, snapshot load);
+            // the CLI thread reads it under the read side.
+            pthread_rwlock_rdlock(&l_esbocs_pvt->state_lock);
             s_print_emergency_validators(json_obj_out, l_esbocs_pvt->emergency_validator_addrs, a_version);
+            pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
             json_object_array_add(*a_json_arr_reply, json_obj_out);
-            }            
+            }
     } break;
 
     case SUBCMD_STATUS: {
