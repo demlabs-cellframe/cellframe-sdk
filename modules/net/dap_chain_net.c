@@ -116,6 +116,7 @@
 #include "dap_context.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_policy.h"
+#include "dap_chain_state_cache.h"   // dap_chain_state_cache_set_net_names (snapshot scoping)
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -1061,6 +1062,16 @@ void dap_chain_net_load_all()
     uint16_t l_nets_count = HASH_COUNT(s_nets_by_name);
     if (!l_nets_count)
         return log_it(L_ERROR, "No networks initialized!");
+    // Every network exists now, so the state cache can be told which names are
+    // networks: its scoped snapshot dump uses them to keep one network's
+    // registries out of another network's file.
+    {
+        const char *l_net_names[l_nets_count];
+        size_t l_n = 0;
+        for (dap_chain_net_t *l_it = s_nets_by_name; l_it && l_n < l_nets_count; l_it = l_it->hh.next)
+            l_net_names[l_n++] = l_it->pub.name;
+        dap_chain_state_cache_set_net_names(l_net_names, l_n);
+    }
     pthread_t l_tids[l_nets_count];
     dap_chain_net_t *l_net = s_nets_by_name;
     dap_timerfd_t *l_load_notify_timer = dap_timerfd_start(5000, (dap_timerfd_callback_t)s_net_disk_load_notify_callback, NULL);

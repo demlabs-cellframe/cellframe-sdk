@@ -29,6 +29,14 @@ void dap_chain_state_cache_raw_free(dap_store_obj_t *a_objs, size_t a_count);
 size_t dap_chain_state_cache_count(const char *a_group);
 int dap_chain_state_cache_clear(const char *a_group);
 int dap_chain_state_cache_dump_all(dap_string_t *a_out);
+// Scoped dump: node-global namespaces plus the ones naming a_net_name (a registry
+// group embeds its network name as a dot-delimited segment). Without the scope
+// every namespace went into every network's snapshot - the same bytes in each
+// file, and one network's registry mixed into another's.
+int dap_chain_state_cache_dump_net(dap_string_t *a_out, const char *a_net_name);
+// Registers the host's network names, so the scoped dump can tell a per-network
+// group from a node-global one. Call once after the networks are created.
+void dap_chain_state_cache_set_net_names(const char *const *a_names, size_t a_count);
 int dap_chain_state_cache_load_all(const uint8_t *a_data, size_t a_size);
 
 #ifdef __cplusplus

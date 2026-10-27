@@ -3222,7 +3222,7 @@ typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_wallet_record {
     uint64_t ts_unlock;
 } dap_ledger_snapshot_wallet_record_t;
 
-#define DAP_LEDGER_SNAPSHOT_MAX_SECTIONS 16
+#define DAP_LEDGER_SNAPSHOT_MAX_SECTIONS 24
 
 typedef struct DAP_ALIGN_PACKED dap_ledger_snapshot_section_desc {
     char name[DAP_LEDGER_SNAPSHOT_SECTION_NAME_MAX];
@@ -3393,7 +3393,10 @@ static int s_snapshot_service_groups_load(void *a_ctx, const uint8_t *a_data, si
             l_ptr += sizeof(l_klen);
             memcpy(&l_vlen, l_ptr, sizeof(l_vlen));
             l_ptr += sizeof(l_vlen);
-            if (!l_klen || (size_t)(l_end - l_ptr) < (size_t)l_klen + l_vlen
+            // Field-by-field compare: the sum of two 32-bit lengths overflows a
+            // 32-bit size_t, and l_ptr[l_klen - 1] would then read out of bounds.
+            size_t l_rem = (size_t)(l_end - l_ptr);
+            if (!l_klen || (size_t)l_klen > l_rem || (size_t)l_vlen > l_rem - l_klen
                     || l_ptr[l_klen - 1])
                 return -5;
             const char *l_key = (const char *)l_ptr;
@@ -3410,8 +3413,13 @@ static int s_snapshot_service_groups_load(void *a_ctx, const uint8_t *a_data, si
 static int s_snapshot_local_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
 {
     (void)a_ctx;
-    (void)a_net_id;
-    return dap_chain_state_cache_dump_all(a_out);
+    // Scoped to the network this snapshot belongs to: a registry group names its
+    // network, so the ones that name another network are left out (they travel in
+    // that network's own snapshot). Node-global groups are in every file. Without
+    // this the section was byte-identical across the profiles - the same state
+    // duplicated into each network, and one network's registry mixed into another.
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    return dap_chain_state_cache_dump_net(a_out, l_net ? l_net->pub.name : NULL);
 }
 
 static int s_snapshot_local_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
@@ -4278,7 +4286,11 @@ static int s_snapshot_ledger_state_load(void *a_ctx, const uint8_t *a_data, size
     }
     for (uint64_t i = 0; i < l_hdr.n_events; ++i) {
         SNAP_TAKE(s_snapshot_event_rec_t, l_rec);
-        if ((size_t)(l_end - l_ptr) < (size_t)l_rec.group_len + l_rec.data_size) {
+        // Field-by-field compare (see the service-groups loader): summing a
+        // uint16 and a uint32 length overflows a 32-bit size_t, after which the
+        // name/data copies read past the mapped payload.
+        size_t l_rem = (size_t)(l_end - l_ptr);
+        if ((size_t)l_rec.group_len > l_rem || (size_t)l_rec.data_size > l_rem - l_rec.group_len) {
             l_ret = -10;
             goto state_done;
         }
@@ -4771,6 +4783,16 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         dap_ledger_snapshot_section_desc_t l_descs[DAP_LEDGER_SNAPSHOT_MAX_SECTIONS] = {};
         s_snapshot_buf_t l_sections_buf = {};
         pthread_mutex_lock(&s_snapshot_sections_lock);
+        // Count what is actually registered: silently dropping the sections past
+        // the cap leaves their state unpersisted (a restart then has to rebuild
+        // it by scanning the chain), and nothing in the file says so.
+        size_t l_registered = 0;
+        for (s_ledger_snapshot_section_t *l_sec = s_snapshot_sections; l_sec; l_sec = l_sec->next)
+            if (l_sec->dump)
+                ++l_registered;
+        if (l_registered > DAP_LEDGER_SNAPSHOT_MAX_SECTIONS)
+            log_it(L_WARNING, "Ledger snapshot: %zu sections are registered but only %d fit - "
+                   "the remaining ones stay unpersisted", l_registered, DAP_LEDGER_SNAPSHOT_MAX_SECTIONS);
         for (s_ledger_snapshot_section_t *l_sec = s_snapshot_sections;
                 l_sec && l_n_sections < DAP_LEDGER_SNAPSHOT_MAX_SECTIONS; l_sec = l_sec->next) {
             if (!l_sec->dump)
@@ -5075,6 +5097,30 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
                l_header.version, l_header.header_size, l_header.net_id, l_header.block_num, l_header.payload_size);
         if (l_header.header_size > sizeof(l_header))
             fseek(l_file, (long)(l_header.header_size - sizeof(l_header)), SEEK_CUR);
+        // The declared payload must fit the file that actually holds it. Without
+        // this the mmap path below succeeds even when the header claims more
+        // bytes than exist (pages past EOF map fine), and the first read of them
+        // - the CRC pass right after - takes SIGBUS instead of being reported as
+        // a truncated snapshot (the heap fallback path detects it via fread).
+        // The header is not covered by the payload CRC, so the size in it is not
+        // trusted input.
+        {
+            off_t l_data_start = ftello(l_file);
+            off_t l_file_size = !fseeko(l_file, 0, SEEK_END) ? ftello(l_file) : -1;
+            // Rewind to the payload start: the probe above left the stream at EOF.
+            // A failed rewind leaves the position unknown, and the size check below
+            // rejects the snapshot (l_data_start < 0 covers it).
+            (void)fseeko(l_file, l_data_start, SEEK_SET);
+            if (l_data_start < 0 || l_file_size < 0
+                    || l_header.payload_size > (uint64_t)(l_file_size - l_data_start)) {
+                log_it(L_WARNING, "Ledger snapshot: %s declares a %" DAP_UINT64_FORMAT_U
+                       "-byte payload but holds %" DAP_INT64_FORMAT " byte(s) after the header - truncated, ignoring",
+                       l_path, l_header.payload_size,
+                       (l_data_start >= 0 && l_file_size >= 0) ? (int64_t)(l_file_size - l_data_start) : (int64_t)-1);
+                l_ret = 0;
+                break;
+            }
+        }
         if (l_header.payload_size) {
             // Map the payload instead of reading it into the heap: on the 8 GB
             // 0-rpc box two 1.7-1.9 GB payloads in malloc'd memory (plus a copy
