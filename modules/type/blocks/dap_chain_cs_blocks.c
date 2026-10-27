@@ -3072,6 +3072,8 @@ int dap_chain_cs_blocks_state_rebuild(dap_chain_t *a_chain)
         l_blocks_arr[l_count++] = l_bc;
     }
     s_blocks_unlock(PVT(l_blocks));
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
+    dap_ledger_rebuild_begin(l_ledger);
     uint64_t l_tx_count = 0;
     s_no_datum_notify = true;
     for (size_t i = 0; i < l_count; i++) {
@@ -3083,6 +3085,7 @@ int dap_chain_cs_blocks_state_rebuild(dap_chain_t *a_chain)
         }
     }
     s_no_datum_notify = false;
+    dap_ledger_rebuild_end(l_ledger);
     DAP_DELETE(l_blocks_arr);
     dap_chain_state_t *l_state = s_chain_state_get(l_blocks);
     if (l_state)

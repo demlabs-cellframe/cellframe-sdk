@@ -259,6 +259,10 @@ typedef struct dap_ledger_private {
     // growing set of transactions that spend its outputs.
     bool replay_fail_active;
     uint64_t replay_fail_num;
+    // A chain-state datum rebuild re-applies every block to the ledger; a
+    // snapshot written in the middle would capture a fraction of the state
+    // under a tip anchor, so saves are suppressed until it finishes.
+    bool rebuild_in_progress;
     // Full ledger snapshot (header flag bit2): the file carries the "ledger_state"
     // section with tokens/emissions/stake locks/rewards/events/locked-outs.
     // snapshot_full is set only after that section restored successfully; with
@@ -4635,6 +4639,13 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
                  a_ledger->net->pub.name);
         return 0;
     }
+    // Same for a chain-state datum rebuild in progress: the ledger is being
+    // re-populated block by block and a mid-rebuild file would carry a fraction
+    // of the state under a tip anchor.
+    if (l_ledger_pvt->rebuild_in_progress) {
+        debug_if(s_debug_more, L_DEBUG, "Ledger snapshot: save skipped while a datum rebuild is running");
+        return 0;
+    }
 
     // Never persist a position above the local cell files: an item without its datum is an
     // effect of a block that lives only in this process (accepted from the network while the
@@ -5030,6 +5041,18 @@ void dap_ledger_replay_fail_reset(dap_ledger_t *a_ledger)
         return;
     PVT(a_ledger)->replay_fail_active = false;
     PVT(a_ledger)->replay_fail_num = 0;
+}
+
+void dap_ledger_rebuild_begin(dap_ledger_t *a_ledger)
+{
+    if (a_ledger)
+        PVT(a_ledger)->rebuild_in_progress = true;
+}
+
+void dap_ledger_rebuild_end(dap_ledger_t *a_ledger)
+{
+    if (a_ledger)
+        PVT(a_ledger)->rebuild_in_progress = false;
 }
 
 // Structural validation of a snapshot payload BEFORE anything is applied. The

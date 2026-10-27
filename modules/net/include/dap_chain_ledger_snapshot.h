@@ -134,6 +134,14 @@ void dap_ledger_replay_datum_failed(dap_ledger_t *a_ledger, uint64_t a_block_num
  */
 void dap_ledger_replay_fail_reset(dap_ledger_t *a_ledger);
 
+/**
+ * @brief Suppress snapshot saves while a chain-state datum rebuild is
+ *        re-applying blocks to the ledger; call dap_ledger_rebuild_end() when
+ *        it finishes (also on the error paths).
+ */
+void dap_ledger_rebuild_begin(dap_ledger_t *a_ledger);
+void dap_ledger_rebuild_end(dap_ledger_t *a_ledger);
+
 
 #ifdef __cplusplus
 }
