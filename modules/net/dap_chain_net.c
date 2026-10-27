@@ -2060,8 +2060,18 @@ void dap_chain_net_snapshot_save_all(void)
 {
     dap_chain_net_t *l_net = NULL, *l_tmp = NULL;
     HASH_ITER(hh2, s_nets_by_id, l_net, l_tmp) {
-        if (l_net->pub.ledger)
-            dap_ledger_snapshot_save(l_net->pub.ledger, true);
+        if (!l_net->pub.ledger)
+            continue;
+        // A ledger still in load mode (a rebuild or a first scan in progress)
+        // holds a fraction of the state; anchoring it at the chain tip would
+        // claim coverage the file does not carry and the next start would
+        // trust it.
+        if (dap_chain_net_get_load_mode(l_net)) {
+            log_it(L_NOTICE, "Ledger snapshot: %s is still loading - shutdown save skipped",
+                   l_net->pub.name);
+            continue;
+        }
+        dap_ledger_snapshot_save(l_net->pub.ledger, true);
     }
 }
 

@@ -6603,6 +6603,158 @@ static char *s_dex_snapshot_group_hist(dap_chain_net_t *a_net, void *a_ctx)
     return a_net ? dap_strdup_printf("local.dex-cache.%s.hist", a_net->pub.name) : NULL;
 }
 
+/* *** DEX governance state section ("dex_state") ***
+ * Service decrees (fee_set / pair_add / pair_remove / pair_fee_set /
+ * pair_fee_set_all / pct_divisor_set) mutate exactly two in-memory tables -
+ * the pair whitelist and the per-net fee rows - and nothing else. A snapshot
+ * start applies none of those decrees, so the snapshot carries the RESULT:
+ * the whitelist as a list of pair keys, the fee rows as fixed records. The
+ * decrees themselves stay on chain; their replay above the anchor keeps
+ * mutating the restored tables through the ordinary path. */
+#define DEX_STATE_SECTION "dex_state"
+#define DEX_STATE_VERSION 1
+
+typedef struct DAP_ALIGN_PACKED s_dex_state_hdr {
+    uint32_t version;
+    uint32_t n_pairs;
+    uint32_t n_fee_rows;
+    uint32_t reserved;
+} s_dex_state_hdr_t;
+
+// Wire image of dex_pair_key_t without the trailing alignment padding.
+typedef struct DAP_ALIGN_PACKED s_dex_state_pair_rec {
+    uint64_t net_id_base, net_id_quote;
+    char token_base[DAP_CHAIN_TICKER_SIZE_MAX],
+         token_quote[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint8_t fee_config;
+} s_dex_state_pair_rec_t;
+
+typedef struct DAP_ALIGN_PACKED s_dex_state_fee_rec {
+    uint64_t net_id;
+    uint8_t native_fee_amount[32];
+    uint8_t service_fee_addr[sizeof(dap_chain_addr_t)];
+    uint16_t pct_divisor; // 0 = default (1000)
+    uint16_t reserved;
+} s_dex_state_fee_rec_t;
+
+static int s_dex_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    (void)a_net_id; // the tables are process-wide; the snapshot carries them all
+    s_dex_state_hdr_t l_hdr = { .version = DEX_STATE_VERSION };
+    dap_string_t *l_body = dap_string_new("");
+    if (!l_body)
+        return -2;
+    bool l_ok = true;
+    pthread_rwlock_rdlock(&s_dex_cache_rwlock);
+    dex_pair_index_t *l_pair, *l_pair_tmp;
+    HASH_ITER(hh, s_dex_pair_index, l_pair, l_pair_tmp) {
+        s_dex_state_pair_rec_t l_rec = {
+            .net_id_base = l_pair->key.net_id_base.uint64,
+            .net_id_quote = l_pair->key.net_id_quote.uint64,
+            .fee_config = l_pair->key.fee_config
+        };
+        memcpy(l_rec.token_base, l_pair->key.token_base, DAP_CHAIN_TICKER_SIZE_MAX);
+        memcpy(l_rec.token_quote, l_pair->key.token_quote, DAP_CHAIN_TICKER_SIZE_MAX);
+        if (!dap_string_append_len(l_body, (const char *)&l_rec, sizeof(l_rec))) {
+            l_ok = false;
+            break;
+        }
+        l_hdr.n_pairs++;
+    }
+    if (l_ok) {
+        dex_net_fee_cache_t *l_fee, *l_fee_tmp;
+        HASH_ITER(hh, s_dex_net_fee_tbl, l_fee, l_fee_tmp) {
+            s_dex_state_fee_rec_t l_rec = {
+                .net_id = l_fee->net_id.uint64,
+                .pct_divisor = l_fee->pct_divisor
+            };
+            memcpy(l_rec.native_fee_amount, &l_fee->native_fee_amount, sizeof(l_rec.native_fee_amount));
+            memcpy(l_rec.service_fee_addr, &l_fee->service_fee_addr, sizeof(l_rec.service_fee_addr));
+            if (!dap_string_append_len(l_body, (const char *)&l_rec, sizeof(l_rec))) {
+                l_ok = false;
+                break;
+            }
+            l_hdr.n_fee_rows++;
+        }
+    }
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    if (l_ok)
+        l_ok = dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr))
+                && dap_string_append_len(a_out, l_body->str, l_body->len);
+    dap_string_free(l_body, true);
+    if (!l_ok)
+        return -2;
+    if (l_hdr.n_pairs || l_hdr.n_fee_rows)
+        log_it(L_INFO, "DEX state: dumped %u pair(s), %u fee row(s)", l_hdr.n_pairs, l_hdr.n_fee_rows);
+    return 0;
+}
+
+static int s_dex_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < sizeof(s_dex_state_hdr_t))
+        return -1;
+    s_dex_state_hdr_t l_hdr;
+    memcpy(&l_hdr, a_data, sizeof(l_hdr));
+    if (l_hdr.version != DEX_STATE_VERSION) {
+        log_it(L_WARNING, "DEX state: unsupported format version %u (this build understands %u)",
+               l_hdr.version, DEX_STATE_VERSION);
+        return -2;
+    }
+    const uint8_t *l_ptr = a_data + sizeof(l_hdr), *l_end = a_data + a_size;
+    size_t l_pairs = 0, l_fees = 0;
+    pthread_rwlock_wrlock(&s_dex_cache_rwlock);
+    for (uint32_t i = 0; i < l_hdr.n_pairs; ++i) {
+        if ((size_t)(l_end - l_ptr) < sizeof(s_dex_state_pair_rec_t))
+            goto l_bad;
+        s_dex_state_pair_rec_t l_rec;
+        memcpy(&l_rec, l_ptr, sizeof(l_rec));
+        l_ptr += sizeof(l_rec);
+        dex_pair_key_t l_key = {};
+        l_key.net_id_base.uint64 = l_rec.net_id_base;
+        l_key.net_id_quote.uint64 = l_rec.net_id_quote;
+        memcpy(l_key.token_base, l_rec.token_base, DAP_CHAIN_TICKER_SIZE_MAX);
+        memcpy(l_key.token_quote, l_rec.token_quote, DAP_CHAIN_TICKER_SIZE_MAX);
+        l_key.token_base[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+        l_key.token_quote[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+        l_key.fee_config = l_rec.fee_config;
+        int l_rc = s_dex_pair_index_add(&l_key);
+        if (l_rc != 0 && l_rc != -1) { // -1 = already whitelisted: fine
+            log_it(L_WARNING, "DEX state: can't add pair %s/%s (error %d)", l_key.token_base, l_key.token_quote, l_rc);
+            continue;
+        }
+        l_pairs++;
+    }
+    for (uint32_t i = 0; i < l_hdr.n_fee_rows; ++i) {
+        if ((size_t)(l_end - l_ptr) < sizeof(s_dex_state_fee_rec_t))
+            goto l_bad;
+        s_dex_state_fee_rec_t l_rec;
+        memcpy(&l_rec, l_ptr, sizeof(l_rec));
+        l_ptr += sizeof(l_rec);
+        dex_net_fee_cache_t *l_nf = s_dex_get_srv_fee((dap_chain_net_id_t){ .uint64 = l_rec.net_id });
+        if (!l_nf) {
+            l_nf = DAP_NEW_Z(dex_net_fee_cache_t);
+            if (!l_nf)
+                continue;
+            l_nf->net_id.uint64 = l_rec.net_id;
+            HASH_ADD(hh, s_dex_net_fee_tbl, net_id, sizeof(dap_chain_net_id_t), l_nf);
+        }
+        memcpy(&l_nf->native_fee_amount, l_rec.native_fee_amount, sizeof(l_nf->native_fee_amount));
+        memcpy(&l_nf->service_fee_addr, l_rec.service_fee_addr, sizeof(l_nf->service_fee_addr));
+        l_nf->pct_divisor = l_rec.pct_divisor;
+        l_fees++;
+    }
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    if (l_pairs || l_fees)
+        log_it(L_NOTICE, "DEX state: restored %zu pair(s), %zu fee row(s)", l_pairs, l_fees);
+    return 0;
+l_bad:
+    pthread_rwlock_unlock(&s_dex_cache_rwlock);
+    log_it(L_WARNING, "DEX state: payload ends inside a record - section rejected");
+    return -3;
+}
+
 int dap_chain_net_srv_dex_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config, "srv_dex", "debug_more", false);
@@ -6613,6 +6765,12 @@ int dap_chain_net_srv_dex_init()
         s_dex_reply_cache_max_entries = 0, s_dex_reply_cache_max_bytes = 0; // cache off
     // Register verificator for SRV_DEX
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_DEX, s_dex_verificator_callback, NULL, NULL);
+    // DEX governance state: the pair whitelist and the per-net fee rows are
+    // mutated only by service decrees, and a snapshot start replays none of
+    // them - without this section every pair was unwhitelisted and every new
+    // order rejected after a no-scan restart.
+    dap_ledger_add_snapshot_section(DEX_STATE_SECTION, 0,
+            s_dex_state_dump, s_dex_state_load, NULL);
     // Trading-history journal: keep it in the snapshot so a no-scan start does
     // not depend on the GDB contents.
     dap_ledger_add_snapshot_gdb_group("dex_history", s_dex_snapshot_group_hist, NULL);
