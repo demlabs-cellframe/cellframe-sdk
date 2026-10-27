@@ -252,13 +252,6 @@ typedef struct dap_ledger_private {
     bool snapshot_skip_active;
     uint64_t snapshot_skip_num;
     dap_chain_hash_fast_t snapshot_skip_hash;
-    // Honest anchor: the lowest block whose datums did not fully apply in this
-    // run (live accept or load replay). The snapshot save anchors at this block
-    // minus one, so the file never claims coverage of datums it does not carry;
-    // otherwise a datum rejected once is re-rejected after every restart with a
-    // growing set of transactions that spend its outputs.
-    bool replay_fail_active;
-    uint64_t replay_fail_num;
     // Full ledger snapshot (header flag bit2): the file carries the "ledger_state"
     // section with tokens/emissions/stake locks/rewards/events/locked-outs.
     // snapshot_full is set only after that section restored successfully; with
@@ -4907,27 +4900,7 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         dap_chain_hash_fast_t l_tip_hash = {};
         uint64_t l_tip_num = 0;
         if (dap_chain_cs_blocks_get_tip(l_chain, &l_tip_num, &l_tip_hash)) {
-            // A datum failed to apply at replay_fail_num or above: anchoring at
-            // the tip would claim coverage of datums the ledger does not carry,
-            // and every restart would re-reject them together with everything
-            // spending their outputs. Anchor at the last fully applied block.
-            uint64_t l_anchor_num = l_tip_num;
-            if (PVT(a_ledger)->replay_fail_active && PVT(a_ledger)->replay_fail_num
-                    && PVT(a_ledger)->replay_fail_num <= l_tip_num) {
-                uint64_t l_hold_num = PVT(a_ledger)->replay_fail_num - 1;
-                dap_chain_hash_fast_t l_hold_hash = {};
-                if (l_hold_num && dap_chain_cs_blocks_hash_by_num(l_chain, l_hold_num, &l_hold_hash)) {
-                    l_anchor_num = l_hold_num;
-                    l_tip_hash = l_hold_hash;
-                    log_it(L_NOTICE, "Ledger snapshot: anchor held back at block %" DAP_UINT64_FORMAT_U
-                           " (datum failed in block %" DAP_UINT64_FORMAT_U ")",
-                           l_hold_num, PVT(a_ledger)->replay_fail_num);
-                } else
-                    log_it(L_WARNING, "Ledger snapshot: anchor holdback requested at block %"
-                           DAP_UINT64_FORMAT_U " but its hash is not in the block cache - anchoring at the tip",
-                           l_hold_num);
-            }
-            l_header.block_num = l_anchor_num;
+            l_header.block_num = l_tip_num;
             memcpy(l_header.block_hash, &l_tip_hash, sizeof(l_header.block_hash));
         }
         break;
@@ -5010,27 +4983,6 @@ void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger)
     memset(&PVT(a_ledger)->snapshot_skip_hash, 0, sizeof(PVT(a_ledger)->snapshot_skip_hash));
 }
 
-void dap_ledger_replay_datum_failed(dap_ledger_t *a_ledger, uint64_t a_block_num)
-{
-    if (!a_ledger || !a_block_num)
-        return;
-    dap_ledger_private_t *l_pvt = PVT(a_ledger);
-    if (l_pvt->replay_fail_active && a_block_num >= l_pvt->replay_fail_num)
-        return;
-    log_it(l_pvt->replay_fail_active ? L_DEBUG : L_WARNING,
-           "Ledger: datum failed to apply in block %" DAP_UINT64_FORMAT_U
-           " - the snapshot anchor will stop before it", a_block_num);
-    l_pvt->replay_fail_active = true;
-    l_pvt->replay_fail_num = a_block_num;
-}
-
-void dap_ledger_replay_fail_reset(dap_ledger_t *a_ledger)
-{
-    if (!a_ledger)
-        return;
-    PVT(a_ledger)->replay_fail_active = false;
-    PVT(a_ledger)->replay_fail_num = 0;
-}
 
 // Structural validation of a snapshot payload BEFORE anything is applied. The
 // header (counts, sizes, flags) is not covered by the CRC, so a corrupted or
@@ -9357,7 +9309,6 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     // chain-scan anchor and drop the file, or a reload/restart within the save
     // interval would resurrect the state the operator just threw away.
     dap_ledger_snapshot_skip_consume(a_ledger);
-    dap_ledger_replay_fail_reset(a_ledger);
     {
         char *l_snapshot_path = s_snapshot_file_path(a_ledger);
         if (l_snapshot_path) {
