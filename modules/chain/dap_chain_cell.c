@@ -254,7 +254,15 @@ DAP_STATIC_INLINE int s_cell_map_new_volume(dap_chain_cell_t *a_cell, size_t a_f
     a_cell->cur_vol_start = l_volume_start;
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map);
     a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds, a_cell->map_end = a_cell->map + l_map_size);
-#ifndef DAP_OS_WINDOWS    
+#ifndef DAP_OS_WINDOWS
+    // The volume's FILE position, kept beside its mapping: volumes are opened at
+    // dap_page_rounddown(current position) while an atom straddles the 256 MB
+    // boundary, so consecutive mappings OVERLAP in the file and a volume's file
+    // start cannot be derived from the pointer list by summing lengths. Consumers
+    // that map file offsets to volume bytes (dap_chain_cell_volume_view,
+    // dap_chain_cell_volumes_trim_upto) read this third element of the triple.
+    a_cell->map_range_bounds = dap_list_append(a_cell->map_range_bounds,
+                                               (char *)(uintptr_t)l_volume_start);
     if (a_load)
         madvise(a_cell->map, l_map_size, MADV_SEQUENTIAL);
 #endif
@@ -422,21 +430,25 @@ const uint8_t *dap_chain_cell_body_view(dap_chain_cell_t *a_cell, size_t a_file_
 // cache does with a body it parses (entry->block). Returns NULL when no existing
 // volume covers the range, which is the normal case on a no-scan start (only the
 // volume it resumed in is mapped).
+//
+// The list keeps a (base, end, file_start) triple per volume: the volumes are
+// opened at dap_page_rounddown(current position) while an atom straddles the
+// volume boundary, so consecutive mappings overlap in the file and a volume's
+// file start is only known from the value its open recorded.
 const uint8_t *dap_chain_cell_volume_view(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size)
 {
 #ifndef DAP_OS_WINDOWS
     if (!a_cell || !a_cell->map_range_bounds || !a_size)
         return NULL;
-    size_t l_vol_start = 0;
-    for (dap_list_t *l_i = a_cell->map_range_bounds; l_i && l_i->next; l_i = l_i->next->next) {
+    for (dap_list_t *l_i = a_cell->map_range_bounds; l_i && l_i->next && l_i->next->next; l_i = l_i->next->next->next) {
         char *l_base = (char *)l_i->data;
         char *l_end = (char *)l_i->next->data;
+        size_t l_file_start = (size_t)(uintptr_t)l_i->next->next->data;
         if (!l_base || l_end <= l_base)
-            break;   // malformed pair: stop rather than compute a bogus range
+            break;   // malformed triple: stop rather than compute a bogus range
         size_t l_len = (size_t)(l_end - l_base);
-        if (a_file_offset >= l_vol_start && a_file_offset + a_size <= l_vol_start + l_len)
-            return (const uint8_t *)l_base + (a_file_offset - l_vol_start);
-        l_vol_start += l_len;
+        if (a_file_offset >= l_file_start && a_file_offset + a_size <= l_file_start + l_len)
+            return (const uint8_t *)l_base + (a_file_offset - l_file_start);
     }
 #else
     (void)a_cell; (void)a_file_offset; (void)a_size;
@@ -551,9 +563,14 @@ static void s_cell_volumes_trim_common(dap_chain_cell_t *a_cell, const void *a_k
     if (!a_cell || !a_cell->map_range_bounds)
         return;
     size_t l_kept = 0, l_dropped = 0, l_bytes = 0;
-    for (dap_list_t *l_i = a_cell->map_range_bounds; l_i && l_i->next; l_i = l_i->next->next) {
+    // Triples (base, end, file_start): the file position is what the volume's
+    // open recorded, never a pointer distance - the mappings live at unrelated
+    // addresses, and a_upto is a FILE position (the size the loader ended at).
+    for (dap_list_t *l_i = a_cell->map_range_bounds;
+            l_i && l_i->next && l_i->next->next; l_i = l_i->next->next->next) {
         char *l_base = (char *)l_i->data;
         char *l_end = (char *)l_i->next->data;
+        size_t l_vol_start = (size_t)(uintptr_t)l_i->next->next->data;
         if (!l_base || l_end <= l_base)
             continue;
         // Keep the volume the caller is working in (its pages are about to be
@@ -566,7 +583,6 @@ static void s_cell_volumes_trim_common(dap_chain_cell_t *a_cell, const void *a_k
         size_t l_len = (size_t)(l_end - l_base);
         if (a_upto) {
             // Trim only the part of this volume that lies below the file's end.
-            size_t l_vol_start = (size_t)(l_base - a_cell->map);
             if (l_vol_start >= a_upto)
                 continue;   // the whole volume is past the end: never touch its pages
             if (l_vol_start + l_len > a_upto)
@@ -703,20 +719,21 @@ void dap_chain_cell_close(dap_chain_cell_t *a_cell)
         dap_list_t *l_iter = a_cell->map_range_bounds;
 #ifdef DAP_OS_WINDOWS
         l_iter = l_iter->next;
-#endif
         for (; l_iter; l_iter = l_iter->next) {
             if (l_iter->next) {
                 debug_if(s_debug_more, L_DEBUG, "Unmap volume %p (%zu bytes)", l_iter->data, (size_t)(l_iter->next->data - l_iter->data));
-#ifdef DAP_OS_WINDOWS
                 pfnNtUnmapViewOfSection(GetCurrentProcess(), l_iter->data);
-#else
-                munmap(l_iter->data, (size_t)(l_iter->next->data - l_iter->data));
-#endif
                 l_iter = l_iter->next;
             }
         }
-#ifdef DAP_OS_WINDOWS
         NtClose(a_cell->map_range_bounds->data);
+#else
+        // POSIX list layout: a (base, end, file_start) triple per volume.
+        for (; l_iter && l_iter->next && l_iter->next->next; l_iter = l_iter->next->next->next) {
+            debug_if(s_debug_more, L_DEBUG, "Unmap volume %p (%zu bytes)", l_iter->data,
+                     (size_t)(l_iter->next->data - l_iter->data));
+            munmap(l_iter->data, (size_t)(l_iter->next->data - l_iter->data));
+        }
 #endif
         dap_list_free(a_cell->map_range_bounds);
     }
