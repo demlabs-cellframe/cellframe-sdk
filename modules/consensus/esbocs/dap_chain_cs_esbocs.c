@@ -37,6 +37,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_snapshot.h"   // dap_ledger_add_snapshot_section (esbocs_state)
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_sign.h"
 
@@ -707,6 +708,148 @@ int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
     return 0;
 }
 
+/* *** Consensus-parameter state section ("esbocs_state") ***
+ * The consensus parameters below are set by decrees and, until this section
+ * existed, lived only in this structure - rebuilt either by the chain walk or by
+ * replaying the decree journal. That is the wrong shape for a state: a decree
+ * that assigns a value is an OPERATION, and what a snapshot has to carry is the
+ * RESULT of the operation, not the operation itself. The journal also grows
+ * without bound (a full signed datum per decree for the life of the chain),
+ * while the result here is a fixed header plus a small address list.
+ *
+ * Stored: consensus_version AND consensus_version_since (the boundary is a
+ * one-way door - the version only grows and the boundary only moves back, so a
+ * restart that lost it would judge strict-era blocks by the lenient rules),
+ * min_validators_count, check_signs_structure, empty_block_every_times and the
+ * emergency-validator list (a CRUD list: add/remove entries).
+ * Restoring it before the tail is read means those blocks are verified against
+ * the parameters the previous run ended with. */
+#define DAP_CHAIN_ESBOCS_STATE_SECTION "esbocs_state"
+#define DAP_CHAIN_ESBOCS_STATE_VERSION 1
+
+typedef struct DAP_ALIGN_PACKED s_esbocs_state_hdr {
+    uint32_t version;
+    uint32_t reserved;
+    uint64_t net_id;
+    uint64_t chain_id;
+    uint64_t consensus_version;
+    uint64_t consensus_version_since;
+    uint64_t empty_block_every_times;
+    uint32_t min_validators_count;
+    uint32_t check_signs_structure;
+    uint32_t n_emergency_addrs;
+    uint32_t reserved2;
+} s_esbocs_state_hdr_t;
+
+// Emergency validators are stored as the signing address the list keeps.
+typedef struct DAP_ALIGN_PACKED s_esbocs_emergency_rec {
+    uint8_t addr[sizeof(dap_chain_addr_t)];
+} s_esbocs_emergency_rec_t;
+
+// The section callbacks receive a net id, not a chain object: the consensus
+// layer keeps its own instance pointer for the net it was created for.
+static dap_chain_esbocs_t *s_state_section_instance = NULL;
+
+static int s_esbocs_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
+{
+    (void)a_ctx;
+    (void)a_net_id;
+    dap_chain_esbocs_t *l_esbocs = s_state_section_instance;
+    if (!l_esbocs || !l_esbocs->_pvt)
+        return 0;   // consensus not created for this net (or already destroyed)
+    dap_chain_esbocs_pvt_t *l_pvt = PVT(l_esbocs);
+    uint32_t l_n = 0;
+    for (dap_list_t *l_i = l_pvt->emergency_validator_addrs; l_i; l_i = l_i->next)
+        ++l_n;
+    s_esbocs_state_hdr_t l_hdr = {
+        .version = DAP_CHAIN_ESBOCS_STATE_VERSION,
+        .net_id = l_esbocs->chain ? l_esbocs->chain->net_id.uint64 : 0,
+        .chain_id = l_esbocs->chain ? l_esbocs->chain->id.uint64 : 0,
+        .consensus_version = l_pvt->consensus_version,
+        .consensus_version_since = l_pvt->consensus_version_since,
+        .empty_block_every_times = atomic_load(&l_pvt->empty_block_every_times),
+        .min_validators_count = l_pvt->min_validators_count,
+        .check_signs_structure = l_pvt->check_signs_structure ? 1u : 0u,
+        .n_emergency_addrs = l_n
+    };
+    if (!dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)))
+        return -2;
+    for (dap_list_t *l_i = l_pvt->emergency_validator_addrs; l_i; l_i = l_i->next) {
+        s_esbocs_emergency_rec_t l_rec = {};
+        const dap_chain_addr_t *l_addr = (const dap_chain_addr_t *)l_i->data;
+        if (l_addr)
+            memcpy(l_rec.addr, l_addr, sizeof(l_rec.addr));
+        if (!dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)))
+            return -2;
+    }
+    return 0;
+}
+
+static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
+{
+    (void)a_ctx;
+    if (!a_data || a_size < sizeof(s_esbocs_state_hdr_t))
+        return -1;
+    s_esbocs_state_hdr_t l_hdr;
+    memcpy(&l_hdr, a_data, sizeof(l_hdr));
+    if (l_hdr.version != DAP_CHAIN_ESBOCS_STATE_VERSION) {
+        log_it(L_WARNING, "Consensus state: unsupported format version %u (this build understands %u)",
+               l_hdr.version, DAP_CHAIN_ESBOCS_STATE_VERSION);
+        return -2;
+    }
+    dap_chain_esbocs_t *l_esbocs = s_state_section_instance;
+    if (!l_esbocs || !l_esbocs->_pvt || !l_esbocs->chain)
+        return 0;   // no consensus for this net: nothing to restore into
+    if (l_hdr.net_id && l_hdr.net_id != l_esbocs->chain->net_id.uint64)
+        return -3;  // a section of another network
+    // The record count comes from the file and is untrusted: the payload must
+    // actually hold that many records.
+    if ((uint64_t)l_hdr.n_emergency_addrs
+            > (uint64_t)((a_size - sizeof(s_esbocs_state_hdr_t)) / sizeof(s_esbocs_emergency_rec_t)))
+        return -4;
+    dap_chain_esbocs_pvt_t *l_pvt = PVT(l_esbocs);
+    // Monotonic fields: never move the version back or the strict-era boundary
+    // forward, whatever the file says - a stale snapshot must not loosen rules
+    // the running consensus has already tightened.
+    if (l_hdr.consensus_version > l_pvt->consensus_version)
+        l_pvt->consensus_version = l_hdr.consensus_version;
+    if (l_hdr.consensus_version_since
+            && (!l_pvt->consensus_version_since || l_hdr.consensus_version_since < l_pvt->consensus_version_since))
+        l_pvt->consensus_version_since = l_hdr.consensus_version_since;
+    if (l_hdr.empty_block_every_times > atomic_load(&l_pvt->empty_block_every_times))
+        atomic_store(&l_pvt->empty_block_every_times, (uint_fast16_t)l_hdr.empty_block_every_times);
+    if (l_hdr.min_validators_count)
+        l_pvt->min_validators_count = (uint16_t)l_hdr.min_validators_count;
+    if (l_hdr.check_signs_structure)
+        l_pvt->check_signs_structure = true;
+    // The emergency list is a CRUD list and is restored as a whole: entries a
+    // decree added and did not remove must be back, without duplicating the ones
+    // the config already registered.
+    const uint8_t *l_ptr = a_data + sizeof(l_hdr);
+    size_t l_added = 0;
+    for (uint32_t i = 0; i < l_hdr.n_emergency_addrs; ++i) {
+        const dap_chain_addr_t *l_addr = (const dap_chain_addr_t *)l_ptr;
+        l_ptr += sizeof(s_esbocs_emergency_rec_t);
+        bool l_seen = false;
+        for (dap_list_t *l_j = l_pvt->emergency_validator_addrs; l_j && !l_seen; l_j = l_j->next)
+            l_seen = l_j->data && !memcmp(l_j->data, l_addr, sizeof(dap_chain_addr_t));
+        if (l_seen)
+            continue;
+        dap_chain_addr_t *l_new = DAP_NEW_Z(dap_chain_addr_t);
+        if (!l_new)
+            continue;
+        *l_new = *l_addr;
+        l_pvt->emergency_validator_addrs = dap_list_append(l_pvt->emergency_validator_addrs, l_new);
+        ++l_added;
+    }
+    log_it(L_NOTICE, "Consensus state: restored consensus_version %" DAP_UINT64_FORMAT_U
+           " (since %" DAP_UINT64_FORMAT_U "), min_validators %u, check_signs %s, "
+           "emergency validators %u (+%zu added)",
+           l_pvt->consensus_version, l_pvt->consensus_version_since, l_pvt->min_validators_count,
+           l_pvt->check_signs_structure ? "on" : "off", l_hdr.n_emergency_addrs, l_added);
+    return 0;
+}
+
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
@@ -814,6 +957,11 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             if (!IS_ZERO_256(l_preset_reward))
                 dap_chain_net_add_reward(l_net, l_preset_reward, 0);
         }
+        // Consensus parameters that decrees assign are carried as STATE by their
+        // own snapshot section (the decree itself is an operation, not state).
+        s_state_section_instance = l_esbocs;
+        dap_ledger_add_snapshot_section(DAP_CHAIN_ESBOCS_STATE_SECTION, 0,
+                s_esbocs_state_dump, s_esbocs_state_load, NULL);
         l_blocks->chain->callback_created = s_callback_created;
         return 0;
     }
@@ -1578,6 +1726,10 @@ int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, u
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
+    // The state section holds this pointer: clear it before the object goes, or
+    // a dump between the delete and the next create reads freed memory.
+    if (s_state_section_instance == l_esbocs)
+        s_state_section_instance = NULL;
     dap_chain_esbocs_session_t *l_session = l_esbocs->session;
     if (!l_session) {
         log_it(L_INFO, "No session found");
