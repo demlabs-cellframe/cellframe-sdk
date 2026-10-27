@@ -1722,7 +1722,7 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
 int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size,
                       dap_ledger_token_item_t **a_token_item, dap_chain_datum_token_t **a_token_out,
                       size_t *a_tsd_total_size, size_t *a_signs_size,
-                      dap_hash_fast_t *a_token_update_hash)
+                      dap_hash_fast_t *a_token_update_hash, bool a_from_trusted_cache)
 {
     size_t l_token_size = a_token_size;
     dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(a_token, &l_token_size);
@@ -1958,7 +1958,14 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         l_tmp_auth_signs = l_token->signs_total;
         l_token->signs_total = 0;
     }
-    for (size_t i = 0; i < l_signs_unique; i++) {
+    // The ledger snapshot is written only after the signatures were checked on the
+    // chain scan, so a restore must not re-verify them: a legacy declaration
+    // (types 0x05-0x0A) is stored in the parsed layout by dap_chain_datum_token_read(),
+    // and its signatures cover the original bytes - re-checking rejected every
+    // restored declaration with "only 0 valid signatures" and dropped the token.
+    // The trusted-cache path therefore skips only the cryptographic step: the
+    // structural checks above (sizes, unique signs, ticker) still apply.
+    for (size_t i = 0; i < l_signs_unique && !a_from_trusted_cache; i++) {
         if (!dap_sign_verify(l_signs[i], l_legacy_type ? a_token : (void *)l_token, l_verify_size)) {
             if (l_update_token) {
                 for (size_t j = 0; j < l_token_item->auth_signs_total; j++) {
@@ -1975,7 +1982,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     if (!l_legacy_type)
         l_token->signs_total = l_tmp_auth_signs;
     size_t l_signs_need = l_update_token ? l_token_item->auth_signs_valid : l_token->signs_total;
-    if (l_signs_approve < l_signs_need) {
+    if (!a_from_trusted_cache && l_signs_approve < l_signs_need) {
         log_it(L_WARNING, "Datum token for ticker '%s' has only %zu valid signatures out of %zu",
                                                 l_token->ticker, l_signs_approve, l_signs_need);
         DAP_DELETE(l_token);
@@ -2016,7 +2023,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
 int dap_ledger_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size)
 {
     dap_return_val_if_fail(a_ledger && a_token && a_token_size, DAP_LEDGER_CHECK_INVALID_ARGS);
-    int ret = s_token_add_check(a_ledger, a_token, a_token_size, NULL, NULL, NULL, NULL, NULL);
+    int ret = s_token_add_check(a_ledger, a_token, a_token_size, NULL, NULL, NULL, NULL, NULL, false);
     if (ret == DAP_LEDGER_CHECK_WHITELISTED)
         ret = DAP_LEDGER_CHECK_OK;
     return ret;
@@ -2131,7 +2138,35 @@ static bool s_ledger_token_supply_check_update(dap_ledger_t *a_ledger, dap_ledge
  * @param a_token_size
  * @return
  */
+static int s_token_add_checked(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size,
+                               dap_time_t a_creation_time, bool a_from_trusted_cache);
+
 int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time)
+{
+    return s_token_add_checked(a_ledger, a_token, a_token_size, a_creation_time, false);
+}
+
+// Restore path for the ledger's own persisted state (GlobalDB token cache and the
+// snapshot's ledger_state section). Those records were written only after the
+// declaration passed its signature check on the chain scan, so the cryptographic
+// verification is skipped here - everything else (sizes, unique signs, ticker,
+// supply, irreversible flags) is enforced exactly as on the live path.
+//
+// Re-verifying was not merely redundant: dap_chain_datum_token_read() rewrites a
+// legacy declaration (types 0x05-0x0A) into the current layout, and the stored
+// signatures cover the original bytes. The re-check therefore failed for every
+// legacy token ("only 0 valid signatures out of N"), the declaration was dropped
+// and `token info` answered null - while a node that scanned the chain held the
+// very same tokens active. Live datums from the chain still go through
+// dap_ledger_token_add() with the full check.
+int dap_ledger_token_restore(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size,
+                             dap_time_t a_creation_time)
+{
+    return s_token_add_checked(a_ledger, a_token, a_token_size, a_creation_time, true);
+}
+
+static int s_token_add_checked(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size,
+                               dap_time_t a_creation_time, bool a_from_trusted_cache)
 {
     dap_return_val_if_fail(a_ledger && a_token && a_token_size, DAP_LEDGER_CHECK_INVALID_ARGS);
     dap_ledger_token_item_t *l_token_item = NULL;
@@ -2139,7 +2174,8 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token
     size_t l_tsd_total_size = 0, l_signs_size = 0;
     dap_hash_fast_t l_token_update_hash;
     int ret = s_token_add_check(a_ledger, a_token, a_token_size, &l_token_item, &l_token,
-                                &l_tsd_total_size, &l_signs_size, &l_token_update_hash);
+                                &l_tsd_total_size, &l_signs_size, &l_token_update_hash,
+                                a_from_trusted_cache);
     if (ret != DAP_LEDGER_CHECK_OK && ret != DAP_LEDGER_CHECK_WHITELISTED)
         return ret;
 
@@ -3146,7 +3182,7 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_
             log_it(L_WARNING, "Corrupted token with ticker [%s], need to 'ledger reload' to update cache", a_values[i].key);
             continue;
         }
-        dap_ledger_token_add(l_ledger, (byte_t *)l_token, l_token_size, dap_time_now());
+        dap_ledger_token_restore(l_ledger, (byte_t *)l_token, l_token_size, dap_time_now());
         dap_ledger_token_item_t *l_token_item = s_ledger_find_token(l_ledger, l_token->ticker);
         if (l_token_item)
             l_token_item->current_supply = *(uint256_t*)a_values[i].value;
@@ -4157,7 +4193,11 @@ static int s_snapshot_ledger_state_load(void *a_ctx, const uint8_t *a_data, size
         HASH_FIND_STR(l_pvt->tokens, l_ticker, l_item);
         pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
         if (!l_item) {
-            dap_ledger_token_add(l_ledger, (byte_t *)l_ptr, (size_t)l_rec.token_size, dap_time_now());
+            // Snapshot state, not a live datum: the record was written only after
+            // the declaration passed its signature check on the scan, so the
+            // cryptographic step is skipped here (a legacy declaration is stored in
+            // the parsed layout and re-verifying rejected every one of them).
+            dap_ledger_token_restore(l_ledger, (byte_t *)l_ptr, (size_t)l_rec.token_size, dap_time_now());
             pthread_rwlock_rdlock(&l_pvt->tokens_rwlock);
             HASH_FIND_STR(l_pvt->tokens, l_ticker, l_item);
             pthread_rwlock_unlock(&l_pvt->tokens_rwlock);
@@ -4187,8 +4227,8 @@ static int s_snapshot_ledger_state_load(void *a_ctx, const uint8_t *a_data, size
             HASH_FIND(hh, l_item->token_ts_updated, &l_update_hash, sizeof(l_update_hash), l_up);
             pthread_rwlock_unlock(&l_item->token_ts_updated_rwlock);
             if (!l_up)
-                dap_ledger_token_add(l_ledger, (byte_t *)l_ptr, (size_t)l_rec.datum_size,
-                                     (dap_time_t)l_rec.updated_time);
+                dap_ledger_token_restore(l_ledger, (byte_t *)l_ptr, (size_t)l_rec.datum_size,
+                                         (dap_time_t)l_rec.updated_time);
         }
         l_ptr += l_rec.datum_size;
     }

@@ -317,6 +317,11 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t * a_ledger, 
  */
 
 int dap_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time);
+// Restores a declaration that this ledger itself persisted (snapshot section or the
+// GlobalDB token cache): the signature was verified before that record was written,
+// so only the structural checks run here - see the definition for why re-verifying
+// rejected every legacy declaration on restore.
+int dap_ledger_token_restore(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time);
 int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size, dap_time_t a_creation_time);
 int dap_ledger_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
 json_object *dap_ledger_token_info(dap_ledger_t *a_ledger, size_t a_limit, size_t a_offset, int a_version, int a_history_limit);
