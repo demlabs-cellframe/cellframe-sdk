@@ -507,6 +507,10 @@ typedef struct dap_chain_esbocs_pvt {
     // decree datum itself. Blocks older than the boundary keep the lenient
     // historical semantics on replay; blocks at/after it are strict.
     uint64_t consensus_version_since;
+    // Guards the decree-controlled parameters above and the emergency list:
+    // the snapshot's state section reads them from the snapshot-save thread
+    // while a decree may be applying in the sync thread.
+    pthread_rwlock_t state_lock;
     // Internal cache
     dap_list_t *precached_keys;
 } dap_chain_esbocs_pvt_t;
@@ -746,24 +750,38 @@ typedef struct DAP_ALIGN_PACKED s_esbocs_emergency_rec {
     uint8_t addr[sizeof(dap_chain_addr_t)];
 } s_esbocs_emergency_rec_t;
 
-// The section callbacks receive a net id, not a chain object: the consensus
-// layer keeps its own instance pointer for the net it was created for.
-static dap_chain_esbocs_t *s_state_section_instance = NULL;
+// The esbocs chain of this net - the consensus the state section dumps into /
+// restores from. Resolved per call from the net's chain list: the section
+// registry is keyed by section NAME, so it cannot hold a per-chain instance,
+// and a static "the" instance breaks as soon as two esbocs chains exist (two
+// nets, or a chain recreated in-process).
+static dap_chain_esbocs_t *s_esbocs_for_net(uint64_t a_net_id)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){ .uint64 = a_net_id });
+    if (!l_net)
+        return NULL;
+    for (dap_chain_t *l_c = l_net->pub.chains; l_c; l_c = l_c->next) {
+        const char *l_cs_type = dap_chain_get_cs_type(l_c);
+        if (l_cs_type && !dap_strcmp(l_cs_type, DAP_CHAIN_ESBOCS_CS_TYPE_STR))
+            return DAP_CHAIN_ESBOCS(DAP_CHAIN_CS_BLOCKS(l_c));
+    }
+    return NULL;
+}
 
 static int s_esbocs_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_out)
 {
     (void)a_ctx;
-    (void)a_net_id;
-    dap_chain_esbocs_t *l_esbocs = s_state_section_instance;
+    dap_chain_esbocs_t *l_esbocs = s_esbocs_for_net(a_net_id);
     if (!l_esbocs || !l_esbocs->_pvt)
         return 0;   // consensus not created for this net (or already destroyed)
     dap_chain_esbocs_pvt_t *l_pvt = PVT(l_esbocs);
+    pthread_rwlock_rdlock(&l_pvt->state_lock);
     uint32_t l_n = 0;
     for (dap_list_t *l_i = l_pvt->emergency_validator_addrs; l_i; l_i = l_i->next)
         ++l_n;
     s_esbocs_state_hdr_t l_hdr = {
         .version = DAP_CHAIN_ESBOCS_STATE_VERSION,
-        .net_id = l_esbocs->chain ? l_esbocs->chain->net_id.uint64 : 0,
+        .net_id = a_net_id,
         .chain_id = l_esbocs->chain ? l_esbocs->chain->id.uint64 : 0,
         .consensus_version = l_pvt->consensus_version,
         .consensus_version_since = l_pvt->consensus_version_since,
@@ -772,17 +790,23 @@ static int s_esbocs_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_o
         .check_signs_structure = l_pvt->check_signs_structure ? 1u : 0u,
         .n_emergency_addrs = l_n
     };
-    if (!dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr)))
-        return -2;
-    for (dap_list_t *l_i = l_pvt->emergency_validator_addrs; l_i; l_i = l_i->next) {
-        s_esbocs_emergency_rec_t l_rec = {};
-        const dap_chain_addr_t *l_addr = (const dap_chain_addr_t *)l_i->data;
-        if (l_addr)
-            memcpy(l_rec.addr, l_addr, sizeof(l_rec.addr));
-        if (!dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec)))
-            return -2;
+    int l_ret = 0;
+    if (!dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr))) {
+        l_ret = -2;
+    } else {
+        for (dap_list_t *l_i = l_pvt->emergency_validator_addrs; l_i; l_i = l_i->next) {
+            s_esbocs_emergency_rec_t l_rec = {};
+            const dap_chain_addr_t *l_addr = (const dap_chain_addr_t *)l_i->data;
+            if (l_addr)
+                memcpy(l_rec.addr, l_addr, sizeof(l_rec.addr));
+            if (!dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec))) {
+                l_ret = -2;
+                break;
+            }
+        }
     }
-    return 0;
+    pthread_rwlock_unlock(&l_pvt->state_lock);
+    return l_ret;
 }
 
 static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
@@ -797,20 +821,24 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
                l_hdr.version, DAP_CHAIN_ESBOCS_STATE_VERSION);
         return -2;
     }
-    dap_chain_esbocs_t *l_esbocs = s_state_section_instance;
+    if (!l_hdr.net_id)
+        return 0;   // a writer that did not know its net: nothing to attribute this to
+    // The load callback carries no net id - the header does. Resolving the net
+    // (not a static instance) is what keeps the section correct with several
+    // esbocs chains in the process.
+    dap_chain_esbocs_t *l_esbocs = s_esbocs_for_net(l_hdr.net_id);
     if (!l_esbocs || !l_esbocs->_pvt || !l_esbocs->chain)
         return 0;   // no consensus for this net: nothing to restore into
-    if (l_hdr.net_id && l_hdr.net_id != l_esbocs->chain->net_id.uint64)
-        return -3;  // a section of another network
+    dap_chain_esbocs_pvt_t *l_pvt = PVT(l_esbocs);
     // The record count comes from the file and is untrusted: the payload must
     // actually hold that many records.
     if ((uint64_t)l_hdr.n_emergency_addrs
             > (uint64_t)((a_size - sizeof(s_esbocs_state_hdr_t)) / sizeof(s_esbocs_emergency_rec_t)))
         return -4;
-    dap_chain_esbocs_pvt_t *l_pvt = PVT(l_esbocs);
     // Monotonic fields: never move the version back or the strict-era boundary
     // forward, whatever the file says - a stale snapshot must not loosen rules
     // the running consensus has already tightened.
+    pthread_rwlock_wrlock(&l_pvt->state_lock);
     if (l_hdr.consensus_version > l_pvt->consensus_version)
         l_pvt->consensus_version = l_hdr.consensus_version;
     if (l_hdr.consensus_version_since
@@ -842,6 +870,7 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
         l_pvt->emergency_validator_addrs = dap_list_append(l_pvt->emergency_validator_addrs, l_new);
         ++l_added;
     }
+    pthread_rwlock_unlock(&l_pvt->state_lock);
     log_it(L_NOTICE, "Consensus state: restored consensus_version %" DAP_UINT64_FORMAT_U
            " (since %" DAP_UINT64_FORMAT_U "), min_validators %u, check_signs %s, "
            "emergency validators %u (+%zu added)",
@@ -870,7 +899,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     int l_ret = 0;
     dap_chain_esbocs_t *l_esbocs = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_esbocs_t, -5);
     l_esbocs->_pvt = DAP_NEW_Z_RET_VAL_IF_FAIL(dap_chain_esbocs_pvt_t, -6, l_esbocs);
-    l_esbocs->blocks = l_blocks;   
+    pthread_rwlock_init(&PVT(l_esbocs)->state_lock, NULL);
+    l_esbocs->blocks = l_blocks;
     l_blocks->_inheritor = l_esbocs;
     l_blocks->callback_delete = s_callback_delete;
     l_blocks->callback_block_verify = s_callback_block_verify;
@@ -959,7 +989,9 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         }
         // Consensus parameters that decrees assign are carried as STATE by their
         // own snapshot section (the decree itself is an operation, not state).
-        s_state_section_instance = l_esbocs;
+        // The callbacks resolve their chain per net id - no instance is stored
+        // here, so a second esbocs chain (another net, or a recreated one) is
+        // dumped/restored into the right object regardless of creation order.
         dap_ledger_add_snapshot_section(DAP_CHAIN_ESBOCS_STATE_SECTION, 0,
                 s_esbocs_state_dump, s_esbocs_state_load, NULL);
         l_blocks->chain->callback_created = s_callback_created;
@@ -1497,18 +1529,23 @@ static int s_esbocs_set_min_validators_count_apply(dap_chain_t *a_chain, uint16_
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    if (a_new_value)
+    // The state section dumps these fields from the snapshot-save thread.
+    if (a_new_value) {
+        pthread_rwlock_wrlock(&l_esbocs_pvt->state_lock);
         l_esbocs_pvt->min_validators_count = a_new_value;
-    else {
+        pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
+    } else {
         dap_hash_fast_t l_stake_tx_hash = {};
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value(a_chain->net_id);
+        pthread_rwlock_rdlock(&l_esbocs_pvt->state_lock);
         for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
             dap_chain_esbocs_validator_t *l_validator = it->data;
             dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
                                                  l_weight, &l_validator->node_addr, NULL);
         }
         l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
+        pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
     }
     return 0;
 }
@@ -1518,7 +1555,9 @@ static int s_esbocs_set_signs_struct_check_apply(dap_chain_t *a_chain, bool a_en
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    pthread_rwlock_wrlock(&l_esbocs_pvt->state_lock);
     l_esbocs_pvt->check_signs_structure = a_enable;
+    pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
     return 0;
 }
 
@@ -1533,11 +1572,13 @@ static int s_esbocs_set_consensus_version_apply(dap_chain_t *a_chain, uint64_t a
     // version only grows. The boundary is written before the version: a verifier
     // thread reading version >= 2 with since still 0 would treat the whole
     // chain (history included) as strict for that race window.
+    pthread_rwlock_wrlock(&l_esbocs_pvt->state_lock);
     if (a_version >= 2 && a_since
             && (!l_esbocs_pvt->consensus_version_since || a_since < l_esbocs_pvt->consensus_version_since))
         l_esbocs_pvt->consensus_version_since = a_since;
     if (a_version > l_esbocs_pvt->consensus_version)
         l_esbocs_pvt->consensus_version = a_version;
+    pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
     log_it(L_NOTICE, "Consensus version decree applied on chain %s: version %"DAP_UINT64_FORMAT_U
            " (strict era since ts %"DAP_UINT64_FORMAT_U")%s",
            a_chain->name, a_version, l_esbocs_pvt->consensus_version_since,
@@ -1559,11 +1600,15 @@ static int s_esbocs_set_emergency_validator_apply(dap_chain_t *a_chain, bool a_a
     dap_chain_addr_t l_signing_addr;
     dap_sign_type_t l_type = { .type = a_sign_type };
     dap_chain_addr_fill(&l_signing_addr, l_type, a_validator_hash, a_chain->net_id);
+    pthread_rwlock_wrlock(&l_esbocs_pvt->state_lock);
     if (a_add) {
-        if (s_check_emergency_rights(l_esbocs, &l_signing_addr))
+        if (s_check_emergency_rights(l_esbocs, &l_signing_addr)) {
+            pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
             return -2;
+        }
         dap_chain_addr_t *l_addr_new = DAP_DUP(&l_signing_addr);
         if (!l_addr_new) {
+            pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
             log_it(L_CRITICAL, "%s", c_error_memory_alloc);
             return -4;
         }
@@ -1571,12 +1616,15 @@ static int s_esbocs_set_emergency_validator_apply(dap_chain_t *a_chain, bool a_a
                                     l_esbocs_pvt->emergency_validator_addrs, l_addr_new);
     } else {
         dap_list_t *l_to_remove = s_check_emergency_rights(l_esbocs, &l_signing_addr);
-        if (!l_to_remove)
+        if (!l_to_remove) {
+            pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
             return -3;
+        }
         DAP_DELETE(l_to_remove->data);
         l_esbocs_pvt->emergency_validator_addrs = dap_list_delete_link(
                                     l_esbocs_pvt->emergency_validator_addrs, l_to_remove);
     }
+    pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
     return 0;
 }
 
@@ -1585,7 +1633,9 @@ static int s_esbocs_set_empty_block_period_apply(dap_chain_t *a_chain, uint16_t 
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    l_esbocs_pvt->empty_block_every_times = a_blockgen_period;
+    pthread_rwlock_wrlock(&l_esbocs_pvt->state_lock);
+    atomic_store(&l_esbocs_pvt->empty_block_every_times, (uint_fast16_t)a_blockgen_period);
+    pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
     return 0;
 }
 
@@ -1726,10 +1776,6 @@ int dap_chain_esbocs_set_emergency_validator(dap_chain_t *a_chain, bool a_add, u
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
-    // The state section holds this pointer: clear it before the object goes, or
-    // a dump between the delete and the next create reads freed memory.
-    if (s_state_section_instance == l_esbocs)
-        s_state_section_instance = NULL;
     dap_chain_esbocs_session_t *l_session = l_esbocs->session;
     if (!l_session) {
         log_it(L_INFO, "No session found");
