@@ -4,6 +4,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>   // srand(): pin the fixture RNG (see the call site)
 #include <sys/stat.h>
 #include <time.h>
 #ifndef _WIN32
@@ -88,6 +89,17 @@ static void s_setup(bool a_cache) {
     dap_ledger_init();
     
     dap_chain_cs_dag_init();
+    // The DEX fixtures build their transactions with rand() - with
+    // DAP_CHAIN_TX_COMPOSE_TEST compiled in, dap_chain_datum_tx_add_out_ext_item()
+    // picks OUT_STD or OUT_EXT by coin flip - and dap_chain_cs_dag_init() seeds the
+    // generator from the wall clock (srand(time(NULL))). Every run therefore walked
+    // a DIFFERENT sequence of transaction shapes: the same commit passed locally,
+    // segfaulted on the gcc CI job and timed out on macOS, and no two logs could be
+    // compared. A fixed seed makes the suite replay one scenario everywhere.
+    //
+    // Change the seed deliberately when a new shape needs coverage; a crash is then
+    // reproducible from the log alone.
+    srand(1);
     dap_chain_cs_dag_poa_init();
     dap_chain_cs_esbocs_init();
     dap_nonconsensus_init();
