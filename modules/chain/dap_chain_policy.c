@@ -182,12 +182,18 @@ int dap_chain_policy_init()
  * The registry above is a product of decree replay: a snapshot-based start has no
  * decrees to replay, so the resulting state itself is what gets stored.
  */
+#define DAP_CHAIN_POLICY_STATE_VERSION 1u
+
 typedef struct DAP_ALIGN_PACKED s_policy_state_hdr {
     uint64_t net_id;
     uint32_t last_num;
     uint32_t n_activate;
     uint32_t n_deactivate;
     uint32_t n_exceptions;   // count WITHOUT the [0] counter slot
+    // Versioned format adds this field; a legacy header (builds before the
+    // version was introduced) is a strict prefix of the new one, so the load
+    // tells them apart by size and by the trailer value.
+    uint32_t version;
 } s_policy_state_hdr_t;
 
 size_t dap_chain_policy_state_dump(dap_chain_net_id_t a_net_id, uint8_t **a_out)
@@ -201,6 +207,7 @@ size_t dap_chain_policy_state_dump(dap_chain_net_id_t a_net_id, uint8_t **a_out)
         .net_id = a_net_id.uint64,
         .last_num = l_net_item->last_num,
         .n_exceptions = l_net_item->exceptions ? l_net_item->exceptions[0] : 0,
+        .version = DAP_CHAIN_POLICY_STATE_VERSION,
     };
     for (struct policy_activate_table *l_it = l_net_item->activate; l_it; l_it = l_it->hh.next)
         ++l_hdr.n_activate;
@@ -226,13 +233,26 @@ size_t dap_chain_policy_state_dump(dap_chain_net_id_t a_net_id, uint8_t **a_out)
 
 int dap_chain_policy_state_load(dap_chain_net_id_t a_net_id, const uint8_t *a_data, size_t a_size)
 {
-    if (!a_data || a_size < sizeof(s_policy_state_hdr_t))
+    enum { l_legacy_size = (int)sizeof(s_policy_state_hdr_t) - (int)sizeof(uint32_t) };
+    if (!a_data || a_size < (size_t)l_legacy_size)
         return -1;
     s_policy_state_hdr_t l_hdr;
-    memcpy(&l_hdr, a_data, sizeof(l_hdr));
+    memcpy(&l_hdr, a_data, (size_t)l_legacy_size);   // fields the legacy header already had
+    // A versioned file carries the version as the trailer of the header; a
+    // legacy file ends right there. The first payload field doubles as the
+    // discriminator only until the format actually changes - until then both
+    // layouts mean version 1.
+    uint32_t l_ver = 0;
+    size_t l_versioned = 0;
+    if (a_size >= sizeof(s_policy_state_hdr_t)) {
+        memcpy(&l_ver, a_data + l_legacy_size, sizeof(uint32_t));
+        if (l_ver == DAP_CHAIN_POLICY_STATE_VERSION)
+            l_versioned = sizeof(uint32_t);
+    }
     if (l_hdr.net_id != a_net_id.uint64)
         return -2;
-    size_t l_need = sizeof(l_hdr) + l_hdr.n_activate * sizeof(dap_chain_policy_activate_t)
+    size_t l_need = (size_t)l_legacy_size + l_versioned
+            + l_hdr.n_activate * sizeof(dap_chain_policy_activate_t)
             + l_hdr.n_deactivate * sizeof(uint32_t) + l_hdr.n_exceptions * sizeof(uint32_t);
     if (a_size < l_need)
         return -3;
@@ -242,7 +262,7 @@ int dap_chain_policy_state_load(dap_chain_net_id_t a_net_id, const uint8_t *a_da
                a_net_id.uint64);
         return -4;
     }
-    const uint8_t *l_ptr = a_data + sizeof(l_hdr);
+    const uint8_t *l_ptr = a_data + l_legacy_size + l_versioned;
     size_t l_added = 0;
     for (uint32_t i = 0; i < l_hdr.n_activate; ++i, l_ptr += sizeof(dap_chain_policy_activate_t)) {
         uint32_t l_num = 0;
