@@ -541,8 +541,13 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_
     s_blocks_rdlock(PVT(a_blocks));
     HASH_FIND(hh, PVT(a_blocks)->blocks,a_block_hash, sizeof (*a_block_hash), l_ret );
     s_blocks_unlock(PVT(a_blocks));
-    if (l_ret && !l_ret->block) // index-restored thin entry: parse before use
-        dap_chain_block_cache_ensure(l_ret);
+    // Index-restored thin entry: parse before use. If the body cannot be read,
+    // hand out NULL rather than an entry whose block is NULL: callers use this
+    // as "a usable block" and go straight to block->hdr / dap_chain_block_sign_get
+    // (mempool, stake delegation, the block listing), where a NULL block is a
+    // SEGV in release builds (asserts are compiled out).
+    if (l_ret && !l_ret->block && dap_chain_block_cache_ensure(l_ret))
+        return NULL;
     return l_ret;
 }
 
@@ -558,8 +563,9 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_number(dap_chain_cs_block
     s_blocks_rdlock(PVT(a_blocks));
     HASH_FIND_BYHASHVALUE(hh2, PVT(a_blocks)->blocks_num, &a_block_number, sizeof (a_block_number), a_block_number, l_ret);
     s_blocks_unlock(PVT(a_blocks));
-    if (l_ret && !l_ret->block) // index-restored thin entry: parse before use
-        dap_chain_block_cache_ensure(l_ret);
+    // Same rule as get_by_hash: never hand out an entry without a body.
+    if (l_ret && !l_ret->block && dap_chain_block_cache_ensure(l_ret))
+        return NULL;
     return l_ret;
 }
 

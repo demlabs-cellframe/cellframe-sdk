@@ -125,6 +125,11 @@ const uint8_t *dap_chain_cell_load_hint_view(size_t a_file_offset, size_t a_size
 // kernel, so a 20 GB scan no longer leaves ~9 GB of cell mappings resident for
 // the rest of the run. Called by whole-chain walks and after a load pass.
 void dap_chain_cell_volumes_trim(dap_chain_cell_t *a_cell, const void *a_keep_ptr);
+// Bounded variant: only pages below a_upto (an absolute file position) are
+// advised away. The loader rounds its volume up to the full 256 MB, so a
+// mapping can extend past EOF; dropping such a page and then touching it is a
+// SIGBUS, while pages below the file size always re-fault from the file.
+void dap_chain_cell_volumes_trim_upto(dap_chain_cell_t *a_cell, size_t a_upto);
 // Borrowed view of a byte range of the cell file: the range is served from a
 // read-only file mapping, so a lazy body read costs page-cache pages instead of
 // a private heap copy. Pages of a previous window are advised away (they are
@@ -134,6 +139,12 @@ void dap_chain_cell_volumes_trim(dap_chain_cell_t *a_cell, const void *a_keep_pt
 // Returns NULL when the range is outside the file or the view cannot be set up
 // (callers fall back to their own buffer).
 const uint8_t *dap_chain_cell_body_view(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size);
+// Borrowed view of a range that lies inside one of the LOADER's volumes. Those
+// mappings live as long as the cell (the loader only ever adds volumes), so a
+// pointer from here may be KEPT in a long-lived structure - the block cache
+// stores it as the entry's body. Returns NULL when no existing volume covers the
+// range, which is the normal case on a no-scan start; the caller then copies.
+const uint8_t *dap_chain_cell_volume_view(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size);
 // Mapped/borrowed byte ranges currently held by lazy reads, for accounting.
 void dap_chain_cell_read_window_stats(dap_chain_cell_t *a_cell, size_t *a_window_bytes, size_t *a_views);
 // Releases every lazy-read window. Called when the file is rewritten in place

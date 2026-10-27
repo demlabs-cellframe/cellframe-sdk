@@ -217,17 +217,23 @@ int dap_chain_block_cache_ensure(dap_chain_block_cache_t *a_block_cache)
                 goto out;
             }
             dap_chain_cell_t *l_cell = a_block_cache->cell;
-            // While a scan is feeding this very atom, parse straight from the
-            // bytes the loader has already mapped: same pages, no extra fault.
-            // (The hint carries a body pointer only on the mapped path, where the
-            // mapping outlives the callback.) The pages themselves are advised
-            // away later by dap_chain_cell_volumes_trim(), so the entry pointing
-            // into a loader volume costs no RSS of its own.
+            // Two safe sources for a body that must stay valid while the entry
+            // lives:
+            //  1. the loader's hint - the bytes it is feeding right now (mapped
+            //     path only: the hint carries a pointer just there, because the
+            //     mapping outlives the callback);
+            //  2. the loader's own volumes - mapped for the whole life of the
+            //     cell (the loader only ever adds volumes), unlike the lazy-read
+            //     windows, which are released on an in-place rewrite and on a
+            //     truncated tail. Keeping a window pointer here would leave the
+            //     entry pointing into unmapped memory after such a pass.
+            // Anything else gets a private copy below, so the entry never ends up
+            // with a pointer whose storage can go away.
             const uint8_t *l_view = dap_chain_cell_load_hint_view((size_t)a_block_cache->file_offset,
                                                                   a_block_cache->block_size);
             if (!l_view)
-                l_view = dap_chain_cell_body_view(l_cell, a_block_cache->file_offset,
-                                                  a_block_cache->block_size);
+                l_view = dap_chain_cell_volume_view(l_cell, a_block_cache->file_offset,
+                                                    a_block_cache->block_size);
             if (l_view) {
                 a_block_cache->block = (dap_chain_block_t *)l_view;
                 a_block_cache->block_owned = false;   // owned by the cell's mapping
@@ -299,8 +305,15 @@ dap_chain_block_cache_transient_t *dap_chain_block_cache_transient(dap_chain_blo
     if (!l_tr)
         return NULL;
     dap_chain_cell_t *l_cell = a_block_cache->cell;
-    const uint8_t *l_view = dap_chain_cell_body_view(l_cell, a_block_cache->file_offset,
-                                                     a_block_cache->block_size);
+    // The loader's volumes first (they outlive any rewrite), then the lazy-read
+    // window: the transient lives for a single walk step, so a window pointer is
+    // acceptable here, and it is the only source available when the range is not
+    // covered by a volume the loader happened to map.
+    const uint8_t *l_view = dap_chain_cell_volume_view(l_cell, a_block_cache->file_offset,
+                                                       a_block_cache->block_size);
+    if (!l_view)
+        l_view = dap_chain_cell_body_view(l_cell, a_block_cache->file_offset,
+                                          a_block_cache->block_size);
     if (!l_view) {
         // Fallback: read the body into the transient's own buffer. Only taken when
         // the mapping cannot serve the range (non-mapped platform, unreadable file).

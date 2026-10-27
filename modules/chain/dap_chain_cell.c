@@ -414,6 +414,36 @@ const uint8_t *dap_chain_cell_body_view(dap_chain_cell_t *a_cell, size_t a_file_
     return l_ret;
 }
 
+// Borrowed view of a range served from the LOADER's volumes (map_range_bounds),
+// when the range lies inside one of them. Unlike the lazy-read windows these
+// mappings are never unmapped while the cell lives (the loader only ever adds
+// volumes, and an in-place rewrite drops the whole cache), so a pointer obtained
+// here may be KEPT in a long-lived structure - that is exactly what the block
+// cache does with a body it parses (entry->block). Returns NULL when no existing
+// volume covers the range, which is the normal case on a no-scan start (only the
+// volume it resumed in is mapped).
+const uint8_t *dap_chain_cell_volume_view(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size)
+{
+#ifndef DAP_OS_WINDOWS
+    if (!a_cell || !a_cell->map_range_bounds || !a_size)
+        return NULL;
+    size_t l_vol_start = 0;
+    for (dap_list_t *l_i = a_cell->map_range_bounds; l_i && l_i->next; l_i = l_i->next->next) {
+        char *l_base = (char *)l_i->data;
+        char *l_end = (char *)l_i->next->data;
+        if (!l_base || l_end <= l_base)
+            break;   // malformed pair: stop rather than compute a bogus range
+        size_t l_len = (size_t)(l_end - l_base);
+        if (a_file_offset >= l_vol_start && a_file_offset + a_size <= l_vol_start + l_len)
+            return (const uint8_t *)l_base + (a_file_offset - l_vol_start);
+        l_vol_start += l_len;
+    }
+#else
+    (void)a_cell; (void)a_file_offset; (void)a_size;
+#endif
+    return NULL;
+}
+
 void dap_chain_cell_read_window_stats(dap_chain_cell_t *a_cell, size_t *a_window_bytes, size_t *a_views)
 {
     if (a_window_bytes)
@@ -467,6 +497,11 @@ void dap_chain_cell_read_windows_drop(dap_chain_cell_t *a_cell)
 #endif
 }
 #else /* DAP_OS_WINDOWS */
+const uint8_t *dap_chain_cell_volume_view(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size)
+{
+    (void)a_cell; (void)a_file_offset; (void)a_size;
+    return NULL;
+}
 const uint8_t *dap_chain_cell_body_view(dap_chain_cell_t *a_cell, size_t a_file_offset, size_t a_size)
 {
     (void)a_cell; (void)a_file_offset; (void)a_size;
@@ -506,7 +541,12 @@ void dap_chain_cell_read_windows_drop(dap_chain_cell_t *a_cell)
  * tail of a block being written lives in it. Callers are the whole-chain walks
  * (the wallet bulk pass and other index passes) and the end of a load pass. */
 #ifndef DAP_OS_WINDOWS
-void dap_chain_cell_volumes_trim(dap_chain_cell_t *a_cell, const void *a_keep_ptr)
+// Core of the residency sweep. a_keep_ptr: the volume holding this address is
+// skipped (a caller walking that range is about to touch it again). a_upto: only
+// pages below this absolute file position are advised away (0 = the whole
+// mapping); the loader maps a full 256 MB volume even for a shorter file, and a
+// page past EOF must never be dropped - touching it afterwards is a SIGBUS.
+static void s_cell_volumes_trim_common(dap_chain_cell_t *a_cell, const void *a_keep_ptr, size_t a_upto)
 {
     if (!a_cell || !a_cell->map_range_bounds)
         return;
@@ -523,18 +563,43 @@ void dap_chain_cell_volumes_trim(dap_chain_cell_t *a_cell, const void *a_keep_pt
             ++l_kept;
             continue;
         }
-        if (!madvise(l_base, (size_t)(l_end - l_base), MADV_DONTNEED)) {
+        size_t l_len = (size_t)(l_end - l_base);
+        if (a_upto) {
+            // Trim only the part of this volume that lies below the file's end.
+            size_t l_vol_start = (size_t)(l_base - a_cell->map);
+            if (l_vol_start >= a_upto)
+                continue;   // the whole volume is past the end: never touch its pages
+            if (l_vol_start + l_len > a_upto)
+                l_len = a_upto - l_vol_start;
+        }
+        if (l_len && !madvise(l_base, l_len, MADV_DONTNEED)) {
             ++l_dropped;
-            l_bytes += (size_t)(l_end - l_base);
+            l_bytes += l_len;
         }
     }
     debug_if(s_debug_more, L_INFO, "Chain cell \"%s\": dropped residency of %zu loader volume(s) "
              "(%zu MB), kept %zu", a_cell->file_storage_path, l_dropped, l_bytes >> 20, l_kept);
 }
+
+void dap_chain_cell_volumes_trim(dap_chain_cell_t *a_cell, const void *a_keep_ptr)
+{
+    s_cell_volumes_trim_common(a_cell, a_keep_ptr, 0);
+}
+
+// Same sweep, bounded by the file's end: used right after a load pass, where the
+// mappings may extend past EOF (the loader rounds the volume up to 256 MB).
+void dap_chain_cell_volumes_trim_upto(dap_chain_cell_t *a_cell, size_t a_upto)
+{
+    s_cell_volumes_trim_common(a_cell, NULL, a_upto);
+}
 #else
 void dap_chain_cell_volumes_trim(dap_chain_cell_t *a_cell, const void *a_keep_ptr)
 {
     (void)a_cell; (void)a_keep_ptr;
+}
+void dap_chain_cell_volumes_trim_upto(dap_chain_cell_t *a_cell, size_t a_upto)
+{
+    (void)a_cell; (void)a_upto;
 }
 #endif
 
@@ -873,12 +938,6 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
         }
 #ifndef DAP_OS_WINDOWS
         s_cell_reclaim_cur_volume(a_cell);
-        // A scan walked the whole file, so every volume it mapped is resident.
-        // Dropping the pages here is what keeps a 20 GB scan from leaving ~9 GB
-        // of cell mappings in RSS until the process dies (measured on cf-mm-0:
-        // 152 volumes / 8.68 GB). Bodies and datums taken during the scan stay
-        // valid - this only returns residency to the kernel.
-        dap_chain_cell_volumes_trim(a_cell, NULL);
 #endif
     } else { 
         DAP_DELETE(l_hdr);
@@ -954,6 +1013,19 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             log_it(L_ERROR, "ftruncate failed for cell %s: %s", a_cell->file_storage_path, dap_strerror(errno));
     }
     fseeko(a_cell->file_storage, l_pos, SEEK_SET);
+#ifndef DAP_OS_WINDOWS
+    // A scan walked the whole file, so every volume it mapped is resident.
+    // Dropping the pages here is what keeps a 20 GB scan from leaving ~9 GB of
+    // cell mappings in RSS until the process dies (measured on cf-mm-0: 152
+    // volumes / 8.68 GB). This runs AFTER the truncation above on purpose: the
+    // loader maps a full 256 MB volume even for a shorter file, so a page of the
+    // last volume can lie past EOF - advising it away and then touching it would
+    // SIGBUS, while pages below the final file size always re-fault from the file
+    // (bodies and datums taken during the scan stay valid; only residency is
+    // returned). The bound is the loader's end position, which is exactly the
+    // file size after this pass.
+    dap_chain_cell_volumes_trim_upto(a_cell, (size_t)l_pos);
+#endif
     log_it(L_INFO, "Loaded %" DAP_UINT64_FORMAT_U " atoms in cell %s (accepted %" DAP_UINT64_FORMAT_U
            ", forks %" DAP_UINT64_FORMAT_U ", rejected %" DAP_UINT64_FORMAT_U ")",
            q, a_cell->file_storage_path, l_n_acc, l_n_fork, l_n_rej);
