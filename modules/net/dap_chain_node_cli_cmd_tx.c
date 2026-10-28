@@ -1176,17 +1176,24 @@ int com_ledger(int a_argc, char ** a_argv, void **reply, int a_version)
                                    "Can't reset the ledger cache of net %s", l_net_str);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR;
         }
-        // By default the network is reloaded as well, so the dropped cache is rebuilt from the
-        // chains right away. The reload is the slow part - -no-reload skips it and leaves the
-        // cache to be rebuilt by the next chain load.
-        bool l_no_reload = dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-no-reload", NULL);
+        // The reload used to be the default, but it can never rebuild the ledger:
+        // dap_chain_net_purge drops the chain-state index together with the ledger,
+        // the chains then restore from what is left of the index without replaying
+        // datums, and a snapshot-less local scan stalls on historical blocks whose
+        // validator context only a live peer sync provides. The rebuild-by-reload
+        // path therefore requires an explicit opt-in, and the reply says what the
+        // supported healing path is.
+        bool l_do_reload = dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-reload", NULL);
         bool l_reload_scheduled = false;
-        if (!l_no_reload)
+        if (l_do_reload)
             l_reload_scheduled = dap_chain_net_reload_async(l_net);
-        json_object *l_jobj_ret = json_object_new_string(l_no_reload
-                ? "Ledger cache cleared"
-                : l_reload_scheduled ? "Ledger cache cleared, network reload started"
-                                     : "Ledger cache cleared, but the network reload could not be scheduled");
+        json_object *l_jobj_ret = json_object_new_string(l_do_reload
+                ? (l_reload_scheduled
+                        ? "Ledger cache cleared, network reload started"
+                        : "Ledger cache cleared, but the network reload could not be scheduled")
+                : "Ledger cache cleared; the ledger will be rebuilt on the next chain load. "
+                  "NOTE: a snapshot-less local rescan cannot complete - to heal a damaged "
+                  "ledger, resync the network from peers");
         if (!l_jobj_ret) {
             dap_json_rpc_allocation_error(*a_json_arr_reply);
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;

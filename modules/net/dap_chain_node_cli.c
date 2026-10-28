@@ -483,9 +483,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger event key add -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
             "ledger event key remove -net <net_name> -hash <pkey_hash> -certs <certs_list>\n"
             "ledger event key list -net <net_name> [-H <hex|base58>]\n"
-            "ledger cache reset -net <net_name> [-no-reload]\n"
-            "\tClears the ledger cache of the network (it is rebuilt from the chains: the network\n"
-            "\tis reloaded unless -no-reload is given, which makes the command slow).\n");
+            "ledger cache reset -net <net_name> [-reload]\n"
+            "\tClears the ledger cache of the network. The ledger is rebuilt on the next chain\n"
+            "\tload; -reload restarts the network right away. A snapshot-less local rescan\n"
+            "\tcannot complete - to heal a damaged ledger, resync the network from peers.\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, NULL, "Token info",

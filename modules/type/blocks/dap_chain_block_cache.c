@@ -364,6 +364,9 @@ void dap_chain_block_cache_transient_free(dap_chain_block_cache_transient_t *a_t
     DAP_DEL_Z(a_transient->cache.datum);
     DAP_DEL_Z(a_transient->cache.datum_hash);
     DAP_DEL_Z(a_transient->cache.links_hash);
+    // The lazy pkey-hash getter may have run against this transient entry
+    // during a walk; free it the same way the full cache entry does.
+    DAP_DEL_Z(a_transient->cache.sign_pkey_hashes);
     DAP_DEL_Z(a_transient->body);
     DAP_DELETE(a_transient);
 }

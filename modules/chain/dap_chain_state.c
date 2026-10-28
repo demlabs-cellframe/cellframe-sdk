@@ -115,7 +115,7 @@ static void s_write_header_locked(dap_chain_state_t *a_state, bool a_sync)
     memcpy(l_hdr.magic, s_chain_state_magic, sizeof(l_hdr.magic));
     l_hdr.crc64 = crc64((const uint8_t *)&l_hdr, sizeof(l_hdr));
     bool l_ok = fflush(l_file) == 0
-            && fseek(l_file, 0, SEEK_SET) == 0
+            && fseeko(l_file, 0, SEEK_SET) == 0
             && fwrite(&l_hdr, sizeof(l_hdr), 1, l_file) == 1
             && fflush(l_file) == 0;
     if (l_ok && a_sync) {
@@ -123,7 +123,7 @@ static void s_write_header_locked(dap_chain_state_t *a_state, bool a_sync)
         ftruncate(fileno(l_file), (off_t)(sizeof(l_hdr)
                 + a_state->records * sizeof(dap_chain_state_rec_t)));
     }
-    fseek(l_file, 0, SEEK_END);
+    fseeko(l_file, 0, SEEK_END);
 }
 
 // Called with the state lock held.
@@ -189,7 +189,7 @@ int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hd
         pthread_mutex_unlock(&a_state->lock);
         return -5;
     }
-    if (fseek(l_file, 0, SEEK_END) != 0) {
+    if (fseeko(l_file, 0, SEEK_END) != 0) {
         fclose(l_file);
         pthread_mutex_unlock(&a_state->lock);
         return -6;
@@ -213,7 +213,7 @@ int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hd
     dap_chain_state_rec_t l_last = {};
     off_t l_last_off = (off_t)(sizeof(*a_hdr)
             + (l_records_in_file - 1) * sizeof(dap_chain_state_rec_t));
-    l_ok = fseek(l_file, l_last_off, SEEK_SET) == 0
+    l_ok = fseeko(l_file, l_last_off, SEEK_SET) == 0
             && fread(&l_last, sizeof(l_last), 1, l_file) == 1;
     if (!l_ok || dap_hash_fast_is_blank(&l_last.hash)) {
         fclose(l_file);
@@ -228,7 +228,7 @@ int dap_chain_state_read(dap_chain_state_t *a_state, dap_chain_state_hdr_t *a_hd
     // would keep the node scanning forever. Reject the index explicitly instead, so
     // the caller rescans and rebuilds it.
     dap_chain_state_rec_t l_first = {};
-    if (fseek(l_file, sizeof(*a_hdr), SEEK_SET) == 0
+    if (fseeko(l_file, sizeof(*a_hdr), SEEK_SET) == 0
             && fread(&l_first, sizeof(l_first), 1, l_file) == 1
             && (!l_first.num || !l_first.size || dap_hash_fast_is_blank(&l_first.hash))) {
         fclose(l_file);
@@ -250,14 +250,14 @@ bool dap_chain_state_last_record(dap_chain_state_t *a_state, dap_chain_state_rec
     FILE *l_file = l_path ? fopen(l_path, "rb") : NULL;
     DAP_DELETE(l_path);
     if (l_file) {
-        bool l_ok = fseek(l_file, 0, SEEK_END) == 0;
+        bool l_ok = fseeko(l_file, 0, SEEK_END) == 0;
         off_t l_size = l_ok ? ftello(l_file) : -1;
         uint64_t l_records = l_size > (off_t)sizeof(dap_chain_state_hdr_t)
                 ? (uint64_t)(l_size - sizeof(dap_chain_state_hdr_t)) / sizeof(dap_chain_state_rec_t) : 0;
         if (l_records) {
             off_t l_off = (off_t)(sizeof(dap_chain_state_hdr_t)
                     + (l_records - 1) * sizeof(dap_chain_state_rec_t));
-            l_ret = fseek(l_file, l_off, SEEK_SET) == 0
+            l_ret = fseeko(l_file, l_off, SEEK_SET) == 0
                     && fread(a_out, sizeof(*a_out), 1, l_file) == 1;
         }
         fclose(l_file);
