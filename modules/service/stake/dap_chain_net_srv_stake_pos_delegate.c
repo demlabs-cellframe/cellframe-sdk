@@ -1084,13 +1084,13 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
     // and unverifiable blocks. The apply itself (key_delegate) is idempotent -
     // it updates an existing entry in place - so unconditional application is
     // safe; live blocks above the load zone still get the full guard.
+    // Regression-tested in stake_replay_guard_unit_test: the guard rejects
+    // duplicates in ONLINE, passes them in replay states, and the blank-check
+    // is never bypassed.
     {
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_signing_addr->net_id);
-        if (l_net) {
-            dap_chain_net_state_t l_state = dap_chain_net_get_state(l_net);
-            if (l_state == NET_STATE_LOADING || l_state == NET_STATE_SYNC_CHAINS)
-                return 0;
-        }
+        if (l_net && dap_chain_net_is_replay(l_net))
+            return 0;
     }
 
     dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;

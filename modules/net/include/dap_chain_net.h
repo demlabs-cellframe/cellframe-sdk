@@ -141,6 +141,9 @@ void dap_chain_net_test_set_mempool_cluster(dap_chain_net_t *a_net, dap_global_d
 // into (or out of) the loading state, so ledger cache tests can exercise the "a chain load
 // continues on top of the restored cache" path of dap_ledger_tx_load().
 void dap_chain_net_test_set_load_mode(dap_chain_net_t *a_net, bool a_load_mode);
+// Drives the state machine directly (tests only): state_go_to is asynchronous
+// and refuses transitions out of LOADING.
+void dap_chain_net_test_set_state(dap_chain_net_t *a_net, dap_chain_net_state_t a_state);
 #endif
 
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
@@ -270,6 +273,12 @@ size_t dap_chain_token_datum_list(dap_chain_t *a_chain, dap_chain_token_datum_in
 int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
+// True while the network reproduces canonical history instead of processing
+// live blocks: the local load pass (NET_STATE_LOADING) and a peer-driven
+// catch-up (NET_STATE_SYNC_CHAINS). Live-only guards (mempool-era duplicate
+// checks and the like) must key off THIS accessor - and every such guard
+// carries a regression test proving it still rejects in ONLINE mode.
+bool dap_chain_net_is_replay(dap_chain_net_t * a_net);
 
 // Saves the ledger snapshot of every net (graceful shutdown). Idempotent.
 void dap_chain_net_snapshot_save_all(void);

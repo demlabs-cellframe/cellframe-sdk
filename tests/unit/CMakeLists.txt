@@ -207,3 +207,32 @@ set_tests_properties(chain_state_kv_uaf PROPERTIES
     TIMEOUT 60
     LABELS "unit;state;regression"
 )
+
+# Stake delegation duplicate guard vs replay: the guard is a live-operation
+# check keyed off dap_chain_net_is_replay(); this test pins that it rejects
+# duplicates in ONLINE, yields in LOADING/SYNC_CHAINS, and that the hard
+# blank-argument check is never bypassed (see stake_replay_guard_unit_test.c).
+add_executable(stake_replay_guard_unit_test
+    stake_replay_guard_unit_test.c
+)
+
+target_include_directories(stake_replay_guard_unit_test PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_SOURCE_DIR}/modules/service/stake/include
+)
+
+target_link_libraries(stake_replay_guard_unit_test
+    dap_test
+    dap_core
+    dap_crypto
+    dap_chain_common
+    dap_chain_net
+    dap_chain_net_srv_stake
+)
+
+add_test(NAME stake_replay_guard_unit COMMAND stake_replay_guard_unit_test)
+
+set_tests_properties(stake_replay_guard_unit PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;stake;regression"
+)

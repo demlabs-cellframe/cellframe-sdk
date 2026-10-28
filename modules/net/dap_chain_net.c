@@ -2217,6 +2217,13 @@ void dap_chain_net_test_set_load_mode(dap_chain_net_t *a_net, bool a_load_mode)
         return;
     PVT(a_net)->state = a_load_mode ? NET_STATE_LOADING : NET_STATE_OFFLINE;
 }
+
+void dap_chain_net_test_set_state(dap_chain_net_t *a_net, dap_chain_net_state_t a_state)
+{
+    if (!a_net)
+        return;
+    PVT(a_net)->state = a_state;
+}
 #endif
 
 
@@ -3747,6 +3754,14 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
 DAP_INLINE bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
 {
     return PVT(a_net)->state == NET_STATE_LOADING;
+}
+
+bool dap_chain_net_is_replay(dap_chain_net_t * a_net)
+{
+    if (!a_net)
+        return false;
+    dap_chain_net_state_t l_state = PVT(a_net)->state;
+    return l_state == NET_STATE_LOADING || l_state == NET_STATE_SYNC_CHAINS;
 }
 
 int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num)
