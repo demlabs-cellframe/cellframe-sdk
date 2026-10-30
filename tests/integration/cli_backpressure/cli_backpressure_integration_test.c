@@ -102,6 +102,8 @@
 #include "dap_config.h"
 #include "dap_cli_server.h"
 #include "dap_events_socket.h"
+#include "dap_app_cli.h"
+#include "dap_app_cli_net.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_test.h"
 #include "test_ledger_fixtures.h"
@@ -476,6 +478,55 @@ static void s_test_backpressure_returns_real_429(void)
     dap_pass_msg("Backpressure real-429 test passed");
 }
 
+// --- Test 3b: the real CLI client maps the empty 429 to BUSY --------------
+// The overload gate refuses with "HTTP/1.1 429 ... Content-Length: 0" and no
+// body. The CLI client used to treat a zero Content-Length as a format error
+// ("Response format error!"), which is what operators saw for heavy commands
+// (ledger list, token list) on a busy node. The client must report it as
+// busy instead so it can retry.
+static void s_test_client_maps_empty_429_to_busy(void)
+{
+    dap_print_module_name("Integration Test 3b: CLI client reports a saturated node as busy, not as a format error");
+    s_slow_reset();
+
+    // Saturate the regular inflight cap (max_inflight=2), same as test 3.
+    int l_fd1 = s_client_connect(), l_fd2 = s_client_connect();
+    dap_assert_PIF(l_fd1 >= 0 && l_fd2 >= 0, "Two connections established");
+    dap_assert_PIF(s_client_send_request(l_fd1, "cli_bp_it_slow_cmd"), "Request 1 sent");
+    dap_assert_PIF(s_client_send_request(l_fd2, "cli_bp_it_slow_cmd"), "Request 2 sent");
+    dap_assert_PIF(s_wait_at_least(&s_slow_started, 2, 2000),
+                   "Both commands dispatched, regular inflight counter saturated");
+
+    // A real client call over the same wire must see the empty 429 and
+    // return DAP_CLI_ERROR_BUSY (before the fix: DAP_CLI_ERROR_FORMAT).
+    int l_fd3 = s_client_connect();
+    dap_assert_PIF(l_fd3 >= 0, "Client connection established");
+    dap_app_cli_cmd_state_t l_cmd = {
+        .cmd_name = "cli_bp_it_slow_cmd",
+        .cmd_param_count = 0,
+        .cmd_param = NULL
+    };
+    int l_rc = dap_app_cli_post_command((dap_app_cli_connect_param_t)l_fd3, &l_cmd);
+    close(l_fd3);
+    dap_assert_PIF(l_rc == DAP_CLI_ERROR_BUSY,
+                   "dap_app_cli_post_command() returns DAP_CLI_ERROR_BUSY for the empty 429 reply");
+    dap_assert_PIF(l_cmd.http_status == 429,
+                   "Client exposes the HTTP 429 status of the rejection");
+
+    s_slow_release_all();
+    dap_assert_PIF(s_wait_at_least(&s_slow_completed, 2, 2000),
+                   "Originally-dispatched commands still complete after the client-side 429");
+    char l_resp1[2048], l_resp2[2048];
+    s_client_read_response(l_fd1, l_resp1, sizeof(l_resp1), 2000);
+    s_client_read_response(l_fd2, l_resp2, sizeof(l_resp2), 2000);
+    close(l_fd1);
+    close(l_fd2);
+    dap_assert_PIF(strstr(l_resp1, "HTTP/1.1 200") != NULL, "Connection 1 got its 200 OK reply");
+    dap_assert_PIF(strstr(l_resp2, "HTTP/1.1 200") != NULL, "Connection 2 got its 200 OK reply");
+
+    dap_pass_msg("CLI client busy-vs-format regression passed");
+}
+
 // --- Test 4: GET /health readiness probe -------------------------------
 static void s_test_health_probe(void)
 {
@@ -635,6 +686,7 @@ int main(void)
     s_test_control_request_succeeds();
     s_test_mid_flight_disconnect_does_not_abort();
     s_test_backpressure_returns_real_429();
+    s_test_client_maps_empty_429_to_busy();
     s_test_health_probe();
     s_test_command_unavailable_reply();
     s_test_streamed_reply();
@@ -642,6 +694,6 @@ int main(void)
 
     s_teardown();
 
-    printf("All CLI backpressure/dead-client integration tests passed (7 tests)!\n"); fflush(stdout);
+    printf("All CLI backpressure/dead-client integration tests passed (8 tests)!\n"); fflush(stdout);
     return 0;
 }

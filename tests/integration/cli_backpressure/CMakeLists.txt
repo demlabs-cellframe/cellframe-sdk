@@ -21,6 +21,7 @@ target_link_libraries(cli_backpressure_integration_test
     cellframe_test_fixtures
     dap_core
     dap_cli_server
+    dap_app_cli
     pthread
 )
 
