@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>	// access() in the stale-state regression check
+#include <sys/stat.h>	// stat() for the RAM-backed test dir selection
 
 #include "dap_common.h"
 #include "dap_config.h"
@@ -48,7 +49,12 @@
 #define TEST_TOKEN_TICKER  "LCR1"
 #define PHASE1_TXS         40
 #define PHASE2_TXS         40
-#define GDB_WAIT_TIMEOUT_MS 10000
+/* The cache records are written through the GlobalDB I/O pool, asynchronously
+ * and fsync-bound: on a slow filesystem (overlayfs on a loaded CI runner) 40
+ * small durable writes can take tens of seconds, while on tmpfs they land in
+ * milliseconds. The bound only has to separate "the fill works, just slowly"
+ * from "the fill never happens" - a real regression leaves the count at zero. */
+#define GDB_WAIT_TIMEOUT_MS 60000
 
 static test_net_fixture_t *s_fixture = NULL;
 static dap_enc_key_t *s_key = NULL;
@@ -103,14 +109,29 @@ static dap_chain_datum_tx_t *s_make_spend_tx(const dap_chain_hash_fast_t *a_prev
 static char s_cfg_dir[512], s_gdb_dir[512], s_certs_dir[512];
 static dap_config_t *s_config = NULL;
 
+/* The cache fill is checked through GlobalDB writes, which are fsync-bound.
+ * On a slow filesystem (overlayfs on a loaded CI runner: ~0.1-1 s per durable
+ * write) 40 records take tens of seconds and the run says nothing about what
+ * this test actually covers - fill and resume semantics, not storage
+ * durability. Prefer a RAM-backed directory and fall back to the regular temp
+ * dir (the wait bound below covers that case). */
+static const char *s_test_base_dir(void)
+{
+    struct stat l_st;
+    const char *l_shm = "/dev/shm";
+    if (stat(l_shm, &l_st) == 0 && S_ISDIR(l_st.st_mode) && access(l_shm, W_OK) == 0)
+        return l_shm;
+    return test_get_temp_dir();
+}
+
 static void s_setup(void)
 {
     dap_enc_init();
     dap_chain_wallet_init();
 
-    snprintf(s_cfg_dir, sizeof(s_cfg_dir), "%s/ledger_cache_resume_test_config", test_get_temp_dir());
-    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/ledger_cache_resume_test_gdb", test_get_temp_dir());
-    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/ledger_cache_resume_test_certs", test_get_temp_dir());
+    snprintf(s_cfg_dir, sizeof(s_cfg_dir), "%s/ledger_cache_resume_test_config", s_test_base_dir());
+    snprintf(s_gdb_dir, sizeof(s_gdb_dir), "%s/ledger_cache_resume_test_gdb", s_test_base_dir());
+    snprintf(s_certs_dir, sizeof(s_certs_dir), "%s/ledger_cache_resume_test_certs", s_test_base_dir());
     // Regression: the GlobalDB directory must start empty. It is a FIXED path
     // under the temp dir, so a previous run of this test (or a killed one) leaves
     // its MDBX files behind; opening them again makes the old token/emission
