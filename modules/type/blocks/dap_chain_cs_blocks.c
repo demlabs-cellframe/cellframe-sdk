@@ -85,8 +85,6 @@ typedef struct dap_chain_cs_blocks_pvt {
     dap_chain_hash_fast_t genesis_block_hash;
     dap_chain_hash_fast_t static_genesis_block_hash;
 
-    bool is_celled;
-
     pthread_rwlock_t rwlock;
     // Owner of rwlock (0 if none) and the count of the owner's nested acquisitions.
     // Ledger verification run from s_add_atom_datums()/s_delete_atom_datums() under
@@ -502,7 +500,6 @@ static int s_chain_cs_blocks_new(dap_chain_t *a_chain, dap_config_t *a_chain_con
             log_it( L_ERROR, "Can't read hash from genesis_block \"%s\", ret code %d ", l_genesis_blocks_hash_str, lhr);
         }
     }
-    l_cs_blocks_pvt->is_celled = dap_config_get_item_bool_default(a_chain_config, "blocks", "is_celled", false);
     const char * l_static_genesis_blocks_hash_str = dap_config_get_item_str_default(a_chain_config,"blocks","static_genesis_block",NULL);
     if ( l_static_genesis_blocks_hash_str ){
         int lhr;
@@ -2538,17 +2535,23 @@ static void s_chain_state_reset(dap_chain_cs_blocks_t *a_blocks)
 static uint64_t s_chain_state_block_offset(dap_chain_cs_blocks_t *a_blocks, const void *a_atom,
                                           dap_chain_cell_t *a_cell)
 {
+    // The loader publishes the absolute position of the atom it is feeding right
+    // now (both loaders, mapped or not). That is the fallback whenever the atom
+    // pointer itself cannot be resolved against a mapped volume - a live atom
+    // from a peer during the chain catch-up is such a case - so the cache entry
+    // can still be THIN instead of owning a heap copy of the body.
+    uint64_t l_loader_offset = dap_chain_cell_load_offset();
     if (!a_blocks->chain->is_mapped)
-        return dap_chain_cell_load_offset();
+        return l_loader_offset;
     if (!a_atom || !a_cell || !a_cell->map)
-        return 0;
+        return l_loader_offset;
     byte_t *l_map = (byte_t *)a_cell->map;
     byte_t *l_map_end = (byte_t *)a_cell->map_end;
     byte_t *l_atom_ptr = (byte_t *)a_atom;
     // Absolute file position: the mmap window starts at cur_vol_start, so the
     // pointer delta alone is window-relative.
     return (l_atom_ptr >= l_map && l_atom_ptr < l_map_end)
-            ? (uint64_t)a_cell->cur_vol_start + (uint64_t)(l_atom_ptr - l_map) : 0;
+            ? (uint64_t)a_cell->cur_vol_start + (uint64_t)(l_atom_ptr - l_map) : l_loader_offset;
 }
 
 static uint64_t s_chain_state_block_offset_cached(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
@@ -4324,16 +4327,12 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
 {
     uint256_t l_ret = uint256_0;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_block_cache_t *l_block_cache = NULL;
-    // Bare HASH_FIND against PVT(l_blocks)->blocks must not race with s_callback_atom_add /
-    // s_select_longest_branch, which restructure that same hash table's buckets under wrlock
-    // (HASH_DEL/HASH_ADD on fork reorg), so the lookup itself is done under rwlock, same as
-    // dap_chain_block_cache_get_by_hash()
-    s_blocks_hash_find_locked(l_blocks, a_block_hash, &l_block_cache);
+    // Single lookup path: the public getter takes the rwlock (the block hash
+    // table is restructured under wrlock on fork reorg) and guarantees the body
+    // of a thin index-restored entry, so this callback duplicates neither.
+    dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, a_block_hash);
     if (!l_block_cache)
         return l_ret;
-    if (!l_block_cache->parsed)
-        dap_chain_block_cache_ensure(l_block_cache);   // thin index-restored entry
     const dap_chain_block_t *l_block = l_block_cache->block;
     size_t l_block_size = l_block_cache->block_size;
     if (!l_block || !dap_chain_block_sign_match_pkey(l_block, l_block_size, a_block_sign_pkey))
