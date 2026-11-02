@@ -148,6 +148,47 @@ target_link_libraries(order_signature_unit_test
     dap_chain_net
 )
 
+# The test exercises dap_chain_net_srv_order_* only, but that module lives in
+# the service closure whose static archives reference each other
+# (net -> net_srv -> chain_common -> net). Listing target names makes CMake
+# append the transitive closure after the direct entries - the chain archives
+# then land BEFORE the services that need them and the link fails with
+# undefined dap_chain_addr_*/dap_chain_net_srv_*. LINK_GROUP is rejected here:
+# the library targets themselves form a dependency cycle. So link the archives
+# by path, inside a linker group: no transitive tail, every reference resolved.
+set(ORDER_SIGNATURE_ARCHIVES
+    $<TARGET_FILE:dap_chain_net_srv>
+    $<TARGET_FILE:dap_chain_net_srv_voting>
+    $<TARGET_FILE:dap_chain_mempool>
+    $<TARGET_FILE:dap_chain_net_srv_xchange>
+    $<TARGET_FILE:dap_chain_cs_none>
+    $<TARGET_FILE:dap_stream_ch_chain_net>
+    $<TARGET_FILE:dap_chain_cs_esbocs>
+    $<TARGET_FILE:dap_stream_ch_chain_net_srv>
+    $<TARGET_FILE:dap_chain_cs_blocks>
+    $<TARGET_FILE:dap_chain_net_srv_dex>
+    $<TARGET_FILE:dap_chain_net_srv_stake>
+    $<TARGET_FILE:dap_chain_net>
+    $<TARGET_FILE:dap_chain_wallet>
+    $<TARGET_FILE:dap_chain>
+    $<TARGET_FILE:dap_chain_common>
+)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR MINGW)
+    target_link_libraries(order_signature_unit_test
+        dap_test
+        dap_core
+        dap_crypto
+        -Wl,--start-group ${ORDER_SIGNATURE_ARCHIVES} -Wl,--end-group
+    )
+else()
+    target_link_libraries(order_signature_unit_test
+        dap_test
+        dap_core
+        dap_crypto
+        ${ORDER_SIGNATURE_ARCHIVES}
+    )
+endif()
+
 add_test(NAME order_signature_unit COMMAND order_signature_unit_test)
 
 set_tests_properties(order_signature_unit PROPERTIES
