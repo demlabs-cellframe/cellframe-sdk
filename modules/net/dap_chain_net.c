@@ -2390,17 +2390,26 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
     if (dap_config_get_item_bool_default(g_config, "ledger", "mapped", true))
         l_ledger_flags |= DAP_LEDGER_MAPPED;
 
+    bool l_ledger_cell_chain = false;
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
         if (l_chain->callback_load_from_gdb) {
-            l_ledger_flags &= ~DAP_LEDGER_MAPPED;
             l_ledger_flags |= DAP_LEDGER_THRESHOLD_ENABLED;
             continue;
         }
+        // A cell-backed chain exists: the ledger's transaction datums come from a
+        // memory-mapped cell and can be kept by pointer. A chain that loads from
+        // GDB (zerochain/DAG) must NOT drag the whole ledger into copy mode - its
+        // datums are not ledger transactions, and copying every tx body kept the
+        // entire chain in the heap (a fresh resync: 15.8 GB anon-rss, OOM-killed;
+        // seen again as ~32 KB of heap growth per applied block).
+        l_ledger_cell_chain = true;
         if (!l_chain->callback_get_poa_certs)
             continue;
         if (!l_net->pub.keys)
             l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
     }
+    if (!l_ledger_cell_chain)
+        l_ledger_flags &= ~DAP_LEDGER_MAPPED;
     if (!l_net->pub.keys)
         log_it(L_WARNING, "PoA certificates for net %s not found", l_net->pub.name);
 
