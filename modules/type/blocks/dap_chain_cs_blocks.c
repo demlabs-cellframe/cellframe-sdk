@@ -3166,17 +3166,20 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             ret = ATOM_ACCEPT;
         }
 #endif
-        // Thin entries are used for mapped chains only. There the body pointer
-        // ends up inside the loader's volume, which is never unmapped while the
-        // cell lives; a non-mapped chain's body would come from a lazy-read
-        // window, and those are dropped when the file is rewritten in place
-        // (purge/truncation), so the entry keeps owning a copy there.
+        // Thin entries are used for mapped chains only, and only when the atom's
+        // position in the cell file is known (the load/scan path). There the body
+        // pointer ends up inside the loader's volume, which is never unmapped
+        // while the cell lives. Every other case - a non-mapped chain, or a live
+        // atom arriving from a peer, whose bytes belong to the network receive
+        // buffer - must own a copy: that buffer is freed as soon as the callback
+        // returns, while the entry outlives it (reward lookups by hash, block
+        // listings), and a dangling body pointer there is a use-after-free.
         l_block_cache = (a_chain->is_mapped && l_atom_offset && l_atom_cell)
                 ? dap_chain_block_cache_new_indexed(&l_block_hash, a_atom_size,
                         PVT(l_blocks)->blocks_count + 1, l_block->hdr.ts_created, &l_block_prev_hash,
                         l_atom_offset, l_atom_cell, l_block->hdr.datum_count)
                 : dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size,
-                        PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
+                        PVT(l_blocks)->blocks_count + 1, true);
         if (!l_block_cache) {
             log_it(L_DEBUG, "%s", "... corrupted block");
             return ATOM_REJECT;
@@ -3344,12 +3347,15 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             ret = ATOM_FORK;
         }
 #endif
+        // Same ownership rule as the linear path above (see the comment there):
+        // only an atom whose file position is known may stay thin, everything
+        // else - including a live fork block from a peer - keeps an owned copy.
         l_block_cache = (a_chain->is_mapped && l_atom_offset && l_atom_cell)
                 ? dap_chain_block_cache_new_indexed(&l_block_hash, a_atom_size,
                         PVT(l_blocks)->blocks_count + 1, l_block->hdr.ts_created, &l_block_prev_hash,
                         l_atom_offset, l_atom_cell, l_block->hdr.datum_count)
                 : dap_chain_block_cache_new(&l_block_hash, l_block, a_atom_size,
-                        PVT(l_blocks)->blocks_count + 1, !a_chain->is_mapped);
+                        PVT(l_blocks)->blocks_count + 1, true);
         if (!l_block_cache) {
             log_it(L_DEBUG, "%s", "... corrupted block");
             return ATOM_REJECT;
