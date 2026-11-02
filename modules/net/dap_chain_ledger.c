@@ -4630,11 +4630,13 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
 {
     dap_return_val_if_fail(a_ledger && PVT(a_ledger)->snapshot_mode, -1);
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    // Never save while the chains are loading: the scan attaches datums as it
-    // walks, and a snapshot written before it finishes carries a partial wallet
-    // section (unspent outs only for the transactions seen so far) that the
-    // next start would trust as complete and skip the rebuilding pass for.
-    if (a_ledger->net && dap_chain_net_get_load_mode(a_ledger->net)) {
+    // Never save while the chains are loading or catching up from peers: the
+    // scan attaches datums as it walks, and a snapshot written before it
+    // finishes carries a partial wallet section (unspent outs only for the
+    // transactions seen so far) that the next start would trust as complete
+    // and skip the rebuilding pass for. SYNC_CHAINS is the peer resync - the
+    // same intermediate state, so it is covered by the same check.
+    if (a_ledger->net && dap_chain_net_is_replay(a_ledger->net)) {
         debug_if(s_debug_more, L_DEBUG, "Ledger snapshot: save skipped while net %s is loading",
                  a_ledger->net->pub.name);
         return 0;
@@ -5506,9 +5508,13 @@ int dap_ledger_snapshot_load(dap_ledger_t *a_ledger)
 static void s_snapshot_save_timer_tick(void *a_arg)
 {
     dap_ledger_t *l_ledger = (dap_ledger_t *)a_arg;
-    // Nothing to protect before the load finishes: the restore itself has just
-    // read this very file, and a full replay would not be shortened by it.
-    if (dap_chain_net_get_load_mode(l_ledger->net))
+    // Never write a snapshot while the ledger is being rebuilt: LOADING is the
+    // local scan, SYNC_CHAINS the peer catch-up after a wipe. A file written
+    // mid-sync carries a fraction of the state under a tip anchor, and the next
+    // start trusts it and skips the scan - the node then reports the chain tip
+    // with an almost empty ledger (a fresh 0-rpc resync came up ONLINE with
+    // "No items in ledger balance_accounts" exactly this way).
+    if (dap_chain_net_is_replay(l_ledger->net))
         return;
     dap_ledger_snapshot_save(l_ledger, false);
 }
