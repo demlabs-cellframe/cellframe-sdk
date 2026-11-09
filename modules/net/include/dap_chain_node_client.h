@@ -103,6 +103,11 @@ typedef struct dap_chain_node_client {
     uint8_t tls_fp_profile_index;
     char tls13_spki_sha256[65];
     char tls13_server_name[254];
+    /* REALITY (VLESS) endpoint parameters (copied to dap_client before connect) */
+    char reality_uuid[37];
+    char reality_public_key[65];
+    char reality_short_id[17];
+    char reality_sni[256];
     dap_timerfd_t *sync_timer;
     dap_timerfd_t *reconnect_timer;
     // callbacks
