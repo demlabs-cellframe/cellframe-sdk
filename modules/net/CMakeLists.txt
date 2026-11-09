@@ -38,6 +38,10 @@ endif()
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)
+# Replay order merge drains the deferred zerochain datums: the drain reads the DAG
+# event body (built by the DAG module) and needs its layout header. Include-only on
+# purpose - dap_chain_net does not link against the DAG consensus module.
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../type/dag/include)
 
 if (!WIN32)
     target_include_directories(${PROJECT_NAME} PUBLIC ${IPUTILS_INCLUDE_DIRS})

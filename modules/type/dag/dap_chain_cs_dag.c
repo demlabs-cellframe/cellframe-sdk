@@ -749,13 +749,18 @@ static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
 
 static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_item_t *a_event_item)
 {
+    // Loader context: the datum below came out of an accepted DAG event. Trusted
+    // replay keys its check bypasses on this context (dap_chain_net_replay_in_loader).
+    dap_chain_net_replay_loader_push();
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
     if (!l_datum) {
         log_it(L_WARNING, "Corrupted event, failed to extract datum from event.");
+        dap_chain_net_replay_loader_pop();
         return -2;
     }
     if(a_event_item->event_size < sizeof(l_datum->header) ){
         log_it(L_WARNING, "Corrupted event, too small to fit datum in it");
+        dap_chain_net_replay_loader_pop();
         return -1;
     }
     size_t l_datum_size = dap_chain_datum_size(l_datum);
@@ -782,6 +787,37 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
         l_ret = DAP_LEDGER_CHECK_ALREADY_CACHED;
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX && a_dag->chain->callback_count_tx_increase)
             a_dag->chain->callback_count_tx_increase(a_dag->chain);
+    } else if (l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN && l_datum_size >= sizeof(dap_chain_datum_token_t)
+            && (((dap_chain_datum_token_t *)l_datum->data)->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE
+                || ((dap_chain_datum_token_t *)l_datum->data)->type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE
+                || ((dap_chain_datum_token_t *)l_datum->data)->type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE)) {
+        // Replay order merge: a token PERMISSION update is released at main's block
+        // time instead of before the whole main chain, so historical main datums see
+        // the token permissions of their own era (live nodes interleave the chains).
+        // Only updates are deferred. Declarations carry the initial state and must be
+        // in place for the emissions that follow them; emissions carry value, not
+        // permissions, and a live node applies them as soon as the zerochain delivers
+        // them. Deferring emissions made their DAG event time (which may be later than
+        // the block of the transaction that spends them) the availability time, and
+        // every such gap seeded a PREV_TX_NOT_FOUND cascade (measured: first missing
+        // emissions at blocks 4-6, the first cascade root at block 335).
+        // The threshold path records the body offset in event_item->file_offset; a
+        // straight accept during a cell scan does not, so derive it from the current
+        // mapping window with the same arithmetic the threshold path uses.
+        uint64_t l_defer_off = a_event_item->file_offset;
+        if (!l_defer_off && a_dag->chain->is_mapped) {
+            dap_chain_cell_t *l_defer_cell = dap_chain_cell_find_by_id(a_dag->chain, a_dag->chain->active_cell_id);
+            const char *l_defer_ev = (const char *)a_event_item->event;
+            if (l_defer_cell && l_defer_ev >= l_defer_cell->map && l_defer_ev < l_defer_cell->map_end)
+                l_defer_off = (uint64_t)l_defer_cell->cur_vol_start
+                        + (uint64_t)(l_defer_ev - l_defer_cell->map);
+        }
+        if (l_defer_off
+                && dap_chain_net_replay_defer_try(a_dag->chain, a_event_item->ts_created, l_defer_off,
+                                                  (uint32_t)a_event_item->event_size, &l_datum_hash))
+            l_ret = 0;
+        else
+            l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
     } else {
         l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash, NULL);
     }
@@ -816,6 +852,7 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t *a_dag, dap_c
         log_it(L_INFO, "Dag event %s checked, ret code %d : %s", l_buf_hash, l_ret,
                l_ret ? dap_chain_net_verify_datum_err_code_to_str(l_datum, l_ret) : "Ok");
     }
+    dap_chain_net_replay_loader_pop();
     return l_ret;
 }
 

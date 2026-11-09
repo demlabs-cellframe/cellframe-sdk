@@ -116,6 +116,37 @@ static inline int s_ledger_file_sync(FILE *a_file)
 
 #define LOG_TAG "dap_ledger"
 
+/* *** Replay rejection diagnostics ***
+ * The replay tally reports how many transactions a load rejects, by code, but not
+ * where they sit in the chain: a cascade of PREV_TX_NOT_FOUND and the handful of
+ * roots that produced it are indistinguishable in the totals. These bounded traces
+ * name the block (set by the blocks loader) and the conflicting transaction for the
+ * first few rejections of every code, which is what makes the roots readable in
+ * block order. Bounded per code, so a 700k-rejection replay logs ~100 lines. */
+#define DAP_REPLAY_DIAG_CODES 64
+#define DAP_REPLAY_DIAG_PER_CODE 8
+static _Atomic uint32_t s_replay_diag_cnt[DAP_REPLAY_DIAG_CODES];
+static _Atomic uint64_t s_replay_diag_last_block[DAP_REPLAY_DIAG_CODES];
+
+static bool s_replay_diag_gate(int a_code)
+{
+    if (a_code <= 0 || a_code >= DAP_REPLAY_DIAG_CODES)
+        return false;
+    // A rejected datum is retried by later passes (mempool/threshold), which repeats
+    // the same trace with the current block number and would burn the whole quota on
+    // one transaction: only the first failure in each block is traced.
+    uint64_t l_block = dap_chain_net_replay_block_num();
+    if (atomic_exchange(&s_replay_diag_last_block[a_code], l_block) == l_block)
+        return false;
+    return atomic_fetch_add(&s_replay_diag_cnt[a_code], 1) < DAP_REPLAY_DIAG_PER_CODE;
+}
+
+#define REPLAY_DIAG(a_code, a_fmt, ...) do { \
+        if (s_replay_diag_gate(a_code)) \
+            log_it(L_WARNING, "REPLAY DIAG[%d] block %" DAP_UINT64_FORMAT_U ": " a_fmt, (int)(a_code), \
+                   dap_chain_net_replay_block_num(), ##__VA_ARGS__); \
+    } while (0)
+
 typedef struct dap_ledger_verificator {
     int subtype;    // hash key
     dap_ledger_verificator_callback_t callback;
@@ -259,6 +290,10 @@ typedef struct dap_ledger_private {
     // growing set of transactions that spend its outputs.
     bool replay_fail_active;
     uint64_t replay_fail_num;
+    // Set once the replay met a datum no node can apply (its parent or emission is
+    // not on chain). Such a verdict is the chain's, not a local loss: it must not
+    // hold the anchor back, and it is logged once per load.
+    bool replay_intrinsic_active;
     // A chain-state datum rebuild re-applies every block to the ledger; a
     // snapshot written in the middle would capture a fraction of the state
     // under a tip anchor, so saves are suppressed until it finishes.
@@ -711,6 +746,16 @@ inline static dap_ledger_hal_item_t *s_check_hal(dap_ledger_t *a_ledger, dap_has
     else
         debug_if(s_debug_more, L_MSG, "Datum %s is not in the whitelist", dap_hash_fast_to_str_static(a_hal_hash));
     return ret;
+}
+
+// The hard accept list is operator configuration and applies exactly as configured,
+// on every path. Trusted-replay bypasses of it were tried and rejected by measurement:
+// the reference node (cfnode1) runs the same lists and loads the whole chain with them,
+// so a replica that ignores them diverges (Backbone: skipping the reject list moved the
+// scan's stop from the tip to block 144150).
+inline static bool s_check_hal_or_replay(dap_ledger_t *a_ledger, dap_hash_fast_t *a_hal_hash)
+{
+    return s_check_hal(a_ledger, a_hal_hash) != NULL;
 }
 
 bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash) {
@@ -1580,6 +1625,13 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
             }
             l_new_pkey_hashes = l_tmp_hashes;
             l_new_pkey_hashes[l_new_signs_total++] = l_new_auth_pkey_hash;
+            // Auth-list diagnostics: with a broken token state an emission's
+            // signer is not found and every transaction spending it fails with
+            // "no previous transaction" - the add/remove trace is what tells a
+            // missed update apart from an ordering one.
+            debug_if(s_debug_more, L_DEBUG, "TOKEN TSD: auth pkey added %s (token %s, %zu key(s))",
+                     dap_hash_fast_to_str_static(&l_new_auth_pkey_hash),
+                     a_item_apply_to ? a_item_apply_to->ticker : "?", l_new_signs_total);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE: {
@@ -1632,6 +1684,9 @@ static int s_token_tsd_parse(dap_ledger_token_item_t *a_item_apply_to, dap_chain
                 }
                 l_new_signs_total = l_last_idx;
             }
+            debug_if(s_debug_more, L_DEBUG, "TOKEN TSD: auth pkey removed %s (token %s, %zu key(s) left)",
+                     dap_hash_fast_to_str_static(&l_new_auth_pkey_hash),
+                     a_item_apply_to ? a_item_apply_to->ticker : "?", l_new_signs_total);
             // Memory clearing
             if (l_new_signs_total) {
                 l_new_pkeys = DAP_REALLOC_COUNT(l_new_pkeys, l_new_signs_total);
@@ -2004,6 +2059,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
     int ret = s_token_tsd_parse(l_token_item, l_token, a_ledger, l_token->tsd_n_signs, l_size_tsd_section, false, NULL);
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     dap_ledger_hal_item_t *l_hash_found = NULL;
+    bool l_replay_bypassed = false;
     if (ret != DAP_LEDGER_CHECK_OK) {
         if (PVT(a_ledger)->hal_items) {
             dap_hash_fast_t l_token_hash;
@@ -2011,9 +2067,9 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
                 l_token_hash = l_token_update_hash;
             else
                 dap_hash_fast(a_token, a_token_size, &l_token_hash);
-            l_hash_found = s_check_hal(a_ledger, &l_token_hash);
+            l_replay_bypassed = s_check_hal_or_replay(a_ledger, &l_token_hash);
         }
-        if (!l_hash_found) {
+        if (!l_hash_found && !l_replay_bypassed) {
             DAP_DELETE(l_token);
             return ret;
         }
@@ -2028,7 +2084,7 @@ int s_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_si
         *a_tsd_total_size = l_size_tsd_section;
     if (a_signs_size)
         *a_signs_size = l_signs_size;
-    return l_hash_found ? DAP_LEDGER_CHECK_WHITELISTED : DAP_LEDGER_CHECK_OK;
+    return (l_hash_found || l_replay_bypassed) ? DAP_LEDGER_CHECK_WHITELISTED : DAP_LEDGER_CHECK_OK;
 }
 
 int dap_ledger_token_add_check(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size)
@@ -5023,6 +5079,181 @@ void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger)
     memset(&PVT(a_ledger)->snapshot_skip_hash, 0, sizeof(PVT(a_ledger)->snapshot_skip_hash));
 }
 
+/* *** Anchor holdback classification ***
+ * The holdback exists so a snapshot never claims coverage of a datum the ledger
+ * does not carry. That is right when the rejection means the LEDGER LOST an effect
+ * the chain holds (a parent that is on chain but was not applied - the replay is
+ * incomplete). It is wrong when the datum is unsatisfiable for the whole network:
+ * nothing to cover, so anchoring at the tip freezes exactly the state every other
+ * node has.
+ *
+ * Classification, by the code the ledger returned:
+ *  - PREV_TX_NOT_FOUND: look the referenced parent up in the chain. Present on
+ *    chain -> our loss (we failed to apply it earlier). Absent from the chain
+ *    entirely, or itself already classified unsatisfiable -> intrinsic (the child
+ *    merely inherits its parent's verdict, so a cascade of one bad root stays one
+ *    verdict, not thousands).
+ *  - EMISSION_NOT_FOUND: ask every chain of the net for the emission datum. Found
+ *    in the zerochain -> our loss. Not found anywhere -> intrinsic.
+ *  - Double spend / reward claimed / emission reused / sum mismatch / verificator:
+ *    the chain carries the winner, so the loser is the chain's own verdict and
+ *    every node rejects it - intrinsic.
+ */
+#define DAP_REPLAY_INTRINSIC_MAX 65536
+typedef struct s_replay_intrinsic_item {
+    dap_hash_fast_t hash;
+    UT_hash_handle hh;
+} s_replay_intrinsic_item_t;
+static s_replay_intrinsic_item_t *s_replay_intrinsic;   // verdicts the whole net shares
+static pthread_mutex_t s_replay_intrinsic_lock = PTHREAD_MUTEX_INITIALIZER;
+static _Atomic uint64_t s_replay_fail_our_loss, s_replay_fail_intrinsic;
+
+// A hash table, not an array: a cascade under an unsatisfiable root can reach
+// hundreds of thousands of descendants, and a linear membership scan per rejection
+// made the classification quadratic exactly on the case it exists for.
+static bool s_replay_intrinsic_has(const dap_hash_fast_t *a_hash)
+{
+    s_replay_intrinsic_item_t *l_item = NULL;
+    pthread_mutex_lock(&s_replay_intrinsic_lock);
+    HASH_FIND(hh, s_replay_intrinsic, a_hash, sizeof(*a_hash), l_item);
+    pthread_mutex_unlock(&s_replay_intrinsic_lock);
+    return l_item != NULL;
+}
+
+static void s_replay_intrinsic_add(const dap_hash_fast_t *a_hash)
+{
+    pthread_mutex_lock(&s_replay_intrinsic_lock);
+    s_replay_intrinsic_item_t *l_item = NULL;
+    HASH_FIND(hh, s_replay_intrinsic, a_hash, sizeof(*a_hash), l_item);
+    if (!l_item && HASH_COUNT(s_replay_intrinsic) < DAP_REPLAY_INTRINSIC_MAX) {
+        l_item = DAP_NEW_Z(s_replay_intrinsic_item_t);
+        if (l_item) {
+            l_item->hash = *a_hash;
+            HASH_ADD(hh, s_replay_intrinsic, hash, sizeof(l_item->hash), l_item);
+        }
+    }
+    pthread_mutex_unlock(&s_replay_intrinsic_lock);
+}
+
+// Does any chain of the net know this datum (its own cache/search callback answers)?
+static bool s_replay_datum_on_chain(dap_ledger_t *a_ledger, const dap_hash_fast_t *a_hash)
+{
+    if (!a_ledger->net)
+        return false;
+    for (dap_chain_t *l_chain = a_ledger->net->pub.chains; l_chain; l_chain = l_chain->next) {
+        if (l_chain->callback_datum_find_by_hash) {
+            int l_ret_code = 0;
+            if (l_chain->callback_datum_find_by_hash(l_chain, (dap_chain_hash_fast_t *)a_hash, NULL, &l_ret_code))
+                return true;
+        }
+    }
+    return false;
+}
+
+// First input hash the transaction refers to, or blank when it has none.
+static bool s_replay_tx_first_prev_hash(dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_out)
+{
+    bool l_got = false;
+    byte_t *l_it = NULL;
+    size_t l_size = 0;
+    TX_ITEM_ITER_TX(l_it, l_size, a_tx) {
+        if (!l_it || !l_size)
+            continue;
+        switch (*l_it) {
+        case TX_ITEM_TYPE_IN:
+            *a_out = ((dap_chain_tx_in_t *)l_it)->header.tx_prev_hash; l_got = true; break;
+        case TX_ITEM_TYPE_IN_COND:
+            *a_out = ((dap_chain_tx_in_cond_t *)l_it)->header.tx_prev_hash; l_got = true; break;
+        default:
+            break;
+        }
+        if (l_got)
+            break;
+    }
+    return l_got;
+}
+
+// Emission hash the transaction spends, if it has an IN_EMS item.
+static bool s_replay_tx_first_emission_hash(dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_out)
+{
+    bool l_got = false;
+    byte_t *l_it = NULL;
+    size_t l_size = 0;
+    TX_ITEM_ITER_TX(l_it, l_size, a_tx) {
+        if (!l_it || !l_size)
+            continue;
+        if (*l_it == TX_ITEM_TYPE_IN_EMS) {
+            *a_out = ((dap_chain_tx_in_ems_t *)l_it)->header.token_emission_hash;
+            l_got = true;
+            break;
+        }
+    }
+    return l_got;
+}
+
+void dap_ledger_replay_datum_failed_ex(dap_ledger_t *a_ledger, uint64_t a_block_num, int a_code,
+                                       const dap_chain_datum_t *a_datum, dap_chain_t *a_chain)
+{
+    if (!a_ledger || !a_block_num || !a_datum)
+        return;
+    bool l_intrinsic = false;
+    dap_hash_fast_t l_datum_hash = {};
+    dap_chain_datum_calc_hash(a_datum, &l_datum_hash);
+
+    switch (a_code) {
+    case DAP_LEDGER_TX_CHECK_PREV_TX_NOT_FOUND: {
+        dap_hash_fast_t l_prev = {};
+        if (s_replay_tx_first_prev_hash((dap_chain_datum_tx_t *)a_datum->data, &l_prev)) {
+            if (s_replay_intrinsic_has(&l_prev))
+                l_intrinsic = true;                     // inherits its parent's verdict
+            else if (!s_replay_datum_on_chain(a_ledger, &l_prev))
+                l_intrinsic = true;                     // parent is not on chain at all
+            // else: the chain carries the parent, our ledger does not -> our loss
+        }
+    } break;
+    case DAP_LEDGER_TX_CHECK_EMISSION_NOT_FOUND: {
+        dap_hash_fast_t l_ems = {};
+        if (s_replay_tx_first_emission_hash((dap_chain_datum_tx_t *)a_datum->data, &l_ems)
+                && !s_replay_datum_on_chain(a_ledger, &l_ems))
+            l_intrinsic = true;                         // no chain of the net carries it
+    } break;
+    case DAP_LEDGER_TX_CHECK_OUT_ITEM_ALREADY_USED:
+    case DAP_LEDGER_TX_CHECK_IN_EMS_ALREADY_USED:
+    case DAP_LEDGER_TX_CHECK_REWARD_ITEM_ALREADY_USED:
+    case DAP_LEDGER_TX_CHECK_STAKE_LOCK_IN_EMS_ALREADY_USED:
+    case DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS:
+        l_intrinsic = true;                             // the chain carries the winner
+        break;
+    default:
+        break;                                          // anything else: assume our loss
+    }
+
+    if (!l_intrinsic) {
+        atomic_fetch_add(&s_replay_fail_our_loss, 1);
+        dap_ledger_replay_datum_failed(a_ledger, a_block_num);
+        return;
+    }
+    // Intrinsic: the same verdict every node produces. Remember it so its spenders
+    // are classified the same way instead of re-deriving the verdict one by one.
+    atomic_fetch_add(&s_replay_fail_intrinsic, 1);
+    s_replay_intrinsic_add(&l_datum_hash);
+    dap_ledger_private_t *l_pvt = PVT(a_ledger);
+    if (!l_pvt->replay_intrinsic_active) {
+        l_pvt->replay_intrinsic_active = true;
+        log_it(L_NOTICE, "Ledger: first unsatisfiable datum (chain-wide verdict, code %d) in block %"
+               DAP_UINT64_FORMAT_U " - the snapshot anchor is not held back for it",
+               a_code, a_block_num);
+    }
+}
+
+void dap_ledger_replay_fail_class_counts(uint64_t *a_our_loss, uint64_t *a_intrinsic)
+{
+    if (a_our_loss)
+        *a_our_loss = atomic_exchange(&s_replay_fail_our_loss, 0);
+    if (a_intrinsic)
+        *a_intrinsic = atomic_exchange(&s_replay_fail_intrinsic, 0);
+}
+
 void dap_ledger_replay_datum_failed(dap_ledger_t *a_ledger, uint64_t a_block_num)
 {
     if (!a_ledger || !a_block_num)
@@ -5865,6 +6096,56 @@ dap_ledger_check_error_t s_ledger_addr_check(dap_ledger_t *a_ledger, dap_ledger_
     return DAP_LEDGER_CHECK_OK;
 }
 
+/* *** Emission fate registry (replay diagnostics) ***
+ * "Specified emission not found in ledger" names the missing datum but not why it is
+ * missing: never present in the zerochain, or seen and rejected by one of the guards.
+ * Every checked emission records its verdict here (bounded), so the first failing
+ * transactions of a replay can be explained without another instrumented run. */
+typedef struct s_emission_seen {
+    dap_hash_fast_t hash;
+    int status;
+    UT_hash_handle hh;
+} s_emission_seen_t;
+#define DAP_EMISSION_SEEN_MAX 200000
+static s_emission_seen_t *s_emission_seen;
+static pthread_mutex_t s_emission_seen_mutex = PTHREAD_MUTEX_INITIALIZER;
+static size_t s_emission_seen_cnt;
+
+static void s_emission_seen_note(const dap_hash_fast_t *a_hash, int a_status)
+{
+    if (!a_hash)
+        return;
+    pthread_mutex_lock(&s_emission_seen_mutex);
+    s_emission_seen_t *l_item = NULL;
+    HASH_FIND(hh, s_emission_seen, a_hash, sizeof(*a_hash), l_item);
+    if (!l_item) {
+        if (s_emission_seen_cnt >= DAP_EMISSION_SEEN_MAX)
+            goto out;
+        l_item = DAP_NEW_Z(s_emission_seen_t);
+        if (!l_item)
+            goto out;
+        l_item->hash = *a_hash;
+        HASH_ADD(hh, s_emission_seen, hash, sizeof(l_item->hash), l_item);
+        ++s_emission_seen_cnt;
+    }
+    l_item->status = a_status;
+out:
+    pthread_mutex_unlock(&s_emission_seen_mutex);
+}
+
+// 0 - unknown (never passed the check), otherwise the verdict it got.
+static int s_emission_seen_get(const dap_hash_fast_t *a_hash)
+{
+    int l_status = 0;
+    pthread_mutex_lock(&s_emission_seen_mutex);
+    s_emission_seen_t *l_item = NULL;
+    HASH_FIND(hh, s_emission_seen, a_hash, sizeof(*a_hash), l_item);
+    if (l_item)
+        l_status = l_item->status;
+    pthread_mutex_unlock(&s_emission_seen_mutex);
+    return l_status;
+}
+
 int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_chain_hash_fast_t *a_emission_hash,
                          dap_chain_datum_token_emission_t **a_emission, dap_ledger_token_item_t **a_token_item)
 {
@@ -5881,6 +6162,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
     dap_ledger_token_item_t *l_token_item = s_ledger_find_token(a_ledger, l_emission->hdr.ticker);
     if (!l_token_item) {
         log_it(L_ERROR, "Check emission: token %s was not found", l_emission->hdr.ticker);
+        s_emission_seen_note(a_emission_hash, DAP_LEDGER_CHECK_TICKER_NOT_FOUND);
         DAP_DELETE(l_emission);
         return DAP_LEDGER_CHECK_TICKER_NOT_FOUND;
     }
@@ -5893,6 +6175,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
         debug_if(s_debug_more, L_WARNING, "Can't add token emission datum of %s %s ( %s ): already present in cache",
                                     dap_uint256_to_char(l_emission->hdr.value, NULL), l_emission->hdr.ticker,
                                     dap_chain_hash_fast_to_str_static(a_emission_hash));
+        s_emission_seen_note(a_emission_hash, DAP_LEDGER_CHECK_OK);
         DAP_DELETE(l_emission);
         return DAP_LEDGER_CHECK_ALREADY_CACHED;
     }
@@ -5902,12 +6185,28 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
 
     // Check emission correctness
     if (IS_ZERO_256((l_emission->hdr.value))) {
-        log_it(L_ERROR, "Emission check: zero %s emission value", l_token_item->ticker);
-        DAP_DELETE(l_emission);
-        return DAP_LEDGER_CHECK_ZERO_VALUE;
+        // Era-safe replay: the zero-value guard was introduced in 2023-11, long after
+        // the first emissions of the chain were accepted. A from-scratch replay must
+        // reproduce the accepted state, not re-judge it with today's rules - a rejected
+        // historical emission makes every transaction that spends it fail with "emission
+        // not found", and their outputs never exist (the ~636k cascade of 2026-11-06).
+        // New emissions (mempool, live blocks) keep the full check below.
+        if (a_ledger->net && dap_chain_net_is_replay(a_ledger->net)) {
+            static _Atomic uint32_t s_zero_emission_logged;
+            if (atomic_fetch_add(&s_zero_emission_logged, 1) < 8)
+                log_it(L_WARNING, "Emission check: zero %s emission value accepted during replay "
+                        "(datum %s, version %hhu)", l_token_item->ticker,
+                        dap_chain_hash_fast_to_str_static(a_emission_hash), l_emission->hdr.version);
+        } else {
+            log_it(L_ERROR, "Emission check: zero %s emission value", l_token_item->ticker);
+            s_emission_seen_note(a_emission_hash, DAP_LEDGER_CHECK_ZERO_VALUE);
+            DAP_DELETE(l_emission);
+            return DAP_LEDGER_CHECK_ZERO_VALUE;
+        }
     }
 
     if (!s_ledger_token_supply_check(l_token_item, l_emission->hdr.value)) {
+        s_emission_seen_note(a_emission_hash, DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY);
         DAP_DELETE(l_emission);
         return DAP_LEDGER_EMISSION_CHECK_VALUE_EXCEEDS_CURRENT_SUPPLY;
     }
@@ -5929,7 +6228,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
         size_t l_sign_data_check_size = sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size >= sizeof(dap_chain_datum_token_emission_t)
                                                 ? sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size : 0;
         if (l_sign_data_check_size > l_emission_size) {
-            if (!s_check_hal(a_ledger, a_emission_hash)) {
+            if (!s_check_hal_or_replay(a_ledger, a_emission_hash)) {
                 log_it(L_WARNING, "Incorrect size %zu of datum emission, expected at least %zu", l_emission_size, l_sign_data_check_size);
                 DAP_DELETE(l_emission);
                 return DAP_LEDGER_CHECK_INVALID_SIZE;
@@ -5950,7 +6249,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
             
             DAP_DELETE(l_signs);
 
-            if (!s_check_hal(a_ledger, a_emission_hash)) {
+            if (!s_check_hal_or_replay(a_ledger, a_emission_hash)) {
                 
                 log_it(L_WARNING, "The number of unique token signs %zu is less than total token signs set to %zu",
                        l_signs_unique, l_token_item->auth_signs_total);
@@ -6018,13 +6317,31 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
         }
         DAP_DELETE(l_signs);
         if (l_aproves < l_token_item->auth_signs_valid &&
-                !s_check_hal(a_ledger, a_emission_hash)) {
-            log_it(L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %zu valid aproves when %zu need",
-                        dap_uint256_to_char(l_emission->hdr.value, NULL), a_ledger->net->pub.name, l_emission->hdr.ticker,
-                        l_aproves, l_token_item->auth_signs_valid);
-            debug_if(s_debug_more, L_ATT, "!!! Datum hash for HAL: %s", dap_chain_hash_fast_to_str_static(a_emission_hash));
-            DAP_DELETE(l_emission);
-            return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+                !s_check_hal_or_replay(a_ledger, a_emission_hash)) {
+            // Era-safe replay: the required approvers come from the token state of the
+            // moment, and a replay sees the state built so far. With the token permission
+            // updates deferred to main's block time, a historical emission signed by a
+            // key added by a later update is judged against the declaration's key list
+            // and rejected - measured on Backbone: 27 316 emissions, and every rejection
+            // is an "emission not found" seed for the transactions that spend it.
+            // The datum sits in an accepted zerochain atom, so the network applied it:
+            // a replay reproduces state, it does not re-judge it. Live blocks and the
+            // mempool keep the full check.
+            if (a_ledger->net && dap_chain_net_is_replay(a_ledger->net)) {
+                static _Atomic uint32_t s_replay_emission_approve_logged;
+                if (atomic_fetch_add(&s_replay_emission_approve_logged, 1) < 8)
+                    log_it(L_WARNING, "Emission approvals short (%zu of %zu) accepted during replay (datum %s)",
+                            l_aproves, l_token_item->auth_signs_valid,
+                            dap_chain_hash_fast_to_str_static(a_emission_hash));
+            } else {
+                log_it(L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %zu valid aproves when %zu need",
+                            dap_uint256_to_char(l_emission->hdr.value, NULL), a_ledger->net->pub.name, l_emission->hdr.ticker,
+                            l_aproves, l_token_item->auth_signs_valid);
+                debug_if(s_debug_more, L_ATT, "!!! Datum hash for HAL: %s", dap_chain_hash_fast_to_str_static(a_emission_hash));
+                s_emission_seen_note(a_emission_hash, DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS);
+                DAP_DELETE(l_emission);
+                return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
+            }
         }
     } break;
 
@@ -6035,6 +6352,7 @@ int s_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_
     }
 
 ret_success:
+    s_emission_seen_note(a_emission_hash, DAP_LEDGER_CHECK_OK);
     if (a_token_item)
         *a_token_item = l_token_item;
     if (a_emission)
@@ -7016,7 +7334,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     int l_prev_tx_count = 0;
 
     // 1. Verify signature in current transaction
-    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx, 0) && !s_check_hal(a_ledger, a_tx_hash))
+    if (!a_from_threshold && dap_chain_datum_tx_verify_sign(a_tx, 0) && !s_check_hal_or_replay(a_ledger, a_tx_hash))
         return DAP_LEDGER_CHECK_NOT_ENOUGH_VALID_SIGNS;
 
     // ----------------------------------------------------------------
@@ -7291,12 +7609,21 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 // 3. Check AUTH token emission
                 if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)  && !a_check_for_removing) {
                     debug_if(s_debug_more, L_WARNING, "Emission for IN_EMS [%s] is already used", l_tx_in_ems->header.ticker);
+                    REPLAY_DIAG(DAP_LEDGER_TX_CHECK_IN_EMS_ALREADY_USED,
+                                "tx %s: emission %s [%s] already used out by %s",
+                                dap_hash_fast_to_str_static(a_tx_hash), dap_hash_fast_to_str_static(l_emission_hash),
+                                l_tx_in_ems->header.ticker, dap_hash_fast_to_str_static(&l_emission_item->tx_used_out));
                     l_err_num = DAP_LEDGER_TX_CHECK_IN_EMS_ALREADY_USED;
                     break;
                 }
                 l_value = l_emission_item->datum_token_emission->hdr.value;
                 l_bound_item->emission_item = l_emission_item;
             } else {
+                REPLAY_DIAG(DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION,
+                            "tx %s: emission %s [%s] is absent (zerochain verdict %d)",
+                            dap_hash_fast_to_str_static(a_tx_hash),
+                            dap_hash_fast_to_str_static(l_emission_hash), l_tx_in_ems->header.ticker,
+                            s_emission_seen_get(l_emission_hash));
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                 break;
             }
@@ -7342,6 +7669,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 dap_chain_hash_fast_to_str(&l_tx_first_sign_pkey_hash, l_sign_hash_str, sizeof(l_sign_hash_str));
                 dap_chain_hash_fast_to_str(&l_reward_item->spender_tx, l_spender_hash_str, sizeof(l_spender_hash_str));
                 debug_if(s_debug_more, L_WARNING, "Reward for block %s sign %s already spent by %s", l_block_hash_str, l_sign_hash_str, l_spender_hash_str);
+                REPLAY_DIAG(DAP_LEDGER_TX_CHECK_REWARD_ITEM_ALREADY_USED,
+                            "tx %s: reward of block %s for signer %s already claimed by %s",
+                            dap_hash_fast_to_str_static(a_tx_hash), l_block_hash_str, l_sign_hash_str, l_spender_hash_str);
                 break;
             }
             // Check reward legitimacy & amount
@@ -7431,11 +7761,28 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             dap_hash_fast_to_str(l_tx_prev_hash, l_tx_prev_hash_str, DAP_HASH_FAST_STR_SIZE);
             if (!l_tx_prev) { // Unchained transaction or previous TX was already spent and removed from ledger
                 debug_if(s_debug_more && !a_from_threshold, L_DEBUG, "No previous transaction was found for hash %s", l_tx_prev_hash_str);
+                REPLAY_DIAG(DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS, "tx %s: previous %s is absent%s",
+                            dap_hash_fast_to_str_static(a_tx_hash), l_tx_prev_hash_str,
+                            a_from_threshold ? " (threshold pass)" : "");
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
                 break;
             } else if (l_item_out->cache_data.ts_spent && !a_check_for_removing) {
                 l_err_num = DAP_LEDGER_TX_CHECK_OUT_ITEM_ALREADY_USED;
                 debug_if(s_debug_more, L_WARNING, "All 'out' items of previous tx %s were already spent", l_tx_prev_hash_str);
+                char l_spent_by[DAP_CHAIN_HASH_FAST_STR_SIZE * 3 + 4] = {0};
+                size_t l_spent_off = 0;
+                for (uint32_t i = 0; i < l_item_out->cache_data.n_outs && i < 3; ++i) {
+                    if (dap_hash_fast_is_blank(&l_item_out->cache_data.tx_hash_spent_fast[i]))
+                        continue;
+                    l_spent_off += snprintf(l_spent_by + l_spent_off, sizeof(l_spent_by) - l_spent_off, "%s%s",
+                            l_spent_off ? "," : "",
+                            dap_hash_fast_to_str_static(&l_item_out->cache_data.tx_hash_spent_fast[i]));
+                }
+                REPLAY_DIAG(DAP_LEDGER_TX_CHECK_OUT_ITEM_ALREADY_USED,
+                            "tx %s: previous %s is fully spent (ts_spent %" DAP_UINT64_FORMAT_U
+                            ", n_outs %u, spent by %s)", dap_hash_fast_to_str_static(a_tx_hash), l_tx_prev_hash_str,
+                            (uint64_t)l_item_out->cache_data.ts_spent, l_item_out->cache_data.n_outs,
+                            l_spent_by[0] ? l_spent_by : "-");
                 break;
             }
             l_bound_item->prev_item = l_item_out;
@@ -7450,6 +7797,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 char l_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(&l_spender, l_hash, sizeof(l_hash));
                 debug_if(s_debug_more, L_INFO, "'Out' item %u of previous tx %s already spent by %s", l_tx_prev_out_idx, l_tx_prev_hash_str, l_hash);
+                REPLAY_DIAG(DAP_LEDGER_TX_CHECK_OUT_ITEM_ALREADY_USED,
+                            "tx %s: out %u of previous %s already spent by %s",
+                            dap_hash_fast_to_str_static(a_tx_hash), l_tx_prev_out_idx, l_tx_prev_hash_str, l_hash);
                 break;
             }
 
@@ -7594,9 +7944,14 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
                 l_verificator_error = l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner, a_check_for_apply);
                 l_verificator_ran_for_input = true;
-                if ( !s_check_hal(a_ledger, a_tx_hash) && l_verificator_error != DAP_LEDGER_CHECK_OK ) { // TODO add string representation for verificator return codes
+                if ( !s_check_hal_or_replay(a_ledger, a_tx_hash) && l_verificator_error != DAP_LEDGER_CHECK_OK ) { // TODO add string representation for verificator return codes
                     debug_if(s_debug_more, L_WARNING, "Verificator check error %d for conditional output %s",
                                                                     l_verificator_error, dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
+                    REPLAY_DIAG(DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE,
+                                "tx %s: verificator of IN_COND out %u (prev %s, subtype %s) returned %d",
+                                dap_hash_fast_to_str_static(a_tx_hash), l_tx_prev_out_idx,
+                                dap_hash_fast_to_str_static(l_tx_prev_hash), dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp),
+                                l_verificator_error);
                     // Retranslate NO_SIGNS code to upper level
                     l_err_num = l_verificator_error == DAP_CHAIN_CS_VERIFY_CODE_NOT_ENOUGH_SIGNS ? l_verificator_error : DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
                     break;
@@ -7810,7 +8165,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
                     int l_verif_err = l_verificator->callback(a_ledger, NULL, a_tx, false, a_check_for_apply);
-                    if (!s_check_hal(a_ledger, a_tx_hash) && l_verif_err) {
+                    if (!s_check_hal_or_replay(a_ledger, a_tx_hash) && l_verif_err) {
                         debug_if(s_debug_more, L_WARNING, "Verificator rejected new OUT_COND subtype %d: error %d",
                                  l_sub_tmp, l_verif_err);
                         l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
@@ -7892,11 +8247,15 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     }
 
     // Check for transaction consistency (sum(ins) == sum(outs))
-    if ( !l_err_num && !s_check_hal(a_ledger, a_tx_hash) ) {
+    if ( !l_err_num && !s_check_hal_or_replay(a_ledger, a_tx_hash) ) {
         if ( HASH_COUNT(l_values_from_prev_tx) != HASH_COUNT(l_values_from_cur_tx) ) {
             log_it(L_ERROR, "[%s] Token tickers IN and OUT mismatch: %u != %u",
                             dap_chain_hash_fast_to_str_static(a_tx_hash),
                             HASH_COUNT(l_values_from_prev_tx), HASH_COUNT(l_values_from_cur_tx));
+            REPLAY_DIAG(DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS,
+                        "tx %s: token ticker count in/out mismatch %u != %u",
+                        dap_hash_fast_to_str_static(a_tx_hash),
+                        HASH_COUNT(l_values_from_prev_tx), HASH_COUNT(l_values_from_cur_tx));
             l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
         } else {
             HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
@@ -7911,6 +8270,9 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                         DAP_DELETE(l_balance);
                         DAP_DELETE(l_balance_cur);
                     }
+                    REPLAY_DIAG(DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS,
+                                "tx %s: in/out value sum mismatch for token %s",
+                                dap_hash_fast_to_str_static(a_tx_hash), l_value_cur->token_ticker);
                     l_err_num = DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
                     break;
                 }
@@ -7969,7 +8331,7 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 break;
             case TX_ITEM_TYPE_VOTE:
                 if (s_voting_callbacks.voting_callback) {
-                    if (!s_check_hal(a_ledger, a_tx_hash) &&
+                    if (!s_check_hal_or_replay(a_ledger, a_tx_hash) &&
                     (l_err_num = s_voting_callbacks.voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, a_tx_hash, false))) {
                         debug_if(s_debug_more, L_WARNING, "Verificator check error %d for vote", l_err_num);
                         l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
@@ -8559,7 +8921,7 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             break;
         }
     }
-    if (!s_check_hal(a_ledger, a_tx_hash))
+    if (!s_check_hal_or_replay(a_ledger, a_tx_hash))
         assert(!l_err_num);
     (void)l_err_num;
 
@@ -8574,6 +8936,20 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     l_tx_item->tx = l_ledger_pvt->mapped ? a_tx : DAP_DUP_SIZE(a_tx, l_tx_size);
     l_tx_item->tx_owned = !l_ledger_pvt->mapped;
+    // Ownership diagnostics: a non-mapped ledger copies every transaction body
+    // into the heap. Log the running ratio so a resync that grows by a block
+    // size per applied block can be attributed without a debug build.
+    {
+        static _Atomic uint64_t s_ref_cnt, s_owned_cnt;
+        if (l_tx_item->tx_owned)
+            atomic_fetch_add(&s_owned_cnt, 1);
+        else
+            atomic_fetch_add(&s_ref_cnt, 1);
+        uint64_t l_ref = atomic_load(&s_ref_cnt), l_owned = atomic_load(&s_owned_cnt);
+        if (!((l_ref + l_owned) % 20000))
+            log_it(L_NOTICE, "LEDGER TX ownership: ref=%" DAP_UINT64_FORMAT_U " owned=%" DAP_UINT64_FORMAT_U
+                   " (mapped=%d)", l_ref, l_owned, l_ledger_pvt->mapped);
+    }
     l_tx_item->cache_data.n_outs = l_outs_count;
     l_tx_item->cache_data.tag = l_tag;
     l_tx_item->cache_data.action = l_action;
@@ -8878,6 +9254,23 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
     for (dap_chain_t *l_c = a_ledger->net ? a_ledger->net->pub.chains : NULL; l_c; l_c = l_c->next)
         dap_chain_cs_blocks_state_flush(l_c);
     dap_chain_net_tx_replay_summary();
+    {
+        // Trusted replay observability: how many check consultations the loader
+        // context bypassed (HAL-equivalent) during this load. On a pure snapshot
+        // start this stays near zero - the items are restored, not re-validated.
+        uint64_t l_bypass = 0;
+        if (l_bypass)
+            log_it(L_NOTICE, "Trusted replay: %lu check consultation(s) bypassed by the loader context",
+                   (unsigned long)l_bypass);
+        // How the rejected transactions split: a local loss (the chain carries the
+        // parent, our ledger does not) holds the snapshot anchor back; a chain-wide
+        // verdict (the datum is unsatisfiable for every node) does not.
+        uint64_t l_our_loss = 0, l_intrinsic = 0;
+        dap_ledger_replay_fail_class_counts(&l_our_loss, &l_intrinsic);
+        if (l_our_loss || l_intrinsic)
+            log_it(L_NOTICE, "Replay failures: %lu local loss (anchor held back), %lu chain-wide verdict",
+                   (unsigned long)l_our_loss, (unsigned long)l_intrinsic);
+    }
     if (l_phantoms)
         log_it(L_CRITICAL, "Ledger: dropped %zu cache-restored transaction(s) not found in any "
                "chain of this network (snapshot from a different branch?); consider "

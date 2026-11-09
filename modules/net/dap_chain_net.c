@@ -2415,6 +2415,9 @@ int s_net_init(const char *a_net_name, const char *a_path, uint16_t a_acl_idx)
 
     // init LEDGER model
     l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
+    log_it(L_NOTICE, "Ledger for net %s: mapped=%d cached=%d threshold=%d", l_net->pub.name,
+           !!(l_ledger_flags & DAP_LEDGER_MAPPED), !!(l_ledger_flags & DAP_LEDGER_CACHE_ENABLED),
+           !!(l_ledger_flags & DAP_LEDGER_THRESHOLD_ENABLED));
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
     return 0;
@@ -2464,6 +2467,12 @@ static void *s_net_load(void *a_arg)
     dap_chain_t *l_chain = l_net->pub.chains;
     clock_t l_chain_load_start_time; 
     l_chain_load_start_time = clock(); 
+    // Replay order merge: on a from-scratch load the zerochain token/emission datums
+    // are deferred and released at main's block time (dap_chain_net_replay_defer_try).
+    // No-op unless [ledger] replay_merged_order is set.
+    bool l_replay_ordered = dap_chain_net_get_load_mode(l_net);
+    if (l_replay_ordered)
+        dap_chain_net_replay_defer_begin(l_net);
     while (l_chain) {
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
@@ -2504,6 +2513,8 @@ static void *s_net_load(void *a_arg)
         log_it(L_NOTICE, "[%s] Chain [%s] processing took %f seconds", l_chain->net_name, l_chain->name, time_taken);
         l_chain = l_chain->next;
     }
+    if (l_replay_ordered)
+        dap_chain_net_replay_defer_end(l_net);
     dap_ledger_load_end(l_net->pub.ledger);
     
     // Load fee_addr from main.cfg configuration
@@ -3299,6 +3310,20 @@ static void s_token_datum_reg_add(dap_chain_t *a_chain, dap_chain_datum_t *a_dat
     DAP_DELETE(l_token);
 }
 
+// Has this token declaration/update datum already been processed? The registry is
+// the exact by-hash record (see dap_chain_token_datum_list), so it answers the same
+// "already decided" question the ledger item table answers for transactions.
+static bool s_token_datum_is_known(const dap_hash_fast_t *a_hash)
+{
+    if (!a_hash)
+        return false;
+    pthread_mutex_lock(&s_token_datum_reg_lock);
+    dap_chain_token_datum_reg_t *l_entry = NULL;
+    HASH_FIND(hh, s_token_datum_reg, a_hash, sizeof(*a_hash), l_entry);
+    pthread_mutex_unlock(&s_token_datum_reg_lock);
+    return l_entry != NULL;
+}
+
 static void s_token_datum_reg_remove(dap_hash_fast_t *a_hash)
 {
     if (!a_hash)
@@ -3540,6 +3565,45 @@ static s_net_tx_tally_t s_tx_tally[DAP_NET_TX_TALLY_CODES];
 static _Atomic uint64_t s_tx_tally_ok, s_tx_tally_cached;
 static _Atomic uint32_t s_tx_tally_logged;
 
+// Block attribution for replay diagnostics. The load pass runs one thread per net
+// and applies a block's datums sequentially, so a thread-local position is exact.
+static _Thread_local uint64_t t_replay_block_num;
+
+// Loader context: this thread is applying datums that came out of an accepted chain
+// - a block being loaded from the cell, a DAG event, a deferred merged-order datum,
+// or a chain-cache rebuild. Trusted replay keys on it (see s_check_hal_or_replay):
+// it is what separates "the network's verdict, rebuild from it" from "an operator
+// is submitting this datum now" (mempool/live RPC), where full validation stays.
+// A depth, not a bool: the drain runs inside the block loop and the DAG applies
+// inside its own nested paths; mismatched push/pop must not silently lift the gate.
+static _Thread_local unsigned t_replay_loader_depth;
+
+void dap_chain_net_replay_loader_push(void)
+{
+    ++t_replay_loader_depth;
+}
+
+void dap_chain_net_replay_loader_pop(void)
+{
+    if (t_replay_loader_depth)
+        --t_replay_loader_depth;
+}
+
+bool dap_chain_net_replay_in_loader(void)
+{
+    return t_replay_loader_depth != 0;
+}
+
+void dap_chain_net_replay_note_block(uint64_t a_block_num)
+{
+    t_replay_block_num = a_block_num;
+}
+
+uint64_t dap_chain_net_replay_block_num(void)
+{
+    return t_replay_block_num;
+}
+
 void dap_chain_net_tx_replay_tally(int a_result, const dap_hash_fast_t *a_tx_hash)
 {
     if (a_result == 0) {
@@ -3613,6 +3677,227 @@ l_have_rejects:;
            dap_ledger_dex_gate_suppressed_count(), dap_ledger_dex_gate_unlocked_count());
 }
 
+/* *** Replay order merge: era-correct token state during a from-scratch load ***
+ * A replay applies the whole zerochain (all token permission updates up to the
+ * present) before main, so main datums of 2022-2023 are checked against today's
+ * token permissions and get ADDR_FORBIDDEN; their outputs never exist and every
+ * spender fails with PREV_TX_NOT_FOUND (~646k tx cascade). Live nodes
+ * interleave the chains by wall clock, so the deferred token UPDATE datums are
+ * released at main's own block time instead. Declarations and emissions stay
+ * eager: they carry the initial state and the value a main transaction spends.
+ * Entries hold file positions only: the DAG keeps event pointers inside the
+ * cell mapping window, which is dropped when the zerochain load ends.
+ * Off by default: [ledger] replay_merged_order=true. */
+#include <fcntl.h>
+#include <unistd.h>
+#include "dap_chain_cs_dag_event.h"
+
+#define DAP_REPLAY_DEFER_CONTEXTS 4
+
+typedef struct s_replay_defer_item {
+    dap_time_t ts;
+    uint64_t file_offset;
+    uint32_t event_size;
+    dap_hash_fast_t datum_hash;
+} s_replay_defer_item_t;
+
+typedef struct s_replay_defer_ctx {
+    uint64_t net_id;
+    dap_chain_t *chain;
+    int fd;
+    bool active, sorted;
+    size_t count, cap, head;
+    s_replay_defer_item_t *items;
+} s_replay_defer_ctx_t;
+
+static s_replay_defer_ctx_t s_replay_defer[DAP_REPLAY_DEFER_CONTEXTS];
+static _Atomic uint64_t s_replay_defer_applied, s_replay_defer_failed;
+static _Atomic uint32_t s_replay_defer_fail_logged;
+
+static bool s_replay_defer_enabled(void)
+{
+    static int l_enabled = -1;
+    if (l_enabled < 0)
+        l_enabled = dap_config_get_item_bool_default(g_config, "ledger", "replay_merged_order", false) ? 1 : 0;
+    return l_enabled == 1;
+}
+
+static s_replay_defer_ctx_t *s_replay_defer_ctx(uint64_t a_net_id)
+{
+    s_replay_defer_ctx_t *l_free = NULL;
+    for (size_t i = 0; i < DAP_REPLAY_DEFER_CONTEXTS; ++i) {
+        if (s_replay_defer[i].net_id == a_net_id)
+            return &s_replay_defer[i];
+        if (!s_replay_defer[i].net_id && !l_free)
+            l_free = &s_replay_defer[i];
+    }
+    if (l_free) {
+        l_free->net_id = a_net_id;
+        l_free->fd = -1;
+    }
+    return l_free;
+}
+
+void dap_chain_net_replay_defer_begin(dap_chain_net_t *a_net)
+{
+    if (!a_net || !s_replay_defer_enabled())
+        return;
+    log_it(L_NOTICE, "Replay order merge: armed for net %s", a_net->pub.name);
+    s_replay_defer_ctx_t *l_ctx = s_replay_defer_ctx(a_net->pub.id.uint64);
+    if (!l_ctx)
+        return;
+    DAP_DEL_Z(l_ctx->items);
+    l_ctx->chain = NULL;
+    l_ctx->count = l_ctx->cap = l_ctx->head = 0;
+    l_ctx->sorted = false;
+    l_ctx->active = true;
+}
+
+bool dap_chain_net_replay_defer_try(dap_chain_t *a_chain, dap_time_t a_ts, uint64_t a_file_offset,
+                                    uint32_t a_event_size, const dap_hash_fast_t *a_datum_hash)
+{
+    static int s_dbg;
+    if (s_dbg < 3) {
+        dap_chain_net_t *l_net_dbg = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
+        s_replay_defer_ctx_t *l_ctx_dbg = l_net_dbg ? s_replay_defer_ctx(l_net_dbg->pub.id.uint64) : NULL;
+        log_it(L_NOTICE, "Replay order merge: try ts=%" DAP_UINT64_FORMAT_U " off=%" DAP_UINT64_FORMAT_U
+               " size=%u enabled=%d active=%d", (uint64_t)a_ts, a_file_offset, a_event_size,
+               s_replay_defer_enabled(), l_ctx_dbg ? (int)l_ctx_dbg->active : -1);
+        ++s_dbg;
+    }
+    if (!a_chain || !a_file_offset || !a_event_size || !a_datum_hash || !s_replay_defer_enabled())
+        return false;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    s_replay_defer_ctx_t *l_ctx = l_net ? s_replay_defer_ctx(l_net->pub.id.uint64) : NULL;
+    if (!l_ctx || !l_ctx->active)
+        return false;
+    if (l_ctx->count == l_ctx->cap) {
+        size_t l_new_cap = l_ctx->cap ? l_ctx->cap * 2 : 4096;
+        s_replay_defer_item_t *l_new = DAP_REALLOC_COUNT(l_ctx->items, l_new_cap);
+        if (!l_new) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            return false;
+        }
+        l_ctx->items = l_new;
+        l_ctx->cap = l_new_cap;
+    }
+    s_replay_defer_item_t *l_it = &l_ctx->items[l_ctx->count++];
+    l_it->ts = a_ts;
+    l_it->file_offset = a_file_offset;
+    l_it->event_size = a_event_size;
+    l_it->datum_hash = *a_datum_hash;
+    l_ctx->chain = a_chain;
+    l_ctx->sorted = false;
+    return true;
+}
+
+static int s_replay_defer_item_cmp(const void *a_a, const void *a_b)
+{
+    const s_replay_defer_item_t *l_a = a_a, *l_b = a_b;
+    if (l_a->ts != l_b->ts)
+        return l_a->ts < l_b->ts ? -1 : 1;
+    return l_a->file_offset < l_b->file_offset ? -1 : (l_a->file_offset > l_b->file_offset ? 1 : 0);
+}
+
+// Applies deferred datums with ts <= a_until; a_until == 0 drains everything.
+static void s_replay_defer_drain(s_replay_defer_ctx_t *a_ctx, dap_time_t a_until)
+{
+    if (!a_ctx || !a_ctx->active || !a_ctx->count)
+        return;
+    if (!a_ctx->sorted) {
+        qsort(a_ctx->items, a_ctx->count, sizeof(s_replay_defer_item_t), s_replay_defer_item_cmp);
+        a_ctx->sorted = true;
+    }
+    if (a_ctx->fd < 0) {
+        dap_chain_cell_t *l_cell = a_ctx->chain
+                ? dap_chain_cell_find_by_id(a_ctx->chain, a_ctx->chain->active_cell_id) : NULL;
+        if (!l_cell || !l_cell->file_storage_path[0])
+            return;
+        a_ctx->fd = open(l_cell->file_storage_path, O_RDONLY | O_CLOEXEC);
+        if (a_ctx->fd < 0) {
+            log_it(L_ERROR, "Replay order merge: can't open %s, deferred datums stay inline",
+                   l_cell->file_storage_path);
+            a_ctx->active = false;
+            return;
+        }
+    }
+    // Loader context: a deferred datum being released is still a datum of an accepted
+    // chain, applied here instead of in its zerochain pass. The drain also runs from
+    // defer_end() outside any block loop, so the context cannot be inherited from the
+    // caller - pushed here for the apply loop only (a depth; nesting is fine).
+    dap_chain_net_replay_loader_push();
+    while (a_ctx->head < a_ctx->count) {
+        s_replay_defer_item_t *l_it = &a_ctx->items[a_ctx->head];
+        if (a_until && l_it->ts > a_until)
+            break;
+        uint8_t *l_buf = DAP_NEW_Z_SIZE(uint8_t, l_it->event_size);
+        if (!l_buf) {
+            log_it(L_CRITICAL, "%s", c_error_memory_alloc);
+            break;
+        }
+        ssize_t l_rd = pread(a_ctx->fd, l_buf, l_it->event_size, (off_t)l_it->file_offset);
+        if (l_rd == (ssize_t)l_it->event_size) {
+            dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(
+                    (dap_chain_cs_dag_event_t *)l_buf, l_it->event_size);
+            if (l_datum) {
+                size_t l_datum_size = sizeof(l_datum->header) + l_datum->header.data_size;
+                dap_hash_fast_t l_hash = l_it->datum_hash;
+                int l_rc = dap_chain_datum_add(a_ctx->chain, l_datum, l_datum_size, &l_hash, NULL);
+                // Drain tally: a deferred datum that fails here is lost for the era it
+                // was meant to serve, and every main tx relying on it cascades - the
+                // distribution tells whether the merged order itself is at fault.
+                if (l_rc == 0)
+                    ++s_replay_defer_applied;
+                else {
+                    ++s_replay_defer_failed;
+                    if (s_replay_defer_fail_logged < 5) {
+                        log_it(L_WARNING, "Replay order merge: deferred datum %s failed with code %d"
+                               " (ts=%" DAP_UINT64_FORMAT_U ")", dap_hash_fast_to_str_static(&l_hash),
+                               l_rc, (uint64_t)l_it->ts);
+                        ++s_replay_defer_fail_logged;
+                    }
+                }
+            }
+        } else {
+            log_it(L_WARNING, "Replay order merge: short read at %" DAP_UINT64_FORMAT_U " (%zd of %u)",
+                   l_it->file_offset, l_rd, l_it->event_size);
+        }
+        DAP_DELETE(l_buf);
+        ++a_ctx->head;
+    }
+    if (a_ctx->head == a_ctx->count) {
+        DAP_DEL_Z(a_ctx->items);
+        a_ctx->count = a_ctx->cap = a_ctx->head = 0;
+    }
+    dap_chain_net_replay_loader_pop();
+}
+
+void dap_chain_net_replay_drain_until(dap_chain_net_t *a_net, dap_time_t a_ts)
+{
+    if (!a_net || !s_replay_defer_enabled())
+        return;
+    s_replay_defer_drain(s_replay_defer_ctx(a_net->pub.id.uint64), a_ts);
+}
+
+void dap_chain_net_replay_defer_end(dap_chain_net_t *a_net)
+{
+    s_replay_defer_ctx_t *l_ctx = a_net ? s_replay_defer_ctx(a_net->pub.id.uint64) : NULL;
+    if (!l_ctx || !l_ctx->active)
+        return;
+    s_replay_defer_drain(l_ctx, 0);
+    log_it(L_NOTICE, "Replay order merge: net %s drained %" DAP_UINT64_FORMAT_U
+           " datum(s) applied, %" DAP_UINT64_FORMAT_U " failed", a_net->pub.name,
+           (uint64_t)atomic_load(&s_replay_defer_applied), (uint64_t)atomic_load(&s_replay_defer_failed));
+    if (l_ctx->fd >= 0) {
+        close(l_ctx->fd);
+        l_ctx->fd = -1;
+    }
+    DAP_DEL_Z(l_ctx->items);
+    l_ctx->count = l_ctx->cap = l_ctx->head = 0;
+    l_ctx->active = false;
+    l_ctx->chain = NULL;
+}
+
 int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
@@ -3621,8 +3906,21 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                a_datum_size );
         return -101;
     }
-    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
-    if ( dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) )
+    dap_chain_net_t *l_datum_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_ledger_t *l_ledger = l_datum_net->pub.ledger;
+    // The hard reject list is operator configuration and stays in force while state
+    // is reconstructed: the reference node (cfnode1) runs the same ledger_hrl.cfg and
+    // loads the whole chain with it, so bypassing the list during a replay is what
+    // makes a replica diverge - measured on Backbone: skipping the list let a
+    // block-5073 transaction apply, which moved the scan's stop from the tip to block
+    // 144150. The one thing the list must not do is re-judge a datum the ledger
+    // already holds (the cache load re-walks the snapshot zone and would report a
+    // false -100 for an effect that is already there).
+    int l_datum_type = a_datum->header.type_id;
+    bool l_datum_already_known =
+            (l_datum_type == DAP_CHAIN_DATUM_TX && dap_ledger_tx_is_known(l_ledger, a_datum_hash))
+            || (l_datum_type == DAP_CHAIN_DATUM_TOKEN && s_token_datum_is_known(a_datum_hash));
+    if ( !l_datum_already_known && dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) )
         return log_it(L_INFO, "[%s] Datum is blackilsted", dap_chain_hash_fast_to_str_static(a_datum_hash)), -100;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {

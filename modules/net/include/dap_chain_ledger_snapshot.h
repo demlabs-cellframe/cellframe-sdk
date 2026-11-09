@@ -130,6 +130,29 @@ void dap_ledger_snapshot_skip_consume(dap_ledger_t *a_ledger);
 void dap_ledger_replay_datum_failed(dap_ledger_t *a_ledger, uint64_t a_block_num);
 
 /**
+ * @brief Classified variant: does the rejected transaction mean the LEDGER LOST
+ *        something (a parent the chain carries was not applied - our replay is
+ *        incomplete) or is the datum inherently unsatisfiable for the whole
+ *        network (its parent is not in the chain at all, its emission is not in
+ *        the zerochain, or it lost an in-chain double spend)?
+ *
+ * Only the first kind arms the anchor holdback. The second kind is the chain's
+ * own verdict: anchoring at the tip freezes the same state every other node has,
+ * so holding back would keep the snapshot frozen forever (measured on Backbone:
+ * an unsatisfiable transaction at block 4 pinned the anchor to block 3 and every
+ * start replayed 13k blocks against a tip-state ledger, producing ~42k false
+ * double-spend rejections).
+ */
+void dap_ledger_replay_datum_failed_ex(dap_ledger_t *a_ledger, uint64_t a_block_num, int a_code,
+                                       const dap_chain_datum_t *a_datum, dap_chain_t *a_chain);
+
+/**
+ * @brief Totals of the classification above: rejections that were our loss and
+ *        rejections the whole network shares. Read and reset by the replay tally.
+ */
+void dap_ledger_replay_fail_class_counts(uint64_t *a_our_loss, uint64_t *a_intrinsic);
+
+/**
  * @brief Clear the anchor holdback (after a purge or a full ledger rebuild).
  */
 void dap_ledger_replay_fail_reset(dap_ledger_t *a_ledger);

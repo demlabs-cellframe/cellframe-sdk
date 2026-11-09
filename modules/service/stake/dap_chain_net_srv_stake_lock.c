@@ -1015,21 +1015,42 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
     dap_chain_datum_token_t									*l_delegated_token;
     char 													l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX];
 
-    if (!a_owner)
+    // Diagnostic taps for the silent early returns: a stake-lock take that the
+    // ledger rejects surfaces only as code 31 upstream, so without these lines
+    // the failing branch (owner/lock-time/ticker/rate) cannot be told apart in
+    // a replay log. Enabled by [ledger] debug_more.
+    if (!a_owner) {
+        debug_if(s_debug_more, L_WARNING, "Stake-lock verifier -1 (not owner) for take tx %s",
+                 dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
         return -1;
+    }
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME &&
-            a_cond->subtype.srv_stake_lock.time_unlock > dap_ledger_get_blockchain_time(a_ledger))
+            a_cond->subtype.srv_stake_lock.time_unlock > dap_ledger_get_blockchain_time(a_ledger)) {
+        debug_if(s_debug_more, L_WARNING, "Stake-lock verifier -2 (still locked: unlock %" DAP_UINT64_FORMAT_U
+                 ", chain time %" DAP_UINT64_FORMAT_U ") for take tx %s",
+                 a_cond->subtype.srv_stake_lock.time_unlock, dap_ledger_get_blockchain_time(a_ledger),
+                 dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
         return -2;
+    }
 
     if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(
-                                                            a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL)))
+                                                            a_tx_in, NULL, NULL, TX_ITEM_TYPE_IN_COND, NULL))) {
+        debug_if(s_debug_more, L_WARNING, "Stake-lock verifier -3 (no IN_COND item) for take tx %s",
+                 dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
         return -3;
-    if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+    }
+    if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash)) {
+        debug_if(s_debug_more, L_WARNING, "Stake-lock verifier -3 (blank prev hash) for take tx %s",
+                 dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
         return -3;
+    }
     if (NULL == (l_prev_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(
-                                                            a_ledger, &l_tx_in_cond->header.tx_prev_hash)))
+                                                            a_ledger, &l_tx_in_cond->header.tx_prev_hash))) {
+        debug_if(s_debug_more, L_WARNING, "Stake-lock verifier -4 (prev tx ticker absent) for take tx %s",
+                 dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
         return -4;
+    }
 
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_prev_tx_ticker);
 
@@ -1055,15 +1076,29 @@ static int s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_t
             return -18;
         }
 
-        if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(a_ledger, l_delegated_ticker_str)))
+        if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(a_ledger, l_delegated_ticker_str))) {
+            debug_if(s_debug_more, L_WARNING, "Stake-lock verifier -5 (delegated token '%s' absent, "
+                     "prev ticker '%s') for take tx %s", l_delegated_ticker_str, l_prev_tx_ticker,
+                     dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
             return -5;
+        }
 
         uint256_t l_emission_rate = dap_ledger_token_get_emission_rate(a_ledger, l_delegated_ticker_str);
 
         if (IS_ZERO_256(l_emission_rate) ||
                 MULT_256_COIN(a_cond->header.value, l_emission_rate, &l_value_delegated) ||
-                IS_ZERO_256(l_value_delegated))
+                IS_ZERO_256(l_value_delegated)) {
+            // dap_uint256_to_char() uses one thread-local buffer, so each value needs
+            // its own copy before they are printed together.
+            char l_rate_str[96], l_val_str[96], l_cond_val_str[96];
+            snprintf(l_rate_str, sizeof(l_rate_str), "%s", dap_uint256_to_char(l_emission_rate, NULL));
+            snprintf(l_val_str, sizeof(l_val_str), "%s", dap_uint256_to_char(l_value_delegated, NULL));
+            snprintf(l_cond_val_str, sizeof(l_cond_val_str), "%s", dap_uint256_to_char(a_cond->header.value, NULL));
+            debug_if(s_debug_more, L_WARNING, "Stake-lock verifier -6 (rate %s, delegated value %s, "
+                     "cond value %s) for take tx %s", l_rate_str, l_val_str, l_cond_val_str,
+                     dap_get_data_hash_str(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in)).s);
             return -6;
+        }
         size_t l_receipt_size = 0;
         l_receipt_old = (dap_chain_datum_tx_receipt_old_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, NULL, TX_ITEM_TYPE_RECEIPT_OLD, &l_receipt_size);
         if (l_receipt_old) {

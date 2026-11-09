@@ -252,6 +252,33 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
 void dap_chain_net_tx_replay_tally(int a_result, const dap_hash_fast_t *a_tx_hash);
 void dap_chain_net_tx_replay_summary(void);
 
+// Replay order merge ([ledger] replay_merged_order): a from-scratch load applies the
+// whole zerochain before main, so historical main datums are validated against the
+// present token permissions and get ADDR_FORBIDDEN (a ~646k tx cascade). Deferring
+// the zerochain token permission UPDATES (not declarations, not emissions) and
+// releasing them at main's block time restores the live order without turning
+// emissions into "not found" seeds. Off unless the config flag is set.
+void dap_chain_net_replay_defer_begin(dap_chain_net_t *a_net);
+void dap_chain_net_replay_defer_end(dap_chain_net_t *a_net);
+bool dap_chain_net_replay_defer_try(dap_chain_t *a_chain, dap_time_t a_ts, uint64_t a_file_offset,
+                                    uint32_t a_event_size, const dap_hash_fast_t *a_datum_hash);
+void dap_chain_net_replay_drain_until(dap_chain_net_t *a_net, dap_time_t a_ts);
+
+// The block a replayed datum belongs to. The tally gives only the distribution of
+// replay results; this ties a rejection to the block that produced it, so the first
+// non-cascade root is found in block order instead of guessed from the totals.
+// The blocks loader sets it around its datum loop; 0 means "not in a block".
+void dap_chain_net_replay_note_block(uint64_t a_block_num);
+uint64_t dap_chain_net_replay_block_num(void);
+
+// Loader context: the calling thread is applying datums that came out of an accepted
+// chain (cell block load, DAG event, merged-order drain, chain-cache rebuild).
+// Trusted replay gates its check bypasses on this - NOT on the net state alone -
+// so a mempool/live-RPC submission during a resync keeps full validation.
+void dap_chain_net_replay_loader_push(void);
+void dap_chain_net_replay_loader_pop(void);
+bool dap_chain_net_replay_in_loader(void);
+
 /**
  * @brief Flat record of one token datum of a chain, from the per-chain token
  * datum registry maintained at datum add/remove (see dap_chain_net.c).

@@ -2200,12 +2200,19 @@ static bool s_snapshot_zone_at(dap_chain_cs_blocks_t *a_blocks)
  */
 static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache)
 {
+    // Loader context for the whole pass - the merged-order drain at the top and the
+    // datum loop below. Everything applied here came out of an accepted block, which
+    // is what trusted replay keys its check bypasses on (dap_chain_net_replay_in_loader).
+    dap_chain_net_replay_loader_push();
     // `chain cache rebuild` walks the live cache, which after a no-scan start
     // consists of thin index-restored entries (no body, no datums).
-    if (!a_block_cache->parsed && dap_chain_block_cache_ensure(a_block_cache))
+    if (!a_block_cache->parsed && dap_chain_block_cache_ensure(a_block_cache)) {
+        dap_chain_net_replay_loader_pop();
         return 1;
+    }
     if (! a_block_cache->datum_count){
         log_it(L_DEBUG,"Block %s has no datums at all, nothing to add to ledger", a_block_cache->block_hash_str);
+        dap_chain_net_replay_loader_pop();
         return 1; // No errors just empty block
     }
     int l_ret = 0;
@@ -2224,6 +2231,18 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
             && a_block_cache->block_number > l_skip_num;
     bool l_notify = l_beyond_anchor || !(l_notify_net && dap_chain_net_get_load_mode(l_notify_net)
             && dap_chain_wallet_cache_index_restored(a_blocks->chain->net_id));
+    // Replay order merge: release the deferred zerochain token/emission datums whose
+    // time has come with this block, so the datums below see the token permissions of
+    // their own era instead of the present ones. No-op unless [ledger] replay_merged_order.
+    {
+        dap_chain_net_t *l_drain_net = dap_chain_net_by_id(a_blocks->chain->net_id);
+        if (l_drain_net)
+            dap_chain_net_replay_drain_until(l_drain_net, a_block_cache->block->hdr.ts_created);
+    }
+    // Replay diagnostics: every rejection the ledger reports while these datums are
+    // applied is attributed to this block. Without it the replay tally can only say
+    // "N transactions of code 24 failed", never where the cascade starts.
+    dap_chain_net_replay_note_block(a_block_cache->block_number);
     for(size_t i=0; i<a_block_cache->datum_count && l_block_offset +sizeof(a_block_cache->block->hdr) < a_block_cache->block_size ;
         i++, l_block_offset += l_datum_size ){
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
@@ -2252,9 +2271,13 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         // anchor holdback: duplicate decrees legitimately report codes of their
         // own on replay (-123), their state is carried by the dedicated sections,
         // and a re-applied ban decree would masquerade as a fresh failure.
+        // The classified variant decides whether this rejection is a local loss or
+        // a verdict the whole network shares (a parent absent from the chain, a
+        // double-spend loser): only a local loss may hold the anchor back.
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX && l_res != 0
                 && l_res != DAP_LEDGER_CHECK_ALREADY_CACHED && l_notify_ledger)
-            dap_ledger_replay_datum_failed(l_notify_ledger, a_block_cache->block_number);
+            dap_ledger_replay_datum_failed_ex(l_notify_ledger, a_block_cache->block_number, l_res,
+                                              l_datum, a_blocks->chain);
         // Index every datum - transactions restored from the ledger cache included.
         // Skipping cached ones used to leave them invisible to find-by-hash
         // consumers (wallet cache inputs, tx lookups): with a cache-fed ledger the
@@ -2286,6 +2309,8 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
                                    (byte_t *) l_datum, l_datum_size, l_res, l_datum_index_data.action, l_datum_index_data.uid);
         }
     }
+    dap_chain_net_replay_note_block(0);
+    dap_chain_net_replay_loader_pop();
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
              l_ret == (int)a_block_cache->datum_count ? "all correct" : "there are rejected datums");
     return l_ret;
@@ -2532,6 +2557,14 @@ static void s_chain_state_reset(dap_chain_cs_blocks_t *a_blocks)
 // On a mapped chain the pointer is inside the loader's current volume (the
 // consensus layer is called with it), so the per-volume base has to be added;
 // the non-mapped loader publishes the offset of the atom it is feeding.
+// Ownership diagnostics: every block cache entry either stays THIN (a file
+// position is known, the body is served on demand) or owns a heap copy. A sync
+// that reports copy growth means the position resolution failed for those atoms
+// and the whole chain is being pulled into the heap - log the ratio so the cause
+// is visible without a debug build (the packaged binary is stripped).
+static void s_cache_note_ownership(bool a_thin, const dap_chain_t *a_chain, uint64_t a_offset,
+                                   const dap_chain_cell_t *a_cell);
+
 static uint64_t s_chain_state_block_offset(dap_chain_cs_blocks_t *a_blocks, const void *a_atom,
                                           dap_chain_cell_t *a_cell)
 {
@@ -3177,6 +3210,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         // buffer - must own a copy: that buffer is freed as soon as the callback
         // returns, while the entry outlives it (reward lookups by hash, block
         // listings), and a dangling body pointer there is a use-after-free.
+        s_cache_note_ownership(a_chain->is_mapped && l_atom_offset && l_atom_cell,
+                               a_chain, l_atom_offset, l_atom_cell);
         l_block_cache = (a_chain->is_mapped && l_atom_offset && l_atom_cell)
                 ? dap_chain_block_cache_new_indexed(&l_block_hash, a_atom_size,
                         PVT(l_blocks)->blocks_count + 1, l_block->hdr.ts_created, &l_block_prev_hash,
@@ -3353,6 +3388,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         // Same ownership rule as the linear path above (see the comment there):
         // only an atom whose file position is known may stay thin, everything
         // else - including a live fork block from a peer - keeps an owned copy.
+        s_cache_note_ownership(a_chain->is_mapped && l_atom_offset && l_atom_cell,
+                               a_chain, l_atom_offset, l_atom_cell);
         l_block_cache = (a_chain->is_mapped && l_atom_offset && l_atom_cell)
                 ? dap_chain_block_cache_new_indexed(&l_block_hash, a_atom_size,
                         PVT(l_blocks)->blocks_count + 1, l_block->hdr.ts_created, &l_block_prev_hash,
@@ -4321,6 +4358,26 @@ static void s_blocks_hash_find_locked(dap_chain_cs_blocks_t *a_blocks, dap_hash_
     s_blocks_rdlock(PVT(a_blocks));
     HASH_FIND(hh, PVT(a_blocks)->blocks, a_block_hash, sizeof(*a_block_hash), *a_block_cache);
     s_blocks_unlock(PVT(a_blocks));
+}
+
+// Ownership diagnostics: every block cache entry either stays THIN (a file
+// position is known, the body is served on demand) or owns a heap copy. A sync
+// that reports copy growth means the position resolution failed for those atoms
+// and the whole chain is being pulled into the heap - log the ratio so the cause
+// is visible without a debug build (the packaged binary is stripped).
+static void s_cache_note_ownership(bool a_thin, const dap_chain_t *a_chain, uint64_t a_offset,
+                                   const dap_chain_cell_t *a_cell)
+{
+    static _Atomic uint64_t s_thin_cnt, s_copy_cnt;
+    if (a_thin)
+        atomic_fetch_add(&s_thin_cnt, 1);
+    else
+        atomic_fetch_add(&s_copy_cnt, 1);
+    uint64_t l_thin = atomic_load(&s_thin_cnt), l_copy = atomic_load(&s_copy_cnt);
+    if (!((l_thin + l_copy) % 20000))
+        log_it(L_NOTICE, "BLOCK CACHE ownership: thin=%" DAP_UINT64_FORMAT_U " copy=%" DAP_UINT64_FORMAT_U
+               " (mapped=%d offset=%" DAP_UINT64_FORMAT_U " cell=%p)",
+               l_thin, l_copy, a_chain && a_chain->is_mapped, a_offset, (const void *)a_cell);
 }
 
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey)
