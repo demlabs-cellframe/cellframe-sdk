@@ -841,8 +841,14 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     pthread_rwlock_unlock(&l_srv_stake->itemlist_rwlock);
     dap_chain_esbocs_add_validator_to_clusters(a_net->pub.id, a_node_addr);
     const char *l_value_str; dap_uint256_to_char(a_value, &l_value_str);
-    log_it(L_NOTICE, "Added key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
-                            dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
+    // The block is part of the record: a registry that ends up one key short is only
+    // diagnosable if every mutation can be placed at a height and compared with the
+    // delegation transactions of that block (0 = the mutation did not come from a
+    // chain load, e.g. a live block outside the loader context).
+    log_it(L_NOTICE, "Added key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR
+                     " in block %" DAP_UINT64_FORMAT_U,
+                            dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str,
+                            NODE_ADDR_FP_ARGS(a_node_addr), dap_chain_net_replay_block_num());
 }
 
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
@@ -868,8 +874,12 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     pthread_rwlock_unlock(&l_srv_stake->itemlist_rwlock);
     dap_chain_esbocs_remove_validator_from_clusters(a_signing_addr->net_id, &l_node_addr);
     const char *l_value_str; dap_uint256_to_char(l_locked_value, &l_value_str);
-    log_it(L_NOTICE, "Removed key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR,
-                            dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str, NODE_ADDR_FP_ARGS_S(l_node_addr));
+    // Same record as the add path: the height lets a later verification failure
+    // ("not enough signs") be traced back to the exact block that dropped the key.
+    log_it(L_NOTICE, "Removed key with fingerprint %s and locked value %s for node " NODE_ADDR_FP_STR
+                     " in block %" DAP_UINT64_FORMAT_U,
+                            dap_chain_hash_fast_to_str_static(&a_signing_addr->data.hash_fast), l_value_str,
+                            NODE_ADDR_FP_ARGS_S(l_node_addr), dap_chain_net_replay_block_num());
 }
 
 void dap_chain_net_srv_stake_key_update(dap_chain_addr_t *a_signing_addr, uint256_t a_new_value, dap_hash_fast_t *a_new_tx_hash)

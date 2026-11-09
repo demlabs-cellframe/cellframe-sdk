@@ -272,7 +272,7 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
         return -109;
     }
 
-    if ((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true)) != 0){
+    if ((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true, a_anchor->header.ts_created)) != 0){
         debug_if(s_debug_more, L_WARNING, "Decree applying failed");
         return ret_val;
     }
@@ -419,7 +419,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         return -109;
                     }
 
-                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true))!=0){
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true, a_anchor->header.ts_created))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
@@ -470,7 +470,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
                         return -109;
                     }
-                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true))!=0){
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true, a_anchor->header.ts_created))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
@@ -487,7 +487,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         log_it(L_WARNING,"Can not find datum hash in anchor data");
                         return -109;
                     }
-                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true))!=0){
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true, a_anchor->header.ts_created))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }
@@ -507,7 +507,7 @@ int dap_chain_net_anchor_unload(dap_chain_datum_anchor_t * a_anchor, dap_chain_t
                         return -109;
                     }
 
-                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true))!=0){
+                    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain, true, a_anchor->header.ts_created))!=0){
                         log_it(L_WARNING,"Decree applying failed");
                         return ret_val;
                     }

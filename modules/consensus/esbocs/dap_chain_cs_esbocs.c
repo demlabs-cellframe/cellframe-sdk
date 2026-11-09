@@ -465,6 +465,16 @@ struct precached_key {
     byte_t sign_pkey[];
 };
 
+// One era of the decree-controlled min_validators_count: the value and the moment
+// it took effect (the anchor that made the decree binding). Entries are appended in
+// chain order; the history is bounded because a consensus parameter changes rarely
+// and the section must stay small.
+#define DAP_CHAIN_ESBOCS_MINVAL_ERA_MAX 32
+typedef struct s_esbocs_minval_era {
+    uint64_t ts_effective;
+    uint16_t value;
+} DAP_ALIGN_PACKED s_esbocs_minval_era_t;
+
 typedef struct dap_chain_esbocs_pvt {
     // Base params
     dap_enc_key_t *blocks_sign_key;
@@ -511,11 +521,26 @@ typedef struct dap_chain_esbocs_pvt {
     // the snapshot's state section reads them from the snapshot-save thread
     // while a decree may be applying in the sync thread.
     pthread_rwlock_t state_lock;
+    // Era history of min_validators_count: every decree that changed it, with the
+    // time it took effect (the anchor's timestamp). The scalar above is the LATEST
+    // value (live path, CLI, state dump); block verification asks for the value in
+    // force at the block's own time. Without the history a replay applies the
+    // final value to the whole chain and rejects every historical block whose
+    // committee was smaller than today's - measured on Backbone block 144150
+    // (2024-09-13): three signatures on chain, min_validators 5 in the ledger.
+    s_esbocs_minval_era_t minval_era[DAP_CHAIN_ESBOCS_MINVAL_ERA_MAX];
+    size_t minval_era_cnt;
     // Internal cache
     dap_list_t *precached_keys;
 } dap_chain_esbocs_pvt_t;
 
 #define PVT(a) ((dap_chain_esbocs_pvt_t *)a->_pvt)
+
+// Era history of the decree-controlled min_validators_count (defined next to the
+// setter; the state section and the verifier both use them, so they are declared
+// here).
+static uint16_t s_esbocs_minval_at_locked(const dap_chain_esbocs_pvt_t *a_pvt, uint64_t a_ts);
+static void s_esbocs_minval_era_note_locked(dap_chain_esbocs_pvt_t *a_pvt, uint64_t a_ts, uint16_t a_value);
 
 struct sync_params {
     uint64_t attempt;
@@ -729,7 +754,11 @@ int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
  * Restoring it before the tail is read means those blocks are verified against
  * the parameters the previous run ended with. */
 #define DAP_CHAIN_ESBOCS_STATE_SECTION "esbocs_state"
-#define DAP_CHAIN_ESBOCS_STATE_VERSION 1
+// v2 appends the min_validators era history (records after the emergency list).
+// A v1 payload is still accepted: its single value becomes one era at ts 0, so an
+// old snapshot keeps working, it just cannot distinguish the eras it never recorded.
+#define DAP_CHAIN_ESBOCS_STATE_VERSION 2
+#define DAP_CHAIN_ESBOCS_STATE_VERSION_LEGACY 1
 
 typedef struct DAP_ALIGN_PACKED s_esbocs_state_hdr {
     uint32_t version;
@@ -742,6 +771,7 @@ typedef struct DAP_ALIGN_PACKED s_esbocs_state_hdr {
     uint32_t min_validators_count;
     uint32_t check_signs_structure;
     uint32_t n_emergency_addrs;
+    uint32_t n_minval_era;   // v2: trailing s_esbocs_minval_era_t records (v1: 0)
     uint32_t reserved2;
 } s_esbocs_state_hdr_t;
 
@@ -788,7 +818,8 @@ static int s_esbocs_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_o
         .empty_block_every_times = atomic_load(&l_pvt->empty_block_every_times),
         .min_validators_count = l_pvt->min_validators_count,
         .check_signs_structure = l_pvt->check_signs_structure ? 1u : 0u,
-        .n_emergency_addrs = l_n
+        .n_emergency_addrs = l_n,
+        .n_minval_era = (uint32_t)l_pvt->minval_era_cnt
     };
     int l_ret = 0;
     if (!dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr))) {
@@ -800,6 +831,15 @@ static int s_esbocs_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_o
             if (l_addr)
                 memcpy(l_rec.addr, l_addr, sizeof(l_rec.addr));
             if (!dap_string_append_len(a_out, (const char *)&l_rec, sizeof(l_rec))) {
+                l_ret = -2;
+                break;
+            }
+        }
+        // The era history is what lets a restart keep judging historical blocks by
+        // the threshold of their own time; without it the single scalar value would
+        // be applied to the whole chain on the next replay.
+        for (size_t i = 0; l_ret == 0 && i < l_pvt->minval_era_cnt; ++i) {
+            if (!dap_string_append_len(a_out, (const char *)&l_pvt->minval_era[i], sizeof(s_esbocs_minval_era_t))) {
                 l_ret = -2;
                 break;
             }
@@ -816,11 +856,18 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
         return -1;
     s_esbocs_state_hdr_t l_hdr;
     memcpy(&l_hdr, a_data, sizeof(l_hdr));
-    if (l_hdr.version != DAP_CHAIN_ESBOCS_STATE_VERSION) {
+    if (l_hdr.version != DAP_CHAIN_ESBOCS_STATE_VERSION
+            && l_hdr.version != DAP_CHAIN_ESBOCS_STATE_VERSION_LEGACY) {
         log_it(L_WARNING, "Consensus state: unsupported format version %u (this build understands %u)",
                l_hdr.version, DAP_CHAIN_ESBOCS_STATE_VERSION);
         return -2;
     }
+    // v1 has no era history: the payload ends after the emergency list and the byte
+    // that now holds the era count belongs to the old reserved field. Treat the
+    // dumped value as a single era from ts 0 - the same behaviour that version had,
+    // made explicit.
+    if (l_hdr.version == DAP_CHAIN_ESBOCS_STATE_VERSION_LEGACY)
+        l_hdr.n_minval_era = 0;
     if (!l_hdr.net_id)
         return 0;   // a writer that did not know its net: nothing to attribute this to
     // The load callback carries no net id - the header does. Resolving the net
@@ -830,10 +877,16 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
     if (!l_esbocs || !l_esbocs->_pvt || !l_esbocs->chain)
         return 0;   // no consensus for this net: nothing to restore into
     dap_chain_esbocs_pvt_t *l_pvt = PVT(l_esbocs);
-    // The record count comes from the file and is untrusted: the payload must
+    // The record counts come from the file and are untrusted: the payload must
     // actually hold that many records.
     if ((uint64_t)l_hdr.n_emergency_addrs
             > (uint64_t)((a_size - sizeof(s_esbocs_state_hdr_t)) / sizeof(s_esbocs_emergency_rec_t)))
+        return -4;
+    if ((uint64_t)l_hdr.n_emergency_addrs * sizeof(s_esbocs_emergency_rec_t)
+            + (uint64_t)l_hdr.n_minval_era * sizeof(s_esbocs_minval_era_t)
+            > a_size - sizeof(s_esbocs_state_hdr_t))
+        return -4;
+    if (l_hdr.n_minval_era > DAP_CHAIN_ESBOCS_MINVAL_ERA_MAX)
         return -4;
     // Monotonic fields: never move the version back or the strict-era boundary
     // forward, whatever the file says - a stale snapshot must not loosen rules
@@ -870,11 +923,31 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
         l_pvt->emergency_validator_addrs = dap_list_append(l_pvt->emergency_validator_addrs, l_new);
         ++l_added;
     }
+    // Era history. A v1 payload carries none: its single value is recorded as one
+    // era from ts 0, which is exactly how that version behaved.
+    if (l_hdr.n_minval_era) {
+        l_pvt->minval_era_cnt = 0;
+        for (uint32_t i = 0; i < l_hdr.n_minval_era; ++i) {
+            s_esbocs_minval_era_t l_era;
+            memcpy(&l_era, l_ptr, sizeof(l_era));
+            l_ptr += sizeof(l_era);
+            l_pvt->minval_era[l_pvt->minval_era_cnt++] = l_era;
+        }
+        if (l_pvt->minval_era_cnt)
+            l_pvt->min_validators_count = l_pvt->minval_era[l_pvt->minval_era_cnt - 1].value;
+    } else if (l_hdr.min_validators_count) {
+        l_pvt->minval_era_cnt = 0;
+        s_esbocs_minval_era_note_locked(l_pvt, 1 /*ts 0 is "now"*/,
+                (uint16_t)l_hdr.min_validators_count);
+        if (l_pvt->minval_era_cnt)
+            l_pvt->minval_era[0].ts_effective = 0;
+    }
     pthread_rwlock_unlock(&l_pvt->state_lock);
     log_it(L_NOTICE, "Consensus state: restored consensus_version %" DAP_UINT64_FORMAT_U
-           " (since %" DAP_UINT64_FORMAT_U "), min_validators %u, check_signs %s, "
+           " (since %" DAP_UINT64_FORMAT_U "), min_validators %u (%u era(s)), check_signs %s, "
            "emergency validators %u (+%zu added)",
            l_pvt->consensus_version, l_pvt->consensus_version_since, l_pvt->min_validators_count,
+           (unsigned)l_pvt->minval_era_cnt,
            l_pvt->check_signs_structure ? "on" : "off", l_hdr.n_emergency_addrs, l_added);
     return 0;
 }
@@ -1524,16 +1597,82 @@ typedef struct s_esbocs_setter_call {
     uint16_t empty_block_period;
 } s_esbocs_setter_call_t;
 
+static int s_esbocs_set_min_validators_count_apply_at(dap_chain_t *a_chain, uint16_t a_new_value,
+                                                      uint64_t a_effective_ts);
+
 static int s_esbocs_set_min_validators_count_apply(dap_chain_t *a_chain, uint16_t a_new_value)
+{
+    return s_esbocs_set_min_validators_count_apply_at(a_chain, a_new_value, 0);
+}
+
+// Value of min_validators_count in force at a_ts. The caller holds state_lock (or
+// owns the instance, e.g. during init). A zero timestamp means "now": the live
+// callers read the parameter for the block they are about to produce, which is
+// always newer than every era on record.
+static uint16_t s_esbocs_minval_at_locked(const dap_chain_esbocs_pvt_t *a_pvt, uint64_t a_ts)
+{
+    if (!a_ts)
+        return a_pvt->min_validators_count;
+    uint16_t l_value = a_pvt->start_validators_min;
+    for (size_t i = 0; i < a_pvt->minval_era_cnt; ++i) {
+        if (a_pvt->minval_era[i].ts_effective > a_ts)
+            break;      // entries are appended in increasing time order
+        l_value = a_pvt->minval_era[i].value;
+    }
+    return l_value;
+}
+
+// Append (or replace the tail of) the era record. Caller holds state_lock.
+static void s_esbocs_minval_era_note_locked(dap_chain_esbocs_pvt_t *a_pvt, uint64_t a_ts, uint16_t a_value)
+{
+    if (!a_ts)
+        a_ts = dap_time_now();
+    // Same instant (a decree re-applied from an anchor and from the journal, or a
+    // restart re-deriving the same decree) keeps one record, not two.
+    if (a_pvt->minval_era_cnt
+            && a_pvt->minval_era[a_pvt->minval_era_cnt - 1].ts_effective == a_ts) {
+        a_pvt->minval_era[a_pvt->minval_era_cnt - 1].value = a_value;
+        return;
+    }
+    // An out-of-order timestamp (decree journal applied after a newer anchor) must
+    // not corrupt the ordering the lookup relies on: it replaces the tail.
+    if (a_pvt->minval_era_cnt
+            && a_pvt->minval_era[a_pvt->minval_era_cnt - 1].ts_effective > a_ts) {
+        a_pvt->minval_era[a_pvt->minval_era_cnt - 1].ts_effective = a_ts;
+        a_pvt->minval_era[a_pvt->minval_era_cnt - 1].value = a_value;
+        return;
+    }
+    if (a_pvt->minval_era_cnt >= DAP_CHAIN_ESBOCS_MINVAL_ERA_MAX) {
+        log_it(L_WARNING, "ESBOCS: min_validators era history is full (%d records), "
+               "the oldest era is no longer distinguishable", DAP_CHAIN_ESBOCS_MINVAL_ERA_MAX);
+        return;
+    }
+    a_pvt->minval_era[a_pvt->minval_era_cnt].ts_effective = a_ts;
+    a_pvt->minval_era[a_pvt->minval_era_cnt].value = a_value;
+    ++a_pvt->minval_era_cnt;
+}
+
+static int s_esbocs_set_min_validators_count_apply_at(dap_chain_t *a_chain, uint16_t a_new_value, uint64_t a_effective_ts)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     // The state section dumps these fields from the snapshot-save thread.
     if (a_new_value) {
+        uint16_t l_old = l_esbocs_pvt->min_validators_count;
         pthread_rwlock_wrlock(&l_esbocs_pvt->state_lock);
         l_esbocs_pvt->min_validators_count = a_new_value;
+        s_esbocs_minval_era_note_locked(l_esbocs_pvt, a_effective_ts, a_new_value);
         pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
+        // A consensus parameter is only diagnosable with its height: a block rejected
+        // as "not enough signs: N of M" is either a genuinely short block or a vote
+        // threshold applied at the wrong point in the chain, and the two are told
+        // apart by the height at which M changed.
+        if (l_old != a_new_value)
+            log_it(L_NOTICE, "ESBOCS: min_validators_count %hu -> %hu (effective %" DAP_UINT64_FORMAT_U
+                   ", replay block %" DAP_UINT64_FORMAT_U ")",
+                   l_old, a_new_value, a_effective_ts ? a_effective_ts : (uint64_t)dap_time_now(),
+                   dap_chain_net_replay_block_num());
     } else {
         dap_hash_fast_t l_stake_tx_hash = {};
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
@@ -1544,7 +1683,11 @@ static int s_esbocs_set_min_validators_count_apply(dap_chain_t *a_chain, uint16_
             dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
                                                  l_weight, &l_validator->node_addr, NULL);
         }
+        // The anchor that carried the MIN_VALIDATORS decree was rolled back: the
+        // parameter returns to its config start value, and that is an era of its own
+        // (a block from the rolled-back window was produced under the old threshold).
         l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
+        s_esbocs_minval_era_note_locked(l_esbocs_pvt, a_effective_ts, l_esbocs_pvt->start_validators_min);
         pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
     }
     return 0;
@@ -1702,12 +1845,21 @@ static int s_esbocs_setter_call_exec(dap_chain_esbocs_session_t *a_session, s_es
 
 int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value)
 {
+    // Live callers (CLI, decree applied while consensus runs) mean "from now on".
+    return dap_chain_esbocs_set_min_validators_count_at(a_chain, a_new_value, 0);
+}
+
+int dap_chain_esbocs_set_min_validators_count_at(dap_chain_t *a_chain, uint16_t a_new_value, uint64_t a_effective_ts)
+{
     dap_return_val_if_fail(a_chain && !strcmp(dap_chain_get_cs_type(a_chain), DAP_CHAIN_ESBOCS_CS_TYPE_STR), -1);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_return_val_if_fail(l_esbocs, -2);
+    // Consensus is running: the value only becomes binding through the session's
+    // setter queue, which applies it on the consensus thread. The effective time is
+    // carried by the apply call, not by the queue: no session runs during a load.
     if (!l_esbocs->session)
-        return s_esbocs_set_min_validators_count_apply(a_chain, a_new_value);
+        return s_esbocs_set_min_validators_count_apply_at(a_chain, a_new_value, a_effective_ts);
     s_esbocs_setter_call_t l_call = {
         .session = l_esbocs->session,
         .chain = a_chain,
@@ -1715,6 +1867,23 @@ int dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_n
         .min_validators_count = a_new_value
     };
     return s_esbocs_setter_call_exec(l_esbocs->session, &l_call);
+}
+
+// The value in force at a_ts - the same lookup the block verification uses, exposed
+// so callers can ask "what was the committee threshold when this block was made".
+uint16_t dap_chain_esbocs_get_min_validators_count_at(dap_chain_net_id_t a_net_id, uint64_t a_ts)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    for (dap_chain_t *it = l_net ? l_net->pub.chains : NULL; it; it = it->next) {
+        if (dap_strcmp(dap_chain_get_cs_type(it), DAP_CHAIN_ESBOCS_CS_TYPE_STR))
+            continue;
+        dap_chain_esbocs_pvt_t *l_pvt = PVT(DAP_CHAIN_ESBOCS(DAP_CHAIN_CS_BLOCKS(it)));
+        pthread_rwlock_rdlock(&l_pvt->state_lock);
+        uint16_t l_ret = s_esbocs_minval_at_locked(l_pvt, a_ts);
+        pthread_rwlock_unlock(&l_pvt->state_lock);
+        return l_ret;
+    }
+    return 0;
 }
 
 uint16_t dap_chain_esbocs_get_min_validators_count(dap_chain_net_id_t a_net_id)
@@ -4389,9 +4558,17 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return -2;
     }
 
-    if (l_signs_count < l_esbocs_pvt->min_validators_count) {
+    // The threshold in force when this block was produced, not today's: a replay
+    // applies every MIN_VALIDATORS decree of the zerochain before the main chain,
+    // and the committee of 2024 blocks was smaller than the current one. The block's
+    // own timestamp is the era key; live verification of a new block reads the
+    // latest era (its time is later than every recorded change).
+    pthread_rwlock_rdlock(&l_esbocs_pvt->state_lock);
+    uint16_t l_min_validators_era = s_esbocs_minval_at_locked(l_esbocs_pvt, a_block->hdr.ts_created);
+    pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
+    if (l_signs_count < l_min_validators_era) {
         log_it(L_ERROR, "Corrupted block  %s: not enough signs: %zu of %hu", dap_hash_fast_to_str_static(a_block_hash),
-                                    l_signs_count, l_esbocs_pvt->min_validators_count);
+                                    l_signs_count, l_min_validators_era);
         DAP_DELETE(l_signs);
         return -1;
     }
@@ -4565,9 +4742,9 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         DAP_DELETE(l_block);
     else
         l_block->hdr.meta_n_datum_n_signs_size = l_block_original;
-    if (l_signs_verified_count < l_esbocs_pvt->min_validators_count) {
+    if (l_signs_verified_count < l_min_validators_era) {
         debug_if(l_esbocs_pvt->debug, L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
-                    dap_hash_fast_to_str_static(a_block_hash), l_signs_verified_count, l_esbocs_pvt->min_validators_count);
+                    dap_hash_fast_to_str_static(a_block_hash), l_signs_verified_count, l_min_validators_era);
         return l_ret ? l_ret : -4;
     }
     return 0;

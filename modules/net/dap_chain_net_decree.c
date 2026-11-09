@@ -608,7 +608,7 @@ int dap_chain_net_decree_journal_init(void)
 
 // Private fuctions prototype
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
-static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored);
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored, uint64_t a_effective_ts);
 static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
 
 static bool s_debug_more = false;
@@ -771,7 +771,7 @@ static int s_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_d
     int l_ret = 0;
     switch(a_decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-        l_ret = s_common_decree_handler(a_decree, a_net, false, a_anchored);
+        l_ret = s_common_decree_handler(a_decree, a_net, false, a_anchored, 0);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
     break;
@@ -796,7 +796,7 @@ int dap_chain_net_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t
     return s_decree_verify(a_net, a_decree, a_data_size, a_decree_hash, false);
 }
 
-int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_anchored)
+int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_anchored, uint64_t a_effective_ts)
 {
     int ret_val = 0;
     dap_chain_net_t *l_net = NULL;
@@ -851,7 +851,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     // Process decree
     switch(l_new_decree->decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-        ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, a_anchored);
+        ret_val = s_common_decree_handler(l_new_decree->decree, l_net, true, a_anchored, a_effective_ts);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
         break;
@@ -893,7 +893,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
         return ret_val;
     }
 
-    return dap_chain_net_decree_apply(a_decree_hash, a_decree, a_chain, false);
+    return dap_chain_net_decree_apply(a_decree_hash, a_decree, a_chain, false, 0);
 }
 
 int dap_chain_net_decree_reset_applied(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_decree_hash)
@@ -926,7 +926,7 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
     return false;
 }
 
-static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored)
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply, bool a_anchored, uint64_t a_effective_ts)
 {
     uint256_t l_value;
     uint32_t l_sign_type;
@@ -1122,7 +1122,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_chain_esbocs_set_min_validators_count(l_chain, l_decree_count);
+            dap_chain_esbocs_set_min_validators_count_at(l_chain, l_decree_count, a_effective_ts);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN: {
             if (dap_chain_datum_decree_get_ban_addr(a_decree, &l_ban_addr)) {

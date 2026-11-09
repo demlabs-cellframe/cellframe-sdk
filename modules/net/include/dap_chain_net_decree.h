@@ -41,7 +41,15 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net);
 
 void dap_chain_net_decree_purge(dap_chain_net_t *a_net);
 
-int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, bool a_anchored);
+/**
+ * @brief Apply (or record) a decree.
+ * @param a_effective_ts the moment the decree becomes binding - the timestamp of the
+ *        anchor that carried it, or of the decree datum itself; 0 means "now".
+ *        Decree-controlled consensus parameters are era-dependent: a replay applies
+ *        every decree before the main chain, and without this moment the parameters
+ *        of the present would judge blocks of the past (Backbone block 144150).
+ */
+int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, bool a_anchored, uint64_t a_effective_ts);
 int dap_chain_net_decree_verify(dap_chain_net_t *a_net, dap_chain_datum_decree_t *a_decree, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash);
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash);
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash, bool *is_applied);
