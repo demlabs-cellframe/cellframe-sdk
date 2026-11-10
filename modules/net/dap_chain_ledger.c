@@ -6040,10 +6040,29 @@ static bool s_ledger_permissions_check(dap_ledger_t *a_ledger, dap_ledger_token_
         l_addrs_count = a_token_item->tx_send_block_size;
     break;
     }
-    for (size_t n = 0; n < l_addrs_count; n++)
-        if (dap_chain_addr_compare(&l_addrs[n].addr, a_addr) &&
-                l_addrs[n].becomes_effective <= dap_ledger_get_blockchain_time(a_ledger))
+    dap_time_t l_chain_time = dap_ledger_get_blockchain_time(a_ledger);
+    size_t l_effective = 0;
+    for (size_t n = 0; n < l_addrs_count; n++) {
+        if (l_addrs[n].becomes_effective <= l_chain_time)
+            ++l_effective;
+        // An entry with no effective time was recorded while the chain time was not
+        // known (the declaration is parsed before the main chain advances). Such a
+        // stamp carries no era information: treating it as "effective since epoch"
+        // makes a historical transfer forbidden by a list entry that, on every node
+        // that applied it live, took effect only from its own moment. Entries the
+        // UTXO-blocking mechanism adds always carry a real time.
+        if (dap_chain_addr_compare(&l_addrs[n].addr, a_addr)
+                && l_addrs[n].becomes_effective
+                && l_addrs[n].becomes_effective <= l_chain_time) {
+            static _Atomic uint32_t s_perm_hit;
+            if (atomic_fetch_add(&s_perm_hit, 1) < 8)
+                log_it(L_WARNING, "PERM HIT perm %d token %s entry %zu/%zu effective %"
+                       DAP_UINT64_FORMAT_U "/%" DAP_UINT64_FORMAT_U " (effective_now %zu)",
+                       (int)a_permission_id, a_token_item->ticker, n, l_addrs_count,
+                       (uint64_t)l_addrs[n].becomes_effective, (uint64_t)l_chain_time, l_effective);
             return true;
+        }
+    }
     return false;
 }
 
@@ -6070,27 +6089,62 @@ dap_ledger_check_error_t s_ledger_addr_check(dap_ledger_t *a_ledger, dap_ledger_
         if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED) ||
                 (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN)) {
             // Check we are in white list
-            if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_RECEIVER_ALLOWED, a_addr))
+            if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_RECEIVER_ALLOWED, a_addr)) {
+                // A historical transaction rejected here is either genuinely forbidden or
+                // judged against a token state of another era: the log has to say which,
+                // otherwise the only visible symptom is a downstream "no previous tx".
+                static _Atomic uint32_t s_forbidden_logged;
+                if (atomic_fetch_add(&s_forbidden_logged, 1) < 8)
+                    log_it(L_WARNING, "PERM DIAG[recv-allowed] token %s flags 0x%x allow %zu block %zu "
+                           "chain_time %" DAP_UINT64_FORMAT_U " block %" DAP_UINT64_FORMAT_U,
+                           a_token_item->ticker, (unsigned)a_token_item->flags, a_token_item->tx_recv_allow_size,
+                           a_token_item->tx_recv_block_size, (uint64_t)dap_ledger_get_blockchain_time(a_ledger),
+                           dap_chain_net_replay_block_num());
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+            }
         } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED) ||
                 (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN) ||
                 a_token_item->tx_recv_block_size > 0) {
             // Blacklist mode: reject if in blocked list
-            if (s_ledger_permissions_check(a_ledger,a_token_item, LEDGER_PERMISSION_RECEIVER_BLOCKED, a_addr))
+            if (s_ledger_permissions_check(a_ledger,a_token_item, LEDGER_PERMISSION_RECEIVER_BLOCKED, a_addr)) {
+                static _Atomic uint32_t s_fb_recv;
+                if (atomic_fetch_add(&s_fb_recv, 1) < 8)
+                    log_it(L_WARNING, "PERM DIAG[recv-blocked] token %s flags 0x%x allow %zu block %zu chain_time %"
+                           DAP_UINT64_FORMAT_U " block %" DAP_UINT64_FORMAT_U, a_token_item->ticker,
+                           (unsigned)a_token_item->flags, a_token_item->tx_recv_allow_size,
+                           a_token_item->tx_recv_block_size, (uint64_t)dap_ledger_get_blockchain_time(a_ledger),
+                           dap_chain_net_replay_block_num());
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+            }
         }
     } else {
         if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED) ||
                 (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN)) {
             // Check we are in white list
-            if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_ALLOWED, a_addr))
+            if (!s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_ALLOWED, a_addr)) {
+                static _Atomic uint32_t s_forbidden_send_logged;
+                if (atomic_fetch_add(&s_forbidden_send_logged, 1) < 8)
+                    log_it(L_WARNING, "PERM DIAG[send-allowed] token %s flags 0x%x allow %zu block %zu "
+                           "chain_time %" DAP_UINT64_FORMAT_U " block %" DAP_UINT64_FORMAT_U,
+                           a_token_item->ticker, (unsigned)a_token_item->flags, a_token_item->tx_send_allow_size,
+                           a_token_item->tx_send_block_size, (uint64_t)dap_ledger_get_blockchain_time(a_ledger),
+                           dap_chain_net_replay_block_num());
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+            }
         } else if ((a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED) ||
                 (a_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN) ||
                 a_token_item->tx_send_block_size > 0) {
             // Blacklist mode: reject if in blocked list
-            if (s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_BLOCKED, a_addr))
+            if (s_ledger_permissions_check(a_ledger, a_token_item, LEDGER_PERMISSION_SENDER_BLOCKED, a_addr)) {
+                static _Atomic uint32_t s_fb_send;
+                if (atomic_fetch_add(&s_fb_send, 1) < 8)
+                    log_it(L_WARNING, "PERM DIAG[send-blocked] token %s flags 0x%x allow %zu block %zu chain_time %"
+                           DAP_UINT64_FORMAT_U " block %" DAP_UINT64_FORMAT_U, a_token_item->ticker,
+                           (unsigned)a_token_item->flags, a_token_item->tx_send_allow_size,
+                           a_token_item->tx_send_block_size, (uint64_t)dap_ledger_get_blockchain_time(a_ledger),
+                           dap_chain_net_replay_block_num());
                 return DAP_LEDGER_CHECK_ADDR_FORBIDDEN;
+            }
         }
     }
     return DAP_LEDGER_CHECK_OK;
@@ -7764,6 +7818,16 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 REPLAY_DIAG(DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS, "tx %s: previous %s is absent%s",
                             dap_hash_fast_to_str_static(a_tx_hash), l_tx_prev_hash_str,
                             a_from_threshold ? " (threshold pass)" : "");
+                // The bounded trace above is per-block; a cascade makes the interesting
+                // case (which parent is really missing) the 10th or 100th of its block.
+                // Keep a flat list of the first few so the exact hash is on record.
+                {
+                    static _Atomic uint32_t s_no_prev_listed;
+                    if (atomic_fetch_add(&s_no_prev_listed, 1) < 64)
+                        log_it(L_WARNING, "REPLAY NOPREV block %" DAP_UINT64_FORMAT_U ": tx %s prev %s",
+                               dap_chain_net_replay_block_num(), dap_hash_fast_to_str_static(a_tx_hash),
+                               l_tx_prev_hash_str);
+                }
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
                 break;
             } else if (l_item_out->cache_data.ts_spent && !a_check_for_removing) {
