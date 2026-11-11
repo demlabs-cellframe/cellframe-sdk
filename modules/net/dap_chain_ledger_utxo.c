@@ -137,7 +137,10 @@ bool dap_ledger_utxo_block_get_state_at_time(dap_ledger_token_item_t *a_token_it
         pthread_rwlock_unlock(&a_token_item->utxo_blocklist_rwlock);
         
         // Use current state logic
-        bool l_is_blocked = (l_found->becomes_effective <= a_blockchain_time) &&
+        // A zero becomes_effective means the entry carries no era: like the address-list
+        // fix (adf9ef6ea), era-less data must not retro-block past or present queries.
+        bool l_is_blocked = l_found->becomes_effective &&
+                           (l_found->becomes_effective <= a_blockchain_time) &&
                            (l_found->becomes_unblocked == 0 || l_found->becomes_unblocked > a_blockchain_time);
         return l_is_blocked;
     }
@@ -151,8 +154,10 @@ bool dap_ledger_utxo_block_get_state_at_time(dap_ledger_token_item_t *a_token_it
         if (l_history_item->bc_time <= a_blockchain_time) {
             switch (l_history_item->action) {
                 case BLOCK_ACTION_ADD:
-                    // Check if blocking is effective at query time
-                    if (l_history_item->becomes_effective <= a_blockchain_time) {
+                    // Check if blocking is effective at query time.
+                    // An era-less add (becomes_effective == 0) blocks nothing.
+                    if (l_history_item->becomes_effective &&
+                        l_history_item->becomes_effective <= a_blockchain_time) {
                         l_current_state_blocked = true;
                     }
                     break;

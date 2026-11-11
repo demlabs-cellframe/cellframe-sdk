@@ -98,6 +98,7 @@ DAP_STATIC_INLINE void s_net_item_purge(struct net_policy_item *a_net_item)
         *l_current_activate = NULL;
     HASH_ITER(hh, a_net_item->activate, l_current_activate, l_temp_activate) {
         HASH_DEL(a_net_item->activate, l_current_activate);
+        DAP_DELETE(l_current_activate->policy);
         DAP_DELETE(l_current_activate);
     }
     struct policy_deactivate_table
@@ -436,7 +437,14 @@ int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_ne
             return -4;
         }
         l_item_to_add = DAP_NEW_Z_RET_VAL_IF_FAIL(struct policy_activate_table, -5);
-        l_item_to_add->policy = l_to_add;
+        // Own the fixed-size record: the decree datum is freed once apply returns,
+        // while the tx-validation gates dereference it long after.
+        l_item_to_add->policy = DAP_DUP_SIZE(l_to_add, sizeof(dap_chain_policy_activate_t));
+        if (!l_item_to_add->policy) {
+            DAP_DELETE(l_item_to_add);
+            log_it(L_CRITICAL, "Memory allocation error (policy activate copy)");
+            return -5;
+        }
         HASH_ADD_BYHASHVALUE(hh, l_net_item->activate, policy->num, sizeof(l_item_to_add->policy->num), l_item_to_add->policy->num, l_item_to_add);
         // remove from deactivate table
         struct policy_deactivate_table *l_item_to_del = s_policy_find_in_deactivate_table(l_net_item, l_item_to_add->policy->num);
@@ -463,6 +471,7 @@ int dap_chain_policy_apply(dap_chain_policy_t *a_policy, dap_chain_net_id_t a_ne
             HASH_FIND_BYHASHVALUE(hh, l_net_item->activate, &l_to_deactivate->nums[i], sizeof(l_to_deactivate->nums[i]), l_to_deactivate->nums[i], l_item_to_del);
             if (l_item_to_del) {
                 HASH_DEL(l_net_item->activate, l_item_to_del);
+                DAP_DELETE(l_item_to_del->policy);
                 DAP_DELETE(l_item_to_del);
             }
         }

@@ -812,6 +812,7 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
     pthread_rwlock_init(&l_item->s_tx_outs_rwlock, NULL);
 
     dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
+    unsigned l_tsd_count = (unsigned)dap_list_length(l_tsd_list);
     for (dap_list_t *it = l_tsd_list; it; it = it->next) {
         dap_chain_tx_tsd_t *l_tx_tsd = it->data;
         dap_tsd_t *l_tsd = (dap_tsd_t *)l_tx_tsd->tsd;
@@ -899,6 +900,9 @@ static int s_voting_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t
     pthread_rwlock_wrlock(&s_votings_rwlock);
     HASH_ADD(hh, s_votings, voting_hash, sizeof(dap_hash_fast_t), l_item);
     pthread_rwlock_unlock(&s_votings_rwlock);
+    log_it(L_NOTICE, "Poll with hash %s succefully added to ledger (%zu option(s), %u TSD item(s))",
+           dap_hash_fast_to_str_static(a_tx_hash),
+           dap_list_length(l_item->voting_params.option_offsets_list), (unsigned)l_tsd_count);
     log_it(L_NOTICE, "Poll with hash %s succefully added to ledger", dap_hash_fast_to_str_static(a_tx_hash));
     return DAP_LEDGER_CHECK_OK;
 }
@@ -991,9 +995,20 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
         return DAP_LEDGER_CHECK_OK;
     }
 
-    if (l_vote_tx_item->answer_idx >= dap_list_length(l_voting->voting_params.option_offsets_list)) {
-        log_it(L_WARNING, "Invalid vote option index %" DAP_UINT64_FORMAT_U " for vote tx %s",
-                                                l_vote_tx_item->answer_idx, dap_chain_hash_fast_to_str_static(a_tx_hash));
+    // The comparison is `>`, not `>=`: the poll's tally reserves one slot past the
+    // answers (tally_slots = options + 1), and the votes already in the chain use it -
+    // 104 votes for one measured poll are spread over indices 0..4 while the poll
+    // carries four answers. Tightening this to `>=` (commit be55d19ca, an RPC-overload
+    // change that had no business altering consensus) makes those historical votes
+    // invalid: the vote transaction is rejected as a verificator failure and
+    // everything spending its result goes with it - on Backbone that subtree held the
+    // CPUNK/QEVM distributions. A rule must not judge what the network already agreed on.
+    if (l_vote_tx_item->answer_idx > dap_list_length(l_voting->voting_params.option_offsets_list)) {
+        log_it(L_WARNING, "Invalid vote option index %" DAP_UINT64_FORMAT_U " for vote tx %s "
+               "(poll %s has %zu option(s))", l_vote_tx_item->answer_idx,
+               dap_chain_hash_fast_to_str_static(a_tx_hash),
+               dap_hash_fast_to_str_static(&l_vote_tx_item->voting_hash),
+               dap_list_length(l_voting->voting_params.option_offsets_list));
         return -6;
     }
     pthread_rwlock_rdlock(&l_voting->votes_rwlock);

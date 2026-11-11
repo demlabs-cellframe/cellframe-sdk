@@ -669,8 +669,8 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
     decree_table_t **l_decrees = dap_chain_net_get_decrees(a_net), *l_cur_decree, *l_tmp;
     HASH_ITER(hh, *l_decrees, l_cur_decree, l_tmp) {
         HASH_DEL(*l_decrees, l_cur_decree);
-        if ( l_cur_decree->decree && !dap_chain_find_by_id(l_cur_decree->decree->header.common_decree_params.net_id, l_cur_decree->decree->header.common_decree_params.chain_id)->is_mapped )
-            DAP_DELETE(l_cur_decree->decree);
+        // The table owns every decree copy (see dap_chain_net_decree_apply).
+        DAP_DELETE(l_cur_decree->decree);
         DAP_DELETE(l_cur_decree);
     }
     return 0;
@@ -842,7 +842,15 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
             debug_if(s_debug_more, L_WARNING, "Decree with hash %s is already present", dap_hash_fast_to_str_static(a_decree_hash));
             return -123;
         }
-        l_new_decree->decree = a_chain->is_mapped ? a_decree : DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
+        // Always own the copy: snapshot restore hands over section buffers that are
+        // freed when the section load ends, and a mapped chain's datum is not ours to keep.
+        l_new_decree->decree = DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
+        if (!l_new_decree->decree) {
+            HASH_DEL(*l_decrees, l_new_decree);
+            DAP_DELETE(l_new_decree);
+            log_it(L_CRITICAL, "Memory allocation error (decree copy)");
+            return -1;
+        }
         if (a_decree->header.common_decree_params.chain_id.uint64 != a_chain->id.uint64 && !l_new_decree->wait_for_apply)
             // Apply it with corresponding anchor
             return ret_val;

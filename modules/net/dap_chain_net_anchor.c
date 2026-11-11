@@ -281,7 +281,14 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
     anchor_table_t **l_anchors = dap_chain_net_get_anchors(l_net);
     anchor_table_t *l_new_anchor = DAP_NEW_Z(anchor_table_t);
     l_new_anchor->anchor_hash = *a_anchor_hash;
-    l_new_anchor->anchor = a_anchor;
+    // The table owns its copy: the caller's datum (a snapshot section buffer on restore,
+    // a chain-walk datum on live load) is freed as soon as this load returns.
+    l_new_anchor->anchor = DAP_DUP_SIZE(a_anchor, dap_chain_datum_anchor_get_size(a_anchor));
+    if (!l_new_anchor->anchor) {
+        DAP_DELETE(l_new_anchor);
+        log_it(L_CRITICAL, "Memory allocation error (anchor copy)");
+        return -1;
+    }
     HASH_ADD(hh, *l_anchors, anchor_hash, sizeof(l_new_anchor->anchor_hash), l_new_anchor);
 
     return ret_val;
@@ -301,7 +308,7 @@ dap_chain_datum_anchor_t * s_find_previous_anchor(dap_hash_fast_t *a_old_anchor_
     anchor_table_t **l_anchors_ptr = dap_chain_net_get_anchors(l_net);
     anchor_table_t *l_anchor = NULL;
     HASH_FIND(hh, *l_anchors_ptr, a_old_anchor_hash, sizeof(*a_old_anchor_hash), l_anchor);
-    if (!l_old_anchor){
+    if (!l_anchor){
         log_it(L_WARNING,"Can not find anchor");
         return NULL;
     }
@@ -367,6 +374,8 @@ void s_delete_anchor(dap_chain_net_t *a_net, dap_hash_fast_t *a_anchor_hash)
     HASH_FIND(hh, *l_anchors_ptr, a_anchor_hash, sizeof(*a_anchor_hash), l_anchor);
     if(l_anchor){
         HASH_DEL(*l_anchors_ptr, l_anchor);
+        // Free the owned copy (see dap_chain_net_anchor_load).
+        DAP_DELETE(l_anchor->anchor);
         DAP_DEL_Z(l_anchor);
     }
 }

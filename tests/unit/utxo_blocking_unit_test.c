@@ -42,6 +42,8 @@
 #include "dap_time.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_ledger_item.h"
+#include "dap_chain_ledger_utxo.h"
 #include "dap_test.h"
 
 #define LOG_TAG "utxo_blocking_unit_test"
@@ -319,6 +321,57 @@ static void s_test_utxo_block_actions(void)
     dap_pass_msg("UTXO block actions test passed");
 }
 
+/**
+ * @brief Unit Test 9: Era-less UTXO block must not block history
+ * @details Security regression (H-1): a blocklist entry with becomes_effective == 0
+ *          carries no era (the extended TSD format accepts 0, and the basic format
+ *          stamps the chain time - 0 on Zero Chain updates). Such an entry must never
+ *          make a UTXO look blocked for any query time; an era-stamped entry blocks
+ *          only from its era on. Mirrors the address-list fix adf9ef6ea.
+ */
+static void s_test_era_less_block_not_blocking(void)
+{
+    dap_print_module_name("Unit Test 9: Era-less UTXO Block Does Not Block");
+
+    dap_ledger_token_item_t l_item = {0};
+    if (pthread_rwlock_init(&l_item.utxo_blocklist_rwlock, NULL) != 0) {
+        dap_assert(0, "Failed to init utxo blocklist rwlock");
+        return;
+    }
+
+    dap_chain_hash_fast_t l_era_hash = {}, l_eraless_hash = {};
+    memset(l_era_hash.raw, 0xA1, sizeof(l_era_hash.raw));
+    memset(l_eraless_hash.raw, 0xA2, sizeof(l_eraless_hash.raw));
+
+    const dap_time_t l_era = 1000;
+
+    // Era-stamped entry: not blocked before its era, blocked from its era on
+    dap_assert(dap_ledger_utxo_block_add(&l_item, &l_era_hash, 0, l_era, NULL, NULL) == 0,
+               "era-stamped UTXO block must be accepted");
+    dap_assert(!dap_ledger_utxo_block_get_state_at_time(&l_item, &l_era_hash, 0, l_era - 1),
+               "era-stamped block must not apply before its era");
+    dap_assert(dap_ledger_utxo_block_get_state_at_time(&l_item, &l_era_hash, 0, l_era),
+               "era-stamped block must apply at its era");
+
+    // Era-less entry (becomes_effective == 0): blocks nothing, at any query time
+    dap_assert(dap_ledger_utxo_block_add(&l_item, &l_eraless_hash, 0, 0, NULL, NULL) == 0,
+               "era-less UTXO block must be accepted");
+    dap_assert(!dap_ledger_utxo_block_get_state_at_time(&l_item, &l_eraless_hash, 0, l_era),
+               "era-less block must not retro-block a history query");
+    dap_assert(!dap_ledger_utxo_block_get_state_at_time(&l_item, &l_eraless_hash, 0, (dap_time_t)-1),
+               "era-less block must not block even at the latest time");
+
+    // Cleanup owned entries
+    dap_ledger_utxo_block_item_t *l_cur = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, l_item.utxo_blocklist, l_cur, l_tmp) {
+        HASH_DEL(l_item.utxo_blocklist, l_cur);
+        DAP_DELETE(l_cur);
+    }
+    pthread_rwlock_destroy(&l_item.utxo_blocklist_rwlock);
+
+    dap_pass_msg("Era-less UTXO block test passed");
+}
+
 int main(void)
 {
     dap_log_level_set(L_DEBUG);
@@ -334,8 +387,9 @@ int main(void)
     s_test_utxo_block_key_structure();
     s_test_error_codes();
     s_test_utxo_block_actions();
+    s_test_era_less_block_not_blocking();
     
-    printf("All UTXO blocking unit tests passed (8 tests)!\n"); fflush(stdout);
+    printf("All UTXO blocking unit tests passed (9 tests)!\n"); fflush(stdout);
     
     return 0;
 }
