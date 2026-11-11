@@ -305,6 +305,11 @@ typedef struct dap_ledger_private {
     // restored transactions is suppressed because those sections are authoritative.
     bool snapshot_full;
     bool snapshot_full_apply;
+    // A section of the loaded snapshot did not restore. The claim cannot be taken
+    // back for the scan that already ran (sections apply at load end), so it is
+    // remembered for the next save: that file must not be written as a complete
+    // state, or the following start would skip the replay that rebuilds the gap.
+    bool snapshot_sections_broken;
 } dap_ledger_private_t;
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
@@ -3869,6 +3874,7 @@ static void s_pending_sections_apply(dap_ledger_t *a_ledger)
     s_pending_sections = l_rest;
     pthread_mutex_unlock(&s_pending_sections_lock);
     l_it = l_take;
+    bool l_any_failed = false;      // sticky: the flag must not depend on section order
     while (l_it) {
         s_pending_snapshot_section_t *l_next = l_it->next;
         dap_ledger_snapshot_load_cb_t l_load = NULL;
@@ -3882,6 +3888,21 @@ static void s_pending_sections_apply(dap_ledger_t *a_ledger)
             // The complete-state flag is valid only when that section actually
             // restored: a truncated/failed ledger_state leaves the remaining
             // state to the regular replay, which must keep running.
+            if (l_rc) {
+                l_any_failed = true;
+                PVT(a_ledger)->snapshot_sections_broken = true;
+            }
+            if (l_rc && dap_strcmp(l_it->name, DAP_LEDGER_SNAPSHOT_LEDGER_STATE_SECTION)) {
+                // Any section that did not restore withdraws the complete-state claim:
+                // the cache start no longer skips the datum replay of the covered
+                // blocks, and that replay is what rebuilds the missing state (stake,
+                // polls, decree-driven net params, the wallet index). Without this a
+                // single failed section would leave the ledger short of state that
+                // nothing else was going to re-create.
+                PVT(a_ledger)->snapshot_full = false;
+                log_it(L_WARNING, "Ledger snapshot: section '%s' did not restore, the complete-state "
+                       "claim is withdrawn - the covered blocks are replayed", l_it->name);
+            }
             if (!dap_strcmp(l_it->name, DAP_LEDGER_SNAPSHOT_LEDGER_STATE_SECTION)) {
                 if (!l_rc) {
                     PVT(a_ledger)->snapshot_full = true;
@@ -3912,6 +3933,14 @@ static void s_pending_sections_apply(dap_ledger_t *a_ledger)
             DAP_DEL_Z(l_it->data);
         DAP_DELETE(l_it);
         l_it = l_next;
+    }
+    // A failure anywhere withdraws the complete-state claim, whatever order the
+    // sections came in: the cache start would otherwise skip the datum replay of
+    // the covered blocks, and that replay is what rebuilds the missing section.
+    if (l_any_failed && PVT(a_ledger)->snapshot_full) {
+        PVT(a_ledger)->snapshot_full = false;
+        log_it(L_WARNING, "Ledger snapshot: a section did not restore - the complete-state claim is "
+               "withdrawn, the covered blocks are replayed");
     }
 }
 
@@ -4906,6 +4935,10 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         for (s_ledger_snapshot_section_t *l_sec = s_snapshot_sections; l_sec; l_sec = l_sec->next)
             if (l_sec->dump)
                 ++l_registered;
+        if (PVT(a_ledger)->snapshot_sections_broken)
+            log_it(L_WARNING, "Ledger snapshot: a section of the previous snapshot did not restore - "
+                   "this file is written without the complete-state claim, so the next start "
+                   "replays the covered blocks and rebuilds it");
         if (l_registered > DAP_LEDGER_SNAPSHOT_MAX_SECTIONS)
             log_it(L_WARNING, "Ledger snapshot: %zu sections are registered but only %d fit - "
                    "the remaining ones stay unpersisted", l_registered, DAP_LEDGER_SNAPSHOT_MAX_SECTIONS);
@@ -4931,7 +4964,8 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
                 break;
             // Header bit2: this file carries the complete ledger state, not only
             // the transaction cache and balances.
-            if (l_sec->flags & DAP_LEDGER_SNAPSHOT_SECTION_FLAG_FULL)
+            if ((l_sec->flags & DAP_LEDGER_SNAPSHOT_SECTION_FLAG_FULL)
+                    && !PVT(a_ledger)->snapshot_sections_broken)
                 l_full_state = true;
             ++l_n_sections;
         }
