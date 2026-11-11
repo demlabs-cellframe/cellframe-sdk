@@ -567,6 +567,16 @@ int dap_ledger_srv_callback_decree_add(dap_ledger_t *a_ledger, dap_chain_net_srv
 int dap_ledger_srv_callback_event_verify_add(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid, dap_ledger_srv_callback_event_verify_t a_callback);
 
 bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash);
+/**
+ * @brief Set the chain whose datums the hard accept/reject lists are consulted for,
+ *        or 0 for "no chain context" (net-wide, the mempool case).
+ *
+ * The lists are configured per chain (chain-0.cfg.d, main.cfg.d) and mean "this
+ * datum does not belong to THAT chain". The ledger keeps them in one net-wide
+ * table, so the lookup needs to know which chain currently asks.
+ */
+void dap_ledger_hal_scope_set(uint64_t a_chain_id);
+uint64_t dap_ledger_hal_scope_get(void);
 
 bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback);

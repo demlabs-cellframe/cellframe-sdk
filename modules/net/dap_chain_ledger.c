@@ -314,6 +314,10 @@ typedef struct dap_ledger_private {
 
 #define PVT(a) ( (dap_ledger_private_t *) a->_internal )
 
+// Defined with the hard accept/reject lookups below; the HAL check further up
+// needs it to tell an entry written for this datum's chain from another chain's.
+static bool s_hal_item_in_scope(const dap_ledger_hal_item_t *a_item);
+
 static void s_threshold_emissions_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_free(dap_ledger_t *a_ledger);
@@ -744,6 +748,8 @@ inline static dap_ledger_hal_item_t *s_check_hal(dap_ledger_t *a_ledger, dap_has
 {
     dap_ledger_hal_item_t *ret = NULL;
     HASH_FIND(hh, PVT(a_ledger)->hal_items, a_hal_hash, sizeof(dap_hash_fast_t), ret);
+    if (ret && !s_hal_item_in_scope(ret))
+        ret = NULL;         // listed for another chain: not a hit here
     if (ret)
         // A HAL hit bypasses signature/value checks for this exact hash: operators
         // must see every use of that loaded gun in the log, not only in debug mode
@@ -763,11 +769,45 @@ inline static bool s_check_hal_or_replay(dap_ledger_t *a_ledger, dap_hash_fast_t
     return s_check_hal(a_ledger, a_hal_hash) != NULL;
 }
 
+// Chain the datum being judged belongs to, set by dap_chain_datum_add() for the
+// duration of its run. Zero means "no chain context" (a mempool submission): the
+// lists then apply net-wide, which is the behaviour live paths had before the
+// lists were scoped.
+static _Thread_local uint64_t t_hal_scope_chain_id;
+
+void dap_ledger_hal_scope_set(uint64_t a_chain_id)
+{
+    t_hal_scope_chain_id = a_chain_id;
+}
+
+uint64_t dap_ledger_hal_scope_get(void)
+{
+    return t_hal_scope_chain_id;
+}
+
+// A list entry applies when it was written for the datum's own chain, or when
+// there is no chain context at all. The tables are a handful of entries, so the
+// walk costs nothing next to the hash lookup it replaces.
+static bool s_hal_item_in_scope(const dap_ledger_hal_item_t *a_item)
+{
+    if (!t_hal_scope_chain_id || !a_item->chain_id)
+        return true;
+    return a_item->chain_id == t_hal_scope_chain_id;
+}
+
+static bool s_hal_contains(dap_ledger_hal_item_t *a_items, const dap_hash_fast_t *a_hash)
+{
+    for (dap_ledger_hal_item_t *l_it = a_items; l_it; l_it = (dap_ledger_hal_item_t *)l_it->hh.next) {
+        if (dap_hash_fast_compare(&l_it->hash, a_hash) && s_hal_item_in_scope(l_it))
+            return true;
+    }
+    return false;
+}
+
 bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash) {
-    dap_ledger_hal_item_t *ret = NULL;
-    HASH_FIND(hh, PVT(a_ledger)->hrl_items, &a_hash, sizeof(dap_hash_fast_t), ret);
-    debug_if(s_debug_more && ret, L_MSG, "Datum %s is blacklisted", dap_hash_fast_to_str_static(&a_hash));
-    return !!ret;
+    bool l_hit = s_hal_contains(PVT(a_ledger)->hrl_items, &a_hash);
+    debug_if(s_debug_more && l_hit, L_MSG, "Datum %s is blacklisted", dap_hash_fast_to_str_static(&a_hash));
+    return l_hit;
 }
 
 inline static dap_ledger_token_item_t *s_ledger_find_token(dap_ledger_t *a_ledger, const char *a_token_ticker)
@@ -6031,11 +6071,13 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         for (i = 0; i < l_blacklist_size; ++i) {
             dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
             dap_chain_hash_fast_from_str(l_blacklist[i], &l_item->hash);
+            l_item->chain_id = l_chain->id.uint64;   // the list speaks for this chain only
             HASH_ADD(hh, l_ledger_pvt->hrl_items, hash, sizeof(dap_hash_fast_t), l_item);
         }
         for (i = 0; i < l_whitelist_size; ++i) {
             dap_ledger_hal_item_t *l_item = DAP_NEW_Z(dap_ledger_hal_item_t);
             dap_chain_hash_fast_from_str(l_whitelist[i], &l_item->hash);
+            l_item->chain_id = l_chain->id.uint64;
             HASH_ADD(hh, l_ledger_pvt->hal_items, hash, sizeof(dap_hash_fast_t), l_item);
         }
         log_it(L_DEBUG, "Chain %s.%s has %d datums in HAL and %d datums in HRL", a_net->pub.name, l_chain->name, l_whitelist_size, l_blacklist_size);
@@ -8326,6 +8368,18 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
 
         if (l_err_num)
             break;
+        {
+            const char *l_trace_o = getenv("DAP_REPLAY_TRACE_HASH");
+            if (l_trace_o && *l_trace_o) {
+                const char *l_hash_str_o = dap_chain_hash_fast_to_str_static(a_tx_hash);
+                if (!strncasecmp(l_hash_str_o + (l_hash_str_o[0] == '0' ? 2 : 0), l_trace_o, strlen(l_trace_o))) {
+                    char *l_v_o = dap_chain_balance_to_coins(l_out_value);
+                    log_it(L_WARNING, "SUM TRACE %s out item %#04x ticker %s value %s",
+                           l_hash_str_o, *it, l_token ? l_token : "-", l_v_o);
+                    DAP_DELETE(l_v_o);
+                }
+            }
+        }
         HASH_FIND_STR(l_values_from_cur_tx, l_token, l_value_cur);
         if (!l_value_cur) {
             l_value_cur = DAP_NEW_Z(dap_ledger_tokenizer_t);
@@ -8384,6 +8438,42 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
             HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
                 HASH_FIND_STR(l_values_from_cur_tx, l_value_cur->token_ticker, l_res);
                 if (!l_res || !EQUAL_256(l_res->sum, l_value_cur->sum) ) {
+                    // Targeted trace (DAP_REPLAY_TRACE_HASH=<hex prefix>): the sums
+                    // alone cannot say WHICH input came up short, and finding out from
+                    // a live chain otherwise costs a replay per hypothesis. Dumps every
+                    // bound input with the value this build gave it.
+                    const char *l_trace = getenv("DAP_REPLAY_TRACE_HASH");
+                    if (l_trace && *l_trace) {
+                        const char *l_hash_str = dap_chain_hash_fast_to_str_static(a_tx_hash);
+                        size_t l_pref = strlen(l_trace);
+                        if (!strncasecmp(l_hash_str + (l_hash_str[0] == '0' ? 2 : 0), l_trace, l_pref)) {
+                            for (dap_list_t *l_i = l_list_bound_items; l_i; l_i = l_i->next) {
+                                dap_ledger_tx_bound_t *l_b = l_i->data;
+                                char *l_v = dap_chain_balance_to_coins(l_b->value);
+                                log_it(L_WARNING, "SUM TRACE %s input type %#04x idx %u value %s%s%s",
+                                       l_hash_str, l_b->type, l_b->prev_out_idx, l_v,
+                                       l_b->type == TX_ITEM_TYPE_IN ? " ticker " : "",
+                                       l_b->type == TX_ITEM_TYPE_IN ? l_b->in.token_ticker : "");
+                                DAP_DELETE(l_v);
+                            }
+                            {
+                                // The SDK's own iterator: the item sizes are exactly
+                                // what the check itself saw, so the list explains the
+                                // sums instead of guessing at struct layouts.
+                                byte_t *l_it = NULL; size_t l_sz = 0;
+                                TX_ITEM_ITER_TX(l_it, l_sz, a_tx) {
+                                    log_it(L_WARNING, "SUM TRACE %s item %#04x size %zu",
+                                           l_hash_str, *l_it, l_sz);
+                                }
+                            }
+                            HASH_ITER(hh, l_values_from_cur_tx, l_res, l_tmp) {
+                                char *l_v = dap_chain_balance_to_coins(l_res->sum);
+                                log_it(L_WARNING, "SUM TRACE %s out ticker %s sum %s",
+                                       l_hash_str, l_res->token_ticker, l_v);
+                                DAP_DELETE(l_v);
+                            }
+                        }
+                    }
                     if (s_debug_more) {
                         char *l_balance = dap_chain_balance_to_coins(l_res ? l_res->sum : uint256_0);
                         char *l_balance_cur = dap_chain_balance_to_coins(l_value_cur->sum);

@@ -3898,7 +3898,26 @@ void dap_chain_net_replay_defer_end(dap_chain_net_t *a_net)
     l_ctx->chain = NULL;
 }
 
-int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
+static int s_datum_add_scoped(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size,
+                              dap_hash_fast_t *a_datum_hash, void *a_datum_index_data);
+
+/* The hard accept/reject lists are read from the chain's own config, so every
+ * lookup they drive has to know which chain is asking. The body returns from a
+ * dozen places; the scope is set here, around it, and restored once. */
+int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size,
+                        dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
+{
+    if (!a_chain)
+        return -1;
+    uint64_t l_prev_scope = dap_ledger_hal_scope_get();
+    dap_ledger_hal_scope_set(a_chain->id.uint64);
+    int l_ret = s_datum_add_scoped(a_chain, a_datum, a_datum_size, a_datum_hash, a_datum_index_data);
+    dap_ledger_hal_scope_set(l_prev_scope);
+    return l_ret;
+}
+
+static int s_datum_add_scoped(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size,
+                              dap_hash_fast_t *a_datum_hash, void *a_datum_index_data)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
     if (a_datum_size < l_datum_data_size + sizeof(a_datum->header)) {
@@ -3908,17 +3927,20 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     }
     dap_chain_net_t *l_datum_net = dap_chain_net_by_id(a_chain->net_id);
     dap_ledger_t *l_ledger = l_datum_net->pub.ledger;
-    // The hard reject list is operator configuration and stays in force while state
-    // is reconstructed. That is measured, not assumed: with the list lifted for the
-    // local scan, the decree 0x65E8DFFE... (not in the chain - it reaches the ledger
-    // through an anchor) applies and raises esbocs min_validators 3 -> 5 effective
-    // 1726652030; the blocks produced after that moment carry three signatures, so
-    // the scan then rejects them as "not enough signs: 3 of 5" and stops. The entry
-    // exists precisely to keep the history verifiable, and a replica that ignores it
-    // cannot load the chain the network agreed on.
-    // The one thing the list must not do is re-judge a datum the ledger already
-    // holds (the cache load re-walks the snapshot zone and would report a false -100
-    // for an effect that is already there).
+    // The hard reject list is configured PER CHAIN - the files live in the chain's
+    // own config directory (chain-0.cfg.d for the zerochain, main.cfg.d for the main
+    // chain) and say "this datum does not belong to THAT chain". The ledger keeps
+    // both lists in one net-wide table, and losing that scope was expensive: an
+    // entry written for the zerochain vetoed the same transaction inside a main-chain
+    // block, which left 636449 spenders unapplied and cost the ledger 2676 balance
+    // keys against the reference node - every holder of CPUNK/QEVM among them. The
+    // scope is passed in for the duration of this call (dap_chain_datum_add wraps its
+    // body with dap_ledger_hal_scope_set), so the zerochain entry keeps blocking the
+    // zerochain copy while the main-chain copy is history the network already applied.
+    //
+    // The list must also not re-judge a datum the ledger already holds (the cache load
+    // re-walks the snapshot zone and would report a false -100 for an effect that is
+    // already there).
     int l_datum_type = a_datum->header.type_id;
     bool l_datum_already_known =
             (l_datum_type == DAP_CHAIN_DATUM_TX && dap_ledger_tx_is_known(l_ledger, a_datum_hash))

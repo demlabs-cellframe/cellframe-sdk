@@ -344,5 +344,12 @@ typedef struct dap_ledger_bridged_tx_notifier {
  */
 typedef struct dap_ledger_hal_item {
     dap_chain_hash_fast_t hash;
+    // The chain whose config listed this datum (0 = net-wide). The lists live in
+    // per-chain config directories (chain-0.cfg.d, main.cfg.d) and mean "this
+    // datum does not belong to THAT chain": smearing them over the whole net made
+    // an entry written for the zerochain veto the same transaction in a main-chain
+    // block, which is how a replica lost 2676 balance keys against the reference
+    // node. See dap_ledger_hal_scope_chain().
+    uint64_t chain_id;
     UT_hash_handle hh;
 } dap_ledger_hal_item_t;
