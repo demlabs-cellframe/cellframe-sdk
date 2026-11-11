@@ -3909,13 +3909,16 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     dap_chain_net_t *l_datum_net = dap_chain_net_by_id(a_chain->net_id);
     dap_ledger_t *l_ledger = l_datum_net->pub.ledger;
     // The hard reject list is operator configuration and stays in force while state
-    // is reconstructed: the reference node (cfnode1) runs the same ledger_hrl.cfg and
-    // loads the whole chain with it, so bypassing the list during a replay is what
-    // makes a replica diverge - measured on Backbone: skipping the list let a
-    // block-5073 transaction apply, which moved the scan's stop from the tip to block
-    // 144150. The one thing the list must not do is re-judge a datum the ledger
-    // already holds (the cache load re-walks the snapshot zone and would report a
-    // false -100 for an effect that is already there).
+    // is reconstructed. That is measured, not assumed: with the list lifted for the
+    // local scan, the decree 0x65E8DFFE... (not in the chain - it reaches the ledger
+    // through an anchor) applies and raises esbocs min_validators 3 -> 5 effective
+    // 1726652030; the blocks produced after that moment carry three signatures, so
+    // the scan then rejects them as "not enough signs: 3 of 5" and stops. The entry
+    // exists precisely to keep the history verifiable, and a replica that ignores it
+    // cannot load the chain the network agreed on.
+    // The one thing the list must not do is re-judge a datum the ledger already
+    // holds (the cache load re-walks the snapshot zone and would report a false -100
+    // for an effect that is already there).
     int l_datum_type = a_datum->header.type_id;
     bool l_datum_already_known =
             (l_datum_type == DAP_CHAIN_DATUM_TX && dap_ledger_tx_is_known(l_ledger, a_datum_hash))
