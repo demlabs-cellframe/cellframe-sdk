@@ -323,6 +323,7 @@ static bool s_node_client_connect_impl(dap_chain_node_client_t *a_node_client,
            sizeof(a_node_client->client->reality_short_id));
     memcpy(a_node_client->client->reality_sni, a_node_client->reality_sni,
            sizeof(a_node_client->client->reality_sni));
+    a_node_client->client->reality_rate_limit = a_node_client->reality_rate_limit;
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     /* P2P HTTP handshake mode is chosen per peer version (≤5.7 legacy, ≥5.8 modern). */

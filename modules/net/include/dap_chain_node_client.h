@@ -108,6 +108,7 @@ typedef struct dap_chain_node_client {
     char reality_public_key[65];
     char reality_short_id[17];
     char reality_sni[256];
+    uint32_t reality_rate_limit;   /* bytes/sec, 0 = unlimited */
     dap_timerfd_t *sync_timer;
     dap_timerfd_t *reconnect_timer;
     // callbacks
