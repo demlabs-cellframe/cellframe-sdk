@@ -151,6 +151,14 @@ void dap_ledger_replay_datum_failed_ex(dap_ledger_t *a_ledger, uint64_t a_block_
  *        rejections the whole network shares. Read and reset by the replay tally.
  */
 void dap_ledger_replay_fail_class_counts(uint64_t *a_our_loss, uint64_t *a_intrinsic);
+/**
+ * @brief Mark a datum as rejected by policy the whole network shares (the hard
+ *        reject list), so transactions spending its outputs are classified under
+ *        the same verdict instead of "this ledger lost it". Keeps the replay
+ *        report honest: the cascade under a blacklisted transaction is the
+ *        operator's policy, not a defect of the replay.
+ */
+void dap_ledger_replay_mark_intrinsic(const dap_hash_fast_t *a_datum_hash);
 
 /**
  * @brief Clear the anchor holdback (after a purge or a full ledger rebuild).

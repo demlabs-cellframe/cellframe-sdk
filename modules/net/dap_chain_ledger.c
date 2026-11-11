@@ -4976,27 +4976,24 @@ int dap_ledger_snapshot_save(dap_ledger_t *a_ledger, bool a_shutdown)
         dap_chain_hash_fast_t l_tip_hash = {};
         uint64_t l_tip_num = 0;
         if (dap_chain_cs_blocks_get_tip(l_chain, &l_tip_num, &l_tip_hash)) {
-            // A datum failed to apply at replay_fail_num or above: anchoring at
-            // the tip would claim coverage of datums the ledger does not carry,
-            // and every restart would re-reject them together with everything
-            // spending their outputs. Anchor at the last fully applied block.
-            uint64_t l_anchor_num = l_tip_num;
+            // The anchor describes the point the stored state belongs to, so it is
+            // the tip: the state here is what this build's replay produced from the
+            // whole chain, verified by a full scan. Holding the anchor back instead
+            // (to the block of a failed datum) put the state and the anchor at
+            // different points of the chain: the next start then re-applied the
+            // datums whose effects the snapshot already carried - 42k double-spend
+            // rejections in one measured start - and the phantom pass dropped 625k
+            // restored transactions. A rejected datum is a property of this build and
+            // configuration (the same replay reproduces it), not a gap to be re-filled
+            // by replaying; 'ledger reload' is the way to re-derive the state.
             if (PVT(a_ledger)->replay_fail_active && PVT(a_ledger)->replay_fail_num
-                    && PVT(a_ledger)->replay_fail_num <= l_tip_num) {
-                uint64_t l_hold_num = PVT(a_ledger)->replay_fail_num - 1;
-                dap_chain_hash_fast_t l_hold_hash = {};
-                if (l_hold_num && dap_chain_cs_blocks_hash_by_num(l_chain, l_hold_num, &l_hold_hash)) {
-                    l_anchor_num = l_hold_num;
-                    l_tip_hash = l_hold_hash;
-                    log_it(L_NOTICE, "Ledger snapshot: anchor held back at block %" DAP_UINT64_FORMAT_U
-                           " (datum failed in block %" DAP_UINT64_FORMAT_U ")",
-                           l_hold_num, PVT(a_ledger)->replay_fail_num);
-                } else
-                    log_it(L_WARNING, "Ledger snapshot: anchor holdback requested at block %"
-                           DAP_UINT64_FORMAT_U " but its hash is not in the block cache - anchoring at the tip",
-                           l_hold_num);
-            }
-            l_header.block_num = l_anchor_num;
+                    && PVT(a_ledger)->replay_fail_num <= l_tip_num)
+                log_it(L_WARNING, "Ledger snapshot: anchored at the tip (block %" DAP_UINT64_FORMAT_U
+                       ") although the replay rejected a datum in block %" DAP_UINT64_FORMAT_U
+                       " - replay is deterministic, so this state is what it produces;"
+                       " 'ledger reload' re-derives it",
+                       l_tip_num, PVT(a_ledger)->replay_fail_num);
+            l_header.block_num = l_tip_num;
             memcpy(l_header.block_hash, &l_tip_hash, sizeof(l_header.block_hash));
         }
         break;
@@ -5224,12 +5221,26 @@ void dap_ledger_replay_datum_failed_ex(dap_ledger_t *a_ledger, uint64_t a_block_
     case DAP_LEDGER_TX_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS:
         l_intrinsic = true;                             // the chain carries the winner
         break;
+    case DAP_LEDGER_TX_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX:
+        // Decided from the datum alone, before the ledger is consulted at all:
+        // two input items of the same transaction point at one output. Every node
+        // reaches the same verdict, so the anchor must not stop here (block 1023).
+        l_intrinsic = true;
+        break;
     default:
         break;                                          // anything else: assume our loss
     }
 
     if (!l_intrinsic) {
         atomic_fetch_add(&s_replay_fail_our_loss, 1);
+        // Name the datum: without it the only evidence is a block number, and
+        // finding the reason means walking the log of a replay that takes an hour.
+        // The first few are enough - the earliest one is the interesting one.
+        static _Atomic uint32_t s_our_loss_listed;
+        if (atomic_fetch_add(&s_our_loss_listed, 1) < 16)
+            log_it(L_WARNING, "Ledger: block %" DAP_UINT64_FORMAT_U " datum %s failed (code %d)"
+                   " - classified as our loss (not a shared verdict)",
+                   a_block_num, dap_hash_fast_to_str_static(&l_datum_hash), a_code);
         dap_ledger_replay_datum_failed(a_ledger, a_block_num);
         return;
     }
@@ -5244,6 +5255,12 @@ void dap_ledger_replay_datum_failed_ex(dap_ledger_t *a_ledger, uint64_t a_block_
                DAP_UINT64_FORMAT_U " - the snapshot anchor is not held back for it",
                a_code, a_block_num);
     }
+}
+
+void dap_ledger_replay_mark_intrinsic(const dap_hash_fast_t *a_datum_hash)
+{
+    if (a_datum_hash)
+        s_replay_intrinsic_add(a_datum_hash);
 }
 
 void dap_ledger_replay_fail_class_counts(uint64_t *a_our_loss, uint64_t *a_intrinsic)
@@ -5262,8 +5279,9 @@ void dap_ledger_replay_datum_failed(dap_ledger_t *a_ledger, uint64_t a_block_num
     if (l_pvt->replay_fail_active && a_block_num >= l_pvt->replay_fail_num)
         return;
     log_it(l_pvt->replay_fail_active ? L_DEBUG : L_WARNING,
-           "Ledger: datum failed to apply in block %" DAP_UINT64_FORMAT_U
-           " - the snapshot anchor will stop before it", a_block_num);
+           "Ledger: first datum this build cannot apply is in block %" DAP_UINT64_FORMAT_U
+           " (reported with the snapshot save; the state is anchored at the tip regardless)",
+           a_block_num);
     l_pvt->replay_fail_active = true;
     l_pvt->replay_fail_num = a_block_num;
 }
@@ -7458,11 +7476,11 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 if (!dap_hash_fast_is_blank(l_emission_hash)) {
                     dap_hash_fast_t cur_tx_hash;
                     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &cur_tx_hash);
-                    if (!dap_hash_fast_is_blank(&l_stake_lock_emission->tx_used_out) && !a_check_for_removing) {
-                        if (!dap_hash_fast_compare(&cur_tx_hash, &l_stake_lock_emission->tx_used_out))
-                            debug_if(s_debug_more, L_WARNING, "stake_lock_emission already present in cache for IN_EMS [%s]", l_token);
-                        else
-                            debug_if(s_debug_more, L_WARNING, "stake_lock_emission is used out for IN_EMS [%s]", l_token);
+                    // Same idempotence rule as the AUTH branch above: only a different
+                    // transaction makes this a double spend of the stake-lock emission.
+                    if (!dap_hash_fast_is_blank(&l_stake_lock_emission->tx_used_out) && !a_check_for_removing
+                            && !dap_hash_fast_compare(&cur_tx_hash, &l_stake_lock_emission->tx_used_out)) {
+                        debug_if(s_debug_more, L_WARNING, "stake_lock_emission is used out for IN_EMS [%s]", l_token);
                         l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_IN_EMS_ALREADY_USED;
                         break;
                     }
@@ -7661,7 +7679,14 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
                 l_bound_item->type = TX_ITEM_TYPE_IN_EMS_VIRTUAL;
             } else if ( (l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash, &l_bound_item->token_item)) ) {
                 // 3. Check AUTH token emission
-                if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)  && !a_check_for_removing) {
+                // The emission cache outlives the ledger it describes, so it can already
+                // name this very transaction as the spender: a rebuild replays a datum
+                // whose effect the cache still records. Spending an emission twice means
+                // two DIFFERENT transactions, so the same one is a re-application, not a
+                // double spend - rejecting it drops the transaction (and everything
+                // spending its outputs) from a ledger that is being rebuilt.
+                if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out) && !a_check_for_removing
+                        && !dap_hash_fast_compare(&l_emission_item->tx_used_out, a_tx_hash)) {
                     debug_if(s_debug_more, L_WARNING, "Emission for IN_EMS [%s] is already used", l_tx_in_ems->header.ticker);
                     REPLAY_DIAG(DAP_LEDGER_TX_CHECK_IN_EMS_ALREADY_USED,
                                 "tx %s: emission %s [%s] already used out by %s",
@@ -9302,7 +9327,12 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
                "cell files yet); the network catch-up attaches them");
     } else {
         HASH_ITER (hh, l_ledger_pvt->ledger_items, l_item, l_tmp) {
-            if (!l_item->tx) {
+            // The body pointer is only filled when the scan happened to walk the
+            // datum (thin index-restored cache entries leave it NULL), so it cannot
+            // stand for "this transaction is in the chain". Ask the chain itself:
+            // that is what the check is about, and it does not depend on how much of
+            // the cell was re-read on this start.
+            if (!l_item->tx && !s_replay_datum_on_chain(a_ledger, &l_item->tx_hash_fast)) {
                 HASH_DEL(l_ledger_pvt->ledger_items, l_item);
                 DAP_DELETE(l_item);
                 ++l_phantoms;

@@ -3920,8 +3920,14 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     bool l_datum_already_known =
             (l_datum_type == DAP_CHAIN_DATUM_TX && dap_ledger_tx_is_known(l_ledger, a_datum_hash))
             || (l_datum_type == DAP_CHAIN_DATUM_TOKEN && s_token_datum_is_known(a_datum_hash));
-    if ( !l_datum_already_known && dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) )
+    if ( !l_datum_already_known && dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) ) {
+        // The reject list is configuration every node runs: a datum it blocks is
+        // absent for the whole network, so the transactions spending its outputs
+        // inherit a shared verdict - not a loss of this ledger. Recorded here so the
+        // snapshot anchor is not held back at the first blacklisted transaction.
+        dap_ledger_replay_mark_intrinsic(a_datum_hash);
         return log_it(L_INFO, "[%s] Datum is blackilsted", dap_chain_hash_fast_to_str_static(a_datum_hash)), -100;
+    }
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
