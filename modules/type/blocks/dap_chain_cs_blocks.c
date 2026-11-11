@@ -2092,6 +2092,25 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
  * ledger through this entry point. Without the feature - and for every block
  * outside the zone - the full processing runs. */
 #ifdef DAP_LEDGER_SNAPSHOT_SKIP_EXPERIMENTAL
+/* Snapshot zone: give the restored items their datum bodies, apply nothing.
+ * See the call site for why the datums of a covered block must not run their
+ * checks a second time. */
+static void s_attach_zone_datums(dap_chain_cs_blocks_t *a_blocks,
+                                 dap_chain_block_cache_t *a_block_cache, dap_ledger_t *a_ledger)
+{
+    if (!a_block_cache->parsed && dap_chain_block_cache_ensure(a_block_cache))
+        return;                     // no body to attach; the lazy atom link covers it
+    for (size_t i = 0; i < a_block_cache->datum_count; ++i) {
+        dap_chain_datum_t *l_datum = a_block_cache->datum[i];
+        if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+            continue;               // non-TX state lives in the snapshot's own sections
+        dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
+        if (dap_hash_fast_is_blank(l_datum_hash))
+            continue;
+        dap_ledger_tx_attach_restored(a_ledger, (dap_chain_datum_tx_t *)l_datum->data, l_datum_hash);
+    }
+}
+
 static int s_add_atom_datums_maybe_skip(dap_chain_cs_blocks_t *a_blocks,
                                         dap_chain_block_cache_t *a_block_cache,
                                         const dap_chain_hash_fast_t *a_prev_hash)
@@ -2115,9 +2134,20 @@ static int s_add_atom_datums_maybe_skip(dap_chain_cs_blocks_t *a_blocks,
                        " blocks in the snapshot zone so far, target %"DAP_UINT64_FORMAT_U")",
                        a_block_cache->block_number, l_cnt, l_skip_num);
         }
-        // Datums still flow into the ledger: the stake/decree state they build
-        // is what the verification of later blocks relies on, and the datum
-        // attach is what keeps the restored items out of the phantom clean.
+        // A complete snapshot restored the whole ledger state, including the
+        // service registries (stake, voting, decree): every datum of the covered
+        // blocks already has its verdict in the ledger, and re-applying it can only
+        // reproduce the decision taken when the snapshot was written - one measured
+        // start re-derived 750k rejections in ~140 s of the walk, all of them the
+        // same verdicts, none of them changing the state. What the scan still owes
+        // the restored items is their datum body, so attach it and leave the policy
+        // checks to the blocks above the anchor.
+        // Without a complete snapshot the datums must be applied: that is the only
+        // way the service state of the covered blocks gets built.
+        if (dap_ledger_snapshot_full_apply_enabled(l_ledger)) {
+            s_attach_zone_datums(a_blocks, a_block_cache, l_ledger);
+            return 0;
+        }
         return s_add_atom_datums(a_blocks, a_block_cache);
     }
     // dap_hash_fast_compare() is TRUE when the hashes are equal. The check below

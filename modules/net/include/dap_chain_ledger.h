@@ -300,6 +300,21 @@ DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const c
  */
 int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data);
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data);
+/**
+ * @brief Attach the datum body to a snapshot-restored ledger item WITHOUT running
+ *        any check, and report whether the ledger carries the transaction at all.
+ *
+ *        With a complete snapshot the ledger already holds the verdict for every
+ *        transaction of the covered blocks, so re-applying such a datum can only
+ *        reproduce the decision taken when the snapshot was written, while the
+ *        checks it runs (HAL/HRL, token permissions, signatures, double-spend
+ *        lookups) are exactly what a cache start exists to avoid. The scan still
+ *        owes the restored items their datum bodies, and this is that step.
+ *
+ * @return true when the item is in the ledger (its body is attached now if it was
+ *         missing), false when the ledger does not carry this transaction.
+ */
+bool dap_ledger_tx_attach_restored(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash);
 int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash);
 
 int dap_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);

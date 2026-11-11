@@ -9798,6 +9798,29 @@ static void s_ledger_tx_service_notify_added(dap_ledger_t *a_ledger, dap_chain_d
     }
 }
 
+bool dap_ledger_tx_attach_restored(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
+                                  dap_chain_hash_fast_t *a_tx_hash)
+{
+    if (!a_ledger || !a_tx || !a_tx_hash)
+        return false;
+    dap_ledger_tx_item_t *l_item = NULL;
+    unsigned l_hash_value;
+    HASH_VALUE(a_tx_hash, sizeof(*a_tx_hash), l_hash_value);
+    pthread_rwlock_wrlock(&PVT(a_ledger)->ledger_rwlock);
+    HASH_FIND_BYHASHVALUE(hh, PVT(a_ledger)->ledger_items, a_tx_hash,
+                          sizeof(*a_tx_hash), l_hash_value, l_item);
+    if (l_item && !l_item->tx) {
+        // Same ownership rule as the regular add path: a mapped ledger points
+        // straight into the block file's mmap, otherwise the body is copied.
+        l_item->tx = PVT(a_ledger)->mapped
+                ? a_tx : DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+        l_item->tx_owned = !PVT(a_ledger)->mapped;
+    }
+    bool l_present = l_item != NULL;
+    pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
+    return l_present;
+}
+
 int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
     // A restored item may be waiting for its datum in any mode: not only the chain scan of a
