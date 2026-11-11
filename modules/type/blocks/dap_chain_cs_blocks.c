@@ -4379,8 +4379,19 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 static const dap_time_t s_block_timediff_unit_size = 60;
 // Cap on the time gap a single block is paid for: a prolonged network stall must not
 // concentrate the whole idle-period emission into one recovery block (stall-harvest
-// incentive). Excess idle time simply earns no reward
+// incentive). Excess idle time simply earns no reward.
 #define DAP_REWARD_TIMEDIFF_CAP_UNITS 60
+// ... but the cap is a rule introduced AFTER the September 2026 stall-harvest
+// incident, and a rule must not judge the blocks that came before it. The reward a
+// claim transaction expects is fixed in the chain: it was computed by the network
+// without a cap, so capping a historical block makes the claim's own inputs fall
+// short of its outputs and the ledger rejects it - together with everything spending
+// its result. Measured on Backbone: one 2023 claim with two gaps above the cap was
+// rejected as a sum mismatch, and its payment chain took 2676 balance keys down with
+// it, including every holder of the CPUNK and QEVM tokens that exist in production.
+// Blocks created before the fix keep the uncapped rule; everything from the fix
+// onwards is capped, which is what the incident called for.
+#define DAP_REWARD_TIMEDIFF_CAP_SINCE 1790241900   // 2026-09-24T09:25:00Z, the fix's release
 
 static void s_blocks_hash_find_locked(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash, dap_chain_block_cache_t **a_block_cache)
 {
@@ -4430,11 +4441,13 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
         return l_ret;
     }
     dap_time_t l_block_time = l_block->hdr.ts_created;
+    const uint64_t l_claimed_num = l_block_cache->block_number;   // survives the prev-block lookup below
     if (l_block_time < DAP_REWARD_INIT_TIMESTAMP) {
         log_it(L_WARNING, "[%s] Reward is not set for this block", dap_chain_hash_fast_to_str_static(a_block_hash));
         return l_ret;
     }
     l_ret = dap_chain_net_get_reward(l_net, l_block_cache->block_number);
+    uint256_t l_reward_base = l_ret;      // schedule value before the time/signs scaling
     size_t l_signs_count = l_block_cache->sign_count;
     if (l_block_cache->is_genesis) {
         DIV_256(l_ret, GET_256_FROM_64(l_signs_count), &l_ret);
@@ -4457,13 +4470,38 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     dap_time_t l_cur_time = dap_max(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
     if ( l_block_time > l_cur_time ) {
         dap_time_t l_time_diff = l_block_time - l_cur_time;
-        dap_time_t l_time_diff_cap = s_block_timediff_unit_size * DAP_REWARD_TIMEDIFF_CAP_UNITS;
-        if ( l_time_diff > l_time_diff_cap )
-            l_time_diff = l_time_diff_cap;
+        if (l_block_time >= DAP_REWARD_TIMEDIFF_CAP_SINCE) {
+            dap_time_t l_time_diff_cap = s_block_timediff_unit_size * DAP_REWARD_TIMEDIFF_CAP_UNITS;
+            if ( l_time_diff > l_time_diff_cap )
+                l_time_diff = l_time_diff_cap;
+        }
         if (MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret))
             return log_it(L_ERROR, "[%s] Integer overflow while multiplication execution to calculate final reward", dap_hash_fast_to_str_static(a_block_hash)), uint256_0;
     }
     DIV_256(l_ret, GET_256_FROM_64(s_block_timediff_unit_size * l_signs_count), &l_ret);
+    // Targeted trace (DAP_REWARD_TRACE_BLOCKS=from-to): the reward an old claim
+    // transaction expects is fixed in the block, so when this build computes a
+    // different one the only way to find out which input of the formula is off is
+    // to see the inputs. Prints the numbers that went into the result.
+    {
+        const char *l_trace_range = getenv("DAP_REWARD_TRACE_BLOCKS");
+        if (l_trace_range && *l_trace_range) {
+            unsigned long long l_from = 0, l_to = 0;
+            if (sscanf(l_trace_range, "%llu-%llu", &l_from, &l_to) == 2
+                    && l_claimed_num >= l_from && l_claimed_num <= l_to) {
+                char *l_v = dap_chain_balance_to_coins(l_ret);
+                char *l_b = dap_chain_balance_to_coins(l_reward_base);
+                log_it(L_WARNING, "REWARD TRACE block %" DAP_UINT64_FORMAT_U " hash %s signs %zu ts %"
+                       DAP_UINT64_FORMAT_U " prev_ts %" DAP_UINT64_FORMAT_U " unit %" DAP_UINT64_FORMAT_U
+                       " base %s value %s",
+                       l_claimed_num, dap_hash_fast_to_str_static(a_block_hash), l_signs_count,
+                       (uint64_t)l_block_time, (uint64_t)l_cur_time,
+                       (uint64_t)s_block_timediff_unit_size, l_b, l_v);
+                DAP_DELETE(l_v);
+                DAP_DELETE(l_b);
+            }
+        }
+    }
     return l_ret;
 }
 
