@@ -277,3 +277,38 @@ set_tests_properties(stake_replay_guard_unit PROPERTIES
     TIMEOUT 60
     LABELS "unit;stake;regression"
 )
+
+# Replay failure classification: a rejection is either a local loss (the chain
+# carries the parent, this ledger does not) or a verdict the whole chain shares,
+# and the snapshot report is built on that split. This test pins the cases that
+# were wrong in the field - the intra-transaction double spend, the reference to
+# a parent no chain carries, the double-spend losers, the inherited verdict of a
+# hard-reject-list entry and the safe default (see replay_fail_class_unit_test.c).
+add_executable(replay_fail_class_unit_test
+    replay_fail_class_unit_test.c
+)
+
+target_include_directories(replay_fail_class_unit_test PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fixtures
+)
+
+target_link_libraries(replay_fail_class_unit_test
+    dap_test
+    cellframe_test_fixtures
+    dap_core
+    dap_crypto
+    dap_chain
+    dap_chain_common
+    dap_chain_net
+    dap_chain_cs_dag
+    dap_chain_cs_dag_poa
+    dap_chain_cs_none
+)
+
+add_test(NAME replay_fail_class_unit COMMAND replay_fail_class_unit_test)
+
+set_tests_properties(replay_fail_class_unit PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;ledger;replay;regression"
+)
