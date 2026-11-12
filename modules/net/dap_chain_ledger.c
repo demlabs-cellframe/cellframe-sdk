@@ -9505,6 +9505,19 @@ void dap_ledger_load_end(dap_ledger_t *a_ledger)
  */
 int dap_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash)
 {
+    // Nothing to roll back when the transaction never entered this ledger: a fork
+    // rollback walks whole blocks, including the datums that were rejected when the
+    // block was scanned. Removing one of those credited its inputs' balances and the
+    // token's remaining supply a second time. Measured on Backbone: the CPUNK counter
+    // ended at 1.1e10 tokens against a 1e9 declaration - eleven spurious rollbacks of
+    // one emission - and that counter is what the emission limit is checked against
+    // (s_ledger_token_supply_check), so an inflated value lets this node accept an
+    // emission that stricter nodes reject.
+    if (!dap_ledger_tx_is_known(a_ledger, a_tx_hash)) {
+        debug_if(s_debug_more, L_INFO, "dap_ledger_tx_remove() tx %s is not in the ledger, nothing to roll back",
+                 dap_hash_fast_to_str_static(a_tx_hash));
+        return 0;
+    }
     int l_ret = 0;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_list_t *l_list_bound_items = NULL;
