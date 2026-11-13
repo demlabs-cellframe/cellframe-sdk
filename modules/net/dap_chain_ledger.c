@@ -8799,8 +8799,47 @@ static void s_ledger_rpc_cache_notify_tx(dap_ledger_t *a_ledger, dap_chain_datum
  * @param a_from_threshold
  * @return return 1 OK, -1 error
  */
+// Targeted transaction trace (DAP_TX_TRACE_HASH=<prefix>[,<prefix>...]): dumps the
+// item stream and the public-key hash of every signature. The reward/UTXO checks key
+// their registries off exactly these values, and when two builds disagree about who
+// claimed what, this is the data that says whether the transactions differ or the
+// key derivation does.
+static void s_tx_trace_if_requested(dap_chain_datum_tx_t *a_tx, const dap_hash_fast_t *a_tx_hash)
+{
+    const char *l_list = getenv("DAP_TX_TRACE_HASH");
+    if (!l_list || !*l_list)
+        return;
+    const char *l_hash_str = dap_hash_fast_to_str_static(a_tx_hash);
+    const char *l_body = l_hash_str[0] == '0' ? l_hash_str + 2 : l_hash_str;
+    bool l_match = false;
+    for (const char *l_p = l_list; *l_p && !l_match; ) {
+        const char *l_end = strchr(l_p, ',');
+        size_t l_len = l_end ? (size_t)(l_end - l_p) : strlen(l_p);
+        l_match = l_len && !strncasecmp(l_body, l_p, l_len);
+        l_p = l_end ? l_end + 1 : l_p + l_len;
+    }
+    if (!l_match)
+        return;
+    byte_t *l_it = NULL; size_t l_sz = 0; int l_idx = 0;
+    TX_ITEM_ITER_TX(l_it, l_sz, a_tx) {
+        log_it(L_WARNING, "TX TRACE %s item %d type %#04x size %zu", l_hash_str, l_idx, *l_it, l_sz);
+        if (*l_it == TX_ITEM_TYPE_SIG) {
+            dap_sign_t *l_sig = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_it);
+            dap_hash_fast_t l_pkey_hash = {};
+            if (l_sig && dap_sign_get_pkey_hash(l_sig, &l_pkey_hash))
+                log_it(L_WARNING, "TX TRACE %s sig %d pkey_hash %s", l_hash_str, l_idx,
+                       dap_hash_fast_to_str_static(&l_pkey_hash));
+            else
+                log_it(L_WARNING, "TX TRACE %s sig %d unreadable", l_hash_str, l_idx);
+        }
+        ++l_idx;
+    }
+    log_it(L_WARNING, "TX TRACE %s end, %d item(s)", l_hash_str, l_idx);
+}
+
 int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, bool a_from_threshold, dap_ledger_datum_iter_data_t *a_datum_index_data)
 {
+    s_tx_trace_if_requested(a_tx, a_tx_hash);
     if(!a_tx) {
         debug_if(s_debug_more, L_ERROR, "NULL tx detected");
         return -1;
