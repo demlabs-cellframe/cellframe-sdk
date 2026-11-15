@@ -109,6 +109,10 @@ typedef struct dap_chain_node_client {
     char reality_short_id[17];
     char reality_sni[256];
     uint32_t reality_rate_limit;   /* bytes/sec, 0 = unlimited */
+    char trojan_password[128];     /* Trojan secret (TLS trust: tls13_spki_sha256/server_name) */
+    char anytls_password[128];     /* AnyTLS secret */
+    char xhttp_uuid[37];           /* XHTTP VLESS UUID */
+    char shadowtls_password[128];  /* ShadowTLS v3 secret */
     dap_timerfd_t *sync_timer;
     dap_timerfd_t *reconnect_timer;
     // callbacks

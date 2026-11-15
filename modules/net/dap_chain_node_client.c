@@ -324,6 +324,14 @@ static bool s_node_client_connect_impl(dap_chain_node_client_t *a_node_client,
     memcpy(a_node_client->client->reality_sni, a_node_client->reality_sni,
            sizeof(a_node_client->client->reality_sni));
     a_node_client->client->reality_rate_limit = a_node_client->reality_rate_limit;
+    memcpy(a_node_client->client->trojan_password, a_node_client->trojan_password,
+           sizeof(a_node_client->client->trojan_password));
+    memcpy(a_node_client->client->anytls_password, a_node_client->anytls_password,
+           sizeof(a_node_client->client->anytls_password));
+    memcpy(a_node_client->client->xhttp_uuid, a_node_client->xhttp_uuid,
+           sizeof(a_node_client->client->xhttp_uuid));
+    memcpy(a_node_client->client->shadowtls_password, a_node_client->shadowtls_password,
+           sizeof(a_node_client->client->shadowtls_password));
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     /* P2P HTTP handshake mode is chosen per peer version (≤5.7 legacy, ≥5.8 modern). */
