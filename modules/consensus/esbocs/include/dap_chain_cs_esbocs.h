@@ -394,6 +394,33 @@ DAP_STATIC_INLINE bool dap_chain_esbocs_era_decision(uint64_t a_version, uint64_
         return false;
     return !a_ts_boundary || a_block_ts >= a_ts_boundary;
 }
+/* Format versions of the esbocs_state snapshot payload, and the header size each
+ * one starts with. The header grew twice, and a payload keeps the layout of the
+ * version that wrote it: reading a v1 file with the v2/v3 size shifts the record
+ * pointer by four bytes, the bounds check then rejects a perfectly valid section
+ * and the complete-state claim is withdrawn - every start replays the chain. The
+ * .c asserts these numbers against the real struct, so a field added later
+ * cannot silently invalidate the payloads already on disk. */
+#define DAP_CHAIN_ESBOCS_STATE_FORMAT_V1    1
+#define DAP_CHAIN_ESBOCS_STATE_FORMAT_V2    2
+#define DAP_CHAIN_ESBOCS_STATE_FORMAT_V3    3
+#define DAP_CHAIN_ESBOCS_STATE_FORMAT       DAP_CHAIN_ESBOCS_STATE_FORMAT_V3
+// v1: through the emergency-list count and its reserved word;
+// v2: appends the era-history count; v3: appends the activation height.
+#define DAP_CHAIN_ESBOCS_STATE_HDR_SIZE_V1  64
+#define DAP_CHAIN_ESBOCS_STATE_HDR_SIZE_V2  68
+#define DAP_CHAIN_ESBOCS_STATE_HDR_SIZE_V3  76
+
+/** @brief Header size of an esbocs_state payload; 0 = a format this build does not know. */
+DAP_STATIC_INLINE size_t dap_chain_esbocs_state_hdr_size(uint32_t a_format)
+{
+    switch (a_format) {
+        case DAP_CHAIN_ESBOCS_STATE_FORMAT_V1: return DAP_CHAIN_ESBOCS_STATE_HDR_SIZE_V1;
+        case DAP_CHAIN_ESBOCS_STATE_FORMAT_V2: return DAP_CHAIN_ESBOCS_STATE_HDR_SIZE_V2;
+        case DAP_CHAIN_ESBOCS_STATE_FORMAT_V3: return DAP_CHAIN_ESBOCS_STATE_HDR_SIZE_V3;
+        default: return 0;
+    }
+}
 /** @brief Applied consensus version (0/1 = no version decree yet). */
 uint64_t dap_chain_esbocs_get_consensus_version(dap_chain_t *a_chain);
 

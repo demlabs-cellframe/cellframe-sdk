@@ -362,3 +362,28 @@ set_tests_properties(esbocs_era_unit PROPERTIES
     TIMEOUT 60
     LABELS "unit;esbocs;consensus;regression"
 )
+
+# Snapshot payload layout of the consensus state: a payload keeps the header size of
+# the format version that wrote it, and reading an old one with the wrong size makes
+# the whole snapshot unusable (see esbocs_state_unit_test.c).
+add_executable(esbocs_state_unit_test
+    esbocs_state_unit_test.c
+)
+
+target_include_directories(esbocs_state_unit_test PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+)
+
+target_link_libraries(esbocs_state_unit_test
+    dap_test
+    dap_core
+    dap_crypto
+    dap_chain_common
+)
+
+add_test(NAME esbocs_state_unit COMMAND esbocs_state_unit_test)
+
+set_tests_properties(esbocs_state_unit PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;esbocs;consensus;regression"
+)

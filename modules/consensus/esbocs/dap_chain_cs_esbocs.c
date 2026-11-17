@@ -759,12 +759,9 @@ int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
  * Restoring it before the tail is read means those blocks are verified against
  * the parameters the previous run ended with. */
 #define DAP_CHAIN_ESBOCS_STATE_SECTION "esbocs_state"
-// v2 appends the min_validators era history (records after the emergency list).
-// A v1 payload is still accepted: its single value becomes one era at ts 0, so an
-// old snapshot keeps working, it just cannot distinguish the eras it never recorded.
-#define DAP_CHAIN_ESBOCS_STATE_VERSION 3
-#define DAP_CHAIN_ESBOCS_STATE_VERSION_V2 2
-#define DAP_CHAIN_ESBOCS_STATE_VERSION_LEGACY 1
+// The format versions and their header sizes live in the public header, next to
+// the era decision: the loader must address a payload by the size of the version
+// that wrote it, and that size is part of the on-disk contract.
 
 typedef struct DAP_ALIGN_PACKED s_esbocs_state_hdr {
     uint32_t version;
@@ -784,6 +781,18 @@ typedef struct DAP_ALIGN_PACKED s_esbocs_state_hdr {
     // end before this field; the loader validates the size per format version.
     uint64_t consensus_version_height;
 } s_esbocs_state_hdr_t;
+
+// The header sizes the loader uses for old payloads are offsets into this struct,
+// not free-standing numbers: if a field is moved or added, the build stops here
+// instead of silently rejecting every snapshot on disk.
+_Static_assert(offsetof(s_esbocs_state_hdr_t, n_minval_era) + sizeof(uint32_t)
+        == DAP_CHAIN_ESBOCS_STATE_HDR_SIZE_V1,
+        "a v1 payload ends after the emergency-list count and its reserved word");
+_Static_assert(offsetof(s_esbocs_state_hdr_t, consensus_version_height)
+        == DAP_CHAIN_ESBOCS_STATE_HDR_SIZE_V2,
+        "a v2 payload ends before the activation height");
+_Static_assert(sizeof(s_esbocs_state_hdr_t) == DAP_CHAIN_ESBOCS_STATE_HDR_SIZE_V3,
+        "a v3 payload is the current header");
 
 // Emergency validators are stored as the signing address the list keeps.
 typedef struct DAP_ALIGN_PACKED s_esbocs_emergency_rec {
@@ -820,7 +829,7 @@ static int s_esbocs_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_o
     for (dap_list_t *l_i = l_pvt->emergency_validator_addrs; l_i; l_i = l_i->next)
         ++l_n;
     s_esbocs_state_hdr_t l_hdr = {
-        .version = DAP_CHAIN_ESBOCS_STATE_VERSION,
+        .version = DAP_CHAIN_ESBOCS_STATE_FORMAT,
         .net_id = a_net_id,
         .chain_id = l_esbocs->chain ? l_esbocs->chain->id.uint64 : 0,
         .consensus_version = l_pvt->consensus_version,
@@ -863,23 +872,19 @@ static int s_esbocs_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_o
 static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
 {
     (void)a_ctx;
-    // The header grew in v3, so the format version is read FIRST and the size is
-    // validated against it: checking against the current struct would reject every
-    // v1/v2 payload before the version is even looked at.
+    // The header grew twice, so the format version is read FIRST and the payload is
+    // addressed by the size of that version: checking against the current struct
+    // would reject every v1/v2 payload before the version is even looked at.
     if (!a_data || a_size < sizeof(uint32_t))
         return -1;
     uint32_t l_format = 0;
     memcpy(&l_format, a_data, sizeof(l_format));
-    if (l_format != DAP_CHAIN_ESBOCS_STATE_VERSION
-            && l_format != DAP_CHAIN_ESBOCS_STATE_VERSION_V2
-            && l_format != DAP_CHAIN_ESBOCS_STATE_VERSION_LEGACY) {
-        log_it(L_WARNING, "Consensus state: unsupported format version %u (this build understands %u)",
-               l_format, DAP_CHAIN_ESBOCS_STATE_VERSION);
+    size_t l_hdr_size = dap_chain_esbocs_state_hdr_size(l_format);
+    if (!l_hdr_size) {
+        log_it(L_WARNING, "Consensus state: unsupported format version %u (this build understands up to %u)",
+               l_format, DAP_CHAIN_ESBOCS_STATE_FORMAT);
         return -2;
     }
-    size_t l_hdr_size = (l_format >= DAP_CHAIN_ESBOCS_STATE_VERSION)
-            ? sizeof(s_esbocs_state_hdr_t)
-            : offsetof(s_esbocs_state_hdr_t, consensus_version_height);
     if (a_size < l_hdr_size)
         return -1;
     s_esbocs_state_hdr_t l_hdr = {};
@@ -888,7 +893,7 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
     // that now holds the era count belongs to the old reserved field. Treat the
     // dumped value as a single era from ts 0 - the same behaviour that version had,
     // made explicit.
-    if (l_hdr.version == DAP_CHAIN_ESBOCS_STATE_VERSION_LEGACY)
+    if (l_hdr.version == DAP_CHAIN_ESBOCS_STATE_FORMAT_V1)
         l_hdr.n_minval_era = 0;
     if (!l_hdr.net_id)
         return 0;   // a writer that did not know its net: nothing to attribute this to
