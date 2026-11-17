@@ -3940,12 +3940,22 @@ static int s_datum_add_scoped(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, 
     //
     // The list must also not re-judge a datum the ledger already holds (the cache load
     // re-walks the snapshot zone and would report a false -100 for an effect that is
-    // already there).
+    // already there), and it must not re-judge history: an entry added AFTER a datum
+    // was anchored does not undo what the whole network applied back then. The entry
+    // for block 5073 appeared in the config in February 2025 while the datum sits in a
+    // block from 2023; every node that never replayed still carries its effects, so a
+    // node that replays with the entry in place silently diverges - and downwards: the
+    // rejected datum takes its whole descendant tree with it (18 442 transactions on
+    // Backbone, the CPUNK/QEVM distribution among them). Inside the chain loader the
+    // cell files are the authority, exactly as they are on a node that applied them
+    // live; the list keeps its power where it belongs, over a datum offered from
+    // outside (mempool, a peer proposing it anew).
     int l_datum_type = a_datum->header.type_id;
     bool l_datum_already_known =
             (l_datum_type == DAP_CHAIN_DATUM_TX && dap_ledger_tx_is_known(l_ledger, a_datum_hash))
             || (l_datum_type == DAP_CHAIN_DATUM_TOKEN && s_token_datum_is_known(a_datum_hash));
-    if ( !l_datum_already_known && dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) ) {
+    bool l_datum_from_chain = dap_chain_net_replay_in_loader();
+    if ( !l_datum_already_known && !l_datum_from_chain && dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) ) {
         // The reject list is configuration every node runs: a datum it blocks is
         // absent for the whole network, so the transactions spending its outputs
         // inherit a shared verdict - not a loss of this ledger. Recorded here so the
