@@ -368,6 +368,32 @@ int dap_chain_esbocs_set_consensus_version_at(dap_chain_t *a_chain, uint64_t a_v
  * context" (mempool, zerochain event): the current chain position is used.
  */
 bool dap_chain_esbocs_new_rules_in_force_at(dap_chain_t *a_chain, uint64_t a_height);
+/**
+ * @brief The era decision itself, free of any chain state so it can be reasoned
+ *        about (and tested) on its own.
+ *
+ * @param a_version           applied consensus version (0/1 = no version decree)
+ * @param a_height            block-height boundary from the decree (0 = none)
+ * @param a_ts_boundary       timestamp boundary of pre-height decrees (0 = whole chain)
+ * @param a_legacy_mode       [esbocs] legacy_5_7_mode: ignore timestamp boundaries
+ * @param a_block_num         height of the block being judged (0 = no block context)
+ * @param a_block_ts          its timestamp, or the chain's current time
+ */
+DAP_STATIC_INLINE bool dap_chain_esbocs_era_decision(uint64_t a_version, uint64_t a_height,
+        uint64_t a_ts_boundary, bool a_legacy_mode, uint64_t a_block_num, uint64_t a_block_ts)
+{
+    if (a_version < 2)
+        return false;
+    // A height boundary wins: it binds at the same chain position everywhere, while a
+    // decree's creation time judges blocks produced before it was even anchored.
+    if (a_height)
+        return a_block_num >= a_height;
+    // The legacy-mode network waits for the height: the timestamp boundary of an older
+    // decree is exactly what it is told to ignore.
+    if (a_legacy_mode)
+        return false;
+    return !a_ts_boundary || a_block_ts >= a_ts_boundary;
+}
 /** @brief Applied consensus version (0/1 = no version decree yet). */
 uint64_t dap_chain_esbocs_get_consensus_version(dap_chain_t *a_chain);
 

@@ -1825,21 +1825,15 @@ bool dap_chain_esbocs_new_rules_in_force_at(dap_chain_t *a_chain, uint64_t a_hei
     uint64_t l_height = l_pvt->consensus_version_height;
     uint64_t l_since = l_pvt->consensus_version_since;
     pthread_rwlock_unlock(&l_pvt->state_lock);
-    if (l_version < 2)
-        return false;
-    if (l_height) {
-        // No block context (mempool, a zerochain event): judge against the current
-        // chain position, which is what a live node knew at that moment.
-        uint64_t l_at = a_height ? a_height : (uint64_t)a_chain->callback_count_atom(a_chain);
-        return l_at >= l_height;
-    }
-    if (l_legacy_mode)
-        return false;                       // waiting for a height-based decree
+    // No block context (mempool, a zerochain event): judge against the current chain
+    // position, which is what a live node knew at that moment.
+    uint64_t l_at = a_height ? a_height : (uint64_t)a_chain->callback_count_atom(a_chain);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_time_t l_now = (l_net && l_net->pub.ledger)
             ? dap_ledger_get_blockchain_time(l_net->pub.ledger) : dap_time_now();
-    return !l_since || (uint64_t)l_now >= l_since;
+    return dap_chain_esbocs_era_decision(l_version, l_height, l_since, l_legacy_mode, l_at, (uint64_t)l_now);
 }
+
 
 static int s_esbocs_set_emergency_validator_apply(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash)
 {
@@ -4723,15 +4717,9 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     // A network that declares itself legacy ([esbocs] legacy_5_7_mode) waits for the
     // height: it ignores the timestamp boundary of a version decree entirely.
     bool l_legacy_mode = s_esbocs_legacy_mode(a_blocks->chain);
-    bool l_strict_era = false;
-    if (l_esbocs_pvt->consensus_version >= 2) {
-        if (l_esbocs_pvt->consensus_version_height)
-            l_strict_era = a_block_num >= l_esbocs_pvt->consensus_version_height;
-        else if (!l_legacy_mode)
-            l_strict_era = !l_esbocs_pvt->consensus_version_since
-                    || l_block_ts >= l_esbocs_pvt->consensus_version_since;
-    }
-    l_strict_era = l_strict_era
+    bool l_strict_era = dap_chain_esbocs_era_decision(l_esbocs_pvt->consensus_version,
+            l_esbocs_pvt->consensus_version_height, l_esbocs_pvt->consensus_version_since,
+            l_legacy_mode, a_block_num, l_block_ts)
             || (l_esbocs_pvt->require_signs_meta_since && l_block_ts >= l_esbocs_pvt->require_signs_meta_since);
     // In the strict era a block without the committee metadata is forbidden outright
     // (emergency blocks are exempt: they carry the EMERGENCY metadata by design)

@@ -337,3 +337,28 @@ set_tests_properties(esbocs_interval_unit PROPERTIES
     TIMEOUT 60
     LABELS "unit;esbocs;consensus;regression"
 )
+
+# Consensus-era decision: the single answer every legacy-vs-new rule asks. Pure
+# function, so every branch is pinned without a live consensus chain
+# (see esbocs_era_unit_test.c).
+add_executable(esbocs_era_unit_test
+    esbocs_era_unit_test.c
+)
+
+target_include_directories(esbocs_era_unit_test PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+)
+
+target_link_libraries(esbocs_era_unit_test
+    dap_test
+    dap_core
+    dap_crypto
+    dap_chain_common
+)
+
+add_test(NAME esbocs_era_unit COMMAND esbocs_era_unit_test)
+
+set_tests_properties(esbocs_era_unit PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;esbocs;consensus;regression"
+)
