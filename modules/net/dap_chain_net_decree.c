@@ -1252,9 +1252,35 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
+            // Optional activation height: a rule change has to bind at a chain
+            // position, so the decree may say "from block N". Without it the decree
+            // keeps the legacy timestamp boundary (older builds read that one).
+            uint64_t l_activate_height = 0;
+            dap_tsd_t *l_height_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size,
+                                                  DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION_HEIGHT);
+            if (l_height_tsd) {
+                if (l_height_tsd->size != sizeof(uint64_t)) {
+                    log_it(L_WARNING, "Can't get consensus version activation height from decree.");
+                    return -103;
+                }
+                _dap_tsd_get_scalar(l_height_tsd, &l_activate_height);
+                if (a_apply && l_activate_height
+                        && l_activate_height <= (uint64_t)l_chain->callback_count_atom(l_chain)) {
+                    // Anchoring after the announced height would make the switch
+                    // judge blocks that were already accepted leniently; refuse it
+                    // instead of silently splitting the network.
+                    log_it(L_ERROR, "Consensus version decree activation height %" DAP_UINT64_FORMAT_U
+                           " is not ahead of the chain height %" DAP_UINT64_FORMAT_U " on chain %s",
+                           l_activate_height, (uint64_t)l_chain->callback_count_atom(l_chain), l_chain->name);
+                    return -116;
+                }
+                log_it(L_NOTICE, "Consensus version %" DAP_UINT64_FORMAT_U " decree activates at block %"
+                       DAP_UINT64_FORMAT_U " on chain %s", l_version, l_activate_height, l_chain->name);
+            }
             if (!a_apply)
                 break;
-            dap_chain_esbocs_set_consensus_version(l_chain, l_version, (uint64_t)a_decree->header.ts_created);
+            dap_chain_esbocs_set_consensus_version_at(l_chain, l_version, l_activate_height,
+                                                      (uint64_t)a_decree->header.ts_created);
         } break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_EMERGENCY_VALIDATORS: {
             if (dap_chain_datum_decree_get_action(a_decree, &l_action)) {

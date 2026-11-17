@@ -102,7 +102,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
-static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size);
+static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size, uint64_t a_block_num);
 static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
 static dap_list_t *s_check_emergency_rights(dap_chain_esbocs_t *a_esbocs, dap_chain_addr_t *a_signing_addr);
 static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_version);
@@ -517,6 +517,11 @@ typedef struct dap_chain_esbocs_pvt {
     // decree datum itself. Blocks older than the boundary keep the lenient
     // historical semantics on replay; blocks at/after it are strict.
     uint64_t consensus_version_since;
+    // Block-height boundary, preferred over the timestamp whenever a decree
+    // carries one. A rule change must bind at a chain position every node
+    // reaches simultaneously; the decree's own creation time judges blocks that
+    // were produced before it was even anchored. 0 = no height boundary.
+    uint64_t consensus_version_height;
     // Guards the decree-controlled parameters above and the emergency list:
     // the snapshot's state section reads them from the snapshot-save thread
     // while a decree may be applying in the sync thread.
@@ -648,7 +653,7 @@ int dap_chain_cs_esbocs_init()
         "esbocs min_validators_count show -net <net_name> [-chain <chain_name>]\n"
             "\tShow minimum validators count for ESBOCS consensus\n"
         "esbocs check_signs_structure {enable|disable} -net <net_name> [-chain <chain_name>] -cert <poa_cert_name>\n"
-    "esbocs consensus_version -value <version> -net <net_name> [-chain <chain_name>] -cert <poa_cert_name>\n"
+    "esbocs consensus_version -value <version> (-activate_in <interval> | -activate_block <height>) -net <net_name> [-chain <chain_name>] -cert <poa_cert_name>\n"
             "\tIssue the consensus-version decree: version >= 2 forbids blocks without committee metadata\n"
             "\tand enforces active-stake signers network-wide from the decree timestamp onwards\n"
         "esbocs consensus_version show -net <net_name> [-chain <chain_name>]\n"
@@ -757,7 +762,8 @@ int dap_chain_esbocs_set_presign_callback(dap_chain_net_id_t a_net_id,
 // v2 appends the min_validators era history (records after the emergency list).
 // A v1 payload is still accepted: its single value becomes one era at ts 0, so an
 // old snapshot keeps working, it just cannot distinguish the eras it never recorded.
-#define DAP_CHAIN_ESBOCS_STATE_VERSION 2
+#define DAP_CHAIN_ESBOCS_STATE_VERSION 3
+#define DAP_CHAIN_ESBOCS_STATE_VERSION_V2 2
 #define DAP_CHAIN_ESBOCS_STATE_VERSION_LEGACY 1
 
 typedef struct DAP_ALIGN_PACKED s_esbocs_state_hdr {
@@ -773,6 +779,10 @@ typedef struct DAP_ALIGN_PACKED s_esbocs_state_hdr {
     uint32_t n_emergency_addrs;
     uint32_t n_minval_era;   // v2: trailing s_esbocs_minval_era_t records (v1: 0)
     uint32_t reserved2;
+    // v3: block height at which the consensus version's rules begin to bind (0 =
+    // the timestamp boundary of the decree, the pre-v3 behaviour). v1/v2 payloads
+    // end before this field; the loader validates the size per format version.
+    uint64_t consensus_version_height;
 } s_esbocs_state_hdr_t;
 
 // Emergency validators are stored as the signing address the list keeps.
@@ -819,7 +829,8 @@ static int s_esbocs_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_o
         .min_validators_count = l_pvt->min_validators_count,
         .check_signs_structure = l_pvt->check_signs_structure ? 1u : 0u,
         .n_emergency_addrs = l_n,
-        .n_minval_era = (uint32_t)l_pvt->minval_era_cnt
+        .n_minval_era = (uint32_t)l_pvt->minval_era_cnt,
+        .consensus_version_height = l_pvt->consensus_version_height
     };
     int l_ret = 0;
     if (!dap_string_append_len(a_out, (const char *)&l_hdr, sizeof(l_hdr))) {
@@ -852,16 +863,27 @@ static int s_esbocs_state_dump(void *a_ctx, uint64_t a_net_id, dap_string_t *a_o
 static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size)
 {
     (void)a_ctx;
-    if (!a_data || a_size < sizeof(s_esbocs_state_hdr_t))
+    // The header grew in v3, so the format version is read FIRST and the size is
+    // validated against it: checking against the current struct would reject every
+    // v1/v2 payload before the version is even looked at.
+    if (!a_data || a_size < sizeof(uint32_t))
         return -1;
-    s_esbocs_state_hdr_t l_hdr;
-    memcpy(&l_hdr, a_data, sizeof(l_hdr));
-    if (l_hdr.version != DAP_CHAIN_ESBOCS_STATE_VERSION
-            && l_hdr.version != DAP_CHAIN_ESBOCS_STATE_VERSION_LEGACY) {
+    uint32_t l_format = 0;
+    memcpy(&l_format, a_data, sizeof(l_format));
+    if (l_format != DAP_CHAIN_ESBOCS_STATE_VERSION
+            && l_format != DAP_CHAIN_ESBOCS_STATE_VERSION_V2
+            && l_format != DAP_CHAIN_ESBOCS_STATE_VERSION_LEGACY) {
         log_it(L_WARNING, "Consensus state: unsupported format version %u (this build understands %u)",
-               l_hdr.version, DAP_CHAIN_ESBOCS_STATE_VERSION);
+               l_format, DAP_CHAIN_ESBOCS_STATE_VERSION);
         return -2;
     }
+    size_t l_hdr_size = (l_format >= DAP_CHAIN_ESBOCS_STATE_VERSION)
+            ? sizeof(s_esbocs_state_hdr_t)
+            : offsetof(s_esbocs_state_hdr_t, consensus_version_height);
+    if (a_size < l_hdr_size)
+        return -1;
+    s_esbocs_state_hdr_t l_hdr = {};
+    memcpy(&l_hdr, a_data, l_hdr_size);
     // v1 has no era history: the payload ends after the emergency list and the byte
     // that now holds the era count belongs to the old reserved field. Treat the
     // dumped value as a single era from ts 0 - the same behaviour that version had,
@@ -880,11 +902,11 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
     // The record counts come from the file and are untrusted: the payload must
     // actually hold that many records.
     if ((uint64_t)l_hdr.n_emergency_addrs
-            > (uint64_t)((a_size - sizeof(s_esbocs_state_hdr_t)) / sizeof(s_esbocs_emergency_rec_t)))
+            > (uint64_t)((a_size - l_hdr_size) / sizeof(s_esbocs_emergency_rec_t)))
         return -4;
     if ((uint64_t)l_hdr.n_emergency_addrs * sizeof(s_esbocs_emergency_rec_t)
             + (uint64_t)l_hdr.n_minval_era * sizeof(s_esbocs_minval_era_t)
-            > a_size - sizeof(s_esbocs_state_hdr_t))
+            > a_size - l_hdr_size)
         return -4;
     if (l_hdr.n_minval_era > DAP_CHAIN_ESBOCS_MINVAL_ERA_MAX)
         return -4;
@@ -897,6 +919,9 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
     if (l_hdr.consensus_version_since
             && (!l_pvt->consensus_version_since || l_hdr.consensus_version_since < l_pvt->consensus_version_since))
         l_pvt->consensus_version_since = l_hdr.consensus_version_since;
+    if (l_hdr.consensus_version_height
+            && (!l_pvt->consensus_version_height || l_hdr.consensus_version_height < l_pvt->consensus_version_height))
+        l_pvt->consensus_version_height = l_hdr.consensus_version_height;
     if (l_hdr.empty_block_every_times > atomic_load(&l_pvt->empty_block_every_times))
         atomic_store(&l_pvt->empty_block_every_times, (uint_fast16_t)l_hdr.empty_block_every_times);
     if (l_hdr.min_validators_count)
@@ -906,7 +931,7 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
     // The emergency list is a CRUD list and is restored as a whole: entries a
     // decree added and did not remove must be back, without duplicating the ones
     // the config already registered.
-    const uint8_t *l_ptr = a_data + sizeof(l_hdr);
+    const uint8_t *l_ptr = a_data + l_hdr_size;
     size_t l_added = 0;
     for (uint32_t i = 0; i < l_hdr.n_emergency_addrs; ++i) {
         const dap_chain_addr_t *l_addr = (const dap_chain_addr_t *)l_ptr;
@@ -944,9 +969,10 @@ static int s_esbocs_state_load(void *a_ctx, const uint8_t *a_data, size_t a_size
     }
     pthread_rwlock_unlock(&l_pvt->state_lock);
     log_it(L_NOTICE, "Consensus state: restored consensus_version %" DAP_UINT64_FORMAT_U
-           " (since %" DAP_UINT64_FORMAT_U "), min_validators %u (%u era(s)), check_signs %s, "
+           " (since ts %" DAP_UINT64_FORMAT_U ", from block %" DAP_UINT64_FORMAT_U "), min_validators %u (%u era(s)), check_signs %s, "
            "emergency validators %u (+%zu added)",
-           l_pvt->consensus_version, l_pvt->consensus_version_since, l_pvt->min_validators_count,
+           l_pvt->consensus_version, l_pvt->consensus_version_since, l_pvt->consensus_version_height,
+           l_pvt->min_validators_count,
            (unsigned)l_pvt->minval_era_cnt,
            l_pvt->check_signs_structure ? "on" : "off", l_hdr.n_emergency_addrs, l_added);
     return 0;
@@ -1704,7 +1730,8 @@ static int s_esbocs_set_signs_struct_check_apply(dap_chain_t *a_chain, bool a_en
     return 0;
 }
 
-static int s_esbocs_set_consensus_version_apply(dap_chain_t *a_chain, uint64_t a_version, uint64_t a_since)
+static int s_esbocs_set_consensus_version_apply(dap_chain_t *a_chain, uint64_t a_version,
+                                               uint64_t a_height, uint64_t a_since)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
@@ -1719,20 +1746,99 @@ static int s_esbocs_set_consensus_version_apply(dap_chain_t *a_chain, uint64_t a
     if (a_version >= 2 && a_since
             && (!l_esbocs_pvt->consensus_version_since || a_since < l_esbocs_pvt->consensus_version_since))
         l_esbocs_pvt->consensus_version_since = a_since;
+    // Same one-way rule for the height boundary, and it is written before the
+    // version for the same reason as above: a verifier that sees version >= 2
+    // with a height still 0 would judge the whole chain strictly for that window.
+    if (a_version >= 2 && a_height
+            && (!l_esbocs_pvt->consensus_version_height || a_height < l_esbocs_pvt->consensus_version_height))
+        l_esbocs_pvt->consensus_version_height = a_height;
     if (a_version > l_esbocs_pvt->consensus_version)
         l_esbocs_pvt->consensus_version = a_version;
     pthread_rwlock_unlock(&l_esbocs_pvt->state_lock);
     log_it(L_NOTICE, "Consensus version decree applied on chain %s: version %"DAP_UINT64_FORMAT_U
-           " (strict era since ts %"DAP_UINT64_FORMAT_U")%s",
-           a_chain->name, a_version, l_esbocs_pvt->consensus_version_since,
+           " (strict era %s %"DAP_UINT64_FORMAT_U ")%s",
+           a_chain->name, a_version,
+           l_esbocs_pvt->consensus_version_height ? "from block" : "since ts",
+           l_esbocs_pvt->consensus_version_height ? l_esbocs_pvt->consensus_version_height
+                                                  : l_esbocs_pvt->consensus_version_since,
            a_version >= 2 ? ", committee metadata required, active-stake signers enforced" : "");
     return 0;
 }
 
-int dap_chain_esbocs_set_consensus_version(dap_chain_t *a_chain, uint64_t a_version, uint64_t a_decree_ts)
+int dap_chain_esbocs_set_consensus_version_at(dap_chain_t *a_chain, uint64_t a_version,
+                                              uint64_t a_activate_height, uint64_t a_decree_ts)
 {
     dap_return_val_if_fail(a_chain, -1);
-    return s_esbocs_set_consensus_version_apply(a_chain, a_version, a_decree_ts);
+    return s_esbocs_set_consensus_version_apply(a_chain, a_version, a_activate_height, a_decree_ts);
+}
+
+int dap_chain_esbocs_set_consensus_version(dap_chain_t *a_chain, uint64_t a_version, uint64_t a_decree_ts)
+{
+    // Decrees created before the height field existed keep the timestamp boundary.
+    return dap_chain_esbocs_set_consensus_version_at(a_chain, a_version, 0, a_decree_ts);
+}
+
+// Does the strict era bind at this block height? The single place every rule that
+// changes between the legacy (5.7) behaviour and the new one asks. A network that
+// declares itself legacy ([esbocs] legacy_5_7_mode) stays lenient until a decree
+// carries an activation HEIGHT - its timestamp boundary is ignored, because the
+// point of the mode is to wait for a coordinated switch.
+// [esbocs] legacy_5_7_mode, cached per chain: the era predicate runs for every
+// datum the replay rejects and for every block it verifies, and a config-tree walk
+// per call is not worth it. The config is static while the node runs.
+static bool s_esbocs_legacy_mode(dap_chain_t *a_chain)
+{
+    static dap_chain_t *s_flag_chain;
+    static bool s_flag_value;
+    if (s_flag_chain == a_chain)
+        return s_flag_value;
+    bool l_value = a_chain && a_chain->config
+            && dap_config_get_item_bool_default(a_chain->config, "esbocs", "legacy_5_7_mode", false);
+    s_flag_value = l_value;
+    s_flag_chain = a_chain;
+    return l_value;
+}
+
+uint64_t dap_chain_esbocs_get_consensus_version(dap_chain_t *a_chain)
+{
+    if (!a_chain || !a_chain->_inheritor)
+        return 0;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    if (!l_esbocs || !l_esbocs->_pvt)
+        return 0;
+    return PVT(l_esbocs)->consensus_version;
+}
+
+bool dap_chain_esbocs_new_rules_in_force_at(dap_chain_t *a_chain, uint64_t a_height)
+{
+    if (!a_chain || !a_chain->_inheritor)
+        return false;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    if (!l_esbocs || !l_esbocs->_pvt)
+        return false;
+    dap_chain_esbocs_pvt_t *l_pvt = PVT(l_esbocs);
+    bool l_legacy_mode = s_esbocs_legacy_mode(a_chain);
+    pthread_rwlock_rdlock(&l_pvt->state_lock);
+    uint64_t l_version = l_pvt->consensus_version;
+    uint64_t l_height = l_pvt->consensus_version_height;
+    uint64_t l_since = l_pvt->consensus_version_since;
+    pthread_rwlock_unlock(&l_pvt->state_lock);
+    if (l_version < 2)
+        return false;
+    if (l_height) {
+        // No block context (mempool, a zerochain event): judge against the current
+        // chain position, which is what a live node knew at that moment.
+        uint64_t l_at = a_height ? a_height : (uint64_t)a_chain->callback_count_atom(a_chain);
+        return l_at >= l_height;
+    }
+    if (l_legacy_mode)
+        return false;                       // waiting for a height-based decree
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_time_t l_now = (l_net && l_net->pub.ledger)
+            ? dap_ledger_get_blockchain_time(l_net->pub.ledger) : dap_time_now();
+    return !l_since || (uint64_t)l_now >= l_since;
 }
 
 static int s_esbocs_set_emergency_validator_apply(dap_chain_t *a_chain, bool a_add, uint32_t a_sign_type, dap_hash_fast_t *a_validator_hash)
@@ -4529,7 +4635,7 @@ static uint64_t s_get_precached_key_hash(dap_list_t **a_precached_keys_list, dap
     return 0;
 }
 
-static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size)
+static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, dap_hash_fast_t *a_block_hash, size_t a_block_size, uint64_t a_block_num)
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
@@ -4611,8 +4717,21 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     // Blocks older than the boundary replay with the lenient historical semantics: any
     // delegated stake (even deactivated) authorized a signer of that era.
     uint64_t l_block_ts = (uint64_t)a_block->hdr.ts_created;
-    bool l_strict_era = (l_esbocs_pvt->consensus_version >= 2
-                && (!l_esbocs_pvt->consensus_version_since || l_block_ts >= l_esbocs_pvt->consensus_version_since))
+    // A decree may carry an activation HEIGHT; it wins over the timestamp boundary
+    // because it binds at the same chain position on every node, while the decree's
+    // creation time judges blocks produced before the decree was even anchored.
+    // A network that declares itself legacy ([esbocs] legacy_5_7_mode) waits for the
+    // height: it ignores the timestamp boundary of a version decree entirely.
+    bool l_legacy_mode = s_esbocs_legacy_mode(a_blocks->chain);
+    bool l_strict_era = false;
+    if (l_esbocs_pvt->consensus_version >= 2) {
+        if (l_esbocs_pvt->consensus_version_height)
+            l_strict_era = a_block_num >= l_esbocs_pvt->consensus_version_height;
+        else if (!l_legacy_mode)
+            l_strict_era = !l_esbocs_pvt->consensus_version_since
+                    || l_block_ts >= l_esbocs_pvt->consensus_version_since;
+    }
+    l_strict_era = l_strict_era
             || (l_esbocs_pvt->require_signs_meta_since && l_block_ts >= l_esbocs_pvt->require_signs_meta_since);
     // In the strict era a block without the committee metadata is forbidden outright
     // (emergency blocks are exempt: they carry the EMERGENCY metadata by design)
@@ -4805,16 +4924,54 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_signs_check(dap_chain_net_t
     return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
-static dap_chain_datum_decree_t *s_esbocs_decree_set_consensus_version(dap_chain_net_t *a_net, dap_chain_t *a_chain,
-                                                                       uint64_t a_version, dap_cert_t *a_cert)
+// Mean block interval over the last a_span blocks, 0 when the chain has too little
+// history to measure it. A height scheduled from a time interval is only as good as
+// the cadence it is derived from, and the configured round timings are nominal.
+static uint64_t s_esbocs_block_interval_sec(dap_chain_t *a_chain, uint64_t a_span)
 {
-    size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint64_t);
+    uint64_t l_tip = 0;
+    dap_chain_hash_fast_t l_tip_hash = {};
+    if (!dap_chain_cs_blocks_get_tip(a_chain, &l_tip, &l_tip_hash) || l_tip <= 1)
+        return 0;
+    uint64_t l_span = a_span < l_tip - 1 ? a_span : l_tip - 1;
+    if (!l_span)
+        return 0;
+    dap_chain_hash_fast_t l_old_hash = {};
+    if (!dap_chain_cs_blocks_hash_by_num(a_chain, l_tip - l_span, &l_old_hash))
+        return 0;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_block_cache_t *l_tip_bc = dap_chain_block_cache_get_by_hash(l_blocks, &l_tip_hash);
+    dap_chain_block_cache_t *l_old_bc = dap_chain_block_cache_get_by_hash(l_blocks, &l_old_hash);
+    if (!l_tip_bc || !l_old_bc || !l_tip_bc->ts_created || l_tip_bc->ts_created <= l_old_bc->ts_created)
+        return 0;
+    uint64_t l_avg = (uint64_t)(l_tip_bc->ts_created - l_old_bc->ts_created) / l_span;
+    return l_avg ? l_avg : 1;
+}
+
+static dap_chain_datum_decree_t *s_esbocs_decree_set_consensus_version(dap_chain_net_t *a_net, dap_chain_t *a_chain,
+                                                                       uint64_t a_version, uint64_t a_activate_height,
+                                                                       uint64_t a_activate_ts, dap_cert_t *a_cert)
+{
+    size_t l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint64_t)
+            + (a_activate_height ? sizeof(dap_tsd_t) + sizeof(uint64_t) : 0);
     dap_chain_datum_decree_t *l_decree = dap_chain_datum_decree_new(a_net->pub.id, a_chain->id,
                                                                     *dap_chain_net_get_cur_cell(a_net), l_total_tsd_size);
     if (!l_decree)
         return NULL;
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_CONSENSUS_VERSION;
-    dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION, &a_version, sizeof(uint64_t));
+    // The datum's timestamp stays the compatibility boundary: builds that predate the
+    // height field compare blocks against it, so the creator sets it to the moment the
+    // activation height is expected to be reached.
+    if (a_activate_ts)
+        l_decree->header.ts_created = (dap_time_t)a_activate_ts;
+    dap_tsd_write(l_decree->data_n_signs, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION,
+                  &a_version, sizeof(uint64_t));
+    if (a_activate_height) {
+        dap_tsd_t *l_version_tsd = (dap_tsd_t *)l_decree->data_n_signs;
+        dap_tsd_write(l_decree->data_n_signs + dap_tsd_size(l_version_tsd),
+                      DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION_HEIGHT,
+                      &a_activate_height, sizeof(uint64_t));
+    }
     return dap_chain_datum_decree_sign_in_cycle(&a_cert, l_decree, 1, NULL);
 }
 
@@ -5051,11 +5208,79 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                 json_object_put(json_obj_out);
                 return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
             }
-            dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_consensus_version(l_chain_net, l_chain, l_version, l_poa_cert);
+            // Activation point. A height is required for the strict era: a decree
+            // without one keeps the legacy timestamp boundary, and the point of this
+            // command is a switch every node reaches at the same chain position.
+            // -activate_block: absolute height (must be ahead of the chain).
+            // -activate_in:    interval from now, converted through the measured
+            //                  block cadence (fallback: the configured round timings).
+            const char *l_block_str = NULL, *l_in_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-activate_block", &l_block_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-activate_in", &l_in_str);
+            if (!l_block_str && !l_in_str) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
+                                       "Command '%s' requires -activate_in <interval> or -activate_block <height>:"
+                                       " the strict era starts at a block, not at the decree's creation time",
+                                       l_subcmd_strs[l_subcmd]);
+                json_object_put(json_obj_out);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
+            }
+            uint64_t l_tip_num = 0;
+            dap_chain_hash_fast_t l_tip_hash = {};
+            dap_chain_cs_blocks_get_tip(l_chain, &l_tip_num, &l_tip_hash);
+            uint64_t l_activate_height = 0, l_activate_ts = 0, l_interval_sec = 0;
+            const char *l_interval_source = "measured";
+            if (l_block_str) {
+                l_activate_height = strtoull(l_block_str, NULL, 10);
+            } else {
+                l_interval_sec = dap_chain_datum_decree_parse_interval_sec(l_in_str);
+                if (!l_interval_sec) {
+                    dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
+                                           "Can't parse interval '%s' (use e.g. 90s, 30m, 36h, 7d)", l_in_str);
+                    json_object_put(json_obj_out);
+                    return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
+                }
+                uint64_t l_block_interval = s_esbocs_block_interval_sec(l_chain, 2000);
+                if (!l_block_interval) {
+                    uint16_t l_round_delay = dap_config_get_item_uint16_default(l_chain->config, "esbocs", "new_round_delay", 10);
+                    uint16_t l_attempt_timeout = dap_config_get_item_uint16_default(l_chain->config, "esbocs", "round_attempt_timeout", 10);
+                    l_block_interval = (uint64_t)(l_round_delay + l_attempt_timeout);
+                    l_interval_source = "config";
+                }
+                l_activate_height = l_tip_num + l_interval_sec / (l_block_interval ? l_block_interval : 1);
+                l_activate_ts = (uint64_t)dap_time_now() + l_interval_sec;
+            }
+            // A height that is not ahead of the chain would make the switch judge
+            // blocks already accepted with the lenient rules; the margin leaves room
+            // for the anchor to be included and for the nodes to pick the decree up.
+            if (l_activate_height < l_tip_num + 10) {
+                dap_json_rpc_error_add(*a_json_arr_reply, DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR,
+                                       "Activation block %" DAP_UINT64_FORMAT_U " must be at least 10 blocks ahead of"
+                                       " the chain height %" DAP_UINT64_FORMAT_U,
+                                       l_activate_height, l_tip_num);
+                json_object_put(json_obj_out);
+                return -DAP_CHAIN_NODE_CLI_COM_ESBOCS_CHECKING_ERR;
+            }
+            dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_consensus_version(l_chain_net, l_chain, l_version,
+                                                                                      l_activate_height, l_activate_ts, l_poa_cert);
             char *l_decree_hash_str = NULL;
             if (l_decree && (l_decree_hash_str = s_esbocs_decree_put(l_decree, l_chain_net))) {
                 json_object_object_add(json_obj_out, "Consensus version decree has been", json_object_new_string(l_version_str));
                 json_object_object_add(json_obj_out, "Decree hash", json_object_new_string(l_decree_hash_str));
+                json_object_object_add(json_obj_out, "Activation block",
+                                       json_object_new_uint64(l_activate_height));
+                if (l_interval_sec) {
+                    json_object_object_add(json_obj_out, "Interval sec", json_object_new_uint64(l_interval_sec));
+                    json_object_object_add(json_obj_out, "Block interval source",
+                                           json_object_new_string(l_interval_source));
+                    json_object_object_add(json_obj_out, "Activation ts",
+                                           json_object_new_uint64(l_activate_ts));
+                }
+                json_object_object_add(json_obj_out, "Notice",
+                                       json_object_new_string("anchor the decree before the activation block"));
+                log_it(L_NOTICE, "Consensus version %" DAP_UINT64_FORMAT_U " decree schedules the strict era at block %"
+                       DAP_UINT64_FORMAT_U " (chain height %" DAP_UINT64_FORMAT_U ", %s cadence)",
+                       l_version, l_activate_height, l_tip_num, l_interval_source);
                 json_object_array_add(*a_json_arr_reply, json_obj_out);
                 DAP_DEL_MULTY(l_decree, l_decree_hash_str);
             } else {
@@ -5072,6 +5297,10 @@ static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply, int a_ver
                                    json_object_new_string(l_esbocs_pvt->consensus_version >= 2 ? "enabled" : "not enabled"));
             json_object_object_add(json_obj_out, "Strict era since",
                                    json_object_new_uint64(l_esbocs_pvt->consensus_version_since));
+            json_object_object_add(json_obj_out, "Strict era from block",
+                                   json_object_new_uint64(l_esbocs_pvt->consensus_version_height));
+            json_object_object_add(json_obj_out, "Legacy 5.7 mode",
+                                   json_object_new_string(s_esbocs_legacy_mode(l_chain) ? "enabled" : "disabled"));
             json_object_array_add(*a_json_arr_reply, json_obj_out);
         }
     } break;

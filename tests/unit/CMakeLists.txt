@@ -312,3 +312,28 @@ set_tests_properties(replay_fail_class_unit PROPERTIES
     TIMEOUT 60
     LABELS "unit;ledger;replay;regression"
 )
+
+# Activation-interval parser for the consensus-version decree: the command turns
+# "switch in 7 days" into an activation block height, and a misparse would schedule
+# a consensus change at the wrong chain position (see esbocs_interval_unit_test.c).
+add_executable(esbocs_interval_unit_test
+    esbocs_interval_unit_test.c
+)
+
+target_include_directories(esbocs_interval_unit_test PRIVATE
+    ${CELLFRAME_TEST_INCLUDES}
+)
+
+target_link_libraries(esbocs_interval_unit_test
+    dap_test
+    dap_core
+    dap_crypto
+    dap_chain_common
+)
+
+add_test(NAME esbocs_interval_unit COMMAND esbocs_interval_unit_test)
+
+set_tests_properties(esbocs_interval_unit PROPERTIES
+    TIMEOUT 60
+    LABELS "unit;esbocs;consensus;regression"
+)

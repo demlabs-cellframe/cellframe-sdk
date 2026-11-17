@@ -3485,6 +3485,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
     assert(l_blocks_pvt);
     dap_chain_block_t * l_block = (dap_chain_block_t *)a_atom;
     dap_chain_hash_fast_t l_block_hash = *a_atom_hash;
+    // Height of the block being verified, taken from the predecessor it is about to
+    // follow: 1 for genesis, else the accepted block's number + 1. Passed to the
+    // consensus callback, whose rules may change at a chain position.
+    uint64_t l_verify_block_num = 0;
 
     if (sizeof(l_block->hdr) >= a_atom_size) {
         log_it(L_WARNING, "Size of block %s is %zd that is equal or less then block's header size %zd",
@@ -3555,6 +3559,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
 #else
         PVT(l_blocks)->genesis_block_hash = *a_atom_hash;
 #endif
+        l_verify_block_num = 1;
         ret = ATOM_ACCEPT;
     } else {
         dap_hash_t *l_prev_hash_meta_data = (dap_hash_t *)dap_chain_block_meta_get(l_block, a_atom_size, DAP_CHAIN_BLOCK_META_PREV);
@@ -3569,8 +3574,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
             log_it(L_DEBUG, "Verify new block with hash %s. Previous block hash is %s", dap_hash_fast_to_str_static(a_atom_hash), l_prev_block_hash_str);
         }
         dap_chain_block_cache_t *l_bcache_last = HASH_LAST(PVT(l_blocks)->blocks);
-        if (l_bcache_last && dap_hash_fast_compare(&l_bcache_last->block_hash, &l_block_prev_hash))
+        if (l_bcache_last && dap_hash_fast_compare(&l_bcache_last->block_hash, &l_block_prev_hash)) {
+            l_verify_block_num = l_bcache_last->block_number + 1;
             ret = ATOM_ACCEPT;
+        }
         else { // search block and previous block in forked branch
             s_blocks_rdlock(PVT(l_blocks));
             for (size_t i = 0; i < PVT(l_blocks)->forked_br_cnt; i++){
@@ -3594,6 +3601,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                     break;
                 } else {
                     debug_if(s_debug_more,L_DEBUG,"%s","Accept block to a forked branch.");
+                    l_verify_block_num = l_item->block_cache ? l_item->block_cache->block_number + 1 : 0;
                     ret = ATOM_ACCEPT;
                     break;
                 }
@@ -3615,6 +3623,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
                             break;
                         }
                         debug_if(s_debug_more,L_DEBUG,"%s","Accept block to a main branch.");
+                        l_verify_block_num = l_tmp->block_number + 1;
                         ret = ATOM_ACCEPT;
                         break;
                     }
@@ -3626,7 +3635,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t *a_chain, 
 
     if (ret == ATOM_FORK || ret == ATOM_ACCEPT) {
         // 2nd level consensus
-        if (l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size)) {
+        if (l_blocks->callback_block_verify && l_blocks->callback_block_verify(l_blocks, l_block, a_atom_hash, /* Old bug, crutch for it */ a_atom_size, l_verify_block_num)) {
             // Hard accept list
             struct cs_blocks_hal_item *l_hash_found = NULL;
             HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
@@ -4470,7 +4479,15 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     dap_time_t l_cur_time = dap_max(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
     if ( l_block_time > l_cur_time ) {
         dap_time_t l_time_diff = l_block_time - l_cur_time;
-        if (l_block_time >= DAP_REWARD_TIMEDIFF_CAP_SINCE) {
+        // The cap is one of the new rules: it binds only once the net's consensus
+        // era says so. Until then (and for every network that has not adopted a
+        // version decree) the historical uncapped rule applies, which is what the
+        // claims already in the chain expect. The release date stays as the fallback
+        // boundary for nets that run the strict rules without a decree.
+        bool l_cap = dap_chain_net_consensus_version(l_net) >= 2
+                ? dap_chain_net_new_rules_in_force(l_net, l_claimed_num)
+                : l_block_time >= DAP_REWARD_TIMEDIFF_CAP_SINCE;
+        if (l_cap) {
             dap_time_t l_time_diff_cap = s_block_timediff_unit_size * DAP_REWARD_TIMEDIFF_CAP_UNITS;
             if ( l_time_diff > l_time_diff_cap )
                 l_time_diff = l_time_diff_cap;

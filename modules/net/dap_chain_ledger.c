@@ -316,7 +316,7 @@ typedef struct dap_ledger_private {
 
 // Defined with the hard accept/reject lookups below; the HAL check further up
 // needs it to tell an entry written for this datum's chain from another chain's.
-static bool s_hal_item_in_scope(const dap_ledger_hal_item_t *a_item);
+static bool s_hal_item_in_scope(dap_ledger_t *a_ledger, const dap_ledger_hal_item_t *a_item);
 
 static void s_threshold_emissions_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
@@ -748,7 +748,7 @@ inline static dap_ledger_hal_item_t *s_check_hal(dap_ledger_t *a_ledger, dap_has
 {
     dap_ledger_hal_item_t *ret = NULL;
     HASH_FIND(hh, PVT(a_ledger)->hal_items, a_hal_hash, sizeof(dap_hash_fast_t), ret);
-    if (ret && !s_hal_item_in_scope(ret))
+    if (ret && !s_hal_item_in_scope(a_ledger, ret))
         ret = NULL;         // listed for another chain: not a hit here
     if (ret)
         // A HAL hit bypasses signature/value checks for this exact hash: operators
@@ -788,24 +788,30 @@ uint64_t dap_ledger_hal_scope_get(void)
 // A list entry applies when it was written for the datum's own chain, or when
 // there is no chain context at all. The tables are a handful of entries, so the
 // walk costs nothing next to the hash lookup it replaces.
-static bool s_hal_item_in_scope(const dap_ledger_hal_item_t *a_item)
+static bool s_hal_item_in_scope(dap_ledger_t *a_ledger, const dap_ledger_hal_item_t *a_item)
 {
+    // The lists are configured per chain and mean "this datum does not belong to
+    // THAT chain". Honouring the scope is one of the new rules: the legacy era
+    // treated every list of the net as global, which is what the entries in the
+    // existing configs were written against.
+    if (!a_ledger || !dap_chain_net_new_rules_in_force(a_ledger->net, dap_chain_net_replay_block_num()))
+        return true;
     if (!t_hal_scope_chain_id || !a_item->chain_id)
         return true;
     return a_item->chain_id == t_hal_scope_chain_id;
 }
 
-static bool s_hal_contains(dap_ledger_hal_item_t *a_items, const dap_hash_fast_t *a_hash)
+static bool s_hal_contains(dap_ledger_t *a_ledger, dap_ledger_hal_item_t *a_items, const dap_hash_fast_t *a_hash)
 {
     for (dap_ledger_hal_item_t *l_it = a_items; l_it; l_it = (dap_ledger_hal_item_t *)l_it->hh.next) {
-        if (dap_hash_fast_compare(&l_it->hash, a_hash) && s_hal_item_in_scope(l_it))
+        if (dap_hash_fast_compare(&l_it->hash, a_hash) && s_hal_item_in_scope(a_ledger, l_it))
             return true;
     }
     return false;
 }
 
 bool dap_ledger_datum_is_blacklisted(dap_ledger_t *a_ledger, dap_hash_fast_t a_hash) {
-    bool l_hit = s_hal_contains(PVT(a_ledger)->hrl_items, &a_hash);
+    bool l_hit = s_hal_contains(a_ledger, PVT(a_ledger)->hrl_items, &a_hash);
     debug_if(s_debug_more && l_hit, L_MSG, "Datum %s is blacklisted", dap_hash_fast_to_str_static(&a_hash));
     return l_hit;
 }

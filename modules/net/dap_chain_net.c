@@ -4094,6 +4094,34 @@ DAP_INLINE bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
     return PVT(a_net)->state == NET_STATE_LOADING;
 }
 
+// The net's consensus chain: the ESBOCS one. A net without ESBOCS has no legacy
+// era concept at all, so the new rules apply there unconditionally.
+static dap_chain_t *s_net_esbocs_chain(dap_chain_net_t *a_net)
+{
+    if (!a_net)
+        return NULL;
+    for (dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next) {
+        const char *l_cs = dap_chain_get_cs_type(l_chain);
+        if (l_cs && !dap_strcmp(l_cs, "esbocs"))
+            return l_chain;
+    }
+    return NULL;
+}
+
+bool dap_chain_net_new_rules_in_force(dap_chain_net_t *a_net, uint64_t a_block_num)
+{
+    dap_chain_t *l_chain = s_net_esbocs_chain(a_net);
+    if (!l_chain)
+        return true;
+    return dap_chain_esbocs_new_rules_in_force_at(l_chain, a_block_num);
+}
+
+uint64_t dap_chain_net_consensus_version(dap_chain_net_t *a_net)
+{
+    dap_chain_t *l_chain = s_net_esbocs_chain(a_net);
+    return l_chain ? dap_chain_esbocs_get_consensus_version(l_chain) : 0;
+}
+
 bool dap_chain_net_is_replay(dap_chain_net_t * a_net)
 {
     if (!a_net)

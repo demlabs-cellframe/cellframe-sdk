@@ -479,3 +479,32 @@ dap_chain_datum_decree_t *dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_ce
         *a_total_sign_count = l_total_sign_count;
     return a_datum_decree;
 }
+
+// "30m", "36h", "7d", "90s", "1w" or a bare number of seconds.
+uint64_t dap_chain_datum_decree_parse_interval_sec(const char *a_str)
+{
+    if (!a_str || !*a_str)
+        return 0;
+    // No sign and no leading space: a negative or "+7" spelling is a typo, not an
+    // interval, and strtoull would happily wrap the minus into a huge number.
+    if (*a_str < '0' || *a_str > '9')
+        return 0;
+    char *l_end = NULL;
+    unsigned long long l_value = strtoull(a_str, &l_end, 10);
+    if (l_end == a_str || !l_value)
+        return 0;
+    // Anything after the optional unit is garbage ("7dd", "7 d").
+    if (*l_end && *(l_end + 1))
+        return 0;
+    uint64_t l_mult = 1;
+    switch (*l_end) {
+    case '\0': break;
+    case 's': case 'S': l_mult = 1; break;
+    case 'm': case 'M': l_mult = 60; break;
+    case 'h': case 'H': l_mult = 3600; break;
+    case 'd': case 'D': l_mult = 86400; break;
+    case 'w': case 'W': l_mult = 604800; break;
+    default: return 0;
+    }
+    return (uint64_t)l_value * l_mult;
+}

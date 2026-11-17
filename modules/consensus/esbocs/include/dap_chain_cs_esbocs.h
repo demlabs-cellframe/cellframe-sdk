@@ -347,6 +347,29 @@ int dap_chain_esbocs_set_signs_struct_check(dap_chain_t *a_chain, bool a_enable)
  * @return 0 on success
  */
 int dap_chain_esbocs_set_consensus_version(dap_chain_t *a_chain, uint64_t a_version, uint64_t a_decree_ts);
+/**
+ * @brief Apply a consensus-version decree with a block-height activation.
+ *
+ * @param a_activate_height Block at which the decree's rules begin to bind; 0 keeps
+ *        the timestamp boundary of the legacy decrees.
+ * @param a_decree_ts ts_created of the decree datum (fallback boundary, and the
+ *        value older builds compare against).
+ */
+int dap_chain_esbocs_set_consensus_version_at(dap_chain_t *a_chain, uint64_t a_version,
+                                              uint64_t a_activate_height, uint64_t a_decree_ts);
+/**
+ * @brief Does the strict (new-rules) era bind at this block height?
+ *
+ * The single predicate for every rule that differs between the legacy 5.7
+ * behaviour and the new one. Honours, in order: a block-height boundary from a
+ * decree, the legacy-mode config switch ([esbocs] legacy_5_7_mode, which makes the
+ * node ignore timestamp boundaries and wait for a height one), and finally the
+ * timestamp boundary of pre-height decrees. @p a_height = 0 means "no block
+ * context" (mempool, zerochain event): the current chain position is used.
+ */
+bool dap_chain_esbocs_new_rules_in_force_at(dap_chain_t *a_chain, uint64_t a_height);
+/** @brief Applied consensus version (0/1 = no version decree yet). */
+uint64_t dap_chain_esbocs_get_consensus_version(dap_chain_t *a_chain);
 
 void dap_chain_esbocs_change_debug_mode(dap_chain_t *a_chain, bool a_enable);
 

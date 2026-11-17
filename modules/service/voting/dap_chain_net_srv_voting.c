@@ -31,6 +31,7 @@
 #include <pthread.h>
 
 #include "dap_chain_net_srv_voting.h"
+#include "dap_chain_net.h"     // dap_chain_net_new_rules_in_force, replay block number
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
@@ -1003,7 +1004,14 @@ static int s_vote_verificator(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a
     // invalid: the vote transaction is rejected as a verificator failure and
     // everything spending its result goes with it - on Backbone that subtree held the
     // CPUNK/QEVM distributions. A rule must not judge what the network already agreed on.
-    if (l_vote_tx_item->answer_idx > dap_list_length(l_voting->voting_params.option_offsets_list)) {
+    // The legacy era accepted the slot past the last answer (the tally reserves it);
+    // the new rules accept only the answers themselves. Which one binds is decided
+    // by the net's consensus era at this vote's block.
+    size_t l_options_count = dap_list_length(l_voting->voting_params.option_offsets_list);
+    bool l_new_rules = dap_chain_net_new_rules_in_force(a_ledger->net, dap_chain_net_replay_block_num());
+    bool l_index_invalid = l_new_rules ? (l_vote_tx_item->answer_idx >= l_options_count)
+                                       : (l_vote_tx_item->answer_idx > l_options_count);
+    if (l_index_invalid) {
         log_it(L_WARNING, "Invalid vote option index %" DAP_UINT64_FORMAT_U " for vote tx %s "
                "(poll %s has %zu option(s))", l_vote_tx_item->answer_idx,
                dap_chain_hash_fast_to_str_static(a_tx_hash),

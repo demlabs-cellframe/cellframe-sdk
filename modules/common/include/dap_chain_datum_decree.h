@@ -104,6 +104,21 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE                      0x010E 
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD             0x0118
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION             0x0120
+// Optional companion of the consensus-version TSD: the block height at which the
+// decree's rules begin to bind. A consensus rule change has to take effect at a
+// chain position every node reaches at the same moment - a timestamp taken when
+// the decree was created judges blocks produced before it was even anchored.
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION_HEIGHT      0x0121
+
+/**
+ * @brief Parse an operator interval into seconds: "90s", "30m", "36h", "7d", "1w"
+ *        or a bare number of seconds. Returns 0 for anything unparsable.
+ *
+ * Decree parameters that schedule a change ("activate the new rules in a week")
+ * need the interval converted to a chain position; the conversion to a height
+ * happens where the chain is at hand, the parsing lives here with the datum.
+ */
+uint64_t dap_chain_datum_decree_parse_interval_sec(const char *a_str);
 
 #ifdef __cplusplus
 extern "C" {
@@ -243,6 +258,10 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_POLICY_EXECUTE";
     case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD:
          return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_BLOCKGEN_PERIOD";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION:
+         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION";
+    case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION_HEIGHT:
+         return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_CONSENSUS_VERSION_HEIGHT";
     default:
         return "DECREE_TSD_TYPE_UNKNOWN";
     }

@@ -306,6 +306,19 @@ bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 // checks and the like) must key off THIS accessor - and every such guard
 // carries a regression test proving it still rejects in ONLINE mode.
 bool dap_chain_net_is_replay(dap_chain_net_t * a_net);
+/**
+ * @brief Do the new consensus rules bind at this block height?
+ *
+ * The single question every rule that differs between the legacy 5.7 behaviour and
+ * the new one asks (reward gap cap, vote answer index, per-chain HAL/HRL scope,
+ * ESBOCS strict era). Honours a block-height boundary from a consensus-version
+ * decree, the [esbocs] legacy_5_7_mode switch and, as the last resort, the decree's
+ * timestamp boundary. A net without an ESBOCS chain has no legacy era: true.
+ * @param a_block_num height of the datum's block, 0 = no block context (mempool)
+ */
+bool dap_chain_net_new_rules_in_force(dap_chain_net_t *a_net, uint64_t a_block_num);
+/** @brief Applied consensus version of the net's ESBOCS chain (0 = no decree). */
+uint64_t dap_chain_net_consensus_version(dap_chain_net_t *a_net);
 
 // Saves the ledger snapshot of every net (graceful shutdown). Idempotent.
 void dap_chain_net_snapshot_save_all(void);
