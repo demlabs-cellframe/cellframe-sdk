@@ -3940,12 +3940,25 @@ static int s_datum_add_scoped(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, 
     //
     // The list must also not re-judge a datum the ledger already holds (the cache load
     // re-walks the snapshot zone and would report a false -100 for an effect that is
-    // already there).
+    // already there), and it must not re-judge a transaction the chain already carries.
+    // The entries are written when a problem is already known, often years after the
+    // datum was anchored: the one for block 5073 appeared in February 2025 for a datum
+    // in a 2023 block that every running node had applied and never re-examined. A
+    // replay that judges it again loses the whole descendant tree - 18 442 "previous
+    // transaction not found" rejections on Backbone, the CPUNK/QEVM consolidation among
+    // them - and ends up with money the network has long since moved away.
+    //
+    // A DECREE is the exception and stays in force always: rejecting it is a consensus
+    // decision that the network took when it was offered (the MIN_VALIDATORS decree of
+    // 2024 is on this list precisely so that history with its own committee sizes stays
+    // valid), so replaying it back in would rewrite the rules the chain ran under.
     int l_datum_type = a_datum->header.type_id;
     bool l_datum_already_known =
             (l_datum_type == DAP_CHAIN_DATUM_TX && dap_ledger_tx_is_known(l_ledger, a_datum_hash))
             || (l_datum_type == DAP_CHAIN_DATUM_TOKEN && s_token_datum_is_known(a_datum_hash));
-    if ( !l_datum_already_known && dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) ) {
+    bool l_rejudge_datum = !dap_chain_net_replay_in_loader()
+            || l_datum_type == DAP_CHAIN_DATUM_DECREE;
+    if ( l_rejudge_datum && !l_datum_already_known && dap_ledger_datum_is_blacklisted(l_ledger, *a_datum_hash) ) {
         // The reject list is configuration every node runs: a datum it blocks is
         // absent for the whole network, so the transactions spending its outputs
         // inherit a shared verdict - not a loss of this ledger. Recorded here so the
