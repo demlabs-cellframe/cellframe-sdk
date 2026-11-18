@@ -8430,18 +8430,22 @@ static int s_tx_cache_check(dap_ledger_t *a_ledger,
     }
 
     // Check for transaction consistency (sum(ins) == sum(outs))
-    if ( !l_err_num && !s_check_hal_or_replay(a_ledger, a_tx_hash) ) {
-        // Equality of the ticker COUNT is a 2025 addition. Before it, only the
-        // tickers the inputs carry were compared, so a transaction paying out an
-        // extra ticker passed. History holds such transactions (Backbone block 5073
-        // is one) and every node applied them at the time; a node that replays with
-        // the count check rejects the transaction and, with it, everything spending
-        // its outputs - 18 442 "previous transaction not found" rejections on
-        // Backbone, the CPUNK/QEVM distribution among them. So the count check is
-        // one of the new rules: the strict era enforces it, the legacy era keeps the
-        // rule the block was produced under (the loop below, over the input tickers).
-        bool l_strict_sums = dap_chain_net_new_rules_in_force(a_ledger->net, dap_chain_net_replay_block_num());
-        if ( l_strict_sums && HASH_COUNT(l_values_from_prev_tx) != HASH_COUNT(l_values_from_cur_tx) ) {
+    //
+    // The check itself dates from November 2023 (feature-9808): blocks produced before
+    // it never passed it, and the network applied them as valid. Backbone block 5073 is
+    // one of those - its sibling transactions carry the CPUNK/QEVM consolidation - and a
+    // replay that holds it to today's rule rejects the transaction and, with it,
+    // everything spending its outputs (18 442 "previous transaction not found"
+    // rejections). So the whole check is one of the new rules: a replay of earlier blocks
+    // keeps the rule those blocks were produced under, while the strict era enforces it.
+    // Outside a replay - a block from a peer, a mempool submission - it always binds,
+    // because that is the consensus this node enforces now.
+    bool l_sums_check = !dap_chain_net_replay_in_loader()
+            || dap_chain_net_new_rules_in_force(a_ledger->net, dap_chain_net_replay_block_num());
+    if ( !l_err_num && l_sums_check && !s_check_hal_or_replay(a_ledger, a_tx_hash) ) {
+        // Equality of the ticker COUNT is a 2025 addition on top of the same check: the
+        // strict era enforces it too, since it comes with the rule above.
+        if ( HASH_COUNT(l_values_from_prev_tx) != HASH_COUNT(l_values_from_cur_tx) ) {
             log_it(L_ERROR, "[%s] Token tickers IN and OUT mismatch: %u != %u",
                             dap_chain_hash_fast_to_str_static(a_tx_hash),
                             HASH_COUNT(l_values_from_prev_tx), HASH_COUNT(l_values_from_cur_tx));
